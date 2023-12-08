@@ -1,4 +1,4 @@
-from .data_ops import (DateTimeTp, DateTimeVal, IntVal, JsonTp, StrTp, StrVal,
+from .data_ops import (DateTimeVal, IntVal, StrVal,
                        Tp, Val, JsonVal)
 
 

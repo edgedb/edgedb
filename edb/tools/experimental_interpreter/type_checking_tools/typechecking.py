@@ -11,18 +11,19 @@ from ..data import path_factor as path_factor
 from .dml_checking import *
 from ..data import expr_to_str as pp
 from .function_checking import *
+from .name_resolution import *
 
 
 def synthesize_type_for_val(val: e.Val) -> e.Tp:
     match val:
         case e.StrVal(_):
-            return e.StrTp()
+            return e.ScalarTp(e.QualifiedName(["std", "str"]))
         case e.IntVal(_):
-            return e.IntTp()
+            return e.ScalarTp(e.QualifiedName(["std", "int64"]))
         case e.IntInfVal():
-            return e.IntInfTp()
+            raise ValueError("Cannot synthesize type for IntInfVal")
         case e.BoolVal(_):
-            return e.BoolTp()
+            return e.ScalarTp(e.QualifiedName(["std", "bool"]))
         case _:
             raise ValueError("Not implemented", val)
 
@@ -524,6 +525,28 @@ def check_type(ctx: e.TcCtx, expr: e.Expr, tp: e.ResultTp) -> e.Expr:
     return expr_ck
     
 
+def check_type_valid(ctx: e.TcCtx | e.DBSchema, tp : e.Tp) -> e.Tp:
+    """
+    Check that a raw schema type is a valid type.
+    Returns the checked valid type.
+    """
+    match tp:
+        case e.UncheckedTypeName(name=name):
+            resolved_name, resolved_tp = mops.resolve_raw_name_and_type_def(ctx, name)
+            match resolved_tp:
+                case e.ScalarTp(_):
+                    return resolved_tp
+                case e.ObjectTp(_):
+                    return e.NamedNominalLinkTp(name=resolved_name, linkprop=e.ObjectTp({}))
+                case _:
+                    raise ValueError("Not Implemented", resolved_tp)
+        case e.AnyTp(_):
+            return tp
+        case e.CompositeTp(kind=kind, tps=tps):
+            return e.CompositeTp(kind=kind, tps=[check_type_valid(ctx, t) for t in tps])
+        case _:
+            raise ValueError("Not Implemented", tp)
+
 def check_object_tp_comp_validity(
         dbschema: e.DBSchema,
         current_module_name: Tuple[str, ...],
@@ -532,11 +555,17 @@ def check_object_tp_comp_validity(
         tp_comp_card: e.CMMode) -> e.Tp:
     root_ctx = eops.emtpy_tcctx_from_dbschema(dbschema, current_module_name)
     match tp_comp:
+        case e.UncheckedTypeName(name):
+            return check_type_valid(root_ctx, tp_comp)
         case e.NamedNominalLinkTp(name=name, linkprop=l_prop):
             if isinstance(name, e.UnqualifiedName):
                 name_ck = mops.resolve_simple_name(root_ctx, name)
             else:
                 name_ck = name
+            resolved_tp = mops.try_resolve_type_name(root_ctx, name_ck)
+            if not isinstance(resolved_tp, e.ObjectTp):
+                raise ValueError("Scalar type cannot carry link props", tp_comp)
+            # name_ck = check_type_valid(root_ctx, name)
             return e.NamedNominalLinkTp(
                     name=name_ck,
                     linkprop=check_object_tp_validity(
@@ -590,6 +619,7 @@ def check_object_tp_comp_validity(
             if not isinstance(c_expr, e.BindingExpr):  # type: ignore
                 raise ValueError(
                     "Computable type must be a binding expression")
+            c_tp_ck = check_type_valid(root_ctx, c_tp)
             new_ctx, c_body, bnd_var = eops.tcctx_add_binding(
                 root_ctx,
                 c_expr,  # type: ignore
@@ -603,12 +633,12 @@ def check_object_tp_comp_validity(
                 #     tops.assert_real_subtype(new_ctx, synth_tp.tp,
                 #                              c_tp_subject)
                 # case _:
-            tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp)
+            tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp_ck)
             return e.DefaultTp(
                 expr=eops.abstract_over_expr(c_body_ck, bnd_var),
-                tp=c_tp)
+                tp=c_tp_ck)
         case _:
-            return tp_comp
+            raise ValueError("Not Implemented", tp_comp)
 
 
 def check_object_tp_validity(dbschema: e.DBSchema,

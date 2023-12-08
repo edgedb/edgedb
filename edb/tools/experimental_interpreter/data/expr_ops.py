@@ -42,8 +42,7 @@ def map_tp(
             return map_tp(f, expr)
 
         match tp:
-            case (e.IntTp() | e.BoolTp() | e.StrTp() | e.IntInfTp()
-                  | e.AnyTp() ):
+            case (e.ScalarTp() | e.AnyTp() ):
                 return tp
             case e.ObjectTp(val=val):
                 return e.ObjectTp(val={k: e.ResultTp(recur(v), card)
@@ -71,6 +70,8 @@ def map_tp(
                 return e.ComputableTp(expr=expr, tp=recur(tp))
             case e.DefaultTp(expr=expr, tp=tp):
                 return e.DefaultTp(expr=expr, tp=recur(tp))
+            case e.UncheckedTypeName(name=name):
+                return tp
             case _:
                 raise ValueError("Not Implemented", tp)
 
@@ -640,7 +641,7 @@ def tcctx_add_binding(ctx: e.TcCtx,
     return new_ctx, after_e, bnd_e.var
 
 
-def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema, current_module_name: Tuple[str, ...]) -> e.TcCtx:
+def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema, current_module_name: Tuple[str, ...] = ("std", )) -> e.TcCtx:
     return e.TcCtx(
         schema=dbschema,
         current_module=current_module_name,

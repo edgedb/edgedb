@@ -35,16 +35,12 @@ def show_tp(tp: e.Tp) -> str:
             return ('{' + ', '.join(lbl + ": " + show_tp(md_tp.tp)
                                     + show_cmmode(md_tp.mode)
                     for lbl, md_tp in tp_val.items()) + '}')
-        case e.IntTp():
-            return 'int'
-        case e.IntInfTp():
-            return 'intinf'
-        case e.BoolTp():
-            return 'bool'
-        case e.StrTp():
-            return 'str'
+        case e.ScalarTp(name):
+            return show_qname(name)
+        case e.UncheckedTypeName(name):
+            return "unchecked_name(" + show_raw_name(name) + ")"
         case e.CompositeTp(kind=kind, tps=tps):
-            return f'{kind}<{",".join(show_tp(tp) for tp in tps)}>'
+            return f'{kind.value}<{",".join(show_tp(tp) for tp in tps)}>'
         case e.NamedTupleTp(val=tp_val):
             return ('prod(' + ', '.join(
                 f'{lbl}: {show_tp(md_tp)}'
@@ -181,13 +177,43 @@ def show_expr(expr: e.Expr) -> str:
         case _:
             raise ValueError('Unimplemented', expr)
 
+def show_arg_mod(mod: e.ParamModifier) -> str:
+    match mod:
+        case e.ParamSingleton():
+            return "1"
+        case e.ParamOptional():
+            return "?"
+        case e.ParamSetOf():
+            return "*"
+        case _:
+            raise ValueError('Unimplemented', mod)
+
+def show_arg_ret_type(tp: e.FunArgRetType) -> str:
+    return ("[" + 
+            (", ".join(show_tp(arg_tp) + "^" + show_arg_mod(mod) 
+                       for arg_tp, mod in 
+                       zip(tp.args_tp, tp.args_mod)))
+            + "]" + " -> " + show_result_tp(tp.ret_tp))
+
+def show_func_def(funcdef: e.FuncDef) -> str:
+    tp = funcdef.tp.args_ret_types
+    if len(tp) == 1:
+        return show_arg_ret_type(tp[0])
+    elif len(tp) > 1:
+        return show_arg_ret_type(tp[0]) + " ..."
+    else:
+        raise ValueError('Unimplemented', funcdef)
+
+
+
+
 
 def show_me(me: e.ModuleEntity) -> str:
     match me:
         case e.ModuleEntityTypeDef(typedef=typedef):
             return show_tp(typedef)
         case e.ModuleEntityFuncDef(funcdef=funcdef):
-            return "<func>"
+            return show_func_def(funcdef)
         case _:
             raise ValueError('Unimplemented', me)
 
@@ -199,9 +225,9 @@ def show_module_name(name: Tuple[str, ...]) -> str:
     return "::".join(name)
 
 def show_schema(dbschema: e.DBSchema) -> str:
-    return ("\n".join(show_module_name(name) + " := " + show_module(module) 
-                      for name, module in dbschema.modules.items())
-            + "\n".join(show_module_name(name) + " := " + show_module(module)
+    return ("Checked Modules:" + "\n".join(show_module_name(name) + " := { " + show_module(module) + " } "
+                      for name, module in dbschema.modules.items() ) + "\nUnchecked Modules:\n"
+            + "\n".join(show_module_name(name) + " := { " + show_module(module) + " } "
                         for name, module in dbschema.unchecked_modules.items()))
 
 
@@ -243,3 +269,13 @@ def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
             return "{" + ", ".join(show_val(el) for el in arr) + "}"
         case _:
             raise ValueError('Unimplemented', val)
+        
+def show_ctx(ctx: e.TcCtx) -> str:
+    return (
+        "Schema:" + "\n" +
+        show_schema(ctx.schema) + "\n" +
+        "Current Module: " + show_module_name(ctx.current_module) + "\n" +
+        "VarCtx:" + "\n" +
+        ("\n".join(name + " : " + show_result_tp(r_tp)
+                   for name, r_tp in ctx.varctx.items())) + "\n" 
+    )

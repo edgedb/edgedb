@@ -61,36 +61,43 @@ def resolve_func_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.Fun
         raise ValueError(f"Function {name} not found")
 
 
-def try_resolve_simple_name(ctx: e.TcCtx, unq_name: e.UnqualifiedName) -> Optional[e.QualifiedName]:
+def try_resolve_simple_name(ctx: e.TcCtx | e.DBSchema, unq_name: e.UnqualifiedName) -> Optional[e.QualifiedName]:
     """
     Resolve the name (may refer to a type or a function) in this order:
     1. Current module
     2. The default `std` module
     """
     name = unq_name.name
-    current_module = resolve_module_in_schema(ctx.schema, ctx.current_module)
-    if name in current_module.defs:
-        return e.QualifiedName([*ctx.current_module, name])
+
+    if isinstance(ctx, e.TcCtx):
+        current_module = resolve_module_in_schema(ctx.schema, ctx.current_module)
+        if name in current_module.defs:
+            return e.QualifiedName([*ctx.current_module, name])
+
+    if isinstance(ctx, e.TcCtx):
+        schema = ctx.schema
+    else:
+        schema = ctx
     
     for default_scope in default_open_scopes:
-        std_module = resolve_module_in_schema(ctx.schema, default_scope)
+        std_module = resolve_module_in_schema(schema, default_scope)
         if name in std_module.defs:
             return e.QualifiedName([*default_scope, name])
     return None
 
-def resolve_simple_name(ctx: e.TcCtx, unq_name: e.UnqualifiedName) -> e.QualifiedName:
+def resolve_simple_name(ctx: e.TcCtx | e.DBSchema, unq_name: e.UnqualifiedName) -> e.QualifiedName:
     name = try_resolve_simple_name(ctx, unq_name)
     if name is not None:
         return name
     else:
         raise ValueError(f"Name {name} not found")
 
-def resolve_raw_name_and_type_def(ctx: e.TcCtx, name: e.QualifiedName | e.UnqualifiedName) -> Tuple[e.QualifiedName, e.ObjectTp | e.ScalarTp]:
+def resolve_raw_name_and_type_def(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName | e.UnqualifiedName) -> Tuple[e.QualifiedName, e.ObjectTp | e.ScalarTp]:
     if isinstance(name, e.UnqualifiedName):
         name = resolve_simple_name(ctx, name)
     return (name, resolve_type_name(ctx, name))
 
-def resolve_raw_name_and_func_def(ctx: e.TcCtx, name: e.QualifiedName | e.UnqualifiedName) -> Tuple[e.QualifiedName, e.FuncDef]:
+def resolve_raw_name_and_func_def(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName | e.UnqualifiedName) -> Tuple[e.QualifiedName, e.FuncDef]:
     if isinstance(name, e.UnqualifiedName):
         name = resolve_simple_name(ctx, name)
     return (name, resolve_func_name(ctx, name))

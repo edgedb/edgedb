@@ -8,6 +8,7 @@ from .. import elaboration as elab
 from ..basis.server_funcs import get_default_func_impl_for_function
 from edb.edgeql import qltypes as qltypes
 from .. import elab_schema as elab_schema
+from ..type_checking_tools import typechecking as tck
 
 from edb.common import debug
 
@@ -35,15 +36,18 @@ def process_fun_def(schema: e.DBSchema,
                         name = param_name,
                         type = param_type,
                         typemod = modifier):
-                        param_type_ck = elab.elab_TypeName(param_type)
+                        param_type_raw = elab.elab_TypeName(param_type)
+                        param_type_ck = tck.check_type_valid(schema, param_type_raw)
                         params_ck.append(param_type_ck)
                         params_mod_ck.append(elab.elab_param_modifier(modifier))
                     case _:
                         raise ValueError("TODO", param)
+            result_tp_raw = elab.elab_TypeName(ret_tp)
+            result_tp_ck = tck.check_type_valid(schema, result_tp_raw)
             func_type = e.FunArgRetType(
                 args_tp= params_ck,
                 args_mod= params_mod_ck,
-                ret_tp= e.ResultTp(elab.elab_TypeName(ret_tp), return_cad))
+                ret_tp= e.ResultTp(result_tp_ck, return_cad))
             assert "::" not in module_name, "TODO"
             if name in schema.modules[(module_name, )].defs:
                 current_def = schema.modules[(module_name, )].defs[fun_name]
@@ -66,7 +70,7 @@ def process_ddl(
     """
     Process a single DDL operation.
     """
-    debug.dump_edgeql(ddl)
+    # debug.dump_edgeql(ddl)
     match ddl:
         case qlast.CreateModule(
             name=qlast.ObjectRef(name=module_name), 
@@ -94,9 +98,8 @@ def process_ddl(
             for base_tp in bases:
                 base_elabed = elab.elab_TypeName(base_tp)
                 match base_elabed:
-                    case e.NamedNominalLinkTp(
-                        name=e.QualifiedName(_), linkprop=e.ObjectTp({})
-                            ):
+                    # for bare ddl, we assume qualified type name is actually checked
+                    case e.UncheckedTypeName(name=e.QualifiedName(_)):
                         schema.subtyping_relations[e.QualifiedName([module_name, type_name])].append(base_elabed.name)
                     case e.AnyTp(spec):
                         # choice: make anytype live in std

@@ -37,44 +37,45 @@ class ObjectTp:
 
 @dataclass(frozen=True)
 class ScalarTp:
-    kind: QualifiedName
+    name: QualifiedName
 
 
-@dataclass(frozen=True)
-class StrTp:
-    pass
+# @dataclass(frozen=True)
+# class StrTp:
+#     pass
 
 
-@dataclass(frozen=True)
-class BoolTp:
-    pass
+# @dataclass(frozen=True)
+# class BoolTp:
+#     pass
 
 
-@dataclass(frozen=True)
-class IntTp:
-    pass
+# @dataclass(frozen=True)
+# class IntTp:
+#     pass
 
 
-@dataclass(frozen=True)
-class IntInfTp:
-    pass
+# @dataclass(frozen=True)
+# class IntInfTp:
+#     pass
 
 
-@dataclass(frozen=True)
-class DateTimeTp:
-    pass
+# @dataclass(frozen=True)
+# class DateTimeTp:
+#     pass
 
 
-@dataclass(frozen=True)
-class JsonTp:
-    pass
+# @dataclass(frozen=True)
+# class JsonTp:
+#     pass
 
-@dataclass(frozen=True)
-class UuidTp:
-    pass
+# @dataclass(frozen=True)
+# class UuidTp:
+#     pass
 
 
-PrimTp = StrTp | IntTp | IntInfTp | BoolTp | DateTimeTp | JsonTp | UuidTp | ScalarTp
+# PrimTp = StrTp | IntTp | IntInfTp | BoolTp | DateTimeTp | JsonTp | UuidTp |
+# ScalarTp
 
 
 # @dataclass(frozen=True)
@@ -125,6 +126,10 @@ class IntersectTp:
 class NamedNominalLinkTp:
     name: RawName
     linkprop: ObjectTp
+    
+@dataclass(frozen=True)
+class UncheckedTypeName:
+    name: RawName
 
 # @dataclass(frozen=True)
 # class UncheckedNamedNominalLinkTp:
@@ -173,7 +178,7 @@ class SomeTp:
 #     resolution: Optional[Tp] = None
 
 
-Tp = (ObjectTp | PrimTp | NamedNominalLinkTp  | NominalLinkTp
+Tp = (ObjectTp | NamedNominalLinkTp  | NominalLinkTp | ScalarTp | UncheckedTypeName
       | NamedTupleTp | UnnamedTupleTp
       | CompositeTp | AnyTp | SomeTp | UnionTp | IntersectTp 
     #   | UnifiableTp

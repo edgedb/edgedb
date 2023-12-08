@@ -10,17 +10,17 @@ from edb.edgeql import qltypes as qltypes
 from edb.schema import pointers as s_pointers
 from edb.schema.pointers import PointerDirection
 
-from .basis.built_ins import all_builtin_funcs, all_std_funcs
+# from .basis.built_ins import all_builtin_funcs, all_std_funcs
 from .data import data_ops as e
 from .data.data_ops import (
     ArrExpr, ArrTp, BackLinkExpr, BindingExpr, BoolVal, BoundVarExpr,
-    DateTimeTp, DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
+     DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
     FunAppExpr,  IndirectionIndexOp, IndirectionSliceOp,
-    InsertExpr, IntInfVal, IntTp, IntVal, JsonTp, Label, LinkPropLabel,
+    InsertExpr, IntInfVal,  IntVal,  Label, LinkPropLabel,
     LinkPropProjExpr, MultiSetExpr, NamedTupleExpr,
     ObjectProjExpr, OffsetLimitExpr, OptionalForExpr, OrderAscending,
     OrderDescending, OrderLabelSep, ShapedExprExpr, ShapeExpr, StrLabel,
-    StrTp, StrVal, SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
+     StrVal, SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
     UnionExpr, UnionTp, UnnamedTupleExpr, UpdateExpr, WithExpr,
     next_name)
 from .data.expr_ops import (abstract_over_expr, instantiate_expr, is_path,
@@ -28,7 +28,7 @@ from .data.expr_ops import (abstract_over_expr, instantiate_expr, is_path,
 from .data import expr_ops as eops
 # from .shape_ops import shape_to_expr
 
-DEFAULT_HEAD_NAME = "__no_clash_head_subject__"
+DEFAULT_HEAD_NAME = "___nchsxx_"
 # used as the name for the leading dot notation!
 # will always disappear when elaboration finishes
 
@@ -334,16 +334,16 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
 def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
     if fcall.window or fcall.kwargs:
         return elab_not_implemented(fcall)
-    if type(fcall.func) is not str:
+    if type(fcall.func) is str:
+        fname = e.UnqualifiedName(fcall.func)
+    else:
         assert type(fcall.func) is tuple
         fname = e.QualifiedName(list(fcall.func))
-    else:
-        fname = (e.UnqualifiedName(fcall.func)
-                if fcall.func in all_builtin_funcs.keys()
-                else e.QualifiedName(["std", fcall.func])
-                if ( fcall.func) in all_std_funcs.keys()
-                else elab_error("unknown function name: " +
-                                fcall.func, fcall.context))
+            # #     if fcall.func in all_builtin_funcs.keys()
+            #     e.QualifiedName(["std", fcall.func])
+            #     if ( fcall.func) in all_std_funcs.keys()
+            #     else elab_error("unknown function name: " +
+            #                     fcall.func, fcall.context))
     args = [elab(arg) for arg in fcall.args]
     return FunAppExpr(fname, None, args)
 
@@ -367,12 +367,12 @@ def elab_BinOp(binop: qlast.BinOp) -> FunAppExpr | UnionExpr:
     if binop.op == "UNION":
         return UnionExpr(left_expr, right_expr)
     else:
-        if binop.op in all_builtin_funcs.keys():
-            return FunAppExpr(
-                fun=e.UnqualifiedName(binop.op), args=[left_expr, right_expr],
-                overloading_index=None)
-        else:
-            raise ValueError("Unknown Op Name", binop.op)
+        # if binop.op in all_builtin_funcs.keys():
+        return FunAppExpr(
+            fun=e.UnqualifiedName(binop.op), args=[left_expr, right_expr],
+            overloading_index=None)
+        # else:
+        #     raise ValueError("Unknown Op Name", binop.op)
 
 
 def elab_param_modifier(mod: qltypes.TypeModifier) -> e.ParamModifier:
@@ -403,9 +403,9 @@ def elab_single_type_str(name: str, module_name: Optional[str]) -> Tp:
             else:
                 if module_name:
                     assert "::" not in module_name
-                    return e.NamedNominalLinkTp(e.QualifiedName([module_name, name]), e.ObjectTp({}))
+                    return e.UncheckedTypeName(e.QualifiedName([module_name, name]))
                 else:
-                    return e.NamedNominalLinkTp(e.UnqualifiedName(name), e.ObjectTp({}))
+                    return e.UncheckedTypeName(e.UnqualifiedName(name))
 
 
 @elab.register(qlast.TypeName)

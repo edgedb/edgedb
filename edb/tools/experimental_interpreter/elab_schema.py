@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast, List
 
 from edb.edgeql import ast as qlast
 
-from .basis.built_ins import all_builtin_funcs
+# from .basis.built_ins import all_builtin_funcs
 from .data.data_ops import (CMMode, DBSchema,  ObjectTp,
                             ResultTp, Tp)
 from .elaboration import elab_single_type_expr, elab_expr_with_default_head
@@ -31,19 +31,22 @@ def elab_schema_target_tp(
             else elab_schema_error(target))
 
 def construct_final_schema_target_tp(base : Tp, linkprops: Dict[str, ResultTp]) -> Tp:
-    match base:
-        case e.UnionTp(tp1, tp2):
-            return e.UnionTp(construct_final_schema_target_tp(tp1, linkprops), 
-                             construct_final_schema_target_tp(tp2, linkprops))
-        case e.QualifiedName(name):
-            return e.NamedNominalLinkTp(name=base, linkprop=ObjectTp(linkprops))
-        case e.NamedNominalLinkTp(name=name, linkprop=e.ObjectTp({})):
-            return e.NamedNominalLinkTp(name=name, linkprop=ObjectTp(linkprops))
-        case _:
-            if linkprops:
-                raise ValueError("cannot construct schema target type", base, linkprops)
-            else:
-                return base
+    if linkprops:
+        match base:
+            case e.UnionTp(tp1, tp2):
+                return e.UnionTp(construct_final_schema_target_tp(tp1, linkprops), 
+                                construct_final_schema_target_tp(tp2, linkprops))
+            case e.UncheckedTypeName(e.QualifiedName(name)):
+                return e.NamedNominalLinkTp(name=e.QualifiedName(name), linkprop=ObjectTp(linkprops))
+            case e.UncheckedTypeName(e.UnqualifiedName(name)):
+                return e.NamedNominalLinkTp(name=e.UnqualifiedName(name), linkprop=ObjectTp(linkprops))
+            case _:
+                if linkprops:
+                    raise ValueError("cannot construct schema target type", base, linkprops)
+                else:
+                    return base
+    else:
+        return base
             
 def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> ObjectTp:
     object_tp_content: Dict[str, ResultTp] = {}

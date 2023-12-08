@@ -4,16 +4,16 @@ from typing import Any, List, Optional, Sequence, cast, Dict
 from edb.edgeql import ast as qlast
 from edb.schema.pointers import PointerDirection
 
-from .basis.built_ins import all_builtin_ops
-from .data.data_ops import (ArrExpr, BackLinkExpr, BoolVal, DateTimeTp,
+# from .basis.built_ins import all_builtin_ops
+from .data.data_ops import (ArrExpr, BackLinkExpr, BoolVal,
                             DetachedExpr, Expr, FilterOrderExpr, ForExpr,
                             FreeVarExpr, FunAppExpr, InsertExpr,
-                            IntVal, JsonTp, Label, LinkPropLabel,
+                            IntVal, Label, LinkPropLabel,
                             LinkPropProjExpr, MultiSetExpr, NamedTupleExpr,
                             ObjectProjExpr, ObjectVal,
                             OffsetLimitExpr, OptionalForExpr, OrderAscending,
                             OrderDescending, OrderLabelSep, RefVal,
-                            ShapedExprExpr, ShapeExpr, StrLabel, StrTp, StrVal,
+                            ShapedExprExpr, ShapeExpr, StrLabel,  StrVal,
                             SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
                             UnionExpr, UnnamedTupleExpr, UpdateExpr, Val,
                             WithExpr, )

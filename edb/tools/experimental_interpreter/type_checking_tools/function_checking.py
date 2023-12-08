@@ -9,6 +9,8 @@ from typing import List, Tuple, Dict, Optional
 # from itertools import *
 from functools import reduce
 import operator
+from edb.common import debug
+from ..data import expr_to_str as pp
 
 
 def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunArgRetType) -> Optional[e.Tp]: # Returns the result Tp if matches

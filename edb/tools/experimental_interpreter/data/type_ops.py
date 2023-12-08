@@ -5,6 +5,7 @@ from . import data_ops as e
 from . import expr_ops as eops
 from typing import List, Dict, Tuple, Optional, Callable
 from . import module_ops as mops
+from ..data import expr_to_str as pp
 
 def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
     # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
@@ -84,11 +85,7 @@ def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
     Subtrees are checked for equality using the recurse function, to account for possible unifications.
     """
     if tp_is_primitive(tp1) and tp_is_primitive(tp2):
-        match tp1, tp2:
-            case e.IntTp(), e.IntInfTp():
-                return True
-            case _:
-                return tp1 == tp2 
+        return tp1 == tp2 
     else:
         match tp1, tp2:
             case _, e.AnyTp():
@@ -252,11 +249,7 @@ def get_storage_tp(fmt : e.ObjectTp) -> e.ObjectTp:
 
 def tp_is_primitive(tp: e.Tp) -> bool:
     match tp:
-        case (e.IntTp()
-              | e.StrTp()
-              | e.BoolTp()
-              | e.IntInfTp()
-              | e.UuidTp()
+        case (e.ScalarTp(_)
               ):
             return True
         case (e.ObjectTp(_)
@@ -266,7 +259,6 @@ def tp_is_primitive(tp: e.Tp) -> bool:
               | e.NominalLinkTp(_)
             #   | e.VarTp(_)
               | e.UnnamedTupleTp(_)
-              | e.ArrTp(_)
               | e.AnyTp()
               ):
             return False

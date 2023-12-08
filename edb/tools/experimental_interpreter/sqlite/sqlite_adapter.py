@@ -7,7 +7,7 @@ from ..db_interface import EdgeID
 
 from ..data.data_ops import *
 from typing import *
-from ..basis.built_ins import all_builtin_funcs
+# from ..basis.built_ins import all_builtin_funcs
 from ..db_interface import EdgeDatabaseInterface
 from ..elab_schema import add_module_from_sdl_file, add_module_from_sdl_defs
 

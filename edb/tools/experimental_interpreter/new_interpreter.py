@@ -12,7 +12,7 @@ from edb.edgeql import ast as qlast
 
 from .type_checking_tools import typechecking as tc
 from .back_to_ql import reverse_elab
-from .basis.built_ins import all_builtin_funcs
+# from .basis.built_ins import all_builtin_funcs
 from .data import data_ops as e
 from .data import expr_ops as eops
 from .data.data_ops import DB, DBSchema, MultiSetVal, ResultTp
