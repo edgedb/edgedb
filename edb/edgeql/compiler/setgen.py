@@ -405,6 +405,20 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         context=ptr_expr.context,
                     )
 
+                # The backend can't really handle @source/@target
+                # outside of the singleton mode compiler, and they
+                # aren't really particularly useful outside that
+                # anyway, so disallow them.
+                if (
+                    ptr_expr.name in ('source', 'target')
+                    and ctx.env.options.schema_object_context
+                    not in (s_constr.Constraint, s_indexes.Index)
+                ):
+                    raise errors.QueryError(
+                        f'@{ptr_expr.name} may only be used in index and '
+                        'constraint definitions',
+                        context=step.context)
+
                 if isinstance(path_tip.rptr.ptrref,
                               irast.TypeIntersectionPointerRef):
                     ind_prefix, ptrs = typegen.collapse_type_intersection_rptr(
