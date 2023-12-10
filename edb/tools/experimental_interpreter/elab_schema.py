@@ -10,6 +10,8 @@ from .elaboration import elab_single_type_expr, elab_expr_with_default_head
 from .helper_funcs import parse_sdl
 from .data import data_ops as e
 from .type_checking_tools import schema_checking  as tck
+from edb.common import debug
+from .interpreter_logging import print_warning
 
 def elab_schema_error(obj: Any) -> Any:
     raise ValueError(obj)
@@ -40,6 +42,8 @@ def construct_final_schema_target_tp(base : Tp, linkprops: Dict[str, ResultTp]) 
                 return e.NamedNominalLinkTp(name=e.QualifiedName(name), linkprop=ObjectTp(linkprops))
             case e.UncheckedTypeName(e.UnqualifiedName(name)):
                 return e.NamedNominalLinkTp(name=e.UnqualifiedName(name), linkprop=ObjectTp(linkprops))
+            case e.OverloadedTargetTp(linkprop=None):
+                return e.OverloadedTargetTp(linkprop=ObjectTp(linkprops))
             case _:
                 if linkprops:
                     raise ValueError("cannot construct schema target type", base, linkprops)
@@ -58,7 +62,13 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> ObjectTp:
                     target=ptarget,
                     is_required=p_is_required,
                     cardinality=p_cardinality,
+                    declared_overloaded=declared_overloaded,
                     commands=pcommands):
+                if ptarget is None:
+                    if declared_overloaded:
+                        base_target_type = e.OverloadedTargetTp(linkprop=None)
+                    else:
+                        raise ValueError("expecting target")
                 if isinstance(ptarget, qlast.TypeExpr):
                     base_target_type = elab_schema_target_tp(
                         ptarget)
@@ -67,7 +77,7 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> ObjectTp:
                         elab_expr_with_default_head(ptarget)
                     )
                 else:
-                    print(
+                    print_warning(
                         "WARNING: not implemented ptarget",
                         ptarget)
                 link_property_tps: Dict[str, ResultTp] = {}
@@ -142,7 +152,7 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> ObjectTp:
                                             pl_cardinality
                                             ))}
                         case qlast.CreateConcreteConstraint():
-                            print("WARNING: not implemented pcmd"
+                            print_warning("WARNING: not implemented pcmd"
                                     " (constraint)", pcmd)
                         case qlast.SetField(
                                 name=set_field_name,
@@ -186,12 +196,12 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> ObjectTp:
                                 is_required=p_is_required,
                                 cardinality=p_cardinality))}
             case _:
-                print("WARNING: not implemented cmd", cmd)
+                print_warning("WARNING: not implemented cmd", cmd)
                 # debug.dump(cmd)
     return ObjectTp(val=object_tp_content)
 
 
-def elab_schema(sdef: qlast.Schema) -> Tuple[Tuple[str, ...],e.DBModule]:
+def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
     if (len(sdef.declarations) != 1
             or sdef.declarations[0].name.name != "default"):
         raise ValueError(
@@ -200,7 +210,8 @@ def elab_schema(sdef: qlast.Schema) -> Tuple[Tuple[str, ...],e.DBModule]:
         Sequence[qlast.ModuleDeclaration],
         sdef.declarations)[0].declarations
 
-    type_defs: Dict[str, e.ModuleEntityTypeDef] = {}
+    type_defs: Dict[str, e.ModuleEntityTypeDef | e.ModuleEntityFuncDef] = {}
+    existing.unchecked_modules[("default", )] = e.DBModule(type_defs)
     for t_decl in types_decls:
         match t_decl:
             case qlast.CreateObjectType(bases=_,
@@ -208,21 +219,39 @@ def elab_schema(sdef: qlast.Schema) -> Tuple[Tuple[str, ...],e.DBModule]:
                                         name=qlast.ObjectRef(name=name),
                                         abstract=abstract):
                 obj_tp = elab_create_object_tp(commands)
-                type_defs = {**type_defs,
-                             name: e.ModuleEntityTypeDef(obj_tp, is_abstract=abstract)}
+                assert name not in type_defs
+                type_defs[name] = e.ModuleEntityTypeDef(obj_tp, is_abstract=abstract)
+            case qlast.CreateScalarType(
+                name=qlast.ObjectRef(name=name, module=None),
+                bases=bases,
+                abstract=abstract,
+            ):
+                base_tps = [elab_single_type_expr(base) for base in bases]
+                base_tps_ck : List[e.QualifiedName] = []
+                for base_tp in base_tps:
+                    ck = tck.check_type_valid(existing, base_tp)
+                    match ck:
+                        case e.ScalarTp(e.QualifiedName(base_tp_name)):
+                            base_tps_ck.append(e.QualifiedName(base_tp_name))
+                        case _:
+                            raise ValueError("TODO", ck)
+                this_name = e.QualifiedName(["default", name])
+                existing.subtyping_relations[this_name] = base_tps_ck
+                assert name not in type_defs
+                type_defs[name] = e.ModuleEntityTypeDef(e.ScalarTp(this_name), is_abstract=abstract)
             case _:
-                print("WARNING: not implemented t_decl", t_decl)
+                print_warning("WARNING: not implemented t_decl", t_decl)
 
-    module_defs : Dict[str, e.ModuleEntity]= {k: v for k, v in type_defs.items() if k in type_defs}
-    return (("default",), e.DBModule(module_defs))
+    # module_defs : Dict[str, e.ModuleEntity]= {k: v for k, v in type_defs.items() if k in type_defs}
+    # return (("default",), e.DBModule(module_defs))
+    return ("default",)
 
 
 def add_module_from_sdl_defs(
         schema: e.DBSchema,
         module_defs: str,
                          ) -> e.DBSchema:
-    name, unchecked_module = elab_schema(parse_sdl(module_defs))
-    schema.unchecked_modules[name] = unchecked_module
+    name = elab_schema(schema, parse_sdl(module_defs))
     checked_schema = tck.check_module_validity(schema, name)
     return checked_schema
 

@@ -415,21 +415,26 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
             assert len(setup) <= 1, "expecting optional single setup"
 
             if len(setup) == 1:
-                (init_sdl, init_ql) = setup[0][2]
-                if sqlite_file_name := os.environ.get('EDGEDB_INTERPRETER_USE_SQLITE'):
-                    if not sqlite_file_name.endswith(".sqlite"):
-                        sqlite_file_name = ":memory:"
+                try:
+                    (init_sdl, init_ql) = setup[0][2]
+                    if sqlite_file_name := os.environ.get('EDGEDB_INTERPRETER_USE_SQLITE'):
+                        if not sqlite_file_name.endswith(".sqlite"):
+                            sqlite_file_name = ":memory:"
+                        else:
+                            # always start with a clean db for tests
+                            if os.path.exists(sqlite_file_name):
+                                os.remove(sqlite_file_name)
+                        dbschema, db = (
+                            model.dbschema_and_db_with_initial_schema_and_queries(
+                                            init_sdl, init_ql, sqlite_file_name))
                     else:
-                        # always start with a clean db for tests
-                        if os.path.exists(sqlite_file_name):
-                            os.remove(sqlite_file_name)
-                    dbschema, db = (
-                        model.dbschema_and_db_with_initial_schema_and_queries(
-                                        init_sdl, init_ql, sqlite_file_name))
-                else:
-                    dbschema, db = (
-                        model.dbschema_and_db_with_initial_schema_and_queries(
-                                        init_sdl, init_ql))
+                        dbschema, db = (
+                            model.dbschema_and_db_with_initial_schema_and_queries(
+                                            init_sdl, init_ql))
+                except (ValueError, Exception)  as e:
+                    print("ERROR: Test Case Setup Failed:", e)
+                    raise e
+
             else:
                 dbschema = model.empty_dbschema()
                 db = model.empty_db(dbschema)

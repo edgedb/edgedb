@@ -168,6 +168,10 @@ class ComputableTp:
 class UncheckedComputableTp:
     expr: BindingExpr
 
+@dataclass(frozen=True)
+class OverloadedTargetTp:
+    """ place holder for a overloaded type"""
+    linkprop : Optional[ObjectTp] # overloaded or additional link props
 
 @dataclass(frozen=True)
 class DefaultTp:
@@ -194,7 +198,7 @@ class SomeTp:
 
 Tp = (ObjectTp | NamedNominalLinkTp  | NominalLinkTp | ScalarTp | UncheckedTypeName
       | NamedTupleTp 
-      | CompositeTp | AnyTp | SomeTp | UnionTp | IntersectTp 
+      | CompositeTp | AnyTp | SomeTp | UnionTp | IntersectTp  | OverloadedTargetTp
     #   | UnifiableTp
       | ComputableTp | DefaultTp | UncheckedComputableTp 
     #   | UncheckedNamedNominalLinkTp

@@ -13,14 +13,14 @@ from ..data import expr_to_str as pp
 from .function_checking import *
 from . import name_resolution as name_res
 from .typechecking import *
+from . import module_check_tools as mck
+from . import inheritance_populate as inheritance_populate
 
 def check_object_tp_comp_validity(
-        dbschema: e.DBSchema,
-        current_module_name: Tuple[str, ...],
+        root_ctx: e.TcCtx,
         subject_tp: e.Tp,
         tp_comp: e.Tp,
         tp_comp_card: e.CMMode) -> e.Tp:
-    root_ctx = eops.emtpy_tcctx_from_dbschema(dbschema, current_module_name)
     match tp_comp:
         case e.UncheckedTypeName(name):
             return check_type_valid(root_ctx, tp_comp)
@@ -36,8 +36,7 @@ def check_object_tp_comp_validity(
             return e.NamedNominalLinkTp(
                     name=name_ck,
                     linkprop=check_object_tp_validity(
-                        dbschema=dbschema,
-                        current_module_name=current_module_name,
+                        root_ctx=root_ctx,
                         subject_tp=tops.get_runtime_tp(tp_comp),
                         obj_tp=l_prop))
         case e.NominalLinkTp(subject=l_sub, name=name, linkprop=l_prop):
@@ -45,8 +44,7 @@ def check_object_tp_comp_validity(
                     subject=l_sub,
                     name=name,
                     linkprop=check_object_tp_validity(
-                        dbschema=dbschema,
-                        current_module_name=current_module_name,
+                        root_ctx=root_ctx,
                         subject_tp=tops.get_runtime_tp(tp_comp),
                         obj_tp=l_prop))
         case e.UncheckedComputableTp(expr=c_expr):
@@ -110,16 +108,14 @@ def check_object_tp_comp_validity(
             raise ValueError("Not Implemented", tp_comp)
 
 
-def check_object_tp_validity(dbschema: e.DBSchema,
-                             current_module_name: Tuple[str, ...],
+def check_object_tp_validity(root_ctx: e.TcCtx,
                              subject_tp: e.Tp,
                              obj_tp: e.ObjectTp) -> e.ObjectTp:
     result_vals: Dict[str, e.ResultTp] = {}
     for lbl, (t_comp_tp, t_comp_card) in obj_tp.val.items():
         result_vals[lbl] = e.ResultTp(
             check_object_tp_comp_validity(
-                dbschema=dbschema,
-                current_module_name=current_module_name,
+                root_ctx=root_ctx,
                 subject_tp=subject_tp,
                 tp_comp=t_comp_tp,
                 tp_comp_card=t_comp_card), t_comp_card)
@@ -133,21 +129,26 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
     """
     result_vals: Dict[str, e.ModuleEntity] = {}
     name_res.module_name_resolve(dbschema, module_name)
-    dbmodule = dbschema.unchecked_modules[module_name]
-    for t_name, t_me in dbmodule.defs.items():
-        match t_me:
-            case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract):
-                assert isinstance(typedef, e.ObjectTp), "Scalar type definitions not supported"
-                result_vals = {
-                    **result_vals, 
-                    t_name: e.ModuleEntityTypeDef(typedef=
-                        check_object_tp_validity(
-                            dbschema, 
-                            module_name,
-                            e.NamedNominalLinkTp(name=e.QualifiedName([*module_name,t_name]), linkprop=e.ObjectTp({})),
-                            typedef), is_abstract=is_abstract)}
-            case _:
-                raise ValueError("Unimplemented", t_me)
+    inheritance_populate.module_inheritance_populate(dbschema, module_name)
+    # dbmodule = dbschema.unchecked_modules[module_name]
+    mck.unchecked_module_map(dbschema, module_name, check_object_tp_comp_validity)
+    # for t_name, t_me in dbmodule.defs.items():
+    #     match t_me:
+    #         case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract):
+    #             if isinstance(typedef, e.ObjectTp):
+    #                 result_vals = {
+    #                     **result_vals, 
+    #                     t_name: e.ModuleEntityTypeDef(typedef=
+    #                         check_object_tp_validity(
+    #                             dbschema, 
+    #                             module_name,
+    #                             e.NamedNominalLinkTp(name=e.QualifiedName([*module_name,t_name]), linkprop=e.ObjectTp({})),
+    #                             typedef), is_abstract=is_abstract)}
+    #             else:
+    #                 assert isinstance(typedef, e.ScalarTp)
+    #                 result_vals = {**result_vals, t_name: t_me}
+    #         case _:
+    #             raise ValueError("Unimplemented", t_me)
     result_dbmodule = e.DBModule(result_vals)
     dbschema.modules[module_name] = result_dbmodule
     del dbschema.unchecked_modules[module_name]

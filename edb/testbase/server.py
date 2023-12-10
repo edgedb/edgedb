@@ -170,7 +170,11 @@ class TestCaseMeta(type(unittest.TestCase)):
             if (hasattr(self, "use_experimental_interpreter") and
                     self.use_experimental_interpreter):
                 # assume we're using the exprimental interpreter
-                loop = asyncio.get_event_loop()
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
                 task = loop.create_task(__meth__(self, *args, **kwargs))
                 loop.run_until_complete(task)
                 return

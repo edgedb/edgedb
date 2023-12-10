@@ -343,7 +343,7 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                             e.UuidTp(), tp.mode
                         )
                     else:
-                        raise ValueError("Label not found")
+                        raise ValueError("Label not found", lbl, tp_obj.keys())
                 case e.NamedTupleTp(val=tp_tuple):
                     if lbl in tp_tuple.keys():
                         result_base_tp = tp_tuple[lbl]

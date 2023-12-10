@@ -5,6 +5,7 @@ from ..data import type_ops as tops
 from ..data import path_factor as pops
 from ..data import expr_to_str as pp
 from ..data import module_ops as mops
+from ..interpreter_logging import print_warning
 from typing import List, Tuple, Dict, Optional
 # from itertools import *
 from functools import reduce
@@ -68,7 +69,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                         ok_candidates.append((i, result_tp))
                 
                 if len(ok_candidates) > 1 :
-                    print("WARNING: Ambiguous overloading", pp.show_qname(qualified_fname),
+                    print_warning("WARNING: Ambiguous overloading", pp.show_qname(qualified_fname),
                           "picking the first one")
                     ok_candidates = ok_candidates[0:1]
 

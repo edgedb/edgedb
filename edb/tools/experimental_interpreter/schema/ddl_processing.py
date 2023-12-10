@@ -10,6 +10,7 @@ from ..basis.server_funcs import get_default_func_impl_for_function
 from edb.edgeql import qltypes as qltypes
 from .. import elab_schema as elab_schema
 from ..type_checking_tools import typechecking as tck
+from ..interpreter_logging import print_warning
 
 from edb.common import debug
 
@@ -107,8 +108,7 @@ def process_ddl(
             | qlast.CreateAnnotation()
             | qlast.AlterAnnotation()
         ):
-            print("WARNING: not supported yet", ddl)
-            print("WARNING: not supported yet", ddl)
+            print_warning("WARNING: not supported yet", ddl)
         case qlast.CreateScalarType(
             name=qlast.ObjectRef(
                 module=module_name, name=type_name), 
@@ -130,7 +130,7 @@ def process_ddl(
                         # choice: make anytype live in std
                         schema.subtyping_relations[e.QualifiedName([module_name, type_name])].append(e.QualifiedName(["std", "any"+spec]))
                     case e.CompositeTp(kind=e.CompositeTpKind.Enum, tps=_):
-                        print("WARNING: behavior of extending enum types undefined", base_elabed)
+                        print_warning("WARNING: behavior of extending enum types undefined", base_elabed)
                     case _:
                         raise ValueError("Must inherit from single name", base_elabed)
         case qlast.CreateOperator(
@@ -170,11 +170,11 @@ def process_ddl(
             #     case _:
             #         raise ValueError("TODO", from_tp, to_tp)
         case qlast.CreateConstraint():
-            print("WARNING: not supported yet", ddl)
+            print_warning("WARNING: not supported yet", ddl)
         case qlast.CreateProperty():
-            print("WARNING: not supported yet", ddl)
+            print_warning("WARNING: not supported yet", ddl)
         case qlast.CreateLink():
-            print("WARNING: not supported yet", ddl)
+            print_warning("WARNING: not supported yet", ddl)
         
         case qlast.CreateObjectType(bases=_,
                     commands=commands,
