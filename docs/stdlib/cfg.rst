@@ -117,6 +117,8 @@ Query behavior
       done.
 
 
+.. _ref_std_cfg_client_connections:
+
 Client connections
 ------------------
 
