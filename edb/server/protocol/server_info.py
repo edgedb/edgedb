@@ -20,6 +20,7 @@
 import dataclasses
 import http
 import json
+import uuid
 
 import immutables
 
@@ -46,6 +47,8 @@ class ImmutableEncoder(json.JSONEncoder):
             return obj.to_str()
         if isinstance(obj, statypes.CompositeType):
             return obj.to_json_value()
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
         return super().default(obj)
 
 

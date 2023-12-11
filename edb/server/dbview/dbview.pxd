@@ -85,7 +85,6 @@ cdef class Database:
 
         readonly str name
         readonly object schema_version
-        readonly object dbver
         readonly object db_config
         readonly bytes user_schema_pickle
         readonly object reflection_cache
@@ -95,7 +94,7 @@ cdef class Database:
     cdef schedule_config_update(self)
 
     cdef _invalidate_caches(self)
-    cdef _cache_compiled_query(self, key, compiled, int dbver)
+    cdef _cache_compiled_query(self, key, compiled, schema_version)
     cdef _new_view(self, query_cache, protocol_version)
     cdef _remove_view(self, view)
     cdef _update_backend_ids(self, new_types)
@@ -121,7 +120,7 @@ cdef class DatabaseConnectionView:
         object _protocol_version
 
         object _db_config_temp
-        object _db_config_dbver
+        object _db_config_schema_version
 
         # State properties
         object _config
@@ -148,7 +147,6 @@ cdef class DatabaseConnectionView:
         object _in_tx_user_config_spec
         object _in_tx_global_schema_pickle
         object _in_tx_new_types
-        int _in_tx_dbver
         bint _in_tx
         bint _in_tx_with_ddl
         bint _in_tx_with_sysconfig
@@ -175,7 +173,7 @@ cdef class DatabaseConnectionView:
     cpdef in_tx_error(self)
 
     cdef cache_compiled_query(
-        self, object key, object query_unit_group, int dbver
+        self, object key, object query_unit_group, schema_version
     )
     cdef lookup_compiled_query(self, object key)
 
