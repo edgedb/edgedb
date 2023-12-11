@@ -597,7 +597,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 def resolve_name(
     name: qlast.ObjectRef, *, ctx: context.ContextLevel
 ) -> Tuple[Optional[irast.Set], s_types.Type]:
-    
+
     view_set = None
     stype = None
     if not name.module:
@@ -605,7 +605,7 @@ def resolve_name(
         if view_set:
             stype = get_set_type(view_set, ctx=ctx)
             return (view_set, stype)
-    
+
     stype = schemactx.get_schema_type(
         name,
         condition=lambda o: (
