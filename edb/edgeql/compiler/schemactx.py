@@ -44,7 +44,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from . import context
-from . import setgen
 
 
 def get_schema_object(
@@ -118,16 +117,6 @@ def _get_partial_path_prefix_type(
 
     _, type = typeutils.ir_typeref_to_type(ctx.env.schema, ppp.typeref)
     return type
-
-
-def _get_type_variant(
-    name: sn.Name,
-    ctx: context.ContextLevel,
-) -> Optional[s_obj.Object]:
-    if view_set := ctx.aliased_views.get(name):
-        return setgen.get_set_type(view_set, ctx=ctx)
-    else:
-        return None
 
 
 def get_schema_type(
