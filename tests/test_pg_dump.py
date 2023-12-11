@@ -113,12 +113,12 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 id,
                 num,
                 _single_link := .single_link {
-                    source := @source.id,
+                    source := E.id,
                     lp0 := @lp0,
                     target := .id,
                 },
                 _multi_link := .multi_link {
-                    source := @source.id,
+                    source := E.id,
                     lp1 := @lp1,
                     target := .id,
                 },
@@ -328,7 +328,7 @@ class TestPGDump03(tb.StablePGDumpTestCase):
                 id,
                 `Ł🤞`,
                 `_Ł💯` := .`Ł💯` {
-                    source := @source.id,
+                    source := Łukasz.id,
                     `🙀🚀🚀🚀🙀` := @`🙀🚀🚀🚀🙀`,
                     `🙀مرحبا🙀` := @`🙀مرحبا🙀`,
                     target := .id,

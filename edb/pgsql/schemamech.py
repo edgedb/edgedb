@@ -325,11 +325,7 @@ def compile_constraint(
         assert isinstance(sub, (s_types.Type, s_pointers.Pointer))
         origin_subject: s_types.Type | s_pointers.Pointer = sub
 
-        origin_path_prefix_anchor = (
-            qlast.Subject().name
-            if isinstance(origin_subject, s_types.Type)
-            else None
-        )
+        origin_path_prefix_anchor = qlast.Subject().name
         singletons = frozenset({(origin_subject, is_optional)})
 
         origin_options = qlcompiler.CompilerOptions(
