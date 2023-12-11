@@ -3058,7 +3058,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_introspect_bad_02(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'cannot introspect transient type variant'):
+                r"type 'A' does not exist"):
             await self.assert_query_result(
                 r"""
                     WITH A := (SELECT schema::Type { foo := 'bar' })
