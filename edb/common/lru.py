@@ -41,14 +41,20 @@ class LRUMapping(collections.abc.MutableMapping):
     # So new entries and hits are always promoted to the end of the
     # entries dict, whereas the unused one will group in the
     # beginning of it.
+    #
+    # The default behavior is to maintain `max_size` on the fly as new entries
+    # are inserted into the mapping, unless `lazy` is set to `True` when the
+    # caller is responsible for calling `gc()` and iterate over the evicted
+    # entries.
 
-    def __init__(self, *, maxsize):
+    def __init__(self, *, maxsize: int, lazy: bool = False):
         if maxsize <= 0:
             raise ValueError(
                 f'maxsize is expected to be greater than 0, got {maxsize}')
 
         self._dict = collections.OrderedDict()
         self._maxsize = maxsize
+        self._lazy = lazy
 
     def __getitem__(self, key):
         o = self._dict[key]
@@ -61,7 +67,7 @@ class LRUMapping(collections.abc.MutableMapping):
             self._dict.move_to_end(key, last=True)
         else:
             self._dict[key] = o
-            if len(self._dict) > self._maxsize:
+            if len(self._dict) > self._maxsize and not self._lazy:
                 self._dict.popitem(last=False)
 
     def __delitem__(self, key):
@@ -75,3 +81,7 @@ class LRUMapping(collections.abc.MutableMapping):
 
     def __iter__(self):
         return iter(self._dict)
+
+    def gc(self):
+        while len(self._dict) > self._maxsize:
+            yield self._dict.popitem(last=False)

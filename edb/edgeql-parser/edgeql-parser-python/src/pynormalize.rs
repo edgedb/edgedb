@@ -15,18 +15,30 @@ use crate::errors::SyntaxError;
 use crate::normalize::{normalize as _normalize, Error, Variable};
 use crate::tokenizer::tokens_to_py;
 
-py_class!(pub class Entry |py| {
+py_class!(pub class Statement |py| {
     data _key: PyBytes;
     data _processed_source: String;
     data _tokens: PyList;
-    data _extra_blobs: PyList;
-    data _extra_named: bool;
-    data _first_extra: Option<usize>;
-    data _extra_counts: PyList;
-    data _variables: Vec<Vec<Variable>>;
+    data _extra_blob: PyBytes;
+    data _variables: Vec<Variable>;
     def key(&self) -> PyResult<PyBytes> {
         Ok(self._key(py).clone_ref(py))
     }
+    def tokens(&self) -> PyResult<PyList> {
+        Ok(self._tokens(py).clone_ref(py))
+    }
+    def extra_count(&self) -> PyResult<PyInt> {
+        Ok(self._variables(py).len().to_py_object(py))
+    }
+    def extra_blob(&self) -> PyResult<PyBytes> {
+        Ok(self._extra_blob(py).clone_ref(py))
+    }
+});
+
+py_class!(pub class Entry |py| {
+    data _extra_named: bool;
+    data _first_extra: Option<usize>;
+    data _statements: Vec<Statement>;
     def variables(&self) -> PyResult<PyDict> {
         let vars = PyDict::new(py);
         let named = *self._extra_named(py);
@@ -34,7 +46,13 @@ py_class!(pub class Entry |py| {
             Some(first) => first,
             None => return Ok(vars),
         };
-        for (idx, var) in self._variables(py).iter().flatten().enumerate() {
+        for (idx, var) in self
+            ._statements(py)
+            .iter()
+            .map(|s| s._variables(py).iter())
+            .flatten()
+            .enumerate()
+        {
             let s = if named {
                 format!("__edb_arg_{}", first + idx)
             } else {
@@ -46,17 +64,12 @@ py_class!(pub class Entry |py| {
         }
         Ok(vars)
     }
-    def tokens(&self) -> PyResult<PyList> {
-        Ok(self._tokens(py).clone_ref(py))
-    }
     def first_extra(&self) -> PyResult<Option<PyInt>> {
         Ok(self._first_extra(py).map(|x| x.to_py_object(py)))
     }
-    def extra_counts(&self) -> PyResult<PyList> {
-        Ok(self._extra_counts(py).to_py_object(py))
-    }
-    def extra_blobs(&self) -> PyResult<PyList> {
-        Ok(self._extra_blobs(py).clone_ref(py))
+    def statements(&self) -> PyResult<PyList> {
+        let rv = self._statements(py).into_iter().map(|s| s.clone_ref(py)).collect::<Vec<_>>();
+        return Ok(PyList::new(py, &rv[..]));
     }
 });
 
@@ -122,38 +135,31 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
     Ok(buf.freeze())
 }
 
-pub fn serialize_all(py: Python<'_>, variables: &[Vec<Variable>]) -> Result<PyList, String> {
-    let mut buf = Vec::with_capacity(variables.len());
-    for vars in variables {
-        let bytes = serialize_extra(vars)?;
-        let pybytes = PyBytes::new(py, &bytes).into_object();
-        buf.push(pybytes);
-    }
-    Ok(PyList::new(py, &buf[..]))
-}
-
 pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
     let text = text.to_string(py)?;
     match _normalize(&text) {
         Ok(entry) => {
-            let blobs = serialize_all(py, &entry.variables)
-                .map_err(|e| PyErr::new::<AssertionError, _>(py, e))?;
-            let counts: Vec<_> = entry
-                .variables
-                .iter()
-                .map(|x| x.len().to_py_object(py).into_object())
-                .collect();
-
+            let statements = entry
+                .statements
+                .into_iter()
+                .map(|stmt| {
+                    let bytes = serialize_extra(&stmt.variables)
+                        .map_err(|e| PyErr::new::<AssertionError, _>(py, e))?;
+                    Statement::create_instance(
+                        py,
+                        /* _key: */ PyBytes::new(py, &stmt.hash[..]),
+                        /* _processed_source: */ stmt.processed_source,
+                        /* _tokens: */ tokens_to_py(py, stmt.tokens)?,
+                        /* _extra_blob: */ PyBytes::new(py, &bytes),
+                        /* _variables: */ stmt.variables,
+                    )
+                })
+                .collect::<PyResult<Vec<_>>>()?;
             Ok(Entry::create_instance(
                 py,
-                /* key: */ PyBytes::new(py, &entry.hash[..]),
-                /* processed_source: */ entry.processed_source,
-                /* tokens: */ tokens_to_py(py, entry.tokens)?,
-                /* extra_blobs: */ blobs,
                 /* extra_named: */ entry.named_args,
                 /* first_extra: */ entry.first_arg,
-                /* extra_counts: */ PyList::new(py, &counts[..]),
-                /* variables: */ entry.variables,
+                /* _statements : */ statements,
             )?)
         }
         Err(Error::Tokenizer(msg, pos)) => {

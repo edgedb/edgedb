@@ -11,11 +11,15 @@ pub struct Variable {
     pub value: Value,
 }
 
-pub struct Entry {
+pub struct Statement {
     pub processed_source: String,
     pub hash: [u8; 64],
     pub tokens: Vec<Token<'static>>,
-    pub variables: Vec<Vec<Variable>>,
+    pub variables: Vec<Variable>,
+}
+
+pub struct Entry {
+    pub statements: Vec<Statement>,
     pub named_args: bool,
     pub first_arg: Option<usize>,
 }
@@ -40,17 +44,19 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
             // don't extract from invalid query, let python code do its work
             let processed_source = serialize_tokens(&tokens);
             return Ok(Entry {
-                hash: hash(&processed_source),
-                processed_source,
-                tokens,
-                variables: Vec::new(),
+                statements: vec![Statement {
+                    hash: hash(&processed_source),
+                    processed_source,
+                    tokens,
+                    variables: Vec::new(),
+                }],
                 named_args: false,
                 first_arg: None,
             });
         }
     };
-    let mut rewritten_tokens = Vec::with_capacity(tokens.len());
-    let mut all_variables = Vec::new();
+    let mut rewritten_tokens = Vec::new();
+    let mut statements = Vec::new();
     let mut variables = Vec::new();
     let mut counter = var_idx;
     let mut next_var = || {
@@ -127,10 +133,12 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
             ) => {
                 let processed_source = serialize_tokens(&tokens);
                 return Ok(Entry {
-                    hash: hash(&processed_source),
-                    processed_source,
-                    tokens,
-                    variables: Vec::new(),
+                    statements: vec![Statement {
+                        hash: hash(&processed_source),
+                        processed_source,
+                        tokens,
+                        variables: Vec::new(),
+                    }],
                     named_args: false,
                     first_arg: None,
                 });
@@ -140,9 +148,16 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
             // because the only statements with internal semis are DDL
             // statements, which we don't support anyway.
             Kind::Semicolon => {
-                all_variables.push(variables);
-                variables = Vec::new();
                 rewritten_tokens.push(tok.clone());
+                let processed_source = serialize_tokens(&tokens[..]);
+                statements.push(Statement {
+                    hash: hash(&processed_source),
+                    processed_source,
+                    tokens: rewritten_tokens,
+                    variables,
+                });
+                variables = Vec::new();
+                rewritten_tokens = Vec::new();
             }
             Kind::Keyword(Keyword("set")) => {
                 is_set = true;
@@ -153,19 +168,17 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
         last_was_set = is_set;
     }
 
-    all_variables.push(variables);
     let processed_source = serialize_tokens(&rewritten_tokens[..]);
-    return Ok(Entry {
+    statements.push(Statement {
         hash: hash(&processed_source),
         processed_source,
-        named_args,
-        first_arg: if counter <= var_idx {
-            None
-        } else {
-            Some(var_idx)
-        },
         tokens: rewritten_tokens,
-        variables: all_variables,
+        variables,
+    });
+    return Ok(Entry {
+        named_args,
+        first_arg: (counter > var_idx).then_some(var_idx),
+        statements,
     });
 }
 

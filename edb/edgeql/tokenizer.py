@@ -30,32 +30,53 @@ from edb import errors
 TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 
-class Source:
-    def __init__(self, text: str, tokens: List[ql_parser.Token]) -> None:
-        self._cache_key = hashlib.blake2b(text.encode('utf-8')).digest()
-        self._text = text
+class Statement:
+    def __init__(
+        self,
+        cache_key: bytes,
+        tokens: List[ql_parser.Token],
+        extra_count: int,
+        extra_blob: bytes,
+    ) -> None:
+        self._cache_key = cache_key
         self._tokens = tokens
-
-    def text(self) -> str:
-        return self._text
+        self._extra_count = extra_count
+        self._extra_blob = extra_blob
 
     def cache_key(self) -> bytes:
         return self._cache_key
 
-    def variables(self) -> Dict[str, Any]:
-        return {}
-
     def tokens(self) -> List[ql_parser.Token]:
         return self._tokens
+
+    def extra_count(self) -> int:
+        return self._extra_count
+
+    def extra_blob(self) -> bytes:
+        return self._extra_blob
+
+
+class Source:
+    def __init__(self, text: str, tokens: List[ql_parser.Token]) -> None:
+        self._statements = [Statement(
+            hashlib.blake2b(text.encode('utf-8')).digest(),
+            tokens,
+            0,
+            b'',
+        )]
+        self._text = text
+
+    def text(self) -> str:
+        return self._text
+
+    def variables(self) -> Dict[str, Any]:
+        return {}
 
     def first_extra(self) -> Optional[int]:
         return None
 
-    def extra_counts(self) -> Sequence[int]:
-        return ()
-
-    def extra_blobs(self) -> Sequence[bytes]:
-        return ()
+    def statements(self) -> List[Statement]:
+        return self._statements
 
     @classmethod
     def from_string(cls, text: str) -> Source:
@@ -68,6 +89,11 @@ class Source:
 class NormalizedSource(Source):
     def __init__(self, normalized: ql_parser.Entry, text: str) -> None:
         self._text = text
+        self._statements = [
+            Statement(
+
+            ) for stmt in normalized.statements()
+        ]
         self._cache_key = normalized.key()
         self._tokens = normalized.tokens()
         self._variables = normalized.variables()
@@ -78,23 +104,14 @@ class NormalizedSource(Source):
     def text(self) -> str:
         return self._text
 
-    def cache_key(self) -> bytes:
-        return self._cache_key
-
     def variables(self) -> Dict[str, Any]:
         return self._variables
-
-    def tokens(self) -> List[ql_parser.Token]:
-        return self._tokens
 
     def first_extra(self) -> Optional[int]:
         return self._first_extra
 
-    def extra_counts(self) -> Sequence[int]:
-        return self._extra_counts
-
-    def extra_blobs(self) -> Sequence[bytes]:
-        return self._extra_blobs
+    def statements(self) -> List[Statement]:
+        return self._statements
 
     @classmethod
     def from_string(cls, text: str) -> NormalizedSource:

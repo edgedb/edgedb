@@ -978,6 +978,7 @@ cdef class DatabaseConnectionView:
         cached_globally=False,
         use_metrics=True,
     ) -> CompiledQuery:
+
         source = query_req.source
         if cached_globally:
             # WARNING: only set cached_globally to True when the query is
