@@ -1403,7 +1403,7 @@ class Tenant(ha_base.ClusterProtocol):
 
                 dbs[db.name] = dict(
                     name=db.name,
-                    dbver=db.dbver,
+                    schema_version=db.schema_version,
                     config=(
                         None
                         if db.db_config is None

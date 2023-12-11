@@ -62,14 +62,7 @@ cdef DEFAULT_STATE = json.dumps([]).encode('utf-8')
 
 cdef INT32_PACKER = struct.Struct('!l').pack
 
-cdef int VER_COUNTER = 0
 cdef DICTDEFAULT = (None, None)
-
-
-cdef next_dbver():
-    global VER_COUNTER
-    VER_COUNTER += 1
-    return VER_COUNTER
 
 
 @cython.final
@@ -166,7 +159,6 @@ cdef class Database:
         self.name = name
 
         self.schema_version = schema_version
-        self.dbver = next_dbver()
 
         self._index = index
         self._views = weakref.WeakSet()
@@ -212,7 +204,6 @@ cdef class Database:
             raise AssertionError('new_schema is not supposed to be None')
 
         self.schema_version = schema_version
-        self.dbver = next_dbver()
 
         self.user_schema_pickle = new_schema_pickle
         self.extensions = extensions
@@ -235,28 +226,28 @@ cdef class Database:
         self._index.invalidate_caches()
 
     cdef _cache_compiled_query(
-        self, key, compiled: dbstate.QueryUnitGroup, int dbver
+        self, key, compiled: dbstate.QueryUnitGroup, schema_version
     ):
         assert compiled.cacheable
 
-        existing, existing_dbver = self._eql_to_compiled.get(key, DICTDEFAULT)
-        if existing is not None and existing_dbver == self.dbver:
+        existing, existing_ver = self._eql_to_compiled.get(key, DICTDEFAULT)
+        if existing is not None and existing_ver == self.schema_version:
             # We already have a cached query for a more recent DB version.
             return
 
-        self._eql_to_compiled[key] = compiled, dbver
+        self._eql_to_compiled[key] = compiled, schema_version
 
     def cache_compiled_sql(self, key, compiled: list[str]):
-        existing, dbver = self._sql_to_compiled.get(key, DICTDEFAULT)
-        if existing is not None and dbver == self.dbver:
+        existing, ver = self._sql_to_compiled.get(key, DICTDEFAULT)
+        if existing is not None and ver == self.schema_version:
             # We already have a cached query for a more recent DB version.
             return
 
-        self._sql_to_compiled[key] = compiled, self.dbver
+        self._sql_to_compiled[key] = compiled, self.schema_version
 
     def lookup_compiled_sql(self, key):
-        rv, cached_dbver = self._sql_to_compiled.get(key, DICTDEFAULT)
-        if rv is not None and cached_dbver != self.dbver:
+        rv, cached_ver = self._sql_to_compiled.get(key, DICTDEFAULT)
+        if rv is not None and cached_ver != self.schema_version:
             rv = None
         return rv
 
@@ -324,7 +315,7 @@ cdef class DatabaseConnectionView:
             self._capability_mask = <uint64_t>compiler.Capability.ALL
 
         self._db_config_temp = None
-        self._db_config_dbver = None
+        self._db_config_schema_version = None
 
         self._last_comp_state = None
         self._last_comp_state_id = 0
@@ -349,7 +340,6 @@ cdef class DatabaseConnectionView:
         self._in_tx_user_config_spec = None
         self._in_tx_state_serializer = None
         self._tx_error = False
-        self._in_tx_dbver = 0
 
     cdef clear_tx_error(self):
         self._tx_error = False
@@ -461,12 +451,12 @@ cdef class DatabaseConnectionView:
             if self._db_config_temp is not None:
                 # See `set_database_config()` for an explanation on
                 # *why* we do this.
-                if self._db_config_dbver is self._db.dbver:
-                    assert self._db_config_dbver is not None
+                if self._db_config_schema_version == self._db.schema_version:
+                    assert self._db_config_schema_version is not None
                     return self._db_config_temp
                 else:
                     self._db_config_temp = None
-                    self._db_config_dbver = None
+                    self._db_config_schema_version = None
 
             return self._db.db_config
 
@@ -492,7 +482,7 @@ cdef class DatabaseConnectionView:
             # critical and resolve in time.)
             # Check out `get_database_config()` to see how this is used.
             self._db_config_temp = new_conf
-            self._db_config_dbver = self._db.dbver
+            self._db_config_schema_version = self._db.schema_version
 
     cdef get_system_config(self):
         return self._db._index.get_sys_config()
@@ -545,9 +535,9 @@ cdef class DatabaseConnectionView:
             raise errors.InternalServerError(
                 'no need to serialize state while in transaction')
 
-        dbver = self._db.dbver
+        ver = self._db.schema_version
         if self._session_state_db_cache is not None:
-            if self._session_state_db_cache[0] == (self._config, dbver):
+            if self._session_state_db_cache[0] == (self._config, ver):
                 return self._session_state_db_cache[1]
 
         state = []
@@ -560,12 +550,12 @@ cdef class DatabaseConnectionView:
                 state.append({"name": sval.name, "value": jval, "type": kind})
 
         # Include the database version in the state so that we are forced
-        # to clear the config cache on dbver changes.
+        # to clear the config cache on ver changes.
         state.append(
-            {"name": '__dbver__', "value": dbver, "type": 'C'})
+            {"name": '__ver__', "value": str(ver), "type": 'C'})
 
         spec = json.dumps(state).encode('utf-8')
-        self._session_state_db_cache = ((self._config, dbver), spec)
+        self._session_state_db_cache = ((self._config, ver), spec)
         return spec
 
     cdef bint is_state_desc_changed(self):
@@ -700,11 +690,11 @@ cdef class DatabaseConnectionView:
         def __get__(self):
             return self._db.reflection_cache
 
-    property dbver:
+    property schema_version:
         def __get__(self):
-            if self._in_tx and self._in_tx_dbver:
-                return self._in_tx_dbver
-            return self._db.dbver
+            if self._in_tx and self._in_tx_user_schema_pv:
+                return self._in_tx_user_schema_pv[1]
+            return self._db.schema_version
 
     @property
     def server(self):
@@ -721,13 +711,20 @@ cdef class DatabaseConnectionView:
         return self._tx_error
 
     cdef cache_compiled_query(
-        self, object key, object query_unit_group, int dbver
+        self, object key, object query_unit_group, schema_version
     ):
         assert query_unit_group.cacheable
 
         if not self._in_tx_with_ddl:
-            key = (key, self.get_modaliases(), self.get_session_config())
-            self._db._cache_compiled_query(key, query_unit_group, dbver)
+            key = (
+                key,
+                self.get_modaliases(),
+                self.get_session_config(),
+                self.get_compilation_system_config(),
+            )
+            self._db._cache_compiled_query(
+                key, query_unit_group, schema_version
+            )
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
@@ -735,10 +732,15 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_ddl):
             return None
 
-        key = (key, self.get_modaliases(), self.get_session_config())
-        query_unit_group, qu_dbver = self._db._eql_to_compiled.get(
+        key = (
+            key,
+            self.get_modaliases(),
+            self.get_session_config(),
+            self.get_compilation_system_config(),
+        )
+        query_unit_group, qu_ver = self._db._eql_to_compiled.get(
             key, DICTDEFAULT)
-        if query_unit_group is not None and qu_dbver != self._db.dbver:
+        if query_unit_group is not None and qu_ver != self._db.schema_version:
             query_unit_group = None
 
         return query_unit_group
@@ -812,7 +814,6 @@ cdef class DatabaseConnectionView:
             if new_types:
                 self._db._update_backend_ids(new_types)
             if query_unit.user_schema_pv is not None:
-                self._in_tx_dbver = next_dbver()
                 self._db._set_and_signal_new_user_schema(
                     query_unit.user_schema_pv[0],
                     query_unit.user_schema_pv[1],
@@ -870,7 +871,7 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.InstanceConfigChanges
             if self._in_tx_with_dbconfig:
                 self._db_config_temp = self._in_tx_db_config
-                self._db_config_dbver = self._db.dbver
+                self._db_config_schema_version = self._db.schema_version
 
                 self.update_database_config()
                 side_effects |= SideEffects.DatabaseConfigChanges
@@ -923,7 +924,7 @@ cdef class DatabaseConnectionView:
             side_effects |= SideEffects.InstanceConfigChanges
         if self._in_tx_with_dbconfig:
             self._db_config_temp = self._in_tx_db_config
-            self._db_config_dbver = self._db.dbver
+            self._db_config_schema_version = self._db.schema_version
 
             self.update_database_config()
             side_effects |= SideEffects.DatabaseConfigChanges
@@ -985,7 +986,7 @@ cdef class DatabaseConnectionView:
         if query_unit_group is None:
             # Cache miss; need to compile this query.
             cached = False
-            dbver = self._db.dbver
+            schema_version = self._db.schema_version
 
             try:
                 query_unit_group = await self._compile(query_req)
@@ -1027,7 +1028,9 @@ cdef class DatabaseConnectionView:
             if cached_globally:
                 self.server.system_compile_cache[query_req] = query_unit_group
             else:
-                self.cache_compiled_query(query_req, query_unit_group, dbver)
+                self.cache_compiled_query(
+                    query_req, query_unit_group, schema_version
+                )
 
         if use_metrics:
             metrics.edgeql_query_compilations.inc(
@@ -1184,10 +1187,6 @@ cdef class DatabaseIndex:
         return self._comp_sys_config
 
     def update_sys_config(self, sys_config):
-        cdef Database db
-        for db in self._dbs.values():
-            db.dbver = next_dbver()
-
         with self._default_sysconfig.mutate() as mm:
             mm.update(sys_config)
             sys_config = mm.finish()

@@ -251,7 +251,7 @@ async def compile(
 
 
 async def _execute(db, tenant, query, operation_name, variables, globals):
-    dbver = db.dbver
+    ver = db.schema_version
     query_cache = tenant.server._http_query_cache
 
     if variables:
@@ -299,7 +299,7 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
             print(f'key_vars: {key_var_names}')
             print(f'variables: {vars}')
 
-    cache_key = ('graphql', prepared_query, key_vars, operation_name, dbver)
+    cache_key = ('graphql', prepared_query, key_vars, operation_name, ver)
     use_prep_stmt = False
 
     entry: CacheEntry = None
@@ -308,7 +308,7 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
 
     if isinstance(entry, CacheRedirect):
         key_vars2 = tuple(vars[k] for k in entry.key_vars)
-        cache_key2 = (prepared_query, key_vars2, operation_name, dbver)
+        cache_key2 = (prepared_query, key_vars2, operation_name, ver)
         entry = query_cache.get(cache_key2, None)
 
     await db.introspection()
@@ -343,7 +343,7 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
             query_cache[cache_key] = redir
             key_vars2 = tuple(vars[k] for k in key_var_names)
             cache_key2 = (
-                'graphql', prepared_query, key_vars2, operation_name, dbver
+                'graphql', prepared_query, key_vars2, operation_name, ver
             )
             query_cache[cache_key2] = qug, gql_op
         else:

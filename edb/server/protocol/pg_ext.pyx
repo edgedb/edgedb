@@ -785,7 +785,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 conn = await self.get_pgcon()
                 try:
                     success, _ = await conn.sql_extended_query(
-                        actions, self, self.database.dbver, dbv)
+                        actions, self, self.database.schema_version, dbv)
                     self.ignore_till_sync = not success
                 finally:
                     self.maybe_release_pgcon(conn)
@@ -822,7 +822,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                     _, rq_sent = await conn.sql_extended_query(
                         actions,
                         self,
-                        self.database.dbver,
+                        self.database.schema_version,
                         dbv,
                         send_sync_on_error=True,
                     )
@@ -852,7 +852,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 conn = await self.get_pgcon()
                 try:
                     success, _ = await conn.sql_extended_query(
-                        actions, self, self.database.dbver, dbv)
+                        actions, self, self.database.schema_version, dbv)
                     self.ignore_till_sync = not success
                 except Exception as ex:
                     self.write_error(ex)

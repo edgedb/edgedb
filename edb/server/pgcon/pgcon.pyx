@@ -764,7 +764,7 @@ cdef class PGConnection:
     cdef bint before_prepare(
         self,
         bytes stmt_name,
-        int dbver,
+        schema_version,
         WriteBuffer outbuf,
     ):
         cdef bint parse = 1
@@ -777,7 +777,7 @@ cdef class PGConnection:
                 self.make_clean_stmt_message(stmt_name_to_clean))
 
         if stmt_name in self.prep_stmts:
-            if self.prep_stmts[stmt_name] == dbver:
+            if self.prep_stmts[stmt_name] == schema_version:
                 parse = 0
             else:
                 if self.debug:
@@ -922,7 +922,7 @@ cdef class PGConnection:
     cdef send_query_unit_group(
         self, object query_unit_group, bint sync,
         object bind_datas, bytes state,
-        ssize_t start, ssize_t end, int dbver, object parse_array
+        ssize_t start, ssize_t end, schema_version, object parse_array
     ):
         # parse_array is an array of booleans for output with the same size as
         # the query_unit_group, indicating if each unit is freshly parsed
@@ -952,9 +952,9 @@ cdef class PGConnection:
                 # We just need to know and skip if we've already parsed the
                 # same query within current send batch, because self.prep_stmts
                 # will be updated before the next batch, with maybe a different
-                # dbver after DDL.
+                # schema_version after DDL.
                 if stmt_name not in parsed and self.before_prepare(
-                    stmt_name, dbver, out
+                    stmt_name, schema_version, out
                 ):
                     buf = WriteBuffer.new_message(b'P')
                     buf.write_bytestring(stmt_name)
@@ -1042,7 +1042,7 @@ cdef class PGConnection:
         self,
         object query_unit,
         bint parse,
-        int dbver,
+        schema_version,
         *,
         bint ignore_data,
         frontend.AbstractFrontendConnection fe_conn = None,
@@ -1093,7 +1093,7 @@ cdef class PGConnection:
                     # ParseComplete
                     self.buffer.discard_message()
                     if parse:
-                        self.prep_stmts[query_unit.sql_hash] = dbver
+                        self.prep_stmts[query_unit.sql_hash] = schema_version
 
                 elif mtype == b'E':  ## result
                     # ErrorResponse
@@ -1135,7 +1135,7 @@ cdef class PGConnection:
         WriteBuffer bind_data,
         bint use_prep_stmt,
         bytes state,
-        int dbver,
+        schema_version,
     ):
         cdef:
             WriteBuffer out
@@ -1206,7 +1206,7 @@ cdef class PGConnection:
         if use_prep_stmt:
             stmt_name = query.sql_hash
             parse = self.before_prepare(
-                stmt_name, dbver, out)
+                stmt_name, schema_version, out)
         else:
             stmt_name = b''
 
@@ -1355,7 +1355,7 @@ cdef class PGConnection:
                     elif mtype == b'1' and parse:
                         # ParseComplete
                         self.buffer.discard_message()
-                        self.prep_stmts[stmt_name] = dbver
+                        self.prep_stmts[stmt_name] = schema_version
 
                     elif mtype == b'E':  ## result
                         # ErrorResponse
@@ -1402,7 +1402,7 @@ cdef class PGConnection:
         frontend.AbstractFrontendConnection fe_conn = None,
         bint use_prep_stmt = False,
         bytes state = None,
-        int dbver = 0,
+        schema_version = None,
     ):
         self.before_command()
         started_at = time.monotonic()
@@ -1413,7 +1413,7 @@ cdef class PGConnection:
                 bind_data,
                 use_prep_stmt,
                 state,
-                dbver,
+                schema_version,
             )
         finally:
             metrics.backend_query_duration.observe(
@@ -1623,13 +1623,14 @@ cdef class PGConnection:
         self,
         actions: list[PGMessage],
         fe_conn: frontend.AbstractFrontendConnection,
-        dbver: int,
+        schema_version,
         dbv: pg_ext.ConnectionView,
         send_sync_on_error: bool = False,
     ) -> tuple[bool, bool]:
         self.before_command()
         try:
-            state = self._write_sql_extended_query(actions, dbver, dbv)
+            state = self._write_sql_extended_query(
+                actions, schema_version, dbv)
             if state is not None:
                 await self._parse_apply_state_resp(
                     2 if state != EMPTY_SQL_STATE else 1
@@ -1640,7 +1641,7 @@ cdef class PGConnection:
                 return await self._parse_sql_extended_query(
                     actions,
                     fe_conn,
-                    dbver,
+                    schema_version,
                     dbv,
                     send_sync_on_error=send_sync_on_error,
                 )
@@ -1653,7 +1654,7 @@ cdef class PGConnection:
     def _write_sql_extended_query(
         self,
         actions: list[PGMessage],
-        dbver: int,
+        schema_version,
         dbv: pg_ext.ConnectionView,
     ) -> bytes:
         cdef:
@@ -1679,7 +1680,7 @@ cdef class PGConnection:
                     action.frontend_only = True
                 else:
                     be_parse = self.before_prepare(
-                        action.stmt_name, dbver, buf
+                        action.stmt_name, schema_version, buf
                     )
                     if not be_parse:
                         if self.debug:
@@ -1705,7 +1706,7 @@ cdef class PGConnection:
                         action.frontend_only = True
                     else:
                         be_parse = self.before_prepare(
-                            be_stmt_name, dbver, buf
+                            be_stmt_name, schema_version, buf
                         )
                         if not be_parse:
                             if self.debug:
@@ -1744,7 +1745,7 @@ cdef class PGConnection:
                         action.frontend_only = True
                     else:
                         be_parse = self.before_prepare(
-                            be_stmt_name, dbver, buf
+                            be_stmt_name, schema_version, buf
                         )
                         if not be_parse:
                             if self.debug:
@@ -1757,7 +1758,9 @@ cdef class PGConnection:
                     action.query_unit is not None
                     and action.query_unit.deallocate is not None
                     and self.before_prepare(
-                        action.query_unit.deallocate.be_stmt_name, dbver, buf
+                        action.query_unit.deallocate.be_stmt_name,
+                        schema_version,
+                        buf,
                     )
                 ):
                     # This prepared statement does not actually exist
@@ -1815,7 +1818,7 @@ cdef class PGConnection:
         self,
         actions: list[PGMessage],
         fe_conn: frontend.AbstractFrontendConnection,
-        dbver: int,
+        schema_version,
         dbv: pg_ext.ConnectionView,
         send_sync_on_error: bool,
     ) -> tuple[bool, bool]:
@@ -1992,7 +1995,7 @@ cdef class PGConnection:
                     self.buffer.finish_message()
                     if self.debug:
                         self.debug_print('PARSE COMPLETE MSG')
-                    self.prep_stmts[action.stmt_name] = dbver
+                    self.prep_stmts[action.stmt_name] = schema_version
                     if not action.is_injected():
                         msg_buf = WriteBuffer.new_message(mtype)
                         buf.write_buffer(msg_buf.end_message())
@@ -2052,9 +2055,9 @@ cdef class PGConnection:
                         if self.debug:
                             self.debug_print(
                                 f"remembering ps {be_stmt_name}, "
-                                f"dbver {dbver}"
+                                f"schema_version {schema_version}"
                             )
-                        self.prep_stmts[be_stmt_name] = dbver
+                        self.prep_stmts[be_stmt_name] = schema_version
 
                     if not action.is_injected():
                         msg_buf = WriteBuffer.new_message(mtype)
@@ -2267,12 +2270,12 @@ cdef class PGConnection:
                 )
 
     async def handle_ddl_in_script(
-        self, object query_unit, bint parse, int dbver
+        self, object query_unit, bint parse, schema_version
     ):
         data = None
         for sql in query_unit.sql:
             data = await self.wait_for_command(
-                query_unit, parse, dbver, ignore_data=bool(data)
+                query_unit, parse, schema_version, ignore_data=bool(data)
             ) or data
         return self.load_ddl_return(query_unit, data)
 

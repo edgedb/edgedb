@@ -125,7 +125,7 @@ async def execute(
                         bind_data=bound_args_buf,
                         use_prep_stmt=use_prep_stmt,
                         state=state,
-                        dbver=dbv.dbver,
+                        schema_version=dbv.schema_version,
                     )
 
                     if query_unit.needs_readback and data:
@@ -221,9 +221,9 @@ async def execute_script(
         object extensions, ext_config_settings, cached_reflection
         object global_schema, roles
         WriteBuffer bind_data
-        int dbver = dbv.dbver
         bint parse
 
+    schema_version = dbv.schema_version
     user_schema_pv = None
     extensions = ext_config_settings = cached_reflection = None
     global_schema = roles = None
@@ -275,7 +275,7 @@ async def execute_script(
                     sync = sent == len(unit_group) and not no_sync
                     bind_array = args_ser.recode_bind_args_for_script(
                         dbv, compiled, bind_args, idx, sent)
-                    dbver = dbv.dbver
+                    schema_version = dbv.schema_version
                     conn.send_query_unit_group(
                         unit_group,
                         sync,
@@ -283,7 +283,7 @@ async def execute_script(
                         state,
                         idx,
                         sent,
-                        dbver,
+                        schema_version,
                         parse_array,
                     )
 
@@ -311,7 +311,7 @@ async def execute_script(
                     parse = parse_array[idx]
                     if query_unit.ddl_stmt_id:
                         ddl_ret = await conn.handle_ddl_in_script(
-                            query_unit, parse, dbver
+                            query_unit, parse, schema_version
                         )
                         if ddl_ret and ddl_ret['new_types']:
                             new_types = ddl_ret['new_types']
@@ -319,7 +319,10 @@ async def execute_script(
                         config_data = []
                         for sql in query_unit.sql:
                             config_data = await conn.wait_for_command(
-                                query_unit, parse, dbver, ignore_data=False
+                                query_unit,
+                                parse,
+                                schema_version,
+                                ignore_data=False,
                             )
                         if config_data:
                             config_ops = [
@@ -329,12 +332,17 @@ async def execute_script(
                     elif query_unit.output_format == FMT_NONE:
                         for sql in query_unit.sql:
                             await conn.wait_for_command(
-                                query_unit, parse, dbver, ignore_data=True
+                                query_unit,
+                                parse,
+                                schema_version,
+                                ignore_data=True,
                             )
                     else:
                         for sql in query_unit.sql:
                             data = await conn.wait_for_command(
-                                query_unit, parse, dbver,
+                                query_unit,
+                                parse,
+                                schema_version,
                                 ignore_data=False,
                                 fe_conn=fe_conn,
                             )
