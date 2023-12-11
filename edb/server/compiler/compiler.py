@@ -65,6 +65,7 @@ from edb.schema import reflection as s_refl
 from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
+from edb.schema import version as s_ver
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pg_compiler
@@ -1002,6 +1003,7 @@ class Compiler:
         )
         return dbstate.ParsedDatabase(
             user_schema_pickle=pickle.dumps(user_schema, -1),
+            schema_version=_get_schema_version(user_schema),
             database_config=db_config,
             ext_config_settings=ext_config_settings,
             protocol_version=defines.CURRENT_PROTOCOL,
@@ -1496,6 +1498,11 @@ def _compile_schema_storage_stmt(
     finally:
         # Restore the regular schema.
         ctx.state.current_tx().update_schema(schema)
+
+
+def _get_schema_version(user_schema: s_schema.Schema) -> uuid.UUID:
+    ver = user_schema.get_global(s_ver.SchemaVersion, "__schema_version__")
+    return ver.get_version(user_schema)
 
 
 def _compile_ql_script(
@@ -2459,6 +2466,9 @@ def _try_compile(
                 if comp.user_schema is not None:
                     final_user_schema = comp.user_schema
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                    unit.user_schema_version = (
+                        _get_schema_version(comp.user_schema)
+                    )
                     unit.extensions, unit.ext_config_settings = (
                         _extract_extensions(ctx, comp.user_schema)
                     )
@@ -2484,6 +2494,9 @@ def _try_compile(
                 if comp.user_schema is not None:
                     final_user_schema = comp.user_schema
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                    unit.user_schema_version = (
+                        _get_schema_version(comp.user_schema)
+                    )
                     unit.extensions, unit.ext_config_settings = (
                         _extract_extensions(ctx, comp.user_schema)
                     )
@@ -2522,6 +2535,9 @@ def _try_compile(
                 if comp.user_schema is not None:
                     final_user_schema = comp.user_schema
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                    unit.user_schema_version = (
+                        _get_schema_version(comp.user_schema)
+                    )
                     unit.extensions, unit.ext_config_settings = (
                         _extract_extensions(ctx, comp.user_schema)
                     )
