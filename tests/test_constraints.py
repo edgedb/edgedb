@@ -459,6 +459,190 @@ class TestConstraintsSchema(tb.QueryTestCase):
                                   FILTER .text = "obj_test" LIMIT 1) };
                 """)
 
+    async def test_constraints_endpoint_constraint_01(self):
+        # testing (@source, @lang) on a single link
+        # This constraint is pointless and can never fail
+        await self.con.execute("""
+            insert UniqueName {
+                translated_label := ((insert Label) { @lang := 'xxx' })
+            };
+        """)
+
+        await self.con.execute("""
+            insert UniqueName {
+                translated_label := ((insert Label) { @lang := 'xxx' })
+            };
+        """)
+
+        await self.con.execute("""
+            insert UniqueName {
+                translated_label := ((select Label limit 1) { @lang := 'yyy' })
+            };
+        """)
+
+        await self.con.execute("""
+            insert UniqueName {
+                translated_label := ((select Label limit 1) { @lang := 'xxx' })
+            };
+        """)
+
+    async def test_constraints_endpoint_constraint_02(self):
+        # testing (@source, @lang) on a single link
+        # This constraint is pointless and can never fail
+        await self.con.execute("""
+            insert UniqueName {
+                translated_labels := ((insert Label { text := "x" }) {
+                 @lang := 'x' })
+            };
+        """)
+
+        # Should be fine
+        await self.con.execute("""
+            insert UniqueName {
+                translated_labels := ((insert Label { text := "y"  }) {
+                  @lang := 'x' })
+            };
+        """)
+
+        await self.con.execute("""
+            insert UniqueName {
+                translated_labels := (Label { @lang := .text })
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'violates exclusivity constraint'
+        ):
+            await self.con.execute("""
+                insert UniqueName {
+                    translated_labels := (Label { @lang := 'x' })
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'violates exclusivity constraint'
+        ):
+            await self.con.execute("""
+                insert UniqueNameInherited {
+                    translated_labels := (Label { @lang := 'x' })
+                };
+            """)
+
+    async def test_constraints_endpoint_constraint_03(self):
+        # testing (@target, @lang) on a single link
+        await self.con.execute("""
+            insert UniqueName {
+                translated_label_tgt := ((insert Label { text := "x" }) {
+                 @lang := 'x' })
+            };
+        """)
+
+        # Same @lang different @target
+        await self.con.execute("""
+            insert UniqueName {
+                translated_label_tgt := ((insert Label { text := "y" }) {
+                  @lang := 'x' })
+            };
+        """)
+
+        # Same @target different @lang
+        await self.con.execute("""
+            insert UniqueName {
+                translated_label_tgt := (
+                  select Label { @lang := 'y' } filter .text = 'x' limit 1)
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'violates exclusivity constraint'
+        ):
+            await self.con.execute("""
+                insert UniqueName {
+                    translated_label_tgt := (
+                      select Label { @lang := 'x' } filter .text = 'x' limit 1)
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'violates exclusivity constraint'
+        ):
+            await self.con.execute("""
+                insert UniqueNameInherited {
+                    translated_label_tgt := (
+                      select Label { @lang := 'x' } filter .text = 'x' limit 1)
+                };
+            """)
+
+    async def test_constraints_endpoint_constraint_04(self):
+        # testing (@target, @lang) on a multi link
+        await self.con.execute("""
+            insert UniqueName {
+                translated_labels_tgt := ((insert Label { text := "x" }) {
+                 @lang := 'x' })
+            };
+        """)
+
+        # Same @lang different @target
+        await self.con.execute("""
+            insert UniqueName {
+                translated_labels_tgt := ((insert Label { text := "y" }) {
+                  @lang := 'x' })
+            };
+        """)
+
+        # Same @target different @lang
+        await self.con.execute("""
+            insert UniqueName {
+                translated_labels_tgt := (
+                  select Label { @lang := 'y' } filter .text = 'x')
+            };
+        """)
+
+        await self.con.execute("""
+                insert UniqueNameInherited {
+                    translated_labels_tgt := (
+                      select Label { @lang := 'x!' })
+                };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'violates exclusivity constraint'
+        ):
+            await self.con.execute("""
+                insert UniqueName {
+                    translated_labels_tgt := (
+                      select Label { @lang := 'x' } filter .text = 'x')
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'violates exclusivity constraint'
+        ):
+            await self.con.execute("""
+                insert UniqueNameInherited {
+                    translated_labels_tgt := (
+                      select Label { @lang := 'x' } filter .text = 'x')
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'violates exclusivity constraint'
+        ):
+            await self.con.execute("""
+                insert UniqueNameInherited {
+                    translated_labels_tgt := (
+                      select Label { @lang := .text ++ '!' }
+                      filter .text = 'x')
+                };
+            """)
+
 
 class TestConstraintsSchemaMigration(tb.QueryTestCase):
 

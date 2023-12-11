@@ -853,13 +853,14 @@ class ConstraintCommand(
                 )
                 refs |= ir_utils.get_longest_paths(final_except_expr.irast)
 
-            has_multi = False
+            has_any_multi = has_non_subject_multi = False
             for ref in refs:
                 assert subject_obj
                 while ref.rptr:
                     rptr = ref.rptr
+
                     if rptr.dir_cardinality.is_multi():
-                        has_multi = True
+                        has_any_multi = True
 
                     # We don't need to look further than the subject,
                     # which is always valid. (And which is a singleton
@@ -870,6 +871,9 @@ class ConstraintCommand(
                         and rptr.ptrref.id == subject_obj.id
                     ):
                         break
+
+                    if rptr.dir_cardinality.is_multi():
+                        has_non_subject_multi = True
 
                     if (not isinstance(rptr.ptrref,
                                        ir_ast.TupleIndirectionPointerRef)
@@ -890,14 +894,14 @@ class ConstraintCommand(
 
                     ref = rptr.source
 
-            if has_multi and len(refs) > 1:
+            if has_non_subject_multi and len(refs) > 1:
                 raise errors.InvalidConstraintDefinitionError(
                     "cannot reference multiple links or properties in a "
                     "constraint where at least one link or property is MULTI",
                     context=sourcectx
                 )
 
-            if has_multi and ir_utils.contains_set_of_op(
+            if has_any_multi and ir_utils.contains_set_of_op(
                     final_subjectexpr.irast):
                 raise errors.InvalidConstraintDefinitionError(
                     "cannot use aggregate functions or operators "
