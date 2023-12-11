@@ -1089,11 +1089,12 @@ def compile_insert_shape_element(
         if shape_el.rptr.dir_cardinality.can_be_zero() or force_optional:
             # If the element can be empty, compile it in a subquery to force it
             # to be NULL.
-            value = relgen.set_as_subquery(
+            value: pgast.BaseExpr = relgen.set_as_subquery(
                 shape_el, as_value=True, ctx=insvalctx)
             pathctx.put_path_value_var(insvalctx.rel, shape_el.path_id, value)
         else:
-            dispatch.visit(shape_el, ctx=insvalctx)
+            value = dispatch.compile(shape_el, ctx=insvalctx)
+            output.add_null_test(value, ctx.rel)
 
 
 def merge_overlays_globally(
@@ -2001,52 +2002,24 @@ def process_update_shape(
                 scopectx.expr_exposed = False
                 val: pgast.BaseExpr
 
-                if irtyputils.is_tuple(element.typeref):
-                    # When target is a tuple type, make sure
-                    # the expression is compiled into a subquery
-                    # returning a single column that is explicitly
-                    # cast into the appropriate composite type.
-                    val = relgen.set_as_subquery(
-                        element,
-                        as_value=True,
-                        explicit_cast=ptr_info.column_type,
-                        ctx=scopectx,
-                    )
-                else:
-                    if (
-                        isinstance(updvalue, irast.MutatingStmt)
-                        and updvalue in ctx.dml_stmts
-                    ):
-                        with scopectx.substmt() as srelctx:
-                            dml_cte = ctx.dml_stmts[updvalue]
-                            wrap_dml_cte(updvalue, dml_cte, ctx=srelctx)
-                            pathctx.get_path_identity_output(
-                                srelctx.rel,
-                                updvalue.subject.path_id,
-                                env=srelctx.env,
-                            )
-                            val = srelctx.rel
-                    else:
-                        # base case
-                        val = dispatch.compile(updvalue, ctx=scopectx)
+                val = relgen.set_as_subquery(
+                    element,
+                    as_value=True,
+                    explicit_cast=ptr_info.column_type,
+                    ctx=scopectx,
+                )
 
-                    assert isinstance(updvalue, irast.Stmt)
-
-                    val = check_update_type(
-                        val,
-                        val,
-                        is_subquery=True,
-                        ir_stmt=ir_stmt,
-                        ir_set=updvalue.result,
-                        shape_ptrref=shape_ptrref,
-                        actual_ptrref=actual_ptrref,
-                        ctx=scopectx,
-                    )
-
-                    val = pgast.TypeCast(
-                        arg=val,
-                        type_name=pgast.TypeName(name=ptr_info.column_type),
-                    )
+                assert isinstance(updvalue, irast.Stmt)
+                val = check_update_type(
+                    val,
+                    val,
+                    is_subquery=True,
+                    ir_stmt=ir_stmt,
+                    ir_set=element,
+                    shape_ptrref=shape_ptrref,
+                    actual_ptrref=actual_ptrref,
+                    ctx=scopectx,
+                )
 
                 if shape_op is qlast.ShapeOp.SUBTRACT:
                     val = pgast.FuncCall(
