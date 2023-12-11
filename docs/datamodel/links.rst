@@ -277,9 +277,9 @@ table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
 
 .. note::
 
-  Choosing a link direction can be tricky when dealing with these kinds of
-  links. Should you model the link as a one-to-many using ``multi``, or should
-  you model a many-to-one (single) link and use backlinks to traverse in the
+  Choosing a link direction can be tricky when modeling these kinds of
+  relationships. Should you model the relationship as one-to-many using a ``multi`` link, or as
+  many-to-one using a ``single`` link with a backlink to traverse in the
   other direction? A general rule of thumb in this case is as follows.
 
   Use a ``multi`` link if:
