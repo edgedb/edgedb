@@ -84,6 +84,7 @@ cdef class Database:
         readonly object user_config_spec
 
         readonly str name
+        readonly object schema_version
         readonly object dbver
         readonly object db_config
         readonly bytes user_schema_pickle
@@ -101,6 +102,7 @@ cdef class Database:
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema_pickle,
+        schema_version,
         extensions,
         ext_config_settings,
         reflection_cache=?,
@@ -141,7 +143,7 @@ cdef class DatabaseConnectionView:
         object _txid
         object _in_tx_db_config
         object _in_tx_savepoints
-        object _in_tx_user_schema_pickle
+        object _in_tx_user_schema_pv
         object _in_tx_user_config_spec
         object _in_tx_global_schema_pickle
         object _in_tx_new_types
@@ -186,7 +188,7 @@ cdef class DatabaseConnectionView:
     cdef on_success(self, query_unit, new_types)
     cdef commit_implicit_tx(
         self,
-        user_schema,
+        user_schema_pv,
         extensions,
         ext_config_settings,
         global_schema,

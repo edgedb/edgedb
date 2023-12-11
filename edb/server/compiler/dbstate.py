@@ -310,9 +310,9 @@ class QueryUnit:
         dataclasses.field(default_factory=list))
     modaliases: Optional[immutables.Map[Optional[str], str]] = None
 
-    # If present, represents the future schema state after
-    # the command is run. The schema is pickled.
-    user_schema: Optional[bytes] = None
+    # If present, represents the future schema state after the command is run.
+    # The schema is pickled, followed by its version (_pv).
+    user_schema_pv: Optional[Tuple[bytes, uuid.UUID]] = None
     cached_reflection: Optional[bytes] = None
     extensions: Optional[set[str]] = None
     ext_config_settings: Optional[list[config.Setting]] = None
@@ -473,6 +473,7 @@ class SQLQueryUnit:
 @dataclasses.dataclass
 class ParsedDatabase:
     user_schema_pickle: bytes
+    schema_version: uuid.UUID
     database_config: immutables.Map[str, config.SettingValue]
     ext_config_settings: list[config.Setting]
 

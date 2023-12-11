@@ -156,6 +156,7 @@ cdef class Database:
         str name,
         *,
         bytes user_schema_pickle,
+        object schema_version,
         object db_config,
         object reflection_cache,
         object backend_ids,
@@ -164,6 +165,7 @@ cdef class Database:
     ):
         self.name = name
 
+        self.schema_version = schema_version
         self.dbver = next_dbver()
 
         self._index = index
@@ -199,6 +201,7 @@ cdef class Database:
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema_pickle,
+        schema_version,
         extensions,
         ext_config_settings,
         reflection_cache=None,
@@ -208,6 +211,7 @@ cdef class Database:
         if new_schema_pickle is None:
             raise AssertionError('new_schema is not supposed to be None')
 
+        self.schema_version = schema_version
         self.dbver = next_dbver()
 
         self.user_schema_pickle = new_schema_pickle
@@ -339,7 +343,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_with_sysconfig = False
         self._in_tx_with_dbconfig = False
         self._in_tx_with_set = False
-        self._in_tx_user_schema_pickle = None
+        self._in_tx_user_schema_pv = None
         self._in_tx_global_schema_pickle = None
         self._in_tx_new_types = {}
         self._in_tx_user_config_spec = None
@@ -510,7 +514,7 @@ cdef class DatabaseConnectionView:
 
     def get_user_schema_pickle(self):
         if self._in_tx:
-            return self._in_tx_user_schema_pickle
+            return self._in_tx_user_schema_pv[0]
         else:
             return self._db.user_schema_pickle
 
@@ -764,7 +768,9 @@ cdef class DatabaseConnectionView:
         self._in_tx_globals = self._globals
         self._in_tx_db_config = self._db.db_config
         self._in_tx_modaliases = self._modaliases
-        self._in_tx_user_schema_pickle = self._db.user_schema_pickle
+        self._in_tx_user_schema_pv = (
+            self._db.user_schema_pickle, self._db.schema_version
+        )
         self._in_tx_global_schema_pickle = \
             self._db._index._global_schema_pickle
         self._in_tx_user_config_spec = self._db.user_config_spec
@@ -779,8 +785,8 @@ cdef class DatabaseConnectionView:
             self._in_tx_with_dbconfig = True
         if query_unit.has_set:
             self._in_tx_with_set = True
-        if query_unit.user_schema is not None:
-            self._in_tx_user_schema_pickle = query_unit.user_schema
+        if query_unit.user_schema_pv is not None:
+            self._in_tx_user_schema_pv = query_unit.user_schema_pv
             self._in_tx_user_config_spec = config.FlatSpec(
                 *query_unit.ext_config_settings
             )
@@ -805,10 +811,11 @@ cdef class DatabaseConnectionView:
         if not self._in_tx:
             if new_types:
                 self._db._update_backend_ids(new_types)
-            if query_unit.user_schema is not None:
+            if query_unit.user_schema_pv is not None:
                 self._in_tx_dbver = next_dbver()
                 self._db._set_and_signal_new_user_schema(
-                    query_unit.user_schema,
+                    query_unit.user_schema_pv[0],
+                    query_unit.user_schema_pv[1],
                     query_unit.extensions,
                     query_unit.ext_config_settings,
                     pickle.loads(query_unit.cached_reflection)
@@ -848,9 +855,10 @@ cdef class DatabaseConnectionView:
 
             if self._in_tx_new_types:
                 self._db._update_backend_ids(self._in_tx_new_types)
-            if query_unit.user_schema is not None:
+            if query_unit.user_schema_pv is not None:
                 self._db._set_and_signal_new_user_schema(
-                    query_unit.user_schema,
+                    query_unit.user_schema_pv[0],
+                    query_unit.user_schema_pv[1],
                     query_unit.extensions,
                     query_unit.ext_config_settings,
                     pickle.loads(query_unit.cached_reflection)
@@ -884,7 +892,7 @@ cdef class DatabaseConnectionView:
 
     cdef commit_implicit_tx(
         self,
-        user_schema,
+        user_schema_pv,
         extensions,
         ext_config_settings,
         global_schema,
@@ -900,9 +908,10 @@ cdef class DatabaseConnectionView:
 
         if self._in_tx_new_types:
             self._db._update_backend_ids(self._in_tx_new_types)
-        if user_schema is not None:
+        if user_schema_pv is not None:
             self._db._set_and_signal_new_user_schema(
-                user_schema,
+                user_schema_pv[0],
+                user_schema_pv[1],
                 extensions,
                 ext_config_settings,
                 pickle.loads(cached_reflection)
@@ -1212,6 +1221,7 @@ cdef class DatabaseIndex:
         dbname,
         *,
         user_schema_pickle,
+        schema_version,
         db_config,
         reflection_cache,
         backend_ids,
@@ -1223,6 +1233,7 @@ cdef class DatabaseIndex:
         if db is not None:
             db._set_and_signal_new_user_schema(
                 user_schema_pickle,
+                schema_version,
                 extensions,
                 ext_config_settings,
                 reflection_cache,
@@ -1234,6 +1245,7 @@ cdef class DatabaseIndex:
                 self,
                 dbname,
                 user_schema_pickle=user_schema_pickle,
+                schema_version=schema_version,
                 db_config=db_config,
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
