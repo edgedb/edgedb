@@ -526,6 +526,19 @@ def output_as_value(
     return val
 
 
+def add_null_test(expr: pgast.BaseExpr, query: pgast.SelectStmt) -> None:
+    if not expr.nullable:
+        return
+
+    while isinstance(expr, pgast.TupleVar) and expr.elements:
+        expr = expr.elements[0].val
+
+    query.where_clause = astutils.extend_binop(
+        query.where_clause,
+        pgast.NullTest(arg=expr, negated=True)
+    )
+
+
 def serialize_expr_if_needed(
         expr: pgast.BaseExpr, *,
         path_id: irast.PathId,
