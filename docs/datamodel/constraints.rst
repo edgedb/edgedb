@@ -269,9 +269,36 @@ when some condition holds.
 Constraints on links
 --------------------
 
-When defining a constraint on a link, ``__subject__`` refers to the *link
-itself*. This is commonly used to add constraints to :ref:`link properties
-<ref_datamodel_link_properties>`.
+You can constrain links such that a given object can only be linked once by
+using :eql:constraint:`exclusive`:
+
+.. code-block:: sdl
+    :version-lt: 3.0
+
+    type User {
+        required property name -> str;
+
+        # Make sure none of the "owned" items belong
+        # to any other user.
+        multi link owns -> Item {
+            constraint exclusive;
+        }
+    }
+
+.. code-block:: sdl
+
+    type User {
+        required name: str;
+
+        # Make sure none of the "owned" items belong
+        # to any other user.
+        multi owns: Item {
+            constraint exclusive;
+        }
+    }
+
+You can also add constraints for :ref:`link properties
+<ref_datamodel_link_properties>`:
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -281,7 +308,7 @@ itself*. This is commonly used to add constraints to :ref:`link properties
       multi link friends -> User {
         single property strength -> float64;
         constraint expression on (
-          __subject__@strength >= 0
+          @strength >= 0
         );
       }
     }
@@ -293,11 +320,46 @@ itself*. This is commonly used to add constraints to :ref:`link properties
       multi friends: User {
         strength: float64;
         constraint expression on (
-          __subject__@strength >= 0
+          @strength >= 0
         );
       }
     }
 
+You can create a composite exclusive constraint on the object linking/linked
+*and* a link property by using ``@source`` or ``@target`` respectively. Here's
+a schema for a library book management app that tracks books and who has
+checked them out:
+
+.. code-block:: sdl
+    :version-lt: 3.0
+
+    type Book {
+      required property title -> str;
+    }
+    type User {
+      property name -> str;
+      multi link checked_out -> Book {
+        property date -> cal::local_date;
+        # Ensures a given Book can be checked out
+        # only once on a given day.
+        constraint exclusive on (@target, @date);
+      }
+    }
+
+.. code-block:: sdl
+
+    type Book {
+      required title: str;
+    }
+    type User {
+      name: str;
+      multi checked_out: Book {
+        date: cal::local_date;
+        # Ensures a given Book can be checked out
+        # only once on a given day.
+        constraint exclusive on (@target, @date);
+      }
+    }
 
 .. _ref_datamodel_constraints_scalars:
 
