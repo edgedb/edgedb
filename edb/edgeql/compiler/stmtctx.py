@@ -294,8 +294,9 @@ def collect_params(ctx: context.ContextLevel) -> List[irast.Param]:
     lparams = [
         p for p in ctx.env.query_parameters.values() if not p.is_sub_param
     ]
-    if lparams and lparams[0].name.isdecimal():
-        lparams.sort(key=lambda x: int(x.name))
+    if ctx.env.script_params:
+        script_ordering = {k: i for i, k in enumerate(ctx.env.script_params)}
+        lparams.sort(key=lambda x: script_ordering[x.name])
 
     params = []
     # Now flatten it out, including all sub_params, making sure subparams
@@ -882,13 +883,20 @@ def preprocess_script(
     if params:
         check_params(params)
 
-        # Put them in order if they are positional
-        lparams = list(params.items())
-        if lparams[0][0].isdecimal():
-            lparams.sort(key=lambda x: int(x[0]))
-        # Otherwise make sure injected args come after
-        else:
-            lparams.sort(key=lambda x: x[0].startswith('__edb_arg_'))
-        params = dict(lparams)
+        def _arg_key(k: tuple[str, object]) -> int:
+            name = k[0]
+            arg_prefix = '__edb_arg_'
+            # Positional arguments should just be sorted numerically,
+            # while for named arguments, injected args should be sorted and
+            # need to come after normal ones. Normal named arguments can have
+            # any order.
+            if name.isdecimal():
+                return int(name)
+            elif name.startswith(arg_prefix):
+                return int(k[0][len(arg_prefix):])
+            else:
+                return -1
+
+        params = dict(sorted(params.items(), key=_arg_key))
 
     return irast.ScriptInfo(params=params, schema=ctx.env.schema)
