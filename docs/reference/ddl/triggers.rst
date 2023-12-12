@@ -78,7 +78,7 @@ Declare a trigger that inserts a ``Log`` object for each new ``User`` object:
 Declare a trigger that inserts a ``Log`` object conditionally when an update
 query makes a change to a ``User`` object:
 
-.. code-block:: sdl
+.. code-block:: edgeql
 
     alter type User {
       create trigger log_update after update for each
