@@ -14410,9 +14410,6 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
                 insert Away { x := '2', y := '1' }
             """)
 
-    @test.xerror('''
-        This fails because of the alias nonsense in pointers
-    ''')
     async def test_edgeql_ddl_adjust_computed_16(self):
         # this is caused by the annoying thing where pointers that are
         # a simple alias like this just inherit from the other point.

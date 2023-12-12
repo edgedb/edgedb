@@ -11630,9 +11630,6 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Away2 extending Away;
         ''')
 
-    @test.xfail('''
-        This fails because of the alias nonsense in pointers
-    ''')
     async def test_edgeql_migration_between_computeds_02(self):
         await self.migrate(r'''
             type Away {
