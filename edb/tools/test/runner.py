@@ -21,7 +21,6 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
-import binascii
 import collections
 import collections.abc
 import csv

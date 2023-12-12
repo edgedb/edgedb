@@ -91,7 +91,7 @@ __all__ = ('not_implemented', 'xerror', 'xfail', 'skip')
 @click.option('--running-times-log', 'running_times_log_file',
               type=click.File('a+'), metavar='FILEPATH',
               help='maintain a running time log file at FILEPATH')
-@click.option('--log-result', is_flag=True,
+@click.option('--log-result/--no-log-result', is_flag=True,
               help='write the test result to a log file',
               default=True)
 @click.option('--include-unsuccessful-result', is_flag=True,

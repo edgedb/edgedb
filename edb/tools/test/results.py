@@ -41,8 +41,8 @@ class TestCase:
     name: str
     description: str
 
-    py_HashSecret: bytes
-    py_random_seed: bytes
+    py_HashSecret: typing.Optional[str]
+    py_random_seed: typing.Optional[str]
 
     error_message: typing.Optional[str]
     server_traceback: typing.Optional[str]
@@ -51,8 +51,8 @@ class TestCase:
 def _collect_case_data(
     result: runner.ParallelTextTestResult,
     test: unittest.TestCase,
-    err: typing.Tuple[typing.Type, Exception, typing.Any],
-) -> str:
+    err: typing.Any,
+) -> TestCase:
     from . import runner
 
     py_HashSecret = None
@@ -68,7 +68,9 @@ def _collect_case_data(
     if runner._is_exc_info(err):
         if isinstance(err[1], edgedb.EdgeDBError):
             server_traceback = err[1].get_server_context()
-        error_message = unittest.result.TestResult._exc_info_to_string(
+        from unittest.result import TestResult
+
+        error_message = TestResult._exc_info_to_string(  # type: ignore
             result, err, test
         )
     elif isinstance(err, runner.SerializedServerError):
@@ -290,7 +292,7 @@ def _dataclass_from_dict(klass: typing.Type, d: typing.Dict):
 
     try:
         field_types = {f.name: f.type for f in dataclasses.fields(klass)}
-    except:
+    except BaseException:
         return d  # Not a dataclass field
 
     return klass(**{f: _dataclass_from_dict(field_types[f], d[f]) for f in d})
