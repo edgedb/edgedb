@@ -45,6 +45,7 @@ from . import loader
 from . import mproc_fixes
 from . import runner
 from . import styles
+from . import log
 
 
 __all__ = ('not_implemented', 'xerror', 'xfail', 'skip')
@@ -89,16 +90,21 @@ __all__ = ('not_implemented', 'xerror', 'xfail', 'skip')
                    '(e.g --cov edb.common --cov edb.server)')
 @click.option('--running-times-log', 'running_times_log_file',
               type=click.File('a+'), metavar='FILEPATH',
-              help='Maintain a running time log file at FILEPATH')
+              help='maintain a running time log file at FILEPATH')
+@click.option('--log-result', is_flag=True,
+              help='write the test result to a log file',
+              default=True)
+@click.option('--include-unsuccessful-result', is_flag=True,
+              help='include the tests that were not successful in the last run')
 @click.option('--list', 'list_tests', is_flag=True,
               help='list all the tests and exit')
 @click.option('--backend-dsn', type=str,
-              help='Use the specified backend cluster instead of starting a '
+              help='use the specified backend cluster instead of starting a '
                    'temporary local one.')
 @click.option('--use-db-cache', is_flag=True,
-              help='Attempt to use a cache of the test databases (unsound!)')
+              help='attempt to use a cache of the test databases (unsound!)')
 @click.option('--data-dir', type=str,
-              help='Use a specified data dir')
+              help='use a specified data dir')
 def test(
     *,
     files: typing.Sequence[str],
@@ -120,6 +126,8 @@ def test(
     backend_dsn: typing.Optional[str],
     use_db_cache: bool,
     data_dir: typing.Optional[str],
+    log_result: bool,
+    include_unsuccessful_result: bool,
 ):
     """Run EdgeDB test suite.
 
@@ -197,6 +205,8 @@ def test(
         backend_dsn=backend_dsn,
         try_cached_db=use_db_cache,
         data_dir=data_dir,
+        log_result=log_result,
+        include_unsuccessful_result=include_unsuccessful_result,
     )
 
     if cov:
@@ -289,6 +299,8 @@ def _run(
     backend_dsn: typing.Optional[str],
     try_cached_db: bool,
     data_dir: typing.Optional[str],
+    log_result: bool,
+    include_unsuccessful_result: bool,
 ):
     suite = unittest.TestSuite()
 
@@ -307,6 +319,10 @@ def _run(
                 nl=False, err=list_tests)
     else:
         _update_progress = None
+
+    if include_unsuccessful_result:
+        unsuccessful = log.read_unsuccessful()
+        include = list(include) + unsuccessful
 
     test_loader = loader.TestLoader(
         verbosity=verbosity,
@@ -362,5 +378,8 @@ def _run(
 
         if not result.wasSuccessful():
             break
+
+    if log_result:
+        log.log_result(result)
 
     return 0 if result.wasSuccessful() else 1

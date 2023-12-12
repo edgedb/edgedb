@@ -832,7 +832,7 @@ class ParallelTextTestRunner:
         selected_shard: int,
         total_shards: int,
         running_times_log_file: Optional[Any],
-    ):
+    ) -> ParallelTextTestResult:
         session_start = time.monotonic()
         cases = tb.get_test_cases([test])
         stats = {}
@@ -850,7 +850,7 @@ class ParallelTextTestRunner:
         worker_init = None
         bootstrap_time_taken = 0.0
         tests_time_taken = 0.0
-        result = None
+        result: Optional[ParallelTextTestResult] = None
         cluster: Optional[edb_cluster.BaseCluster] = None
         conn = None
         tempdir = None
