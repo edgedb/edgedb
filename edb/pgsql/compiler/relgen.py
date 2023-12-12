@@ -527,10 +527,6 @@ def set_as_subquery(
         wrapper.name = ctx.env.aliases.get('set_as_subquery')
         dispatch.visit(ir_set, ctx=subctx)
 
-        var = pathctx.get_path_value_var(
-            rel=wrapper, path_id=ir_set.path_id, env=ctx.env)
-        output.add_null_test(var, subctx.rel)
-
         if as_value:
 
             if output.in_serialization_ctx(ctx):
@@ -550,7 +546,6 @@ def set_as_subquery(
                         type_name=pgast.TypeName(name=explicit_cast),
                     )
 
-                wrapper.path_outputs.clear()
                 wrapper.target_list = [
                     pgast.ResTarget(val=value)
                 ]
@@ -2291,8 +2286,6 @@ def process_set_as_singleton_assertion(
                 ),
             ],
         )
-
-        output.add_null_test(arg_ref, newctx.rel)
 
         # Force Postgres to actually evaluate the result target
         # by putting it into an ORDER BY.

@@ -486,7 +486,7 @@ def in_serialization_ctx(ctx: context.CompilerContextLevel) -> bool:
 
 def output_as_value(
         expr: pgast.BaseExpr, *,
-        env: Optional[context.Environment]) -> pgast.BaseExpr:
+        env: context.Environment) -> pgast.BaseExpr:
 
     val = expr
     if isinstance(expr, pgast.TupleVar):
@@ -494,8 +494,7 @@ def output_as_value(
                       Type[pgast.RowExpr]]
 
         if (
-            env
-            and env.output_format is context.OutputFormat.NATIVE_INTERNAL
+            env.output_format is context.OutputFormat.NATIVE_INTERNAL
             and len(expr.elements) == 1
             and (path_id := (el0 := expr.elements[0]).path_id) is not None
             and (rptr_name := path_id.rptr_name()) is not None
@@ -514,7 +513,7 @@ def output_as_value(
         ])
 
         if (expr.typeref is not None
-                and not (env and env.singleton_mode)
+                and not env.singleton_mode
                 and irtyputils.is_persistent_tuple(expr.typeref)):
             pg_type = pgtypes.pg_type_from_ir_typeref(expr.typeref)
             val = pgast.TypeCast(
@@ -525,19 +524,6 @@ def output_as_value(
             )
 
     return val
-
-
-def add_null_test(expr: pgast.BaseExpr, query: pgast.SelectStmt) -> None:
-    if not expr.nullable:
-        return
-
-    while isinstance(expr, pgast.TupleVar) and expr.elements:
-        expr = expr.elements[0].val
-
-    query.where_clause = astutils.extend_binop(
-        query.where_clause,
-        pgast.NullTest(arg=expr, negated=True)
-    )
 
 
 def serialize_expr_if_needed(
