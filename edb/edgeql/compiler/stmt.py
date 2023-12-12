@@ -284,7 +284,7 @@ def _make_group_binding(
     binding_set.is_visible_binding_ref = True
 
     name = s_name.UnqualName(alias)
-    ctx.aliased_views[name] = binding_type
+    ctx.aliased_views[name] = binding_set
     ctx.view_sets[binding_type] = binding_set
     ctx.env.path_scope_map[binding_set] = context.ScopeInfo(
         path_scope=ctx.path_scope,

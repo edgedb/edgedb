@@ -325,21 +325,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if refnode is not None:
                 path_tip = new_set_from_set(refnode, ctx=ctx)
             else:
-                stype = schemactx.get_schema_type(
-                    step,
-                    condition=lambda o: (
-                        isinstance(o, s_types.Type)
-                        and (
-                            o.is_object_type() or
-                            o.is_view(ctx.env.schema) or
-                            o.is_enum(ctx.env.schema)
-                        )
-                    ),
-                    label='object type or alias',
-                    item_type=s_types.QualifiedType,
-                    srcctx=step.context,
-                    ctx=ctx,
-                )
+                (view_set, stype) = resolve_name(step, ctx=ctx)
 
                 if (stype.is_enum(ctx.env.schema) and
                         not stype.is_view(ctx.env.schema)):
@@ -358,7 +344,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     # a WITH-block or inline alias view.
                     stype = stmtctx.declare_view_from_schema(stype, ctx=ctx)
 
-                view_set = ctx.view_sets.get(stype)
+                if not view_set:
+                    view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
                     view_scope_info = ctx.env.path_scope_map[view_set]
                     path_tip = new_set_from_set(
@@ -619,6 +606,36 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             path_sets[i] = comp_ir_set
 
     return path_tip
+
+
+def resolve_name(
+    name: qlast.ObjectRef, *, ctx: context.ContextLevel
+) -> Tuple[Optional[irast.Set], s_types.Type]:
+
+    view_set = None
+    stype = None
+    if not name.module:
+        view_set = ctx.aliased_views.get(s_name.UnqualName(name.name))
+        if view_set:
+            stype = get_set_type(view_set, ctx=ctx)
+            return (view_set, stype)
+
+    stype = schemactx.get_schema_type(
+        name,
+        condition=lambda o: (
+            isinstance(o, s_types.Type)
+            and (
+                o.is_object_type() or
+                o.is_view(ctx.env.schema) or
+                o.is_enum(ctx.env.schema)
+            )
+        ),
+        label='object type or alias',
+        item_type=s_types.QualifiedType,
+        srcctx=name.context,
+        ctx=ctx,
+    )
+    return (None, stype)
 
 
 def resolve_special_anchor(

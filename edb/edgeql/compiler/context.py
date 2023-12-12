@@ -427,7 +427,7 @@ class ContextLevel(compiler.ContextLevel):
     suppress_rewrites: FrozenSet[s_types.Type]
     """Types to suppress using rewrites on"""
 
-    aliased_views: ChainMap[s_name.Name, s_types.Type]
+    aliased_views: ChainMap[s_name.Name, irast.Set]
     """A dictionary of views aliased in a statement body."""
 
     class_view_overrides: Dict[uuid.UUID, s_types.Type]

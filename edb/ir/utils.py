@@ -122,18 +122,6 @@ def is_subquery_set(ir_expr: irast.Base) -> bool:
     )
 
 
-def is_scalar_view_set(ir_expr: irast.Base) -> bool:
-    """Return True if the given *ir_expr* expression is a view
-       of scalar type.
-    """
-    return (
-        isinstance(ir_expr, irast.Set) and
-        len(ir_expr.path_id) == 1 and
-        ir_expr.path_id.is_scalar_path() and
-        ir_expr.path_id.is_view_path()
-    )
-
-
 def is_implicit_wrapper(
     ir_expr: Optional[irast.Base]
 ) -> TypeGuard[irast.SelectStmt]:
