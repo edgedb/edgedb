@@ -46,7 +46,7 @@ piece of software that accesses the data.
 
 .. warning::
 
-    ⚠️ Once a policy is added to a particular object type, **all operations**
+    Once a policy is added to a particular object type, **all operations**
     (``select``, ``insert``, ``delete``, ``update``, etc.) on any object of
     that type are now *disallowed by default* unless specifically allowed by an
     access policy! See the subsection on resolution order below for details.
@@ -56,9 +56,9 @@ Defining a global
 
 Global variables are the a convenient way to provide the context needed to
 determine what sort of access should be allowed for a given object, as they
-can be set and reset as needed.
+can be set and reset by the application as needed.
 
-To start, we'll add two *global variables* to our schema. We'll use one global
+To start, we'll add two global variables to our schema. We'll use one global
 ``uuid`` to represent the identity of the user executing the query, and an
 enum for the other to represent the type of country that the user is currently
 in. The enum represents three types of countries: those where the service has
@@ -249,7 +249,7 @@ Let's add two policies to our sample schema.
     +       allow all
     +       using (global current_user    ?= .author.id
     +         and  global current_country ?= Country.Full) {
-    +        errmessage := "User not in country with full access";
+    +        errmessage := "User does not have full access";
     +       }
     +      access policy author_has_read_access
     +        allow select
@@ -265,17 +265,17 @@ all, depending on the country.
 
 .. note::
 
-  We're using the *coalescing equality* operator ``?=`` which returns
+  We're using the *coalescing equality* operator ``?=`` because it returns
   ``false`` even if one of its arguments is an empty set.
 
-- ``access policy`` The keyword used to declare a policy inside an object
+- ``access policy``: The keyword used to declare a policy inside an object
   type.
-- ``author_has_full_access`` and ``author_has_read_access``: The name of these
+- ``author_has_full_access`` and ``author_has_read_access``: The names of these
   policies; could be any string.
 - ``allow``: The kind of policy; could be ``allow`` or ``deny``
 - ``all``: The set of operations being allowed/denied; a comma-separated list
-  of the following: ``all``, ``select``, ``insert``, ``delete``, ``update``,
-  ``update read``, ``update write``.
+  of any number of the following: ``all``, ``select``, ``insert``, ``delete``,
+  ``update``, ``update read``, and ``update write``.
 - ``using (<expr>)``: A boolean expression. Think of this as a ``filter``
   expression that defines the set of objects to which the policy applies.
 - ``errmessage``: Here we have added an error message that will be shown in
