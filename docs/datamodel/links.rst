@@ -274,8 +274,35 @@ same "shirt owner" relationship is represented with a ``multi`` link.
 Under the hood, a ``multi`` link is stored in an intermediate `association
 table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
 ``single`` link is stored as a column in the object type where it is declared.
-As a result, single links are marginally more efficient. Generally ``single``
-links are recommended when modeling 1:N relations.
+
+.. note::
+
+  Choosing a link direction can be tricky when modeling these kinds of
+  relationships. Should you model the relationship as one-to-many using a
+  ``multi`` link, or as   many-to-one using a ``single`` link with a
+  backlink to traverse in the other direction? A general rule of thumb
+  in this case is as follows.
+
+  Use a ``multi`` link if:
+
+  - The relationship is relatively stable and thus not updated very
+    frequently. For example, a list of postal addresses in a
+    user profile.
+  - The number of elements in the link tends to be small.
+
+  Otherwise, prefer a single link from one object type coupled with a
+  computed backlink on the other. This is marginally more efficient
+  and generally recommended when modeling 1:N relations:
+
+  .. code-block:: sdl
+
+      type Post {
+        required author: User;
+      }
+
+      type User {
+        link posts := (.<author[is Post])
+      }
 
 .. _ref_guide_one_to_one:
 
