@@ -45,7 +45,7 @@ from . import loader
 from . import mproc_fixes
 from . import runner
 from . import styles
-from . import log
+from . import results
 
 
 __all__ = ('not_implemented', 'xerror', 'xfail', 'skip')
@@ -321,8 +321,8 @@ def _run(
         _update_progress = None
 
     if include_unsuccessful_result:
-        unsuccessful = log.read_unsuccessful()
-        include = list(include) + unsuccessful
+        unsuccessful = results.read_unsuccessful()
+        include = list(include) + unsuccessful + ['a_non_existing_test']
 
     test_loader = loader.TestLoader(
         verbosity=verbosity,
@@ -376,10 +376,13 @@ def _run(
             suite, selected_shard, total_shards, running_times_log_file,
         )
 
-        if not result.wasSuccessful():
+        if verbosity > 0:
+            results.render_result(test_runner.stream, result)
+
+        if not result.was_successful:
             break
 
     if log_result:
-        log.log_result(result)
+        results.write_result(result)
 
-    return 0 if result.wasSuccessful() else 1
+    return 0 if result.was_successful else 1
