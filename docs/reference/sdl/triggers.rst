@@ -28,7 +28,7 @@ Declare a trigger that inserts a ``Log`` object for each new ``User`` object:
       );
     }
 
-..versionadded:: 4.0
+.. versionadded:: 4.0
 
 Declare a trigger that inserts a ``Log`` object conditionally when an update
 query makes a change to a ``User`` object:
