@@ -38,8 +38,8 @@ Let's start with a simple schema for a blog without any access policies.
 
 When no access policies are defined, object-level security is not activated.
 Any properly authenticated client can carry out any operation on any object
-in the database. At the moment, we would need to ensure that the app itself
-handles the logic to restrict users from accessing other users' posts. Access
+in the database. At the moment, we would need to ensure that the app handles
+the logic to restrict users from accessing other users' posts. Access
 policies allow us to ensure that the database itself handles this logic,
 thereby freeing us up from implementing access control in each and every
 piece of software that accesses the data.
@@ -221,7 +221,7 @@ Let's add two policies to our sample schema.
     +       allow all
     +       using (global current_user    ?= .author.id
     +         and  global current_country ?= Country.Full) {
-    +        errmessage := "User not in country with full access";
+    +        errmessage := "User does not have full access";
     +       }
     +      access policy author_has_read_access
     +        allow select
@@ -289,7 +289,8 @@ Let's do some experiments.
 
   db> insert User { email := "test@edgedb.com" };
   {default::User {id: be44b326-03db-11ed-b346-7f1594474966}}
-  db> set global current_user := <uuid>"be44b326-03db-11ed-b346-7f1594474966";
+  db> set global current_user := 
+  ...   <uuid>"be44b326-03db-11ed-b346-7f1594474966";
   OK: SET GLOBAL
   db> set global current_country := Country.Full;
   OK: SET GLOBAL
@@ -325,7 +326,7 @@ yet been given permission to roll out our service.
   ...    author := (select User filter .id = global current_user)
   ...  };
   edgedb error: AccessPolicyError: access policy violation on 
-  insert of default::BlogPost (User not in country with full access)
+  insert of default::BlogPost (User does not have full access)
   db> set global current_country := Country.None;
   OK: SET GLOBAL
   db> select BlogPost;
