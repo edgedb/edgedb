@@ -299,8 +299,16 @@ def resolve_relation(
         for c in ['source', 'target']:
             columns.append(context.Column(name=c, reference_as=c))
 
+    def column_order_key(c: context.Column) -> Tuple[int, str]:
+        spec = {
+            'id': 0,
+            'source': 0,
+            'target': 1
+        }
+        return (spec.get(c.reference_as or '', 2), c.name or '')
+
     # sort by name but put `id` first
-    columns.sort(key=lambda c: () if c.name == 'id' else (c.name or '',))
+    columns.sort(key=column_order_key)
     table.columns.extend(columns)
 
     aspect = 'inhview' if ctx.include_inherited else 'table'

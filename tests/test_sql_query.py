@@ -407,11 +407,11 @@ class TestSQL(tb.SQLQueryTestCase):
 
         # multi
         res = await self.scon.fetch('SELECT * FROM "Movie.actors"')
-        self.assert_shape(res, 3, ['role', 'source', 'target'])
+        self.assert_shape(res, 3, ['source', 'target', 'role'])
 
         # single with properties
         res = await self.scon.fetch('SELECT * FROM "Movie.director"')
-        self.assert_shape(res, 1, ['bar', 'source', 'target'])
+        self.assert_shape(res, 1, ['source', 'target', 'bar'])
 
         # single without properties
         with self.assertRaisesRegex(
@@ -674,35 +674,41 @@ class TestSQL(tb.SQLQueryTestCase):
             res,
             [
                 ['Book', 'id', 'NO', 1],
-                ['Book', 'genre_id', 'YES', 2],
-                ['Book', 'pages', 'NO', 3],
-                ['Book', 'title', 'NO', 4],
+                ['Book', '__type__', 'NO', 2],
+                ['Book', 'genre_id', 'YES', 3],
+                ['Book', 'pages', 'NO', 4],
+                ['Book', 'title', 'NO', 5],
                 ['Book.chapters', 'source', 'NO', 1],
                 ['Book.chapters', 'target', 'NO', 2],
                 ['Content', 'id', 'NO', 1],
-                ['Content', 'genre_id', 'YES', 2],
-                ['Content', 'title', 'NO', 3],
+                ['Content', '__type__', 'NO', 2],
+                ['Content', 'genre_id', 'YES', 3],
+                ['Content', 'title', 'NO', 4],
                 ['Genre', 'id', 'NO', 1],
-                ['Genre', 'name', 'NO', 2],
+                ['Genre', '__type__', 'NO', 2],
+                ['Genre', 'name', 'NO', 3],
                 ['Movie', 'id', 'NO', 1],
-                ['Movie', 'director_id', 'YES', 2],
-                ['Movie', 'genre_id', 'YES', 3],
-                ['Movie', 'release_year', 'YES', 4],
-                ['Movie', 'title', 'NO', 5],
-                ['Movie.actors', 'role', 'YES', 1],
-                ['Movie.actors', 'source', 'NO', 2],
-                ['Movie.actors', 'target', 'NO', 3],
-                ['Movie.director', 'bar', 'YES', 1],
-                ['Movie.director', 'source', 'NO', 2],
-                ['Movie.director', 'target', 'NO', 3],
+                ['Movie', '__type__', 'NO', 2],
+                ['Movie', 'director_id', 'YES', 3],
+                ['Movie', 'genre_id', 'YES', 4],
+                ['Movie', 'release_year', 'YES', 5],
+                ['Movie', 'title', 'NO', 6],
+                ['Movie.actors', 'source', 'NO', 1],
+                ['Movie.actors', 'target', 'NO', 2],
+                ['Movie.actors', 'role', 'YES', 3],
+                ['Movie.director', 'source', 'NO', 1],
+                ['Movie.director', 'target', 'NO', 2],
+                ['Movie.director', 'bar', 'YES', 3],
                 ['Person', 'id', 'NO', 1],
-                ['Person', 'first_name', 'NO', 2],
-                ['Person', 'last_name', 'YES', 3],
+                ['Person', '__type__', 'NO', 2],
+                ['Person', 'first_name', 'NO', 3],
+                ['Person', 'last_name', 'YES', 4],
                 ['novel', 'id', 'NO', 1],
-                ['novel', 'foo', 'YES', 2],
-                ['novel', 'genre_id', 'YES', 3],
-                ['novel', 'pages', 'NO', 4],
-                ['novel', 'title', 'NO', 5],
+                ['novel', '__type__', 'NO', 2],
+                ['novel', 'foo', 'YES', 3],
+                ['novel', 'genre_id', 'YES', 4],
+                ['novel', 'pages', 'NO', 5],
+                ['novel', 'title', 'NO', 6],
                 ['novel.chapters', 'source', 'NO', 1],
                 ['novel.chapters', 'target', 'NO', 2],
             ],
