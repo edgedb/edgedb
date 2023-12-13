@@ -1393,14 +1393,6 @@ class RenameReferencedInheritingObject(
             sd.RenameObject, type(scls))
 
         def _ref_rename(alter_cmd: sd.Command, refname: sn.Name) -> None:
-            # FIXME: If the descendant has the same subject, we can't
-            # propagate to it. This is because computed pointers that
-            # directly alias another are considered children. See
-            # #6292.
-            assert isinstance(alter_cmd, AlterReferencedInheritingObject)
-            if alter_cmd.scls.get_subject(schema) == scls.get_subject(schema):
-                return
-
             astnode = rename_cmdcls.astnode(  # type: ignore
                 new_name=utils.name_to_ast_ref(refname),
             )
