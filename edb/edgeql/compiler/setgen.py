@@ -756,14 +756,15 @@ def resolve_ptr_with_intersections(
             s_name.UnqualName(pointer_name),
         )
 
-        # If we couldn't anything, but the source is a computed backlink,
-        # look for a link property on the reverse side of it. This allows
-        # us to access link properties in both directions on links, including
-        # when the backlink has been stuck in a computed.
+        # If we couldn't anything, but the source is a computed link
+        # that aliases some other link, look for a link property on
+        # it. This allows us to access link properties in both
+        # directions on links, including when the backlink has been
+        # stuck in a computed.
         if (
             ptr is None
-            and isinstance(near_endpoint, s_pointers.Pointer)
-            and (back := near_endpoint.get_computed_backlink(ctx.env.schema))
+            and isinstance(near_endpoint, s_links.Link)
+            and (back := near_endpoint.get_computed_link_alias(ctx.env.schema))
             and isinstance(back, s_links.Link)
             and (nptr := back.maybe_get_ptr(
                 ctx.env.schema,
@@ -773,8 +774,24 @@ def resolve_ptr_with_intersections(
             # around a bunch of stuff inside them.
             and not nptr.is_pure_computable(ctx.env.schema)
         ):
-            ptr = schemactx.derive_ptr(nptr, near_endpoint, ctx=ctx)
-            path_id_ptr = ptr
+            src_type = downcast(
+                s_types.Type, near_endpoint.get_source(ctx.env.schema)
+            )
+            if not src_type.is_view(ctx.env.schema):
+                # HACK: If the source is in the standard library, and
+                # not a view, we can't add a derived pointer.  For
+                # consistency, just always require it be a view.
+                new_source = downcast(
+                    s_objtypes.ObjectType,
+                    schemactx.derive_view(src_type, ctx=ctx),
+                )
+                new_endpoint = downcast(s_links.Link, schemactx.derive_ptr(
+                    near_endpoint, new_source, ctx=ctx))
+            else:
+                new_endpoint = near_endpoint
+
+            ptr = schemactx.derive_ptr(nptr, new_endpoint, ctx=ctx)
+            path_id_ptr = nptr
 
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)

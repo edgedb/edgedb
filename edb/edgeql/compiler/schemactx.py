@@ -309,7 +309,8 @@ def derive_ptr(
     # actually deriving from it.
     if derive_backlink:
         attrs = attrs.copy() if attrs else {}
-        attrs['computed_backlink'] = ptr
+        attrs['computed_link_alias'] = ptr
+        attrs['computed_link_alias_is_backward'] = True
         ptr = ctx.env.schema.get('std::link', type=s_pointers.Pointer)
 
     ctx.env.schema, derived = ptr.derive_ref(

@@ -535,7 +535,12 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         type_is_generic_self=True,
     )
 
-    computed_backlink = so.SchemaField(
+    computed_link_alias_is_backward = so.SchemaField(
+        bool,
+        default=None,
+        compcoef=0.99,
+    )
+    computed_link_alias = so.SchemaField(
         so.Object,
         default=None,
         compcoef=0.99,
@@ -1172,55 +1177,15 @@ class PointerCommandOrFragment(
             )
 
         if isinstance(target_ref, ComputableRef):
-            schema, inf_target_ref, base = self._parse_computable(
+            schema, inf_target_ref = self._parse_computable(
                 target_ref.expr, schema, context)
         elif (expr := self.get_local_attribute_value('expr')) is not None:
             schema = s_types.materialize_type_in_attribute(
                 schema, context, self, 'target')
-            schema, inf_target_ref, base = self._parse_computable(
+            schema, inf_target_ref = self._parse_computable(
                 expr.qlast, schema, context)
         else:
             inf_target_ref = None
-            base = None
-
-        if base is not None:
-            self.set_attribute_value(
-                'bases', so.ObjectList.create(schema, [base]),
-            )
-
-            self.set_attribute_value(
-                'is_derived', True
-            )
-            if isinstance(self, inheriting.AlterInheritingObject):
-                self._propagate_is_derived(schema, context, True)
-
-            if context.declarative:
-                self.set_attribute_value(
-                    'declared_overloaded', True
-                )
-
-        # If we *were* an aliased computed but are changing to not be
-        # one, we need to update our base and is_derived to not be.
-        elif (
-            isinstance(self, inheriting.AlterInheritingObject)
-            and self.has_attribute_value('expr')
-            and (
-                (cur_base := self.scls.get_bases(schema).objects(schema)[0])
-                and (subj := cur_base.get_subject(schema))
-                and subj == self.scls.get_subject(schema)
-            )
-        ):
-            mcls = self.get_schema_metaclass()
-            base = schema.get(
-                not_none(mcls.get_default_base_name()),
-                type=mcls,
-            )
-
-            self.set_attribute_value(
-                'bases', so.ObjectList.create(schema, [base]),
-            )
-
-            self._propagate_is_derived(schema, context, None)
 
         if inf_target_ref is not None:
             srcctx = self.get_attribute_source_context('target')
@@ -1239,19 +1204,6 @@ class PointerCommandOrFragment(
             # There is an expression, therefore it is a computable.
             self.set_attribute_value('computable', True)
 
-        # If a change to the computable definition might be changing
-        # the bases, we need to create a rebase.
-        if base is not None and isinstance(self, sd.AlterObject):
-            assert isinstance(self, inheriting.InheritingObjectCommand)
-            assert isinstance(base, Pointer)
-            _, cmd = self._rebase_ref_cmd(
-                schema, context, self.scls,
-                self.scls.get_bases(schema).objects(schema),
-                [base],
-            )
-            if cmd:
-                self.add(cmd)
-
         return schema
 
     def _parse_computable(
@@ -1262,7 +1214,6 @@ class PointerCommandOrFragment(
     ) -> Tuple[
         s_schema.Schema,
         s_types.TypeShell[s_types.Type],
-        Optional[PointerLike],
     ]:
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
@@ -1283,7 +1234,6 @@ class PointerCommandOrFragment(
             value=s_expr.Expression.from_ast(expr, schema, context.modaliases),
         )
 
-        base = None
         target = expression.irast.stype
         target_shell = target.as_shell(expression.irast.schema)
         if (
@@ -1304,39 +1254,42 @@ class PointerCommandOrFragment(
 
         # Process a computable pointer which potentially could be an
         # aliased link that should inherit link properties.
-        if isinstance(result_expr, irast.Set) and result_expr.rptr is not None:
-            expr_rptr = result_expr.rptr
+        computed_link_alias = None
+        computed_link_alias_is_backward = None
+        if (
+            isinstance(result_expr, irast.Set)
+            and (expr_rptr := result_expr.rptr) is not None
+            and expr_rptr.direction is PointerDirection.Outbound
+            and expr_rptr.source.rptr is None
+            and isinstance(expr_rptr.ptrref, irast.PointerRef)
+            and schema.has_object(expr_rptr.ptrref.id)
+        ):
+            new_schema, aliased_ptr = irtyputils.ptrcls_from_ptrref(
+                expr_rptr.ptrref, schema=schema
+            )
+            # Only pointers coming from the same source as the
+            # alias should be "inherited" (in order to preserve
+            # link props). Random paths coming from other sources
+            # get treated same as any other arbitrary expression
+            # in a computable.
             if (
-                expr_rptr.direction is PointerDirection.Outbound
-                and expr_rptr.source.rptr is None
-                and isinstance(expr_rptr.ptrref, irast.PointerRef)
-                and schema.has_object(expr_rptr.ptrref.id)
+                aliased_ptr.get_source(new_schema) == source
+                and isinstance(aliased_ptr, self.get_schema_metaclass())
             ):
-                new_schema, aliased_ptr = irtyputils.ptrcls_from_ptrref(
-                    expr_rptr.ptrref, schema=schema
-                )
-                # Only pointers coming from the same source as the
-                # alias should be "inherited" (in order to preserve
-                # link props). Random paths coming from other sources
-                # get treated same as any other arbitrary expression
-                # in a computable.
-                if (
-                    aliased_ptr.get_source(new_schema) == source
-                    and isinstance(aliased_ptr, self.get_schema_metaclass())
-                ):
-                    base = aliased_ptr
-                    schema = new_schema
+                schema = new_schema
+                computed_link_alias = aliased_ptr
+                computed_link_alias_is_backward = False
 
         # Do similar logic, but in reverse, to see if the computed pointer
         # is a computed backlink that we need to keep track of.
-        computed_backlink = None
         if (
-            base is None
+            computed_link_alias is None
             and isinstance(orig_expr, irast.Set)
             and orig_expr.rptr
             and isinstance(
                 orig_expr.rptr.ptrref, irast.TypeIntersectionPointerRef)
             and len(orig_expr.rptr.ptrref.rptr_specialization) == 1
+            and expr_rptr
             and expr_rptr.direction is not PointerDirection.Outbound
         ):
             ptrref = list(orig_expr.rptr.ptrref.rptr_specialization)[0]
@@ -1348,10 +1301,13 @@ class PointerCommandOrFragment(
                 and not ptrref.out_source.is_opaque_union
                 and isinstance(aliased_ptr, self.get_schema_metaclass())
             ):
-                computed_backlink = aliased_ptr
+                computed_link_alias_is_backward = True
+                computed_link_alias = aliased_ptr
                 schema = new_schema
 
-        self.set_attribute_value('computed_backlink', computed_backlink)
+        self.set_attribute_value('computed_link_alias', computed_link_alias)
+        self.set_attribute_value(
+            'computed_link_alias_is_backward', computed_link_alias_is_backward)
 
         self.set_attribute_value('expr', expression)
         required, card = expression.irast.cardinality.to_schema_value()
@@ -1461,7 +1417,7 @@ class PointerCommandOrFragment(
 
         self.set_attribute_value('computable', True)
 
-        return schema, target_shell, base
+        return schema, target_shell
 
     def _compile_expr(
         self,
@@ -2232,7 +2188,9 @@ class AlterPointer(
                     and not self.has_attribute_value('cardinality')
                 ):
                     self.set_attribute_value('cardinality', None)
-                self.set_attribute_value('computed_backlink', None)
+                self.set_attribute_value(
+                    'computed_link_alias_is_backward', None)
+                self.set_attribute_value('computed_link_alias', None)
 
             # Clear the placeholder value for 'expr'.
             self.set_attribute_value('expr', None)
