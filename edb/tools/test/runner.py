@@ -61,6 +61,8 @@ from . import cpython_state
 from . import mproc_fixes
 from . import styles
 
+if TYPE_CHECKING:
+    import edb.server.cluster as edb_cluster
 
 result: Optional[unittest.result.TestResult] = None
 coverage_run: Optional[Any] = None
@@ -402,7 +404,7 @@ class Markers(enum.Enum):
     upassed = 'U'  # unexpected success
 
 
-class OutputFormat(enum.Enum):
+class OutputFormat(str, enum.Enum):
     auto = 'auto'
     simple = 'simple'
     stacked = 'stacked'
@@ -824,7 +826,13 @@ class ParallelTextTestRunner:
         self.data_dir = data_dir
         self.try_cached_db = try_cached_db
 
-    def run(self, test, selected_shard, total_shards, running_times_log_file):
+    def run(
+        self,
+        test: Any,
+        selected_shard: int,
+        total_shards: int,
+        running_times_log_file: Optional[Any],
+    ):
         session_start = time.monotonic()
         cases = tb.get_test_cases([test])
         stats = {}
@@ -840,10 +848,10 @@ class ParallelTextTestRunner:
         setup = tb.get_test_cases_setup(cases)
         server_used = tb.test_cases_use_server(cases)
         worker_init = None
-        bootstrap_time_taken = 0
-        tests_time_taken = 0
+        bootstrap_time_taken = 0.0
+        tests_time_taken = 0.0
         result = None
-        cluster = None
+        cluster: Optional[edb_cluster.BaseCluster] = None
         conn = None
         tempdir = None
         setup_stats = []
@@ -974,6 +982,7 @@ class ParallelTextTestRunner:
 
                 setup_stats = asyncio.run(_setup())
 
+                assert cluster
                 if cluster.has_create_database():
                     os.environ.update({
                         'EDGEDB_TEST_CASES_SET_UP': "skip"
@@ -998,6 +1007,7 @@ class ParallelTextTestRunner:
             all_tests = list(itertools.chain.from_iterable(
                 tests for tests in cases.values()))
 
+            suite: unittest.TestSuite
             if self.num_workers > 1:
                 suite = ParallelTestSuite(
                     self._sort_tests(cases),
@@ -1054,22 +1064,21 @@ class ParallelTextTestRunner:
                 self._echo('OK.')
 
         if result is not None:
-            self._render_result(
-                result, bootstrap_time_taken, tests_time_taken)
+            self._render_result(result, bootstrap_time_taken, tests_time_taken)
 
         return result
 
     def _get_term_width(self):
         return shutil.get_terminal_size()[0] or 70
 
-    def _echo(self, s='', **kwargs):
+    def _echo(self, s: str = '', **kwargs):
         if self.verbosity > 0:
             click.secho(s, file=self.stream, **kwargs)
 
     def _fill(self, char, **kwargs):
         self._echo(char * self._get_term_width(), **kwargs)
 
-    def _format_time(self, seconds):
+    def _format_time(self, seconds: float):
         hours = int(seconds // 3600)
         seconds %= 3600
         minutes = int(seconds // 60)
@@ -1117,7 +1126,12 @@ class ParallelTextTestRunner:
                                fg='red', bold=True)
                 self._echo(err)
 
-    def _render_result(self, result, boot_time_taken, tests_time_taken):
+    def _render_result(
+        self,
+        result: unittest.TestResult,
+        boot_time_taken: float,
+        tests_time_taken: float,
+    ) -> None:
         self._echo()
 
         if self.verbosity > 0:
@@ -1167,8 +1181,6 @@ class ParallelTextTestRunner:
                        bold=True)
 
         self._echo()
-
-        return result
 
     def _sort_tests(self, cases):
         serialized_suites = {}
