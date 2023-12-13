@@ -7836,6 +7836,15 @@ aa \
             );
         """)
 
+        await self.con.query("""
+            select {
+                xy := assert_single({<optional str>$0, <optional str>$1}) };
+        """, None, None)
+        await self.con.query("""
+            select {
+                xy := assert_single({<optional str>$0, <optional str>$1}) };
+        """, None, 'test')
+
     async def test_edgeql_assert_single_02(self):
         await self.con.execute("""
             FOR name IN {"Hunter B-15", "Hunter B-22"}
