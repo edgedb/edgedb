@@ -51,8 +51,13 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
             qualified_fname, fun_def = mops.resolve_raw_name_and_func_def(ctx, fname)
             fun_tp = fun_def.tp
             # assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
-            [res_tps, args_cks] = zip(*[tc.synthesize_type(ctx, v) for v in args])
-            [tps, arg_cards] = zip(*res_tps)
+            if args:
+                [res_tps, args_cks] = zip(*[tc.synthesize_type(ctx, v) for v in args])
+                [tps, arg_cards] = zip(*res_tps)
+            else:
+                tps = []
+                arg_cards = []
+                args_cks = []
 
 
 
@@ -91,7 +96,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                 operator.mul,
                 (tops.match_param_modifier(param_mod, arg_card)
                     for param_mod, arg_card
-                    in zip(fun_tp.args_ret_types[idx].args_mod, arg_cards, strict=True)))
+                    in zip(fun_tp.args_ret_types[idx].args_mod, arg_cards, strict=True)), e.CardOne)
             # special processing of cardinality inference for certain functions
             match qualified_fname:
                 case e.QualifiedName(["std", "??"]):

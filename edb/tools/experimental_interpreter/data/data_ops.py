@@ -363,9 +363,9 @@ class FunArgRetType:
     ret_tp: ResultTp
 
 
-@dataclass(frozen=True)
-class FunType:
-    args_ret_types: List[FunArgRetType]
+# @dataclass(frozen=True)
+# class FunType:
+#     args_ret_types: List[FunArgRetType]
     # effect_free: bool = False
 
 # DEFINE PRIM VALUES
@@ -727,10 +727,21 @@ class DB:
 
 @dataclass(frozen=True)
 class BuiltinFuncDef():
-    tp: FunType
+    tp: FunArgRetType
     impl: Callable[[Sequence[Sequence[Val]]], Sequence[Val]]
 
-FuncDef = BuiltinFuncDef
+@dataclass(frozen=True)
+class SingleDefinedFuncDef():
+    tp: FunArgRetType
+    num_args: int # number of arguments
+    impl: Expr # Has the same number of bindings as num_args = len(tp.args_tp)
+
+@dataclass(frozen=True)
+class DefinedFuncDef():
+    defs: List[DefinedFuncDef]
+
+
+FuncDef = BuiltinFuncDef | DefinedFuncDef
 
 @dataclass(frozen=True)
 class ModuleEntityTypeDef:
@@ -740,7 +751,7 @@ class ModuleEntityTypeDef:
 
 @dataclass(frozen=True)
 class ModuleEntityFuncDef:
-    funcdef: FuncDef
+    funcdef: List[FuncDef]
 
 ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef 
 
@@ -748,12 +759,14 @@ ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef
 class DBModule:
     defs: Dict[str, ModuleEntity]
 
+ModuleName = Tuple[str, ...]
 @dataclass(frozen=True)
 # @dataclass
 class DBSchema:
     modules : Dict[Tuple[str, ...], DBModule]
     unchecked_modules : Dict[Tuple[str, ...], DBModule] # modules that are currently under type checking
     subtyping_relations: Dict[QualifiedName, List[QualifiedName]] # subtyping: indexed by subtypes, subtype -> immediate super types mapping
+    unchecked_subtyping_relations : Dict[QualifiedName, List[Tuple[Tuple[str, ...], RawName]]] # name -> current declared module and raw name
     casts: List[Tuple[Tp, Tp]] 
 
 # RT Stands for Run Time

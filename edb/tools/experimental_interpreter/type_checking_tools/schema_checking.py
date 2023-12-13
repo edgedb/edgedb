@@ -104,8 +104,20 @@ def check_object_tp_comp_validity(
                 tp=c_tp_ck)
         case e.ScalarTp(_):
             return tp_comp
+        case e.UnionTp(l, r):
+            return e.UnionTp(
+                check_object_tp_comp_validity(root_ctx, subject_tp, l, tp_comp_card),
+                check_object_tp_comp_validity(root_ctx, subject_tp, r, tp_comp_card))
+        case e.CompositeTp(kind=kind, tps=tps, labels=labels):
+            return e.CompositeTp(
+                kind=kind,
+                tps=[check_object_tp_comp_validity(root_ctx, subject_tp, t_comp_tp, tp_comp_card)
+                        for  t_comp_tp in tps],
+                labels=labels)
+        case e.OverloadedTargetTp(_):
+            raise ValueError("Overloaded target tp should not appear in type checking, check whether the inheritance processing is intact", tp_comp)
         case _:
-            raise ValueError("Not Implemented", tp_comp)
+            raise ValueError("Not Implemented", pp.show(tp_comp))
 
 
 def check_object_tp_validity(root_ctx: e.TcCtx,
@@ -127,8 +139,8 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
     Checks the validity of an unchecked module in dbschema. 
     Modifies the db schema after checking
     """
-    result_vals: Dict[str, e.ModuleEntity] = {}
     name_res.module_name_resolve(dbschema, module_name)
+    inheritance_populate.module_subtyping_resolve(dbschema)
     inheritance_populate.module_inheritance_populate(dbschema, module_name)
     # dbmodule = dbschema.unchecked_modules[module_name]
     mck.unchecked_module_map(dbschema, module_name, check_object_tp_comp_validity)
@@ -149,8 +161,7 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
     #                 result_vals = {**result_vals, t_name: t_me}
     #         case _:
     #             raise ValueError("Unimplemented", t_me)
-    result_dbmodule = e.DBModule(result_vals)
-    dbschema.modules[module_name] = result_dbmodule
+    dbschema.modules[module_name] = dbschema.unchecked_modules[module_name]
     del dbschema.unchecked_modules[module_name]
     return dbschema
 

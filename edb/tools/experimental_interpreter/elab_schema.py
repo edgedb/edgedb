@@ -201,6 +201,21 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> ObjectTp:
     return ObjectTp(val=object_tp_content)
 
 
+def add_bases_for_name(schema: e.DBSchema, 
+                       current_module_name: Tuple[str, ...] ,
+                       current_type_name: str, bases: List[qlast.TypeName]) -> None:
+    base_tps = [elab_single_type_expr(base) for base in bases]
+    base_tps_ck : List[Tuple[Tuple[str, ...], e.RawName]] = []
+    this_type_name = e.QualifiedName([*current_module_name, current_type_name])
+    for base_tp in base_tps:
+        match base_tp:
+            case e.UncheckedTypeName(raw_name):
+                base_tps_ck.append((current_module_name,raw_name))
+            case _:
+                raise ValueError("TODO", base_tp)
+    assert this_type_name not in schema.unchecked_subtyping_relations
+    schema.unchecked_subtyping_relations[this_type_name] = base_tps_ck
+
 def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
     if (len(sdef.declarations) != 1
             or sdef.declarations[0].name.name != "default"):
@@ -209,16 +224,18 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
     types_decls = cast(
         Sequence[qlast.ModuleDeclaration],
         sdef.declarations)[0].declarations
+    
 
     type_defs: Dict[str, e.ModuleEntityTypeDef | e.ModuleEntityFuncDef] = {}
     existing.unchecked_modules[("default", )] = e.DBModule(type_defs)
     for t_decl in types_decls:
         match t_decl:
-            case qlast.CreateObjectType(bases=_,
+            case qlast.CreateObjectType(bases=bases,
                                         commands=commands,
                                         name=qlast.ObjectRef(name=name),
                                         abstract=abstract):
                 obj_tp = elab_create_object_tp(commands)
+                add_bases_for_name(existing, ("default",), name, bases)
                 assert name not in type_defs
                 type_defs[name] = e.ModuleEntityTypeDef(obj_tp, is_abstract=abstract)
             case qlast.CreateScalarType(
@@ -226,21 +243,14 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
                 bases=bases,
                 abstract=abstract,
             ):
-                base_tps = [elab_single_type_expr(base) for base in bases]
-                base_tps_ck : List[e.QualifiedName] = []
-                for base_tp in base_tps:
-                    ck = tck.check_type_valid(existing, base_tp)
-                    match ck:
-                        case e.ScalarTp(e.QualifiedName(base_tp_name)):
-                            base_tps_ck.append(e.QualifiedName(base_tp_name))
-                        case _:
-                            raise ValueError("TODO", ck)
                 this_name = e.QualifiedName(["default", name])
-                existing.subtyping_relations[this_name] = base_tps_ck
+                add_bases_for_name(existing, ("default", ), name, bases)
                 assert name not in type_defs
                 type_defs[name] = e.ModuleEntityTypeDef(e.ScalarTp(this_name), is_abstract=abstract)
+            case qlast.CreateConstraint():
+                print_warning("WARNING: not supported yet", t_decl)
             case _:
-                print_warning("WARNING: not implemented t_decl", t_decl)
+                raise ValueError("TODO", t_decl)
 
     # module_defs : Dict[str, e.ModuleEntity]= {k: v for k, v in type_defs.items() if k in type_defs}
     # return (("default",), e.DBModule(module_defs))

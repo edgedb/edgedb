@@ -1,6 +1,7 @@
 
 from . import data_ops as e
 from typing import Optional, List, Tuple
+from . import expr_to_str as pp
 
 default_open_scopes = [("std",)]
 

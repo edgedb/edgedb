@@ -74,6 +74,11 @@ def show_tp(tp: e.Tp) -> str:
             return 'comp(' + show_tp(tp) + "," + show_expr(expr) + ")"
         case e.DefaultTp(expr=expr, tp=tp):
             return 'default(' + show_tp(tp) + "," + show_expr(expr) + ")"
+        case e.OverloadedTargetTp(linkprop=linkprop):
+            if linkprop is None:
+                return 'overloaded()'
+            else:
+                return 'overloaded(linkprop=' + show_tp(linkprop) + ")"
         case _:
             raise ValueError('Unimplemented', tp)
 
@@ -284,3 +289,16 @@ def show_ctx(ctx: e.TcCtx) -> str:
         ("\n".join(name + " : " + show_result_tp(r_tp)
                    for name, r_tp in ctx.varctx.items())) + "\n" 
     )
+
+
+def show(expr : Any) -> str:
+    if isinstance(expr, e.Tp):
+        return show_tp(expr)
+    elif isinstance(expr, e.Expr):
+        return show_expr(expr)
+    elif isinstance(expr, e.Val):
+        return show_val(expr)
+    elif isinstance(expr, e.TcCtx):
+        return show_ctx(expr)
+    else:
+        raise ValueError('Unimplemented', e)

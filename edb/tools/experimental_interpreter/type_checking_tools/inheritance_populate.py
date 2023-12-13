@@ -17,7 +17,7 @@ from . import typechecking as tck
 def merge_result_tp(ctx: e.TcCtx,
                     l: e.ResultTp,
                     r: e.ResultTp) -> e.ResultTp:
-    if l.card != r.card:
+    if l.mode != r.mode:
         raise ValueError("Cardinality mismatch", l, r)
     match l.tp, r.tp:
         case e.NamedNominalLinkTp(name=l_name, linkprop=l_linkprop), e.NamedNominalLinkTp(name=r_name, linkprop=r_linkprop):
@@ -31,10 +31,14 @@ def merge_result_tp(ctx: e.TcCtx,
                     new_link_prop[lbl] = e.ResultTp(r_comp_tp, r_comp_card)
                 else:
                     new_link_prop[lbl] = merge_result_tp(ctx, new_link_prop[lbl], e.ResultTp(r_comp_tp, r_comp_card))
-            return e.ResultTp(e.NamedNominalLinkTp(name=l_name, linkprop=e.ObjectTp(new_link_prop)), l.card)
+            return e.ResultTp(e.NamedNominalLinkTp(name=l_name, linkprop=e.ObjectTp(new_link_prop)), l.mode)
+        case e.NamedNominalLinkTp(name=l_name, linkprop=l_linkprop), e.OverloadedTargetTp(linkprop=r_linkprop):
+            assert r_linkprop is not None
+            return merge_result_tp(ctx, l, e.ResultTp(e.NamedNominalLinkTp(name=l_name, linkprop=r_linkprop), r.mode))
+
         case _:
             if l.tp != r.tp:
-                raise ValueError("Type mismatch", l, r)
+                raise ValueError("Type mismatch", pp.show_result_tp(l), pp.show_result_tp(r))
             return l
 
 
@@ -98,3 +102,16 @@ def module_inheritance_populate(dbschema: e.DBSchema, module_name : Tuple[str, .
     dbschema.unchecked_modules[module_name] = e.DBModule(result_vals)
 
 
+
+def module_subtyping_resolve(dbschema: e.DBSchema) -> None:
+    for (qname, rname_list) in dbschema.unchecked_subtyping_relations.items():
+        if qname in dbschema.subtyping_relations:
+            raise ValueError("Duplicate subtyping relation", qname)
+        rname_ck_list = []
+        for (cur_module, rname) in rname_list:
+            resolved_name, _ = mops.resolve_raw_name_and_type_def(e.TcCtx(dbschema, cur_module, {}), rname)
+            rname_ck_list.append(resolved_name)
+        dbschema.subtyping_relations[qname] = rname_ck_list
+    
+    # remove everything from unchecked_subtyping_relations
+    dbschema.unchecked_subtyping_relations.clear()
