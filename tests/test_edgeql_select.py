@@ -1319,6 +1319,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT 1 LIMIT -1
             """)
 
+    async def test_edgeql_select_limit_11(self):
+        await self.assert_query_result(
+            r'''
+            SELECT (SELECT {<optional str>$0, 'x'} LIMIT 1)
+            ''',
+            ['x'],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT (SELECT {<optional str>$0, 'x'} OFFSET 1)
+            ''',
+            [],
+            variables=(None,),
+        )
+
     async def test_edgeql_select_offset_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,

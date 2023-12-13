@@ -395,7 +395,8 @@ def _compile_dml_coalesce(
         res = dispatch.compile(full, ctx=subctx)
         # Indicate that the original ?? code should determine the
         # cardinality/multiplicity.
-        res.card_inference_override = ir
+        assert isinstance(res.expr, irast.SelectStmt)
+        res.expr.card_inference_override = ir
 
         return res
 
@@ -481,7 +482,8 @@ def _compile_dml_ifelse(
         res = dispatch.compile(full, ctx=subctx)
         # Indicate that the original IF/ELSE code should determine the
         # cardinality/multiplicity.
-        res.card_inference_override = ir
+        assert isinstance(res.expr, irast.SelectStmt)
+        res.expr.card_inference_override = ir
 
         return res
 
