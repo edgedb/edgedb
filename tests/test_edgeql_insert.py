@@ -6515,3 +6515,138 @@ class TestInsert(tb.QueryTestCase):
             'select count(Note)',
             [3],
         )
+
+    async def test_edgeql_insert_coalesce_nulls_01(self):
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Person filter .name = name) ??
+               (insert Person { name := name})
+             ),
+        select { new := new }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'new': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'new': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_02(self):
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Person filter .name = name) ??
+               (insert Person { name := name})
+             ),
+        select (
+          insert Note { name := '??', subject := new }
+        ) { subject }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_03(self):
+        await self.con.execute('''
+            insert Note { name := 'x' }
+        ''')
+
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Person filter .name = name) ??
+               (insert Person { name := name})
+             ),
+        select (update Note filter .name = 'x' set { subject := new })
+               { subject }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_04(self):
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Note filter .name = name) ??
+               (insert Note { name := name })
+             ),
+        select { new := assert_single(new) }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'new': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'new': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_05(self):
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Note filter .name = name) ??
+               (insert Note { name := name})
+             ),
+        select (
+          insert Note { name := '??', subject := assert_single(new) }
+        ) { subject }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_06(self):
+        await self.con.execute('''
+            insert Note { name := 'x' }
+        ''')
+
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Note filter .name = name) ??
+               (insert Note { name := name })
+             ),
+        select (update Note filter .name = 'x' set {
+                  subject := assert_single(new) })
+               { subject }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )

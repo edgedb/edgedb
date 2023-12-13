@@ -147,6 +147,7 @@ def is_trivial_select(ir_expr: irast.Base) -> TypeGuard[irast.SelectStmt]:
         and ir_expr.where is None
         and ir_expr.limit is None
         and ir_expr.offset is None
+        and ir_expr.card_inference_override is None
     )
 
 

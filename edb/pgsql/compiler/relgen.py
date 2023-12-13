@@ -2288,6 +2288,8 @@ def process_set_as_singleton_assertion(
             ],
         )
 
+        output.add_null_test(arg_ref, newctx.rel)
+
         # Force Postgres to actually evaluate the result target
         # by putting it into an ORDER BY.
         newctx.rel.target_list.append(
