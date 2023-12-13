@@ -212,7 +212,7 @@ def include_rvar(
         Compiler context.
     """
     if aspects is None:
-        aspects = ('value',)
+        aspects = ('value', 'iterator')
         if path_id.is_objtype_path():
             if isinstance(rvar, pgast.RangeSubselect):
                 if pathctx.has_path_aspect(
@@ -713,19 +713,6 @@ def semi_join(
     return set_rvar
 
 
-def ensure_bond_for_expr(
-    ir_set: irast.Set,
-    stmt: pgast.BaseRelation,
-    *,
-    ctx: context.CompilerContextLevel,
-) -> None:
-    if ir_set.path_id.is_objtype_path():
-        # ObjectTypes have inherent identity
-        return
-
-    ensure_transient_identity_for_path(ir_set.path_id, stmt, ctx=ctx)
-
-
 def apply_volatility_ref(
         stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> None:
@@ -744,7 +731,7 @@ def apply_volatility_ref(
         )
 
 
-def ensure_transient_identity_for_path(
+def create_iterator_identity_for_path(
     path_id: irast.PathId,
     stmt: pgast.BaseRelation,
     *,
@@ -756,11 +743,12 @@ def ensure_transient_identity_for_path(
         args=[],
     )
 
-    pathctx.put_path_identity_var(stmt, path_id, id_expr, force=True)
-    pathctx.put_path_bond(stmt, path_id)
-
     if isinstance(stmt, pgast.SelectStmt):
+        path_id = pathctx.map_path_id(path_id, stmt.view_path_id_map)
         apply_volatility_ref(stmt, ctx=ctx)
+
+    pathctx.put_path_var(stmt, path_id, id_expr, force=True, aspect='iterator')
+    pathctx.put_path_bond(stmt, path_id, iterator=True)
 
 
 def get_scope(
@@ -1289,15 +1277,19 @@ def _plain_join(
 ) -> None:
     condition = None
 
-    for path_id in right_rvar.query.path_scope:
-        lref = maybe_get_path_var(query, path_id, aspect='identity', ctx=ctx)
-        if lref is None:
+    for path_id, iterator_var in right_rvar.query.path_bonds:
+        lref = None
+        aspect = 'iterator' if iterator_var else 'identity'
+
+        lref = maybe_get_path_var(
+            query, path_id, aspect=aspect, ctx=ctx)
+        if lref is None and not iterator_var:
             lref = maybe_get_path_var(query, path_id, aspect='value', ctx=ctx)
         if lref is None:
             continue
 
-        rref = pathctx.get_rvar_path_identity_var(
-            right_rvar, path_id, env=ctx.env)
+        rref = pathctx.get_rvar_path_var(
+            right_rvar, path_id, aspect=aspect, env=ctx.env)
 
         assert isinstance(lref, pgast.ColumnRef)
         assert isinstance(rref, pgast.ColumnRef)
@@ -1332,17 +1324,18 @@ def _lateral_union_join(
     for component in astutils.each_query_in_set(right_rvar.subquery):
         condition = None
 
-        for path_id in right_rvar.query.path_scope:
+        for path_id, iterator_var in right_rvar.query.path_bonds:
+            aspect = 'iterator' if iterator_var else 'identity'
             lref = maybe_get_path_var(
-                query, path_id, aspect='identity', ctx=ctx)
-            if lref is None:
+                query, path_id, aspect=aspect, ctx=ctx)
+            if lref is None and not iterator_var:
                 lref = maybe_get_path_var(
                     query, path_id, aspect='value', ctx=ctx)
             if lref is None:
                 continue
 
-            rref = pathctx.get_path_identity_var(
-                component, path_id, env=ctx.env)
+            rref = pathctx.get_path_var(
+                component, path_id, aspect=aspect, env=ctx.env)
 
             assert isinstance(lref, pgast.ColumnRef)
             assert isinstance(rref, pgast.ColumnRef)
@@ -1717,6 +1710,7 @@ def wrap_set_op_query(
 def anti_join(
     lhs: pgast.SelectStmt, rhs: pgast.SelectStmt,
     path_id: Optional[irast.PathId], *,
+    aspect: str='identity',
     ctx: context.CompilerContextLevel,
 ) -> None:
     """Filter elements out of the LHS that appear on the RHS"""
@@ -1724,10 +1718,10 @@ def anti_join(
     if path_id:
         # grab the identity from the LHS and do an
         # anti-join against the RHS.
-        src_ref = pathctx.get_path_identity_var(
-            lhs, path_id=path_id, env=ctx.env)
-        pathctx.get_path_identity_output(
-            rhs, path_id=path_id, env=ctx.env)
+        src_ref = pathctx.get_path_var(
+            lhs, path_id=path_id, aspect=aspect, env=ctx.env)
+        pathctx.get_path_output(
+            rhs, path_id=path_id, aspect=aspect, env=ctx.env)
         cond_expr: pgast.BaseExpr = astutils.new_binop(
             src_ref, rhs, 'NOT IN')
     else:
