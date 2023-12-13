@@ -778,8 +778,9 @@ def resolve_ptr_with_intersections(
                 s_types.Type, near_endpoint.get_source(ctx.env.schema)
             )
             if not src_type.is_view(ctx.env.schema):
-                # XXX: This is *beyond* sketchy.
-                # And we should only do it once!
+                # HACK: If the source is in the standard library, and
+                # not a view, we can't add a derived pointer.  For
+                # consistency, just always require it be a view.
                 new_source = downcast(
                     s_objtypes.ObjectType,
                     schemactx.derive_view(src_type, ctx=ctx),
