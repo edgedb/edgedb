@@ -294,3 +294,16 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             sql,
             "fts::search score should not be serialized when not needed",
         )
+
+    def test_codegen_typeid_no_join(self):
+        sql = self._compile(
+            '''
+            select Issue { name, number, tid := .__type__.id }
+            '''
+        )
+
+        self.assertNotIn(
+            "edgedbstd",
+            sql,
+            "typeid injection shouldn't joining ObjectType table",
+        )
