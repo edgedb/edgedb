@@ -342,7 +342,7 @@ checked them out:
         property date -> cal::local_date;
         # Ensures a given Book can be checked out
         # only once on a given day.
-        constraint exclusive on (@target, @date);
+        constraint exclusive on ((@target, @date));
       }
     }
 
@@ -357,7 +357,7 @@ checked them out:
         date: cal::local_date;
         # Ensures a given Book can be checked out
         # only once on a given day.
-        constraint exclusive on (@target, @date);
+        constraint exclusive on ((@target, @date));
       }
     }
 
