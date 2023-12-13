@@ -173,6 +173,7 @@ def compile_materialized_exprs(
 
 def compile_iterator_expr(
         query: pgast.SelectStmt, iterator_expr: irast.Set, *,
+        is_dml: bool,
         ctx: context.CompilerContextLevel) \
         -> pgast.PathRangeVar:
 
@@ -208,19 +209,26 @@ def compile_iterator_expr(
             else:
                 raise NotImplementedError()
 
-        # Regardless of result type, iterators need their own
-        # transient identity for path identity of the iterator
-        # expression in order maintain correct correlation for the
-        # state of iteration in DML statements, even when there
-        # are duplicates in the iterator.
-        # This gets tracked as a special 'iterator' aspect in order
-        # to distinguish it from actual object identity.
-        relctx.create_iterator_identity_for_path(
-            iterator_expr.path_id, iterator_query, ctx=subctx)
+        # For DML-containing FOR, regardless of result type, iterators need
+        # their own transient identity for path identity of the
+        # iterator expression in order maintain correct correlation
+        # for the state of iteration in DML statements, even when
+        # there are duplicates in the iterator.  This gets tracked as
+        # a special 'iterator' aspect in order to distinguish it from
+        # actual object identity.
+        #
+        # We also do this for optional iterators, since object
+        # identity isn't safe to use as a volatility ref if the object
+        # might be NULL.
+        if is_dml or is_optional:
+            relctx.create_iterator_identity_for_path(
+                iterator_expr.path_id, iterator_query,
+                apply_volatility=is_dml,
+                ctx=subctx)
 
-        pathctx.put_path_rvar(
-            query, iterator_expr.path_id, iterator_rvar,
-            aspect='iterator')
+            pathctx.put_path_rvar(
+                query, iterator_expr.path_id, iterator_rvar,
+                aspect='iterator')
 
     return iterator_rvar
 

@@ -736,6 +736,7 @@ def create_iterator_identity_for_path(
     stmt: pgast.BaseRelation,
     *,
     ctx: context.CompilerContextLevel,
+    apply_volatility: bool=True,
 ) -> None:
 
     id_expr = pgast.FuncCall(
@@ -745,7 +746,8 @@ def create_iterator_identity_for_path(
 
     if isinstance(stmt, pgast.SelectStmt):
         path_id = pathctx.map_path_id(path_id, stmt.view_path_id_map)
-        apply_volatility_ref(stmt, ctx=ctx)
+        if apply_volatility:
+            apply_volatility_ref(stmt, ctx=ctx)
 
     pathctx.put_path_var(stmt, path_id, id_expr, force=True, aspect='iterator')
     pathctx.put_path_bond(stmt, path_id, iterator=True)
