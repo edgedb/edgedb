@@ -526,6 +526,7 @@ class Set(Base):
     # typeref, if such a set exists.
     shape_source: typing.Optional[Set] = None
     is_binding: typing.Optional[BindingKind] = None
+    is_schema_alias: bool = False
 
     is_materialized_ref: bool = False
     # A ref to a visible binding (like a for iterator variable) should

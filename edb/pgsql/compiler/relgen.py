@@ -1349,6 +1349,15 @@ def process_set_as_subquery(
         source_is_visible = False
 
     with ctx.new() as newctx:
+        # Suppress volatility refs while compiling schema
+        # aliases/globals.  While they might try to apply volatility
+        # refs due to FOR/free objects, it shouldn't be semantically
+        # necessary that they actually are attached to the enclosing
+        # location. This turns out to be an important optimization for
+        # ext::auth::ClientTokenIdentity.
+        if ir_set.is_schema_alias:
+            newctx.volatility_ref = ()
+
         outer_id = ir_set.path_id
         semi_join = False
 
