@@ -94,7 +94,7 @@ __all__ = ('not_implemented', 'xerror', 'xfail', 'skip')
 @click.option('--log-result/--no-log-result', is_flag=True,
               help='write the test result to a log file',
               default=True)
-@click.option('--include-unsuccessful-result', is_flag=True,
+@click.option('--include-unsuccessful', is_flag=True,
               help='include the tests that were not successful in the last run')
 @click.option('--list', 'list_tests', is_flag=True,
               help='list all the tests and exit')
@@ -127,7 +127,7 @@ def test(
     use_db_cache: bool,
     data_dir: typing.Optional[str],
     log_result: bool,
-    include_unsuccessful_result: bool,
+    include_unsuccessful: bool,
 ):
     """Run EdgeDB test suite.
 
@@ -206,7 +206,7 @@ def test(
         try_cached_db=use_db_cache,
         data_dir=data_dir,
         log_result=log_result,
-        include_unsuccessful_result=include_unsuccessful_result,
+        include_unsuccessful=include_unsuccessful,
     )
 
     if cov:
@@ -300,7 +300,7 @@ def _run(
     try_cached_db: bool,
     data_dir: typing.Optional[str],
     log_result: bool,
-    include_unsuccessful_result: bool,
+    include_unsuccessful: bool,
 ):
     suite = unittest.TestSuite()
 
@@ -320,7 +320,7 @@ def _run(
     else:
         _update_progress = None
 
-    if include_unsuccessful_result:
+    if include_unsuccessful:
         unsuccessful = results.read_unsuccessful()
         include = list(include) + unsuccessful + ['a_non_existing_test']
 

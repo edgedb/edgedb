@@ -32,6 +32,8 @@ import binascii
 
 import edgedb
 
+from edb.common import typing_inspect
+
 if typing.TYPE_CHECKING:
     from . import runner
 
@@ -271,9 +273,9 @@ def read_unsuccessful() -> typing.List[str]:
 
     try:
         result_dict = json.load(open(last, 'r'))
-        result = _dataclass_from_dict(TestResult, result_dict)
     except Exception:
         return []
+    result = _dataclass_from_dict(TestResult, result_dict)
     return [
         case.name
         for case in result.failures
@@ -282,17 +284,20 @@ def read_unsuccessful() -> typing.List[str]:
     ]
 
 
-def _dataclass_from_dict(klass: typing.Type, d: typing.Dict):
-    # JSON -> dataclasses is surprisingly hard.
-    # Maybe we could use a library here.
+def _dataclass_from_dict(cls: typing.Type, data: typing.Any):
+    if typing_inspect.get_origin(cls) == list:
+        args = typing_inspect.get_args(cls)
+        return [_dataclass_from_dict(args[0], e) for e in data]
 
-    # HACK: hardcoded List[TestCase]
-    if isinstance(d, list):
-        return [_dataclass_from_dict(TestCase, e) for e in d]
+    if not dataclasses.is_dataclass(cls):
+        return data
+    if not isinstance(data, dict):
+        raise ValueError(f'expected a dict of a dataclass, found {type(data)}')
 
-    try:
-        field_types = {f.name: f.type for f in dataclasses.fields(klass)}
-    except BaseException:
-        return d  # Not a dataclass field
-
-    return klass(**{f: _dataclass_from_dict(field_types[f], d[f]) for f in d})
+    field_types = typing.get_type_hints(cls)
+    return cls(
+        **{
+            k: _dataclass_from_dict(field_types.get(k), v)
+            for k, v in data.items()
+        }
+    )
