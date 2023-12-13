@@ -284,7 +284,10 @@ def read_unsuccessful() -> typing.List[str]:
     ]
 
 
-def _dataclass_from_dict(cls: typing.Type, data: typing.Any):
+def _dataclass_from_dict(cls: typing.Type | None, data: typing.Any):
+    if not cls:
+        return data
+
     if typing_inspect.get_origin(cls) == list:
         args = typing_inspect.get_args(cls)
         return [_dataclass_from_dict(args[0], e) for e in data]
@@ -294,7 +297,7 @@ def _dataclass_from_dict(cls: typing.Type, data: typing.Any):
     if not isinstance(data, dict):
         raise ValueError(f'expected a dict of a dataclass, found {type(data)}')
 
-    field_types = typing.get_type_hints(cls)
+    field_types: typing.Mapping[str, typing.Type] = typing.get_type_hints(cls)
     return cls(
         **{
             k: _dataclass_from_dict(field_types.get(k), v)
