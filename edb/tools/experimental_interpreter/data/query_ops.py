@@ -87,13 +87,13 @@ def map_query(f: Callable[[Expr, QueryLevel],
             case FunAppExpr(fun=fname, args=args, overloading_index=idx):
                 mapped_args: Sequence[Expr] = []
                 _, resolved_fun_def = mops.resolve_raw_name_and_func_def(schema, fname)
-                args_mods = [resolved_fun_def.tp.args_ret_types[i].args_mod 
-                             for i in range(len(resolved_fun_def.tp.args_ret_types))
-                             if len(resolved_fun_def.tp.args_ret_types[i].args_mod) == len(args)]
+                args_mods = [resolved_fun_def[i].tp.args_mod 
+                             for i in range(len(resolved_fun_def))
+                             if len(resolved_fun_def[i].tp.args_mod) == len(args)]
                 assert len(args_mods) > 0, "Expecting fun_defs"
                 assert all([args_mods[0] == args_mod for args_mod in args_mods]), \
                     "Expecting all args_mods to be the same"
-                params = resolved_fun_def.tp.args_ret_types[0].args_mod
+                params = resolved_fun_def[0].tp.args_mod
                 for i in range(len(args)):
                     match params[i]:
                         case ParamSingleton():

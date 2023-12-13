@@ -48,8 +48,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
 
     match fun_call:
         case e.FunAppExpr(fun=fname, args=args, overloading_index=idx):
-            qualified_fname, fun_def = mops.resolve_raw_name_and_func_def(ctx, fname)
-            fun_tp = fun_def.tp
+            qualified_fname, fun_defs = mops.resolve_raw_name_and_func_def(ctx, fname)
             # assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
             if args:
                 [res_tps, args_cks] = zip(*[tc.synthesize_type(ctx, v) for v in args])
@@ -62,14 +61,14 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
 
 
             if idx is not None:
-                args_ret_type = fun_tp.args_ret_types[idx]
+                args_ret_type = fun_defs[idx].tp
                 result_tp = check_args_ret_type_match(ctx, tps, args_ret_type)
                 if result_tp is None:
                     raise ValueError("Overloading for function incorrectly calculated", fun_call)
             else:
                 ok_candidates : List[Tuple[int, e.Tp]] = []
-                for i, args_ret_type in enumerate(fun_tp.args_ret_types):
-                    result_tp = check_args_ret_type_match(ctx, tps, args_ret_type)
+                for i, fun_def in enumerate(fun_defs):
+                    result_tp = check_args_ret_type_match(ctx, tps, fun_def.tp)
                     if result_tp is not None:
                         ok_candidates.append((i, result_tp))
                 
@@ -81,14 +80,14 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                 if len(ok_candidates) == 0:
                     raise ValueError("No overloading matches", pp.show_qname(qualified_fname), 
                                      "args type", [pp.show_tp(tp) for tp in tps],
-                                     "candidates", [pp.show_func_tps(args_ret_type) for args_ret_type in fun_tp.args_ret_types],
+                                     "candidates", [pp.show_func_tps(fun_def.tp) for fun_def in fun_defs],
                                      pp.show_expr(fun_call))
                 elif len(ok_candidates) == 1:
                     idx, result_tp = ok_candidates[0]
                 else:
                     raise ValueError("Ambiguous overloading", pp.show_qname(qualified_fname), 
                                      "args type", [pp.show_tp(tp) for tp in tps],
-                                     "candidates", [pp.show_func_tps(fun_tp.args_ret_types[i]) for i,args_ret_type in ok_candidates],
+                                     "candidates", [pp.show_func_tps(fun_def.tp) for fun_def in fun_defs],
                                      pp.show_expr(fun_call))
 
             # take the product of argument cardinalities
@@ -96,7 +95,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                 operator.mul,
                 (tops.match_param_modifier(param_mod, arg_card)
                     for param_mod, arg_card
-                    in zip(fun_tp.args_ret_types[idx].args_mod, arg_cards, strict=True)), e.CardOne)
+                    in zip(fun_defs[idx].tp.args_mod, arg_cards, strict=True)), e.CardOne)
             # special processing of cardinality inference for certain functions
             match qualified_fname:
                 case e.QualifiedName(["std", "??"]):
@@ -109,7 +108,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                     )
                 case _:
                     result_card = (arg_card_product
-                                    * fun_tp.args_ret_types[idx].ret_tp.mode)
+                                    * fun_defs[idx].tp.ret_tp.mode)
             result_expr = e.FunAppExpr(fun=qualified_fname, args=args_cks, overloading_index=idx)
             return (e.ResultTp(result_tp, result_card), result_expr)
         case _:

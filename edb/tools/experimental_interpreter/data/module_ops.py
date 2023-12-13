@@ -51,11 +51,11 @@ def resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.Obj
         return resolved
     
 
-def resolve_func_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.FuncDef:
+def resolve_func_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> List[e.FuncDef]:
     me = try_resolve_module_entity(ctx, name)
     if me is not None:
         if isinstance(me, e.ModuleEntityFuncDef):
-            return me.funcdef
+            return me.funcdefs
         else:
             raise ValueError(f"{name} is not a function")
     else:
@@ -98,7 +98,7 @@ def resolve_raw_name_and_type_def(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedNa
         name = resolve_simple_name(ctx, name)
     return (name, resolve_type_name(ctx, name))
 
-def resolve_raw_name_and_func_def(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName | e.UnqualifiedName) -> Tuple[e.QualifiedName, e.FuncDef]:
+def resolve_raw_name_and_func_def(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName | e.UnqualifiedName) -> Tuple[e.QualifiedName, List[e.FuncDef]]:
     if isinstance(name, e.UnqualifiedName):
         name = resolve_simple_name(ctx, name)
     return (name, resolve_func_name(ctx, name))

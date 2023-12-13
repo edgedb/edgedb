@@ -260,9 +260,9 @@ def eval_expr(ctx: EvalEnv,
             argsv = eval_expr_list(ctx, db, args)
             # argsv = map_assume_link_target(argsv)
             assert isinstance(fname, e.QualifiedName), "Should resolve in type checking"
-            looked_up_fun = mops.resolve_func_name(db.get_schema(), fname)
+            looked_up_fun = mops.resolve_func_name(db.get_schema(), fname)[idx]
             # db.get_schema().fun_defs[fname]
-            f_modifier = looked_up_fun.tp.args_ret_types[idx].args_mod
+            f_modifier = looked_up_fun.tp.args_mod
             assert len(f_modifier) == len(argsv)
             argv_final: Sequence[Sequence[Sequence[Val]]] = [[]]
             for i in range(len(f_modifier)):
@@ -285,8 +285,11 @@ def eval_expr(ctx: EvalEnv,
                     case _:
                         raise ValueError()
             # argv_final = [map_assume_link_target(f) for f in argv_final]
-            after_fun_vals: Sequence[Val] = [
-                v for arg in argv_final for v in looked_up_fun.impl(arg)]
+            if isinstance(looked_up_fun, e.BuiltinFuncDef):
+                after_fun_vals: Sequence[Val] = [
+                    v for arg in argv_final for v in looked_up_fun.impl(arg)]
+            else:
+                raise ValueError("Not implemented yet", looked_up_fun)
             return MultiSetVal(after_fun_vals)
         case ObjectProjExpr(subject=subject, label=label):
             subjectv = eval_expr(ctx, db, subject)

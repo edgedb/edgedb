@@ -4,7 +4,7 @@ from typing import *
 from ..data import data_ops as e
 from ..data.data_ops import (
     AnyTp, ArrTp, ArrVal, BoolVal, BuiltinFuncDef, CardAny,
-    CardOne, FunArgRetType, FunType,  IntVal, Val,
+    CardOne, FunArgRetType,  IntVal, Val,
     ParamSetOf, ParamSingleton, SomeTp, 
     StrVal, UnnamedTupleTp, Val, UnnamedTupleVal)
 from .errors import FunCallErr

@@ -13,7 +13,7 @@ from ..type_checking_tools import typechecking as tck
 from ..interpreter_logging import print_warning
 
 from edb.common import debug
-from .function_processing import process_ddl_fun_def
+from .function_elaboration import process_builtin_fun_def
 
 
 
@@ -68,7 +68,7 @@ def process_ddl(
             returning = ret_tp, 
             returning_typemod = ret_typemod,
             ):
-            process_ddl_fun_def(schema, name, params, ret_tp, ret_typemod)
+            process_builtin_fun_def(schema, name, params, ret_tp, ret_typemod)
         case qlast.CreateFunction(
             commands = commands,
             params = params,
@@ -76,7 +76,7 @@ def process_ddl(
             returning = ret_tp,
             returning_typemod = ret_typemod,
         ):
-            process_ddl_fun_def(schema, name, params, ret_tp, ret_typemod)
+            process_builtin_fun_def(schema, name, params, ret_tp, ret_typemod)
             
         case qlast.CreateCast(
             from_type = from_type,

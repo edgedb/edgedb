@@ -65,9 +65,25 @@ def object_tp_comp_name_resolve(
                 kind=kind,
                 tps=[object_tp_comp_name_resolve(root_ctx, t) for t in tps],
                 labels=labels)
+        case e.SomeTp(_):
+            return tp_comp
+        case e.AnyTp(_):
+            return tp_comp
         case _:
             raise ValueError("Not Implemented", tp_comp)
 
+
+def fun_arg_ret_type_name_resolve(
+        root_ctx: e.TcCtx,
+        tp: e.FunArgRetType,
+        ) -> e.FunArgRetType:
+    return e.FunArgRetType(
+        args_tp=[object_tp_comp_name_resolve(root_ctx, t) for t in tp.args_tp],
+        args_mod=tp.args_mod,
+        args_label=tp.args_label,
+        ret_tp=e.ResultTp(
+            object_tp_comp_name_resolve(root_ctx, tp.ret_tp.tp),
+            tp.ret_tp.mode))
 
 
 

@@ -360,6 +360,7 @@ ParamModifier = ParamSingleton | ParamOptional | ParamSetOf
 class FunArgRetType:
     args_tp: Sequence[Tp]
     args_mod: Sequence[ParamModifier]
+    args_label: Sequence[str]
     ret_tp: ResultTp
 
 
@@ -731,14 +732,9 @@ class BuiltinFuncDef():
     impl: Callable[[Sequence[Sequence[Val]]], Sequence[Val]]
 
 @dataclass(frozen=True)
-class SingleDefinedFuncDef():
-    tp: FunArgRetType
-    num_args: int # number of arguments
-    impl: Expr # Has the same number of bindings as num_args = len(tp.args_tp)
-
-@dataclass(frozen=True)
 class DefinedFuncDef():
-    defs: List[DefinedFuncDef]
+    tp: FunArgRetType
+    impl: Expr # Has the same number of bindings as num_args = len(tp.args_tp)
 
 
 FuncDef = BuiltinFuncDef | DefinedFuncDef
@@ -751,7 +747,7 @@ class ModuleEntityTypeDef:
 
 @dataclass(frozen=True)
 class ModuleEntityFuncDef:
-    funcdef: List[FuncDef]
+    funcdefs: List[FuncDef]
 
 ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef 
 
