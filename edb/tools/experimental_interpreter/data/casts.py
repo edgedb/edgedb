@@ -13,6 +13,9 @@ def type_cast(tp: e.Tp, arg: e.Val) -> e.Val:
             match qname.names:
                 case ["std", "str"]:
                     return e.StrVal(str(v))
+                case ["std", "datetime"]:
+                    assert isinstance(v, str)
+                    return e.ScalarVal(tp=e.ScalarTp(qname), val=v)
                 case _:
                     raise ValueError("cannot cast", tp, arg)
         case _:

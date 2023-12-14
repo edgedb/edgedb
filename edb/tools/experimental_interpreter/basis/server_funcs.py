@@ -6,6 +6,7 @@ from .errors import FunCallErr
 from .std_funcs import *
 from .builtin_bin_ops import *
 from .reserved_ops import *
+from ..data.casts import type_cast
 
 
 all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]] = {
@@ -31,6 +32,8 @@ all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e
     "enumerate": std_enumerate_impl,
     "len": std_len_impl,
     "sum": std_sum_impl,
+    "assert_exists": std_assert_exists,
+    "assert_single": std_assert_single,
     e.IndirectionIndexOp: indirection_index_impl,
     e.IndirectionSliceStartStopOp: indirection_slice_start_stop_impl,
     e.IndirectionSliceStartOp: indirection_slice_start_impl,
@@ -49,5 +52,13 @@ def get_default_func_impl_for_function(
             return default_impl
     else:
         raise ValueError("Cannot get a default implementaiton for a non-std function", name)
+    
+    
+def get_default_func_impl_for_cast(
+        from_tp: e.Tp, to_tp: e.Tp) -> Callable[[e.Val], e.Val]:
+    def default_impl(arg: e.Val) -> e.Val:
+        return type_cast(to_tp, arg)
+        # raise ValueError("Not implemented: cast ", from_tp, to_tp)
+    return default_impl
     
     

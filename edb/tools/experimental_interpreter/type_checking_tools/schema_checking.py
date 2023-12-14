@@ -56,9 +56,12 @@ def check_object_tp_comp_validity(
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
-            c_body = path_factor.select_hoist(c_body, new_ctx)
-            synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
-            tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
+            try:
+                c_body = path_factor.select_hoist(c_body, new_ctx)
+                synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
+                tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
+            except Exception as exception:
+                raise ValueError("Error in type checking computable types", pp.show_tp(tp_comp), exception)
             return e.ComputableTp(
                 expr=eops.abstract_over_expr(c_body_ck, bnd_var),
                 tp=synth_tp.tp)
@@ -133,6 +136,39 @@ def check_object_tp_validity(root_ctx: e.TcCtx,
                 tp_comp_card=t_comp_card), t_comp_card)
     return e.ObjectTp(result_vals)
 
+def param_modifier_to_paramter_cardinality(mod: e.ParamModifier) -> e.CMMode:
+    match mod:
+        case e.ParamSingleton():
+            return e.CardOne
+        case e.ParamSetOf():
+            return e.CardAny
+        case e.ParamOptional():
+            return e.CardAtMostOne
+        case _:
+            raise ValueError("Not Implemented", mod)
+
+
+
+def check_fun_def_validity(ctx: e.TcCtx, fun_def: e.FuncDef) -> e.FuncDef:
+    match fun_def:
+        case e.DefinedFuncDef(tp=tp, impl=impl):
+            binders = []
+            for i, arg_tp in enumerate(tp.args_tp):
+                assert isinstance(impl, e.BindingExpr)
+                arg_mod = param_modifier_to_paramter_cardinality(tp.args_mod[i])
+                ctx, impl, binder_name = eops.tcctx_add_binding(ctx, impl, e.ResultTp(arg_tp, arg_mod))
+                binders.append(binder_name)
+            impl_ck = check_type(ctx, impl, tp.ret_tp)
+            for binder in binders[::-1]:
+                impl_ck = eops.abstract_over_expr(impl_ck, binder)
+            return e.DefinedFuncDef(
+                tp=tp,
+                impl=impl_ck)
+        case _:
+            raise ValueError("Not Implemented", fun_def)
+        
+
+
 
 def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -> e.DBSchema:
     """
@@ -143,7 +179,7 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
     inheritance_populate.module_subtyping_resolve(dbschema)
     inheritance_populate.module_inheritance_populate(dbschema, module_name)
     # dbmodule = dbschema.unchecked_modules[module_name]
-    mck.unchecked_module_map(dbschema, module_name, check_object_tp_comp_validity)
+    mck.unchecked_module_map(dbschema, module_name, check_object_tp_comp_validity, check_fun_def_validity)
     # for t_name, t_me in dbmodule.defs.items():
     #     match t_me:
     #         case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract):

@@ -189,6 +189,14 @@ def map_expr(
                     then_branch=recur(then_branch),
                     condition=recur(condition),
                     else_branch=recur(else_branch))
+            case e.CheckedTypeCastExpr(
+                cast_tp=cast_tp, # this should be absolute names, no need to recur
+                cast_spec=cast_spec,
+                arg=arg):
+                return e.CheckedTypeCastExpr(
+                    cast_tp=cast_tp,
+                    cast_spec=cast_spec,
+                    arg=recur(arg))
     raise ValueError("Not Implemented: map_expr ", expr)
 
 
@@ -497,7 +505,7 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> Dict[str, MultiSetVal]:
     if left_out_keys:
         raise ValueError(
             "Coercion failed, object missing keys:", left_out_keys,
-            "when coercing ", val, " to ", fmt)
+            "when coercing ", pp.show(val), " to ", pp.show(fmt))
     return {
         k: (MultiSetVal(
                         [make_storage_atomic(v, tp[0])

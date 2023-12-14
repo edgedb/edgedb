@@ -85,6 +85,17 @@ def fun_arg_ret_type_name_resolve(
             object_tp_comp_name_resolve(root_ctx, tp.ret_tp.tp),
             tp.ret_tp.mode))
 
+def func_def_name_resolve(
+        root_ctx: e.TcCtx,
+        func_def: e.FuncDef,
+        ) -> e.FuncDef:
+    match func_def:
+        case e.DefinedFuncDef(tp=tp, impl=impl):
+            return e.DefinedFuncDef(
+                tp=fun_arg_ret_type_name_resolve(root_ctx, tp),
+                impl=impl)
+        case _:
+            raise ValueError("Not Implemented", func_def)
 
 
 def module_name_resolve(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -> None:
@@ -93,6 +104,6 @@ def module_name_resolve(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -> 
     """
     def f(root_ctx: e.TcCtx, subject_tp: e.Tp, tp_comp: e.Tp, tp_comp_card: e.CMMode) -> e.Tp:
         return object_tp_comp_name_resolve(root_ctx, tp_comp)
-    mck.unchecked_module_map(dbschema, module_name, f)
+    mck.unchecked_module_map(dbschema, module_name, f, func_def_name_resolve)
 
 

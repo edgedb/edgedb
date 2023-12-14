@@ -111,7 +111,7 @@ def show_scalar_val(val: e.ScalarVal) -> str:
         case e.QualifiedName(["std", "bool"]):
             return str(v)
         case _:
-            raise ValueError('Unimplemented', tp)
+            return show_qname(tp.name) + "(" + str(v) + ")"
 
 def show_expr(expr: e.Expr) -> str:
     match expr:
@@ -209,14 +209,13 @@ def show_arg_ret_type(tp: e.FunArgRetType) -> str:
                        zip(tp.args_tp, tp.args_mod)))
             + "]" + " -> " + show_result_tp(tp.ret_tp))
 
-def show_func_def(funcdef: e.FuncDef) -> str:
-    tp = funcdef.tp.args_ret_types
-    if len(tp) == 1:
-        return show_arg_ret_type(tp[0])
-    elif len(tp) > 1:
-        return show_arg_ret_type(tp[0]) + " ..."
+def show_func_defs(funcdefs: List[e.FuncDef]) -> str:
+    if len(funcdefs) == 1:
+        return show_arg_ret_type(funcdefs[0].tp)
+    elif len(funcdefs) > 1:
+        return show_arg_ret_type(funcdefs[0].tp) + " ..."
     else:
-        raise ValueError('Unimplemented', funcdef)
+        raise ValueError('Unimplemented', funcdefs)
 
 
 
@@ -226,8 +225,8 @@ def show_me(me: e.ModuleEntity) -> str:
     match me:
         case e.ModuleEntityTypeDef(typedef=typedef):
             return show_tp(typedef)
-        case e.ModuleEntityFuncDef(funcdef=funcdef):
-            return show_func_def(funcdef)
+        case e.ModuleEntityFuncDef(funcdefs=funcdefs):
+            return show_func_defs(funcdefs)
         case _:
             raise ValueError('Unimplemented', me)
 
@@ -300,5 +299,11 @@ def show(expr : Any) -> str:
         return show_val(expr)
     elif isinstance(expr, e.TcCtx):
         return show_ctx(expr)
+    elif isinstance(expr, e.ObjectVal):
+        return show_val(expr)
     else:
-        raise ValueError('Unimplemented', e)
+        raise ValueError('Unimplemented', expr)
+
+
+def p(expr : Any) -> None:
+    print(show(expr))

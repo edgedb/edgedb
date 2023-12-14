@@ -38,13 +38,21 @@ def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.Resu
     target_tp = attr_tp.tp
     target_mode = attr_tp.mode
     if tops.tp_is_primitive(target_tp):
-        return check_type(ctx, attr_expr, attr_tp)
+        return check_type(ctx, attr_expr, attr_tp, with_assignment_cast=True) # allow assignment cast for inserts
     else:
         match target_tp:
             case e.DefaultTp(expr=_, tp=tp): 
                 # since we're inserting an actual value, default is overridden
                 return insert_proprerty_checking(ctx, attr_expr, e.ResultTp(tp, target_mode))
             case e.NamedNominalLinkTp(name=target_name, linkprop=lp):
+                # TODO: after constraint system, this should be checked in the compile time
+                if target_mode.upper == e.OneCardinal():
+                    attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_single"]), None, 
+                                             [attr_expr, e.StrVal("Single links turn our to be multiples")])
+                # this is a hack that insertions on link targets ignores required at compile time
+                if target_mode.lower == e.OneCardinal():
+                    attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_exists"]), None, 
+                                             [attr_expr, e.StrVal("Required links turn our to be empty")])
                 (synthesized_tp, expr_ck) = synthesize_type(ctx, attr_expr)
                 tops.assert_cardinal_subtype(synthesized_tp.mode, target_mode)
                 ck_lp = lp.val

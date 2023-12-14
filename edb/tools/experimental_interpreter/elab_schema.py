@@ -6,12 +6,15 @@ from edb.edgeql import ast as qlast
 # from .basis.built_ins import all_builtin_funcs
 from .data.data_ops import (CMMode, DBSchema,  ObjectTp,
                             ResultTp, Tp)
-from .elaboration import elab_single_type_expr, elab_expr_with_default_head
+from .elaboration import elab_single_type_expr, elab_expr_with_default_head, elab
 from .helper_funcs import parse_sdl
 from .data import data_ops as e
+from .data import expr_ops as eops
 from .type_checking_tools import schema_checking  as tck
 from edb.common import debug
 from .interpreter_logging import print_warning
+from .schema import function_elaboration as fun_elab
+from .type_checking_tools import name_resolution as name_res
 
 def elab_schema_error(obj: Any) -> Any:
     raise ValueError(obj)
@@ -224,10 +227,12 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
     types_decls = cast(
         Sequence[qlast.ModuleDeclaration],
         sdef.declarations)[0].declarations
+
+    current_module_name = ("default", )
     
 
     type_defs: Dict[str, e.ModuleEntityTypeDef | e.ModuleEntityFuncDef] = {}
-    existing.unchecked_modules[("default", )] = e.DBModule(type_defs)
+    existing.unchecked_modules[current_module_name] = e.DBModule(type_defs)
     for t_decl in types_decls:
         match t_decl:
             case qlast.CreateObjectType(bases=bases,
@@ -244,11 +249,34 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
                 abstract=abstract,
             ):
                 this_name = e.QualifiedName(["default", name])
-                add_bases_for_name(existing, ("default", ), name, bases)
+                add_bases_for_name(existing, current_module_name, name, bases)
                 assert name not in type_defs
                 type_defs[name] = e.ModuleEntityTypeDef(e.ScalarTp(this_name), is_abstract=abstract)
             case qlast.CreateConstraint():
                 print_warning("WARNING: not supported yet", t_decl)
+            case qlast.CreateFunction(
+                name=qlast.ObjectRef(name=name, module=None),
+                params=params,
+                returning=returning,
+                returning_typemod=returning_typemod,
+                nativecode=nativecode,
+            ):
+                this_name = e.QualifiedName(["default", name])
+                assert isinstance(returning, qlast.TypeName), "TODO"
+                func_type = fun_elab.elaborate_fun_def_arg_type(params, returning, returning_typemod)
+                assert nativecode is not None, "TODO"
+                func_body = elab(nativecode)
+                for label in reversed(func_type.args_label):
+                    func_body = eops.abstract_over_expr(func_body, label)
+                this_def = e.DefinedFuncDef(
+                                tp=func_type,
+                                impl= func_body)
+                if name in type_defs:
+                    current_def = type_defs[name]
+                    assert isinstance(current_def, e.ModuleEntityFuncDef)
+                    current_def.funcdefs.append(this_def)
+                else:
+                    type_defs[name] = e.ModuleEntityFuncDef([this_def])
             case _:
                 raise ValueError("TODO", t_decl)
 

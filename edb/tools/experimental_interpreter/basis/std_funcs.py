@@ -150,16 +150,21 @@ def std_sum_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-# all_std_funcs: Dict[str, BuiltinFuncDef] = {
-#     "all": BuiltinFuncDef(tp=std_all_tp, impl=std_all_impl),
-#     "any": BuiltinFuncDef(tp=std_any_tp, impl=std_any_impl),
-#     "array_agg": BuiltinFuncDef(tp=std_array_agg_tp,
-#                                      impl=std_array_agg_impl),
-#     "array_unpack": BuiltinFuncDef(tp=std_array_unpack_tp,
-#                                         impl=std_array_unpack_impl),
-#     "count": BuiltinFuncDef(tp=std_count_tp, impl=std_count_impl),
-#     "enumerate": BuiltinFuncDef(tp=std_enumerate_tp,
-#                                      impl=std_enumerate_impl),
-#     "len": BuiltinFuncDef(tp=std_len_tp, impl=std_len_impl),
-#     "sum": BuiltinFuncDef(tp=std_sum_tp, impl=std_sum_impl),
-# }
+
+def std_assert_single(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [l, [msg]]:
+            if len(l) > 1:
+                raise ValueError(msg)
+            else:
+                return l
+    raise FunCallErr()
+
+def std_assert_exists(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [l, [msg]]:
+            if len(l) == 0:
+                raise ValueError(msg)
+            else:
+                return l
+    raise FunCallErr()

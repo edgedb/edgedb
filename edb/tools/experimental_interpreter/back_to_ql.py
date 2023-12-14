@@ -75,7 +75,7 @@ def reverse_elab_type_name(tp: Tp) -> qlast.TypeName:
         case (e.ScalarTp(qname) | e.UncheckedTypeName(qname)):
             if isinstance(qname, e.QualifiedName):
                 if len(qname.names) == 2:
-                    return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.names[0]), module="::".join(qname.names[:-1]))
+                    return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.names[-1]), module="::".join(qname.names[:-1]))
                 elif len(qname.names) == 1:
                     return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.names[0]))
                 else:
@@ -308,5 +308,12 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                 if_expr=reverse_elab(then_branch),
                 condition=reverse_elab(condition),
                 else_expr=reverse_elab(else_branch))
+        case e.CheckedTypeCastExpr(
+            cast_tp=(source_tp, target_tp),
+            cast_spec=_,
+            arg=arg):
+            return qlast.TypeCast(
+                type=reverse_elab_type_name(target_tp),
+                expr=reverse_elab(arg))
         case _:
             raise ValueError("Unimplemented", ir_expr)

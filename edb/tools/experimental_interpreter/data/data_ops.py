@@ -35,6 +35,9 @@ class ObjectTp:
     """ Object Type encapsulating val: Dict[str, ResultTp] """
     val: Dict[str, ResultTp]
 
+    def __hash__(self):
+        return hash(tuple(self.val.items()))
+
 @dataclass(frozen=True)
 class ScalarTp:
     name: QualifiedName
@@ -48,6 +51,8 @@ def IntTp():
     return ScalarTp(QualifiedName(["std", "int64"]))
 def UuidTp():
     return ScalarTp(QualifiedName(["std", "uuid"]))
+
+
 
 # @dataclass(frozen=True)
 # class StrTp:
@@ -101,6 +106,16 @@ class NamedTupleTp:
 # class UnnamedTupleTp:
 #     val: Sequence[Tp]
 
+class TpCastKind(Enum):
+    Implicit = "implicit" # implicit includes assignment
+    Assignment = "assignment"
+    Explicit = "explicit"
+
+@dataclass(frozen=True)
+class TpCast:
+    kind: TpCastKind
+    cast_fun: Callable[[Val], Val]
+
 class CompositeTpKind(Enum):
     Array = "array"
     Tuple = "tuple"
@@ -114,6 +129,9 @@ class CompositeTp:
     kind: CompositeTpKind
     tps: List[Tp]
     labels: List[str]
+
+    def __hash__(self):
+        return hash((self.kind, tuple(self.tps), tuple(self.labels)))
 
 # @dataclass(frozen=True)
 # class TupleTp:
@@ -446,6 +464,12 @@ class TypeCastExpr:
     tp: Tp
     arg: Expr
 
+@dataclass(frozen=True)
+class CheckedTypeCastExpr:
+    cast_tp: Tuple[Tp, Tp]
+    cast_spec: TpCast
+    arg: Expr
+
 
 @dataclass(frozen=True)
 class FunAppExpr:
@@ -702,7 +726,7 @@ Val = (ScalarVal | RefVal | UnnamedTupleVal | NamedTupleVal | ArrVal )
 VarExpr = (FreeVarExpr | BoundVarExpr)
 
 Expr = (
-    ScalarVal | TypeCastExpr | FunAppExpr | FreeVarExpr | BoundVarExpr |
+    ScalarVal | TypeCastExpr | FunAppExpr | FreeVarExpr | BoundVarExpr | CheckedTypeCastExpr |
     ObjectProjExpr | LinkPropProjExpr | WithExpr | ForExpr | OptionalForExpr |
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
@@ -755,6 +779,7 @@ ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef
 class DBModule:
     defs: Dict[str, ModuleEntity]
 
+
 ModuleName = Tuple[str, ...]
 @dataclass(frozen=True)
 # @dataclass
@@ -763,7 +788,7 @@ class DBSchema:
     unchecked_modules : Dict[Tuple[str, ...], DBModule] # modules that are currently under type checking
     subtyping_relations: Dict[QualifiedName, List[QualifiedName]] # subtyping: indexed by subtypes, subtype -> immediate super types mapping
     unchecked_subtyping_relations : Dict[QualifiedName, List[Tuple[Tuple[str, ...], RawName]]] # name -> current declared module and raw name
-    casts: List[Tuple[Tp, Tp]] 
+    casts: Dict[Tuple[Tp, Tp], TpCast] 
 
 # RT Stands for Run Time
 

@@ -315,16 +315,19 @@ def eval_expr(ctx: EvalEnv,
             for v in subjectv.vals:
                 match v:
                     case RefVal(refid=vid, val=_):
-                        if is_nominal_subtype_in_schema(
-                                db.get_type_for_an_id(vid), tp_name,
-                                db.get_schema()):
+                        if is_nominal_subtype_in_schema(db.get_schema(),
+                                db.get_type_for_an_id(vid), tp_name):
                             after_intersect = [*after_intersect, v]
                     case _:
                         raise ValueError("Expecting References")
             return MultiSetVal(after_intersect)
-        case TypeCastExpr(tp=tp, arg=arg):
+        # case TypeCastExpr(tp=tp, arg=arg):
+        #     argv2 = eval_expr(ctx, db, arg)
+        #     casted = [type_cast(tp, v) for v in argv2.vals]
+        #     return  MultiSetVal(casted)
+        case e.CheckedTypeCastExpr(cast_tp=_, cast_spec=cast_spec, arg=arg):
             argv2 = eval_expr(ctx, db, arg)
-            casted = [type_cast(tp, v) for v in argv2.vals]
+            casted = [cast_spec.cast_fun(v) for v in argv2.vals]
             return  MultiSetVal(casted)
         case UnnamedTupleExpr(val=tuples):
             tuplesv = eval_expr_list(ctx, db, tuples)

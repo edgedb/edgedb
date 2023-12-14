@@ -94,9 +94,22 @@ def module_inheritance_populate(dbschema: e.DBSchema, module_name : Tuple[str, .
                                 dbschema.subtyping_relations[e.QualifiedName([*module_name, t_name])]), is_abstract=is_abstract)}
                     else:
                         result_vals = {**result_vals, t_name: t_me}
-                else:
-                    assert isinstance(typedef, e.ScalarTp)
+                elif isinstance(typedef, e.ScalarTp):
+                    # insert assignment casts
+                    assert isinstance(typedef.name, e.QualifiedName), "Name resolution should have been done"
+                    assert typedef.name == e.QualifiedName([*module_name, t_name])
+                    assert typedef.name not in dbschema.unchecked_subtyping_relations
+                    for parent_name in dbschema.subtyping_relations[typedef.name]:
+                        def default_cast_fun(v):
+                            return v
+                        cast_key = (e.ScalarTp(parent_name), e.ScalarTp(typedef.name))
+                        assert cast_key not in dbschema.casts
+                        dbschema.casts[cast_key] = e.TpCast(e.TpCastKind.Assignment, default_cast_fun)
                     result_vals = {**result_vals, t_name: t_me}
+                else:
+                    raise ValueError("Not Implemented", typedef)
+            case e.ModuleEntityFuncDef(funcdefs=funcdefs):
+                result_vals = {**result_vals, t_name: e.ModuleEntityFuncDef(funcdefs=funcdefs)}
             case _:
                 raise ValueError("Unimplemented", t_me)
     dbschema.unchecked_modules[module_name] = e.DBModule(result_vals)

@@ -6,7 +6,7 @@ from typing import List
 from edb.edgeql import ast as qlast
 from edb.common import debug
 from .. import elaboration as elab
-from ..basis.server_funcs import get_default_func_impl_for_function
+from ..basis.server_funcs import get_default_func_impl_for_function, get_default_func_impl_for_cast
 from edb.edgeql import qltypes as qltypes
 from .. import elab_schema as elab_schema
 from ..type_checking_tools import typechecking as tck
@@ -82,12 +82,34 @@ def process_ddl(
             from_type = from_type,
             to_type = to_type,
             commands = commands,
+            allow_implicit = allow_implicit,
+            allow_assignment = allow_assignment,
+            code=cast_code
         ):
             from_tp = elab.elab_TypeName(from_type)
             to_tp = elab.elab_TypeName(to_type)
             from_tp_ck = tck.check_type_valid(schema, from_tp)
             to_tp_ck = tck.check_type_valid(schema, to_tp)
-            schema.casts.append((from_tp_ck, to_tp_ck))
+            assert (from_tp_ck, to_tp_ck) not in schema.casts, "duplicate casts"
+            match cast_code:
+                case qlast.CastCode(from_expr=from_expr, from_cast=from_cast):
+                    match from_expr, from_cast:
+                        case False, True:
+                            cast_impl = get_default_func_impl_for_cast(from_tp_ck, to_tp_ck)
+                        case True, False:
+                            cast_impl = get_default_func_impl_for_cast(from_tp_ck, to_tp_ck)
+                        case False, False:
+                            cast_impl = get_default_func_impl_for_cast(from_tp_ck, to_tp_ck)
+                        case _:
+                            raise ValueError("TODO", cast_code, from_tp_ck, to_tp_ck)
+                case _:
+                    raise ValueError("TODO", cast_code)
+            schema.casts[(from_tp_ck, to_tp_ck)] = e.TpCast(
+                (e.TpCastKind.Implicit if allow_implicit else 
+                 e.TpCastKind.Assignment if allow_assignment else
+                 e.TpCastKind.Explicit),
+                 cast_impl
+                ) # TODO implicit cast
             # match from_tp, to_tp:
             #     case e.UncheckedTypeName(name=from_name), e.UncheckedTypeName(name=to_name):
             #         assert isinstance(from_name, e.QualifiedName)

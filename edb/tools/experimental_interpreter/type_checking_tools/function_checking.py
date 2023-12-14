@@ -96,19 +96,24 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                 (tops.match_param_modifier(param_mod, arg_card)
                     for param_mod, arg_card
                     in zip(fun_defs[idx].tp.args_mod, arg_cards, strict=True)), e.CardOne)
+            result_card = (arg_card_product
+                            * fun_defs[idx].tp.ret_tp.mode)
             # special processing of cardinality inference for certain functions
             match qualified_fname:
                 case e.QualifiedName(["std", "??"]):
                     assert len(arg_cards) == 2
                     result_card = e.CMMode(
-                        e.min_cardinal(arg_cards[0].lower,
+                        e.max_cardinal(arg_cards[0].lower,
                                         arg_cards[1].lower),
                         e.max_cardinal(arg_cards[0].upper,
                                         arg_cards[1].upper),
                     )
+                case e.QualifiedName(["std", "assert_exists"]):
+                    if result_card.lower == e.ZeroCardinal():
+                        result_card = e.CMMode(e.OneCardinal(), arg_cards[0].upper)
+                        # TODO preserve cardinality annotation
                 case _:
-                    result_card = (arg_card_product
-                                    * fun_defs[idx].tp.ret_tp.mode)
+                    pass
             result_expr = e.FunAppExpr(fun=qualified_fname, args=args_cks, overloading_index=idx)
             return (e.ResultTp(result_tp, result_card), result_expr)
         case _:

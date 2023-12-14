@@ -35,10 +35,17 @@ def collect_tp_union(tp1: e.Tp) -> List[e.Tp]:
             return [tp1]
 
 
-def is_nominal_subtype_in_schema(
-        subtype: e.QualifiedName, supertype: e.QualifiedName, dbschema: DBSchema):
+def is_nominal_subtype_in_schema(ctx: e.TcCtx | e.DBSchema,
+        subtype: e.QualifiedName, supertype: e.QualifiedName):
     # TODO: properly implement
-    return subtype == supertype
+    if subtype == supertype:
+        return True
+    else:
+        schema = ctx.schema if isinstance(ctx, e.TcCtx) else ctx
+        if subtype in schema.subtyping_relations:
+            return supertype in schema.subtyping_relations[subtype]
+        else:
+            return False
 
 
 def mode_is_optional(m: e.CMMode) -> bool:
@@ -102,17 +109,20 @@ def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
                 return True
             case (e.NominalLinkTp(name=n_1, subject=s_1, linkprop=lp_1),
                     e.NominalLinkTp(name=n_2, subject=s_2, linkprop=lp_2)):
-                if n_1 != n_2:
-                    return False
-                else:
+                    
+                if is_nominal_subtype_in_schema(ctx, n_1, n_2):
                     return (recurse(ctx, s_1, s_2) and 
                         recurse(ctx, lp_1, lp_2))
+                else:
+                    return False
             case (e.NamedNominalLinkTp(name=n_1, linkprop=lp_1),
                     e.NamedNominalLinkTp(name=n_2, linkprop=lp_2)):
-                if n_1 != n_2:
-                    return False
-                else:
+                assert isinstance(n_1, e.QualifiedName)
+                assert isinstance(n_2, e.QualifiedName)
+                if is_nominal_subtype_in_schema(ctx, n_1, n_2):
                     return recurse(ctx, lp_1, lp_2)
+                else:
+                    return False
             case (_, e.NamedNominalLinkTp(name=e.QualifiedName(n_2), linkprop=lp_2)):
                 resolved_type_def = mops.resolve_type_name(ctx, e.QualifiedName(n_2))
                 assert isinstance(resolved_type_def, e.ObjectTp)
@@ -228,7 +238,7 @@ def get_storage_tp(fmt : e.ObjectTp) -> e.ObjectTp:
             if not isinstance(tp.tp, e.ComputableTp)
         })
 
-    def get_lp_storage(t : e.ResultTp):
+    def get_lp_storage(t : e.ResultTp) -> e.ResultTp:
         match t.tp:
             case e.NamedNominalLinkTp(name=n, linkprop=lp):
                 return e.ResultTp(
@@ -236,6 +246,19 @@ def get_storage_tp(fmt : e.ObjectTp) -> e.ObjectTp:
                     t.mode)
             case e.DefaultTp(tp=tp, expr=_):
                 return get_lp_storage(e.ResultTp(tp, t.mode))
+            case e.UnionTp(left=left_tp, right=right_tp):
+                return e.ResultTp(
+                    e.UnionTp(
+                        left=get_lp_storage(e.ResultTp(left_tp, t.mode)).tp,
+                        right=get_lp_storage(e.ResultTp(right_tp, t.mode)).tp),
+                    t.mode)
+            case e.CompositeTp(kind=kind, tps=tps, labels=labels):
+                return e.ResultTp(
+                    e.CompositeTp(
+                        kind=kind,
+                        tps=[get_lp_storage(e.ResultTp(tp, t.mode)).tp for tp in tps],
+                        labels=labels),
+                    t.mode)
             case _:
                 if tp_is_primitive(t.tp):
                     return t

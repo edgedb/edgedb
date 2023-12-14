@@ -185,8 +185,15 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 result_tp = tp_ck
             else:
                 (arg_tp, arg_v) = synthesize_type(ctx, arg)
-                (result_tp, result_card) = type_cast_tp(ctx, arg_tp, tp_ck)
-                result_expr = e.TypeCastExpr(tp_ck, arg_v)
+                if (arg_tp.tp, tp_ck) in ctx.schema.casts:
+                # (result_tp, result_card) = type_cast_tp(ctx, arg_tp, tp_ck)
+                    (result_tp, result_card) = (tp_ck, arg_tp.mode)
+                    result_expr = e.CheckedTypeCastExpr(
+                        cast_tp=(arg_tp.tp, tp_ck),
+                        cast_spec=ctx.schema.casts[(arg_tp.tp, tp_ck)],
+                        arg=arg_v)
+                else:
+                    raise ValueError("Cannot cast", arg_tp, tp_ck)
         case e.ShapedExprExpr(expr=subject, shape=shape):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_tp, shape_ck = check_shape_transform(
@@ -211,7 +218,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_tp = e.NominalLinkTp(subject=e.ObjectTp({}),
                                         name=e.QualifiedName(["std", "FreeObject"]),
                                         linkprop=e.ObjectTp({}))
-            result_card = e.CardAtMostOne
+            result_card = e.CardOne
             result_expr = expr
         case e.ConditionalDedupExpr(expr=inner):
             (inner_tp, inner_ck) = synthesize_type(ctx, inner)
@@ -341,11 +348,15 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 eops.abstract_over_expr(filter_ck, filter_bound_var),
                 order_ck)
             result_tp = subject_tp.tp
-            result_card = e.CMMode(
-                e.CardNumZero,
-                subject_tp.mode.upper
-                # subject_tp.mode.multiplicity
-            )
+            # pass cardinality if filter body can be determined to be true
+            if filter_body == e.BoolVal(True):
+                result_card = subject_tp.mode
+            else:
+                result_card = e.CMMode(
+                    e.CardNumZero,
+                    subject_tp.mode.upper
+                    # subject_tp.mode.multiplicity
+                )
         case e.OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             offset_ck = check_type(ctx, offset,
@@ -509,14 +520,37 @@ def expr_tp_is_not_synthesizable(expr: e.Expr) -> bool:
 
 
 def check_type_no_card(ctx: e.TcCtx, expr: e.Expr,
-                       tp: e.Tp) -> Tuple[e.CMMode, e.Expr]:
+                       tp: e.Tp, with_assignment_cast: bool = False) -> Tuple[e.CMMode, e.Expr]:
     match expr:
         case e.MultiSetExpr(expr=[]):
             return (e.CardAtMostOne, expr)
         case _:
             expr_tp, expr_ck = synthesize_type(ctx, expr)
-            tops.assert_real_subtype(ctx, expr_tp.tp, tp)
-            return (expr_tp.mode, expr_ck)
+            default_return = (expr_tp.mode, expr_ck)
+            if tops.check_is_subtype(ctx, expr_tp.tp, tp):
+                return default_return
+            else:
+                if (expr_tp.tp, tp) in ctx.schema.casts:
+                    cast_fun = ctx.schema.casts[(expr_tp.tp, tp)]
+                    match cast_fun.kind:
+                        case e.TpCastKind.Explicit:
+                            raise ValueError("Not a sub type", expr_tp.tp, tp)
+                        case e.TpCastKind.Implicit:
+                            return (expr_tp.mode, 
+                                    e.CheckedTypeCastExpr((expr_tp.tp, tp), cast_fun, expr_ck))
+                        case e.TpCastKind.Assignment:
+                            if with_assignment_cast:
+                                return (expr_tp.mode, 
+                                        e.CheckedTypeCastExpr((expr_tp.tp, tp), cast_fun, expr_ck))
+                            else:
+                                raise ValueError("Not a sub type", expr_tp.tp, tp)
+                        case _:
+                            raise ValueError("Not Implemented", cast_fun.kind)
+                else:
+                    raise ValueError("Not a sub type", expr_tp.tp, tp)
+
+
+
             # if tops.is_real_subtype(expr_tp.tp, tp):
             #     return (expr_tp.mode, expr_ck)
             # else:
@@ -524,8 +558,8 @@ def check_type_no_card(ctx: e.TcCtx, expr: e.Expr,
             #                  "type of ", tp, "when checking", expr)
 
 
-def check_type(ctx: e.TcCtx, expr: e.Expr, tp: e.ResultTp) -> e.Expr:
-    synth_mode, expr_ck = check_type_no_card(ctx, expr, tp.tp)
+def check_type(ctx: e.TcCtx, expr: e.Expr, tp: e.ResultTp, with_assignment_cast: bool = False) -> e.Expr:
+    synth_mode, expr_ck = check_type_no_card(ctx, expr, tp.tp, with_assignment_cast)
     tops.assert_cardinal_subtype(synth_mode, tp.mode)
     # ( "Expecting cardinality %s, got %s" % (tp.mode, synth_mode))
     return expr_ck

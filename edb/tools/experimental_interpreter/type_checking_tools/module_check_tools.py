@@ -14,10 +14,13 @@ from .function_checking import *
 from . import typechecking as tck
 
 
-def unchecked_module_map(dbschema: e.DBSchema, module_name : Tuple[str, ...], f: Callable[[e.TcCtx, e.Tp, e.Tp, e.CMMode], e.Tp]) -> None:
+def unchecked_module_map(dbschema: e.DBSchema, module_name : Tuple[str, ...], 
+                         f: Callable[[e.TcCtx, e.Tp, e.Tp, e.CMMode], e.Tp], 
+                         g: Callable[[e.TcCtx, e.FuncDef], e.FuncDef]) -> None:
     """
     Modifies the db schema after checking
     """
+    root_ctx = eops.emtpy_tcctx_from_dbschema(dbschema, module_name)
     def unchecked_object_tp_map(subject_tp: e.Tp,
                                 obj_tp: e.ObjectTp
                                 ) -> e.ObjectTp:
@@ -32,7 +35,6 @@ def unchecked_module_map(dbschema: e.DBSchema, module_name : Tuple[str, ...], f:
     for t_name, t_me in dbmodule.defs.items():
         match t_me:
             case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract):
-                root_ctx = eops.emtpy_tcctx_from_dbschema(dbschema, module_name)
                 if isinstance(typedef, e.ObjectTp):
                     result_vals = {
                         **result_vals, 
@@ -43,6 +45,8 @@ def unchecked_module_map(dbschema: e.DBSchema, module_name : Tuple[str, ...], f:
                 else:
                     assert isinstance(typedef, e.ScalarTp)
                     result_vals = {**result_vals, t_name: t_me}
+            case e.ModuleEntityFuncDef(funcdefs=funcdefs):
+                result_vals = {**result_vals, t_name: e.ModuleEntityFuncDef(funcdefs=[g(root_ctx, funcdef) for funcdef in funcdefs])}
             case _:
                 raise ValueError("Unimplemented", t_me)
     dbschema.unchecked_modules[module_name] = e.DBModule(result_vals)
