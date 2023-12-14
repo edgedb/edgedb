@@ -318,9 +318,9 @@ def _compile_dml_coalesce(
 
     The basic approach is to extract the pieces from the ?? and
     rewrite them into:
-        for optional x in (LHS,) union (
+        for optional x in (LHS) union (
           {
-            x.0,
+            x,
             (for _ in (select () filter not exists x) union (RHS)),
           }
         )
@@ -328,12 +328,6 @@ def _compile_dml_coalesce(
     Optional for is needed because the LHS needs to be bound in a for
     in order to get put in a CTE and only executed once, but the RHS
     needs to be dependent on the LHS being empty.
-
-    We hackily wrap the LHS in a 1-ary tuple and then project it back
-    out because the OPTIONAL FOR implementation doesn't properly
-    handle object-type iterators. OPTIONAL FOR relies on having a
-    non-NULL identity ref but objects use their actual id, which
-    will be NULL.
     """
     with ctx.newscope(fenced=False) as subctx:
         # We have to compile it under a factoring fence to prevent
@@ -380,11 +374,8 @@ def _compile_dml_coalesce(
 
         full = qlast.ForQuery(
             iterator_alias=alias,
-            iterator=qlast.Tuple(elements=[subctx.create_anchor(lhs_ir, 'b')]),
-            result=qlast.Set(elements=[
-                qlast.Path(steps=[cond_path, qlast.Ptr(name='0')]),
-                rhs_b
-            ]),
+            iterator=subctx.create_anchor(lhs_ir, 'b'),
+            result=qlast.Set(elements=[cond_path, rhs_b]),
             optional=True,
             from_desugaring=True,
         )
