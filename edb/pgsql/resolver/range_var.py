@@ -103,6 +103,7 @@ def _resolve_RelRangeVar(
             name=alias or col.name,
             reference_as=alias or col.reference_as,
             hidden=col.hidden,
+            static_val=col.static_val,
         )
         for col, alias in _zip_column_alias(
             table.columns, alias, ctx=range_var.context

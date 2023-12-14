@@ -1342,7 +1342,7 @@ class SQLQueryTestCase(BaseQueryTestCase):
         res = await self.scon.fetch(query)
         return [list(r.values()) for r in res]
 
-    def assert_shape(self, res, rows, cols, column_names=None):
+    def assert_shape(self, res: Any, rows: int, columns: int | List[str]):
         """
         Fail if query result does not confront the specified shape, defined in
         terms of:
@@ -1352,10 +1352,12 @@ class SQLQueryTestCase(BaseQueryTestCase):
         """
 
         self.assertEqual(len(res), rows)
-        if rows > 0:
-            self.assertEqual(len(res[0]), cols)
-        if column_names:
-            self.assertListEqual(column_names, list(res[0].keys()))
+
+        if isinstance(columns, int):
+            if rows > 0:
+                self.assertEqual(len(res[0]), columns)
+        elif isinstance(columns, list):
+            self.assertListEqual(columns, list(res[0].keys()))
 
 
 class CLITestCaseMixin:
