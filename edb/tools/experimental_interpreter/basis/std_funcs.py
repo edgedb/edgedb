@@ -9,6 +9,7 @@ from ..data.data_ops import (
     StrVal, UnnamedTupleTp, Val, UnnamedTupleVal)
 from .errors import FunCallErr
 
+from datetime import datetime, timezone
 
 def val_is_true(v: Val) -> bool:
     match v:
@@ -167,4 +168,14 @@ def std_assert_exists(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
                 raise ValueError(msg)
             else:
                 return l
+    raise FunCallErr()
+
+
+def std_datetime_current(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case []:
+            current_datetime = datetime.now()
+            val = current_datetime.strftime("%Y-%m-%dT%H:%M:%S%z")
+            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "datetime"])), 
+                                val)]
     raise FunCallErr()

@@ -113,7 +113,7 @@ def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.Resu
                             }
                         ))
             case _:
-                raise ValueError("Unrecognized Attribute Target Type", target_tp)
+                raise ValueError("Unrecognized Attribute Target Type", pp.show(target_tp))
         
 
 
@@ -169,10 +169,13 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
     pending_default: Dict[str, List[str]] = {} # key and its dependent keys
     # topologically sort the default insertions.
     for (k, target_tp) in schema_tp.val.items():
-        if isinstance(target_tp, e.DefaultTp):
-            deps = get_key_dependency(target_tp)
+        if isinstance(target_tp.tp, e.DefaultTp):
+            deps = get_key_dependency(target_tp.tp)
             if len(deps) == 0:
-                actual_v = eops.instantiate_expr(target_tp.expr, e.FreeVarExpr("INSERT_SHOULD_NOT_OCCUR"))
+                actual_v = eops.instantiate_expr(
+                    e.FreeVarExpr("INSERT_SHOULD_NOT_OCCUR"),
+                    target_tp.tp.expr, 
+                    )
                 new_v = {**new_v, k: type_elaborate_default_tp(ctx, actual_v)}
             else:
                 # add to dependent_keys those in new_v
@@ -181,7 +184,7 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
                 if all(k in dependent_keys.keys() for k in deps):
                     actual_v = e.WithExpr(
                         get_shaped_from_deps(deps),
-                        target_tp.expr)
+                        target_tp.tp.expr)
                     new_v = {**new_v, k: actual_v} #TODO THIS NEEDS ELABORATION
                 else:
                     assert k not in pending_default, "only iterating over schema once, no duplicate keys"

@@ -34,6 +34,7 @@ all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e
     "sum": std_sum_impl,
     "assert_exists": std_assert_exists,
     "assert_single": std_assert_single,
+    "datetime_current": std_datetime_current,
     e.IndirectionIndexOp: indirection_index_impl,
     e.IndirectionSliceStartStopOp: indirection_slice_start_stop_impl,
     e.IndirectionSliceStartOp: indirection_slice_start_impl,
