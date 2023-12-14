@@ -78,6 +78,7 @@ class Tenant(ha_base.ClusterProtocol):
     _task_group: taskgroup.TaskGroup | None
     _tasks: Set[asyncio.Task]
     _accept_new_tasks: bool
+    _file_watch_finalizers: list[Callable[[], None]]
 
     __sys_pgcon: pgcon.PGConnection | None
     _sys_pgcon_waiter: asyncio.Lock
@@ -90,7 +91,7 @@ class Tenant(ha_base.ClusterProtocol):
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
-    _readiness_state_file: str | None
+    _readiness_state_file: pathlib.Path | None
     _readiness: srvargs.ReadinessState
     _readiness_reason: str
 
@@ -112,9 +113,6 @@ class Tenant(ha_base.ClusterProtocol):
         instance_name: str,
         max_backend_connections: int,
         backend_adaptive_ha: bool = False,
-        readiness_state_file: str | None = None,
-        jwt_sub_allowlist_file: pathlib.Path | None = None,
-        jwt_revocation_list_file: pathlib.Path | None = None,
     ):
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
@@ -127,6 +125,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._task_group = None
         self._tasks = set()
         self._accept_new_tasks = False
+        self._file_watch_finalizers = []
 
         # Never use `self.__sys_pgcon` directly; get it via
         # `async with self.use_sys_pgcon()`.
@@ -140,7 +139,7 @@ class Tenant(ha_base.ClusterProtocol):
             )
         else:
             self._backend_adaptive_ha = None
-        self._readiness_state_file = readiness_state_file
+        self._readiness_state_file = None
         self._readiness = srvargs.ReadinessState.Default
         self._readiness_reason = ""
 
@@ -166,10 +165,26 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._roles = immutables.Map()
         self._sys_auth = tuple()
-        self._jwt_sub_allowlist_file = jwt_sub_allowlist_file
+        self._jwt_sub_allowlist_file = None
         self._jwt_sub_allowlist = None
-        self._jwt_revocation_list_file = jwt_revocation_list_file
+        self._jwt_revocation_list_file = None
         self._jwt_revocation_list = None
+
+    def set_reloadable_files(
+        self,
+        readiness_state_file: str | pathlib.Path | None = None,
+        jwt_sub_allowlist_file: str | pathlib.Path | None = None,
+        jwt_revocation_list_file: str | pathlib.Path | None = None,
+    ) -> None:
+        if isinstance(readiness_state_file, str):
+            readiness_state_file = pathlib.Path(readiness_state_file)
+        self._readiness_state_file = readiness_state_file
+        if isinstance(jwt_sub_allowlist_file, str):
+            jwt_sub_allowlist_file = pathlib.Path(jwt_sub_allowlist_file)
+        self._jwt_sub_allowlist_file = jwt_sub_allowlist_file
+        if isinstance(jwt_revocation_list_file, str):
+            jwt_revocation_list_file = pathlib.Path(jwt_revocation_list_file)
+        self._jwt_revocation_list_file = jwt_revocation_list_file
 
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
@@ -355,18 +370,21 @@ class Tenant(ha_base.ClusterProtocol):
         self._sys_pgcon_ready_evt.set()
 
         self.populate_sys_auth()
+        self.reload_readiness_state()
+        self._start_watching_files()
+        self._initing = False
 
+    def _start_watching_files(self):
         if self._readiness_state_file is not None:
 
             def reload_state_file(_file_modified, _event):
                 self.reload_readiness_state()
 
-            self.reload_readiness_state()
-            self._server.monitor_fs(
-                self._readiness_state_file, reload_state_file
+            self._file_watch_finalizers.append(
+                self._server.monitor_fs(
+                    self._readiness_state_file, reload_state_file
+                )
             )
-
-        self._initing = False
 
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
@@ -414,6 +432,11 @@ class Tenant(ha_base.ClusterProtocol):
         self._running = False
         self._accept_new_tasks = False
         self._cluster.stop_watching()
+        self._stop_watching_files()
+
+    def _stop_watching_files(self):
+        while self._file_watch_finalizers:
+            self._file_watch_finalizers.pop()()
 
     async def wait_stopped(self) -> None:
         if self._task_group is not None:
@@ -581,17 +604,19 @@ class Tenant(ha_base.ClusterProtocol):
         try:
             conn = None
             while self._running:
+                # Keep retrying as far as:
+                #   1. This tenant is still running
+                #   2. We still cannot connect to the Postgres cluster
                 try:
                     conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
                     break
                 except OSError:
-                    # Keep retrying as far as:
-                    #   1. This tenant is still running,
-                    #   2. We still cannot connect to the Postgres cluster, or
                     pass
                 except pgcon_errors.BackendError as e:
-                    #   3. The Postgres cluster is still starting up, or the
-                    #      HA failover is still in progress
+                    # Be quiet if the Postgres cluster is still starting up,
+                    # or the HA failover is still in progress.
+                    # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
+                    # once PostgreSQL supports SERIALIZABLE in hot standbys
                     if not (
                         e.code_is(pgcon_errors.ERROR_FEATURE_NOT_SUPPORTED)
                         or e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW)
@@ -599,11 +624,10 @@ class Tenant(ha_base.ClusterProtocol):
                             pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION
                         )
                     ):
-                        # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
-                        # once PostgreSQL supports SERIALIZABLE in hot standbys
-                        raise
+                        logger.error("Failed connecting to the backend: %s", e)
 
                 if self._running:
+                    logger.info("Waiting for the backend to recover")
                     try:
                         # Retry after INTERVAL seconds, unless the event is set
                         # and we can retry immediately after the event.
@@ -1028,6 +1052,8 @@ class Tenant(ha_base.ClusterProtocol):
                     self._jwt_sub_allowlist_file.read_text().splitlines(),
                 )
             except Exception as e:
+                from . import server as edbserver
+
                 raise edbserver.StartupError(
                     f"cannot load JWT sub allowlist: {e}"
                 ) from e
@@ -1042,6 +1068,8 @@ class Tenant(ha_base.ClusterProtocol):
                     self._jwt_revocation_list_file.read_text().splitlines(),
                 )
             except Exception as e:
+                from . import server as edbserver
+
                 raise edbserver.StartupError(
                     f"cannot load JWT revocation list: {e}"
                 ) from e
@@ -1077,7 +1105,7 @@ class Tenant(ha_base.ClusterProtocol):
         if self._readiness_state_file is None:
             return
         try:
-            with open(self._readiness_state_file, "rt") as rt:
+            with self._readiness_state_file.open("rt") as rt:
                 line = rt.readline().strip()
                 try:
                     state, _, reason = line.partition(":")
@@ -1116,6 +1144,23 @@ class Tenant(ha_base.ClusterProtocol):
             self._readiness = srvargs.ReadinessState.Default
 
         self._accepting_connections = self.is_online()
+
+    def reload(self):
+        # In multi-tenant mode, the file paths for the following states may be
+        # unset in a reload, while it's impossible in a regular server.
+        # Therefore, we are clearing the states here first, rather than doing
+        # so in reload_readiness_state() or load_jwcrypto().
+        self._readiness = srvargs.ReadinessState.Default
+        self._jwt_sub_allowlist = None
+        self._jwt_revocation_list = None
+
+        # Re-add the fs watchers in case the path changed
+        self._stop_watching_files()
+
+        self.reload_readiness_state()
+        self.load_jwcrypto()
+
+        self._start_watching_files()
 
     async def on_before_drop_db(
         self, dbname: str, current_dbname: str

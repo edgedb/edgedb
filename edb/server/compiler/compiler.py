@@ -25,6 +25,7 @@ import functools
 import json
 import hashlib
 import pickle
+import textwrap
 import uuid
 
 import immutables
@@ -73,6 +74,7 @@ from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
 from edb.pgsql import patches as pg_patches
 from edb.pgsql import types as pg_types
+from edb.pgsql import delta as pg_delta
 
 from . import dbstate
 from . import enums
@@ -1204,6 +1206,7 @@ class Compiler:
 
         restore_blocks = []
         tables = []
+        repopulate_units = []
         for schema_object_id_bytes, typedesc in blocks:
             schema_object_id = uuidgen.from_bytes(schema_object_id_bytes)
             obj = schema.get_by_id(schema_object_id)
@@ -1293,6 +1296,10 @@ class Compiler:
                         mending_desc.append(
                             _get_ptr_mending_desc(schema, ptr))
 
+                cmd = pg_delta.get_reindex_sql(obj, schema)
+                if cmd:
+                    repopulate_units.append(cmd)
+
             else:
                 raise AssertionError(
                     f'unexpected object type in restore '
@@ -1339,6 +1346,7 @@ class Compiler:
             units=units,
             blocks=restore_blocks,
             tables=tables,
+            repopulate_units=repopulate_units,
         )
 
     def analyze_explain_output(
@@ -1359,6 +1367,9 @@ def compile_schema_storage_in_delta(
 
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+
+    funcblock = block.add_block()
+    cmdblock = block.add_block()
 
     meta_blocks: List[Tuple[str, Dict[str, Any]]] = []
 
@@ -1407,10 +1418,10 @@ def compile_schema_storage_in_delta(
                 df = pg_dbops.DropFunction(
                     name=func.name, args=func.args or (), if_exists=True
                 )
-                df.generate(block)
+                df.generate(funcblock)
 
                 cf = pg_dbops.CreateFunction(func)
-                cf.generate(block)
+                cf.generate(funcblock)
 
                 cache_mm[eql_hash] = argnames
 
@@ -1418,9 +1429,9 @@ def compile_schema_storage_in_delta(
             for argname in argnames:
                 argvals.append(pg_common.quote_literal(args[argname]))
 
-            block.add_command(f'''
+            cmdblock.add_command(textwrap.dedent(f'''\
                 PERFORM {pg_common.qname(*fname)}({", ".join(argvals)});
-            ''')
+            '''))
 
     ctx.state.current_tx().update_cached_reflection(cache_mm.finish())
 
@@ -2942,7 +2953,7 @@ def _check_force_database_error(
             hint=err.get('hint'),
             details=err.get('details'),
             filename=filename,
-            position=position,  # type: ignore
+            position=position,
         )
     except Exception:
         raise errors.ConfigurationError(
@@ -3053,6 +3064,7 @@ class RestoreDescriptor(NamedTuple):
     units: Sequence[dbstate.QueryUnit]
     blocks: Sequence[RestoreBlockDescriptor]
     tables: Sequence[str]
+    repopulate_units: Sequence[str]
 
 
 class DataMendingDescriptor(NamedTuple):

@@ -621,10 +621,9 @@ def _new_mapped_pointer_rvar(
         name=[tgt_col],
         nullable=not ptrref.required)
 
-    # Set up references according to the link direction.
     if (
         ir_ptr.direction == s_pointers.PointerDirection.Inbound
-        or ptrref.computed_backlink
+        or ptrref.computed_link_alias_is_backward
     ):
         near_ref = target_ref
         far_ref = source_ref
@@ -818,7 +817,7 @@ def update_scope(
     # with some DML linkprop cases (probably easy to fix) and a number
     # of materialization cases (possibly hard to fix), so I'm going
     # with a more conservative approach.
-    if scope_tree.optional:
+    if scope_tree.is_optional(ir_set.path_id):
         # Since compilation is done, anything visible to us *will* be
         # up on the spine. Anything tucked away under a node must have
         # been pulled up.
@@ -1854,8 +1853,8 @@ def range_for_ptrref(
         # needs to appear in *all* of the tables, so we just pick any
         # one of them.
         refs = {next(iter((ptrref.intersection_components)))}
-    elif ptrref.computed_backlink:
-        refs = {ptrref.computed_backlink}
+    elif ptrref.computed_link_alias:
+        refs = {ptrref.computed_link_alias}
     else:
         refs = {ptrref}
         assert isinstance(ptrref, irast.PointerRef), \

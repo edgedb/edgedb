@@ -31,7 +31,6 @@ from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import properties as s_props
 from edb.schema import pointers as s_pointers
-from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import objtypes as s_objtypes
@@ -46,8 +45,10 @@ if TYPE_CHECKING:
 
 
 TypeRefCacheKey = Tuple[uuid.UUID, bool, bool]
-
 PtrRefCacheKey = s_pointers.PointerLike
+
+PtrRefCache = dict[PtrRefCacheKey, 'irast.BasePointerRef']
+TypeRefCache = dict[TypeRefCacheKey, 'irast.TypeRef']
 
 
 def is_scalar(typeref: irast.TypeRef) -> bool:
@@ -182,7 +183,7 @@ def type_to_typeref(
     schema: s_schema.Schema,
     t: s_types.Type,
     *,
-    cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]],
     typename: Optional[s_name.QualName] = None,
     include_children: bool = False,
     include_ancestors: bool = False,
@@ -217,6 +218,42 @@ def type_to_typeref(
         A ``TypeRef`` instance corresponding to the given schema type.
     """
 
+    if cache is not None and typename is None:
+        key = (t.id, include_children, include_ancestors)
+
+        cached_result = cache.get(key)
+        if cached_result is not None:
+            # If the schema changed due to an ongoing compilation, the name
+            # hint might be outdated.
+            if cached_result.name_hint == t.get_name(schema):
+                return cached_result
+
+    # We separate the uncached version into another function because
+    # it makes it easy to tell in a profiler when the cache isn't
+    # operating, and because if the cache *is* operating it is no
+    # great loss.
+    return _type_to_typeref(
+        schema,
+        t,
+        cache=cache,
+        typename=typename,
+        include_children=include_children,
+        include_ancestors=include_ancestors,
+        _name=_name,
+    )
+
+
+def _type_to_typeref(
+    schema: s_schema.Schema,
+    t: s_types.Type,
+    *,
+    cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    typename: Optional[s_name.QualName] = None,
+    include_children: bool = False,
+    include_ancestors: bool = False,
+    _name: Optional[str] = None,
+) -> irast.TypeRef:
+
     def _typeref(
         t: s_types.Type, *,
         include_children: bool = include_children,
@@ -232,16 +269,6 @@ def type_to_typeref(
 
     result: irast.TypeRef
     material_type: s_types.Type
-
-    key = (t.id, include_children, include_ancestors)
-
-    if cache is not None and typename is None:
-        cached_result = cache.get(key)
-        if cached_result is not None:
-            # If the schema changed due to an ongoing compilation, the name
-            # hint might be outdated.
-            if cached_result.name_hint == t.get_name(schema):
-                return cached_result
 
     name_hint = typename or t.get_name(schema)
     orig_name_hint = None if not typename else t.get_name(schema)
@@ -388,7 +415,8 @@ def type_to_typeref(
             collection=t.get_schema_name(),
             in_schema=t.get_is_persistent(schema),
             subtypes=tuple(
-                type_to_typeref(schema, st, _name=sn)  # note: no cache
+                # ??? no cache
+                type_to_typeref(schema, st, _name=sn, cache=None)
                 for sn, st in t.iter_subtypes(schema)
             )
         )
@@ -416,6 +444,8 @@ def type_to_typeref(
         )
 
     if cache is not None and typename is None and _name is None:
+        key = (t.id, include_children, include_ancestors)
+
         # Note: there is no cache for `_name` variants since they are only used
         # for Tuple subtypes and thus they will be cached on the outer level
         # anyway.
@@ -446,14 +476,11 @@ def ir_typeref_to_type(
         a :class:`schema.types.Type` instance corresponding to the
         given *typeref*.
     """
-    if is_anytuple(typeref):
-        return schema, s_pseudo.PseudoType.get(schema, 'anytuple')
-
-    if is_anyobject(typeref):
-        return schema, s_pseudo.PseudoType.get(schema, 'anyobject')
-
-    elif is_any(typeref):
-        return schema, s_pseudo.PseudoType.get(schema, 'anytype')
+    # Optimistically try to lookup the type by id. Sometimes for
+    # arrays and tuples this will fail, and we'll need to create it.
+    t = schema.get_by_id(typeref.id, default=None, type=s_types.Type)
+    if t:
+        return schema, t
 
     elif is_tuple(typeref):
         named = False
@@ -480,9 +507,7 @@ def ir_typeref_to_type(
         return s_types.Array.from_subtypes(schema, array_subtypes)
 
     else:
-        t = schema.get_by_id(typeref.id)
-        assert isinstance(t, s_types.Type), 'expected a Type instance'
-        return schema, t
+        raise AssertionError("couldn't find type from typeref")
 
 
 @overload
@@ -490,8 +515,8 @@ def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.Pointer,
-    cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
-    typeref_cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    cache: Optional[PtrRefCache],
+    typeref_cache: Optional[TypeRefCache],
 ) -> irast.PointerRef:
     ...
 
@@ -501,8 +526,8 @@ def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
-    cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
-    typeref_cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    cache: Optional[PtrRefCache],
+    typeref_cache: Optional[TypeRefCache],
 ) -> irast.BasePointerRef:
     ...
 
@@ -511,8 +536,8 @@ def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
-    cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
-    typeref_cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    cache: Optional[PtrRefCache],
+    typeref_cache: Optional[TypeRefCache],
 ) -> irast.BasePointerRef:
     """Return an IR pointer descriptor for a given schema pointer.
 
@@ -558,12 +583,14 @@ def ptrref_from_ptrcls(
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
         kwargs['defined_here'] = ptrcls.get_defined_here(schema)
-        if backlink := ptrcls.get_computed_backlink(schema):
+        if backlink := ptrcls.get_computed_link_alias(schema):
             assert isinstance(backlink, s_pointers.Pointer)
-            kwargs['computed_backlink'] = ptrref_from_ptrcls(
+            kwargs['computed_link_alias'] = ptrref_from_ptrcls(
                 ptrcls=backlink, schema=schema,
                 cache=cache, typeref_cache=typeref_cache,
             )
+            kwargs['computed_link_alias_is_backward'] = (
+                ptrcls.get_computed_link_alias_is_backward(schema))
 
     else:
         raise AssertionError(f'unexpected pointer class: {ptrcls}')

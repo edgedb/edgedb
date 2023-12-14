@@ -22,5 +22,6 @@ guide!
     tutorials/index
     deployment/index
     migrations/index
+    datamigrations/index
     cheatsheet/index
     contributing/index

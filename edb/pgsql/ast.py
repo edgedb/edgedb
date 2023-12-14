@@ -105,7 +105,7 @@ class BaseExpr(Base):
         for v in kwargs.values():
             if typeutils.is_container(v):
                 items = typing.cast(typing.Iterable, v)
-                nullable = all(getattr(vv, 'nullable', False) for vv in items)
+                nullable = any(getattr(vv, 'nullable', False) for vv in items)
 
             elif getattr(v, 'nullable', None):
                 nullable = True
@@ -654,6 +654,9 @@ class SelectStmt(Query):
     # Right operand of set op,
     rarg: typing.Optional[Query] = None
 
+    # When used as a sub-query, it is generally nullable.
+    nullable: bool = True
+
 
 class Expr(ImmutableBaseExpr):
     """Infix, prefix, and postfix expressions."""
@@ -964,6 +967,13 @@ class CoalesceExpr(ImmutableBaseExpr):
 
     # The arguments.
     args: typing.List[Base]
+
+    def _infer_nullability(self, kwargs: typing.Dict[str, typing.Any]) -> bool:
+        # nullability of COALESCE is the nullability of the RHS
+        if 'args' in kwargs:
+            return kwargs['args'][1].nullable
+        else:
+            return True
 
 
 class NullTest(ImmutableBaseExpr):

@@ -34,6 +34,7 @@ from . import context
 from . import dispatch
 from . import group
 from . import dml
+from . import output
 from . import pathctx
 
 
@@ -111,19 +112,20 @@ def compile_SelectStmt(
                     query.sort_clause = clauses.compile_orderby_clause(
                         stmt.orderby, ctx=octx)
 
-        if outvar.nullable and query is ctx.toplevel_stmt:
-            # A nullable var has bubbled up to the top,
-            # filter out NULLs.
-            valvar: pgast.BaseExpr = pathctx.get_path_value_var(
+        # Need to filter out NULLs in certain cases:
+        if outvar.nullable and (
+            # A nullable var has bubbled up to the top
+            query is ctx.toplevel_stmt
+            # The cardinality is being overridden, so we need to make
+            # sure there aren't extra NULLs in single set
+            or stmt.card_inference_override
+            # There is a LIMIT or OFFSET clause and NULLs would interfere
+            or stmt.limit
+            or stmt.offset
+        ):
+            valvar = pathctx.get_path_value_var(
                 query, stmt.result.path_id, env=ctx.env)
-            if isinstance(valvar, pgast.TupleVar):
-                valvar = pgast.ImplicitRowExpr(
-                    args=[e.val for e in valvar.elements])
-
-            query.where_clause = astutils.extend_binop(
-                query.where_clause,
-                pgast.NullTest(arg=valvar, negated=True)
-            )
+            output.add_null_test(valvar, query)
 
         # The OFFSET clause
         query.limit_offset = clauses.compile_limit_offset_clause(

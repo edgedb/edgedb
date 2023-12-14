@@ -882,12 +882,14 @@ def process_insert_rewrites(
     elements: List[Tuple[irast.Set, irast.BasePointerRef]],
     ctx: context.CompilerContextLevel,
 ) -> tuple[pgast.CommonTableExpr, pgast.PathRangeVar]:
-    assert ir_stmt.rewrites
-
     typeref = ir_stmt.subject.typeref.real_material_type
 
-    subject_path_id = ir_stmt.rewrites.subject_path_id
     object_path_id = ir_stmt.subject.path_id
+    subject_path_id = (
+        ir_stmt.rewrites.subject_path_id
+        if ir_stmt.rewrites
+        else object_path_id
+    )
 
     rew_stmt = ctx.rel
 
@@ -964,6 +966,7 @@ def process_insert_rewrites(
             val = pathctx.get_path_var(
                 rew_stmt, e.path_id, aspect='value', env=ctx.env
             )
+            val = output.output_as_value(val, env=ctx.env)
             rew_stmt.target_list.append(pgast.ResTarget(
                 name=ptr_info.column_name, val=val))
 
@@ -1068,18 +1071,8 @@ def compile_insert_shape_element(
     ctx: context.CompilerContextLevel,
 ) -> None:
 
-    with ctx.newscope() as insvalctx:
-        # This method is only called if the upper cardinality of
-        # the expression is one, so we check for AT_MOST_ONE
-        # to determine nullability.
-        # FIXME: Doing force_optional for all rewrites is kind of a bummer.
-        # (The issue is that the rewrites are compiled without fully
-        # understanding which of the pointers might not have been truly
-        # present in the original DML shape.)
+    with ctx.new() as insvalctx:
         assert shape_el.rptr is not None
-        if (shape_el.rptr.dir_cardinality
-                is qltypes.Cardinality.AT_MOST_ONE) or force_optional:
-            insvalctx.force_optional |= {shape_el.path_id}
 
         if iterator_id is not None:
             id = iterator_id
@@ -1093,7 +1086,14 @@ def compile_insert_shape_element(
 
         insvalctx.current_insert_path_id = ir_stmt.subject.path_id
 
-        dispatch.visit(shape_el, ctx=insvalctx)
+        if shape_el.rptr.dir_cardinality.can_be_zero() or force_optional:
+            # If the element can be empty, compile it in a subquery to force it
+            # to be NULL.
+            value = relgen.set_as_subquery(
+                shape_el, as_value=True, ctx=insvalctx)
+            pathctx.put_path_value_var(insvalctx.rel, shape_el.path_id, value)
+        else:
+            dispatch.visit(shape_el, ctx=insvalctx)
 
 
 def merge_overlays_globally(
@@ -1810,17 +1810,21 @@ def process_update_rewrites(
     range_relation: pgast.PathRangeVar,
     single_external: List[irast.Set],
     rewrites: irast.RewritesOfType,
-    elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
+    elements: Sequence[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
     ctx: context.CompilerContextLevel,
 ) -> tuple[
     pgast.CommonTableExpr,
     pgast.PathRangeVar,
     list[tuple[pgast.ResTarget, irast.PathId]],
 ]:
-    assert ir_stmt.rewrites
+    # assert ir_stmt.rewrites
     object_path_id = ir_stmt.subject.path_id
-    subject_path_id = ir_stmt.rewrites.subject_path_id
-    old_path_id = ir_stmt.rewrites.old_path_id
+    if ir_stmt.rewrites:
+        subject_path_id = ir_stmt.rewrites.subject_path_id
+        old_path_id = ir_stmt.rewrites.old_path_id
+    else:
+        # Need values for the single external link case
+        subject_path_id = old_path_id = object_path_id
     assert old_path_id
 
     table_rel = table_relation.relation
@@ -1966,7 +1970,7 @@ def process_update_rewrites(
 def process_update_shape(
     ir_stmt: irast.UpdateStmt,
     rel: pgast.SelectStmt,
-    elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
+    elements: Sequence[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
     typeref: irast.TypeRef,
     ctx: context.CompilerContextLevel,
 ) -> Tuple[
@@ -2135,6 +2139,7 @@ def check_update_type(
     target type for this concrete subtype being handled.
     """
 
+    assert isinstance(actual_ptrref, irast.PointerRef)
     base_ptrref = shape_ptrref.real_material_ptr
 
     # We skip the check if either the base type matches exactly
@@ -2155,11 +2160,20 @@ def check_update_type(
         assert isinstance(rel_or_rvar, pgast.BaseRelation)
         rvar = relctx.rvar_for_rel(rel_or_rvar, ctx=ctx)
 
-    # Find the ptrref for the __type__ link on our actual target type
-    # and make up a new path_id to access it
-    assert isinstance(actual_ptrref, irast.PointerRef)
-    actual_type_ptrref = irtyputils.find_actual_ptrref(
-        actual_ptrref.out_target, ir_stmt.dunder_type_ptrref)
+    # Make up a ptrref for the __type__ link on our actual target type
+    # and make up a new path_id to access it. Relies on __type__ always
+    # being named __type__, but that's fine.
+    # (Arranging to actually get a legit pointer ref is pointlessly expensive.)
+    el_name = sn.QualName('__', '__type__')
+    actual_type_ptrref = irast.SpecialPointerRef(
+        name=el_name,
+        shortname=el_name,
+        out_source=actual_ptrref.out_target,
+        # HACK: This is obviously not the right target type, but we don't
+        # need it for anything and the pathid never escapes this function.
+        out_target=actual_ptrref.out_target,
+        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+    )
     type_pathid = ir_set.path_id.extend(ptrref=actual_type_ptrref)
 
     # Grab the actual value we have inserted and pull the __type__ out

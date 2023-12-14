@@ -464,7 +464,8 @@ def _process_view(
         rewrites = _compile_rewrites(
             specified_ptrs, rewrite_kind, view_scls, ir_set, stype, s_ctx, ctx
         )
-        ctx.env.dml_rewrites[ir_set] = rewrites
+        if rewrites:
+            ctx.env.dml_rewrites[ir_set] = rewrites
     else:
         rewrites = None
 
@@ -895,14 +896,20 @@ def _compile_rewrites(
     stype: s_objtypes.ObjectType,
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
-) -> irast.Rewrites:
+) -> Optional[irast.Rewrites]:
     # init
-    anchors = prepare_rewrite_anchors(
-        specified_ptrs, kind, stype, ctx
-    )
+    anchors = None
+
+    # Computing anchors isn't cheap, so we want to only do it once,
+    # and only do it when it is necessary.
+    def get_anchors() -> RewriteAnchors:
+        nonlocal anchors
+        if anchors is None:
+            anchors = prepare_rewrite_anchors(specified_ptrs, kind, stype, ctx)
+        return anchors
 
     rewrites = _compile_rewrites_for_stype(
-        stype, kind, view_scls, ir_set, anchors, s_ctx, ctx=ctx
+        stype, kind, view_scls, ir_set, get_anchors, s_ctx, ctx=ctx
     )
 
     if kind == qltypes.RewriteKind.Insert:
@@ -918,7 +925,7 @@ def _compile_rewrites(
         # statement later.
 
         rewrites_by_type = _compile_rewrites_of_children(
-            stype, rewrites, kind, view_scls, ir_set, anchors, s_ctx, ctx
+            stype, rewrites, kind, view_scls, ir_set, get_anchors, s_ctx, ctx
         )
 
     else:
@@ -934,12 +941,12 @@ def _compile_rewrites(
             target = element.target_set
             assert target and target.expr
 
-            ptrref = irtypeutils.ptrref_from_ptrcls(
-                schema=schema, ptrcls=element.ptrcls
-            )
+            ptrref = typegen.ptr_to_ptrref(element.ptrcls, ctx=ctx)
             actual_ptrref = irtypeutils.find_actual_ptrref(ty, ptrref)
             pn = actual_ptrref.shortname.name
-            path_id = irast.PathId.from_pointer(schema, element.ptrcls)
+            path_id = irast.PathId.from_pointer(
+                schema, element.ptrcls, env=ctx.env
+            )
 
             # construct a new set with correct path_id
             ptr_set = setgen.new_set_from_set(
@@ -960,6 +967,9 @@ def _compile_rewrites(
 
             by_type[ty][pn] = (ptr_set, ptrref.real_material_ptr)
 
+    if not anchors:
+        return None
+
     return irast.Rewrites(
         subject_path_id=anchors[0].path_id,
         old_path_id=anchors[2].path_id if anchors[2] else None,
@@ -973,7 +983,7 @@ def _compile_rewrites_of_children(
     kind: qltypes.RewriteKind,
     view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
-    anchors: RewriteAnchors,
+    get_anchors: Callable[[], RewriteAnchors],
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Dict[irast.TypeRef, Dict[sn.UnqualName, EarlyShapePtr]]:
@@ -993,7 +1003,7 @@ def _compile_rewrites_of_children(
         child_rewrites = parent_rewrites.copy()
         # override with rewrites defined here
         rewrites_defined_here = _compile_rewrites_for_stype(
-            child, kind, view_scls, ir_set, anchors, s_ctx,
+            child, kind, view_scls, ir_set, get_anchors, s_ctx,
             already_defined_rewrites=child_rewrites,
             ctx=ctx
         )
@@ -1007,7 +1017,7 @@ def _compile_rewrites_of_children(
                 kind,
                 view_scls,
                 ir_set,
-                anchors,
+                get_anchors,
                 s_ctx,
                 ctx=ctx,
             )
@@ -1021,7 +1031,7 @@ def _compile_rewrites_for_stype(
     kind: qltypes.RewriteKind,
     view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
-    anchors: RewriteAnchors,
+    get_anchors: Callable[[], RewriteAnchors],
     s_ctx: ShapeContext,
     *,
     already_defined_rewrites: Optional[
@@ -1069,7 +1079,7 @@ def _compile_rewrites_for_stype(
         ):
             continue
 
-        subject_set, specified_set, old_set = anchors
+        subject_set, specified_set, old_set = get_anchors()
 
         rewrite_view = view_scls
         if stype != view_scls.get_nearest_non_derived_parent(schema):
@@ -1169,7 +1179,8 @@ def prepare_rewrite_anchors(
     # TODO: Do we really need a separate path id for __subject__?
     subject_name = sn.QualName("__derived__", "__subject__")
     subject_path_id = irast.PathId.from_type(
-        schema, stype, typename=subject_name, namespace=ctx.path_id_namespace
+        schema, stype, typename=subject_name, namespace=ctx.path_id_namespace,
+        env=ctx.env,
     )
     subject_set = setgen.new_set(
         stype=stype, path_id=subject_path_id, ctx=ctx
@@ -1181,6 +1192,7 @@ def prepare_rewrite_anchors(
         schema,
         bool_type,
         typename=sn.QualName(module="std", name="bool"),
+        env=ctx.env,
     )
 
     # init set for __specified__
@@ -1191,6 +1203,7 @@ def prepare_rewrite_anchors(
             bool_type,
             typename=sn.QualName(module="__derived__", name=pn.name),
             namespace=ctx.path_id_namespace,
+            env=ctx.env,
         )
 
         specified_pointers.append(
@@ -1214,7 +1227,8 @@ def prepare_rewrite_anchors(
     if rewrite_kind == qltypes.RewriteKind.Update:
         old_name = sn.QualName("__derived__", "__old__")
         old_path_id = irast.PathId.from_type(
-            schema, stype, typename=old_name, namespace=ctx.path_id_namespace
+            schema, stype, typename=old_name, namespace=ctx.path_id_namespace,
+            env=ctx.env,
         )
         old_set = setgen.new_set(
             stype=stype, path_id=old_path_id, ctx=ctx

@@ -3058,7 +3058,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_introspect_bad_02(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'cannot introspect transient type variant'):
+                r"type 'A' does not exist"):
             await self.assert_query_result(
                 r"""
                     WITH A := (SELECT schema::Type { foo := 'bar' })
@@ -8293,6 +8293,39 @@ aa \
             [[]],
         )
 
+    async def test_edgeql_expr_if_else_11(self):
+        await self.assert_query_result(
+            r"""
+                select if 1 = <int64>$x then 2 else 3
+            """,
+            [2],
+            variables=dict(x=1),
+        )
+
+        await self.assert_query_result(
+            r"""
+                select if 1 = <int64>$x then 2 else 3
+            """,
+            [3],
+            variables=dict(x=-1),
+        )
+
+        await self.assert_query_result(
+            r"""
+                select 2 if 1 = <int64>$x else 3
+            """,
+            [2],
+            variables=dict(x=1),
+        )
+
+        await self.assert_query_result(
+            r"""
+                select 2 if 1 = <int64>$x else 3
+            """,
+            [3],
+            variables=dict(x=-1),
+        )
+
     async def test_edgeql_expr_if_else_toplevel(self):
         await self.assert_query_result(
             r"""
@@ -9154,6 +9187,15 @@ aa \
                 SELECT assert_single(x)
             );
         """)
+
+        await self.con.query("""
+            select {
+                xy := assert_single({<optional str>$0, <optional str>$1}) };
+        """, None, None)
+        await self.con.query("""
+            select {
+                xy := assert_single({<optional str>$0, <optional str>$1}) };
+        """, None, 'test')
 
     async def test_edgeql_assert_single_02(self):
         await self.con.execute("""

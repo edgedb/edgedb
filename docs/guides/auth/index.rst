@@ -56,6 +56,16 @@ the JWTs. At the moment, the JWTs are not considered “public” API, so there 
 no need to save this value for your own application use. It is exposed mainly
 to allow rotation.
 
+To configure via query or script:
+
+.. lint-off
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::AuthConfig::auth_signing_key := 'F2KHaJfHi9Dzd8+6DI7FB9IFIoJXnhz2rzG/UzCRE7jTtYxqgTHHydc8xnN6emDB3tlR99FvPsyJfcVLVcQ5odSQpceDXplBOP+N14+EBy2mV6rA/7W7azIEKebtr9TVKrpBTMTOLAXo08ZnA6lvjn0VMs95za6Pta7VW62hjcb8jy6yxulvvU5SWnwa0x2z401K0pLK7byDD5eNqgTl40YaeOGoQ0iCkSmGxvLxyQgCIz2IU0zUbBwC9bQsTDORvflunruJznHuMxwbfYo/czQIIGuawU0H+G3GJZ3hecZLQlvwYCyLF37PFQVrcNMtUuGyDy2OyYtYHru2GW5B7Q';
+
+.. lint-on
 
 token_time_to_live
 ------------------
@@ -63,6 +73,12 @@ token_time_to_live
 This value controls the expiration time on the authentication token’s
 JSON Web Token. This is effectively the “session” time.
 
+To configure via query or script:
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::AuthConfig::token_time_to_live := <duration>"336 hours";
 
 allowed_redirect_urls
 ---------------------
@@ -104,6 +120,19 @@ For example, if the set includes ``https://example.com/myapp``:
     built-in UI.
 
 
+To configure via query or script:
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::AuthConfig::allowed_redirect_urls := {
+        'https://example.com',
+        'https://example.com/auth',
+        'https://localhost:3000',
+        'https://localhost:3000/auth'
+    };
+
+
 Enabling authentication providers
 =================================
 
@@ -112,6 +141,9 @@ authentication providers. Providers can be added from the "Providers" section
 of the admin auth UI by clicking "Add Provider." This will add a form to the UI
 allowing for selection of the provider and configuration of the values
 described below.
+
+You can also enable providers via query. We'll demonstrate how in each section
+below.
 
 
 Email and password
@@ -125,6 +157,19 @@ Email and password
    specific features in your application by testing if
    ``ext::auth::EmailPasswordFactor.verified_at`` is set to a date in
    the past on the ``ext::auth::LocalIdentity``.
+
+To enable via query or script:
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT DATABASE
+    INSERT ext::auth::EmailPasswordProviderConfig {
+        require_verification := false,
+    };
+
+.. note::
+
+    ``require_verification`` defaults to ``true``.
 
 If you use the Email and Password provider, in addition to the
 ``require_verification`` configuration, you’ll need to configure SMTP to allow
@@ -144,12 +189,6 @@ great for testing in development:
 
     CONFIGURE CURRENT DATABASE SET
     ext::auth::SMTPConfig::port := <int32>1025;
-
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::username := 'smtpuser';
-
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::password := 'smtppassword';
 
     CONFIGURE CURRENT DATABASE SET
     ext::auth::SMTPConfig::security := 'STARTTLSOrPlainText';
@@ -210,6 +249,24 @@ use in your callback URL, which takes on this format:
 .. code-block::
 
     http[s]://{edgedb_host}[:port]/db/{db_name}/ext/auth/callback
+
+To enable the Azure OAuth provider via query or script:
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT DATABASE
+    INSERT ext::auth::AzureOAuthProvider {
+        secret := 'cccccccccccccccccccccccccccccccc',
+        client_id := '1597b3fc-b67d-4d2b-b38f-acc256341dbc',
+        additional_scope := 'offline_access',
+    };
+
+To enable any of the others, change ``AzureOAuthProvider`` in the example above
+to one of the other providers:
+
+- ``AppleOAuthProvider``
+- ``GitHubOAuthProvider``
+- ``GoogleOAuthProvider``
 
 
 Integrating your application

@@ -30,6 +30,8 @@ For example, the following expression casts an integer value into a string:
 See the :eql:op:`type cast operator <cast>` section for more
 information on type casting rules.
 
+.. _ref_uuid_casting:
+
 .. lint-off
 
 .. versionadded:: 3.0

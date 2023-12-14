@@ -524,17 +524,49 @@ Bug fixes
 
 4.1
 ===
-* Fix dump and restore of auth config 
+* Fix dump and restore of auth config
   (:eql:gh:`#6414`)
 
-* Clear ``_config_cache`` in ``sys_pgcon`` before reloading reported config 
+* Clear ``_config_cache`` in ``sys_pgcon`` before reloading reported config
   (:eql:gh:`#6427`)
 
 * Fix access policy type rewrites of ``std::Object``
   (:eql:gh:`#6420`)
 
-* Fix an error message of affected refs 
+* Fix an error message of affected refs
   (:eql:gh:`#6425`)
 
-* Fix DML with constraints on abstract types 
+* Fix DML with constraints on abstract types
   (:eql:gh:`#6421`)
+
+4.2
+===
+* Fix schema delta for RESET EXPRESSION
+  (:eql:gh:`#6463`)
+
+* Fix plain references to __old__ in rewrites
+  (:eql:gh:`#6470`)
+
+* Fix std::range in singleton mode
+  (:eql:gh:`#6475`)
+
+* Treat password reset as a verification event
+  (:eql:gh:`#6504`)
+
+* Fixes to auth redirect urls
+  (:eql:gh:`#6469`)
+
+* Fix SQL introspection of __fts_document__
+  (:eql:gh:`#6507`)
+
+* Type check mutation rewrites at migration time
+  (:eql:gh:`#6466`)
+
+  Mutation rewrite's ``using`` expression are now required to be of correct
+  type when the rewrite is created. Up until now, it was possible to migrate to
+  a schema that contained a rewrite rule that would always throw a type error
+  when an object was being inserted or updated.
+
+  This might be considered a breaking change, but as it is clearly a bug in
+  user schema and as it could also be considered a bug in the compiler, we are
+  fixing it in a minor version.

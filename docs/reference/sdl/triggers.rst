@@ -28,6 +28,27 @@ Declare a trigger that inserts a ``Log`` object for each new ``User`` object:
       );
     }
 
+.. versionadded:: 4.0
+
+Declare a trigger that inserts a ``Log`` object conditionally when an update
+query makes a change to a ``User`` object:
+
+.. code-block:: sdl
+
+    type User {
+      required name: str;
+
+      trigger log_update after update for each
+      when (<json>__old__ {**} != <json>__new__ {**})
+      do (
+        insert Log {
+          action := 'update',
+          target_name := __new__.name,
+          change := __old__.name ++ '->' ++ __new__.name
+        }
+      );
+    }
+
 .. _ref_eql_sdl_triggers_syntax:
 
 Syntax
@@ -35,6 +56,17 @@ Syntax
 
 Define a new trigger corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_triggers>`.
+
+.. sdl:synopsis::
+    :version-lt: 4.0
+
+    type <type-name> "{"
+      trigger <name>
+      after
+        {insert | update | delete} [, ...]
+        for {each | all}
+        do <expr>
+    "}"
 
 .. sdl:synopsis::
 
@@ -72,6 +104,12 @@ This declaration defines a new trigger with the following options:
     The expression will be evaluted once for the entire query, even if multiple
     objects were modified. ``__new__`` and ``__old__`` in this context within
     the expression refer to sets of the modified objects.
+
+.. versionadded:: 4.0
+
+    :eql:synopsis:`when (<condition>)`
+        Optionally provide a condition for the trigger. If the condition is
+        met, the trigger will run. If not, the trigger is skipped.
 
 :eql:synopsis:`<expr>`
     The expression to be evaluated when the trigger is invoked.

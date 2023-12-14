@@ -601,9 +601,13 @@ def can_omit_optional_wrapper(
             ctx=ctx,
         )
 
+    if isinstance(ir_set.rptr, irast.TupleIndirectionPointer):
+        return can_omit_optional_wrapper(ir_set.rptr.source, new_scope, ctx=ctx)
+
     return bool(
         ir_set.expr is None
         and not ir_set.path_id.is_objtype_path()
+        and not ir_set.path_id.is_type_intersection_path()
         and ir_set.rptr
         and new_scope.is_visible(ir_set.rptr.source.path_id)
         and not ir_set.rptr.is_inbound
@@ -725,7 +729,7 @@ def finalize_optional_rel(
 
         if lvar.nullable:
             # The left var is still nullable, which may be the
-            # case for non-required singleton scalar links.
+            # case for non-required singleton properties.
             # Filter out NULLs.
             setrel.where_clause = astutils.extend_binop(
                 setrel.where_clause,
@@ -1085,7 +1089,8 @@ def process_set_as_path(
             and not source_rptr.is_inbound
             and not irtyputils.is_computable_ptrref(source_rptr.ptrref)
             and not irutils.is_type_intersection_reference(ir_set)
-            and not pathctx.has_type_rewrite(ir_source.typeref, env=ctx.env)):
+            and not pathctx.link_needs_type_rewrite(
+                ir_source.typeref, env=ctx.env)):
 
         src_src_is_visible = ctx.scope_tree.is_visible(
             source_rptr.source.path_id)
@@ -1344,6 +1349,15 @@ def process_set_as_subquery(
         source_is_visible = False
 
     with ctx.new() as newctx:
+        # Suppress volatility refs while compiling schema
+        # aliases/globals.  While they might try to apply volatility
+        # refs due to FOR/free objects, it shouldn't be semantically
+        # necessary that they actually are attached to the enclosing
+        # location. This turns out to be an important optimization for
+        # ext::auth::ClientTokenIdentity.
+        if ir_set.is_schema_alias:
+            newctx.volatility_ref = ()
+
         outer_id = ir_set.path_id
         semi_join = False
 
@@ -1787,188 +1801,121 @@ def process_set_as_coalesce(
             or ir_set.path_id.is_tuple_path()
         )
 
-        # The cardinality optimizations below apply to non-object
-        # expressions only, because we don't want to have to deal
-        # with the complexity of resolving coalesced sources for
-        # potential link or property references.
-        if right_card is qltypes.Cardinality.ONE and not is_object:
-            # Non-optional singleton RHS, simply use scalar COALESCE
-            # without any precautions.
+        # The cardinality optimization below applies only to
+        # non-object/non-tuple expressions, because we don't want to
+        # have to deal with the complexity of resolving coalesced
+        # sources for potential link or property references.
+        if right_card.is_single() and not is_object:
             left = dispatch.compile(left_ir, ctx=newctx)
-            right = dispatch.compile(right_ir, ctx=newctx)
+
+            # If the RHS is optional, we compile it in a subquery so that
+            # it becomes NULL instead of potentially joining in zero rows.
+            # If not, just compile it without any protection.
+            right = (
+                set_as_subquery(right_ir, ctx=newctx)
+                if right_card.can_be_zero()
+                else dispatch.compile(right_ir, ctx=newctx)
+            )
+
+            # Just use scalar COALESCE now
             set_expr = pgast.CoalesceExpr(args=[left, right])
-            pathctx.put_path_value_var(
-                ctx.rel,
-                ir_set.path_id,
-                set_expr,
-            )
+            pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)
 
-        elif right_card is qltypes.Cardinality.AT_MOST_ONE and not is_object:
-            # Optional singleton RHS, use scalar COALESCE, but
-            # be careful not to JOIN the RHS as-is and instead
-            # turn it into a value and make sure to filter out
-            # the potential NULL result if both sides turn out
-            # to be empty:
-            #     SELECT
-            #         q.v
-            #     FROM
-            #         (SELECT
-            #             COALESCE(<lhs>, (SELECT (<rhs>))) AS v
-            #         ) AS q
-            #     WHERE
-            #         q.v IS NOT NULL
-            with newctx.subrel() as subctx:
-                left = dispatch.compile(left_ir, ctx=subctx)
-
-                with subctx.subrel() as rightctx:
-                    dispatch.compile(right_ir, ctx=rightctx)
-                    pathctx.get_path_value_output(
-                        rightctx.rel,
-                        right_ir.path_id,
-                        env=rightctx.env,
-                    )
-                    right = rightctx.rel
-
-                set_expr = pgast.CoalesceExpr(args=[left, right])
-
-                pathctx.put_path_value_var_if_not_exists(
-                    subctx.rel, ir_set.path_id, set_expr
-                )
-
-                sub_rvar = relctx.rvar_for_rel(
-                    subctx.rel,
-                    lateral=True,
-                    ctx=subctx,
-                )
-
-                relctx.include_rvar(
-                    ctx.rel, sub_rvar, ir_set.path_id, ctx=subctx
-                )
-
-            rvar = pathctx.get_path_value_var(
-                ctx.rel, path_id=ir_set.path_id, env=ctx.env
-            )
-
-            ctx.rel.where_clause = astutils.extend_binop(
-                ctx.rel.where_clause,
-                pgast.NullTest(arg=rvar, negated=True),
-            )
         else:
-            # Things become tricky in cases where the RHS is a non-singleton.
+            # Things become tricky in cases where the RHS is a non-singleton
+            # or where we need to worry about source aspects.
             # We cannot use the regular scalar COALESCE over a JOIN,
-            # as that'll blow up the result cardinality. Instead, we
-            # compute a UNION of both sides and annotate each side with
-            # a marker.  We then select only rows that match the marker
-            # of the first row:
+            # as that'll blow up the result cardinality. Instead, we do
+            # something like:
             #
-            #     SELECT
-            #         q.*
-            #     FROM
-            #         (SELECT
-            #             marker = first_value(marker) OVER () AS marker,
-            #             ...
-            #          FROM
-            #             (SELECT 1 AS marker, * FROM left
-            #              UNION ALL
-            #              SELECT 2 AS marker, * FROM right) AS u
-            #         ) AS q
-            #     WHERE marker
-            with newctx.subrel() as subctx:
-                subqry = subctx.rel
+            #     CROSS JOIN LATERAL
+            #       (<left>) as lhs
+            #     CROSS JOIN LATERAL (
+            #       SELECT * FROM lhs WHERE lhs.value IS NOT NULL
+            #       UNION ALL
+            #       SELECT * FROM <right> as rhs WHERE lhs.value IS NULL
+            #     ) as q
+            #
+            # Note that <left> will be compiled with optional wrapping,
+            # so it shouldn't ever produce zero rows.
+            lhs_rvar = get_set_rvar(left_ir, ctx=newctx)
+            lvar = pathctx.get_rvar_path_var(
+                lhs_rvar, left_ir.path_id, aspect='value', env=ctx.env
+            )
+            lval = output.output_as_value(lvar, env=ctx.env)
 
-                with subctx.subrel() as sub2ctx:
-
-                    with sub2ctx.subrel() as scopectx:
-                        larg = scopectx.rel
-                        pathctx.put_path_id_map(
-                            larg, ir_set.path_id, left_ir.path_id)
-                        lvar = dispatch.compile(left_ir, ctx=scopectx)
-
-                        if lvar.nullable:
-                            # The left var is still nullable, which may be the
-                            # case for non-required singleton scalar links.
-                            # Filter out NULLs.
-                            larg.where_clause = astutils.extend_binop(
-                                larg.where_clause,
-                                pgast.NullTest(
-                                    arg=lvar, negated=True
-                                )
-                            )
-
-                    with sub2ctx.subrel() as scopectx:
-                        rarg = scopectx.rel
-                        pathctx.put_path_id_map(
-                            rarg, ir_set.path_id, right_ir.path_id)
-                        rvar = dispatch.compile(right_ir, ctx=scopectx)
-
-                        if rvar.nullable:
-                            rarg.where_clause = astutils.extend_binop(
-                                rarg.where_clause,
-                                pgast.NullTest(arg=rvar, negated=True)
-                            )
-
-                    marker = sub2ctx.env.aliases.get('m')
-
-                    larg.target_list.insert(
-                        0,
-                        pgast.ResTarget(val=pgast.NumericConstant(val='1'),
-                                        name=marker))
-                    rarg.target_list.insert(
-                        0,
-                        pgast.ResTarget(val=pgast.NumericConstant(val='2'),
-                                        name=marker))
-
-                    unionqry = sub2ctx.rel
-                    unionqry.op = 'UNION'
-                    unionqry.all = True
-                    unionqry.larg = larg
-                    unionqry.rarg = rarg
-
-                union_rvar = relctx.rvar_for_rel(
-                    unionqry, lateral=True, ctx=subctx)
+            with newctx.subrel() as lctx:
+                larg = lctx.rel
+                pathctx.put_path_id_map(larg, ir_set.path_id, left_ir.path_id)
 
                 relctx.include_rvar(
-                    subqry, union_rvar, path_id=ir_set.path_id, ctx=subctx)
-
-                lagged_marker = pgast.FuncCall(
-                    name=('first_value',),
-                    args=[pgast.ColumnRef(name=[marker])],
-                    over=pgast.WindowDef()
+                    larg,
+                    lhs_rvar,
+                    path_id=left_ir.path_id,
+                    ctx=lctx,
+                    # Only include the aspects that got included
+                    # into our rel; it's possible some were explicitly
+                    # left out, and we should respect that.
+                    aspects=pathctx.list_path_aspects(
+                        newctx.rel, left_ir.path_id
+                    ),
                 )
 
-                marker_ok = astutils.new_binop(
-                    pgast.ColumnRef(name=[marker]),
-                    lagged_marker,
-                    op='=',
-                )
-
-                subqry.target_list.append(
-                    pgast.ResTarget(
-                        name=marker,
-                        val=marker_ok
+                # Include the LHS when it is not NULL.
+                larg.where_clause = astutils.extend_binop(
+                    larg.where_clause,
+                    pgast.NullTest(
+                        arg=lval, negated=True
                     )
                 )
 
-            aspects = pathctx.list_path_aspects(
-                larg, left_ir.path_id
-            ) & pathctx.list_path_aspects(rarg, right_ir.path_id)
+            with newctx.subrel() as rctx:
+                rarg = rctx.rel
+                pathctx.put_path_id_map(rarg, ir_set.path_id, right_ir.path_id)
+                rvar = dispatch.compile(right_ir, ctx=rctx)
 
-            subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=newctx)
+                # Include the RHS when the LHS is NULL.
+                # Note that an important precondition of this is that
+                # there are not "stray" NULLs in the LHS input set.
+                #
+                # HACK: We need to use IS NOT DISTINCT FROM
+                # because ROW() IS NULL is true, and that
+                # breaks some things.
+                rarg.where_clause = astutils.extend_binop(
+                    rarg.where_clause,
+                    astutils.new_binop(
+                        lval, pgast.NullConstant(),
+                        'IS NOT DISTINCT FROM',
+                    ),
+                )
+
+                if rvar.nullable:
+                    rarg.where_clause = astutils.extend_binop(
+                        rarg.where_clause,
+                        pgast.NullTest(arg=rvar, negated=True)
+                    )
+
+            union_rvar = relctx.rvar_for_rel(
+                pgast.SelectStmt(op='UNION', all=True, larg=larg, rarg=rarg),
+                lateral=True,
+                ctx=newctx,
+            )
+
+            aspects = (
+                pathctx.list_path_aspects(larg, left_ir.path_id)
+                & pathctx.list_path_aspects(rarg, right_ir.path_id)
+            )
 
             # No pull_namespace because we don't want the coalesce arguments to
             # escape, just the final result.
             relctx.include_rvar(
                 ctx.rel,
-                subrvar,
+                union_rvar,
                 path_id=ir_set.path_id,
                 aspects=aspects,
                 pull_namespace=False,
                 ctx=newctx,
             )
-
-            ctx.rel.where_clause = astutils.extend_binop(
-                ctx.rel.where_clause,
-                astutils.get_column(subrvar, marker, nullable=False))
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
@@ -2349,6 +2296,8 @@ def process_set_as_singleton_assertion(
                 ),
             ],
         )
+
+        output.add_null_test(arg_ref, newctx.rel)
 
         # Force Postgres to actually evaluate the result target
         # by putting it into an ORDER BY.
@@ -3448,6 +3397,7 @@ def process_set_as_agg_expr_inner(
                 if for_group_by:
                     arg_ref = set_as_subquery(
                         ir_arg, as_value=True, ctx=argctx)
+                    arg_ref.nullable = False
                 elif aspect == 'serialized':
                     dispatch.visit(ir_arg, ctx=argctx)
 

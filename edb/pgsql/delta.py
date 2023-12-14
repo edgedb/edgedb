@@ -330,6 +330,7 @@ class Query(MetaCommand, adapts=sd.Query):
             explicit_top_cast=irtyputils.type_to_typeref(
                 schema,
                 schema.get('std::str', type=s_types.Type),
+                cache=None,
             ),
             backend_runtime_params=context.backend_runtime_params,
         )
@@ -1242,7 +1243,7 @@ class FunctionCommand(MetaCommand):
             nativecode.irast,
             ignore_shapes=True,
             explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
-                schema, func.get_return_type(schema)),
+                schema, func.get_return_type(schema), cache=None),
             output_format=compiler.OutputFormat.NATIVE,
             named_param_prefix=self.get_pgname(func, schema)[-1:],
         )
@@ -1368,7 +1369,7 @@ class FunctionCommand(MetaCommand):
                 nativecode.irast,
                 ignore_shapes=True,
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
-                    schema, func.get_return_type(schema)),
+                    schema, func.get_return_type(schema), cache=None),
                 output_format=compiler.OutputFormat.NATIVE,
                 named_param_prefix=self.get_pgname(func, schema)[-1:],
                 backend_runtime_params=context.backend_runtime_params,
@@ -3071,9 +3072,9 @@ class CompositeMetaCommand(MetaCommand):
         if dbops.AlterTable not in self._multicommands:
             mod, name = common.get_backend_name(
                 schema, self.scls, aspect='inhview', catenate=False)
-            self.pgops.add(dbops.Query(f'''\
+            self.pgops.add(dbops.Query(textwrap.dedent(f'''\
                 ALTER VIEW IF EXISTS {mod}."{name}" SET SCHEMA {mod};
-            '''))
+            ''')))
 
         return self._get_multicommand(
             context, dbops.AlterTable, tabname,
@@ -3522,28 +3523,45 @@ class CompositeMetaCommand(MetaCommand):
 
 
 class IndexCommand(MetaCommand):
-    @classmethod
-    def get_compile_options(
-        cls,
-        index: s_indexes.Index,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        schema_object_context: Type[so.Object_T],
-    ) -> qlcompiler.CompilerOptions:
-        subject = index.get_subject(schema)
-        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+    pass
 
-        singletons = [subject]
-        path_prefix_anchor = ql_ast.Subject().name
 
-        return qlcompiler.CompilerOptions(
-            modaliases=context.modaliases,
-            schema_object_context=schema_object_context,
-            anchors={ql_ast.Subject().name: subject},
-            path_prefix_anchor=path_prefix_anchor,
-            singletons=singletons,
-            apply_query_rewrites=False,
-        )
+def get_index_compile_options(
+    index: s_indexes.Index,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    schema_object_context: Optional[Type[so.Object_T]],
+) -> qlcompiler.CompilerOptions:
+    subject = index.get_subject(schema)
+    assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+
+    singletons = [subject]
+    path_prefix_anchor = ql_ast.Subject().name
+
+    return qlcompiler.CompilerOptions(
+        modaliases=modaliases,
+        schema_object_context=schema_object_context,
+        anchors={ql_ast.Subject().name: subject},
+        path_prefix_anchor=path_prefix_anchor,
+        singletons=singletons,
+        apply_query_rewrites=False,
+    )
+
+
+def get_reindex_sql(
+    obj: s_objtypes.ObjectType,
+    schema: s_schema.Schema,
+) -> Optional[str]:
+    "Generate SQL statement that repopulates the index after a restore."
+    "Currently this only applies to FTS indexes."
+
+    (fts_index, _) = s_indexes.get_effective_fts_index(obj, schema)
+    if fts_index:
+        options = get_index_compile_options(fts_index, schema, {}, None)
+        cmd = deltafts.update_fts_document(fts_index, options, schema)
+        return cmd.code(None)
+
+    return None
 
 
 class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
@@ -3556,8 +3574,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     ):
         from .compiler import astutils
 
-        options = cls.get_compile_options(
-            index, schema, context, cls.get_schema_metaclass()
+        options = get_index_compile_options(
+            index, schema, context.modaliases, cls.get_schema_metaclass()
         )
 
         index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
@@ -3777,8 +3795,11 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         if index.has_base_with_name(orig_schema, sn.QualName('fts', 'index')):
 
             # compile commands for index drop
-            options = self.get_compile_options(
-                index, orig_schema, context, self.get_schema_metaclass()
+            options = get_index_compile_options(
+                index,
+                orig_schema,
+                context.modaliases,
+                self.get_schema_metaclass()
             )
             drop_ops = deltafts.delete_fts_index(
                 index, drop_index, options, schema, orig_schema, context
@@ -4826,8 +4847,7 @@ class PointerMetaCommand(
             tgt_path_id = ir.singletons[0]
         else:
             tgt_path_id = irpathid.PathId.from_pointer(
-                orig_schema,
-                pointer,
+                orig_schema, pointer, env=None
             )
 
         refs = irutils.get_longest_paths(ir.expr)
@@ -4886,7 +4906,7 @@ class PointerMetaCommand(
         # generate a unique path id for the outer scope
         typ = orig_schema.get(f'schema::ObjectType', type=s_types.Type)
         outer_path = irast.PathId.from_type(
-            orig_schema, typ, typename=sn.QualName("std", "obj")
+            orig_schema, typ, typename=sn.QualName("std", "obj"), env=None,
         )
 
         root_uid = -1

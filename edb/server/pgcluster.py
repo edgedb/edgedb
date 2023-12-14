@@ -203,6 +203,7 @@ class BaseCluster:
             'ssl',
             'sslmode',
             'server_settings',
+            'connect_timeout',
         ):
             v = getattr(params, k)
             if v is not None:

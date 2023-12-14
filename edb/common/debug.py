@@ -130,6 +130,9 @@ class flags(metaclass=FlagsMeta):
     delta_execute = Flag(
         doc="Output SQL commands as executed during migration.")
 
+    delta_execute_ddl = Flag(
+        doc="Output just the DDL commands as executed during migration.")
+
     server = Flag(
         doc="Print server errors.")
 

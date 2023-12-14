@@ -46,6 +46,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import parser as qlparser
 from edb.edgeql import tracer as qltracer
+from edb.edgeql import utils as qlutils
 
 from edb.schema import annos as s_anno
 from edb.schema import constraints as s_constr
@@ -1336,6 +1337,13 @@ def _get_hard_deps(
     deps: MutableSet[s_name.QualName] = set()
 
     if isinstance(expr, qlast.TypeName):
+
+        # Special case for `enum<VariantA, VariantB>`
+        # Don't trace at all, neither `enum` or `VariantA` are resolvable names.
+        # This case will fail later, saying that you need to declare a new type.
+        if qlutils.is_enum(expr):
+            return deps
+
         # We care about subtypes dependencies, because
         # they can either be custom scalars or illegal
         # ObjectTypes (then error message will depend on
@@ -1377,14 +1385,7 @@ def _get_bases(
 
     if decl.bases:
         # Explicit inheritance
-        has_enums = any(
-            (
-                isinstance(br.maintype, qlast.TypeName)
-                and br.maintype.name == "enum"
-                and br.subtypes
-            )
-            for br in decl.bases
-        )
+        has_enums = any(qlutils.is_enum(br) for br in decl.bases)
 
         if has_enums:
             if len(decl.bases) > 1:

@@ -128,6 +128,29 @@ class ServerConnTransport(enum.StrEnum):
     SIMPLE_HTTP = "SIMPLE_HTTP"
 
 
+class ReloadTrigger(enum.StrEnum):
+    """
+    Configure what triggers the reload of the following config files:
+    1. TLS certificate and key (server config)
+    2. JWS key (server config)
+    3. Multi-tenant config file (server config)
+    4. Readiness state (server or tenant config)
+    5. JWT sub allowlist and revocation list (server or tenant config)
+    """
+
+    Default = "default"
+    """By default, reload on both SIGHUP and fsevent."""
+
+    Never = "never"
+    """Disable the reload function."""
+
+    Signal = "signal"
+    """Only reload on SIGHUP."""
+
+    FileSystemEvent = "fsevent"
+    """Watch the files for changes and reload when it happens."""
+
+
 class ServerAuthMethods:
 
     def __init__(
@@ -210,8 +233,9 @@ class ServerConfig(NamedTuple):
     emit_server_status: str
     temp_dir: bool
     auto_shutdown_after: float
-    readiness_state_file: Optional[str]
+    readiness_state_file: Optional[pathlib.Path]
     disable_dynamic_system_config: bool
+    reload_config_files: ReloadTrigger
 
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
@@ -928,7 +952,18 @@ _server_options = [
         envvar="EDGEDB_SERVER_DISABLE_DYNAMIC_SYSTEM_CONFIG",
         cls=EnvvarResolver,
         help="Disable dynamic configuration of system config values",
-    )
+    ),
+    click.option(
+        "--reload-config-files",
+        envvar="EDGEDB_SERVER_RELOAD_CONFIG_FILES", cls=EnvvarResolver,
+        type=click.Choice(
+            list(ReloadTrigger.__members__.values()), case_sensitive=True
+        ),
+        hidden=True,
+        default='default',
+        help='Specifies when to reload the config files. See the docstring of '
+             'ReloadTrigger for more information.',
+    ),
 ]
 
 
@@ -1393,6 +1428,10 @@ def parse_args(**kwargs: Any):
             kwargs['instance_name'] = '_localdev'
         else:
             kwargs['instance_name'] = '_unknown'
+
+    kwargs['reload_config_files'] = ReloadTrigger(
+        kwargs['reload_config_files']
+    )
 
     if 'EDGEDB_SERVER_CONFIG_cfg::listen_addresses' in os.environ:
         abort(

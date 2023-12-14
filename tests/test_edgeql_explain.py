@@ -1814,6 +1814,14 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             },
         )
 
+    async def test_edgeql_explain_user_func_index_01(self):
+        res = await self.explain('''
+            select Issue {id}
+            filter .number2 = '500!'
+        ''')
+        plan_type = res['fine_grained']['pipeline'][0]['plan_type']
+        self.assertIn(plan_type, ['IndexScan', 'BitmapHeapScan'])
+
     async def test_edgeql_explain_bug_5758(self):
         # Issue #5758
         res = await self.explain('''

@@ -92,6 +92,7 @@ class BaseServer:
     _local_intro_query: bytes
     _global_intro_query: bytes
     _report_config_typedesc: dict[defines.ProtocolVersion, bytes]
+    _use_monitor_fs: bool
     _file_watch_handles: list[asyncio.Handle]
 
     _std_schema: s_schema.Schema
@@ -145,8 +146,10 @@ class BaseServer:
         admin_ui: bool = False,
         disable_dynamic_system_config: bool = False,
         compiler_state: edbcompiler.CompilerState,
+        use_monitor_fs: bool = False,
     ):
         self.__loop = asyncio.get_running_loop()
+        self._use_monitor_fs = use_monitor_fs
 
         self._schema_class_layout = compiler_state.schema_class_layout
         self._config_settings = compiler_state.config_spec
@@ -337,11 +340,26 @@ class BaseServer:
     def monitor_fs(
         self, path: str | pathlib.Path,
         cb: Callable[[str, int], None],
-    ) -> None:
-        self._file_watch_handles.append(
-            # ... we depend on an event loop internal _monitor_fs
-            self.__loop._monitor_fs(str(path), cb)  # type: ignore
-        )
+    ) -> Callable[[], None]:
+        if not self._use_monitor_fs:
+            return lambda: None
+
+        # ... we depend on an event loop internal _monitor_fs
+        handle = self.__loop._monitor_fs(str(path), cb)  # type: ignore
+
+        def finalizer():
+            try:
+                self._file_watch_handles.remove(handle)
+            except ValueError:
+                # The server may have cleared _file_watch_handles before the
+                # tenants do, so we can skip the double cancel here.
+                pass
+            else:
+                handle.cancel()
+
+        self._file_watch_handles.append(handle)
+
+        return finalizer
 
     def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         raise NotImplementedError

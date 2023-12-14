@@ -448,9 +448,6 @@ class Field(struct.ProtoField, Generic[T]):
     def is_schema_field(self) -> bool:
         return False
 
-    def maybe_get_default(self) -> Any:
-        return NoDefault
-
     def get_default(self) -> Any:
         raise ValueError(f'field {self.name!r} is required and has no default')
 
@@ -476,7 +473,8 @@ class Field(struct.ProtoField, Generic[T]):
 
 class SchemaField(Field[Type_T]):
 
-    __slots__ = ('default', 'hashable', 'allow_ddl_set', 'index')
+    __slots__ = ('default', 'hashable', 'allow_ddl_set', 'index',
+                 'get_default_specialized')
 
     #: The default value to use for the field.
     default: Any
@@ -486,6 +484,8 @@ class SchemaField(Field[Type_T]):
     allow_ddl_set: bool
     #: Field index within the object data tuple
     index: int
+    #: Specialized get_default function
+    get_default_specialized: Callable[[], Any]
 
     def __init__(
         self,
@@ -501,6 +501,9 @@ class SchemaField(Field[Type_T]):
         self.hashable = hashable
         self.allow_ddl_set = allow_ddl_set
         self.index = -1
+        # Use this instead of get_default if you can; get_default has to
+        # be a method because it comes from the parent
+        self.get_default_specialized = self._make_get_default()
 
     @property
     def required(self) -> bool:
@@ -510,23 +513,27 @@ class SchemaField(Field[Type_T]):
     def is_schema_field(self) -> bool:
         return True
 
-    def maybe_get_default(self) -> Any:
-        if self.default is DEFAULT_CONSTRUCTOR:
-            if issubclass(self.type, ObjectCollection):
-                value = self.type.create_empty()
-            else:
-                value = self.type()  # type: ignore
-        else:
-            value = self.default
-        return value
-
     def get_default(self) -> Any:
-        value = self.maybe_get_default()
-        if value is NoDefault:
-            raise ValueError(
-                f'field {self.name!r} is required and has no default')
+        return self.get_default_specialized()
+
+    def _make_get_default(self) -> Callable[[], Any]:
+        if self.default is NoDefault:
+            def _get_error() -> Any:
+                raise ValueError(
+                    f'field {self.name!r} is required and has no default')
+            return _get_error
+        elif self.default is DEFAULT_CONSTRUCTOR:
+            # ObjectCollection might not be defined yet when we first need
+            # to call this, so we hack it around a bit.
+            if getattr(self.type, 'is_object_collection', False):
+                return self.type.create_empty  # type: ignore
+            else:
+                return self.type
         else:
-            return value
+            def _get_simple(value: Any=self.default) -> Any:
+                return value
+
+            return _get_simple
 
     def __get__(
         self,
@@ -704,12 +711,12 @@ class ObjectMeta(type):
                     self: Any,
                     schema: s_schema.Schema,
                     *,
-                    _f: SchemaField[Any] = field,
                     _fn: str = field.name,
                     _fi: int = findex,
                     _sr: Callable[[Any], s_abc.Reducible] = (
                         ftype.schema_restore
                     ),
+                    _fd: Callable[[], Any] = field.get_default,
                 ) -> Any:
                     data = schema.get_obj_data_raw(self)
                     v = data[_fi]
@@ -717,7 +724,7 @@ class ObjectMeta(type):
                         return _sr(v)
                     else:
                         try:
-                            return _f.get_default()
+                            return _fd()
                         except ValueError:
                             pass
 
@@ -727,14 +734,35 @@ class ObjectMeta(type):
                         )
 
                 setattr(cls, getter_name, reducible_getter)
+
+            elif (
+                field.default is not NoDefault
+                and field.default is not DEFAULT_CONSTRUCTOR
+            ):
+                def regular_default_getter(
+                    self: Any,
+                    schema: s_schema.Schema,
+                    *,
+                    _fi: int = findex,
+                    _fd: Any = field.default,
+                ) -> Any:
+                    data = schema.get_obj_data_raw(self)
+                    v = data[_fi]
+                    if v is not None:
+                        return v
+                    else:
+                        return _fd
+
+                setattr(cls, getter_name, regular_default_getter)
+
             else:
                 def regular_getter(
                     self: Any,
                     schema: s_schema.Schema,
                     *,
-                    _f: SchemaField[Any] = field,
                     _fn: str = field.name,
                     _fi: int = findex,
+                    _fd: Callable[[], Any] = field.get_default,
                 ) -> Any:
                     data = schema.get_obj_data_raw(self)
                     v = data[_fi]
@@ -742,7 +770,7 @@ class ObjectMeta(type):
                         return v
                     else:
                         try:
-                            return _f.get_default()
+                            return _fd()
                         except ValueError:
                             pass
 
@@ -948,6 +976,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
     __slots__ = ('id',)
 
+    is_global_object = False
+
     # Unique ID for this schema item.
     id = Field(
         uuid.UUID,
@@ -999,15 +1029,21 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     def schema_reduce(self) -> Tuple[str, uuid.UUID]:
         return type(self).__name__, self.id
 
-    @classmethod
+    @staticmethod
     @functools.lru_cache(maxsize=10240)
+    def raw_schema_restore(
+        sclass_name: str,
+        obj_id: uuid.UUID,
+    ) -> Object:
+        sclass = ObjectMeta.get_schema_class(sclass_name)
+        return sclass(_private_id=obj_id)
+
+    @staticmethod
     def schema_restore(
-        cls,
         data: Tuple[str, uuid.UUID],
     ) -> Object:
         sclass_name, obj_id = data
-        sclass = ObjectMeta.get_schema_class(sclass_name)
-        return sclass(_private_id=obj_id)
+        return Object.raw_schema_restore(sclass_name, obj_id)
 
     @classmethod
     def schema_refs_from_data(
@@ -1075,9 +1111,9 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         self.id = _private_id
 
     def __eq__(self, other: Any) -> bool:
-        if isinstance(other, Object):
-            return self.id == other.id
-        else:
+        try:
+            return self.id == other.id  # type: ignore
+        except AttributeError:
             return NotImplemented
 
     def __hash__(self) -> int:
@@ -1449,6 +1485,24 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         else:
             return 1.0
 
+    def refresh_classref(
+        self,
+        schema: s_schema.Schema,
+        collection: str,
+    ) -> s_schema.Schema:
+        refdict = type(self).get_refdict(collection)
+        attr = refdict.attr
+
+        colltype = type(self).get_field(attr).type
+
+        coll = self.get_explicit_field_value(schema, attr, None)
+        if coll is not None:
+            # breakpoint()
+            all_coll = colltype.create(schema, coll.objects(schema))
+            schema = self.set_field_value(schema, attr, all_coll)
+
+        return schema
+
     def add_classref(
         self,
         schema: s_schema.Schema,
@@ -1596,8 +1650,9 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         *,
         classname: Optional[sn.Name] = None,
         referrer: Optional[Object] = None,
+        possible_parent: Optional[sd.ObjectCommand[Object]] = None,
         **kwargs: Any,
-    ) -> Tuple[sd.CommandGroup, sd.ObjectCommand_T, sd.ContextStack]:
+    ) -> Tuple[sd.Command, sd.ObjectCommand_T, sd.ContextStack]:
         """Make a command subtree for this object.
 
         This returns a tuple containing:
@@ -1609,12 +1664,12 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         - a ``ContextStack`` instance representing the nested CommandContext
           corresponding to the returned command tree.
         """
+        root_cmd: sd.Command
         root_cmd, parent_cmd, ctx_stack = self.init_parent_delta_branch(
             schema=schema,
             context=context,
             referrer=referrer,
         )
-
         self_cmd = self.init_delta_command(
             schema,
             cmdtype=cmdtype,
@@ -1622,7 +1677,21 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             **kwargs,
         )
 
-        parent_cmd.add(self_cmd)
+        from . import delta as sd
+
+        # possible_parent allows the caller to tell us what *they* are,
+        # so we can reuse that Alter if we can. The big advantage here is
+        # that it saves needing to do validate_object on the intermediate
+        # objects.
+        if (
+            isinstance(possible_parent, sd.AlterObject)
+            and isinstance(parent_cmd, sd.ObjectCommand)
+            and possible_parent.classname == parent_cmd.classname
+        ):
+            root_cmd = parent_cmd = self_cmd
+        else:
+            parent_cmd.add(self_cmd)
+
         ctx_stack.push(self_cmd.new_context(schema, context, self))
         return root_cmd, self_cmd, ctx_stack
 
@@ -2029,7 +2098,7 @@ class ObjectFragment(QualifiedObject):
 
 
 class GlobalObject(Object):
-    pass
+    is_global_object = True
 
 
 GlobalObject_T = TypeVar('GlobalObject_T', bound='GlobalObject')
@@ -2181,6 +2250,7 @@ class ObjectCollection(
     Generic[Object_T],
 ):
     __slots__ = ('_ids',)
+    is_object_collection = True
 
     # Even though Object_T would be a correct annotation below,
     # we want the type to default to base `Object` for cases
@@ -2256,10 +2326,9 @@ class ObjectCollection(
             clsname = cls.__name__
         return (clsname, typeargs, ids, tuple(attrs.items()))
 
-    @classmethod
+    @staticmethod
     @functools.lru_cache(maxsize=10240)
     def schema_restore(
-        cls,
         data: Tuple[
             str,
             Optional[Union[Tuple[builtins.type, ...], builtins.type]],
@@ -2335,7 +2404,7 @@ class ObjectCollection(
     def create(
         cls: Type[ObjectCollection[Object_T]],
         schema: s_schema.Schema,
-        data: Iterable[Object_T],
+        data: Collection[Object_T],
         **kwargs: Any,
     ) -> ObjectCollection[Object_T]:
         ids: List[uuid.UUID] = []
@@ -2379,9 +2448,12 @@ class ObjectCollection(
         return type(self)._container(result)
 
     def objects(self, schema: s_schema.Schema) -> Tuple[Object_T, ...]:
-        return tuple(
+        # Calling tuple on a list produced by a comprehension instead
+        # of on a generator comprehension is tragically a slight
+        # performance improvement, and this is a hot path.
+        return tuple([
             schema.get_by_id(iid) for iid in self._ids  # type: ignore
-        )
+        ])
 
     def _object_keys(self, schema: s_schema.Schema) -> Set[
             Tuple[Type[Object], sn.Name]]:
@@ -2472,6 +2544,15 @@ class ObjectIndexBase(
     ObjectCollection[Object_T],
     container=tuple,
 ):
+    # The keys here are derived, but caching them is a big performance
+    # win (-14% when it was implemented).
+    #
+    # N.B: Because the keys are cached, if the value of the key is
+    # changed, a new collection must be created!
+    # Currently, ObjectIndexBase is used only for refdicts, and so
+    # this update is done in RenameReferencedInheritingObject._alter_begin().
+
+    __slots__ = ('_ids', '_keys')
     _key: KeyFunction[Object_T, Key_T]
 
     def __init_subclass__(
@@ -2499,23 +2580,37 @@ class ObjectIndexBase(
     def create(
         cls: Type[ObjectIndexBase[Key_T, Object_T]],
         schema: s_schema.Schema,
-        data: Iterable[Object_T],
+        data: Collection[Object_T],
         **kwargs: Any,
     ) -> ObjectIndexBase[Key_T, Object_T]:
+        _k = cls._key
+        keys = tuple([_k(schema, x) for x in data])
+
         coll = cast(
             ObjectIndexBase[Key_T, Object_T],
-            super().create(schema, data, **kwargs)
+            super().create(schema, data, _keys=keys, **kwargs)
         )
         coll._check_duplicates(schema)
         return coll
 
+    def __init__(
+        self,
+        _ids: Collection[uuid.UUID],
+        _keys: Optional[Tuple[Key_T, ...]] = None,
+        *,
+        _private_init: bool,
+    ) -> None:
+        super().__init__(_ids, _private_init=_private_init)
+        self._keys = _keys
+
     def _check_duplicates(self, schema: s_schema.Schema) -> None:
-        counts = collections.Counter(self.keys(schema))
-        duplicates = [v for v, count in counts.items() if count > 1]
-        if duplicates:
+        uniq = set(self.keys(schema))
+        if len(uniq) != len(self._ids):
+            counts = collections.Counter(self.keys(schema))
+            duplicates = [v for v, count in counts.items() if count > 1]
             raise ObjectCollectionDuplicateNameError(
                 'object index contains duplicate key(s): ' +
-                ', '.join(repr(duplicates)))
+                ', '.join(repr(d) for d in duplicates))
 
     @classmethod
     def compare_values(
@@ -2606,21 +2701,22 @@ class ObjectIndexBase(
         schema: s_schema.Schema,
     ) -> Tuple[Tuple[Key_T, Object_T], ...]:
         result = []
-        keyfunc = type(self)._key
 
-        for obj in self.objects(schema):
-            result.append((keyfunc(schema, obj), obj))
+        for key, item_id in zip(self.keys(schema), self._ids):
+            obj = schema.get_by_id(item_id)
+            result.append((key, obj))
 
-        return tuple(result)
+        return tuple(result)  # type: ignore
 
     def keys(self, schema: s_schema.Schema) -> Tuple[Key_T, ...]:
-        result = []
-        keyfunc = type(self)._key
+        # To support existing pickled schemas that don't have _keys in them,
+        # lazily compute them if they are missing.
+        # FUTURE: Can drop in 5.0.
+        if self._keys is None:
+            _k = type(self)._key
+            self._keys = tuple([_k(schema, x) for x in self.objects(schema)])
 
-        for obj in self.objects(schema):
-            result.append(keyfunc(schema, obj))
-
-        return tuple(result)
+        return self._keys
 
     def has(self, schema: s_schema.Schema, name: Key_T) -> bool:
         return name in self.keys(schema)
@@ -2629,13 +2725,17 @@ class ObjectIndexBase(
         self,
         schema: s_schema.Schema,
         name: Key_T,
-        default: Any = NoDefault,
+        default: Optional[Object_T | NoDefaultT] = NoDefault,
     ) -> Optional[Object_T]:
-        items = dict(self.items(schema))
+        # TODO: Should we store an actual dict?
+        for key, item_id in zip(self.keys(schema), self._ids):
+            if name == key:
+                return schema.get_by_id(item_id)  # type: ignore
+
         if default is NoDefault:
-            return items[name]
+            raise KeyError(name)
         else:
-            return items.get(name, default)
+            return default
 
 
 def _fullname_object_key(schema: s_schema.Schema, o: Object) -> sn.Name:
@@ -2678,7 +2778,6 @@ def _unqualified_object_key(
     schema: s_schema.Schema,
     o: QualifiedObject,
 ) -> sn.UnqualName:
-    assert isinstance(o, QualifiedObject)
     return sn.UnqualName(o.get_shortname(schema).name)
 
 
