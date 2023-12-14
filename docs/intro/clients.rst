@@ -408,52 +408,6 @@ instance.
 If you have not yet created a secret key, you can do so in the EdgeDB Cloud UI
 or by running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.
 
-.. lint-off
-
-.. note::
-
-    You may also set other environment variables like ``EDGEDB_DSN`` for EdgeDB
-    Cloud instances. Run ``edgedb instance credentials --insecure-dsn -I
-    <org-name>/<instance-name>`` to get the DSN with exception of the password.
-    You'll get something like this:
-
-    .. code-block::
-
-        edgedb://edgedb@myinstance--mygithubusername.c-72.i.aws.edgedb.cloud:5656/edgedb
-
-    Then, either set a password for your existing role by running a
-    query against your EdgeDB Cloud database:
-
-    .. code-block:: edgeql-repl
-
-        db> alter role edgedb {
-        ...   set password := 'my-password'
-        ... };
-        OK: ALTER ROLE
-
-    or create a new role for this application:
-
-    .. code-block:: edgeql-repl
-
-        db> create superuser role myapp {
-        ...   set password := 'my-password'
-        ... };
-        OK: CREATE ROLE
-
-    Once you have a known password, insert that into your DSN:
-
-    .. code-block::
-
-        edgedb://edgedb:my-password@myinstance--mygithubusername.c-72.i.aws.edgedb.cloud:5656/edgedb
-
-    If you created a new role, replace the role name as well:
-
-    .. code-block::
-
-        edgedb://myapp:my-password@myinstance--mygithubusername.c-72.i.aws.edgedb.cloud:5656/edgedb
-
-.. lint-on
-
 For self-hosted instances
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
