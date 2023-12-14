@@ -270,7 +270,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                         f'{message}: not isclose({data}, {shape}) '
                         f'{_format_path(path)}')
             elif isinstance(shape, uuid.UUID):
-                # If data comde from SQL, we expect UUID.
+                # If data comes from SQL, we expect UUID.
                 if data != shape:
                     fail(
                         f'{message}: {data!r} != {shape!r} '
