@@ -153,6 +153,7 @@ def new_set_from_set(
         expr: Optional[irast.Expr | KeepCurrentT]=KeepCurrent,
         context: Optional[parsing.ParserContext]=None,
         is_binding: Optional[irast.BindingKind]=None,
+        is_schema_alias: Optional[bool]=None,
         is_materialized_ref: Optional[bool]=None,
         is_visible_binding_ref: Optional[bool]=None,
         skip_subtypes: Optional[bool]=None,
@@ -182,6 +183,8 @@ def new_set_from_set(
         context = ir_set.context
     if is_binding is None:
         is_binding = ir_set.is_binding
+    if is_schema_alias is None:
+        is_schema_alias = ir_set.is_schema_alias
     if is_materialized_ref is None:
         is_materialized_ref = ir_set.is_materialized_ref
     if is_visible_binding_ref is None:
@@ -198,6 +201,7 @@ def new_set_from_set(
         rptr=rptr,
         context=context,
         is_binding=is_binding,
+        is_schema_alias=is_schema_alias,
         is_materialized_ref=is_materialized_ref,
         is_visible_binding_ref=is_visible_binding_ref,
         skip_subtypes=skip_subtypes,
