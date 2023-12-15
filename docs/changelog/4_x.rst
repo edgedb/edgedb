@@ -623,3 +623,12 @@ Bug fixes
 
 * Expose __type__ via SQL adapter
   (:eql:gh:`#6519`)
+
+* Fix some bugs involving union and coalescing of optional values
+  (:eql:gh:`#6590`)
+
+* Avoid doing a join when injecting type ids
+  (:eql:gh:`#6601`)
+
+* Generate better code for ?? with multi RHS or object type
+  (:eql:gh:`#6532`)
