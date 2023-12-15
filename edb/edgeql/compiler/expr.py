@@ -516,7 +516,29 @@ def compile_GlobalExpr(
         # Wrap the reference in a subquery so that it does not get
         # factored out or go directly into the scope tree.
         qry = qlast.SelectQuery(result=qlast.Path(steps=[obj_ref]))
-        return dispatch.compile(qry, ctx=ctx)
+        target = dispatch.compile(qry, ctx=ctx)
+
+        # If the global is single, use type_rewrites to make sure it
+        # is computed only once in the SQL query.
+        if glob.get_cardinality(ctx.env.schema).is_single():
+            key = (setgen.get_set_type(target, ctx=ctx), False)
+            if not ctx.env.type_rewrites.get(key):
+                ctx.env.type_rewrites[key] = target
+            rewrite_target = ctx.env.type_rewrites[key]
+
+            # We need to have the set with expr=None, so that the rewrite
+            # will be applied, but we also need to wrap it with a
+            # card_inference_override so that we use the real cardinality
+            # instead of assuming it is MANY.
+            assert isinstance(rewrite_target, irast.Set)
+            target = setgen.new_set_from_set(target, expr=None, ctx=ctx)
+            wrap = irast.SelectStmt(
+                result=target,
+                card_inference_override=rewrite_target,
+            )
+            target = setgen.new_set_from_set(target, expr=wrap, ctx=ctx)
+
+        return target
 
     default = glob.get_default(ctx.env.schema)
 
