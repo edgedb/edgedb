@@ -45,6 +45,7 @@ class PathAspect(s_enum.StrEnum):
     VALUE = 'value'
     SOURCE = 'source'
     SERIALIZED = 'serialized'
+    ITERATOR = 'iterator'
 
 
 # A mapping of more specific aspect -> less specific aspect for objects
@@ -698,8 +699,14 @@ def put_path_serialized_var_if_not_exists(
 
 
 def put_path_bond(
-        stmt: pgast.BaseRelation, path_id: irast.PathId) -> None:
-    stmt.path_scope.add(path_id)
+    stmt: pgast.BaseRelation, path_id: irast.PathId, iterator: bool=False
+) -> None:
+    '''Register a path id that should be joined on when joining stmt
+
+    iterator indicates whether the identity or iterator aspect should
+    be used.
+    '''
+    stmt.path_bonds.add((path_id, iterator))
 
 
 def put_rvar_path_bond(

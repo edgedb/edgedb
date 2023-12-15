@@ -48,7 +48,10 @@ def get_volatility_ref(
     """Produce an appropriate volatility_ref from a path_id."""
 
     ref: Optional[pgast.BaseExpr] = relctx.maybe_get_path_var(
-        stmt, path_id, aspect='identity', ctx=ctx)
+        stmt, path_id, aspect='iterator', ctx=ctx)
+    if not ref:
+        ref = relctx.maybe_get_path_var(
+            stmt, path_id, aspect='identity', ctx=ctx)
     if not ref:
         rvar = relctx.maybe_get_path_rvar(
             stmt, path_id, aspect='value', ctx=ctx)
@@ -179,8 +182,6 @@ def compile_iterator_expr(
         subctx.expr_exposed = False
         subctx.rel = query
 
-        already_existed = bool(relctx.maybe_get_path_rvar(
-            query, iterator_expr.path_id, aspect='value', ctx=ctx))
         dispatch.visit(iterator_expr, ctx=subctx)
         iterator_rvar = relctx.get_path_rvar(
             query, iterator_expr.path_id, aspect='value', ctx=ctx)
@@ -190,6 +191,9 @@ def compile_iterator_expr(
         # makes sure that we don't spuriously produce output when
         # iterating over optional pointers.
         is_optional = ctx.scope_tree.is_optional(iterator_expr.path_id)
+        if isinstance(iterator_query, pgast.SelectStmt):
+            iterator_var = pathctx.get_path_value_var(
+                iterator_query, path_id=iterator_expr.path_id, env=ctx.env)
         if not is_optional:
             if isinstance(iterator_query, pgast.SelectStmt):
                 iterator_var = pathctx.get_path_value_var(
@@ -204,18 +208,19 @@ def compile_iterator_expr(
             else:
                 raise NotImplementedError()
 
-        # Regardless of result type, we use transient identity,
-        # for path identity of the iterator expression.  This is
-        # necessary to maintain correct correlation for the state
-        # of iteration in DML statements.
-        # The already_existed check is to avoid adding in bogus volatility refs
-        # when we reprocess an iterator that was hoisted.
-        if not already_existed:
-            relctx.ensure_bond_for_expr(
-                iterator_expr.expr.result, iterator_query, ctx=subctx)
-            if is_optional:
-                relctx.ensure_bond_for_expr(
-                    iterator_expr, iterator_query, ctx=subctx)
+        # Regardless of result type, iterators need their own
+        # transient identity for path identity of the iterator
+        # expression in order maintain correct correlation for the
+        # state of iteration in DML statements, even when there
+        # are duplicates in the iterator.
+        # This gets tracked as a special 'iterator' aspect in order
+        # to distinguish it from actual object identity.
+        relctx.create_iterator_identity_for_path(
+            iterator_expr.path_id, iterator_query, ctx=subctx)
+
+        pathctx.put_path_rvar(
+            query, iterator_expr.path_id, iterator_rvar,
+            aspect='iterator')
 
     return iterator_rvar
 
