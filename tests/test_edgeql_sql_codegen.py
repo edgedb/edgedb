@@ -307,3 +307,16 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             sql,
             "typeid injection shouldn't joining ObjectType table",
         )
+
+    def test_codegen_nested_for_no_uuid(self):
+        sql = self._compile(
+            '''
+            for x in {1,2,3} union (for y in {3,4,5} union (x+y))
+            '''
+        )
+
+        self.assertNotIn(
+            "uuid_generate",
+            sql,
+            "unnecessary uuid_generate for FOR loop without volatility",
+        )

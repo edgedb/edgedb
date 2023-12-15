@@ -554,7 +554,8 @@ def compile_iterator_cte(
         merge_iterator(last_iterator, ictx.rel, ctx=ictx)
         clauses.setup_iterator_volatility(last_iterator, ctx=ictx)
 
-        clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
+        clauses.compile_iterator_expr(
+            ictx.rel, iterator_set, is_dml=True, ctx=ictx)
         if iterator_set.path_id.is_objtype_path():
             relgen.ensure_source_rvar(iterator_set, ictx.rel, ctx=ictx)
         ictx.rel.path_id = iterator_set.path_id

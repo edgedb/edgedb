@@ -79,7 +79,7 @@ def compile_SelectStmt(
                 with ctx.new() as ictx:
                     clauses.setup_iterator_volatility(last_iterator, ctx=ictx)
                     iterator_rvar = clauses.compile_iterator_expr(
-                        query, iterator_set, ctx=ictx)
+                        query, iterator_set, is_dml=False, ctx=ictx)
                 for aspect in {'identity', 'value'}:
                     pathctx.put_path_rvar(
                         query,
