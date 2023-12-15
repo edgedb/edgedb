@@ -1992,7 +1992,6 @@ def process_set_as_tuple(
             typeref=ir_set.typeref,
         )
 
-    relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr)
 
     # This is an unfortunate hack. If any of those types that we

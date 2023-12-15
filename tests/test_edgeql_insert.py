@@ -1737,6 +1737,35 @@ class TestInsert(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_insert_for_23(self):
+        await self.con.execute(r"""
+            INSERT Subordinate { name := "a" }
+        """)
+
+        await self.assert_query_result(
+            """
+            for x in {Subordinate, Subordinate} union (
+              (x { name }, (insert Note { name := '', subject := x }))
+            );
+            """,
+            [
+                [{'name': "a"}, {}],
+                [{'name': "a"}, {}],
+            ],
+        )
+
+        await self.assert_query_result(
+            """
+            for x in {Subordinate, Subordinate} union (
+              (x { name }, (insert InsertTest { l2 := 0, sub := x }))
+            );
+            """,
+            [
+                [{'name': "a"}, {}],
+                [{'name': "a"}, {}],
+            ],
+        )
+
     async def test_edgeql_insert_for_bad_01(self):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,
