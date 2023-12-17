@@ -434,6 +434,7 @@ restricting your query and provide a friendly error message. You can do this
 by adding a custom error message to your policy.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
     global current_user_id -> uuid;
     global current_user := (
@@ -457,7 +458,35 @@ by adding a custom error message to your policy.
 
       access policy author_has_full_access
         allow all
-  +     using (global current_user ?= .author.id) {
+  +     using (global current_user ?= .author) {
+  +       errmessage := 'BlogPosts may only be queried by their authors'
+  +     };
+    }
+.. code-block:: sdl-diff
+
+    global current_user_id: uuid;
+    global current_user := (
+      select User filter .id = global current_user_id
+    );
+
+    type User {
+      required email: str { constraint exclusive; };
+      required is_admin: bool { default := false };
+
+      access policy admin_only
+        allow all
+  +     using (global current_user.is_admin ?? false) {
+  +       errmessage := 'Only admins may query Users'
+  +     };
+    }
+
+    type BlogPost {
+      required title: str;
+      author: User;
+
+      access policy author_has_full_access
+        allow all
+  +     using (global current_user ?= .author) {
   +       errmessage := 'BlogPosts may only be queried by their authors'
   +     };
     }
@@ -501,7 +530,7 @@ author.
       type BlogPost {
         required property title -> str;
         required link author -> User;
-    +   required property published -> bool { default := false }
+    +   required property published -> bool { default := false };
 
         access policy author_has_full_access
           allow all
@@ -522,7 +551,7 @@ author.
       type BlogPost {
         required title: str;
         required author: User;
-    +   required published: bool { default := false }
+    +   required published: bool { default := false };
 
         access policy author_has_full_access
           allow all
