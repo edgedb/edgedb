@@ -301,7 +301,7 @@ table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
       }
 
       type User {
-        link posts := (.<author[is Post])
+        multi posts := (.<author[is Post])
       }
 
 .. _ref_guide_one_to_one:
