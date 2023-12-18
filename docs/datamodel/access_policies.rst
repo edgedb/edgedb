@@ -404,7 +404,7 @@ making the current user able to see their own ``User`` record.
     This change is being made to simplify reasoning about access policies and
     to allow certain patterns to be express efficiently. Since those who have
     access to modifying the schema can remove unwanted access policies, no
-    additional security is provided by applying access policies to each 
+    additional security is provided by applying access policies to each
     other's expressions.
 
     It is possible (and recommended) to enable this :ref:`future
@@ -426,11 +426,11 @@ policy, you will get a generic error message.
 
 .. note::
 
-    When attempting a ``select`` queries, you simply won't get the data that 
+    When attempting a ``select`` queries, you simply won't get the data that
     is being restricted by the access policy.
 
 If you have multiple access policies, it can be useful to know which policy is
-restricting your query and provide a friendly error message. You can do this 
+restricting your query and provide a friendly error message. You can do this
 by adding a custom error message to your policy.
 
 .. code-block:: sdl-diff
