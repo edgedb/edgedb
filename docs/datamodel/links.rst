@@ -295,6 +295,17 @@ table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
   and generally recommended when modeling 1:N relations:
 
   .. code-block:: sdl
+      :version-lt: 4.0
+
+      type Post {
+        required author: User;
+      }
+
+      type User {
+        multi link posts := (.<author[is Post])
+      }
+
+  .. code-block:: sdl
 
       type Post {
         required author: User;
