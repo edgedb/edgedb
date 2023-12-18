@@ -434,62 +434,33 @@ restricting your query and provide a friendly error message. You can do this
 by adding a custom error message to your policy.
 
 .. code-block:: sdl-diff
-    :version-lt: 3.0
 
-    global current_user_id -> uuid;
-    global current_user := (
-      select User filter .id = global current_user_id
-    );
+      global current_user_id: uuid;
+      global current_user := (
+        select User filter .id = global current_user_id
+      );
 
-    type User {
-      required property email -> str { constraint exclusive; };
-      required property is_admin -> bool { default := false };
+      type User {
+        required email: str { constraint exclusive; };
+        required is_admin: bool { default := false };
 
-      access policy admin_only
-        allow all
-  +     using (global current_user.is_admin ?? false) {
-  +       errmessage := 'Only admins may query Users'
-  +     };
-    }
+        access policy admin_only
+          allow all
+    +     using (global current_user.is_admin ?? false) {
+    +       errmessage := 'Only admins may query Users'
+    +     };
+      }
 
-    type BlogPost {
-      required property title -> str;
-      link author -> User;
+      type BlogPost {
+        required title: str;
+        author: User;
 
-      access policy author_has_full_access
-        allow all
-  +     using (global current_user ?= .author) {
-  +       errmessage := 'BlogPosts may only be queried by their authors'
-  +     };
-    }
-.. code-block:: sdl-diff
-
-    global current_user_id: uuid;
-    global current_user := (
-      select User filter .id = global current_user_id
-    );
-
-    type User {
-      required email: str { constraint exclusive; };
-      required is_admin: bool { default := false };
-
-      access policy admin_only
-        allow all
-  +     using (global current_user.is_admin ?? false) {
-  +       errmessage := 'Only admins may query Users'
-  +     };
-    }
-
-    type BlogPost {
-      required title: str;
-      author: User;
-
-      access policy author_has_full_access
-        allow all
-  +     using (global current_user ?= .author) {
-  +       errmessage := 'BlogPosts may only be queried by their authors'
-  +     };
-    }
+        access policy author_has_full_access
+          allow all
+    +     using (global current_user ?= .author) {
+    +       errmessage := 'BlogPosts may only be queried by their authors'
+    +     };
+      }
 
 Now if you attempt, for example, a ``User`` insert as a non-admin user, you
 will receive this error:
