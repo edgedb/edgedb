@@ -361,6 +361,42 @@ checked them out:
       }
     }
 
+Here, the constraint ensures that no book can be checked out to two ``User``\s
+on the same ``@date``.
+
+In this example demonstrating ``@source``, we've created a schema to track
+player picks in a color-based memory game:
+
+.. code-block:: sdl
+    :version-lt: 3.0
+
+    type Player {
+      required property name -> str;
+      multi link picks -> Color {
+        property order -> int16;
+        constraint exclusive on ((@source, @order));
+      }
+    }
+    type Color {
+      required property name -> str;
+    }
+
+.. code-block:: sdl
+
+    type Player {
+      required name: str;
+      multi picks: Color {
+        order: int16;
+        constraint exclusive on ((@source, @order));
+      }
+    }
+    type Color {
+      required name: str;
+    }
+
+This constraint ensures that a single ``User`` cannot pick two ``Color``\s at
+the same ``@order``.
+
 .. _ref_datamodel_constraints_scalars:
 
 Constraints on custom scalars
