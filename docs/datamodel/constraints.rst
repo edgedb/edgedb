@@ -297,6 +297,9 @@ using :eql:constraint:`exclusive`:
         }
     }
 
+Link property constraints
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
 You can also add constraints for :ref:`link properties
 <ref_datamodel_link_properties>`:
 
@@ -325,26 +328,19 @@ You can also add constraints for :ref:`link properties
       }
     }
 
+Link ``@source`` and ``@target`` constraints
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. versionadded:: 4.0
+
+.. note::
+
+    ``@source`` and ``@target`` are available starting with version 4.3.
+
 You can create a composite exclusive constraint on the object linking/linked
 *and* a link property by using ``@source`` or ``@target`` respectively. Here's
 a schema for a library book management app that tracks books and who has
 checked them out:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Book {
-      required property title -> str;
-    }
-    type User {
-      property name -> str;
-      multi link checked_out -> Book {
-        property date -> cal::local_date;
-        # Ensures a given Book can be checked out
-        # only once on a given day.
-        constraint exclusive on ((@target, @date));
-      }
-    }
 
 .. code-block:: sdl
 
@@ -366,20 +362,6 @@ on the same ``@date``.
 
 In this example demonstrating ``@source``, we've created a schema to track
 player picks in a color-based memory game:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Player {
-      required property name -> str;
-      multi link picks -> Color {
-        property order -> int16;
-        constraint exclusive on ((@source, @order));
-      }
-    }
-    type Color {
-      required property name -> str;
-    }
 
 .. code-block:: sdl
 
