@@ -295,13 +295,24 @@ table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
   and generally recommended when modeling 1:N relations:
 
   .. code-block:: sdl
+      :version-lt: 4.0
 
       type Post {
         required author: User;
       }
 
       type User {
-        link posts := (.<author[is Post])
+        multi link posts := (.<author[is Post])
+      }
+
+  .. code-block:: sdl
+
+      type Post {
+        required author: User;
+      }
+
+      type User {
+        multi posts := (.<author[is Post])
       }
 
 .. _ref_guide_one_to_one:
@@ -447,7 +458,7 @@ constraint, each movie can be liked by multiple users. Thus this is a
 
     type User {
       required property name -> str;
-      multi link watch_history := .<user[Is WatchHistory];
+      multi link watch_history := .<user[is WatchHistory];
     }
     type Movie {
       required property title: str;
@@ -463,7 +474,7 @@ constraint, each movie can be liked by multiple users. Thus this is a
 
     type User {
       required name: str;
-      multi link watch_history := .<user[Is WatchHistory];
+      multi link watch_history := .<user[is WatchHistory];
     }
     type Movie {
       required title: str;
@@ -478,7 +489,7 @@ constraint, each movie can be liked by multiple users. Thus this is a
 
     type User {
       required name: str;
-      multi watch_history := .<user[Is WatchHistory];
+      multi watch_history := .<user[is WatchHistory];
     }
     type Movie {
       required title: str;

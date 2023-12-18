@@ -404,7 +404,7 @@ making the current user able to see their own ``User`` record.
     This change is being made to simplify reasoning about access policies and
     to allow certain patterns to be express efficiently. Since those who have
     access to modifying the schema can remove unwanted access policies, no
-    additional security is provided by applying access policies to each 
+    additional security is provided by applying access policies to each
     other's expressions.
 
     It is possible (and recommended) to enable this :ref:`future
@@ -426,41 +426,41 @@ policy, you will get a generic error message.
 
 .. note::
 
-    When attempting a ``select`` queries, you simply won't get the data that 
+    When attempting a ``select`` queries, you simply won't get the data that
     is being restricted by the access policy.
 
 If you have multiple access policies, it can be useful to know which policy is
-restricting your query and provide a friendly error message. You can do this 
+restricting your query and provide a friendly error message. You can do this
 by adding a custom error message to your policy.
 
 .. code-block:: sdl-diff
 
-    global current_user_id -> uuid;
-    global current_user := (
-      select User filter .id = global current_user_id
-    );
+      global current_user_id: uuid;
+      global current_user := (
+        select User filter .id = global current_user_id
+      );
 
-    type User {
-      required property email -> str { constraint exclusive; };
-      required property is_admin -> bool { default := false };
+      type User {
+        required email: str { constraint exclusive; };
+        required is_admin: bool { default := false };
 
-      access policy admin_only
-        allow all
-  +     using (global current_user.is_admin ?? false) {
-  +       errmessage := 'Only admins may query Users'
-  +     };
-    }
+        access policy admin_only
+          allow all
+    +     using (global current_user.is_admin ?? false) {
+    +       errmessage := 'Only admins may query Users'
+    +     };
+      }
 
-    type BlogPost {
-      required property title -> str;
-      link author -> User;
+      type BlogPost {
+        required title: str;
+        author: User;
 
-      access policy author_has_full_access
-        allow all
-  +     using (global current_user ?= .author.id) {
-  +       errmessage := 'BlogPosts may only be queried by their authors'
-  +     };
-    }
+        access policy author_has_full_access
+          allow all
+    +     using (global current_user ?= .author) {
+    +       errmessage := 'BlogPosts may only be queried by their authors'
+    +     };
+      }
 
 Now if you attempt, for example, a ``User`` insert as a non-admin user, you
 will receive this error:
@@ -501,7 +501,7 @@ author.
       type BlogPost {
         required property title -> str;
         required link author -> User;
-    +   required property published -> bool { default := false }
+    +   required property published -> bool { default := false };
 
         access policy author_has_full_access
           allow all
@@ -522,7 +522,7 @@ author.
       type BlogPost {
         required title: str;
         required author: User;
-    +   required published: bool { default := false }
+    +   required published: bool { default := false };
 
         access policy author_has_full_access
           allow all
