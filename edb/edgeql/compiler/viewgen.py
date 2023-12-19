@@ -533,8 +533,6 @@ def _process_view(
             # actual error messages.
             ptr_set.context = psrcctx
 
-            _setup_shape_source(ptr_set, ctx=ctx)
-
         else:
             # The set must be something pretty trivial, so just do it
             ptr_set = setgen.extend_path(
@@ -1255,41 +1253,6 @@ def _maybe_fixup_lprop(
     ):
         ctx.path_scope.attach_path(
             path_id, flatten_intersection=True, context=None)
-
-
-def _setup_shape_source(cur_set: irast.Set, ctx: context.ContextLevel) -> None:
-    """Set up shape source for a shape element.
-
-    This is basically all so that nested link properties get set up properly.
-    XXX: There ought to be a better way.
-    """
-
-    if (isinstance(cur_set.expr, irast.SelectStmt)
-        and (setgen.get_set_type(cur_set, ctx=ctx) ==
-             setgen.get_set_type(cur_set.expr.result, ctx=ctx))):
-        child = cur_set.expr.result
-        _setup_shape_source(child, ctx=ctx)
-        cur_set.shape_source = (
-            child if child.shape else child.shape_source)
-
-    # To get the linkprops to line up for inserts we unfortunately need to
-    # pull linkprop shape elements up into the top element.
-    if not cur_set.shape and isinstance(cur_set.expr, irast.InsertStmt):
-        ptr_shape = []
-        for sub_set, sub_op in cur_set.expr.subject.shape:
-            if not sub_set.path_id.is_linkprop_path():
-                continue
-            sub_rptr = irast.Pointer(
-                source=cur_set,
-                target=sub_set,
-                direction=s_pointers.PointerDirection.Outbound,
-                ptrref=not_none(sub_set.path_id.rptr()),
-                is_definition=True,
-            )
-            sub_set = setgen.new_set_from_set(sub_set, rptr=sub_rptr, ctx=ctx)
-            sub_rptr.target = sub_set
-            ptr_shape.append((sub_set, sub_op))
-        cur_set.shape = tuple(ptr_shape)
 
 
 def _compile_qlexpr(
