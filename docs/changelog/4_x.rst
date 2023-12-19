@@ -632,3 +632,9 @@ Bug fixes
 
 * Generate better code for ?? with multi RHS or object type
   (:eql:gh:`#6532`)
+
+* Fix pgast nullability inference for subqueries and coalesce
+  (:eql:gh:`#6529`)
+
+* Fix changing a pointer to be computed when there is a subtype
+  (:eql:gh:`#6565`)
