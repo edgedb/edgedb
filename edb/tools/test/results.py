@@ -245,7 +245,9 @@ def render_result(
 
 
 def _result_log_dir() -> pathlib.Path:
-    dir = pathlib.Path('.') / 'build' / 'test-results'
+    build_dir = pathlib.Path('.') / 'build'
+    build_dir.mkdir(exist_ok=True)
+    dir = build_dir / 'test-results'
     dir.mkdir(exist_ok=True)
     return dir
 
