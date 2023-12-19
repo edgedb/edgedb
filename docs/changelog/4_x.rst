@@ -570,3 +570,71 @@ Bug fixes
   This might be considered a breaking change, but as it is clearly a bug in
   user schema and as it could also be considered a bug in the compiler, we are
   fixing it in a minor version.
+
+4.3
+===
+* Fix non-rewritten tuple literals
+  (:eql:gh:`#6521`)
+
+* Support ``connect_timeout`` in backend DSN
+  (:eql:gh:`#6531`)
+
+* Fix coalesced DML in FOR loops over objects
+  (:eql:gh:`#6526`)
+
+* Fix inserts silently failing when a ``json->array`` handles 'null'
+  (:eql:gh:`#6544`)
+
+* Fix tracing of enums in type expressions
+  (:eql:gh:`#6548`)
+
+* Fix dumps with FTS indexes
+  (:eql:gh:`#6560`)
+
+* Allow indexes that use user-defined functions to actually get hit
+  (:eql:gh:`#6551`)
+
+* Fix reloading readiness state and JWT ``*_list`` files in multi-tenant mode
+  (:eql:gh:`#6562`)
+
+* Handle OPTIONS in the extension path which is needed for CORS preflight
+  (:eql:gh:`#6577`)
+
+* Optimize the compiler and reduce time of an update test by ~52%
+  (:eql:gh:`#6577`)
+  
+* Always retry system connection on any BackendError
+  (:eql:gh:`#6588`)
+
+* Properly support @source/@target on multi-link constraints
+  (:eql:gh:`#6585`)
+
+* Fix constant extraction's interaction with the new if-then-else
+  (:eql:gh:`#6591`)
+
+* Fix migrating between aliased and non-aliased computeds
+  (:eql:gh:`#6566`)
+
+* Improve error message for illegal casts and parameters.
+  (:eql:gh:`#6511`)
+
+* Don't eval ext::auth::ClientTokenIdentity on every row in a filter
+  (:eql:gh:`#6607`)
+
+* Expose __type__ via SQL adapter
+  (:eql:gh:`#6519`)
+
+* Fix some bugs involving union and coalescing of optional values
+  (:eql:gh:`#6590`)
+
+* Avoid doing a join when injecting type ids
+  (:eql:gh:`#6601`)
+
+* Generate better code for ?? with multi RHS or object type
+  (:eql:gh:`#6532`)
+
+* Fix pgast nullability inference for subqueries and coalesce
+  (:eql:gh:`#6529`)
+
+* Fix changing a pointer to be computed when there is a subtype
+  (:eql:gh:`#6565`)
