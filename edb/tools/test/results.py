@@ -40,7 +40,7 @@ if typing.TYPE_CHECKING:
 
 @dataclasses.dataclass()
 class TestCase:
-    name: str
+    id: str
     description: str
 
     py_HashSecret: typing.Optional[str]
@@ -81,7 +81,7 @@ def _collect_case_data(
         error_message = err
 
     return TestCase(
-        name=test._testMethodName,
+        id=test.id(),
         description=result.getDescription(test),
         py_HashSecret=py_HashSecret,
         py_random_seed=py_random_seed,
@@ -245,7 +245,9 @@ def render_result(
 
 
 def _result_log_dir() -> pathlib.Path:
-    dir = pathlib.Path('.') / 'build' / 'test-results'
+    build_dir = pathlib.Path('.') / 'build'
+    build_dir.mkdir(exist_ok=True)
+    dir = build_dir / 'test-results'
     dir.mkdir(exist_ok=True)
     return dir
 
@@ -275,9 +277,9 @@ def read_unsuccessful() -> typing.List[str]:
         result_dict = json.load(open(last, 'r'))
     except Exception:
         return []
-    result = _dataclass_from_dict(TestResult, result_dict)
+    result: TestResult = _dataclass_from_dict(TestResult, result_dict)
     return [
-        case.name
+        case.id.split('.')[-1]
         for case in result.failures
         + result.errors
         + result.unexpected_successes
