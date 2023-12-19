@@ -269,9 +269,39 @@ when some condition holds.
 Constraints on links
 --------------------
 
-When defining a constraint on a link, ``__subject__`` refers to the *link
-itself*. This is commonly used to add constraints to :ref:`link properties
-<ref_datamodel_link_properties>`.
+You can constrain links such that a given object can only be linked once by
+using :eql:constraint:`exclusive`:
+
+.. code-block:: sdl
+    :version-lt: 3.0
+
+    type User {
+        required property name -> str;
+
+        # Make sure none of the "owned" items belong
+        # to any other user.
+        multi link owns -> Item {
+            constraint exclusive;
+        }
+    }
+
+.. code-block:: sdl
+
+    type User {
+        required name: str;
+
+        # Make sure none of the "owned" items belong
+        # to any other user.
+        multi owns: Item {
+            constraint exclusive;
+        }
+    }
+
+Link property constraints
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can also add constraints for :ref:`link properties
+<ref_datamodel_link_properties>`:
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -281,7 +311,7 @@ itself*. This is commonly used to add constraints to :ref:`link properties
       multi link friends -> User {
         single property strength -> float64;
         constraint expression on (
-          __subject__@strength >= 0
+          @strength >= 0
         );
       }
     }
@@ -293,11 +323,61 @@ itself*. This is commonly used to add constraints to :ref:`link properties
       multi friends: User {
         strength: float64;
         constraint expression on (
-          __subject__@strength >= 0
+          @strength >= 0
         );
       }
     }
 
+Link ``@source`` and ``@target`` constraints
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. versionadded:: 4.0
+
+.. note::
+
+    ``@source`` and ``@target`` are available starting with version 4.3.
+
+You can create a composite exclusive constraint on the object linking/linked
+*and* a link property by using ``@source`` or ``@target`` respectively. Here's
+a schema for a library book management app that tracks books and who has
+checked them out:
+
+.. code-block:: sdl
+
+    type Book {
+      required title: str;
+    }
+    type User {
+      name: str;
+      multi checked_out: Book {
+        date: cal::local_date;
+        # Ensures a given Book can be checked out
+        # only once on a given day.
+        constraint exclusive on ((@target, @date));
+      }
+    }
+
+Here, the constraint ensures that no book can be checked out to two ``User``\s
+on the same ``@date``.
+
+In this example demonstrating ``@source``, we've created a schema to track
+player picks in a color-based memory game:
+
+.. code-block:: sdl
+
+    type Player {
+      required name: str;
+      multi picks: Color {
+        order: int16;
+        constraint exclusive on ((@source, @order));
+      }
+    }
+    type Color {
+      required name: str;
+    }
+
+This constraint ensures that a single ``User`` cannot pick two ``Color``\s at
+the same ``@order``.
 
 .. _ref_datamodel_constraints_scalars:
 
