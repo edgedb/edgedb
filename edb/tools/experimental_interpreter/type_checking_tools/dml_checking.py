@@ -8,6 +8,7 @@ from typing import List, Tuple, Dict
 from ..data import expr_to_str as pp
 
 
+
 def get_key_dependency(tp : e.DefaultTp) -> List[str]:
     new_head_name = eops.next_name("head_name_test")
     instantiaed = eops.instantiate_expr(e.FreeVarExpr(new_head_name), tp.expr)
@@ -32,6 +33,68 @@ def type_elaborate_default_tp(ctx: e.TcCtx, default_expr: e.Expr) -> e.Expr:
     elabed =  synthesize_type(ctx, default_expr)[1]
     return elabed
 
+def insert_link_prop_checking(ctx: e.TcCtx,
+                              expr_ck: e.Expr,
+                              synth_lp: Dict[str, e.ResultTp],
+                              ck_lp : Dict[str, e.ResultTp]) -> e.Expr:
+    """
+    Check link properties, return additional link props that need to be inserted (default fields)
+    """
+    # we do not support heterogenous link targets
+    for k in synth_lp.keys():
+        this_tp = ck_lp[k].tp
+        if k not in ck_lp.keys():
+            raise ValueError("Link prop not in type", k, ck_lp.keys())
+        elif isinstance(synth_lp[k].tp, e.ComputableTp):
+            raise ValueError("Cannot define computable tp")
+        elif isinstance(this_tp, e.DefaultTp):
+            tops.assert_real_subtype(ctx, synth_lp[k].tp, this_tp.tp)
+        else:
+            tops.assert_real_subtype(ctx, synth_lp[k].tp, ck_lp[k].tp)
+
+    additional_lps : Dict[str, e.Expr] = {}
+
+    for k in ck_lp.keys():
+        this_tp = ck_lp[k].tp
+        if k in synth_lp.keys():
+            continue
+        elif isinstance(ck_lp[k].tp, e.ComputableTp):
+            continue
+        elif isinstance(this_tp, e.DefaultTp):
+            default_expr = this_tp.expr
+            if eops.binding_is_unnamed(default_expr):
+                additional_lps[k] = type_elaborate_default_tp(
+                    ctx, eops.instantiate_expr(e.FreeVarExpr("LP_DEFAULT_SHOULD_NOT_OCCUR"), default_expr))
+            else:
+                raise ValueError("Default Tp is not unnamed", this_tp.expr)
+        elif tops.mode_is_optional(ck_lp[k].mode):
+            additional_lps[k] = e.MultiSetExpr(expr=[])
+        else:
+            raise ValueError("Missing link prop", k, "synthesized keys", synth_lp.keys(), "required keys", ck_lp.keys())
+
+                        
+    if len(additional_lps.keys()) == 0:
+        return expr_ck
+    else:
+        return e.ShapedExprExpr(expr_ck, 
+            e.ShapeExpr(
+                shape={
+                    e.LinkPropLabel(k): eops.abstract_over_expr(v)
+                    for (k,v) in additional_lps.items()
+                }
+            ))
+
+def insert_dynamic_cardinality_check(ctx: e.TcCtx, attr_expr : e.Expr, target_mode : e.CMMode) -> e.Expr:
+    # TODO: after constraint system, this should be checked in the compile time
+    if target_mode.upper == e.OneCardinal():
+        attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_single"]), None, 
+                                    [attr_expr, e.StrVal("Single links turn our to be multiples")])
+    # this is a hack that insertions on link targets ignores required at compile time
+    if target_mode.lower == e.OneCardinal():
+        attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_exists"]), None, 
+                                    [attr_expr, e.StrVal("Required links turn our to be empty")])
+    return attr_expr
+
 def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.ResultTp) -> e.Expr:
     # for breaking circular dependency
     from .typechecking import synthesize_type, check_type
@@ -41,18 +104,13 @@ def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.Resu
         return check_type(ctx, attr_expr, attr_tp, with_assignment_cast=True) # allow assignment cast for inserts
     else:
         match target_tp:
+            case e.CompositeTp(_):
+                return check_type(ctx, attr_expr, attr_tp, with_assignment_cast=True) # allow assignment cast for inserts
             case e.DefaultTp(expr=_, tp=tp): 
                 # since we're inserting an actual value, default is overridden
                 return insert_proprerty_checking(ctx, attr_expr, e.ResultTp(tp, target_mode))
             case e.NamedNominalLinkTp(name=target_name, linkprop=lp):
-                # TODO: after constraint system, this should be checked in the compile time
-                if target_mode.upper == e.OneCardinal():
-                    attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_single"]), None, 
-                                             [attr_expr, e.StrVal("Single links turn our to be multiples")])
-                # this is a hack that insertions on link targets ignores required at compile time
-                if target_mode.lower == e.OneCardinal():
-                    attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_exists"]), None, 
-                                             [attr_expr, e.StrVal("Required links turn our to be empty")])
+                attr_expr = insert_dynamic_cardinality_check(ctx, attr_expr, target_mode)
                 (synthesized_tp, expr_ck) = synthesize_type(ctx, attr_expr)
                 tops.assert_cardinal_subtype(synthesized_tp.mode, target_mode)
                 ck_lp = lp.val
@@ -70,48 +128,42 @@ def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.Resu
                     case _:
                         raise ValueError("Unrecognized synthesized type", synthesized_tp)
                 
-                # we do not support heterogenous link targets
-                for k in synth_lp.keys():
-                    this_tp = ck_lp[k].tp
-                    if k not in ck_lp.keys():
-                        raise ValueError("Link prop not in type", k, ck_lp.keys())
-                    elif isinstance(synth_lp[k].tp, e.ComputableTp):
-                        raise ValueError("Cannot define computable tp")
-                    elif isinstance(this_tp, e.DefaultTp):
-                        tops.assert_real_subtype(ctx, synth_lp[k].tp, this_tp.tp)
-                    else:
-                        tops.assert_real_subtype(ctx, synth_lp[k].tp, ck_lp[k].tp)
+                return insert_link_prop_checking(ctx, expr_ck, synth_lp, ck_lp)
 
-                additional_lps : Dict[str, e.Expr] = {}
+            case e.UnionTp(_, _):
+                all_target_tps = tops.collect_tp_union(target_tp)
+                if any(tops.tp_is_primitive(tp) for tp in all_target_tps):
+                    assert all(tops.tp_is_primitive(tp) for tp in all_target_tps), "Union type should be all primitive"
+                    raise ValueError("TODO")
+                if not all(isinstance(tp, e.NamedNominalLinkTp) for tp in all_target_tps):
+                    raise ValueError("TODO")
+                all_target_names = {tp.name : tp for tp in all_target_tps}
+                # synthesize once to get the type
+                (synthesized_tp, expr_ck) = synthesize_type(ctx, attr_expr)
+                if isinstance(synthesized_tp.tp, e.NamedNominalLinkTp | e.NominalLinkTp):
+                    synthesized_name = synthesized_tp.tp.name
+                    if synthesized_name not in all_target_names:
+                        raise ValueError("Synthesized name not in union types", synthesized_name, all_target_names)
+                    return insert_proprerty_checking(ctx, attr_expr, e.ResultTp(all_target_names[synthesized_name], target_mode))
+                elif isinstance(synthesized_tp.tp, e.UnionTp):
+                    all_synthesized_tps = tops.collect_tp_union(synthesized_tp.tp)
+                    assert all(isinstance(tp, e.NamedNominalLinkTp | e.NominalLinkTp) for tp in all_synthesized_tps)
 
-                for k in ck_lp.keys():
-                    this_tp = ck_lp[k].tp
-                    if k in synth_lp.keys():
-                        continue
-                    elif isinstance(ck_lp[k].tp, e.ComputableTp):
-                        continue
-                    elif isinstance(this_tp, e.DefaultTp):
-                        default_expr = this_tp.expr
-                        if eops.binding_is_unnamed(default_expr):
-                            additional_lps[k] = type_elaborate_default_tp(
-                                ctx, eops.instantiate_expr(e.FreeVarExpr("LP_DEFAULT_SHOULD_NOT_OCCUR"), default_expr))
-                        else:
-                            raise ValueError("Default Tp is not unnamed", this_tp.expr)
-                    elif tops.mode_is_optional(ck_lp[k].mode):
-                        additional_lps[k] = e.MultiSetExpr(expr=[])
-                    else:
-                        raise ValueError("Missing link prop", k, "synthesized keys", synth_lp.keys(), "required keys", ck_lp.keys())
-                        
-                if len(additional_lps.keys()) == 0:
-                    return expr_ck
+                    all_synthesized_names = {tp.name : tp for tp in all_synthesized_tps}
+
+                    if not all(any(tops.is_nominal_subtype_in_schema(ctx, synth_name, ck_name) for ck_name in all_target_names.keys()) for synth_name in all_synthesized_names.keys()):
+                        raise ValueError("Synthesized names not in union types", all_synthesized_names.keys(), all_target_names.keys())
+
+
+                    assert isinstance(all_synthesized_tps[0], e.NamedNominalLinkTp | e.NominalLinkTp)
+                    synth_lp = all_synthesized_tps[0].linkprop.val
+                    assert all(synth_lp == tp.linkprop.val for tp in all_synthesized_tps)
+                    assert isinstance(all_target_tps[0], e.NamedNominalLinkTp | e.NominalLinkTp)
+                    ck_lp = all_target_tps[0].linkprop.val
+                    assert all(ck_lp == tp.linkprop.val for tp in all_target_tps)
+                    return insert_link_prop_checking(ctx, expr_ck, synth_lp, ck_lp)
                 else:
-                    return e.ShapedExprExpr(expr_ck, 
-                        e.ShapeExpr(
-                            shape={
-                                e.LinkPropLabel(k): eops.abstract_over_expr(v)
-                                for (k,v) in additional_lps.items()
-                            }
-                        ))
+                    raise ValueError("TODO", pp.show(synthesized_tp.tp), pp.show(attr_expr))
             case _:
                 raise ValueError("Unrecognized Attribute Target Type", pp.show(target_tp))
         

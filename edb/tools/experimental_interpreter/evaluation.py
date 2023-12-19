@@ -19,12 +19,13 @@ from .data import data_ops as e
 from .data import expr_ops as eops
 from .data import type_ops as tops
 from .data.expr_ops import (
-    coerce_to_storage, combine_object_val,
+    combine_object_val,
     get_object_val, instantiate_expr,
     map_expand_multiset_val,
       val_is_link_convertible, val_is_ref_val)
 from .data.type_ops import is_nominal_subtype_in_schema
 from .db_interface import *
+from .evaluation_tools.storage_coercion import coerce_to_storage
 
 def eval_error(expr: Val | Expr | Sequence[Val], msg: str = "") -> Any:
     raise ValueError("Eval Error", msg, expr)
@@ -351,7 +352,7 @@ def eval_expr(ctx: EvalEnv,
         case UnionExpr(left=l, right=r):
             lvals = eval_expr(ctx, db, l)
             rvals = eval_expr(ctx, db, r)
-            return MultiSetVal([*lvals, *rvals])
+            return MultiSetVal([*lvals.vals, *rvals.vals])
         case ArrExpr(elems=elems):
             elemsv = eval_expr_list(ctx, db, elems)
             arr_result = [ArrVal(list(el))

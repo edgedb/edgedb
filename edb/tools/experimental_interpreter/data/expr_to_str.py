@@ -63,7 +63,7 @@ def show_tp(tp: e.Tp) -> str:
         # case e.UncheckedNamedNominalLinkTp(name=name, linkprop=lp_tp):
         #     return f'{name}@{show_tp(lp_tp)}'
         case e.NominalLinkTp(name=name, subject=s_tp, linkprop=lp_tp):
-            return f'{show_tp(s_tp)}_{name}@{show_tp(lp_tp)}'
+            return f'{show_tp(s_tp)}_{show_raw_name(name)}@{show_tp(lp_tp)}'
         case e.UnionTp(left=left, right=right):
             return f'{show_tp(left)} | {show_tp(right)}'
         case e.IntersectTp(left=left, right=right):

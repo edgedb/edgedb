@@ -56,12 +56,12 @@ def check_object_tp_comp_validity(
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
-            try:
-                c_body = path_factor.select_hoist(c_body, new_ctx)
-                synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
-                tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
-            except Exception as exception:
-                raise ValueError("Error in type checking computable types", pp.show_tp(tp_comp), exception)
+            # try:
+            c_body = path_factor.select_hoist(c_body, new_ctx)
+            synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
+            tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
+            # except Exception as exception:
+            #     raise ValueError("Error in type checking computable types", pp.show_tp(tp_comp), exception)
             return e.ComputableTp(
                 expr=eops.abstract_over_expr(c_body_ck, bnd_var),
                 tp=synth_tp.tp)

@@ -85,7 +85,7 @@ def assert_real_subtype(
         pass
     
 
-def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
+def type_subtyping_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
         ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
         ) -> bool:
     """
@@ -93,7 +93,20 @@ def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
     Subtrees are checked for equality using the recurse function, to account for possible unifications.
     """
     if tp_is_primitive(tp1) and tp_is_primitive(tp2):
-        return tp1 == tp2 
+        if isinstance(tp1, e.ScalarTp) and isinstance(tp2, e.ScalarTp):
+            return is_nominal_subtype_in_schema(ctx, tp1.name, tp2.name)
+        else:
+            match tp1, tp2:
+                case _, e.DefaultTp(tp=tp2_inner, expr=_):
+                    return recurse(ctx, tp1, tp2_inner)
+                case e.DefaultTp(tp=tp1_inner, expr=_), _:
+                    return recurse(ctx, tp1_inner, tp2)
+                case _, e.ComputableTp(tp=tp2_inner, expr=_):
+                    return recurse(ctx, tp1, tp2_inner)
+                case e.ComputableTp(tp=tp1_inner, expr=_), _:
+                    return recurse(ctx, tp1_inner, tp2)
+                case _:
+                    raise ValueError("TODO")
     else:
         match tp1, tp2:
             case _, e.AnyTp():
@@ -142,6 +155,9 @@ def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
             case (e.UnionTp(left=tp1_left, right=tp1_right), _):
                 return recurse(ctx, tp1_left, tp2) and recurse(ctx, tp1_right, tp2)
 
+            case (_, e.UnionTp(left=tp2_left, right=tp2_right)):
+                return recurse(ctx, tp1, tp2_left) or recurse(ctx, tp1, tp2_right)
+
             # Other structural typing
             case (e.CompositeTp(kind=kind1, tps=tps1), e.CompositeTp(kind=kind2, tps=tps2)):
                 if kind1 != kind2 or len(tps1) != len(tps2):
@@ -163,7 +179,24 @@ def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
 def check_is_subtype(
         ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
         ) -> bool:
-    return type_equality_walk(check_is_subtype, ctx, tp1, tp2)
+    return type_subtyping_walk(check_is_subtype, ctx, tp1, tp2)
+
+def collect_is_subtype_with_instantiation(
+        ctx: e.TcCtx, syn_tp: e.Tp, ck_tp: e.Tp, some_tp_mapping: Dict[int, List[e.Tp]]
+        ) -> bool:
+    """
+    Here, tp2 may be a some type (parametric morphism, and need to be instantiated)
+    """
+    if isinstance(ck_tp, e.SomeTp):
+        if ck_tp.index in some_tp_mapping:
+            some_tp_mapping[ck_tp.index] = [syn_tp, *some_tp_mapping[ck_tp.index]]
+        else:
+            some_tp_mapping[ck_tp.index] = [syn_tp]
+        return True
+    else:
+        def recurse(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp) -> bool:
+            return collect_is_subtype_with_instantiation(ctx, tp1, tp2, some_tp_mapping)
+        return type_subtyping_walk(recurse, ctx, syn_tp, ck_tp)
 
 def check_is_subtype_with_instantiation(
         ctx: e.TcCtx, syn_tp: e.Tp, ck_tp: e.Tp, some_tp_mapping: Dict[int, e.Tp]
@@ -181,7 +214,7 @@ def check_is_subtype_with_instantiation(
     else:
         def recurse(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp) -> bool:
             return check_is_subtype_with_instantiation(ctx, tp1, tp2, some_tp_mapping)
-        return type_equality_walk(recurse, ctx, syn_tp, ck_tp)
+        return type_subtyping_walk(recurse, ctx, syn_tp, ck_tp)
         
 
 def recursive_instantiate_tp(
@@ -434,3 +467,9 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
 #                 continue
 #     return e.ShapeExpr(result)
 
+# def collect_tp_union(tp: e.Tp) -> List[e.Tp]:
+#     match tp:
+#         case e.UnionTp(l,r):
+#             return collect_tp_union(l) + collect_tp_union(r)
+#         case _:
+#             return [tp]

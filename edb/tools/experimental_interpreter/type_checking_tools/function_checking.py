@@ -19,7 +19,7 @@ def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunA
     If matches, return the result type. Need to return result type because we have parametric ploymorphism.
     """
 
-    some_tp_mapping: Dict[int, e.Tp] = {}
+    some_tp_mapping_candidates: Dict[int, List[e.Tp]] = {}
 
     args_ck_tps = tps_ck.args_tp
     ret_tp = tps_ck.ret_tp.tp
@@ -27,6 +27,23 @@ def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunA
     if len(args_ck_tps) != len(tps_syn):
         return None
     
+    for i, (syn_tp, ck_tp) in enumerate(zip(tps_syn, args_ck_tps)):
+        tops.collect_is_subtype_with_instantiation(ctx, syn_tp, ck_tp, some_tp_mapping_candidates)
+
+    some_tp_mapping: Dict[int, e.Tp] = {}
+    for i, candidate_tps in some_tp_mapping_candidates.items():
+        if len(candidate_tps) == 1:
+            some_tp_mapping[i] = candidate_tps[0]
+            continue
+        else:
+            for candidate_tp in candidate_tps:
+                if all(tops.check_is_subtype(ctx, tp, candidate_tp) for tp in candidate_tps):
+                    some_tp_mapping[i] = candidate_tp
+                    break
+            else:
+                # cannot find a unique assignment for a candidate type
+                return None
+        
     for i, (syn_tp, ck_tp) in enumerate(zip(tps_syn, args_ck_tps)):
         if not tops.check_is_subtype_with_instantiation(ctx, syn_tp, ck_tp, some_tp_mapping):
             return None
@@ -78,6 +95,8 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                     ok_candidates = ok_candidates[0:1]
 
                 if len(ok_candidates) == 0:
+                    for i, fun_def in enumerate(fun_defs):
+                        result_tp = check_args_ret_type_match(ctx, tps, fun_def.tp)
                     raise ValueError("No overloading matches", pp.show_qname(qualified_fname), 
                                      "args type", [pp.show_tp(tp) for tp in tps],
                                      "candidates", [pp.show_func_tps(fun_def.tp) for fun_def in fun_defs],
