@@ -49,7 +49,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
             l_tp = e.ObjectTp({})
             raise ValueError("Cannot get s_name")
         case _:
-            raise ValueError("NI")
+            raise ValueError("NI", pp.show(tp))
 
     result_s_tp = e.ObjectTp({})
     result_l_tp = e.ObjectTp({})
@@ -471,10 +471,14 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.ArrExpr(elems=arr):
             assert len(arr) > 0, "Empty array does not support type synthesis"
             (first_tp, first_ck) = synthesize_type(ctx, arr[0])
-            rest_card: Sequence[e.CMMode]
-            (rest_card, rest_cks) = zip(
-                *[check_type_no_card(ctx, arr_elem, first_tp.tp)
-                  for arr_elem in arr[1:]])
+            if len(arr[1:]) > 0:
+                rest_card: Sequence[e.CMMode]
+                (rest_card, rest_cks) = zip(
+                    *[check_type_no_card(ctx, arr_elem, first_tp.tp)
+                    for arr_elem in arr[1:]])
+            else:
+                rest_card = []
+                rest_cks = []
             # TODO: change to use unions
             result_expr = e.ArrExpr([first_ck] + list(rest_cks))
             result_tp = e.ArrTp(first_tp.tp)

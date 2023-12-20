@@ -9,6 +9,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as qltypes
 from edb.schema import pointers as s_pointers
 from edb.schema.pointers import PointerDirection
+from . import interpreter_logging as i_logging
 
 # from .basis.built_ins import all_builtin_funcs, all_std_funcs
 from .data import data_ops as e
@@ -50,11 +51,16 @@ def elab_not_implemented(node: qlast.Base, msg: str = "") -> Any:
 def elab_Shape(elements: Sequence[qlast.ShapeElement]) -> ShapeExpr:
     """ Convert a concrete syntax shape to object expressions"""
     result = {}
-    [result := {**result, name: e}
-        if name not in result.keys()
-        else (elab_error("Duplicate Value in Shapes", se.context))
-     for se in elements
-     for (name, e) in [elab_ShapeElement(se)]]
+    for se in elements:
+        if path_contains_splat(se.expr):
+            i_logging.print_warning("Splat is not implemented")
+            continue
+        match elab_ShapeElement(se):
+            case (name, e):
+                if name not in result.keys():
+                    result = {**result, name: e}
+                else:
+                    (elab_error("Duplicate Value in Shapes", se.context))
     return ShapeExpr(result)
 
 
@@ -62,6 +68,22 @@ def elab_Shape(elements: Sequence[qlast.ShapeElement]) -> ShapeExpr:
 def elab(node: qlast.Base) -> Expr:
     return elab_not_implemented(node)
 
+@elab.register(qlast.Introspect)
+def elab_Introspect(node: qlast.Introspect) -> Expr:
+    i_logging.print_warning("Introspect is not implemented")
+    return e.StrVal("Introspect is not implemented")
+
+@elab.register(qlast.IsOp)
+def elab_TpIntersect(oper: qlast.IsOp) -> TpIntersectExpr:
+    assert oper.op == 'IS'
+    if isinstance(oper.right, qlast.TypeName):
+        right = elab_TypeName(oper.right)
+        # if not isinstance(right, e.UncheckedTypeName):
+        #     raise ValueError("Expecting a type name here", right, oper.right)
+    else:
+        raise ValueError("Expecting a type name here")
+    left = elab(oper.left)
+    return TpIntersectExpr(left, right)
 
 
 @elab.register(qlast.Path)
@@ -108,18 +130,26 @@ def elab_Path(p: qlast.Path) -> Expr:
                     elab_not_implemented(step, "in path")
     return result
 
+def path_contains_splat(p: qlast.Path) -> bool:
+    for step in p.steps:
+        if isinstance(step, qlast.Splat):
+                return True
+    return False
 
 def elab_label(p: qlast.Path) -> Label:
     """ Elaborates a single name e.g. in the left hand side of a shape """
-    match p:
-        case qlast.Path(steps=[qlast.Ptr(
+    steps = [*p.steps]
+    while steps[0] is not None and isinstance(steps[0], qlast.TypeIntersection):
+        steps = steps[1:]
+    match steps[0]:
+        case qlast.Ptr(
                 name=pname,
-                direction=s_pointers.PointerDirection.Outbound)]):
+                direction=s_pointers.PointerDirection.Outbound):
             return StrLabel(pname)
-        case qlast.Path(steps=[qlast.Ptr(name=pname,
-                                         type='property')]):
+        case qlast.Ptr(name=pname, type='property'):
             return LinkPropLabel(pname)
-    return elab_not_implemented(p, "label")
+        case _:
+            return elab_not_implemented(p, "label")
 
 
 @elab.register(qlast.ShapeElement)
@@ -226,6 +256,13 @@ def elab_IntegerConstant(e: qlast.IntegerConstant) -> IntVal:
     return IntVal(val=abs_val)
 
 
+@elab.register(qlast.FloatConstant)
+def elab_FloatConstant(expr: qlast.FloatConstant) -> e.ScalarVal:
+    abs_val = float(expr.value)
+    if expr.is_negative:
+        abs_val = -abs_val
+    return e.ScalarVal(tp=e.ScalarTp(e.QualifiedName(["std", "float64"])), val=abs_val)
+
 @elab.register(qlast.BooleanConstant)
 def elab_BooleanConstant(e: qlast.BooleanConstant) -> BoolVal:
     match e.value:
@@ -250,16 +287,23 @@ def elab_orderby(qle: Optional[Sequence[qlast.SortExpr]]) -> Dict[str, BindingEx
         return {}
     result: Dict[str, Expr] = {}
     for (idx, sort_expr) in enumerate(qle):
-        if sort_expr.nones_order is not None:
-            raise elab_not_implemented(sort_expr)
+        # if sort_expr.nones_order is not None:
+        #     raise elab_not_implemented(sort_expr)
 
-        key = (
-            str(idx) + OrderLabelSep +
-            (OrderAscending
+        empty_label = (e.OrderEmptyFirst if sort_expr.nones_order == qlast.NonesOrder.First or sort_expr.nones_order is None
+                          else e.OrderEmptyLast if sort_expr.nones_order == qlast.NonesOrder.Last
+                          else elab_error("unknown nones order", sort_expr.context))
+
+
+        direction_label = (OrderAscending
              if sort_expr.direction == qlast.SortOrder.Asc else
              OrderDescending
              if sort_expr.direction == qlast.SortOrder.Desc else
-             elab_error("unknown direction", sort_expr.context)))
+             elab_error("unknown direction", sort_expr.context))
+
+        key = (
+            str(idx) + OrderLabelSep + direction_label + OrderLabelSep + empty_label
+            )
         elabed_expr = elab(sort_expr.path)
         result = {**result, key: elabed_expr}
 
@@ -461,8 +505,16 @@ def elab_single_type_expr(typedef: qlast.TypeExpr) -> Tp:
 
 @elab.register(qlast.TypeCast)
 def elab_TypeCast(qle: qlast.TypeCast) -> TypeCastExpr:
-    if qle.cardinality_mod:
-        return elab_not_implemented(qle)
+    if isinstance(qle.expr, qlast.Parameter):
+            if qle.cardinality_mod == qlast.CardinalityModifier.Optional:
+                is_required = False
+            else:
+                raise ValueError("Unknown Cardinality Modifier", qle.cardinality_mod)
+            return e.ParameterExpr(
+                name=qle.expr.name,
+                tp= elab_single_type_expr(qle.type),
+                is_required=is_required,
+            )
     if isinstance(qle.type, qlast.TypeName):
         tp = elab_TypeName(qle.type)
         expr = elab(qle.expr)
@@ -533,14 +585,15 @@ def elab_DetachedExpr(qle: qlast.DetachedExpr):
 
 @elab.register(qlast.NamedTuple)
 def elab_NamedTuple(qle: qlast.NamedTuple) -> NamedTupleExpr:
-    raise ValueError("TODO : FIX MYPY below")
-    # return NamedTupleExpr(
-    #     val={(element.name.name
-    #           if (
-    #               element.name.module is
-    #               None and element.name.itemclass is None) else
-    #           elab_error("not implemented", qle.context)):
-    #           elab(element.val) for element in qle.elements})
+    # raise ValueError("TODO : FIX MYPY below")
+    result : Dict[str, Expr] = {}
+
+    for element in qle.elements:
+        if element.name.name in result.keys():
+            raise elab_error("Duplicate Value in Named Tuple", qle.context)
+        result[element.name.name] = elab(element.val)
+
+    return NamedTupleExpr(val=result)
 
 
 @elab.register(qlast.Tuple)

@@ -470,6 +470,12 @@ class CheckedTypeCastExpr:
     cast_spec: TpCast
     arg: Expr
 
+@dataclass(frozen=True)
+class ParameterExpr:
+    name: str
+    tp: Tp
+    is_required: bool
+
 
 @dataclass(frozen=True)
 class FunAppExpr:
@@ -535,7 +541,7 @@ class BackLinkExpr:
 @dataclass(frozen=True)
 class TpIntersectExpr:
     subject: Expr
-    tp: RawName
+    tp: Tp
 
 
 @dataclass(frozen=True)
@@ -848,6 +854,8 @@ def ref(id):
 OrderLabelSep = "-"  # separates components of an order object label
 OrderAscending = "ascending"
 OrderDescending = "descending"
+OrderEmptyFirst = "emptyfirst"
+OrderEmptyLast = "emptylast"
 
 
 IndirectionIndexOp = "_[_]"

@@ -42,14 +42,19 @@ def eval_order_by(
     keys = [k for k in orders[0].keys()]
     if len(keys) == 0:
         return after_condition
-    sort_specs = sorted([(int(idx), spec) for k in keys for [
-                        idx, spec] in [k.split(OrderLabelSep)]])
+    sort_specs = sorted([(int(idx), spec, empty_order) for k in keys for [
+                        idx, spec, empty_order] in [k.split(OrderLabelSep)]])
 
     result: Sequence[Tuple[int, Val]] = list(enumerate(after_condition))
     # use reversed to achieve the desired effect
-    for (idx, spec) in reversed(sort_specs):
-        def key_extract(elem: Tuple[int, Val], idx=idx, spec=spec):
-            return orders[elem[0]][(str(idx) + OrderLabelSep + spec)]
+    for (idx, spec, empty_order) in reversed(sort_specs):
+        def key_extract(elem: Tuple[int, Val], idx=idx, spec=spec, empty_order=empty_order):
+            order_elem = orders[elem[0]][(str(idx) + OrderLabelSep + spec + OrderLabelSep + empty_order)]
+            if empty_order == e.OrderEmptyLast:
+                assert isinstance(order_elem, MultiSetVal)
+                return (len(order_elem.vals) == 0, order_elem)
+            else:
+                return order_elem
         result = sorted(
             result, key=key_extract,
             reverse=(False if spec == OrderAscending else
@@ -58,6 +63,7 @@ def eval_order_by(
                          cast(Sequence[Val],
                               orders),
                          "unknown spec")))
+
     return [elem for (_, elem) in result]
 
 

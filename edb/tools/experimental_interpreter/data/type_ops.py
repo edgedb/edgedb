@@ -423,7 +423,7 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                         raise ValueError("Label not found")
                 case _:
                     raise ValueError("Cannot tp_project a label "
-                                     "from a non object type", tp.tp)
+                                     "from a non object type", pp.show(tp.tp))
 
 
 # def object_tp_default_initial(tp: e.ObjectTp,

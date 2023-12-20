@@ -90,7 +90,9 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 args_mods = [resolved_fun_def[i].tp.args_mod 
                              for i in range(len(resolved_fun_def))
                              if len(resolved_fun_def[i].tp.args_mod) == len(args)]
-                assert len(args_mods) > 0, "Expecting fun_defs"
+                if len(args_mods) == 0:
+                    # This is due to named only arguments, need some time to sort out
+                    raise ValueError("Expecting fun_defs [TODO named args]")
                 assert all([args_mods[0] == args_mod for args_mod in args_mods]), \
                     "Expecting all args_mods to be the same"
                 params = resolved_fun_def[0].tp.args_mod

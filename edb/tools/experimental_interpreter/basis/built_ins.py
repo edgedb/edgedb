@@ -19,3 +19,13 @@ def lift_binary_scalar_op(f: Callable[[Any, Any], Any]) -> Callable[[Sequence[Se
 
 
 
+
+def lift_unary_scalar_op(f: Callable[[Any], Any]) -> Callable[[Sequence[Sequence[e.Val]]],  Sequence[e.Val]]:
+    
+    def impl(arg: Sequence[Sequence[e.Val]]) -> Sequence[e.Val]:
+            match arg:
+                case [[e.ScalarVal(t1, v1)]]:
+                    return [e.ScalarVal(t1, f(v1))]
+            raise ValueError("Expecing two scalar values")
+    return impl
+
