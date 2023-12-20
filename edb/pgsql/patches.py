@@ -100,4 +100,5 @@ alter type ext::auth::AuthConfig  {
 }
 '''),
     ('edgeql+schema', ''),  # pg_attribute, pg_attribute_ext, edgedbsql.columns
+    ('edgeql+schema', ''),  # __type__
 ])
