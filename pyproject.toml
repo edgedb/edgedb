@@ -75,7 +75,7 @@ docs = [
 
 [build-system]
 requires = [
-    "Cython (>=0.29.32, <0.30.0)",
+    "Cython (>=0.29.32, <3.0.0)",
     "packaging >= 21.0",
     "setuptools >= 67",
     "setuptools-rust ~= 0.12.1",
