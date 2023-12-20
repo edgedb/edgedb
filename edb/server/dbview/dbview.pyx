@@ -535,7 +535,13 @@ cdef class DatabaseConnectionView:
             raise errors.InternalServerError(
                 'no need to serialize state while in transaction')
 
-        ver = self._db.schema_version
+        ver = hash(
+            (
+                self._db.schema_version,
+                self.get_database_config(),
+                self.get_system_config(),
+            )
+        )
         if self._session_state_db_cache is not None:
             if self._session_state_db_cache[0] == (self._config, ver):
                 return self._session_state_db_cache[1]
@@ -550,9 +556,9 @@ cdef class DatabaseConnectionView:
                 state.append({"name": sval.name, "value": jval, "type": kind})
 
         # Include the database version in the state so that we are forced
-        # to clear the config cache on ver changes.
+        # to clear the config cache on changes.
         state.append(
-            {"name": '__ver__', "value": str(ver), "type": 'C'})
+            {"name": '__ver__', "value": ver, "type": 'C'})
 
         spec = json.dumps(state).encode('utf-8')
         self._session_state_db_cache = ((self._config, ver), spec)
