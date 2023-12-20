@@ -8,6 +8,7 @@ from ..data.data_ops import (
     ParamSetOf, ParamSingleton, SomeTp, 
     StrVal, UnnamedTupleTp, Val, UnnamedTupleVal)
 from .errors import FunCallErr
+import random
 
 from datetime import datetime, timezone
 
@@ -178,4 +179,32 @@ def std_datetime_current(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             val = current_datetime.strftime("%Y-%m-%dT%H:%M:%S%z")
             return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "datetime"])), 
                                 val)]
+    raise FunCallErr()
+
+
+def str_split(s, delimiter):
+    return [part for part in s.split(delimiter)]
+
+def str_split_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[e.ScalarVal(_, s)], [e.ScalarVal(_, delimiter)]]:
+            return [ArrVal(val=[e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), part) for part in str_split(s, delimiter)])]
+    raise FunCallErr()
+
+def str_upper_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[e.ScalarVal(_, s)]]:
+            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), s.upper())]
+    raise FunCallErr()
+
+def str_lower_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[e.ScalarVal(_, s)]]:
+            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), s.lower())]
+    raise FunCallErr()
+
+def random_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case []:
+            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "float64"])), random.random())]
     raise FunCallErr()

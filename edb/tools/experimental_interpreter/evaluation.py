@@ -191,6 +191,8 @@ class EvaluationLogsWrapper:
 
 eval_logs_wrapper = EvaluationLogsWrapper()
 
+def call_user_defined_funcs():
+    pass
 
 
 # the database is a mutable reference that keeps track of a read snapshot inside
@@ -295,6 +297,13 @@ def eval_expr(ctx: EvalEnv,
             if isinstance(looked_up_fun, e.BuiltinFuncDef):
                 after_fun_vals: Sequence[Val] = [
                     v for arg in argv_final for v in looked_up_fun.impl(arg)]
+            elif isinstance(looked_up_fun, e.DefinedFuncDef):
+                after_fun_vals: Sequence[Val] = []
+                for vset in argv_final:
+                    body = looked_up_fun.impl
+                    for i, arg in enumerate(vset):
+                        ctx, body = ctx_extend(ctx, body, MultiSetVal(arg))
+                    after_fun_vals = [*after_fun_vals, eval_expr(ctx, db, body)]
             else:
                 raise ValueError("Not implemented yet", looked_up_fun)
             return MultiSetVal(after_fun_vals)

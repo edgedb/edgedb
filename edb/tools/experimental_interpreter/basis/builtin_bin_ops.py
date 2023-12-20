@@ -142,17 +142,40 @@ and_impl = lift_binary_scalar_op(operator.and_)
 
 less_than_impl = lift_binary_scalar_op(operator.lt)
 
+def like(value, pattern) -> bool:
+    fnmatch_pattern = pattern.replace('%', '*').replace('_', '?').replace(r'\%', '%').replace(r'\_', '_')
+    return fnmatch.fnmatch(value, fnmatch_pattern)
+
+def ilike(value, pattern) -> bool:
+    fnmatch_pattern = pattern.replace('%', '*').replace('_', '?').replace(r'\%', '%').replace(r'\_', '_')
+    value = value.lower()
+    pattern = pattern.lower()
+    return fnmatch.fnmatch(value, fnmatch_pattern)
 
 def like_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [[e.ScalarVal(_, value)], [e.ScalarVal(_, pattern)]]:
-            # Convert SQL-like pattern to fnmatch-style pattern
-            fnmatch_pattern = pattern.replace('%', '*').replace('_', '?').replace(r'\%', '%').replace(r'\_', '_')
-            
-            # Use fnmatch to check if the value matches the pattern
-            return [e.BoolVal(fnmatch.fnmatch(value, fnmatch_pattern))]
+            return [e.BoolVal(like(value, pattern))]
     raise FunCallErr()
 
+
+def not_like_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[e.ScalarVal(_, value)], [e.ScalarVal(_, pattern)]]:
+            return [e.BoolVal(not like(value, pattern))]
+    raise FunCallErr()
+
+def ilike_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[e.ScalarVal(_, value)], [e.ScalarVal(_, pattern)]]:
+            return [e.BoolVal(ilike(value, pattern))]
+    raise FunCallErr()
+
+def not_ilike_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[e.ScalarVal(_, value)], [e.ScalarVal(_, pattern)]]:
+            return [e.BoolVal(not ilike(value, pattern))]
+    raise FunCallErr()
 
 
 def distinct_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -166,3 +189,25 @@ def distinct_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 not_impl = lift_unary_scalar_op(operator.not_)
+
+
+def intersect_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [arg1, arg2]:
+            if all(isinstance(v, e.RefVal) for v in arg1) and all(isinstance(v, e.RefVal) for v in arg2):
+                id1 = {v.refid : v for v in arg1} # type: ignore
+                return {v.refid : v for v in arg2 if v.refid in id1}.values() # type: ignore
+            else:
+                return [v for v in arg1 if v in arg2]
+    raise FunCallErr()
+
+def except_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [arg1, arg2]:
+            if all(isinstance(v, e.RefVal) for v in arg1) and all(isinstance(v, e.RefVal) for v in arg2):
+                id2 = {v.refid : v for v in arg2} # type: ignore
+                return [v for v in arg1 if v.refid not in id2] # type: ignore
+            else:
+                return [v for v in arg1 if v not in arg2]
+    raise FunCallErr()
+

@@ -217,7 +217,9 @@ def elab_ShapeElement(s: qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
 @elab.register(qlast.Shape)
 def elab_ShapedExpr(shape: qlast.Shape) -> ShapedExprExpr:
     if shape.expr is None:
-        raise ValueError("Free object expressions not currently supported")
+        return ShapedExprExpr(
+            expr=e.FreeObjectExpr(),
+            shape=elab_Shape(shape.elements))
     else:
         return ShapedExprExpr(
             expr=elab(shape.expr),
