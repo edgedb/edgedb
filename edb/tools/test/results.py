@@ -244,28 +244,38 @@ def render_result(
     _echo(file)
 
 
-def _result_log_dir() -> pathlib.Path:
-    build_dir = pathlib.Path('.') / 'build'
-    build_dir.mkdir(exist_ok=True)
-    dir = build_dir / 'test-results'
-    dir.mkdir(exist_ok=True)
-    return dir
+def _result_log_dir() -> typing.Optional[pathlib.Path]:
+    try:
+        build_dir = pathlib.Path('.') / 'build'
+        build_dir.mkdir(exist_ok=True)
+        dir = build_dir / 'test-results'
+        dir.mkdir(exist_ok=True)
+        return dir
+    except Exception:
+        # this might happen when the process is running in readonly mode
+        return None
 
 
-def _result_log_file() -> typing.IO:
+def _result_log_file() -> typing.Optional[typing.IO]:
     dir = _result_log_dir()
+    if not dir:
+        return None
     now = str(datetime.datetime.now()).replace(' ', '_')
     return open(dir / f'{now}.json', 'w')
 
 
 def write_result(res: TestResult):
     log_file = _result_log_file()
+    if not log_file:
+        return
 
     json.dump(dataclasses.asdict(res), log_file, indent=4)
 
 
 def read_unsuccessful() -> typing.List[str]:
     dir = _result_log_dir()
+    if not dir:
+        return []
     results = list(dir.iterdir())
     if not results:
         return []
