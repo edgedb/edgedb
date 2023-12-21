@@ -349,7 +349,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                         f'{_format_path(path)}')
             elif isinstance(shape, (str, int, bytes, timedelta,
                                     decimal.Decimal)):
-                if data != shape:
+                if (data != shape) and (data != [shape]): # singleton cheat
                     fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')

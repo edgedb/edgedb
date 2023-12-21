@@ -57,7 +57,7 @@ def multi_set_val_to_json_like(m: MultiSetVal) -> json_like:
 
 def typed_objectval_to_json_like(objv: ObjectVal,
                                  obj_tp: e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp,
-                                 dbschema: e.DBSchema) -> json_like:
+                                 dbschema: e.DBSchema) -> Dict[str, json_like]:
     result: Dict[str, json_like] = {}
     for (k, v) in objv.val.items():
         if isinstance(v[0], Visible):
@@ -109,16 +109,16 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
                 return v
             else:
                 raise ValueError("not implemented")
-        case RefVal(_, object):
+        case RefVal(refid, object):
             # if (isinstance(tp, e.NominalLinkTp)
             #         and tp.linkprop == e.ObjectTp({})):
             #     tp = tp.subject
             if not isinstance(tp, e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp):
                 raise ValueError("Expecing objecttp", tp)
-            return typed_objectval_to_json_like(object, tp, dbschema)
-        # case FreeVal(object):
-        #     assert isinstance(tp, e.ObjectTp)
-        #     return typed_objectval_to_json_like(object, tp, dbschema)
+            object_val_result =  typed_objectval_to_json_like(object, tp, dbschema)
+            if len(object_val_result) == 0:
+                object_val_result['id'] = refid
+            return object_val_result
         case ArrVal(val=array):
             if not isinstance(tp, e.CompositeTp) or tp.kind != e.CompositeTpKind.Array:
                 raise ValueError("Expecing array tp", tp)

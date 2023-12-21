@@ -45,7 +45,7 @@ def process_ddl(
             abstract=is_abstract):
             assert module_name is not None, "Scalar types cannot be created in top level"
             assert "::" not in module_name, "TODO"
-            schema.modules[(module_name, )].defs[type_name] = e.ModuleEntityTypeDef(e.ScalarTp(e.QualifiedName([module_name, type_name])), is_abstract=is_abstract)
+            schema.modules[(module_name, )].defs[type_name] = e.ModuleEntityTypeDef(e.ScalarTp(e.QualifiedName([module_name, type_name])), constraints={}, is_abstract=is_abstract)
             # We require DDL to contain fully qualified names
             schema.subtyping_relations[e.QualifiedName([module_name, type_name])] = []
             for base_tp in bases:
@@ -133,7 +133,7 @@ def process_ddl(
             assert module_name is not None, "Object types cannot be created in top level"
             assert "::" not in module_name, "TODO"
             obj_tp = elab_schema.elab_create_object_tp(commands)
-            schema.modules[(module_name, )].defs[name] = e.ModuleEntityTypeDef(obj_tp, is_abstract=abstract)
+            schema.modules[(module_name, )].defs[name] = e.ModuleEntityTypeDef(obj_tp,  is_abstract=abstract, constraints={})
         case _:
             debug.dump(ddl)
             raise ValueError("DDL not yet supported", ddl)

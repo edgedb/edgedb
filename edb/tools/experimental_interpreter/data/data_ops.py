@@ -767,12 +767,27 @@ class DefinedFuncDef():
     impl: Expr # Has the same number of bindings as num_args = len(tp.args_tp)
 
 
+
+
 FuncDef = BuiltinFuncDef | DefinedFuncDef
+
+@dataclass(frozen=True)
+class ExclusiveConstraint:
+    delegated: bool
+
+@dataclass(frozen=True)
+class ExpressionConstraint:
+    expr: Expr
+
+Constraint = ExclusiveConstraint
+
 
 @dataclass(frozen=True)
 class ModuleEntityTypeDef:
     typedef: ObjectTp | ScalarTp
     is_abstract: bool
+    constraints : Sequence[Constraint]
+
 
 
 @dataclass(frozen=True)

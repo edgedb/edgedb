@@ -84,14 +84,16 @@ def module_inheritance_populate(dbschema: e.DBSchema, module_name : Tuple[str, .
     for t_name, t_me in dbmodule.defs.items():
         root_ctx = eops.emtpy_tcctx_from_dbschema(dbschema, module_name)
         match t_me:
-            case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract):
+            case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract, constraints=constraints):
                 if isinstance(typedef, e.ObjectTp):
                     if e.QualifiedName([*module_name, t_name]) in dbschema.subtyping_relations:
                         result_vals = {**result_vals, t_name: e.ModuleEntityTypeDef(typedef=
                             copy_construct_inheritance(
                                 root_ctx,
                                 typedef,
-                                dbschema.subtyping_relations[e.QualifiedName([*module_name, t_name])]), is_abstract=is_abstract)}
+                                dbschema.subtyping_relations[e.QualifiedName([*module_name, t_name])]), 
+                                is_abstract=is_abstract, 
+                                constraints=constraints)}
                     else:
                         result_vals = {**result_vals, t_name: t_me}
                 elif isinstance(typedef, e.ScalarTp):

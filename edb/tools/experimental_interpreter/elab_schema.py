@@ -242,7 +242,7 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
                 obj_tp = elab_create_object_tp(commands)
                 add_bases_for_name(existing, ("default",), name, bases)
                 assert name not in type_defs
-                type_defs[name] = e.ModuleEntityTypeDef(obj_tp, is_abstract=abstract)
+                type_defs[name] = e.ModuleEntityTypeDef(obj_tp, is_abstract=abstract, constraints={})
             case qlast.CreateScalarType(
                 name=qlast.ObjectRef(name=name, module=None),
                 bases=bases,
@@ -251,7 +251,7 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
                 this_name = e.QualifiedName(["default", name])
                 add_bases_for_name(existing, current_module_name, name, bases)
                 assert name not in type_defs
-                type_defs[name] = e.ModuleEntityTypeDef(e.ScalarTp(this_name), is_abstract=abstract)
+                type_defs[name] = e.ModuleEntityTypeDef(e.ScalarTp(this_name), is_abstract=abstract, constraints={})
             case qlast.CreateConstraint():
                 print_warning("WARNING: not supported yet", t_decl)
             case qlast.CreateFunction(

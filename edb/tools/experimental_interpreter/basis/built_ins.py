@@ -12,7 +12,8 @@ def lift_binary_scalar_op(f: Callable[[Any, Any], Any]) -> Callable[[Sequence[Se
     def multiply_impl(arg: Sequence[Sequence[e.Val]]) -> Sequence[e.Val]:
             match arg:
                 case [[e.ScalarVal(t1, v1)], [e.ScalarVal(t2, v2)]]:
-                    assert t1 == t2
+                    if  t1 != t2:
+                         raise ValueError("Scalar types do not match", t1, t2)
                     return [e.ScalarVal(t1, f(v1, v2))]
             raise ValueError("Expecing two scalar values")
     return multiply_impl
