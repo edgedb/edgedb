@@ -695,6 +695,29 @@ async def gather_patch_info(
         return None
 
 
+def _generate_drop_views(
+    group: dbops.CommandGroup,
+    preblock: dbops.PLBlock,
+) -> None:
+    for cv in reversed(list(group)):
+        dv: Any
+        if isinstance(cv, dbops.CreateView):
+            dv = dbops.DropView(
+                cv.view.name,
+                conditions=[dbops.ViewExists(cv.view.name)],
+            )
+        elif isinstance(cv, dbops.CreateFunction):
+            dv = dbops.DropFunction(
+                cv.function.name,
+                args=cv.function.args or (),
+                has_variadic=bool(cv.function.has_variadic),
+                if_exists=True,
+            )
+        else:
+            raise AssertionError(f'unsupported support view command {cv}')
+        dv.generate(preblock)
+
+
 def prepare_patch(
     num: int,
     kind: str,
@@ -829,6 +852,16 @@ def prepare_patch(
 
         metadata_user_schema = cschema.get_top_schema()
 
+    elif kind == 'sql-introspection':
+        support_view_commands = dbops.CommandGroup()
+        support_view_commands.add_commands(
+            metaschema._generate_sql_information_schema())
+        support_view_commands.generate(subblock)
+
+        _generate_drop_views(support_view_commands, preblock)
+
+        metadata_user_schema = reflschema
+
     else:
         raise AssertionError(f'unknown patch type {kind}')
 
@@ -877,23 +910,7 @@ def prepare_patch(
         support_view_commands.add_commands(
             metaschema._generate_sql_information_schema())
 
-        for cv in reversed(list(support_view_commands)):
-            dv: Any
-            if isinstance(cv, dbops.CreateView):
-                dv = dbops.DropView(
-                    cv.view.name,
-                    conditions=[dbops.ViewExists(cv.view.name)],
-                )
-            elif isinstance(cv, dbops.CreateFunction):
-                dv = dbops.DropFunction(
-                    cv.function.name,
-                    args=cv.function.args or (),
-                    has_variadic=bool(cv.function.has_variadic),
-                    if_exists=True,
-                )
-            else:
-                raise AssertionError(f'unsupported support view command {cv}')
-            dv.generate(preblock)
+        _generate_drop_views(support_view_commands, preblock)
 
         # We want to limit how much unconditional work we do, so only recreate
         # extension views if requested.
