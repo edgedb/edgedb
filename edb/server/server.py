@@ -1283,15 +1283,18 @@ class Server(BaseServer):
 
                 if sql:
                     await conn.sql_fetch(sql)
+                logger.info(
+                    "finished applying patch %d to database '%s'", num, dbname)
 
     async def _maybe_patch_db(
-        self, dbname: str, patches: dict[int, bootstrap.PatchEntry]
+        self, dbname: str, patches: dict[int, bootstrap.PatchEntry], sem: Any
     ) -> None:
         logger.info("applying patches to database '%s'", dbname)
 
         try:
-            async with self._tenant.direct_pgcon(dbname) as conn:
-                await self._maybe_apply_patches(dbname, conn, patches)
+            async with sem:
+                async with self._tenant.direct_pgcon(dbname) as conn:
+                    await self._maybe_apply_patches(dbname, conn, patches)
         except Exception as e:
             if (
                 isinstance(e, errors.EdgeDBError)
@@ -1314,15 +1317,21 @@ class Server(BaseServer):
             dbnames = await self.get_dbnames(syscon)
 
         async with taskgroup.TaskGroup(name='apply patches') as g:
+            # Cap the parallelism used when applying patches, to avoid
+            # having huge numbers of in flight patches that make
+            # little visible progress in the logs.
+            sem = asyncio.Semaphore(16)
+
             # Patch all the databases
             for dbname in dbnames:
                 if dbname != defines.EDGEDB_SYSTEM_DB:
-                    g.create_task(self._maybe_patch_db(dbname, patches))
+                    g.create_task(
+                        self._maybe_patch_db(dbname, patches, sem))
 
             # Patch the template db, so that any newly created databases
             # will have the patches.
             g.create_task(self._maybe_patch_db(
-                defines.EDGEDB_TEMPLATE_DB, patches))
+                defines.EDGEDB_TEMPLATE_DB, patches, sem))
 
         await self._tenant.ensure_database_not_connected(
             defines.EDGEDB_TEMPLATE_DB
