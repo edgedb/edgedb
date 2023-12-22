@@ -768,6 +768,7 @@ def prepare_patch(
     updates: dict[str, Any] = {}
 
     global_schema_update = kind == 'ext-pkg'
+    sys_update_only = global_schema_update or kind.endswith('+globalonly')
 
     if kind == 'ext-pkg':
         # N.B: We process this without actually having the global
@@ -1025,7 +1026,7 @@ def prepare_patch(
     # perhaps), only run the script once, on the system connection.
     # Since the state is global, we only should update it once.
     regular_updates: tuple[str, ...]
-    if global_schema_update:
+    if sys_update_only:
         regular_updates = (update,)
         sys_updates = (patch,) + sys_updates
     else:
