@@ -33,9 +33,7 @@ CREATE ABSTRACT TYPE sys::SystemObject EXTENDING schema::Object;
 CREATE ABSTRACT TYPE sys::ExternalObject EXTENDING sys::SystemObject;
 
 
-CREATE TYPE sys::Database EXTENDING
-        sys::ExternalObject,
-        schema::AnnotationSubject {
+CREATE TYPE sys::Database EXTENDING sys::ExternalObject {
     ALTER PROPERTY name {
         CREATE CONSTRAINT std::exclusive;
     };

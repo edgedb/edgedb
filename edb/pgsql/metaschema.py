@@ -4642,10 +4642,6 @@ def format_fields(
 
 def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
     Database = schema.get('sys::Database', type=s_objtypes.ObjectType)
-    annos = Database.getptr(
-        schema, s_name.UnqualName('annotations'), type=s_links.Link)
-    int_annos = Database.getptr(
-        schema, s_name.UnqualName('annotations__internal'), type=s_links.Link)
 
     view_fields = {
         'id': "((d.description)->>'id')::uuid",
@@ -4682,57 +4678,8 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
             AND (d.description)->>'tenant_id' = edgedb.get_backend_tenant_id()
     '''
 
-    annos_link_fields = {
-        'source': "((d.description)->>'id')::uuid",
-        'target': "(annotations->>'id')::uuid",
-        'value': "(annotations->>'value')::text",
-        'owned': "(annotations->>'owned')::bool",
-    }
-
-    annos_link_query = f'''
-        SELECT
-            {format_fields(schema, annos, annos_link_fields)}
-        FROM
-            pg_database dat
-            CROSS JOIN LATERAL (
-                SELECT
-                    edgedb.shobj_metadata(dat.oid, 'pg_database')
-                        AS description
-            ) AS d
-            CROSS JOIN LATERAL
-                ROWS FROM (
-                    jsonb_array_elements((d.description)->'annotations')
-                ) AS annotations
-    '''
-
-    int_annos_link_fields = {
-        'source': "((d.description)->>'id')::uuid",
-        'target': "(annotations->>'id')::uuid",
-        'owned': "(annotations->>'owned')::bool",
-    }
-
-    int_annos_link_query = f'''
-        SELECT
-            {format_fields(schema, int_annos, int_annos_link_fields)}
-        FROM
-            pg_database dat
-            CROSS JOIN LATERAL (
-                SELECT
-                    edgedb.shobj_metadata(dat.oid, 'pg_database')
-                        AS description
-            ) AS d
-            CROSS JOIN LATERAL
-                ROWS FROM (
-                    jsonb_array_elements(
-                        (d.description)->'annotations__internal'
-                    )
-                ) AS annotations
-    '''
-
     objects = {
         Database: view_query,
-        annos: annos_link_query,
-        int_annos: int_annos_link_query,
     }
 
     views = []
