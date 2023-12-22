@@ -2034,7 +2034,7 @@ class _EdgeDBServer:
     async def kill_process(self, proc: asyncio.Process):
         proc.terminate()
         try:
-            await asyncio.wait_for(proc.wait(), timeout=20)
+            await asyncio.wait_for(proc.wait(), timeout=60)
         except TimeoutError:
             proc.kill()
 
