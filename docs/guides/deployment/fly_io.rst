@@ -82,7 +82,7 @@ your current directory.:
       image = "edgedb/edgedb"
 
     [[vm]]
-      memory = "1gb"
+      memory = "512mb"
       cpus = 1
       cpu-kind = "shared"
 
