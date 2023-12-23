@@ -601,7 +601,7 @@ Bug fixes
   (:eql:gh:`#6577`)
 
 * Optimize the compiler and reduce time of an update test by ~52%
-  (:eql:gh:`#6577`)
+  (:eql:gh:`#6579`)
   
 * Always retry system connection on any BackendError
   (:eql:gh:`#6588`)
