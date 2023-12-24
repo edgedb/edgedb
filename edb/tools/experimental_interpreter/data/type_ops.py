@@ -421,8 +421,23 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                             result_base_tp, result_mode)
                     else:
                         raise ValueError("Label not found")
+                case e.UnionTp(_, _):
+                    tps = collect_tp_union(tp.tp)
+                    result_tps = [tp_project(ctx, e.ResultTp(u_tp, tp.mode), e.StrLabel(lbl)) for u_tp in tps]
+                    result = result_tps[0]
+                    if all(r_tp == result for r_tp in result_tps):
+                        return result
+                    else:
+                        raise ValueError("Ambiguous union projection", result_tps)
+                case e.IntersectTp(l, r):
+                    l_sub = tp_project(ctx, e.ResultTp(l, tp.mode), e.StrLabel(lbl))
+                    r_sub = tp_project(ctx, e.ResultTp(r, tp.mode), e.StrLabel(lbl))
+                    if l_sub.mode == r_sub.mode:
+                        return e.ResultTp(e.IntersectTp(l_sub.tp, r_sub.tp), l_sub.mode)
+                    else:
+                        raise ValueError("Ambiguous intersection projection", l_sub, r_sub)
                 case _:
-                    raise ValueError("Cannot tp_project a label "
+                    raise ValueError("Cannot tp_project a label ", label,
                                      "from a non object type", pp.show(tp.tp))
 
 

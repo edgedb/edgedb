@@ -326,6 +326,8 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
                     if qle.limit is not None else IntInfVal(),)))
     else:
         subject_elab = elab(qle.result)
+        # if isinstance(subject_elab, FreeVarExpr):
+        #     subject_elab = e.ShapedExprExpr(expr=subject_elab, shape=ShapeExpr({})) # if selecting only a variable, we need to add an empty shape to shadow the 
         filter_elab = elab_where(qle.where)
         order_elab = elab_orderby(qle.orderby)
         if qle.result_alias is not None:

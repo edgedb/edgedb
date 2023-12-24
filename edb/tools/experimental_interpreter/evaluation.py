@@ -158,6 +158,16 @@ def limit_vals(val: Sequence[Val],
         case _:
             raise ValueError("offset must be an int")
 
+def make_invisible(val : MultiSetVal) -> MultiSetVal:
+    result : List[Val] = []
+    for v in val.vals:
+        match v:
+            case RefVal(refid=id, val=dictval):
+                result = [*result, RefVal(refid=id, val=ObjectVal({k: (Invisible(), v) for k, (_, v) in dictval.val.items()}))]
+            case _:
+                result = [*result, v]
+    return MultiSetVal(result)
+
 
 class EvaluationLogsWrapper:
     def __init__(self):
@@ -193,6 +203,7 @@ eval_logs_wrapper = EvaluationLogsWrapper()
 
 def call_user_defined_funcs():
     pass
+
 
 
 # the database is a mutable reference that keeps track of a read snapshot inside
@@ -256,7 +267,8 @@ def eval_expr(ctx: EvalEnv,
             return MultiSetVal(after_shape)
         case FreeVarExpr(var=name):
             if name in ctx.keys():
-                return ctx[name]
+                # binder needs to be invisible when selected
+                return (ctx[name]) 
             else:
                 raise ValueError("Variable not found", name)
         case e.QualifiedName(names=names):

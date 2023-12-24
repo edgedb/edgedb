@@ -20,7 +20,7 @@ def label_to_str(lbl: Label) -> str:
     raise ValueError("MATCH")
 
 
-def objectval_to_json_like(objv: ObjectVal) -> json_like:
+def objectval_to_json_like(objv: ObjectVal) -> Dict[str, json_like]:
     return {label_to_str(k): multi_set_val_to_json_like(v[1])
             for (k, v) in objv.val.items() if
             isinstance(v[0], Visible)}
@@ -33,8 +33,11 @@ def val_to_json_like(v: Val) -> json_like:
                 return v
             else:
                 raise ValueError("not implemented")
-        case RefVal(_, object):
-            return objectval_to_json_like(object)
+        case RefVal(refid, object):
+            object_val_result =  objectval_to_json_like(object)
+            if len(object_val_result) == 0:
+                object_val_result['id'] = refid
+            return object_val_result
         # case FreeVal(object):
         #     return objectval_to_json_like(object)
         case ArrVal(val=array):
