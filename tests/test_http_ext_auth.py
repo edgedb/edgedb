@@ -200,7 +200,7 @@ class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 
-ResponseType = tuple[str, int]
+ResponseType = tuple[str, int] | tuple[str, int, dict[str, str]]
 
 
 class MockAuthProvider:
@@ -261,12 +261,21 @@ class MockAuthProvider:
 
         if callable(registered_handler):
             try:
-                response, status = registered_handler(handler)
+                handler_result = registered_handler(handler)
+                if len(handler_result) == 2:
+                    response, status = handler_result
+                    additional_headers = None
+                elif len(handler_result) == 3:
+                    response, status, additional_headers = handler_result
             except Exception:
                 handler.send_error(500)
                 raise
         else:
-            response, status = registered_handler
+            if len(registered_handler) == 2:
+                response, status = registered_handler
+                additional_headers = None
+            elif len(registered_handler) == 3:
+                response, status, additional_headers = registered_handler
 
         if "headers" in request_details and isinstance(
             request_details["headers"], dict
@@ -300,6 +309,9 @@ class MockAuthProvider:
         handler.send_response(status)
         handler.send_header('Content-Type', content_type)
         handler.send_header('Content-Length', str(len(data)))
+        if additional_headers is not None:
+            for header, value in additional_headers.items():
+                handler.send_header(header, value)
         handler.end_headers()
         handler.wfile.write(data)
 
@@ -991,6 +1003,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 (
                     json.dumps(GOOGLE_DISCOVERY_DOCUMENT),
                     200,
+                    {"cache-control": "max-age=3600"},
                 )
             )
 
