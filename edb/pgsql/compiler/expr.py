@@ -136,6 +136,11 @@ def compile_Parameter(
     else:
         index = ctx.argmap[expr.name].index
         result = pgast.ParamRef(number=index, nullable=not expr.required)
+        if ctx.env.detach_params:
+            # Extract the type casting to build a stored function later
+            ctx.detached_params[index] = pg_types.pg_type_from_ir_typeref(
+                expr.typeref)
+            return result
 
     return pgast.TypeCast(
         arg=result,
