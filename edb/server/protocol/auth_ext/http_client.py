@@ -53,7 +53,7 @@ class InMemoryStorage(hishel._async._storages.AsyncBaseStorage):
         super().__init__()
         self._storage = lru.LRUMapping(maxsize=maxsize)
 
-    def store(self, key: str, response, request, metadata):
+    async def store(self, key: str, response, request, metadata):
         self._storage[key] = (response, request, metadata)
 
     async def retreive(self, key: str):
