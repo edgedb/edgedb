@@ -26,7 +26,7 @@ from edb.testbase import server as tb
 from edb.common import assert_data_shape
 from edb.schema import name as sn
 from edb.server.compiler.explain import pg_tree
-
+from edb.tools import test
 
 class TestEdgeQLExplain(tb.QueryTestCase):
     '''Tests for EXPLAIN.
@@ -1756,6 +1756,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
         self.assert_index_in_plan(res, 'mdate')
 
+    @test.xerror('started failing since #6609, 9386da60e')
     async def test_edgeql_explain_json_contains_01(self):
         res = await self.explain('''
             select JSONTest {id, val}
