@@ -11,6 +11,7 @@ from ..data import path_factor as path_factor
 from .dml_checking import *
 from ..data import expr_to_str as pp
 from .function_checking import *
+from .cast_checking import check_castable
 
 
 def synthesize_type_for_val(val: e.Val) -> e.Tp:
@@ -186,7 +187,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 result_tp = tp_ck
             else:
                 (arg_tp, arg_v) = synthesize_type(ctx, arg)
-                if (arg_tp.tp, tp_ck) in ctx.schema.casts:
+                if check_castable(ctx, arg_tp.tp, tp_ck):
                 # (result_tp, result_card) = type_cast_tp(ctx, arg_tp, tp_ck)
                     (result_tp, result_card) = (tp_ck, arg_tp.mode)
                     result_expr = e.CheckedTypeCastExpr(
