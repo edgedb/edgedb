@@ -814,7 +814,7 @@ def generate_structure(
                 # TODO: For future versions, we can probably just
                 # drop it.
                 if (
-                    str(rschema_name) == 'sys::Database'
+                    str(rschema_name) in ('sys::Database', 'sys::Role')
                     and refdict.attr == 'annotations'
                 ):
                     props = {}
