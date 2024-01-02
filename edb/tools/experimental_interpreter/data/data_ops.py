@@ -148,11 +148,20 @@ class UnionTp:
     left: Tp
     right: Tp
 
+    def __post_init__(self):
+        if self.left == self.right:
+            raise ValueError("Do not use union tp for identical types")
+
 
 @dataclass(frozen=True)
 class IntersectTp:
     left: Tp
     right: Tp
+
+    def __post_init__(self):
+        if self.left == self.right:
+            raise ValueError("Do not use intersect tp for identical types")
+
 
 @dataclass(frozen=True)
 class NamedNominalLinkTp:

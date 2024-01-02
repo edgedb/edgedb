@@ -6,6 +6,7 @@ from . import expr_ops as eops
 from typing import List, Dict, Tuple, Optional, Callable
 from . import module_ops as mops
 from ..data import expr_to_str as pp
+from functools import reduce
 
 def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
     # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
@@ -24,6 +25,12 @@ def construct_tp_union(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
         return tp1
     else:
         return e.UnionTp(tp1, tp2)
+
+def construct_tps_union(tps: List[e.Tp]) -> e.Tp:
+    assert len(tps) > 0
+    return reduce(construct_tp_union, tps)
+
+
 
 
 def collect_tp_union(tp1: e.Tp) -> List[e.Tp]:
@@ -111,6 +118,20 @@ def type_subtyping_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
         match tp1, tp2:
             case _, e.AnyTp():
                 return True
+
+            # Union and intersections before expansion of names
+            case (e.UnionTp(left=tp1_left, right=tp1_right), _):
+                return recurse(ctx, tp1_left, tp2) and recurse(ctx, tp1_right, tp2)
+
+            case (_, e.UnionTp(left=tp2_left, right=tp2_right)):
+                return recurse(ctx, tp1, tp2_left) or recurse(ctx, tp1, tp2_right)
+
+            case (_, e.IntersectTp(left=tp2_left, right=tp2_right)):
+                return recurse(ctx, tp1, tp2_left) and recurse(ctx, tp1, tp2_right)
+
+            case (e.IntersectTp(left=tp1_left, right=tp1_right), _):
+                return recurse(ctx, tp1_left, tp2) or recurse(ctx, tp1_right, tp2)
+
             case e.ObjectTp(val=tp1_val), e.ObjectTp(val=tp2_val):
                 if set(tp1_val.keys()) != set(tp2_val.keys()):
                     return False
@@ -124,7 +145,8 @@ def type_subtyping_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
                     e.NominalLinkTp(name=n_2, subject=s_2, linkprop=lp_2)):
                     
                 if is_nominal_subtype_in_schema(ctx, n_1, n_2):
-                    return (recurse(ctx, s_1, s_2) and 
+                    return (
+                        recurse(ctx, s_1, s_2) and  
                         recurse(ctx, lp_1, lp_2))
                 else:
                     return False
@@ -151,12 +173,6 @@ def type_subtyping_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
                                     name=e.QualifiedName(n_1),
                                     linkprop=lp_1), tp2)
 
-            # Union and intersections
-            case (e.UnionTp(left=tp1_left, right=tp1_right), _):
-                return recurse(ctx, tp1_left, tp2) and recurse(ctx, tp1_right, tp2)
-
-            case (_, e.UnionTp(left=tp2_left, right=tp2_right)):
-                return recurse(ctx, tp1, tp2_left) or recurse(ctx, tp1, tp2_right)
 
             # Other structural typing
             case (e.CompositeTp(kind=kind1, tps=tps1), e.CompositeTp(kind=kind2, tps=tps2)):
@@ -354,7 +370,7 @@ def is_order_spec(tp: e.ResultTp) -> bool:
     return True
     
 
-def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
+def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
 
     def post_process_result_base_tp(result_base_tp: e.Tp, 
                                     result_mode: e.CMMode) -> e.ResultTp:

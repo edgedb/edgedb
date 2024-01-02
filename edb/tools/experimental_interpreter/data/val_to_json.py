@@ -59,45 +59,49 @@ def multi_set_val_to_json_like(m: MultiSetVal) -> json_like:
 
 
 def typed_objectval_to_json_like(objv: ObjectVal,
-                                 obj_tp: e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp,
+                                 obj_tp: e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp | e.UnionTp,
                                  dbschema: e.DBSchema) -> Dict[str, json_like]:
     result: Dict[str, json_like] = {}
     for (k, v) in objv.val.items():
         if isinstance(v[0], Visible):
-            match k:
-                case StrLabel(s):
-                    match obj_tp:
-                        case e.ObjectTp(val=tp_vals):
-                            if s not in tp_vals.keys():
-                                raise ValueError("label not found", s)
-                            result[label_to_str(k)] = \
-                                typed_multi_set_val_to_json_like(
-                                    tp_vals[s], v[1], dbschema)
-                        case e.NamedNominalLinkTp(name=name, linkprop=_):
-                            assert isinstance(name, e.QualifiedName)
-                            subject = tops.dereference_var_tp(dbschema, name)
-                            result[label_to_str(k)] = \
-                                typed_multi_set_val_to_json_like(
-                                    subject.val[s], v[1], dbschema)
-                        case e.NominalLinkTp(name=_, subject=subject, linkprop=_):
-                            if not isinstance(subject, e.ObjectTp):
-                                raise ValueError("Expecting objecttp", subject)
-                            if s not in subject.val.keys():
-                                raise ValueError("label not found", s)
-                            result[label_to_str(k)] = \
-                                typed_multi_set_val_to_json_like(
-                                    subject.val[s], v[1], dbschema)
-                        case _:
-                            raise ValueError("Expecting objecttp", obj_tp)
-                case LinkPropLabel(s):
-                    if (not isinstance(obj_tp, e.NominalLinkTp)
-                        and not isinstance(obj_tp, e.NamedNominalLinkTp)):
-                        raise ValueError("Expecting linkproptp", obj_tp)
-                    if s not in obj_tp.linkprop.val.keys():
-                        raise ValueError("label not found", s)
-                    result[label_to_str(k)] = \
-                        typed_multi_set_val_to_json_like(
-                            obj_tp.linkprop.val[s], v[1], dbschema)
+            sub_tp = tops.tp_project(dbschema, e.ResultTp(tp=obj_tp, mode=e.CardOne), k)
+            result[label_to_str(k)] = typed_multi_set_val_to_json_like(
+                sub_tp, v[1], dbschema)
+
+            # match k:
+            #     case StrLabel(s):
+            #         match obj_tp:
+            #             case e.ObjectTp(val=tp_vals):
+            #                 if s not in tp_vals.keys():
+            #                     raise ValueError("label not found", s)
+            #                 result[label_to_str(k)] = \
+            #                     typed_multi_set_val_to_json_like(
+            #                         tp_vals[s], v[1], dbschema)
+            #             case e.NamedNominalLinkTp(name=name, linkprop=_):
+            #                 assert isinstance(name, e.QualifiedName)
+            #                 subject = tops.dereference_var_tp(dbschema, name)
+            #                 result[label_to_str(k)] = \
+            #                     typed_multi_set_val_to_json_like(
+            #                         subject.val[s], v[1], dbschema)
+            #             case e.NominalLinkTp(name=_, subject=subject, linkprop=_):
+            #                 if not isinstance(subject, e.ObjectTp):
+            #                     raise ValueError("Expecting objecttp", subject)
+            #                 if s not in subject.val.keys():
+            #                     raise ValueError("label not found", s)
+            #                 result[label_to_str(k)] = \
+            #                     typed_multi_set_val_to_json_like(
+            #                         subject.val[s], v[1], dbschema)
+            #             case _:
+            #                 raise ValueError("Expecting objecttp", obj_tp)
+            #     case LinkPropLabel(s):
+            #         if (not isinstance(obj_tp, e.NominalLinkTp)
+            #             and not isinstance(obj_tp, e.NamedNominalLinkTp)):
+            #             raise ValueError("Expecting linkproptp", obj_tp)
+            #         if s not in obj_tp.linkprop.val.keys():
+            #             raise ValueError("label not found", s)
+            #         result[label_to_str(k)] = \
+            #             typed_multi_set_val_to_json_like(
+            #                 obj_tp.linkprop.val[s], v[1], dbschema)
     return result
 
 
@@ -113,19 +117,24 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
             else:
                 raise ValueError("not implemented")
         case RefVal(refid, object):
-            # if (isinstance(tp, e.NominalLinkTp)
-            #         and tp.linkprop == e.ObjectTp({})):
-            #     tp = tp.subject
-            if not isinstance(tp, e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp):
+            if not isinstance(tp, e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp | e.UnionTp):
                 raise ValueError("Expecing objecttp", tp)
             object_val_result =  typed_objectval_to_json_like(object, tp, dbschema)
             if len(object_val_result) == 0:
                 object_val_result['id'] = refid
             return object_val_result
         case ArrVal(val=array):
-            if not isinstance(tp, e.CompositeTp) or tp.kind != e.CompositeTpKind.Array:
-                raise ValueError("Expecing array tp", tp)
-            return [typed_val_to_json_like(v, tp.tps[0], dbschema) for v in array]
+            match tp:
+                case e.CompositeTp(kind=e.CompositeTpKind.Array, tps=tps):
+                    return [typed_val_to_json_like(v, tps[0], dbschema) for v in array]
+                case e.UnionTp(l, r):
+                    tps = tops.collect_tp_union(tp)
+                    if all(isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Array for tp in tps):
+                        return [typed_val_to_json_like(v, tops.construct_tps_union([tp.tps[0] for tp in tps]), dbschema) for v in array] # type: ignore
+                    else:
+                        raise ValueError("Expecing array tp", tp)
+                case _:
+                    raise ValueError("Expecing array tp", tp)
         case UnnamedTupleVal(val=array):
             if not isinstance(tp, e.CompositeTp) or tp.kind != e.CompositeTpKind.Tuple:
                 raise ValueError("Expecing unnamed tuple tp", tp)

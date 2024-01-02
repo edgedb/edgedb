@@ -14,6 +14,20 @@ from edb.common import debug
 from ..data import expr_to_str as pp
 
 
+def refine_candidate_tp(tp : e.Tp) -> e.Tp:
+    match tp:
+        case e.NamedNominalLinkTp(name=name, linkprop=lp):
+            return e.NamedNominalLinkTp(name=name, linkprop=e.ObjectTp({}))
+        case e.NominalLinkTp(subject=subject, name=name, linkprop=lp):
+            # refine also drops subject which may contain additional properties
+            return e.NamedNominalLinkTp(name=name, linkprop=e.ObjectTp({}))
+        case e.UnionTp(l, r):
+            return e.UnionTp(refine_candidate_tp(l), refine_candidate_tp(r))
+        case e.IntersectTp(l, r):
+            return e.IntersectTp(refine_candidate_tp(l), refine_candidate_tp(r))
+        case _:
+            return tp
+
 def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunArgRetType) -> Optional[e.Tp]: # Returns the result Tp if matches
     """
     If matches, return the result type. Need to return result type because we have parametric ploymorphism.
@@ -41,12 +55,27 @@ def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunA
                     some_tp_mapping[i] = candidate_tp
                     break
             else:
-                # cannot find a unique assignment for a candidate type
-                return None
+                # the refined is used with the test case test_edgeql_select_subqueries_16
+                # where for std::IN, one argument has a link prop and the other do not
+                # I choose to remove the link prop uniformly in this case
+                refined_candidate_tps = [refine_candidate_tp(tp) for tp in candidate_tps]
+                for candidate_tp in refined_candidate_tps:
+                    if all(tops.check_is_subtype(ctx, tp, candidate_tp) for tp in refined_candidate_tps):
+                        some_tp_mapping[i] = candidate_tp
+                        break
+                else:
+                    # cannot find a unique assignment for a candidate type
+                    return None
         
     for i, (syn_tp, ck_tp) in enumerate(zip(tps_syn, args_ck_tps)):
-        if not tops.check_is_subtype_with_instantiation(ctx, syn_tp, ck_tp, some_tp_mapping):
-            return None
+        if tops.check_is_subtype_with_instantiation(ctx, syn_tp, ck_tp, some_tp_mapping):
+            continue
+        else:
+            syn_tp = refine_candidate_tp(syn_tp) # use refinement if it fails on the first run
+            if tops.check_is_subtype_with_instantiation(ctx, syn_tp, ck_tp, some_tp_mapping):
+                continue
+            else:
+                return None
 
     final_ret_tp = tops.recursive_instantiate_tp(ret_tp, some_tp_mapping)
     return final_ret_tp
