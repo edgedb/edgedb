@@ -27,6 +27,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
     s_tp: e.ObjectTp
     l_tp: e.ObjectTp
     s_name: e.QualifiedName
+
     # populate result skeleton
     match tp:
         case e.NominalLinkTp(name=name, subject=subject_tp, linkprop=linkprop_tp):
