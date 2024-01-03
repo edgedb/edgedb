@@ -74,6 +74,10 @@ A similar approach can be used for bulk updates.
 Conditional DML
 ---------------
 
+.. versionadded:: 4.0
+
+    DML is now supported in :eql:op:`if..else` as of EdgeDB 4.0.
+
 DML (i.e., :ref:`insert <ref_eql_insert>`, :ref:`update <ref_eql_update>`,
 :ref:`delete <ref_eql_delete>`) is not supported in :eql:op:`if..else`. If you
 need to do one of these conditionally, you can use a ``for`` loop as a
