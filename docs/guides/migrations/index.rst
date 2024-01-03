@@ -1,12 +1,15 @@
 .. _ref_guide_advanced_migrations:
 
-==================
-Migration Patterns
-==================
+===============
+Migration Guide
+===============
+
+Welcome to the guide to EdgeDB migrations! Let's get started.
 
 .. toctree::
     :maxdepth: 3
 
+    guide
     names
     backlink
     proptype
