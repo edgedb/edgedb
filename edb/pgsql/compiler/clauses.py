@@ -409,8 +409,11 @@ def fini_toplevel(
     # Type rewrites go first.
     if stmt.ctes is None:
         stmt.ctes = []
-    stmt.ctes[:0] = list(ctx.param_ctes.values())
-    stmt.ctes[:0] = list(ctx.type_ctes.values())
+    stmt.ctes[:0] = [
+        *ctx.param_ctes.values(),
+        *ctx.ptr_ctes.values(),
+        *ctx.type_ctes.values(),
+    ]
 
     if ctx.env.named_param_prefix is None:
         # Adding unused parameters into a CTE

@@ -220,7 +220,11 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: CTEs representing decoded parameters
     param_ctes: Dict[str, pgast.CommonTableExpr]
 
-    #: CTEs representing schema types, when rewritten based on access policy
+    #: CTEs representing pointer tables that we need to force to be
+    #: materialized for performance reasons.
+    ptr_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
+
+    #: CTEs representing types, when rewritten based on access policy
     type_ctes: Dict[FullRewriteKey, pgast.CommonTableExpr]
 
     #: A set of type CTEs currently being generated
@@ -322,6 +326,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel = NO_STMT
             self.rel_hierarchy = {}
             self.param_ctes = {}
+            self.ptr_ctes = {}
             self.type_ctes = {}
             self.pending_type_ctes = set()
             self.dml_stmts = {}
@@ -361,6 +366,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel = prevlevel.rel
             self.rel_hierarchy = prevlevel.rel_hierarchy
             self.param_ctes = prevlevel.param_ctes
+            self.ptr_ctes = prevlevel.ptr_ctes
             self.type_ctes = prevlevel.type_ctes
             self.pending_type_ctes = prevlevel.pending_type_ctes
             self.dml_stmts = prevlevel.dml_stmts

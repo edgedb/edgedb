@@ -1360,6 +1360,21 @@ def _lateral_union_join(
             type='cross', larg=larg, rarg=rarg)
 
 
+def _needs_cte(typeref: irast.TypeRef) -> bool:
+    """Check whether a typeref needs to be forced into a materialized CTE.
+
+    The main use case here is for sys::SystemObjects which are stored as
+    views that populate their data by parsing JSON metadata embedded in
+    comments on the SQL system objects. The query plans when fetching multi
+    links from these objects wind up being pretty pathologically quadratic.
+
+    So instead we force the objects and links into materialized CTEs
+    so that they *can't* be shoved into nested loops.
+    """
+    assert isinstance(typeref.name_hint, sn.QualName)
+    return typeref.name_hint.module == 'sys'
+
+
 def range_for_material_objtype(
     typeref: irast.TypeRef,
     path_id: irast.PathId,
@@ -1393,12 +1408,24 @@ def range_for_material_objtype(
     )
     rw_key = (typeref.id, include_descendants)
     key = rw_key + (dml_source_key,)
+    force_cte = _needs_cte(typeref)
     if (
         (not ignore_rewrites or is_global)
-        and (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
+        and (
+            (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
+            or force_cte
+        )
         and rw_key not in ctx.pending_type_ctes
         and not for_mutation
     ):
+        if not rewrite:
+            # If we are forcing CTE materialization but there is not a
+            # real rewrite, then create a trivial one.
+            rewrite = irast.Set(
+                path_id=irast.PathId.from_typeref(typeref, namespace={'rw'}),
+                typeref=typeref,
+            )
+
         # Don't include overlays in the normal way in trigger mode
         # when a type cte is used, because we bake the overlays into
         # the cte instead (and so including them normally could union
@@ -1433,9 +1460,9 @@ def range_for_material_objtype(
                     type_rel = sctx.rel
                 else:
                     type_cte = pgast.CommonTableExpr(
-                        name=ctx.env.aliases.get('t'),
+                        name=ctx.env.aliases.get(f't_{typeref.name_hint}'),
                         query=sctx.rel,
-                        materialized=is_global,
+                        materialized=is_global or force_cte,
                     )
                     ctx.type_ctes[key] = type_cte
                     type_rel = type_cte
@@ -1789,6 +1816,36 @@ def range_from_queryset(
     return rvar
 
 
+def _make_link_table_cte(
+    ptrref: irast.PointerRef,
+    relation: pgast.Relation,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.Relation:
+    if (ptr_cte := ctx.ptr_ctes.get(ptrref.id)) is None:
+        ptr_select = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(val=pgast.ColumnRef(name=[pgast.Star()])),
+            ],
+            from_clause=[pgast.RelRangeVar(relation=relation)],
+        )
+        ptr_cte = pgast.CommonTableExpr(
+            name=ctx.env.aliases.get(f'p_{ptrref.name}'),
+            query=ptr_select,
+            materialized=True,
+        )
+        ctx.ptr_ctes[ptrref.id] = ptr_cte
+
+    # We've set up the CTE to be a perfect drop in replacement for
+    # the real table (with a select *), so instead of pointing the
+    # rvar at the CTE (which would require routing path ids), just
+    # treat it like a base relation.
+    return pgast.Relation(
+        name=ptr_cte.name,
+        type_or_ptr_ref=ptrref,
+    )
+
+
 def table_from_ptrref(
     ptrref: irast.PointerRef,
     ptr_info: pg_types.PointerStorageInfo,
@@ -1810,6 +1867,9 @@ def table_from_ptrref(
         name=table_name,
         type_or_ptr_ref=ptrref,
     )
+
+    if aspect == 'inhview' and _needs_cte(ptrref.out_source):
+        relation = _make_link_table_cte(ptrref, relation, ctx=ctx)
 
     # Pseudo pointers (tuple and type intersection) have no schema id.
     sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
