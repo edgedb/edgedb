@@ -78,6 +78,21 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := false;
     };
 
+    # Fully suppress apply_query_rewrites, like is done for internal
+    # reflection queries.
+    CREATE PROPERTY __internal_no_apply_query_rewrites -> std::bool {
+        CREATE ANNOTATION cfg::internal := 'true';
+        SET default := false;
+    };
+
+    # Use the "reflection schema" as the base schema instead of the
+    # normal std schema. This allows looking at all the schema fields
+    # that are hidden in the public introspection schema.
+    CREATE PROPERTY __internal_query_reflschema -> std::bool {
+        CREATE ANNOTATION cfg::internal := 'true';
+        SET default := false;
+    };
+
     CREATE PROPERTY __internal_restart -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
         CREATE ANNOTATION cfg::system := 'true';
