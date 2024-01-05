@@ -4999,7 +4999,7 @@ class PointerMetaCommand(
                 lexpr=pgast.StringConstant(val='{"object_id": "'),
                 rexpr=pgast.Expr(
                     name='||',
-                    lexpr=pgast.ColumnRef(name=('id', )),
+                    lexpr=pgast.ColumnRef(name=('id',)),
                     rexpr=pgast.StringConstant(val='"}'),
                 )
             )
@@ -5008,7 +5008,7 @@ class PointerMetaCommand(
             null_check = pgast.FuncCall(
                 name=("edgedb", "raise_on_null"),
                 args=[
-                    pgast.ColumnRef(name=("val", )),
+                    pgast.ColumnRef(name=("val",)),
                     pgast.StringConstant(val="not_null_violation"),
                     pgast.NamedFuncArg(name="msg", val=msg),
                     pgast.NamedFuncArg(name="detail", val=detail),
@@ -5021,7 +5021,7 @@ class PointerMetaCommand(
             if produce_ctes:
                 inner_colnames.append("id")
                 target_list.append(
-                    pgast.ResTarget(val=pgast.ColumnRef(name=("id", )))
+                    pgast.ResTarget(val=pgast.ColumnRef(name=("id",)))
                 )
 
             sql_tree = pgast.SelectStmt(
@@ -5040,11 +5040,13 @@ class PointerMetaCommand(
 
         if produce_ctes:
             # convert root query into last CTE
-            ctes.append(pgast.CommonTableExpr(
-                name="_conv_rel",
-                aliascolnames=["val", "id"],
-                query=sql_tree
-            ))
+            ctes.append(
+                pgast.CommonTableExpr(
+                    name="_conv_rel",
+                    aliascolnames=["val", "id"],
+                    query=sql_tree,
+                )
+            )
             # compile to SQL
             ctes_sql = codegen.generate_ctes_source(ctes)
 

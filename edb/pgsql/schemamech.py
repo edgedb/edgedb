@@ -120,8 +120,11 @@ def _edgeql_tree_to_expr_data(
     sql_expr: pgast.Base, refs: Optional[Set[pgast.ColumnRef]] = None
 ) -> ExprDataSources:
     if refs is None:
-        refs = set(ast.find_children(
-            sql_expr, pgast.ColumnRef, lambda n: len(n.name) == 1))
+        refs = set(
+            ast.find_children(
+                sql_expr, pgast.ColumnRef, lambda n: len(n.name) == 1
+            )
+        )
 
     plain_expr = _to_source(sql_expr)
 
@@ -187,9 +190,7 @@ def _edgeql_ref_to_pg_constr(
     # Find all field references
     #
     refs = set(
-        ast.find_children(
-            sql_expr, pgast.ColumnRef, lambda n: len(n.name) == 1
-        )
+        ast.find_children(sql_expr, pgast.ColumnRef, lambda n: len(n.name) == 1)
     )
 
     if isinstance(subject, s_scalars.ScalarType):
