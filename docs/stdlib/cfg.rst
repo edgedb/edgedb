@@ -116,6 +116,29 @@ Query behavior
       UI session, so you won't have to remember to re-enable it when you're
       done.
 
+:eql:synopsis:`force_database_error -> str`
+  A hook to force all queries to produce an error. Defaults to 'false'.
+
+  .. note::
+
+      This parameter takes a ``str`` instead of a ``bool`` to allow more
+      verbose messages when all queries are forced to fail. The database will
+      attempt to deserialize this ``str`` into a JSON object that must include
+      a ``type`` (which must be an EdgeDB
+      :ref:`error type <ref_protocol_errors>` name), and may also include
+      ``message``, ``hint``, and ``details`` which can be set ad-hoc by
+      the user.
+
+      For example, the following is valid input:
+      
+      ``'{ "type": "QueryError",
+      "message": "Did not work",
+      "hint": "Try doing something else",
+      "details": "Indeed, something went really wrong" }'``
+
+      As is this:
+
+      ``'{ "type": "UnknownParameterError" }'``
 
 .. _ref_std_cfg_client_connections:
 
