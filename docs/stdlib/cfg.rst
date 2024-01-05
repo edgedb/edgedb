@@ -124,9 +124,10 @@ Query behavior
       This parameter takes a ``str`` instead of a ``bool`` to allow more
       verbose messages when all queries are forced to fail. The database will
       attempt to deserialize this ``str`` into a JSON object that must include
-      a ``type`` (which must be an EdgeDB error type name), and may also
-      include ``message``, ``hint``, and ``details`` which can be set ad-hoc
-      by the user.
+      a ``type`` (which must be an EdgeDB
+      :ref:`error type <ref_protocol_errors>` name), and may also include
+      ``message``, ``hint``, and ``details`` which can be set ad-hoc by
+      the user.
 
       For example, the following is valid input:
       
