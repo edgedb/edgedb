@@ -1738,6 +1738,8 @@ def _compile_ql_administer(
         return ddl.administer_repair_schema(ctx, ql)
     elif ql.expr.func == 'reindex':
         return ddl.administer_reindex(ctx, ql)
+    elif ql.expr.func == 'vacuum':
+        return ddl.administer_vacuum(ctx, ql)
     else:
         raise errors.QueryError(
             'Unknown ADMINISTER function',
