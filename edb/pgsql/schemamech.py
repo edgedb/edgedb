@@ -46,7 +46,7 @@ from edb.schema import sources as s_sources
 from edb.common import ast
 from edb.common import parsing
 
-from . import ast as pg_ast
+from . import ast as pgast
 from . import dbops
 from . import deltadbops
 from . import common
@@ -106,26 +106,29 @@ class ExprDataSources:
     plain_chunks: Sequence[str]
 
 
-def _to_source(sql_expr: pg_ast.Base) -> str:
+def _to_source(sql_expr: pgast.Base) -> str:
     src = codegen.generate_source(sql_expr)
     # ColumnRefs are the most common thing, and they should be safe to
     # skip parenthesizing, for deuglification purposes. anything else
     # we put parens around, to be sure.
-    if not isinstance(sql_expr, pg_ast.ColumnRef):
+    if not isinstance(sql_expr, pgast.ColumnRef):
         src = f'({src})'
     return src
 
 
 def _edgeql_tree_to_expr_data(
-    sql_expr: pg_ast.Base, refs: Optional[Set[pg_ast.ColumnRef]] = None
+    sql_expr: pgast.Base, refs: Optional[Set[pgast.ColumnRef]] = None
 ) -> ExprDataSources:
     if refs is None:
-        refs = set(ast.find_children(
-            sql_expr, pg_ast.ColumnRef, lambda n: len(n.name) == 1))
+        refs = set(
+            ast.find_children(
+                sql_expr, pgast.ColumnRef, lambda n: len(n.name) == 1
+            )
+        )
 
     plain_expr = _to_source(sql_expr)
 
-    if isinstance(sql_expr, (pg_ast.RowExpr, pg_ast.ImplicitRowExpr)):
+    if isinstance(sql_expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
         chunks = []
 
         for elem in sql_expr.args:
@@ -133,7 +136,7 @@ def _edgeql_tree_to_expr_data(
     else:
         chunks = [plain_expr]
 
-    if isinstance(sql_expr, pg_ast.ColumnRef):
+    if isinstance(sql_expr, pgast.ColumnRef):
         refs.add(sql_expr)
 
     for ref in refs:
@@ -158,12 +161,12 @@ def _edgeql_ref_to_pg_constr(
 ) -> ExprData:
     sql_res = compiler.compile_ir_to_sql_tree(tree, singleton_mode=True)
 
-    sql_expr: pg_ast.Base
-    if isinstance(sql_res.ast, pg_ast.SelectStmt):
+    sql_expr: pgast.Base
+    if isinstance(sql_res.ast, pgast.SelectStmt):
         # XXX: use ast pattern matcher for this
         from_clause = sql_res.ast.from_clause[0]
-        assert isinstance(from_clause, pg_ast.RelRangeVar)
-        assert isinstance(from_clause.relation, pg_ast.CommonTableExpr)
+        assert isinstance(from_clause, pgast.RelRangeVar)
+        assert isinstance(from_clause.relation, pgast.CommonTableExpr)
         sql_expr = from_clause.relation.query.target_list[0].val
     else:
         sql_expr = sql_res.ast
@@ -174,22 +177,20 @@ def _edgeql_ref_to_pg_constr(
     if isinstance(tree, irast.Set) and isinstance(tree.expr, irast.SelectStmt):
         tree = tree.expr.result
 
-    is_multicol = isinstance(sql_expr, (pg_ast.RowExpr, pg_ast.ImplicitRowExpr))
+    is_multicol = isinstance(sql_expr, (pgast.RowExpr, pgast.ImplicitRowExpr))
 
     # Determine if the sequence of references are all simple refs, not
     # expressions.  This influences the type of Postgres constraint used.
     #
-    is_trivial = isinstance(sql_expr, pg_ast.ColumnRef) or (
-        isinstance(sql_expr, (pg_ast.RowExpr, pg_ast.ImplicitRowExpr))
-        and all(isinstance(el, pg_ast.ColumnRef) for el in sql_expr.args)
+    is_trivial = isinstance(sql_expr, pgast.ColumnRef) or (
+        isinstance(sql_expr, (pgast.RowExpr, pgast.ImplicitRowExpr))
+        and all(isinstance(el, pgast.ColumnRef) for el in sql_expr.args)
     )
 
     # Find all field references
     #
     refs = set(
-        ast.find_children(
-            sql_expr, pg_ast.ColumnRef, lambda n: len(n.name) == 1
-        )
+        ast.find_children(sql_expr, pgast.ColumnRef, lambda n: len(n.name) == 1)
     )
 
     if isinstance(subject, s_scalars.ScalarType):
