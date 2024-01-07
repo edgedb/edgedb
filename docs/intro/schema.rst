@@ -22,7 +22,7 @@ types.
   * - Booleans
     - ``bool``
   * - Numbers
-    - ``int32`` ``int64`` ``float32`` ``float64`` ``bigint`` ``decimal``
+    - ``int16`` ``int32`` ``int64`` ``float32`` ``float64`` ``bigint`` ``decimal``
   * - UUID
     - ``uuid``
   * - JSON
