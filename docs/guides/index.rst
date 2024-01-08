@@ -23,6 +23,5 @@ guide!
     datamigrations/index
     tutorials/index
     auth/index
-    migrations/guide
     migrations/index
     contributing/index

@@ -7,12 +7,7 @@ Migration Guide
 Welcome to the guide to EdgeDB migrations! Let's get started.
 
 .. toctree::
-    :maxdepth: 3
+    :maxdepth: 2
 
     guide
-    names
-    backlink
-    proptype
-    proptolink
-    reqlink
-    recovering
+    tips

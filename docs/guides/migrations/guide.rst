@@ -1,8 +1,8 @@
 .. _ref_migration_guide:
 
-=======================
-Schema migrations guide
-=======================
+==========================
+Guide to schema migrations
+==========================
 
 Schemas and migration basics
 ============================
@@ -334,11 +334,6 @@ This is also known as a 'split'. Pressing ``s`` will complete the migration at t
 -------------------
 
 Pressing ``q`` will simply quit without saving any of your progress.
-
-Converting from one type to another during a migration
-======================================================
-
-.. i.e. when you need to provide an expression
 
 Migration hashes and data migrations
 ====================================
