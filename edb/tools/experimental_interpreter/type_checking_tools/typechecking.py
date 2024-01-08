@@ -25,33 +25,6 @@ def synthesize_type_for_val(val: e.Val) -> e.Tp:
 def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                           tp: e.Tp
                           ) -> Tuple[e.Tp, e.ShapeExpr]:
-    s_tp: e.ObjectTp
-    l_tp: e.ObjectTp
-    s_name: e.QualifiedName
-
-    # populate result skeleton
-    match tp:
-        case e.NominalLinkTp(name=name, subject=subject_tp, linkprop=linkprop_tp):
-            assert isinstance(name, e.QualifiedName), "should have been resolved"
-            l_tp = linkprop_tp
-            s_name = name
-            if isinstance(subject_tp, e.ObjectTp):
-                s_tp = subject_tp
-            # elif isinstance(subject_tp, e.VarTp):
-            #     s_tp = tops.dereference_var_tp(ctx.schema, subject_tp)
-            else:
-                raise ValueError("NI", subject_tp)
-        case e.NamedNominalLinkTp(name=name, linkprop=linkprop_tp):
-            assert isinstance(name, e.QualifiedName), "should have been resolved"
-            l_tp = linkprop_tp
-            s_name = name
-            s_tp = tops.dereference_var_tp(ctx.schema, name)
-        case e.ObjectTp(_):
-            s_tp = tp
-            l_tp = e.ObjectTp({})
-            raise ValueError("Cannot get s_name")
-        case _:
-            raise ValueError("NI", pp.show(tp))
 
     result_s_tp = e.ObjectTp({})
     result_l_tp = e.ObjectTp({})
@@ -60,75 +33,70 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
     for lbl, comp in s.shape.items():
         match lbl:
             case e.StrLabel(s_lbl):
-                if s_lbl in s_tp.val.keys():
-                    new_ctx, body, bnd_var = eops.tcctx_add_binding(
-                        ctx, comp, e.ResultTp(tp, e.CardOne))
-                    result_tp = s_tp.val[s_lbl]
-                    body_tp_synth, body_ck = synthesize_type(new_ctx, body)
-                    # if is_insert_shape:
-                    #     tops.assert_insert_subtype(
-                    #         ctx, body_tp_synth.tp, result_tp.tp)
-                    # else:
-                    #     tops.assert_shape_subtype(
-                    #         ctx, body_tp_synth.tp, result_tp.tp)
-                    tops.assert_cardinal_subtype(
-                        body_tp_synth.mode, result_tp.mode)
-                    result_s_tp = e.ObjectTp({**result_s_tp.val,
-                                              s_lbl: body_tp_synth})
-                    result_expr = e.ShapeExpr(
-                        {**result_expr.shape,
-                         lbl: eops.abstract_over_expr(body_ck, bnd_var)})
-                else:
-                    new_ctx, body, bnd_var = eops.tcctx_add_binding(
-                        ctx, comp, e.ResultTp(tp, e.CardOne))
-                    result_tp, checked_body = synthesize_type(
-                        new_ctx, body)
-                    result_s_tp = e.ObjectTp({**result_s_tp.val,
-                                              s_lbl: result_tp})
-                    result_expr = e.ShapeExpr(
-                        {**result_expr.shape,
-                         lbl: eops.abstract_over_expr(checked_body, bnd_var)})
+                new_ctx, body, bnd_var = eops.tcctx_add_binding(
+                    ctx, comp, e.ResultTp(tp, e.CardOne))
+                result_tp, checked_body = synthesize_type(
+                    new_ctx, body)
+                result_s_tp = e.ObjectTp({**result_s_tp.val,
+                                            s_lbl: result_tp})
+                result_expr = e.ShapeExpr(
+                    {**result_expr.shape,
+                        lbl: eops.abstract_over_expr(checked_body, bnd_var)})
             case e.LinkPropLabel(l_lbl):
-                if l_lbl in l_tp.val.keys():
-                    new_ctx, body, bnd_var = eops.tcctx_add_binding(
-                        ctx, comp, e.ResultTp(tp, e.CardOne))
-                    result_tp = l_tp.val[l_lbl]
-                    body_synth_tp, body_ck = synthesize_type(new_ctx, body)
-                    # if is_insert_shape:
-                    #     tops.assert_insert_subtype(
-                    #         ctx, body_synth_tp.tp, result_tp.tp)
-                    # else:
-                    #     tops.assert_shape_subtype(
-                    #         ctx, body_synth_tp.tp, result_tp.tp)
-                    # tops.assert_cardinal_subtype(
-                    #     body_synth_tp.mode, result_tp.mode)
-                    result_l_tp = e.ObjectTp({**result_l_tp.val,
-                                              l_lbl: body_synth_tp})
-                    result_expr = e.ShapeExpr(
-                        {**result_expr.shape,
-                         lbl: eops.abstract_over_expr(body_ck, bnd_var)})
-                else:
-                    new_ctx, body, bnd_var = eops.tcctx_add_binding(
-                        ctx, comp, e.ResultTp(tp, e.CardOne))
-                    result_tp, checked_body = synthesize_type(
-                        new_ctx, body)
-                    result_l_tp = e.ObjectTp({**result_l_tp.val,
-                                              l_lbl: result_tp})
-                    result_expr = e.ShapeExpr(
-                        {**result_expr.shape,
-                         lbl: eops.abstract_over_expr(checked_body, bnd_var)})
+                new_ctx, body, bnd_var = eops.tcctx_add_binding(
+                    ctx, comp, e.ResultTp(tp, e.CardOne))
+                result_tp, checked_body = synthesize_type(
+                    new_ctx, body)
+                result_l_tp = e.ObjectTp({**result_l_tp.val,
+                                            l_lbl: result_tp})
+                result_expr = e.ShapeExpr(
+                    {**result_expr.shape,
+                        lbl: eops.abstract_over_expr(checked_body, bnd_var)})
+                
+    ret_tp = tops.combine_tp_with_subject_tp(ctx, tp, result_s_tp)
+    ret_tp = tops.combine_tp_with_linkprop_tp(ctx, ret_tp, result_l_tp)
+    return ret_tp, result_expr
 
-    for t_lbl, s_comp_tp in s_tp.val.items():
-        if e.StrLabel(t_lbl) not in s.shape.keys():
-            result_s_tp = e.ObjectTp({**result_s_tp.val,
-                                      t_lbl: s_comp_tp})
 
-    for t_lbl, l_comp_tp in l_tp.val.items():
-        if e.LinkPropLabel(t_lbl) not in s.shape.keys():
-            result_l_tp = e.ObjectTp({**result_l_tp.val,
-                                      t_lbl: l_comp_tp})
+    # s_tp: e.ObjectTp
+    # l_tp: e.ObjectTp
+    # s_name: e.QualifiedName
 
-    return e.NominalLinkTp(subject=result_s_tp, name=s_name, linkprop=result_l_tp), result_expr
+    # # populate result skeleton
+    # match tp:
+    #     case e.NominalLinkTp(name=name, subject=subject_tp, linkprop=linkprop_tp):
+    #         assert isinstance(name, e.QualifiedName), "should have been resolved"
+    #         l_tp = linkprop_tp
+    #         s_name = name
+    #         if isinstance(subject_tp, e.ObjectTp):
+    #             s_tp = subject_tp
+    #         # elif isinstance(subject_tp, e.VarTp):
+    #         #     s_tp = tops.dereference_var_tp(ctx.schema, subject_tp)
+    #         else:
+    #             raise ValueError("NI", subject_tp)
+    #     case e.NamedNominalLinkTp(name=name, linkprop=linkprop_tp):
+    #         assert isinstance(name, e.QualifiedName), "should have been resolved"
+    #         l_tp = linkprop_tp
+    #         s_name = name
+    #         s_tp = tops.dereference_var_tp(ctx.schema, name)
+    #     case e.ObjectTp(_):
+    #         s_tp = tp
+    #         l_tp = e.ObjectTp({})
+    #         raise ValueError("Cannot get s_name")
+    #     case _:
+    #         raise ValueError("NI", pp.show(tp))
+
+    # for t_lbl, s_comp_tp in s_tp.val.items():
+    #     if e.StrLabel(t_lbl) not in s.shape.keys():
+    #         result_s_tp = e.ObjectTp({**result_s_tp.val,
+    #                                   t_lbl: s_comp_tp})
+
+    # for t_lbl, l_comp_tp in l_tp.val.items():
+    #     if e.LinkPropLabel(t_lbl) not in s.shape.keys():
+    #         result_l_tp = e.ObjectTp({**result_l_tp.val,
+    #                                   t_lbl: l_comp_tp})
+
+    # return e.NominalLinkTp(subject=result_s_tp, name=s_name, linkprop=result_l_tp), result_expr
 
 
 def type_cast_tp(ctx: e.TcCtx, from_tp: e.ResultTp, to_tp: e.Tp) -> e.ResultTp:

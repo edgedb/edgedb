@@ -3,6 +3,7 @@ from .data_ops import DBSchema
 from .expr_to_str import show_tp
 from . import data_ops as e
 from . import expr_ops as eops
+from . import type_ops as tops
 from typing import List, Dict, Tuple, Optional, Callable
 from . import module_ops as mops
 from ..data import expr_to_str as pp
@@ -92,6 +93,17 @@ def assert_real_subtype(
         pass
     
 
+def resolve_named_nominal_link_tp(ctx: e.TcCtx, tp: e.NamedNominalLinkTp) -> e.NominalLinkTp:
+    match tp:
+        case e.NamedNominalLinkTp(name=e.QualifiedName(n_1), linkprop=lp_1):
+            resolved_type_def = mops.resolve_type_name(ctx, e.QualifiedName(n_1))
+            assert isinstance(resolved_type_def, e.ObjectTp)
+            return e.NominalLinkTp(subject=resolved_type_def,
+                                name=e.QualifiedName(n_1),
+                                linkprop=lp_1)
+        case _:
+            raise ValueError("Type Error")
+
 def type_subtyping_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
         ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
         ) -> bool:
@@ -159,19 +171,11 @@ def type_subtyping_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
                 else:
                     return False
             case (_, e.NamedNominalLinkTp(name=e.QualifiedName(n_2), linkprop=lp_2)):
-                resolved_type_def = mops.resolve_type_name(ctx, e.QualifiedName(n_2))
-                assert isinstance(resolved_type_def, e.ObjectTp)
-                return recurse(ctx, tp1, 
-                    e.NominalLinkTp(subject=resolved_type_def,
-                                    name=e.QualifiedName(n_2),
-                                    linkprop=lp_2))
+                assert isinstance(tp2, e.NamedNominalLinkTp)
+                return recurse(ctx, tp1, resolve_named_nominal_link_tp(ctx, tp2))
             case (e.NamedNominalLinkTp(name=e.QualifiedName(n_1), linkprop=lp_1), _):
-                resolved_type_def = mops.resolve_type_name(ctx, e.QualifiedName(n_1))
-                assert isinstance(resolved_type_def, e.ObjectTp)
-                return recurse(ctx, 
-                    e.NominalLinkTp(subject=resolved_type_def,
-                                    name=e.QualifiedName(n_1),
-                                    linkprop=lp_1), tp2)
+                assert isinstance(tp1, e.NamedNominalLinkTp)
+                return recurse(ctx, resolve_named_nominal_link_tp(ctx, tp1), tp2)
 
 
             # Other structural typing
@@ -346,6 +350,8 @@ def tp_is_primitive(tp: e.Tp) -> bool:
             return tp_is_primitive(under_tp)
         case e.CompositeTp(_):
             return False
+        case e.NamedTupleTp(_):
+            return False
         case _:
             raise ValueError("Not implemented", tp)
 
@@ -449,7 +455,7 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                     l_sub = tp_project(ctx, e.ResultTp(l, tp.mode), e.StrLabel(lbl))
                     r_sub = tp_project(ctx, e.ResultTp(r, tp.mode), e.StrLabel(lbl))
                     if l_sub.mode == r_sub.mode:
-                        return e.ResultTp(e.IntersectTp(l_sub.tp, r_sub.tp), l_sub.mode)
+                        return e.ResultTp(tops.create_intersect_tp(l_sub.tp, r_sub.tp), l_sub.mode)
                     else:
                         raise ValueError("Ambiguous intersection projection", l_sub, r_sub)
                 case _:
@@ -504,3 +510,44 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
 #             return collect_tp_union(l) + collect_tp_union(r)
 #         case _:
 #             return [tp]
+
+
+
+def combine_object_tp(o1: e.ObjectTp, o2: e.ObjectTp) -> e.ObjectTp:
+    return e.ObjectTp({**o1.val, **o2.val})
+
+def combine_tp_with_subject_tp(ctx: e.TcCtx, o1: e.Tp, o2: e.ObjectTp) -> e.Tp:
+    match o1:
+        case e.NominalLinkTp(name=name, subject=subject_tp, linkprop=linkprop_tp):
+            return e.NominalLinkTp(name=name, subject=combine_object_tp(subject_tp, o2), linkprop=linkprop_tp)
+        case e.NamedNominalLinkTp(name=name, linkprop=linkprop_tp):
+            return combine_tp_with_subject_tp(ctx, resolve_named_nominal_link_tp(ctx, o1), o2)
+        case e.UnionTp(l, r):
+            return create_union_tp(combine_tp_with_subject_tp(ctx, l, o2), combine_tp_with_subject_tp(ctx, r, o2))
+        case _:
+            raise ValueError("not implemented combine tp", pp.show(o1), pp.show(o2))
+
+def combine_tp_with_linkprop_tp(ctx: e.TcCtx, o1: e.Tp, o2: e.ObjectTp) -> e.Tp:
+    match o1:
+        case e.NominalLinkTp(name=name, subject=subject_tp, linkprop=linkprop_tp):
+            return e.NominalLinkTp(name=name, subject=subject_tp, linkprop=combine_object_tp(linkprop_tp, o2))
+        case e.NamedNominalLinkTp(name=name, linkprop=linkprop_tp):
+            return combine_tp_with_linkprop_tp(ctx, resolve_named_nominal_link_tp(ctx, o1), o2)
+        case e.UnionTp(l, r):
+            return e.UnionTp(combine_tp_with_linkprop_tp(ctx, l, o2), combine_tp_with_linkprop_tp(ctx, r, o2))
+        case _:
+            raise ValueError("not implemented combine tp", pp.show(o1), pp.show(o2))
+
+
+
+def create_union_tp(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
+    if tp1 == tp2:
+        return tp1
+    else:
+        return e.UnionTp(tp1, tp2)
+    
+def create_intersect_tp(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
+    if tp1 == tp2:
+        return tp1
+    else:
+        return e.IntersectTp(tp1, tp2)

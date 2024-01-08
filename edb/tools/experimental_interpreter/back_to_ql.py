@@ -90,7 +90,7 @@ def reverse_elab_type_name(tp: Tp) -> qlast.TypeName:
 def reverse_elab_order(order: Dict[str, Expr]) -> Optional[List[qlast.SortExpr]]:
     # if isinstance(order, ObjectExpr):
         keys = sorted([(idx, spec, k) for k in order.keys()
-                      for [idx, spec] in [k.split(OrderLabelSep)]])
+                      for [idx, spec, empty_spec] in [k.split(OrderLabelSep)]])
         if len(keys) == 0:
             return None
         return [qlast.SortExpr(path=reverse_elab(order[k]),

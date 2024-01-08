@@ -115,6 +115,10 @@ def show_scalar_val(val: e.ScalarVal) -> str:
 
 def show_expr(expr: e.Expr) -> str:
     match expr:
+        case e.QualifiedName(_):
+            return show_qname(expr)
+        case e.UnqualifiedName(_):
+            return show_raw_name(expr)
         case e.ScalarVal(tp, v):
             return show_scalar_val(expr)
         case e.BindingExpr(var=var, body=_):

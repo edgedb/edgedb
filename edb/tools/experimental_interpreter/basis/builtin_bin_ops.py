@@ -85,7 +85,7 @@ def opt_not_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 
-gt_impl = lift_binary_scalar_op(operator.gt)
+gt_impl = lift_binary_scalar_op(operator.gt, override_ret_tp=e.BoolTp())
 
 
 
@@ -140,7 +140,7 @@ def or_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 and_impl = lift_binary_scalar_op(operator.and_)
 
-less_than_impl = lift_binary_scalar_op(operator.lt)
+less_than_impl = lift_binary_scalar_op(operator.lt, override_ret_tp=e.BoolTp())
 
 def like(value, pattern) -> bool:
     fnmatch_pattern = pattern.replace('%', '*').replace('_', '?').replace(r'\%', '%').replace(r'\_', '_')

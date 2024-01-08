@@ -409,6 +409,8 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
         random.seed(py_random_seed)
 
         for sk, suite in self.test_suites.items():
+            sk.con = None # TODO
+            sk.tx = None # TODO
             setup = tb.get_test_cases_setup(
                 {sk: suite},
                 use_experimental_interpreter=True)
