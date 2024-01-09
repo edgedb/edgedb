@@ -20,5 +20,6 @@ Welcome to the EdgeDB |version| documentation.
     stdlib/index
     clients/index
     cli/index
+    ui/index
     reference/index
     changelog/index
