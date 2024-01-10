@@ -88,11 +88,11 @@ def insert_dynamic_cardinality_check(ctx: e.TcCtx, attr_expr : e.Expr, target_mo
     # TODO: after constraint system, this should be checked in the compile time
     if target_mode.upper == e.OneCardinal():
         attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_single"]), None, 
-                                    [attr_expr, e.StrVal("Single links turn our to be multiples")])
+                                    [attr_expr, e.StrVal("Single links turn our to be multiples")], {})
     # this is a hack that insertions on link targets ignores required at compile time
     if target_mode.lower == e.OneCardinal():
         attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_exists"]), None, 
-                                    [attr_expr, e.StrVal("Required links turn our to be empty")])
+                                    [attr_expr, e.StrVal("Required links turn our to be empty")], {})
     return attr_expr
 
 def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.ResultTp) -> e.Expr:

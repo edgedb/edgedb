@@ -380,7 +380,7 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
 
 @elab.register(qlast.FunctionCall)
 def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
-    if fcall.window or fcall.kwargs:
+    if fcall.window:
         return elab_not_implemented(fcall)
     if type(fcall.func) is str:
         fname = e.UnqualifiedName(fcall.func)
@@ -393,7 +393,8 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
             #     else elab_error("unknown function name: " +
             #                     fcall.func, fcall.context))
     args = [elab(arg) for arg in fcall.args]
-    return FunAppExpr(fname, None, args)
+    kwargs = {k: elab(v) for (k,v) in fcall.kwargs.items()}
+    return FunAppExpr(fname, None, args, kwargs)
 
 
 @elab.register
@@ -401,7 +402,7 @@ def elab_UnaryOp(uop: qlast.UnaryOp) -> FunAppExpr:
     # if uop.op in all_builtin_funcs.keys():
     return FunAppExpr(
         fun=e.UnqualifiedName(uop.op), args=[elab(uop.operand)],
-        overloading_index=None)
+        overloading_index=None, kwargs={})
     # else:
     #     raise ValueError("Unknown Op Name", uop.op)
 
@@ -418,7 +419,7 @@ def elab_BinOp(binop: qlast.BinOp) -> FunAppExpr | UnionExpr:
         # if binop.op in all_builtin_funcs.keys():
         return FunAppExpr(
             fun=e.UnqualifiedName(binop.op), args=[left_expr, right_expr],
-            overloading_index=None)
+            overloading_index=None, kwargs={})
         # else:
         #     raise ValueError("Unknown Op Name", binop.op)
 
@@ -634,13 +635,13 @@ def elab_Indirection(qle: qlast.Indirection) -> FunAppExpr:
             return FunAppExpr(
                 fun=e.UnqualifiedName(e.IndirectionSliceStopOp),
                 args=[subject, elab(stop)],
-                overloading_index=None)
+                overloading_index=None, kwargs={})
         case [qlast.Slice(start=start, stop=None)]:
             assert start is not None  # required for mypy
             return FunAppExpr(
                 fun=e.UnqualifiedName(e.IndirectionSliceStartOp),
                 args=[subject, elab(start)],
-                overloading_index=None)
+                overloading_index=None, kwargs={})
         case [qlast.Slice(start=start, stop=stop)]:
             assert start is not None  # required for mypy
             assert stop is not None  # required for mypy
@@ -648,11 +649,12 @@ def elab_Indirection(qle: qlast.Indirection) -> FunAppExpr:
                 fun=e.UnqualifiedName(e.IndirectionSliceStartStopOp),
                 args=[subject, elab(start),
                       elab(stop)],
-                overloading_index=None)
+                overloading_index=None, kwargs={})
         case [qlast.Index(index=idx)]:
             return FunAppExpr(fun=e.UnqualifiedName(IndirectionIndexOp),
                               args=[subject, elab(idx)],
-                              overloading_index=None)
+                              overloading_index=None,
+                              kwargs={})
     raise ValueError("Not yet implemented indirection", qle)
 
 

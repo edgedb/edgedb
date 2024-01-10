@@ -491,6 +491,7 @@ class FunAppExpr:
     fun: UnqualifiedName | QualifiedName
     overloading_index: Optional[int]
     args: Sequence[Expr]
+    kwargs: Dict[str, Expr]
 
 
 # @dataclass(frozen=True)
@@ -769,11 +770,13 @@ class DB:
 class BuiltinFuncDef():
     tp: FunArgRetType
     impl: Callable[[Sequence[Sequence[Val]]], Sequence[Val]]
+    defaults : Dict[str, Expr] 
 
 @dataclass(frozen=True)
 class DefinedFuncDef():
     tp: FunArgRetType
     impl: Expr # Has the same number of bindings as num_args = len(tp.args_tp)
+    defaults : Dict[str, Expr]
 
 
 

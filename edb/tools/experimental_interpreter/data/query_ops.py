@@ -1,7 +1,7 @@
 
 
 from enum import Enum
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence, Dict
 
 from . import data_ops as e
 from .data_ops import (ArrExpr, BackLinkExpr, BindingExpr, BoolVal,
@@ -84,18 +84,23 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 return BackLinkExpr(subject=recur(subject), label=label)
             case TpIntersectExpr(subject=subject, tp=tp_name):
                 return TpIntersectExpr(subject=recur(subject), tp=tp_name)
-            case FunAppExpr(fun=fname, args=args, overloading_index=idx):
+            case FunAppExpr(fun=fname, args=args, overloading_index=idx, kwargs=kwargs):
                 mapped_args: Sequence[Expr] = []
-                _, resolved_fun_def = mops.resolve_raw_name_and_func_def(schema, fname)
-                args_mods = [resolved_fun_def[i].tp.args_mod 
-                             for i in range(len(resolved_fun_def))
-                             if len(resolved_fun_def[i].tp.args_mod) == len(args)]
+                _, resolved_fun_defs = mops.resolve_raw_name_and_func_def(schema, fname)
+                
+                # args_mods = [resolved_fun_defs[i].tp.args_mod 
+                #              for i in range(len(resolved_fun_defs))
+                #              if len(resolved_fun_defs[i].tp.args_mod) == len(args)]
+                from ..type_checking_tools import function_checking as fun_ck
+                args_mods = [mods for mods in [fun_ck.try_match_and_get_arg_mods(expr, resolved_fun_defs[i])
+                             for i in range(len(resolved_fun_defs))
+                             ] if mods is not None]
                 if len(args_mods) == 0:
                     # This is due to named only arguments, need some time to sort out
                     raise ValueError("Expecting fun_defs [TODO named args]")
                 assert all([args_mods[0] == args_mod for args_mod in args_mods]), \
                     "Expecting all args_mods to be the same"
-                params = resolved_fun_def[0].tp.args_mod
+                params = resolved_fun_defs[0].tp.args_mod
                 for i in range(len(args)):
                     match params[i]:
                         case ParamSingleton():
@@ -108,8 +113,17 @@ def map_query(f: Callable[[Expr, QueryLevel],
                                 *mapped_args, sub_recur(args[i])]
                         case _:
                             raise ValueError
+                mapped_kwargs : Dict[str, Expr] = {}
+                for i,(k,v) in enumerate(kwargs.items()):
+                    match params[i + len(args)]:
+                        case ParamSingleton():
+                            mapped_kwargs[k] = recur(v)
+                        case ParamOptional():
+                            mapped_kwargs[k] = semisub_recur(v)
+                        case ParamSetOf():
+                            mapped_kwargs[k] = sub_recur(v)
                 return FunAppExpr(
-                    fun=fname, args=mapped_args, overloading_index=idx)
+                    fun=fname, args=mapped_args, overloading_index=idx, kwargs=mapped_kwargs)
             case FilterOrderExpr(subject=subject, filter=filter, order=order):
                 return FilterOrderExpr(
                     subject=recur(subject),

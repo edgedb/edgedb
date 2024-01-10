@@ -409,8 +409,6 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
         random.seed(py_random_seed)
 
         for sk, suite in self.test_suites.items():
-            sk.con = None # TODO
-            sk.tx = None # TODO
             setup = tb.get_test_cases_setup(
                 {sk: suite},
                 use_experimental_interpreter=True)
@@ -440,6 +438,34 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
             else:
                 dbschema = model.empty_dbschema()
                 db = model.empty_db(dbschema)
+            
+            class PseudoExperimentalInterpreterTransaction:
+                async def start(self):
+                    pass
+
+                async def rollback(self):
+                    pass
+
+                    
+            class PseudoExperimentalInterpreterConnection:
+                def __init__(self):
+                    self.tx = PseudoExperimentalInterpreterTransaction()
+
+                async def query(self, query):
+                    return model.run_single_str_get_json(
+                        (dbschema, db), query,
+                        print_asts=False)
+
+                async def execute(self, query):
+                    await self.query(query)
+
+                async def query_single(self, query):
+                    return (await self.query(query))[0]
+
+                def transaction(self):
+                    return self.tx
+
+            sk.con = PseudoExperimentalInterpreterConnection()
 
             for test in self.sort_test_func({sk: suite}):
                 test.use_experimental_interpreter = True

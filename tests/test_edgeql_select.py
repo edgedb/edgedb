@@ -7780,7 +7780,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             "assert_exists violation",
         ):
             await self.con.query("""
-                SELECT assert_exists((SELECT User {m := 10} FILTER false)).m;
+                SELECT assert_exists((SELECT User {m := 10} FILTER false), message := "ef").m;
             """)
 
         async with self.assertRaisesRegexTx(

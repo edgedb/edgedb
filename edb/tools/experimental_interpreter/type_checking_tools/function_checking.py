@@ -6,7 +6,7 @@ from ..data import path_factor as pops
 from ..data import expr_to_str as pp
 from ..data import module_ops as mops
 from ..interpreter_logging import print_warning
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Sequence
 # from itertools import *
 from functools import reduce
 import operator
@@ -27,6 +27,27 @@ def refine_candidate_tp(tp : e.Tp) -> e.Tp:
             return e.IntersectTp(refine_candidate_tp(l), refine_candidate_tp(r))
         case _:
             return tp
+
+def try_match_and_get_arg_mods(expr: e.FunAppExpr, fun_def: e.FuncDef) -> Optional[Sequence[e.ParamModifier]]:
+    """
+    Returns None if the expr does not match the fun_def.
+    """
+    match expr:
+        case e.FunAppExpr(fun=fname, args=args, overloading_index=idx, kwargs=kwargs):
+            # positional
+            if len(args) == len(fun_def.tp.args_mod):
+                return fun_def.tp.args_mod
+            elif len(args) < len(fun_def.tp.args_mod):
+                part_one = fun_def.tp.args_mod[0:len(args)]
+                assert(all([fun_def.tp.args_label.index(l) >= len(args) for l in kwargs.keys()]))
+                part_two = [fun_def.tp.args_mod[fun_def.tp.args_label.index(l)] for l in kwargs.keys()]
+                return [*part_one, *part_two]
+            elif len(args) > len(fun_def.tp.args_mod):
+                return None
+            else:
+                raise ValueError("impossible", expr)
+        case _:
+            raise ValueError("impossible", expr)
 
 def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunArgRetType) -> Optional[e.Tp]: # Returns the result Tp if matches
     """
@@ -93,7 +114,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
     from . import typechecking as tc
 
     match fun_call:
-        case e.FunAppExpr(fun=fname, args=args, overloading_index=idx):
+        case e.FunAppExpr(fun=fname, args=args, overloading_index=idx, kwargs=kwargs):
             qualified_fname, fun_defs = mops.resolve_raw_name_and_func_def(ctx, fname)
             # assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
             if args:
@@ -103,18 +124,40 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                 tps = []
                 arg_cards = []
                 args_cks = []
+            
+            kwargs_ck = {k : tc.synthesize_type(ctx, v) for k, v in kwargs.items()}
 
 
 
             if idx is not None:
                 args_ret_type = fun_defs[idx].tp
+                assert len(kwargs) == 0, "idx must be concurrent with kwargs"
                 result_tp = check_args_ret_type_match(ctx, tps, args_ret_type)
                 if result_tp is None:
                     raise ValueError("Overloading for function incorrectly calculated", fun_call)
             else:
                 ok_candidates : List[Tuple[int, e.Tp]] = []
                 for i, fun_def in enumerate(fun_defs):
-                    result_tp = check_args_ret_type_match(ctx, tps, fun_def.tp)
+                    if len(tps) == len(fun_def.tp.args_tp):
+                        if len(kwargs) == 0:
+                            result_tp = check_args_ret_type_match(ctx, tps, fun_def.tp)
+                        else:
+                            pass
+                    elif len(tps) > len(fun_def.tp.args_tp):
+                        pass
+                    elif len(tps) < len(fun_def.tp.args_tp):
+                        new_tps = [*tps]
+                        for i in range(len(tps), len(fun_def.tp.args_tp)):
+                            label_i = fun_def.tp.args_label[i]
+                            if label_i in kwargs:
+                                new_tps = [*new_tps, kwargs_ck[label_i][0][0]]
+                            elif label_i in fun_def.defaults:
+                                new_tps = [*new_tps, tc.synthesize_type(ctx, fun_def.defaults[label_i])[0][0]]
+                            else:
+                                result_tp = None
+                                break
+                        else:
+                            result_tp = check_args_ret_type_match(ctx, new_tps, fun_def.tp)
                     if result_tp is not None:
                         ok_candidates.append((i, result_tp))
                 
@@ -137,6 +180,17 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                                      "args type", [pp.show_tp(tp) for tp in tps],
                                      "candidates", [pp.show_func_tps(fun_def.tp) for fun_def in fun_defs],
                                      pp.show_expr(fun_call))
+
+            if len(arg_cards) < len(fun_defs[idx].tp.args_mod):
+                for i in range(len(tps), len(fun_def.tp.args_tp)):
+                    label_i = fun_def.tp.args_label[i]
+                    if label_i in kwargs:
+                        arg_cards.append(kwargs_ck[label_i][0][1])
+                    elif label_i in fun_def.defaults:
+                        arg_cards.append(tc.synthesize_type(ctx, fun_def.defaults[label_i])[0][1])
+                    else:
+                        raise ValueError("impossible", fun_call)
+
 
             # take the product of argument cardinalities
             arg_card_product = reduce(
@@ -162,7 +216,18 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                         # TODO preserve cardinality annotation
                 case _:
                     pass
-            result_expr = e.FunAppExpr(fun=qualified_fname, args=args_cks, overloading_index=idx)
+
+            if len(args_cks) < len(fun_defs[idx].tp.args_mod):
+                for i in range(len(args_cks), len(fun_defs[idx].tp.args_tp)):
+                    label_i = fun_defs[idx].tp.args_label[i]
+                    if label_i in kwargs:
+                        args_cks.append(kwargs_ck[label_i][1])
+                    elif label_i in fun_defs[idx].defaults:
+                        args_cks.append(tc.synthesize_type(ctx, fun_defs[idx].defaults[label_i])[1])
+                    else:
+                        raise ValueError("impossible", fun_call)
+
+            result_expr = e.FunAppExpr(fun=qualified_fname, args=args_cks, overloading_index=idx, kwargs={})
             return (e.ResultTp(result_tp, result_card), result_expr)
         case _:
             raise ValueError("impossible", fun_call)

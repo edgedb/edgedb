@@ -86,9 +86,12 @@ def process_builtin_fun_def(schema: e.DBSchema,
         case qlast.ObjectRef(name=fun_name, module=module_name):
             func_type = elaborate_fun_def_arg_type(params, ret_tp, ret_typemod)
             func_type = name_res.fun_arg_ret_type_name_resolve(eops.emtpy_tcctx_from_dbschema(schema), func_type)
+            defaults = {p.name : elab.elab(p.default) for p in params if p.default}
             this_def = e.BuiltinFuncDef(
                             tp=func_type,
-                            impl=get_default_func_impl_for_function(e.QualifiedName([module_name, fun_name])))
+                            impl=get_default_func_impl_for_function(e.QualifiedName([module_name, fun_name])),
+                            defaults=defaults
+                            )
             assert module_name is not None, "Functions cannot be created in top level"
             assert "::" not in module_name, "TODO"
             if fun_name in schema.modules[(module_name, )].defs:

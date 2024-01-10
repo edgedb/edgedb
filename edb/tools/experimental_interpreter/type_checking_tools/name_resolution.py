@@ -90,10 +90,11 @@ def func_def_name_resolve(
         func_def: e.FuncDef,
         ) -> e.FuncDef:
     match func_def:
-        case e.DefinedFuncDef(tp=tp, impl=impl):
+        case e.DefinedFuncDef(tp=tp, impl=impl, defaults=defaults):
             return e.DefinedFuncDef(
                 tp=fun_arg_ret_type_name_resolve(root_ctx, tp),
-                impl=impl)
+                impl=impl, 
+                defaults=defaults)
         case _:
             raise ValueError("Not Implemented", func_def)
 

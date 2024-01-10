@@ -268,9 +268,11 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
                 func_body = elab(nativecode)
                 for label in reversed(func_type.args_label):
                     func_body = eops.abstract_over_expr(func_body, label)
+                defaults = {p.name : elab(p.default) for p in params if p.default}
                 this_def = e.DefinedFuncDef(
                                 tp=func_type,
-                                impl= func_body)
+                                impl= func_body,
+                                defaults=defaults)
                 if name in type_defs:
                     current_def = type_defs[name]
                     assert isinstance(current_def, e.ModuleEntityFuncDef)

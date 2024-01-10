@@ -126,10 +126,11 @@ def map_expr(
                 return LinkPropProjExpr(
                     subject=recur(subject),
                     linkprop=label)
-            case FunAppExpr(fun=fname, args=args, overloading_index=idx):
+            case FunAppExpr(fun=fname, args=args, overloading_index=idx, kwargs=kwargs):
                 return FunAppExpr(
                     fun=fname, args=[recur(arg) for arg in args],
-                    overloading_index=idx)
+                    overloading_index=idx, 
+                    kwargs={k: recur(v) for (k,v) in kwargs.items()})
             case FilterOrderExpr(subject=subject, filter=filter, order=order):
                 return FilterOrderExpr(
                     subject=recur(subject),

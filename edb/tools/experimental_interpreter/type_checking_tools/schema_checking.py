@@ -151,7 +151,7 @@ def param_modifier_to_paramter_cardinality(mod: e.ParamModifier) -> e.CMMode:
 
 def check_fun_def_validity(ctx: e.TcCtx, fun_def: e.FuncDef) -> e.FuncDef:
     match fun_def:
-        case e.DefinedFuncDef(tp=tp, impl=impl):
+        case e.DefinedFuncDef(tp=tp, impl=impl, defaults=defaults):
             binders = []
             for i, arg_tp in enumerate(tp.args_tp):
                 assert isinstance(impl, e.BindingExpr)
@@ -163,7 +163,9 @@ def check_fun_def_validity(ctx: e.TcCtx, fun_def: e.FuncDef) -> e.FuncDef:
                 impl_ck = eops.abstract_over_expr(impl_ck, binder)
             return e.DefinedFuncDef(
                 tp=tp,
-                impl=impl_ck)
+                impl=impl_ck, 
+                defaults={k: synthesize_type(ctx, v)[1] for k,v in defaults.items()}
+                )
         case _:
             raise ValueError("Not Implemented", fun_def)
         
