@@ -2,6 +2,10 @@
 Data Explorer
 =============
 
+.. image:: images/data_explorer.png
+    :alt: Todo
+    :width: 100%
+
 The data explorer is similar to the UI editor in facilitating queries on
 database objects, but involves no direct query building. Instead, the
 data explorer gives point-and-click access to the database's objects,

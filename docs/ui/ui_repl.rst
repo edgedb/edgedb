@@ -2,6 +2,10 @@
 REPL
 ====
 
+.. image:: images/ui_repl.png
+    :alt: Todo
+    :width: 100%
+
 The REPL used in the EdgeDB UI is largely the same as the CLI REPL,
 so most of the commands :ref:`here <ref_cheatsheet_repl>` will pertain to the
 UI REPL as well.

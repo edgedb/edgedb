@@ -2,7 +2,9 @@
 Editor
 ======
 
-The Editor tab inside the EdgeDB UI 
+.. image:: images/editor.png
+    :alt: Todo
+    :width: 100%
 
 Query Editor
 ------------

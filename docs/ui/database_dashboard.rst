@@ -2,6 +2,10 @@
 Dashboard
 =========
 
+.. image:: images/database_dashboard.png
+    :alt: Todo
+    :width: 100%
+
 The dashboard for each database displays the number of object types and
 total number of objects contained within.
 

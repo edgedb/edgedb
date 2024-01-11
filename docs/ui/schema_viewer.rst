@@ -2,6 +2,10 @@
 Schema Viewer
 =============
 
+.. image:: images/schema_viewer.png
+    :alt: Todo
+    :width: 100%
+
 The UI schema viewer allows you to see your schema either as text, graph,
 or both.
 

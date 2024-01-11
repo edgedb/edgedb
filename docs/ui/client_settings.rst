@@ -2,6 +2,10 @@
 Client settings
 ===============
 
+.. image:: images/client_settings.png
+    :alt: Todo
+    :width: 100%
+
 The UI exposes a number of :ref:`configuration parameters <ref_std_cfg>`
 in a dropdown bar at the top of all database dashboard screens when the
 Client Settings button is clicked. They can be modified by double

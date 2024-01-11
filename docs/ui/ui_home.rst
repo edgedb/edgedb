@@ -2,6 +2,10 @@
 UI Home
 =======
 
+.. image:: images/ui_home.png
+    :alt: Todo
+    :width: 100%
+
 The UI homepage displays one button per database inside the instance.
 New instances will contain a database called ``edgedb`` by default.
 
