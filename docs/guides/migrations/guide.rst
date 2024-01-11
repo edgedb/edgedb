@@ -1310,7 +1310,11 @@ Get the current migration with the following query:
     name,
     };
 
+.. lint-off
+
 .. _rfc: https://github.com/edgedb/rfcs/blob/master/text/1000-migrations.rst
 .. _transaction: https://www.edgedb.com/docs/reference/ddl/migrations
 .. _tutorial: https://www.edgedb.com/tutorial
 .. _tutorial_files: https://github.com/edgedb/website/tree/main/content/tutorial/dbschema/migrations
+
+.. lint-on
