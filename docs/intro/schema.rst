@@ -22,7 +22,8 @@ types.
   * - Booleans
     - ``bool``
   * - Numbers
-    - ``int32`` ``int64`` ``float32`` ``float64`` ``bigint`` ``decimal``
+    - ``int16`` ``int32`` ``int64`` ``float32`` ``float64`` 
+      ``bigint`` ``decimal``
   * - UUID
     - ``uuid``
   * - JSON
@@ -366,7 +367,7 @@ understand backlink syntax is to split it into two parts:
 ``[is Movie]``
   This is a *type filter* that filters out all objects that aren't ``Movie``
   objects. A backlink still works without this filter, but could contain any 
-  other number of objects besides `` Movie`` objects.
+  other number of objects besides ``Movie`` objects.
 
 See :ref:`Schema > Computeds > Backlinks <ref_datamodel_links_backlinks>`.
 
