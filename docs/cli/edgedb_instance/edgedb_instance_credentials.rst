@@ -15,8 +15,8 @@ Display instance credentials (add `--json` for verbose).
 Description
 ===========
 
-``edgedb instance credentials`` is a terminal command for displaying the credentials of an
-EdgeDB instance.
+``edgedb instance credentials`` is a terminal command for displaying the
+credentials of an EdgeDB instance.
 
 
 Options
