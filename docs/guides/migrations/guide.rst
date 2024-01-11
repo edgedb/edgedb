@@ -86,7 +86,7 @@ Save the file, then type ``edgedb`` to start the EdgeDB REPL, and
 then type ``describe schema as sdl``. The output will be the following:
 
 
-.. code-block:: sdl
+.. code-block:: edgeql-repl
 
     {'module default{};'}
 
