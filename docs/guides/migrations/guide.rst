@@ -83,14 +83,10 @@ file inside the ``/migrations`` folder.
     single schema.
 
 Save the file, then type ``edgedb`` to start the EdgeDB REPL, and 
-then type ``describe schema as sdl``. The output will be the following:
-
-
-.. code-block:: console
-
-    {'module default{};'}
-
-Nothing happened! Our ``type User`` is nowhere to be seen.
+then type ``describe schema as sdl``. The output will be 
+``{'module default{};'}`` - nothing more than the default module
+with nothing inside. So nothing happened! Our ``type User`` is
+nowhere to be seen.
 
 So that's the first thing to know about SDL. Like an address to a 
 person's house, it doesn't *do* anything on its own, and neither does 
