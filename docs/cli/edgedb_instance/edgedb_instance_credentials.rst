@@ -5,7 +5,7 @@
 edgedb instance credentials
 ===========================
 
-Display instance credentials (add `--json` for verbose).
+Display instance credentials (add ``--json`` for verbose).
 
 .. cli:synopsis::
 
