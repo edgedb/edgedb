@@ -1,3 +1,5 @@
+.. _ref_ui_schema_viewer:
+
 =============
 Schema Viewer
 =============

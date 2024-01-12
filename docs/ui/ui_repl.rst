@@ -1,3 +1,5 @@
+.. _ref_ui_repl:
+
 ====
 REPL
 ====

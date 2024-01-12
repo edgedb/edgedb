@@ -211,7 +211,7 @@ of the DDL above: a declarative schema as opposed to statements.
 Now let's add the new scalar type mentioned above and give it to the 
 ``User`` type. Our schema will now look like this:
 
-.. code-block:: edgeql-diff
+.. code-block:: sdl-diff
 
       module default {
         type User {

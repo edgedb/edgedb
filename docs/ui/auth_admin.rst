@@ -1,3 +1,5 @@
+.. _ref_ui_auth_admin:
+
 ==========
 Auth Admin
 ==========

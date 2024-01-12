@@ -24,21 +24,23 @@ Globals
 Config
 ------
 
-- ``allow_bare_ddl``: Whether DDL is allowed to be executed outside a
-  migration. Default: ``NeverAllow``, can be set to ``AlwaysAllow``.
+- ``allow_bare_ddl``: Whether DDL is allowed to be used outside the normal
+  migration flow. Default: ``NeverAllow``, can be set to ``AlwaysAllow``.
   Note: This parameter accepts enum values, not booleans.
-- ``allow_user_specified_id``: Whether inserts are allowed to set the 
+- ``allow_user_specified_id``: Whether users are allowed to manually set the
   'id' property. Default: ``false``.
-- ``apply_access_policies``: Whether access policies will be applied
+- ``apply_access_policies``: Whether
+  :ref:`access policies <datamodel_access_policies>` will be applied
   when running queries. Default: ``true``. When set to ``false``, any
   and all operations can be used on any object in the database.
 - ``force_database_error``: A hook to force all queries to produce an error.
-  Default: ``'false'``. This parameter takes a ``str`` instead of a ``bool``
-  to allow more verbose messages. The database will attempt to deserialize
-  this ``str`` into a JSON object that must include a ``type`` (which must
-  be an EdgeDB error type name), and may also include ``message``, ``hint``,
-  and ``details`` which can be set ad-hoc by the user. For example, the
-  following is valid input: ``'{ "type": "QueryError", "message": "Did not
+  Default: ``'false'`` (note: a string ``'false'``, not a boolean). This 
+  parameter takes a ``str`` instead of a ``bool`` to allow more verbose
+  messages. The database will attempt to deserialize this ``str`` into a 
+  JSON object that must include a ``type`` (which must be an EdgeDB error
+  type name), and may also include ``message``, ``hint``, and ``details`` 
+  which can be set ad-hoc by the user. For example, the following is
+  valid input: ``'{ "type": "QueryError", "message": "Did not
   work", "hint": "Try doing something else", "details": "Indeed, something
   went really wrong" }'``
 - ``query_execution_timeout``: How long an individual query can run before
@@ -51,5 +53,5 @@ Config
 Query Options
 -------------
 
-- Implicit Limit (``int64``): The number of results to display per query.
-  Default: 100
+- Implicit Limit (``int64``): The maximum number of results to display 
+  per query. Default: 100.

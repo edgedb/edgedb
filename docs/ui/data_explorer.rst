@@ -1,3 +1,5 @@
+.. _ref_ui_data_explorer:
+
 =============
 Data Explorer
 =============
