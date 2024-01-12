@@ -21,6 +21,10 @@ automatically opening the UI:
 
   $ edgedb ui --print-url
 
+The UI interface for :ref:`EdgeDB Cloud <ref_cli_edgedb_cloud>` is nearly
+identical to the standard EdgeDB UI, aside from extra pages on cloud-related
+items such as org settings, billing, and usage metrics.
+
 The command to open the EdgeDB UI is a CLI command, documented
 :ref:`here <ref_cli_edgedb_ui>`.
 

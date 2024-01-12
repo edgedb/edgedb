@@ -16,6 +16,13 @@ Editor
 Query Editor
 ------------
 
+.. image:: images/editor.png
+    :alt: The Editor tab in the EdgeDB UI Editor page, showing a query
+          appended with the analyze keyword to analyze performance. The
+          performance results show up in a graph on the right, with separate
+          colored rectangles for each link traversed by the query.
+    :width: 100%
+
 The Query Editor is outwardly similar to the REPL besides some
 auto-completion, but is most useful when paired with the ``analyze``
 keyword. Prepending ``analyze`` to the front of any query will

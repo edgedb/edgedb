@@ -12,9 +12,10 @@ Data Explorer
     :width: 100%
 
 The data explorer is similar to the UI editor in facilitating queries on
-database objects, but involves no direct query building. Instead, the
-data explorer gives point-and-click access to the database's objects,
-including inserting new objects and modifying existing ones.
+database objects, but involves no direct query building (aside from filters,
+which by nature must be specified manually). Instead, the data explorer gives
+point-and-click access to the database's objects, including inserting
+new objects and modifying existing ones.
 
 This makes the data explorer the ideal solution for any users of an EdgeDB
 database who lack a technical background or the time needed to learn

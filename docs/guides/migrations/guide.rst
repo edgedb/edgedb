@@ -881,7 +881,7 @@ You might have a good reason to use a direct DDL statement or two
 to change your schema. How do you make that happen? EdgeDB disables 
 the usage of DDL by default, so this attempt to use DDL will not work:
 
-.. code-block:: edgedb-repl
+.. code-block:: edgeql-repl
 
     db> create type MyType;
     error: QueryError: bare DDL statements are not 
