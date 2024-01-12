@@ -121,7 +121,7 @@ Now look inside your ``/dbschema/migrations`` folder. You should see
 a file called ``00001.esdl`` with the following, our first view into 
 what DDL looks like.
 
-.. code-block:: sdl
+.. code-block::
 
     CREATE TYPE default::User {
         CREATE PROPERTY name: std::str;
@@ -153,7 +153,7 @@ from this migration script alone is that there is a ``User`` type
 inside a module called ``default`` that *doesn't* have a property 
 called ``name`` anymore.
 
-.. code-block:: sdl
+.. code-block::
 
   ALTER TYPE default::User {
       DROP PROPERTY name;
@@ -186,7 +186,7 @@ Let's take a look at this by first getting EdgeDB to describe our
 schema to us. Typing ``describe schema;`` inside the REPL will display 
 the following DDL statements:
 
-.. code-block:: sdl
+.. code-block::
 
   {
     'create module default if not exists;
@@ -228,7 +228,7 @@ first it creates the module, then a scalar type called ``Name``, and
 finally the ``User`` type which is now able to have a property of 
 type ``Name``.
 
-.. code-block:: sdl
+.. code-block::
 
     create module default if not exists;
     create scalar type default::Name extending std::str;
@@ -359,7 +359,7 @@ Afterwards, you can go into the ``.edgeql`` file that was just created
 to confirm that these were the changes we wanted to make. It will 
 look like this:
 
-.. code-block:: sdl
+.. code-block::
 
     CREATE MIGRATION m15hu2pbez5od7fe3shlxwcprbqhvctnfavadccjgjszboy26grgka
         ONTO m17m6qjjhtslfkqojvjb4g2vqtzasv5mlbtrqbp6mhwlzv57p5f2uq
@@ -452,7 +452,7 @@ in the example above, we might be wondering exactly what changes will
 be made here. How exactly does the database intend to alter the ``User`` 
 type if we say yes? Simply clicking ``l`` will show it:
 
-.. code-block:: sdl
+.. code-block::
 
     The following DDL statements will be applied:
       ALTER TYPE default::User {
@@ -525,7 +525,7 @@ add ``--allow-empty`` to the command:
 You will now see an empty migration in which you can enter some queries. 
 It will look something like this:
 
-.. code-block:: sdl
+.. code-block::
 
     CREATE MIGRATION m1xseswmheqzxutr55cu66ko4oracannpddujg7gkna2zsjpqm2g3a
         ONTO m1n5lfw7n74626cverbjwdhcafnhmbezjhwec2rbt46gh3ztoo7mqa
@@ -536,7 +536,7 @@ You can now add your queries inside the braces. Assuming a schema
 with a simple ``User`` type, we could then add a bunch of queries 
 such as the following:
 
-.. code-block:: sdl
+.. code-block::
 
     CREATE MIGRATION m1xseswmheqzxutr55cu66ko4oracannpddujg7gkna2zsjpqm2g3a
         ONTO m1n5lfw7n74626cverbjwdhcafnhmbezjhwec2rbt46gh3ztoo7mqa
@@ -579,7 +579,6 @@ to the command. Just do the following:
 
 - Change your schema,
 - Type ``edgedb migration create`` and respond to the CLI's questions,
-
 - Add your queries to the file (best done on the bottom after the 
   DDL statements have changed the schema),
 - Type ``edgedb migrate`` and change the migration name to the suggested name,
@@ -804,8 +803,8 @@ And then add a single property:
 
     module default {
       type User {
-          name: str;
-          number: int32;
+        name: str;
+        number: int32;
       }
     }
 
@@ -818,11 +817,11 @@ However, if you add incorrect syntax to the schema:
 .. code-block:: sdl
 
     module default {
-        type User {
-            name: str;
-            number: int32;
-            wrong_property: i32; # Should say int32, not i32
-        }
+      type User {
+        name: str;
+        number: int32;
+        wrong_property: i32; # Should say int32, not i32
+      }
     }
 
 Then EdgeDB Watch will suddenly pipe up and inform you that the schema 
@@ -854,7 +853,7 @@ stop the process.
 If you are curious what is happening as EdgeDB Watch does its thing, 
 try the following query after you have made some changes:
 
-.. code-block:: sdl
+.. code-block::
 
     group schema::Migration {
         name,
@@ -942,7 +941,7 @@ And then create a type called ``SomeType`` without any properties:
 Your schema now contains this type, as you can see by typing ``describe 
 schema`` or ``describe schema as sdl``:
 
-.. code-block:: sdl
+.. code-block::
 
     {
     'module default {
@@ -1076,9 +1075,9 @@ we will keep the ``friends`` link, while adding a new property called
 
     module default {
       type User {
-          name: str;
-          multi friends: User;
-          friend_names: array<str>;
+        name: str;
+        multi friends: User;
+        friend_names: array<str>;
       }
     }
 
@@ -1086,7 +1085,7 @@ The CLI will simply ask us if we created a property called ``friend_names``.
 We haven't applied the migration yet, so we might as well put the 
 data inside the same migration. A simple update will do the job!
 
-.. code-block:: sdl
+.. code-block::
 
     CREATE MIGRATION m1hvciatdgpo3a74wagbmwhbunxbridda4qvdbrr3z2a34opks63rq
         ONTO m1vktopcva7l6spiinh5e5nnc4dtje4ygw2fhismbmczbyaqbws7jq
@@ -1186,7 +1185,7 @@ We will begin with the same simple schema used in the previous examples:
 And, as before, we will make a somewhat ambiguous change by changing 
 ``name`` to ``nam``.
 
-.. code-block:: edgeql-diff
+.. code-block:: sdl
 
     module default {
       type User {
@@ -1288,23 +1287,6 @@ you will need to use ``edgedb migration extract`` to extract the latest
 migration and give it a proper ``.edgeql`` file in the same way we 
 did above in the "So you really wanted to use DDL but now regret it"
 section.
-
-Random tips
-===========
-
-Get the current migration with the following query:
-
-.. code-block:: sdl
-
-    with
-    module schema, # Or append schema:: to the object (schema::Migration)
-    lastMigration := (
-        select Migration filter not exists .<parents[is Migration]
-    )
-    select lastMigration {
-    id,
-    name,
-    };
 
 .. lint-off
 

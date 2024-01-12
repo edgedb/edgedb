@@ -1392,3 +1392,17 @@ object linked on ``parents``. Order the other migrations by chaining the links.
 The ``Migration`` with the initial migration linked via ``parents`` is the
 second migration — ``00002.edgeql``. The migration linking to the second
 migration via ``parents`` is the third migration, and so on).
+
+Getting the current migration
+-----------------------------
+
+The following query will return the most current migration:
+
+.. code-block:: sdl
+
+    with
+      module schema,
+      lastMigration := (
+        select Migration filter not exists .<parents[is Migration]
+      )
+    select lastMigration {*};
