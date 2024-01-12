@@ -112,7 +112,7 @@ To see what a schema migration file looks like, type ``edgedb migration
 create`` and then hit ``y`` to say yes to the question you see below:
 
 
-.. code-block:: edgeql-repl
+.. code-block:: console
 
     db> did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
     > y
@@ -734,7 +734,7 @@ differs from what you have and offers to make a fixup file:
 You will then see the the same questions that otherwise show up in 
 a standard migration:
 
-.. code-block:: edgeql-repl
+.. code-block:: console
 
     db> did you create property 'nickname' of object type 'default::User'? 
     [y,n,l,c,b,s,q,?]
