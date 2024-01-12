@@ -23,7 +23,9 @@ Options
 =======
 
 :cli:synopsis:`--json`
-    Output in JSON format (password is included in cleartext).
+    Output in JSON format. In addition to formatting the credentials as JSON,
+    this option also includes the password in cleartext and the TLS
+    certificates.
 
 :cli:synopsis:`--insecure-dsn`
     Output a DSN with password in cleartext.
