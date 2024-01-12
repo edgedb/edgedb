@@ -15,6 +15,7 @@ from .data_ops import (ArrExpr, BackLinkExpr, BindingExpr, BoolVal,
                        UnionExpr, UnnamedTupleExpr, UpdateExpr, WithExpr)
 
 from . import module_ops as mops
+from . import expr_ops as eops
 class QueryLevel(Enum):
     TOP_LEVEL = 1
     SEMI_SUBQUERY = 2
@@ -75,7 +76,10 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 return NamedTupleExpr(
                     val={k: recur(e) for (k, e) in val.items()})
             case ObjectProjExpr(subject=subject, label=label):
-                return ObjectProjExpr(subject=recur(subject), label=label)
+                if eops.is_path(subject):
+                    return ObjectProjExpr(subject=recur(subject), label=label)
+                else:
+                    return ObjectProjExpr(subject=semisub_recur(subject), label=label)
             case LinkPropProjExpr(subject=subject, linkprop=linkprop):
                 return LinkPropProjExpr(
                     subject=recur(subject),

@@ -42,7 +42,8 @@ def empty_dbschema() -> DBSchema:
 
 def default_dbschema() -> DBSchema:
     initial_db = empty_dbschema()
-    relative_path_to_std = os.path.join("..", "..", "lib", "std")
+    # relative_path_to_std = os.path.join("..", "..", "lib", "std")
+    relative_path_to_std = os.path.join("..", "..", "lib")
     std_path = os.path.join(os.path.dirname(__file__), relative_path_to_std)
     print("Loading standard library at", std_path)
     add_ddl_library(

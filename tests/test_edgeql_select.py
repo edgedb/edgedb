@@ -2120,9 +2120,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # no duplicates are possible, because the expression
                 # is a path pointing to an object
                 {'body': 'Rewriting everything.'},
-                {'body': 'Rewriting everything.'},
-                {'body': 'Rewriting everything.'},
-                {'body': 'Rewriting everything.'},
             ],
         )
 
