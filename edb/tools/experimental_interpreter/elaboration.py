@@ -457,27 +457,30 @@ def elab_single_type_str(name: str, module_name: Optional[str]) -> Tp:
                     return e.UncheckedTypeName(e.UnqualifiedName(name))
 
 
-def elab_CompositeTp(basetp: qlast.ObjectRef, sub_tps: Sequence[Tp]) -> Tp:
+def elab_CompositeTp(basetp: qlast.ObjectRef, sub_tps: Sequence[Tp], labels=[]) -> Tp:
     if basetp.name in {k.value for k in e.CompositeTpKind}:
-        return e.CompositeTp(kind=e.CompositeTpKind(basetp.name), tps=sub_tps, labels=[])  
+        return e.CompositeTp(kind=e.CompositeTpKind(basetp.name), tps=sub_tps, labels=labels)  
     else:
         raise ValueError("Unknown Composite Type", basetp.name)
 @elab.register(qlast.TypeName)
 def elab_TypeName(qle: qlast.TypeName) -> Tp:
-    if qle.name:
-        return elab_not_implemented(qle)
+    # if qle.name:
+    #     return elab_not_implemented(qle)
     if qle.dimensions:
         return elab_not_implemented(qle)
         
     basetp = qle.maintype
     if isinstance(basetp, qlast.ObjectRef):
-        if basetp.module != "std" and basetp.module:
-            return elab_not_implemented(qle)
         if basetp.itemclass:
             return elab_not_implemented(qle)
         if qle.subtypes:
-            sub_tps = [elab_single_type_expr(subtype) for subtype in qle.subtypes]
-            return elab_CompositeTp(basetp, sub_tps)
+            if all(tp_name.name for tp_name in qle.subtypes) and basetp.name == "tuple":
+                sub_tps = [elab_single_type_expr(subtype) for subtype in qle.subtypes]
+                labels = [tp_name.name for tp_name in qle.subtypes]
+                return elab_CompositeTp(basetp, sub_tps, labels)
+            else:
+                sub_tps = [elab_single_type_expr(subtype) for subtype in qle.subtypes]
+                return elab_CompositeTp(basetp, sub_tps)
         return elab_single_type_str(basetp.name, basetp.module)
     elif isinstance(basetp, qlast.PseudoObjectRef):
         if basetp.name.startswith("any"):

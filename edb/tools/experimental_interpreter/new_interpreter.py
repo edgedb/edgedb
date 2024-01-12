@@ -42,13 +42,14 @@ def empty_dbschema() -> DBSchema:
 
 def default_dbschema() -> DBSchema:
     initial_db = empty_dbschema()
-    # relative_path_to_std = os.path.join("..", "..", "lib", "std")
-    relative_path_to_std = os.path.join("..", "..", "lib")
+    relative_path_to_std = os.path.join("..", "..", "lib", "std")
+    relative_path_to_schema = os.path.join("..", "..", "lib", "schema.edgeql")
     std_path = os.path.join(os.path.dirname(__file__), relative_path_to_std)
+    schema_path = os.path.join(os.path.dirname(__file__), relative_path_to_schema)
     print("Loading standard library at", std_path)
     add_ddl_library(
         initial_db,
-        [std_path]
+        [std_path, schema_path]
     )
     return initial_db
 

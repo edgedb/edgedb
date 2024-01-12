@@ -447,8 +447,8 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                     tps = collect_tp_union(tp.tp)
                     result_tps = [tp_project(ctx, e.ResultTp(u_tp, tp.mode), e.StrLabel(lbl)) for u_tp in tps]
                     result = result_tps[0]
-                    if all(r_tp == result for r_tp in result_tps):
-                        return result
+                    if all(r_tp.mode == result.mode for r_tp in result_tps):
+                        return e.ResultTp(construct_tps_union([r_tp.tp for r_tp in result_tps]), result.mode)
                     else:
                         raise ValueError("Ambiguous union projection", result_tps)
                 case e.IntersectTp(l, r):

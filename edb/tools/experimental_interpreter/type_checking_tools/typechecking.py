@@ -10,6 +10,7 @@ from edb.common import debug
 from ..data import path_factor as path_factor
 from .dml_checking import *
 from ..data import expr_to_str as pp
+from .. import back_to_ql as bql
 from .function_checking import *
 from .cast_checking import check_castable
 
@@ -259,7 +260,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     assert isinstance(t, e.NamedNominalLinkTp)
                     # TODO: use real subtp
                     # if t.subject == e.VarTp(intersect_tp):
-                    candidates = [*candidates, t]
+                    if t.name == intersect_tp_name:
+                        candidates = [*candidates, t]
                 if len(candidates) == 0:
                     result_tp = tops.construct_tp_intersection(
                         subject_tp.tp, e.NamedNominalLinkTp(name=intersect_tp_name, linkprop=e.ObjectTp({})))

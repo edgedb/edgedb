@@ -34,6 +34,8 @@ def add_ddl_library(
     for libpath in libpaths:
         if os.path.isdir(libpath):
             for filename in sorted(os.listdir(libpath)):
+                if filename.startswith("_"):
+                    continue
                 if filename.endswith(".edgeql"):
                     process_edgeql_file(schema, os.path.join(libpath, filename))
         elif libpath.endswith(".edgeql"):

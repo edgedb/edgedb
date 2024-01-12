@@ -134,6 +134,8 @@ def process_ddl(
             assert "::" not in module_name, "TODO"
             obj_tp = elab_schema.elab_create_object_tp(commands)
             schema.modules[(module_name, )].defs[name] = e.ModuleEntityTypeDef(obj_tp,  is_abstract=abstract, constraints={})
+        case qlast.AlterObjectType():
+            print_warning("WARNING: not supported yet", ddl)
         case _:
             debug.dump(ddl)
             raise ValueError("DDL not yet supported", ddl)
