@@ -386,7 +386,7 @@ So far we've only learned how to say yes or no to the CLI's questions
 when we migrate a schema, but quite a few other options are presented 
 when the CLI asks us a question:
 
-.. code-block:: console
+.. code-block::
 
     did you create object type 'default::PlayerCharacter'? [y,n,l,c,b,s,q,?]
     > y
@@ -428,7 +428,7 @@ told it to move to.
 
 Here is the output:
 
-.. code-block:: console
+.. code-block::
 
     did you rename property 'name' of object type 'default::User' 
     to 'nam'?
@@ -554,7 +554,7 @@ the hash of the migration contents".
 Fortunately, it also tells you exactly what the hash (the migration 
 name) will need to be and you can simply change it to that.
 
-.. code-block:: console
+.. code-block::
 
     Error executing command: could not read migrations in 
     myproject/dbschema/migrations:
@@ -608,7 +608,7 @@ applied when an instance starts up. You can imagine that the output
 would be pretty long if you had dozens and dozens of migration files 
 to work through:
 
-.. code-block:: console
+.. code-block::
 
     Initializing EdgeDB instance...
     Applying migrations...
@@ -627,7 +627,7 @@ To squash your migrations, just add ``--squash`` after ``edgedb migration
 create``. Running this command will first display some helpful info 
 to keep in mind before committing to the operation:
 
-.. code-block:: console
+.. code-block::
 
     Current database revision is: 
     m16ixoukn7ulqdn7tp6lvx2754hviopanufv2lm6wf4x2borgc3g6a
@@ -658,7 +658,7 @@ You'll see fixups inside a folder called ``/fixups``. Their file names
 are extremely long, but are simply two migration hashes joined together 
 by a dash. So a fixup that begins with
 
-.. code-block:: console
+.. code-block::
 
     CREATE MIGRATION 
     m1v3vqmwif4ml3ucbzi555mjgm4myxs2husqemopo2sz2m7otr22ka 
@@ -717,7 +717,7 @@ the same as with our previous squash:
 But after typing ``y``, the CLI will notice that the existing schema 
 differs from what you have and offers to make a fixup file:
 
-.. code-block:: console
+.. code-block::
 
     Your schema differs from the last revision. 
     A fixup file can be created
@@ -733,7 +733,7 @@ differs from what you have and offers to make a fixup file:
 You will then see the the same questions that otherwise show up in 
 a standard migration:
 
-.. code-block:: console
+.. code-block::
 
     db> did you create property 'nickname' of object type 'default::User'? 
     [y,n,l,c,b,s,q,?]
@@ -743,7 +743,7 @@ a standard migration:
 Finally, the CLI will give some advice on recommended commands when 
 working with git after doing a squash with a fixup.
 
-.. code-block:: console
+.. code-block::
 
     Remember to commit the `dbschema` directory including deleted files
     and `fixups` subdirectory. Recommended command:
@@ -773,7 +773,7 @@ save as ``.esdl`` file inside your ``/migrations`` folder, letting you know
 if your changes have successfully compiled or not. The command itself will
 lead to the following input ``edgedb watch`` starts up:
 
-.. code-block:: console
+.. code-block::
 
     Connecting to EdgeDB instance 'anything' at localhost:10700...
     EdgeDB Watch initialized.
@@ -827,7 +827,7 @@ However, if you add incorrect syntax to the schema:
 Then EdgeDB Watch will suddenly pipe up and inform you that the schema 
 can't be resolved:
 
-.. code-block:: console
+.. code-block::
 
     error: type 'default::i32' does not exist
     ┌─ myproject/dbschema/default.esdl:5:25
@@ -841,7 +841,7 @@ can't be resolved:
 Once you correct the ``i32`` property to ``int32``, EdgeDB Watch will 
 let you know that things are okay now, and will become quiet again:
 
-.. code-block:: console
+.. code-block::
 
     Resolved. Schema is up to date now.
 
@@ -1217,7 +1217,7 @@ look at them one step at a time. To see the current described change,
 type ``describe current migration as json``. This will generate the 
 following output:
 
-.. code-block:: console
+.. code-block::
 
     {
     "parent": "m14opov4ymcbd34x7csurz3mu4u6sik3r7dosz32gist6kpayhdg4q",
@@ -1241,7 +1241,7 @@ is not the final step in the migration, that it is 67% confident that
 its suggestion is correct, and that we should probably type the following 
 statement:
 
-.. code-block:: console
+.. code-block::
 
     ALTER TYPE default::User { ALTER PROPERTY name { RENAME TO nam; };};
 
@@ -1264,7 +1264,7 @@ status of the migration is. This time we see two major differences:
 proposed migration, and "proposed" does not contain anything. We can 
 also see our confirmed statement(s) inside "confirmed" at the bottom.
 
-.. code-block:: console
+.. code-block::
 
     {
     "parent": "m1fgpuxbvd74m6pb72rdikakjv3fv7cftrez7r56qjgonboimp5zoa",

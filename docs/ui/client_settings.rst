@@ -30,7 +30,7 @@ Config
 - ``allow_user_specified_id``: Whether users are allowed to manually set the
   'id' property. Default: ``false``.
 - ``apply_access_policies``: Whether
-  :ref:`access policies <datamodel_access_policies>` will be applied
+  :ref:`access policies <ref_datamodel_access_policies>` will be applied
   when running queries. Default: ``true``. When set to ``false``, any
   and all operations can be used on any object in the database.
 - ``force_database_error``: A hook to force all queries to produce an error.
