@@ -3,7 +3,11 @@ UI Home
 =======
 
 .. image:: images/ui_home.png
-    :alt: Todo
+    :alt: The instance homepage in the EdgeDB UI. The instance name, called
+          myinstance, is shown on the top. One button gives access to a
+          database known as edgedb, another button to create an example
+          database, and a third button allows for the creation of a
+          new database.
     :width: 100%
 
 The UI homepage displays one button per database inside the instance.

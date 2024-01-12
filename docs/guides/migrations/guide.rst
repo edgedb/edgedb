@@ -112,7 +112,7 @@ To see what a schema migration file looks like, type ``edgedb migration
 create`` and then hit ``y`` to say yes to the question you see below:
 
 
-.. code-block:: console
+.. code-block::
 
     db> did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
     > y

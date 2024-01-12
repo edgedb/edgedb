@@ -3,7 +3,9 @@ Client settings
 ===============
 
 .. image:: images/client_settings.png
-    :alt: Todo
+    :alt: The EdgeDB client settings dropdown bar showing two sample settings
+          that can be set: apply access policies, and implicit limit. Apply
+          access policies is set to false, and implicit limit is set to 100.
     :width: 100%
 
 The UI exposes a number of :ref:`configuration parameters <ref_std_cfg>`

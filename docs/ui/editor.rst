@@ -3,7 +3,12 @@ Editor
 ======
 
 .. image:: images/editor.png
-    :alt: Todo
+    :alt: The Editor page in the EdgeDB UI, inside which the Query Builder
+          is shown as the user puts together a query to see the name property
+          for a user-defined type called Book. A filter on the object's id
+          and a limit to the number of object types returned are being set.
+          The Editor icon is a blue square resembling a pad, with an orange
+          line resembling a pencil on top.
     :width: 100%
 
 Query Editor

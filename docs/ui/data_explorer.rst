@@ -3,7 +3,10 @@ Data Explorer
 =============
 
 .. image:: images/data_explorer.png
-    :alt: Todo
+    :alt: The Data Explorer page in the EdgeDB UI. The icon is three bars
+          stacked on top of each other: blue, purple, and orange. A sample
+          query via the Data Explorer shows information about a user-defined
+          object type called a Booking.
     :width: 100%
 
 The data explorer is similar to the UI editor in facilitating queries on
