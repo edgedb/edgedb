@@ -979,8 +979,8 @@ see it with the following query:
 .. code-block:: edgeql-repl
 
     db> select schema::Migration {*} 
-    ..   filter 
-    ..   .generated_by = schema::MigrationGeneratedBy.DDLStatement;
+    ...  filter 
+    ...  .generated_by = schema::MigrationGeneratedBy.DDLStatement;
     {
     schema::Migration {
         id: 3882894a-8bb7-11ee-b009-ad814ec6a5f5,
@@ -1034,20 +1034,20 @@ make each ``User`` friends with all of the others:
 .. code-block:: edgeql-repl
 
     db> insert User {
-    .. name := 'User 1'
-    .. };
+    ... name := 'User 1'
+    ... };
     {default::User {id: d44a19bc-8bc1-11ee-8f28-47d7ec5238fe}}
     db> insert User {
-    .. name := 'User 2'
-    .. };
+    ... name := 'User 2'
+    ... };
     {default::User {id: d5f941c0-8bc1-11ee-8f28-b3f56009a7b0}}
     db> insert User {
-    .. name := 'User 3'
-    .. };
+    ... name := 'User 3'
+    ... };
     {default::User {id: d79cb03e-8bc1-11ee-8f28-43fe3f68004c}}
     db> update User set { 
-    ..    friends := detached User filter User.name != .name 
-    ..  };
+    ...    friends := detached User filter User.name != .name 
+    ...  };
 
 Now what happens if we now want to change ``multi friends`` to an 
 ``array<str>``? If we were simply changing a scalar property to another 
@@ -1199,12 +1199,12 @@ to {};`` block:
 .. code-block:: edgeql-repl
 
     db> start migration to {
-    ..   module default {
-    ..     type User {
-    ..       name: str;
-    ..     }
-    ..   }
-    .. };
+    ...   module default {
+    ...     type User {
+    ...       name: str;
+    ...     }
+    ...   }
+    ... };
 
 You should get the output ``OK: START MIGRATION``, followed by a prompt 
 that ends with ``[tx]`` to show that we are inside of a transaction. 
