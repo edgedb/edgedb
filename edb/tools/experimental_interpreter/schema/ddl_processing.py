@@ -126,13 +126,14 @@ def process_ddl(
         case qlast.CreateLink():
             print_warning("WARNING: not supported yet", ddl)
         
-        case qlast.CreateObjectType(bases=_,
+        case qlast.CreateObjectType(bases=bases,
                     commands=commands,
                     name=qlast.ObjectRef(name=name, module=module_name),
                     abstract=abstract):
             assert module_name is not None, "Object types cannot be created in top level"
             assert "::" not in module_name, "TODO"
             obj_tp = elab_schema.elab_create_object_tp(commands)
+            elab_schema.add_bases_for_name(schema, (module_name, ), name, bases)
             schema.modules[(module_name, )].defs[name] = e.ModuleEntityTypeDef(obj_tp,  is_abstract=abstract, constraints={})
         case qlast.AlterObjectType():
             print_warning("WARNING: not supported yet", ddl)

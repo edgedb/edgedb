@@ -166,6 +166,9 @@ def check_fun_def_validity(ctx: e.TcCtx, fun_def: e.FuncDef) -> e.FuncDef:
                 impl=impl_ck, 
                 defaults={k: synthesize_type(ctx, v)[1] for k,v in defaults.items()}
                 )
+        case e.BuiltinFuncDef(tp=tp, impl=impl, defaults=defaults):
+            # do not check validity for builtin funcs
+            return e.BuiltinFuncDef(tp=tp, impl=impl, defaults=defaults)
         case _:
             raise ValueError("Not Implemented", fun_def)
         
@@ -204,4 +207,15 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
     return dbschema
 
 
+def re_populate_module_inheritance(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -> None:
+    """
+    Checks the validity of an unchecked module in dbschema. 
+    Modifies the db schema after checking
+    """
+    dbschema.unchecked_modules[module_name] = dbschema.modules[module_name]
+    del dbschema.modules[module_name]
+    inheritance_populate.module_subtyping_resolve(dbschema)
+    inheritance_populate.module_inheritance_populate(dbschema, module_name)
+    dbschema.modules[module_name] = dbschema.unchecked_modules[module_name]
+    del dbschema.unchecked_modules[module_name]
 

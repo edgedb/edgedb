@@ -95,6 +95,9 @@ def func_def_name_resolve(
                 tp=fun_arg_ret_type_name_resolve(root_ctx, tp),
                 impl=impl, 
                 defaults=defaults)
+        case e.BuiltinFuncDef(tp=tp, impl=impl, defaults=defaults):
+            # do not check validity for builtin funcs
+            return e.BuiltinFuncDef(tp=tp, impl=impl, defaults=defaults)
         case _:
             raise ValueError("Not Implemented", func_def)
 

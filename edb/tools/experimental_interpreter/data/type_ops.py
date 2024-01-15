@@ -33,6 +33,13 @@ def construct_tps_union(tps: List[e.Tp]) -> e.Tp:
 
 
 
+def collect_tp_intersection(tp1: e.Tp) -> List[e.Tp]:
+    # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
+    match tp1:
+        case e.IntersectTp(left=tp1, right=tp2):
+            return collect_tp_intersection(tp1) + collect_tp_intersection(tp2)
+        case _:
+            return [tp1]
 
 def collect_tp_union(tp1: e.Tp) -> List[e.Tp]:
     # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
@@ -375,6 +382,32 @@ def is_order_spec(tp: e.ResultTp) -> bool:
     print("WARNING: is_order_spec not implemented")
     return True
     
+def can_project_label_from_tp(ctx: e.TcCtx | e.DBSchema, tp: e.Tp, label: e.Label) -> bool:
+    assert isinstance(label, e.StrLabel), "LP Label Unimplemented"
+    match label:
+        case e.LinkPropLabel(label=lbl):
+            raise ValueError("LP Label Unimplemented")
+        case e.StrLabel(label=lbl):
+            match tp:
+                case e.NominalLinkTp(name=_, subject=tp_subject, linkprop=_):
+                    return can_project_label_from_tp(ctx, tp_subject, label)
+                case e.NamedNominalLinkTp(name=name, linkprop=_):
+                    _, tp_def = mops.resolve_raw_name_and_type_def(ctx, name)
+                    assert isinstance(tp_def, e.ObjectTp)
+                    return can_project_label_from_tp(ctx, tp_def, label)
+                case e.ObjectTp(val=tp_obj):
+                    if lbl in tp_obj.keys():
+                        return True
+                    elif lbl == "id":
+                        return True
+                    else:
+                        return False
+                case e.UnionTp(l, r):
+                    return can_project_label_from_tp(ctx, l, label) and can_project_label_from_tp(ctx, r, label)
+                case e.IntersectTp(l, r):
+                    return can_project_label_from_tp(ctx, l, label) or can_project_label_from_tp(ctx, r, label)
+                case _:
+                    raise ValueError("Unimplemented")
 
 def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
 
@@ -385,6 +418,16 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
     #     target_tp = dereference_var_tp(ctx.schema, tp.tp)
     #     return tp_project(ctx, e.ResultTp(target_tp, tp.mode),
     #                       label)
+    match tp.tp:
+        case e.UnionTp(_, _):
+            tps = collect_tp_union(tp.tp)
+            result_tps = [tp_project(ctx, e.ResultTp(u_tp, tp.mode), label) for u_tp in tps]
+            result = result_tps[0]
+            if all(r_tp.mode == result.mode for r_tp in result_tps):
+                return e.ResultTp(construct_tps_union([r_tp.tp for r_tp in result_tps]), result.mode)
+            else:
+                raise ValueError("Ambiguous union projection", result_tps)
+
 
     match label:
         case e.LinkPropLabel(label=lbl):
@@ -397,7 +440,7 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                                       e.StrLabel(lbl))
                 case _:
                     raise ValueError("Cannot tp_project a linkprop "
-                                     "from a non linkprop type")
+                                     "from a non linkprop type", pp.show(tp.tp))
         case e.StrLabel(label=lbl):
             match tp.tp:
                 case e.NominalLinkTp(name=_, subject=tp_subject, linkprop=_):
@@ -420,6 +463,9 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                         return post_process_result_base_tp(
                             e.UuidTp(), tp.mode
                         )
+                    elif lbl == "__type__":
+                        return post_process_result_base_tp(e.NamedNominalLinkTp(name=e.QualifiedName(["schema", "ObjectType"]), linkprop={}), 
+                                                           tp.mode)
                     else:
                         raise ValueError("Label not found", lbl, tp_obj.keys())
                 case e.NamedTupleTp(val=tp_tuple):
@@ -452,12 +498,19 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                     else:
                         raise ValueError("Ambiguous union projection", result_tps)
                 case e.IntersectTp(l, r):
-                    l_sub = tp_project(ctx, e.ResultTp(l, tp.mode), e.StrLabel(lbl))
-                    r_sub = tp_project(ctx, e.ResultTp(r, tp.mode), e.StrLabel(lbl))
-                    if l_sub.mode == r_sub.mode:
-                        return e.ResultTp(tops.create_intersect_tp(l_sub.tp, r_sub.tp), l_sub.mode)
+                    tps = collect_tp_intersection(tp.tp)
+                    if all(isinstance(itp, e.NominalLinkTp | e.NamedNominalLinkTp) for itp in tps):
+                        projectable_tps = [itp for itp in tps if can_project_label_from_tp(ctx, itp, label)]
+                        if len(projectable_tps) == 0:
+                            raise ValueError("No projection possible", label, tp)
+                        else:
+                            projected_tps = [tp_project(ctx, e.ResultTp(itp, tp.mode), e.StrLabel(lbl)) for itp in projectable_tps]
+                            if all(r_tp.mode == projected_tps[0].mode for r_tp in projected_tps):
+                                return e.ResultTp(construct_tps_union([r_tp.tp for r_tp in projected_tps]), projected_tps[0].mode)
+                            else:
+                                raise ValueError("Ambiguous intersection projection", projected_tps)
                     else:
-                        raise ValueError("Ambiguous intersection projection", l_sub, r_sub)
+                        raise ValueError("Intersection projection not implemented", tp)
                 case _:
                     raise ValueError("Cannot tp_project a label ", label,
                                      "from a non object type", pp.show(tp.tp))

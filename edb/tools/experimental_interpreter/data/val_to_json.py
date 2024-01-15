@@ -7,6 +7,7 @@ from .data_ops import (ArrVal, BoolVal, IntVal, Label, LinkPropLabel,
 from . import expr_ops as eops
 from . import type_ops as tops
 from . import module_ops as mops
+from . import expr_to_str as pp
 
 json_like = str | int | bool | Dict[str, Any] | Sequence[Any]
 
@@ -132,12 +133,26 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
                     if all(isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Array for tp in tps):
                         return [typed_val_to_json_like(v, tops.construct_tps_union([tp.tps[0] for tp in tps]), dbschema) for v in array] # type: ignore
                     else:
-                        raise ValueError("Expecing array tp", tp)
+                        raise ValueError("Expecing array tp", pp.show(tp))
                 case _:
-                    raise ValueError("Expecing array tp", tp)
+                    raise ValueError("Expecing array tp", pp.show(tp))
         case UnnamedTupleVal(val=array):
             if not isinstance(tp, e.CompositeTp) or tp.kind != e.CompositeTpKind.Tuple:
-                raise ValueError("Expecing unnamed tuple tp", tp)
+                match tp:
+                    case e.IntersectTp(l, r):
+                        all_i_tps = tops.collect_tp_intersection(tp)
+                        if all(isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Tuple for tp in all_i_tps):
+                            tps = all_i_tps[0].tps # type: ignore
+                    case e.UnionTp(l, r):
+                        all_u_tps = tops.collect_tp_union(tp)
+                        if all(isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Tuple for tp in all_u_tps):
+                            if all(len(all_i_tps[0].tps) == len(tp.tps) for tp in all_u_tps):# type: ignore
+                                tps = [ tops.construct_tps_union([tp.tps[i] for tp in all_u_tps]) # type: ignore
+                                    for i in range(len(all_u_tps[0].tps))# type: ignore
+                                ]
+                raise ValueError("Expecing unnamed tuple tp", pp.show(tp))
+            else:
+                tps = tp.tps
             return [typed_val_to_json_like(v, t, dbschema)
                     for (v, t) in zip(array, tp.tps, strict=True)]
         case NamedTupleVal(val=dic):

@@ -30,6 +30,7 @@ from .sqlite import sqlite_adapter
 from .data import expr_to_str as pp
 from .db_interface import *
 from .schema.library_discovery import *
+from .type_checking_tools import schema_checking as sck
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
 # sys.setrecursionlimit(10000)
 
@@ -51,6 +52,8 @@ def default_dbschema() -> DBSchema:
         initial_db,
         [std_path, schema_path]
     )
+    sck.re_populate_module_inheritance(initial_db, ("std",))
+    sck.re_populate_module_inheritance(initial_db, ("schema",))
     return initial_db
 
     # return DBSchema({("std",): DBModule({k: e.ModuleEntityFuncDef(v) for (k,v) in all_builtin_funcs.items()})},{})
