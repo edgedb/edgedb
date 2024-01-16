@@ -1991,6 +1991,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.InvalidReferenceError,
             "property 'since' does not exist.*no 'owner' links*",
+            experimental_interperter_regex="property 'since' does not exist"
         ):
             # Test the situation when the target type intersection
             # results in no candidate links to resolve the
@@ -2234,6 +2235,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             {"1!1", "2!2", "3!3", "4!4"},
         )
 
+    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_tvariant_bad_01(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2247,6 +2249,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_tvariant_bad_02(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2260,6 +2263,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_tvariant_bad_03(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2273,6 +2277,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_tvariant_bad_04(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2286,6 +2291,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_tvariant_bad_05(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2299,6 +2305,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_tvariant_bad_06(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2312,6 +2319,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_tvariant_bad_07(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2325,6 +2333,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_tvariant_bad_08(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2338,6 +2347,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_tvariant_bad_09(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -8126,6 +8136,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             tb.bag(["Repl tweak.", "Regression."]),
         )
 
+    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_where_order_dml(self):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,

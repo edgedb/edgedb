@@ -305,6 +305,8 @@ def show(expr : Any) -> str:
         return show_ctx(expr)
     elif isinstance(expr, e.ObjectVal):
         return show_val(expr)
+    elif isinstance(expr, e.ResultTp):
+        return show(expr.tp) + "^" + show_cmmode(expr.mode)
     else:
         raise ValueError('Unimplemented', expr)
 

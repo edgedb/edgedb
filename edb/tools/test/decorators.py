@@ -53,3 +53,20 @@ def not_implemented(reason):
         return unittest.expectedFailure(test_item)
 
     return decorator
+
+
+def experimental_interpreter_exclude():
+    """
+    Do not execute this test case on when doing experimental intepreter:
+    """
+
+    def decorator(method):
+        def wrapper(*args, **kwargs):
+            if (hasattr(args[0], "use_experimental_interpreter")
+                and args[0].use_experimental_interpreter):
+                raise unittest.SkipTest(
+                    'experimental interpreter: test excluded')
+            else:
+                return method(*args, **kwargs)
+        return wrapper
+    return decorator
