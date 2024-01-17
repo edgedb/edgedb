@@ -1145,7 +1145,7 @@ facilitates it by making it easy to respond to the generated suggestions.
 They took place `inside a transaction <transaction_>`_ handled by 
 the user that essentially went like this: 
 
-.. code-block:: edgeql-repl
+.. code-block::
 
     db> start migration to { <your schema goes here> };
 
