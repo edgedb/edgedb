@@ -1046,7 +1046,7 @@ make each ``User`` friends with all of the others:
     ... };
     {default::User {id: d79cb03e-8bc1-11ee-8f28-43fe3f68004c}}
     db> update User set { 
-    ...    friends := detached User filter User.name != .name 
+    ...    friends := (select detached User filter User.name != .name)
     ...  };
 
 Now what happens if we now want to change ``multi friends`` to an 
