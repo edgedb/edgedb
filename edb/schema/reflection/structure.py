@@ -805,21 +805,6 @@ def generate_structure(
                         sn.UnqualName(f'{refdict.attr}__internal'),
                     )
 
-                # HACK: sys::Database is an AnnotationSubject, but
-                # there is no way to actually put annotations on it,
-                # and fetching them results in some pathological
-                # quadratic queries where each inner iteration does
-                # expensive fetching of metadata and JSON decoding.
-                # Override it to return nothing.
-                # TODO: For future versions, we can probably just
-                # drop it.
-                if (
-                    str(rschema_name) == 'sys::Database'
-                    and refdict.attr == 'annotations'
-                ):
-                    props = {}
-                    read_ptr = f'{read_ptr} := <schema::AnnotationValue>{{}}'
-
                 for field in props:
                     sfn = field.sname
                     prop_shape_els.append(f'@{sfn}')

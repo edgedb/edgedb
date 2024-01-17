@@ -1287,13 +1287,15 @@ def compile_intro_queries_stdlib(
             ),
         )
 
-    local_intro_sql = ' UNION ALL '.join(sql_intro_local_parts)
+    local_intro_sql = ' UNION ALL '.join(
+        f'({x})' for x in sql_intro_local_parts)
     local_intro_sql = f'''
         WITH intro(c) AS ({local_intro_sql})
         SELECT json_agg(intro.c) FROM intro
     '''
 
-    global_intro_sql = ' UNION ALL '.join(sql_intro_global_parts)
+    global_intro_sql = ' UNION ALL '.join(
+        f'({x})' for x in sql_intro_global_parts)
     global_intro_sql = f'''
         WITH intro(c) AS ({global_intro_sql})
         SELECT json_agg(intro.c) FROM intro
