@@ -117,7 +117,10 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
                 return objVal.val[label][1]
             elif isinstance(label, StrLabel):
                 label_str = label.label
-                return db.project(id, label_str)
+                if label_str == "id":
+                    return e.MultiSetVal([e.UuidVal(id)])
+                else:
+                    return db.project(id, label_str)
             else:
                 raise ValueError("Label not found", label)
         case NamedTupleVal(val=dic):

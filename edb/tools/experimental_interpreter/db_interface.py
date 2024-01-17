@@ -5,7 +5,6 @@ from .data.type_ops import *
 from .data.data_ops import *
 import copy
 # id class
-EdgeID = int
 class EdgeDatabaseInterface:
 
     def query_ids_for_a_type(self, tp: e.QualifiedName) -> List[EdgeID]:

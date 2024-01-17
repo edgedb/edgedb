@@ -126,6 +126,8 @@ def show_expr(expr: e.Expr) -> str:
                 eops.instantiate_expr(e.FreeVarExpr(var), expr))
         case e.TypeCastExpr(tp=tp, arg=arg):
             return "<" + show_tp(tp) + ">" + show_expr(arg)
+        case e.CheckedTypeCastExpr(cast_tp=(tp_from, tp_to), arg=arg, cast_spec=_):
+            return "<" + show_tp(tp_from) + " -> " + show_tp(tp_to) + ">" + show_expr(arg)
         case e.MultiSetExpr(expr=arr):
             return "{" + ", ".join(show_expr(el) for el in arr) + "}"
         # case e.ObjectExpr(val=elems):
@@ -282,6 +284,9 @@ def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
             return "{" + ", ".join(show_val(el) for el in arr) + "}"
         case _:
             raise ValueError('Unimplemented', val)
+
+def show_multiset_val(val: e.MultiSetVal) -> str:
+    return "[" + ", ".join(show_val(el) for el in val.vals) + "]"
         
 def show_ctx(ctx: e.TcCtx) -> str:
     return (
@@ -307,6 +312,8 @@ def show(expr : Any) -> str:
         return show_val(expr)
     elif isinstance(expr, e.ResultTp):
         return show(expr.tp) + "^" + show_cmmode(expr.mode)
+    elif isinstance(expr, e.MultiSetVal):
+        return show_multiset_val(expr)
     else:
         raise ValueError('Unimplemented', expr)
 

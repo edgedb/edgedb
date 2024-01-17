@@ -437,6 +437,10 @@ def StrVal(val: str):
 def BoolVal(val: bool):
     return ScalarVal(BoolTp(), val)
 
+EdgeID = int
+
+def UuidVal(val: EdgeID):
+    return ScalarVal(UuidTp(), val)
 
 
 

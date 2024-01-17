@@ -6,6 +6,7 @@ import traceback
 import os
 from typing import *
 from typing import Tuple
+import readline
 
 from edb.common import debug
 from edb.edgeql import ast as qlast
@@ -236,10 +237,13 @@ def repl(*, init_sdl_file=None,
     while True:
         if trace_to_file_path is not None:
             write_logs_to_file(logs, trace_to_file_path)
-        print("> ", end="", flush=True)
         s = ""
         while ';' not in s:
-            s += sys.stdin.readline()
+            # s += sys.stdin.readline()
+            if s:
+                s += input("... ")
+            else:
+                s += input("> ")
             if not s:
                 return
         try:
