@@ -1398,11 +1398,11 @@ Getting the current migration
 
 The following query will return the most current migration:
 
-.. code-block:: sdl
+.. code-block:: edgeql-repl
 
-    with
-      module schema,
-      lastMigration := (
-        select Migration filter not exists .<parents[is Migration]
-      )
-    select lastMigration {*};
+    db> with
+    ...  module schema,
+    ...  lastMigration := (
+    ...    select Migration filter not exists .<parents[is Migration]
+    ...  )
+    ... select lastMigration {*};
