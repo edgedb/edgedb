@@ -1,0 +1,39 @@
+name: pull-request-target
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, labeled, closed]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+
+  test-pr:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - name: Verify that postgres/ was not changed unintentionally
+      shell: bash
+      run: |
+        required_prefix="Update bundled PostgreSQL"
+
+        title="${{ github.event.pull_request.title }}"
+        if [[ $title == $required_prefix* ]]; then
+          exit 0
+        fi
+
+        git diff --quiet \
+          ${{ github.event.pull_request.base.sha }} \
+          ${{ github.event.pull_request.head.sha }}
+        if [ $? != 0 ]; then
+          echo "postgres/ submodule has been changed,"\
+            "but PR title does not indicate that"
+          echo "(it should start with '$required_prefix')"
+          exit 1
+        fi
