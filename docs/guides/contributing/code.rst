@@ -72,11 +72,11 @@ Python "venv" with all dependencies and commands installed into it.
 
       $ git clone --recursive https://github.com/edgedb/edgedb.git
 
-#. Create a Python 3.10 virtual environment and activate it:
+#. Create a Python 3.11 virtual environment and activate it:
 
    .. code-block:: bash
 
-      $ python3.10 -m venv edgedb-dev
+      $ python3.11 -m venv edgedb-dev
       $ source edgedb-dev/bin/activate
 
 #. Build edgedb (the build will take a while):
