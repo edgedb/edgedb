@@ -681,7 +681,7 @@ jobs:
         title="${{ github.event.pull_request.title }}"
         required_prefix="Update bundled PostgreSQL"
 
-        if [[ $title == $required_prefix* ]];
+        if [[ $title == $required_prefix* ]]; then
           exit 0
         fi
 
