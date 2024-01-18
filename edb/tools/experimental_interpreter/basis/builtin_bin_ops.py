@@ -115,7 +115,11 @@ def coalescing_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def in_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [[singleton], l]:
-            return [BoolVal(singleton in l)]
+            if isinstance(singleton, RefVal):
+                assert all(isinstance(v, RefVal) for v in l)
+                return [BoolVal(singleton.refid in [v.refid for v in l])]
+            else:
+                return [BoolVal(singleton in l)]
     raise FunCallErr()
 
 
