@@ -102,4 +102,6 @@ alter type ext::auth::AuthConfig  {
 '''),
     ('edgeql+schema', ''),  # pg_attribute, pg_attribute_ext, edgedbsql.columns
     ('edgeql+schema', ''),  # __type__
+    # === 4.6
+    ('edgeql+schema+globalonly', ''),  # recreate introspection query
 ])
