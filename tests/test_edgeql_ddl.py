@@ -13105,6 +13105,25 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         #     ['test'],
         # )
 
+    async def test_edgeql_ddl_create_migration_05(self):
+        await self.con.execute('''
+            create type X { create property x -> str; };
+        ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidReferenceError,
+                "property 'x' does not"):
+            await self.con.execute('''
+                CREATE MIGRATION
+                {
+                    alter type default::X {
+                        alter property x rename to y;
+                    };
+                    alter type default::X {
+                        alter property x create constraint exclusive;
+                    };
+                };
+            ''')
+
     async def test_edgeql_ddl_naked_backlink_in_computable(self):
         await self.con.execute('''
             CREATE TYPE User {
