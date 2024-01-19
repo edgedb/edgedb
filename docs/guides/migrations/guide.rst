@@ -165,13 +165,12 @@ a property called ``name`` anymore.
 
 .. note::
 
-    Migrations (and other commands) take even less time if you are 
-    inside the REPL. The commands themselves are also a bit shorter: 
-    ``\migration create`` followed by ``\migrate``. The migrations themselves
-    also happen in less time because you are continually connected to a
-    database when inside the REPL, compared to the command line which will
-    first establish a connection whenever you type the command to create and
-    apply a migration.
+    EdgeDB commands inside the REPL use a backslash instead of the ``edgedb``
+    command, so you can migrate your schema inside the REPL by typing
+    ``\migration create`` , followed by ``\migrate``. Not only are the comands
+    shorter, but they also execute faster. This is because the database client
+    is already connected to your database when you're inside the REPL, which
+    is not the case when creating and applying the migration via the CLI.
 
 Order matters in DDL
 --------------------
