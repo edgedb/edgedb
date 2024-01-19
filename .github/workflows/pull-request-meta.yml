@@ -28,10 +28,10 @@ jobs:
           exit 0
         fi
 
-        git diff --quiet \
+        if git diff --quiet \
           ${{ github.event.pull_request.base.sha }} \
-          ${{ github.event.pull_request.head.sha }} -- postgres/ || echo 'no'
-        if [ $? != 0 ]; then
+          ${{ github.event.pull_request.head.sha }} -- postgres/ ; then
+
           echo "postgres/ submodule has been changed,"\
             "but PR title does not indicate that"
           echo "(it should start with '$required_prefix')"
