@@ -2026,14 +2026,17 @@ cdef class PGConnection:
                     data = self.buffer.consume_message()
                     if self.debug:
                         self.debug_print('END OF DESCRIBE', mtype)
-                    if not action.is_injected():
+                    if not action.is_injected() and not (
+                        mtype == b'n' and
+                        action.action == PGAction.DESCRIBE_STMT_ROWS
+                    ):
                         msg_buf = WriteBuffer.new_message(mtype)
                         msg_buf.write_bytes(data)
                         buf.write_buffer(msg_buf.end_message())
                     break
 
                 elif (
-                    mtype == b't'
+                    mtype == b't'  # ParameterDescription
                     and action.action == PGAction.DESCRIBE_STMT_ROWS
                 ):
                     self.buffer.consume_message()
