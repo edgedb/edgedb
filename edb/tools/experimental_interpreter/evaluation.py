@@ -370,14 +370,11 @@ def eval_expr(ctx: EvalEnv,
             return MultiSetVal(constructed)
         case NamedTupleExpr(val=tuples):
             tuplesv = eval_expr_list(ctx, db, list(tuples.values()))
-            result_list: List[Val] = [
-                           NamedTupleVal({k: p})
-                           for prod in itertools.product(
-                             *map_expand_multiset_val(
-                               tuplesv))
-                           for (k, p) in zip(
-                               tuples.keys(),
-                               prod, strict=True)]
+            result_list: List[Val] = []
+            for prod in itertools.product(*map_expand_multiset_val(tuplesv)):
+                result_list.append(NamedTupleVal({k: p
+                           for (k, p) in zip(tuples.keys(), prod, strict=True)})
+                )
             return MultiSetVal(result_list)
         case UnionExpr(left=l, right=r):
             lvals = eval_expr(ctx, db, l)

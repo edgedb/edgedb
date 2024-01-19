@@ -181,8 +181,8 @@ def typed_multi_set_val_to_json_like(
                      the result's type is a singleton.
     """
     if tp.mode.upper == e.CardNumOne:
-        assert len(m.vals) <= 1, (
-            "Single Multiset must have cardinality at most 1")
+        if len(m.vals) > 1:
+            raise ValueError("Single Multiset must have cardinality at most 1")
         if len(m.vals) == 1:
             result = typed_val_to_json_like(m.vals[0], tp.tp, dbschema)
             if top_level:

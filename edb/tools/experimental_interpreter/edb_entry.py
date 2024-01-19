@@ -11,6 +11,8 @@ from .new_interpreter import repl
                          ["-h", "--help"]})
 @click.option("--init-ql-file", type=str, required=False,
               help="run this edgeql file on startup")
+@click.option("--next-ql-file", type=str, required=False,
+              help="run this edgeql file after startup")
 @click.option("--init-sdl-file", type=str, required=False,
               help="initialize schema to be this file, schema"
               "should not be place")
@@ -21,13 +23,14 @@ from .new_interpreter import repl
 @click.option("--skip-type-checking", default=False, required=False, is_flag=True)
 @click.option("-v", "--verbose", default=False, required=False, is_flag=True)
 def interperter_entry(
-        *, init_sdl_file=None, init_ql_file=None, verbose=False,
+        *, init_sdl_file=None, next_ql_file=None, init_ql_file=None, verbose=False,
         trace_to_file=None, sqlite_file=None,
         library_ddl_files=None,
         skip_type_checking=False) -> None:
     """ Run the experimental interpreter for EdgeQL """
     repl(init_sdl_file=init_sdl_file,
          init_ql_file=init_ql_file,
+         next_ql_file=next_ql_file,
          library_ddl_files=library_ddl_files,
          debug_print=verbose,
          trace_to_file_path=trace_to_file,

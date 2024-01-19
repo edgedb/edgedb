@@ -194,6 +194,7 @@ def run_single_str_get_json(
 
 def repl(*, init_sdl_file=None,
          init_ql_file=None,
+         next_ql_file=None,
          library_ddl_files=None,
          debug_print=False,
          trace_to_file_path=None,
@@ -234,6 +235,16 @@ def repl(*, init_sdl_file=None,
         initial_queries = open(init_ql_file).read()
         run_str(db, dbschema, initial_queries,
                           print_asts=debug_print, logs=logs)
+
+
+    try:
+        if next_ql_file is not None:
+            next_queries = open(next_ql_file).read()
+            run_str(db, dbschema, next_queries,
+                            print_asts=debug_print, logs=logs)
+    except Exception:
+        traceback.print_exception(*sys.exc_info())
+        
     while True:
         if trace_to_file_path is not None:
             write_logs_to_file(logs, trace_to_file_path)
