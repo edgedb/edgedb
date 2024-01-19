@@ -28,11 +28,6 @@ def subtract_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-multiply_impl = lift_binary_scalar_op(operator.mul)
-
-
-
-mod_impl = lift_binary_scalar_op(operator.mod)
 
 
 def eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -52,8 +47,8 @@ def not_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
         case [[e.ScalarVal(t1, v1)], [e.ScalarVal(t2, v2)]]:
             assert t1 == t2
             return [BoolVal(v1 != v2)]
-        case [[RefVal(_) as r1], [RefVal(_) as r2]]:
-            return [BoolVal(r1 != r2)]
+        case [[RefVal(id1, v1) as r1], [RefVal(id2, v2) as r2]]:
+            return [BoolVal(id1 != id2)]
     raise FunCallErr(arg)
 
 
@@ -83,9 +78,6 @@ def opt_not_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 
-
-
-gt_impl = lift_binary_scalar_op(operator.gt, override_ret_tp=e.BoolTp())
 
 
 
@@ -133,7 +125,6 @@ def exists_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-
 def or_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [[e.ScalarVal(_, b1)], [e.ScalarVal(_, b2)]]:
@@ -142,9 +133,6 @@ def or_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             return [BoolVal(True)]
     raise FunCallErr()
 
-and_impl = lift_binary_scalar_op(operator.and_)
-
-less_than_impl = lift_binary_scalar_op(operator.lt, override_ret_tp=e.BoolTp())
 
 def like(value, pattern) -> bool:
     fnmatch_pattern = pattern.replace('%', '*').replace('_', '?').replace(r'\%', '%').replace(r'\_', '_')
@@ -191,10 +179,6 @@ def distinct_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
                 return list(set(vset))
     raise FunCallErr()
 
-
-not_impl = lift_unary_scalar_op(operator.not_)
-
-
 def intersect_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [arg1, arg2]:
@@ -215,3 +199,11 @@ def except_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
                 return [v for v in arg1 if v not in arg2]
     raise FunCallErr()
 
+multiply_impl = lift_binary_scalar_op(operator.mul)
+mod_impl = lift_binary_scalar_op(operator.mod)
+gt_impl = lift_binary_scalar_op(operator.gt, override_ret_tp=e.BoolTp())
+not_impl = lift_unary_scalar_op(operator.not_)
+and_impl = lift_binary_scalar_op(operator.and_)
+pow_impl = lift_binary_scalar_op(operator.pow)
+less_than_impl = lift_binary_scalar_op(operator.lt, override_ret_tp=e.BoolTp())
+less_than_or_equal_to_impl = lift_binary_scalar_op(operator.le, override_ret_tp=e.BoolTp())

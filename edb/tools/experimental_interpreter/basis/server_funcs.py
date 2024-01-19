@@ -19,6 +19,8 @@ all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e
     "?=": opt_eq_impl,
     "?!=": opt_not_eq_impl,
     ">": gt_impl,
+    "^": pow_impl,
+    "<=": less_than_or_equal_to_impl,
     "++": concatenate_impl,
     "??": coalescing_impl,
     "IN": in_impl,

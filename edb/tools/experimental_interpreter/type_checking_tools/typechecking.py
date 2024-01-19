@@ -13,6 +13,7 @@ from ..data import expr_to_str as pp
 from .. import back_to_ql as bql
 from .function_checking import *
 from .cast_checking import check_castable
+from ..schema import subtyping_resolution as subtp_resol
 
 
 def synthesize_type_for_val(val: e.Val) -> e.Tp:
@@ -141,7 +142,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                             result_tp = e.NominalLinkTp(subject=typedef,
                                                         name=possible_resolved_name, 
                                                         linkprop=e.ObjectTp({}))
-                            result_expr = possible_resolved_name
+                            result_expr = e.MultiSetExpr(expr=subtp_resol.find_all_subtypes_of_tp_in_schema(ctx.schema, possible_resolved_name))
                             result_card = e.CardAny
                         case _:
                             raise ValueError("Unsupported Module Entity", module_entity)

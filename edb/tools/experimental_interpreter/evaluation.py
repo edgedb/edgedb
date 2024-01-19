@@ -191,12 +191,14 @@ class EvaluationLogsWrapper:
                 parent = self.logs
                 [parent := parent[i] for i in self.indexes]
                 self.indexes.append(len(parent))
-                parent.append([(expr, [StrVal("NOT AVAILABLE!!!")])])
+                parent.append([(expr, MultiSetVal([StrVal("NOT AVAILABLE!!!")]))])
                 rt_val = self.original_eval_expr(ctx, db, expr)
                 parent[self.indexes[-1]][0] = (parent[self.indexes[-1]][0][0],
                                                rt_val)
                 assert len(parent[self.indexes[-1]][0]) == 2
                 self.indexes.pop()
+                if not isinstance(rt_val, e.MultiSetVal):
+                    raise ValueError("Evaluation should always return MultiSetVal")
                 return rt_val
 
         return wrapper

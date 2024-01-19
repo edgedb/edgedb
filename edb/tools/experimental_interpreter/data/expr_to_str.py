@@ -314,6 +314,8 @@ def show(expr : Any) -> str:
         return show(expr.tp) + "^" + show_cmmode(expr.mode)
     elif isinstance(expr, e.MultiSetVal):
         return show_multiset_val(expr)
+    elif isinstance(expr, list):
+        return "!!!LIST([" + ", ".join(show(el) for el in expr) + "])"
     else:
         raise ValueError('Unimplemented', expr)
 

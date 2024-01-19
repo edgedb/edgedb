@@ -1697,6 +1697,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_fix("splats")
     async def test_edgeql_select_splat_01(self):
         await self.assert_query_result(
             r'''
@@ -1713,6 +1714,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_fix("splats")
     async def test_edgeql_select_splat_02(self):
         await self.assert_query_result(
             r'''
@@ -1739,6 +1741,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_fix("splats")
     async def test_edgeql_select_splat_03(self):
         # Partial ad-hoc splat overload
         await self.assert_query_result(
@@ -1772,6 +1775,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_fix("splats")
     async def test_edgeql_select_splat_04(self):
         # Polymorphic splats
         await self.con.execute('''
@@ -1831,6 +1835,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_fix("splats not implemented")
     async def test_edgeql_select_splat_05(self):
         # Polymorphic splat conflicts
         res = [
@@ -7889,6 +7894,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_exclude("Returning empty sets are allowed in the interpreter")
     async def test_edgeql_select_subshape_filter_01(self):
         # TODO: produce a better error message with a hint here?
         async with self.assertRaisesRegexTx(

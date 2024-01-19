@@ -31,9 +31,12 @@ def do_write_logs(logs: List[Any], filename: str):
         if len(entry) > 1:
             result += """<div class='output'><span style='color:red;'>
                          Output:</span> {}</div>""".format(to_html_str(pp.show(entry[1])))
+            try:
+                json_text = json.dumps(multi_set_val_to_json_like(entry[1]), indent=4)
+            except Exception as e:
+                json_text = "EXCEPTION OCCURRED" + str(e)
             result += """<div class='output'><span style='color:green;'>
-                         Human-friendly Output:</span> {}</div>""".format(
-                json.dumps(multi_set_val_to_json_like(entry[1]), indent=4))
+                        Human-friendly Output:</span> {}</div>""".format(json_text)
         result += "</div>\n"
         return result
 

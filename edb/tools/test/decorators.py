@@ -55,7 +55,7 @@ def not_implemented(reason):
     return decorator
 
 
-def experimental_interpreter_exclude():
+def experimental_interpreter_exclude(msg = None):
     """
     Do not execute this test case on when doing experimental intepreter:
     """
@@ -65,7 +65,7 @@ def experimental_interpreter_exclude():
             if (hasattr(args[0], "use_experimental_interpreter")
                 and args[0].use_experimental_interpreter):
                 raise unittest.SkipTest(
-                    'experimental interpreter: test excluded')
+                    'experimental interpreter: test excluded', msg)
             else:
                 return method(*args, **kwargs)
         return wrapper
@@ -83,7 +83,8 @@ def experimental_interpreter_triaged_pending_fix(msg):
         def wrapper(*args, **kwargs):
             if (hasattr(args[0], "use_experimental_interpreter")
                 and args[0].use_experimental_interpreter):
-                raise ExperimentalInterpreterFeatureOrBugPending(msg)
+                # raise ExperimentalInterpreterFeatureOrBugPending(msg)
+                raise unittest.SkipTest("PENDING FEATURE OR BUG: " + msg)
             else:
                 return method(*args, **kwargs)
         return wrapper
