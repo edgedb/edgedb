@@ -268,7 +268,7 @@ has no properties.
 .. code-block:: sdl
 
     module default {
-      type SomeType;
+      type User;
     }
 
 Creating a migration with ``edgedb migration create`` will result 
