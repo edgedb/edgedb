@@ -2780,6 +2780,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 """
             )
 
+    @test.decorators.experimental_interpreter_exclude("This seems fine, we allow computed properties to override in the interpreter")
     async def test_edgeql_select_setops_15(self):
         with self.assertRaisesRegex(
             edgedb.SchemaError,
