@@ -33,8 +33,8 @@ jobs:
           ${{ github.event.pull_request.head.sha }} -- postgres/
         if [ $? != 0 ]; then
           echo "postgres/ submodule has been changed,"\
-            "but PR title does not indicate that" 1>&2
-          echo "(it should start with '$required_prefix')" 1>&2
+            "but PR title does not indicate that"
+          echo "(it should start with '$required_prefix')"
           exit 1
         fi
         echo 'all ok'
