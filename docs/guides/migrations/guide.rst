@@ -15,7 +15,7 @@ you can confidently know what sort of behavior to expect from your data.
 Laying a type-safe foundation means a bit more thinking up front, but saves
 you all kinds of headaches down the road.
 
-But it's not likely that you'll set your schema up perfectly with 
+It's not unlikely though that you'll define your schema up perfectly with 
 your first try, or that you'll build an application that never needs 
 its schema revised. When you *do* eventually need to make a change, you will
 need to migrate your schema from its current state to a new state.
@@ -105,16 +105,8 @@ DDL: For computers (mostly)
 ===========================
 
 To see what a schema migration file looks like, type ``edgedb migration 
-create`` and then hit ``y`` to say yes to the question you see below:
-
-
-.. code-block::
-
-    db> did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
-    > y
-
-Now look inside your ``/dbschema/migrations`` folder. You should see 
-a file called ``00001.esdl`` with the following, our first view into 
+create``. Now look inside your ``/dbschema/migrations`` folder. You should
+see a file called ``00001.esdl`` with the following, our first view into 
 what DDL looks like.
 
 .. code-block::
@@ -141,10 +133,22 @@ to look like this:
       type User;
     }
 
-As before, typing ``edgedb migration create`` will, after running us through
-the interactive planner, create a DDL statement to change the schema from
-the current state to the one we have declared. This time we aren't starting
-from a blank schema, so the difference between SDL and DDL is even clearer.
+As before, typing ``edgedb migration create`` will create a DDL statement to
+change the schema from the current state to the one we have declared. This
+time we aren't starting from a blank schema, so the stakes are a bit higher.
+After all, dropping a property from a type will also drop all existing data
+under that property name. Thus, the schema planner will first ask a question
+to confirm the change with us. We will learn a lot more about working with
+these questions very soon, but in the meantime just press ``y`` to confirm
+the change:
+
+.. code-block::
+
+    db> did you drop property 'name' of object type 'default::User'?
+    [y,n,l,c,b,s,q,?]
+    > y
+
+The difference between SDL and DDL is even clearer this time.
 The DDL statement alone doesn't give us any indication what the schema
 looks like; all anyone could know from this migration script alone is that
 there is a ``User`` type inside a module called ``default`` that *doesn't*
