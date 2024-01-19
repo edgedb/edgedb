@@ -140,7 +140,7 @@ After all, dropping a property from a type will also drop all existing data
 under that property name. Thus, the schema planner will first ask a question
 to confirm the change with us. We will learn a lot more about working with
 these questions very soon, but in the meantime just press ``y`` to confirm
-the change:
+the change.
 
 .. code-block::
 
@@ -148,17 +148,20 @@ the change:
     [y,n,l,c,b,s,q,?]
     > y
 
-The difference between SDL and DDL is even clearer this time.
-The DDL statement alone doesn't give us any indication what the schema
-looks like; all anyone could know from this migration script alone is that
-there is a ``User`` type inside a module called ``default`` that *doesn't*
-have a property called ``name`` anymore.
+Your ``/dbschema/migrations`` folder will now have a new file that contains
+the following:
 
 .. code-block::
 
   ALTER TYPE default::User {
       DROP PROPERTY name;
   };
+
+The difference between SDL and DDL is even clearer this time. The DDL
+statement alone doesn't give us any indication what the schema looks like;
+all anyone could know from this migration script alone is that there is
+a ``User`` type inside a module called ``default`` that *doesn't* have
+a property called ``name`` anymore.
 
 .. note::
 
