@@ -19,7 +19,9 @@ def all_prefixes_of_a_path(expr: Expr) -> List[Expr]:
             return [*all_prefixes_of_a_path(subject), expr]
         case ObjectProjExpr(subject=subject, label=_):
             return [*all_prefixes_of_a_path(subject), expr]
-        case e.TpIntersectExpr(subject=BackLinkExpr(subject=subject, label=_), tp=_):
+        # case e.TpIntersectExpr(subject=BackLinkExpr(subject=subject, label=_), tp=_):
+        #     return [*all_prefixes_of_a_path(subject), expr]
+        case e.TpIntersectExpr(subject=subject, tp=_):
             return [*all_prefixes_of_a_path(subject), expr]
         case BackLinkExpr(subject=subject, label=_):
             return [*all_prefixes_of_a_path(subject), expr]
@@ -206,11 +208,9 @@ def insert_conditional_dedup(path):
             return e.ConditionalDedupExpr(
                 e.ObjectProjExpr(subject=insert_conditional_dedup(subject), 
                                  label=label))
-        case e.TpIntersectExpr(subject=BackLinkExpr(subject=subject, label=label), tp=tp):
+        case e.TpIntersectExpr(subject=subject, tp=tp):
             return e.ConditionalDedupExpr(
-                e.TpIntersectExpr(subject=e.BackLinkExpr(
-                                    subject=insert_conditional_dedup(subject), 
-                                    label=label),
+                e.TpIntersectExpr(subject=insert_conditional_dedup(subject),
                                   tp=tp))
         case BackLinkExpr(subject=subject, label=label):
             return e.ConditionalDedupExpr(
