@@ -180,13 +180,24 @@ def distinct_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 def intersect_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    def list_interset(l1, l2):
+        l2_copy = [*l2]
+        result = []
+        for v in l1:
+            if v in l2_copy:
+                result.append(v)
+                l2_copy.remove(v)
+        return result
+
     match arg:
         case [arg1, arg2]:
             if all(isinstance(v, e.RefVal) for v in arg1) and all(isinstance(v, e.RefVal) for v in arg2):
-                id1 = {v.refid : v for v in arg1} # type: ignore
-                return {v.refid : v for v in arg2 if v.refid in id1}.values() # type: ignore
+                id1 = [v.refid for v in arg1]
+                id2 = [v.refid for v in arg2]
+                id_common = list_interset(id1, id2)
+                return [v for v in arg1 if v.refid in id_common]
             else:
-                return [v for v in arg1 if v in arg2]
+                return list_interset(arg1, arg2)
     raise FunCallErr()
 
 def except_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
