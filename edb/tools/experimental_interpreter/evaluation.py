@@ -364,12 +364,10 @@ def eval_expr(ctx: EvalEnv,
             return  MultiSetVal(casted)
         case UnnamedTupleExpr(val=tuples):
             tuplesv = eval_expr_list(ctx, db, tuples)
-            constructed = [
-                UnnamedTupleVal(list(p))
-                for p in itertools.product(
-                    *map_expand_multiset_val(
-                      tuplesv))]
-            return MultiSetVal(constructed)
+            result_list: List[Val] = []
+            for prod in itertools.product(*map_expand_multiset_val(tuplesv)):
+                result_list.append(UnnamedTupleVal(list(prod)))
+            return MultiSetVal(result_list)
         case NamedTupleExpr(val=tuples):
             tuplesv = eval_expr_list(ctx, db, list(tuples.values()))
             result_list: List[Val] = []
