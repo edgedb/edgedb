@@ -30,6 +30,7 @@ from edb.common import verutils
 
 from edb.edgeql import qltypes
 
+from edb.schema import constraints as s_constr
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
 from edb.schema import expr as s_expr
@@ -529,7 +530,38 @@ def generate_structure(
                         f'{read_ptr}: {{name, value := .{proxy_link}.id}}'
                     )
 
-                if ptr.issubclass(schema, ordered_link):
+                # HACK: Pre 4.6, we did not correctly populate the
+                # @index linkprop for concrete constraint params,
+                # which can cause migration trouble if they happen to
+                # get read back in the wrong order. We fixed it
+                # forward, but we need to be able to handle cases
+                # where it is still missing, so we read the order out
+                # of the nearest abstract *ancestor*, since abstract
+                # constraint @indexs always got populated properly.
+                if (
+                    sfn == 'params'
+                    and issubclass(py_cls, s_constr.Constraint)
+                ):
+                    read_ptr = '''
+                        params := (select .params {
+                          id,
+                          baseindex := assert_single((
+                            # fetch the first non-concrete ancestor
+                            with anc := (
+                              select schema::Constraint.ancestors[
+                                  is schema::Constraint]
+                              filter .abstract order by @index limit 1
+                            ),
+                            # ... and pull out the index of the matching param
+                            select anc {
+                             params
+                             filter .name = schema::Constraint.params.name
+                            }.params@index
+                          ))
+                        } order by @index ?? .baseindex) { id }
+                    '''
+
+                elif ptr.issubclass(schema, ordered_link):
                     read_ptr = f'{read_ptr} ORDER BY @index'
 
                 read_shape.append(read_ptr)
