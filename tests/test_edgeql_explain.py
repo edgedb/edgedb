@@ -28,6 +28,7 @@ from edb.schema import name as sn
 from edb.server.compiler.explain import pg_tree
 from edb.tools import test
 
+
 class TestEdgeQLExplain(tb.QueryTestCase):
     '''Tests for EXPLAIN.
 
