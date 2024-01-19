@@ -226,10 +226,8 @@ Now let's add the new scalar type mentioned above and give it to the
 Note that we are able to define the custom scalar type ``Name`` after we
 define the ``User`` type even though we use ``Name`` within that object
 because order doesn't matter in SDL. Let's migrate to this new schema
-and then use ``describe schema;`` again. The output shows us that the
-database has gone in the necessary order to make the schema: first it
-creates the module, then a scalar type called ``Name``, and finally the
-``User`` type which is now able to have a property of type ``Name``.
+and then use ``describe schema;`` again. You will see the following
+statements:
 
 .. code-block::
 
@@ -238,6 +236,11 @@ creates the module, then a scalar type called ``Name``, and finally the
     create type default::User {
         create property name: default::Name;
     };
+
+The output shows us that the database has gone in the necessary order
+to make the schema: first it creates the module, then a scalar type
+called ``Name``, and finally the ``User`` type which is now able to
+have a property of type ``Name``.
 
 The output with ``describe schema as sdl;`` is also somewhat similar. 
 It's SDL, but the order matches that of the DDL statements.
