@@ -30,7 +30,7 @@ jobs:
 
         git diff --quiet \
           ${{ github.event.pull_request.base.sha }} \
-          ${{ github.event.pull_request.head.sha }} -- postgres/
+          ${{ github.event.pull_request.head.sha }} -- postgres/ || echo 'no'
         if [ $? != 0 ]; then
           echo "postgres/ submodule has been changed,"\
             "but PR title does not indicate that"
