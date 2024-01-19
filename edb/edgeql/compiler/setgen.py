@@ -800,6 +800,15 @@ def resolve_ptr_with_intersections(
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
             if track_ref is not False:
+                # XXX: This condition is a hack that approximates what
+                # really exists in the schema and what does not exist.
+                # The approximation is: a computed pointer that does not
+                # come from an alias exists in the schema, even it is derived.
+                if (ref != ptr and
+                        ptr.get_computable(ctx.env.schema) and
+                        not ptr.get_from_alias(ctx.env.schema)):
+                    ctx.env.add_schema_ref(ptr, track_ref)
+
                 ctx.env.add_schema_ref(ref, track_ref)
                 _add_target_schema_refs(
                     ref.get_target(ctx.env.schema), ctx=ctx)
