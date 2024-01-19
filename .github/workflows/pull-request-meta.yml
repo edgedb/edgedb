@@ -2,7 +2,7 @@ name: Pull Request Meta
 
 on:
   pull_request:
-    types: [opened, edited, synchronize, labeled, closed]
+    types: [opened, edited, synchronize]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
