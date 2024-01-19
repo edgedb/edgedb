@@ -1,7 +1,7 @@
-name: Pull Request
+name: Pull Request Meta
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, edited, synchronize, labeled, closed]
 
 concurrency:
@@ -28,12 +28,14 @@ jobs:
           exit 0
         fi
 
-        git diff --quiet \
+        if git diff --quiet \
           ${{ github.event.pull_request.base.sha }} \
-          ${{ github.event.pull_request.head.sha }}
-        if [ $? != 0 ]; then
+          ${{ github.event.pull_request.head.sha }} -- postgres/
+        then
+          echo 'all ok'
+        else
           echo "postgres/ submodule has been changed,"\
-            "but PR title does not indicate that" 1>&2
-          echo "(it should start with '$required_prefix')" 1>&2
+            "but PR title does not indicate that"
+          echo "(it should start with '$required_prefix')"
           exit 1
         fi
