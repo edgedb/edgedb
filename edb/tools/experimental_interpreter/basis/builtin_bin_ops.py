@@ -1,3 +1,4 @@
+from collections import Counter as mset
 
 from typing import *
 
@@ -181,13 +182,7 @@ def distinct_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 def intersect_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     def list_interset(l1, l2):
-        l2_copy = [*l2]
-        result = []
-        for v in l1:
-            if v in l2_copy:
-                result.append(v)
-                l2_copy.remove(v)
-        return result
+        return list((mset(l1) & mset(l2)).elements())
 
     match arg:
         case [arg1, arg2]:
@@ -204,10 +199,12 @@ def except_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [arg1, arg2]:
             if all(isinstance(v, e.RefVal) for v in arg1) and all(isinstance(v, e.RefVal) for v in arg2):
-                id2 = {v.refid : v for v in arg2} # type: ignore
-                return [v for v in arg1 if v.refid not in id2] # type: ignore
+                id1 = [v.refid for v in arg1]
+                id2 = [v.refid for v in arg2]
+                id_diff = list((mset(id1) - mset(id2)).elements())
+                return [v for v in arg1 if v.refid in id_diff] # type: ignore
             else:
-                return [v for v in arg1 if v not in arg2]
+                return list((mset(arg1) - mset(arg2)).elements())
     raise FunCallErr()
 
 multiply_impl = lift_binary_scalar_op(operator.mul)

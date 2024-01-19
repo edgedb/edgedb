@@ -1,4 +1,5 @@
 
+import signal
 
 import json
 import sys
@@ -249,12 +250,25 @@ def repl(*, init_sdl_file=None,
         if trace_to_file_path is not None:
             write_logs_to_file(logs, trace_to_file_path)
         s = ""
+        def reset_s():
+            nonlocal s
+            print("\nKeyboard Interrupt")
+            s = ""
+        # signal.signal( signal.SIGINT, lambda s, f : reset_s())
         while ';' not in s:
             # s += sys.stdin.readline()
             if s:
-                s += input("... ")
+                try:
+                    s += input("... ")
+                except KeyboardInterrupt:
+                    reset_s()
+                    continue
             else:
-                s += input("> ")
+                try:
+                    s += input("> ")
+                except KeyboardInterrupt:
+                    reset_s()
+                    continue
             if not s:
                 return
         try:
@@ -264,6 +278,7 @@ def repl(*, init_sdl_file=None,
                             for v in res))
         except Exception:
             traceback.print_exception(*sys.exc_info())
+        
 
 
 def dbschema_and_db_with_initial_schema_and_queries(
