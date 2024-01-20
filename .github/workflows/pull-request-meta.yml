@@ -2,7 +2,7 @@ name: Pull Request Meta
 
 on:
   pull_request:
-    types: [opened, edited, synchronize, labeled, closed]
+    types: [opened, edited, synchronize]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -19,12 +19,13 @@ jobs:
         submodules: false
 
     - name: Verify that postgres/ was not changed unintentionally
+      env:
+        PR_TITLE: ${{ github.event.pull_request.title }}
       shell: bash
       run: |
         required_prefix="Update bundled PostgreSQL"
 
-        title="${{ github.event.pull_request.title }}"
-        if [[ $title == $required_prefix* ]]; then
+        if [[ "$PR_TITLE" == $required_prefix* ]]; then
           exit 0
         fi
 
