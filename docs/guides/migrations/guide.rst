@@ -1300,7 +1300,7 @@ also see our confirmed statement inside "confirmed" at the bottom.
     {\n RENAME TO nam;\n };\n};"]
     }
 
-With this done, you can type ``commit migration`` and the migration 
+With this done, you can commit the migration and the migration 
 will be complete.
 
 .. code-block:: edgeql-repl
