@@ -377,7 +377,7 @@ look like this:
 
 .. note::
 
-    See :ref:`the section below <_ref_migration_guide_migrations_and_hashes>`
+    See :ref:`the section below <ref_migration_guide_migrations_and_hashes>`
     on migration hashes if you are curious about how migrations are named.
 
 This migration will alter the ``User`` type by creating a new property and 
@@ -631,7 +631,7 @@ to work through:
     Project initialized.
 
 To squash your migrations, just run ``edgedb migration create`` with the
- ``--squash`` option. Running this command will first display some helpful
+``--squash`` option. Running this command will first display some helpful
 info to keep in mind before committing to the operation:
 
 .. code-block::
