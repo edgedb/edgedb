@@ -139,8 +139,8 @@ final state: a ``User`` type with nothing inside. Update your ``default.esdl`` t
       type User;
     }
 
-As before, typing ``edgedb migration create`` will create a DDL statement 
-to change it from the current state to the one we have declared. This 
+As before, typing ``edgedb migration create`` will, after running us through the interactive planner, create a DDL statement 
+to change the schema from the current state to the one we have declared. This 
 time we aren't starting from a blank schema, so the difference between 
 SDL and DDL is even clearer. The DDL statement alone doesn't give 
 us any indication what the schema looks like; all anyone could know 
@@ -215,8 +215,8 @@ Now let's add the new scalar type mentioned above and give it to the
     +   scalar type Name extending str;
       }
 
-Note that we are able to put the ``scalar type Name`` below the ``User`` 
-type, because order doesn't matter in SDL. Let's migrate to this new 
+Note that we are able to define the custom scalar type ``Name`` after we define the ``User``
+type even though we use ``Name`` within that object  because order doesn't matter in SDL. Let's migrate to this new 
 schema and then use ``describe schema;`` again. The output shows us 
 that the database has gone in the necessary order to make the schema: 
 first it creates the module, then a scalar type called ``Name``, and 
@@ -243,15 +243,15 @@ It's SDL, but the order matches that of the DDL statements.
         };
     };
 
-So the schema produced with ``describe schema as sdl;`` may not match 
-the schema you've written inside ``default.esdl``, and it will also 
+Although the schema produced with ``describe schema as sdl;`` may not match 
+the schema you've written inside ``default.esdl``, it will 
 show you the order in which statements were needed to reach this final 
-layout.
+schema.
 
 Non-interactive migrations
 --------------------------
 
-Now let's move back to the most basic schema with a single type that 
+Let's move back to the most basic schema with a single type that 
 has no properties.
 
 .. code-block:: sdl
@@ -304,17 +304,15 @@ file again, and change the schema to this:
     }
 
 The only difference from the current schema is that we would like 
-to change the property name ``name`` to ``nam``.
-
-But this time EdgeDB isn't sure what change we wanted to make. Did 
+to change the property name ``name`` to ``nam``, but this time EdgeDB isn't sure what change we wanted to make. Did 
 we intend to:
 
 - Change ``name`` to ``nam`` and keep the existing data?
 - Drop ``name`` and create a new property called ``nam``?
 - Do something else?
 
-So this time the non-interactive migration will fail, with some pretty 
-nice output:
+Because of the ambiguity, this non-interactive migration will fail, but with some pretty 
+helpful output:
 
 .. code-block:: edgeql-repl
 
@@ -331,9 +329,9 @@ nice output:
     Please run in interactive mode to confirm changes, or use
     `--allow-unsafe`
 
-As the output suggests, you can add ``allow-unsafe`` to a non-interactive 
+As the output suggests, you can add ``--allow-unsafe`` to a non-interactive 
 migration if you truly want to push the suggestions through regardless 
-of the migration tool's confidence. But it's more likely in this case 
+of the migration tool's confidence, but it's more likely in this case 
 that you would like to interact with the CLI's questions to help it 
 make a decision. For example, if we had intended to drop the property 
 ``name`` and create a new property ``nam``, we would simply answer 
@@ -368,16 +366,16 @@ look like this:
 .. note::
 
     See the section below on migration hashes if you are curious about 
-    how migrations are named)
+    how migrations are named.
 
-So the ``User`` type was altered via creating a new property, and 
+This migration will alter the ``User`` type by creating a new property and 
 dropping the old one. If that is what we wanted, then we can now type 
-``edgedb migrate`` to complete the migration.
+``\migrate`` in the REPL or ``edgedb migrate`` at the command line to complete the migration.
 
 Questions from the CLI
 ======================
 
-So far we've only learned how to say yes or no to the CLI's questions 
+So far we've only learned how to say "yes" or "no" to the CLI's questions 
 when we migrate a schema, but quite a few other options are presented 
 when the CLI asks us a question:
 
@@ -386,8 +384,8 @@ when the CLI asks us a question:
     did you create object type 'default::PlayerCharacter'? [y,n,l,c,b,s,q,?]
     > y
 
-The choices ``y`` and ``n`` are obviously yes and no, and you can 
-probably guess that ``?`` will pull up a help menu, but the others 
+The choices ``y`` and ``n`` are obviously "yes" and "no," and you can 
+probably guess that ``?`` will output help for the available response options, but the others 
 aren't so clear. Let's go over every option to make sure we understand 
 them.
 
@@ -395,7 +393,7 @@ them.
 ------------------
 
 This will accept the proposed change and move on to the next step. 
-If it's the last proposed change, the migration will now be complete.
+If it's the last proposed change, the migration will now be created.
 
 ``n`` (or ``no``)
 -----------------
@@ -406,17 +404,17 @@ always be able to do so.
  
 We can see this behavior with the same tiny schema change we made 
 above where we changed a property name from ``name`` to ``nam``. In 
-the output below, we see the following:
+the output of that ``migration create``, we see the following:
 
-- The CLI first asks us if we renamed the property, to which we say no.
+- The CLI first asks us if we renamed the property, to which we say "no".
 - It then tries to confirm that we have altered the ``User`` type. 
-  We say no again. 
+  We say "no" again. 
 - The CLI then guesses that maybe we are dropping and creating the 
-  whole ``User`` type instead. This time, we say yes.
+  whole ``User`` type instead. This time, we say "yes."
 - It then asks us to confirm that we are creating a ``User`` type, 
   since we have decided to drop the existing one.
 
-But if we say no again to this question, the CLI will throw its hands 
+If we say "no" again to the final question, the CLI will throw its hands 
 up and tell us that it doesn't know what we are trying to do because 
 there is no way left for it to migrate to the schema that we have 
 told it to move to.
