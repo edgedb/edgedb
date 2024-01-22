@@ -800,7 +800,7 @@ lead to the following input ``edgedb watch`` starts up:
     to apply changes once done.
     Monitoring "/home/instancename".
 
-Unseen to the user, EdgeDB Watch will begin creating individual migration 
+Unseen to the user, EdgeDB watch will begin creating individual migration 
 scripts for every time you save a change to one of your files. These 
 are stored as separate "dev mode" migrations, which are sort of like 
 preliminary migrations that haven't been turned into a standalone 
@@ -871,7 +871,8 @@ when you are satisfied with your current schema — without having to
 stop the process.
 
 If you are curious what is happening as EdgeDB Watch does its thing, 
-try the following query after you have made some changes:
+try the following query after you have made some changes. It will return
+a few lists of applied migrations, grouped by the way they were generated.
 
 .. code-block::
 
