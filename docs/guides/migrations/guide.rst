@@ -903,7 +903,9 @@ So, you really want to use DDL?
 
 You might have a good reason to use a direct DDL statement or two 
 to change your schema. How do you make that happen? EdgeDB disables 
-the usage of DDL by default, so this attempt to use DDL will not work:
+the usage of DDL by default if you have already carried out a migration
+through the recommended migration commands, so this attempt to use DDL
+will not work:
 
 .. code-block:: edgeql-repl
 
