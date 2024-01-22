@@ -303,7 +303,8 @@ made, and will fail otherwise.
 A non-interactive migration will fail if we make changes to our schema 
 that are ambiguous. Let's see if we can make a non-interactive migration 
 fail by doing just that. Delete the most recent ``.edgeql`` migration 
-file again, and change the schema to this:
+file again, and change the schema to the following that only differs by
+a single letter. Can you spot the difference?
 
 .. code-block:: sdl
 
