@@ -75,7 +75,7 @@ def run_statement(db: EdgeDatabaseInterface,
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
         debug.dump_edgeql(stmt)
-        debug.print("Schema: " + show_schema(dbschema))
+        # debug.print("Schema: " + show_schema(dbschema))
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Elaborating")
 
     elaborated = elab(stmt)

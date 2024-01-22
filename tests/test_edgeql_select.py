@@ -1410,6 +1410,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Project id on polymorphic shape element is OKAY for the interpreter")
     async def test_edgeql_select_polymorphic_04(self):
         # Since using a polymorphic shape element means that sometimes
         # that element may be empty, it is prohibited to access
@@ -1424,6 +1425,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 };
             ''')
 
+    @test.decorators.experimental_interpreter_bug_pending_fix("objects not explicitly extending std::Object is not set as subclass of std::Object")
     async def test_edgeql_select_polymorphic_06(self):
         await self.assert_query_result(
             r'''
@@ -1641,6 +1643,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Feature not implemented: insert with linkprop labels (insert { ... @label := ...})")
     async def test_edgeql_select_polymorphic_13(self):
         await self.con.execute('''
             INSERT Issue {
@@ -1697,7 +1700,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_fix("splats")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("splats")
     async def test_edgeql_select_splat_01(self):
         await self.assert_query_result(
             r'''
@@ -1714,7 +1717,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_fix("splats")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("splats")
     async def test_edgeql_select_splat_02(self):
         await self.assert_query_result(
             r'''
@@ -1741,7 +1744,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_fix("splats")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("splats")
     async def test_edgeql_select_splat_03(self):
         # Partial ad-hoc splat overload
         await self.assert_query_result(
@@ -1775,7 +1778,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_fix("splats")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("splats")
     async def test_edgeql_select_splat_04(self):
         # Polymorphic splats
         await self.con.execute('''
@@ -1835,7 +1838,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_fix("splats not implemented")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("splats not implemented")
     async def test_edgeql_select_splat_05(self):
         # Polymorphic splat conflicts
         res = [
@@ -1939,6 +1942,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['std::BaseObject']
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Date conversion and formatting")
     async def test_edgeql_select_reverse_link_02(self):
         await self.assert_query_result(
             r'''
@@ -1960,6 +1964,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.InvalidReferenceError,
             "no property 'since'",
+            experimental_interperter_regex="property 'since' does not exist",
         ):
             # Property "since" is only defined on the
             # Issue.owner link, whereas the Text intersection
@@ -1972,6 +1977,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ''',
             )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Backlink : Unions or BaseObjects?")
     async def test_edgeql_select_reverse_link_04(self):
         with self.assertRaisesRegex(
             edgedb.InvalidReferenceError,
@@ -2109,7 +2115,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_fix("Path factoring on <complex_expr>.label is incorrect")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Path factoring on <complex_expr>.label is incorrect")
     async def test_edgeql_select_tvariant_04(self):
         await self.assert_query_result(
             r"""
@@ -3144,6 +3150,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+    @test.decorators.experimental_interpreter_bug_pending_fix("Did not check order needs to have cardinality (<=1)")
     async def test_edgeql_select_order_04(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,

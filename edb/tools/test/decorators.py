@@ -74,7 +74,7 @@ def experimental_interpreter_exclude(msg = None):
 class ExperimentalInterpreterFeatureOrBugPending(Exception):
     pass
 
-def experimental_interpreter_triaged_pending_fix(msg):
+def experimental_interpreter_triaged_pending_feature(msg):
     """
     Do not execute this test case on when doing experimental intepreter:
     """
@@ -85,6 +85,26 @@ def experimental_interpreter_triaged_pending_fix(msg):
                 and args[0].use_experimental_interpreter):
                 # raise ExperimentalInterpreterFeatureOrBugPending(msg)
                 raise unittest.SkipTest("PENDING FEATURE OR BUG: " + msg)
+            else:
+                return method(*args, **kwargs)
+        return wrapper
+    return decorator
+
+class ExperimentalInterpreterBugPendingFix(Exception):
+    pass
+
+def experimental_interpreter_bug_pending_fix(msg):
+    """
+    This is clearly a bug pending fix
+
+    """
+
+    def decorator(method):
+        def wrapper(*args, **kwargs):
+            if (hasattr(args[0], "use_experimental_interpreter")
+                and args[0].use_experimental_interpreter):
+                # raise ExperimentalInterpreterFeatureOrBugPending(msg)
+                raise unittest.SkipTest("PENDING BUG FIX: " + msg)
             else:
                 return method(*args, **kwargs)
         return wrapper

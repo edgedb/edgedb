@@ -234,7 +234,8 @@ def elab_InsertQuery(expr: qlast.InsertQuery) -> InsertExpr:
     # object_expr = shape_to_expr(object_shape)
     unshaped = {}
     for (k,v) in object_shape.shape.items():
-        assert isinstance(k, StrLabel), "Expecting Plain Labels"
+        if not isinstance(k, StrLabel):
+            raise ValueError("Expecting Plain Labels")
         assert eops.binding_is_unnamed(v), "Not expecting leading dot notaiton in Shapes"
         unshaped[k.label] = v.body
     
