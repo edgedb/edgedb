@@ -419,7 +419,7 @@ up and tell us that it doesn't know what we are trying to do because
 there is no way left for it to migrate to the schema that we have 
 told it to move to.
 
-Here is the output:
+Here is what that would look like:
 
 .. code-block::
 
@@ -443,7 +443,7 @@ This is used to see (list) the actual DDL statements that are being proposed.
 When asked the question ``did you alter object type 'default::User'?``
 in the example above, we might be wondering exactly what changes will 
 be made here. How exactly does the database intend to alter the ``User`` 
-type if we say yes? Simply clicking ``l`` will show it:
+type if we say "yes?" Simply pressing ``l`` will show it:
 
 .. code-block::
 
@@ -453,10 +453,10 @@ type if we say yes? Simply clicking ``l`` will show it:
           DROP PROPERTY name;
       };
 
-This shows us clear as day that saying ``yes`` will result in creating 
+This shows us clear as day that saying "yes" will result in creating 
 a new property called ``nam`` and dropping the existing ``name`` property.
 
-So when doubts dwell, click the letter l!
+So when doubts dwell, press the letter "l!"
 
 ``c`` (or ``confirmed``)
 ------------------------
@@ -480,7 +480,7 @@ The following two keys will stop the migration, but in different ways:
 This is also known as a 'split'. Pressing ``s`` will complete the 
 migration at the current point. Any statements that you have applied 
 will be applied, but the schema will not yet match the schema in your 
-``.esdl`` file(s). But you can easily start another migration to complete 
+``.esdl`` file(s). You can easily start another migration to complete 
 the remaining changes once you have applied the migration that was 
 just created. This effectively splits the migration into two or more 
 files.
@@ -490,7 +490,7 @@ files.
 
 Pressing ``q`` will simply quit without saving any of your progress.
 
-Migration hashes and data migrations
+Data migrations and migration hashes
 ====================================
 
 Sometimes you may want to initialize a database with some default 
@@ -515,7 +515,7 @@ add ``--allow-empty`` to the command:
     Created myproject/dbschema/migrations/00002.edgeql,
     id: m1xseswmheqzxutr55cu66ko4oracannpddujg7gkna2zsjpqm2g3a
 
-You will now see an empty migration in which you can enter some queries. 
+You will now see an empty migration in ``dbschema/migrations`` in which you can enter some queries. 
 It will look something like this:
 
 .. code-block::
@@ -539,13 +539,13 @@ such as the following:
         delete User filter .name = 'User 2';
     };
 
-But when you type ``edgedb migrate``, the CLI will then complain that 
+The problem is, if you save that migration and run ``edgedb migrate``, the CLI will complain that 
 the migration hash doesn't match what it is supposed to be. However, 
 it helpfully provides the reason: "Migration names are computed from 
-the hash of the migration contents".
+the hash of the migration contents."
 
 Fortunately, it also tells you exactly what the hash (the migration 
-name) will need to be and you can simply change it to that.
+name) will need to be, and you can simply change it to that.
 
 .. code-block::
 
@@ -566,33 +566,32 @@ name) will need to be and you can simply change it to that.
     ONTO ...
     Alternatively, revert the changes to the file.
 
-You can also create a migration that combines schema changes and data. 
-This is even easier, since it doesn't even require appending ``allow-empty`` 
+Aside from exclusive data migrations, you can also create a migration that combines schema changes *and* data. 
+This is even easier, since it doesn't even require appending ``--allow-empty`` 
 to the command. Just do the following:
 
-- Change your schema,
-- Type ``edgedb migration create`` and respond to the CLI's questions,
-- Add your queries to the file (best done on the bottom after the 
-  DDL statements have changed the schema),
-- Type ``edgedb migrate`` and change the migration name to the suggested name,
-- Type ``edgedb migrate`` again.
+1. Change your schema
+2. Type ``edgedb migration create`` and respond to the CLI's questions
+3. Add your queries to the file (best done on the bottom after the 
+   DDL statements have changed the schema)
+4. Type ``edgedb migrate`` and change the migration name to the suggested name
+5. Type ``edgedb migrate`` again
 
 The `EdgeDB tutorial <tutorial_>`_ is a good example of a database 
 set up with both a schema migration and a data migration. Setting 
-up a database with schema changes in one file and default data in 
-a second file is a nice way to separate the two operations and maintain 
-high readability at the same time. These two files can be `seen here 
-<tutorial_files_>`_.
+up a database with `schema changes in one file and default data in 
+a second file <tutorial_files_>`_ is a nice way to separate the two operations and maintain 
+high readability at the same time.
 
 Squashing migrations
 ====================
 
-Users often end up making frequent changes to their schema because 
+Users often end up making many changes to their schema because 
 of how effortless it is to do. (And in the next section we will learn 
-about EdgeDB Watch, which is ever more effortless!) This leads to 
+about EdgeDB Watch, which is even more effortless!) This leads to 
 an interesting side effect: lots of ``.edgeql`` files, many of which 
 represent trials and approaches that don't end up making it to the 
-final form for your schema.
+final schema.
 
 Once you are done, you might want to squash the migrations into a 
 single file. This is especially nice if you need to frequently initialize 
@@ -616,8 +615,8 @@ to work through:
     ...and so on...
     Project initialized.
 
-To squash your migrations, just add ``--squash`` after ``edgedb migration 
-create``. Running this command will first display some helpful info 
+To squash your migrations, just run ``edgedb migration create`` with the
+ ``--squash`` option. Running this command will first display some helpful info 
 to keep in mind before committing to the operation:
 
 .. code-block::
@@ -638,15 +637,15 @@ to keep in mind before committing to the operation:
 
     Proceed? [y/n]
 
-Then just press ``y`` to squash all of your existing migrations into 
+Press ``y`` to squash all of your existing migrations into 
 a single file.
 
 Fixups during a squash
 ----------------------
 
 If your schema doesn't match the schema in the database, EdgeDB will 
-prompt you to create a *fixup* file, which can be useful (as the CLI 
-says) to "automate upgrading other instances to a squashed revision". 
+prompt you to create a *fixup* file, which can be useful to, as the CLI 
+says, "automate upgrading other instances to a squashed revision". 
 You'll see fixups inside a folder called ``/fixups``. Their file names 
 are extremely long, but are simply two migration hashes joined together 
 by a dash. So a fixup that begins with
