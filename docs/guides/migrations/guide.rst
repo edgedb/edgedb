@@ -1159,7 +1159,7 @@ We've now reached the most optional part of the migrations tutorial,
 but an interesting one for those curious about what goes on behind 
 the scenes during a migration.
 
-Migrations in EdgeDB before the advent of the EdgeDB Project flow 
+Migrations in EdgeDB before the advent of the ``edgedb project`` flow 
 were still automated but required more manual work if you didn't 
 want to accept all of the suggestions provided by the server. This 
 process is in fact still used to migrate even today; the CLI just 
