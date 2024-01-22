@@ -540,8 +540,8 @@ can enter some queries. It will look something like this:
     {
     };
 
-You can now add your queries inside the braces. Assuming a schema 
-with a simple ``User`` type, we could then add a bunch of queries 
+Let's see what happens if we add some queries inside the braces. Assuming
+a schema with a simple ``User`` type, we could then add a bunch of queries
 such as the following:
 
 .. code-block::
@@ -559,8 +559,8 @@ will complain that the migration hash doesn't match what it is supposed to be.
 However, it helpfully provides the reason: "Migration names are computed from
 the hash of the migration contents."
 
-Fortunately, it also tells you exactly what the hash (the migration 
-name) will need to be, and you can simply change it to that.
+Fortunately, it also tells you exactly what the hash (the migration name)
+will need to be:
 
 .. code-block::
 
@@ -581,6 +581,14 @@ name) will need to be, and you can simply change it to that.
     ONTO ...
     Alternatively, revert the changes to the file.
 
+If you change the statement to read in exactly the way the output suggests,
+the migration will now work.
+
+That's the manual way to do a data migration, but EdgeDB also has an
+``edgedb migration edit`` command that will automate the process for you.
+Using ``edgedb migration edit`` will open up the most recent migration for
+you to change, and update the migration hash when you close the window.
+
 Aside from exclusive data migrations, you can also create a migration that
 combines schema changes *and* data. This is even easier, since it doesn't even
 require appending ``--allow-empty`` to the command. Just do the following:
@@ -588,9 +596,11 @@ require appending ``--allow-empty`` to the command. Just do the following:
 1. Change your schema
 2. Type ``edgedb migration create`` and respond to the CLI's questions
 3. Add your queries to the file (best done on the bottom after the 
-   DDL statements have changed the schema)
-4. Type ``edgedb migrate`` and change the migration name to the suggested name
-5. Type ``edgedb migrate`` again
+   DDL statements have changed the schema) either manually or using 
+   ``edgedb migration edit``
+4. Type ``edgedb migrate`` to migrate the schema. If you have changed the
+   schema file manually, copy the suggested name into the migration hash
+   and type ``edgedb migrate`` again.
 
 The `EdgeDB tutorial <tutorial_>`_ is a good example of a database 
 set up with both a schema migration and a data migration. Setting 
