@@ -29,4 +29,3 @@ class SlackProvider(base.OpenIDProvider):
             content_type=base.ContentType.FORM_ENCODED,
             **kwargs,
         )
-
