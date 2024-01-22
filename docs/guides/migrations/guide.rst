@@ -377,8 +377,8 @@ look like this:
 
 .. note::
 
-    See the section below on migration hashes if you are curious about 
-    how migrations are named.
+    See :ref:`the section below <_ref_migration_guide_migrations_and_hashes>`
+    on migration hashes if you are curious about how migrations are named.
 
 This migration will alter the ``User`` type by creating a new property and 
 dropping the old one. If that is what we wanted, then we can now type 
@@ -502,6 +502,8 @@ files.
 -------------------
 
 Pressing ``q`` will simply quit without saving any of your progress.
+
+.. _ref_migration_guide_migrations_and_hashes:
 
 Data migrations and migration hashes
 ====================================
