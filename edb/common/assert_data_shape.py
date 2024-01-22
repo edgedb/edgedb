@@ -364,7 +364,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
             elif shape is None:
-                if data is not None:
+                if data is not None and data != []:
                     fail(
                         f'{message}: {data!r} is expected to be None '
                         f'{_format_path(path)}')
