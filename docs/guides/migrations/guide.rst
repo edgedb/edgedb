@@ -9,25 +9,24 @@ Schemas and migration basics
 
 EdgeQL is a strongly-typed language, which means that it moves checks 
 and verification of your code to compile time as much as possible 
-instead of run time. EdgeDB's view is that a schema should allow you 
-to set types, constraints, expressions and more so that you can confidently 
+instead of performing them at run time. EdgeDB's view is that a schema should allow you 
+to set types, constraints, expressions, and more so that you can confidently 
 know what sort of behavior to expect from your data. Laying a type-safe 
 foundation means a bit more thinking up front, but saves you all kinds 
 of headaches down the road.
 
 But it's not likely that you'll set your schema up perfectly with 
 your first try, or that you'll build an application that never needs 
-to change its schema. For this you will need to migrate your schema 
+its schema revised. When you *do* eventually need to make a change, you will need to migrate your schema 
 from its current state to a new state.
 
-The basics of creating a project, modifying its schema and migrating 
+The basics of creating a project, modifying its schema, and migrating 
 it in EdgeDB are pretty easy:
 
 - Type ``edgedb project init`` to start a project,
-- Add a simple type like  ``SomeType { name: str; }`` inside your 
-  ``default.esdl`` file,
-- Type ``edgedb migration create``, click ``y`` to confirm the change, 
-  then ``edgedb migrate`` and you are done! You can now ``insert SomeType;``
+- Open the newly created empty schema at ``dbschema/default.esdl`` and add a simple type like  ``SomeType { name: str; }`` inside the empty ``module`` 
+- Run ``edgedb migration create``, type ``y`` to confirm the change, 
+  then run ``edgedb migrate``, and you are done! You can now ``insert SomeType;``
   in your database to your heart's content.
 
 But many EdgeDB users have needs that go beyond these basics. In addition, 
@@ -40,9 +39,7 @@ time.
 EdgeDB's built-in tools are what make schema migrations easy, and 
 the way they work is through a pretty interesting interaction between 
 EdgeDB's SDL (Schema Definition Language) and DDL (Data Definition 
-Language).
-
-So the first thing to know about migrations is the difference between 
+Language). The first thing to understand about migrations is the difference between 
 SDL and DDL, and how they are used.
 
 SDL: For humans
@@ -58,10 +55,10 @@ is exactly what declarative means: making it *clear* what you want
 the final result to be. An example of a declarative instruction in 
 real life would be telling a friend to show up at your house at 6416 
 Riverside Way. You've declared what the final result should be, but 
-it's up to your friend to find it.
+it's up to your friend to find how to achieve it.
 
 Now let's look at some real SDL and think about its role in EdgeDB. 
-Here is a simple example of a schema.
+Here is a simple example of a schema:
 
 .. code-block:: sdl
 
@@ -73,24 +70,22 @@ Here is a simple example of a schema.
 
 If you have EdgeDB installed and want to follow along, type ``edgedb 
 project init`` and copy the above schema into your ``default.esdl`` 
-file inside the ``/migrations`` folder.
+file inside the ``/dbschema`` folder it creates. Then save the file.
 
 .. note::
 
-    While schema is usually contained inside ``default.esdl`` file, 
+    While schema is usually contained inside the ``default.esdl`` file, 
     you can divide a schema over multiple files if you like. EdgeDB will 
     combine all ``.esdl`` files inside the ``/dbschema`` folder into a 
     single schema.
 
-Save the file, then type ``edgedb`` to start the EdgeDB REPL, and 
-then type ``describe schema as sdl``. The output will be 
-``{'module default{};'}`` - nothing more than the default module
-with nothing inside. So nothing happened! Our ``type User`` is
-nowhere to be seen.
+Type ``edgedb`` to start the EdgeDB REPL, and, into the REPL,  type ``describe schema as sdl``. The output will be 
+``{'module default{};'}`` — nothing more than the empty ``default`` module.
+What happened? Our ``type User`` is
+nowhere to be found.
 
-So that's the first thing to know about SDL. Like an address to a 
-person's house, it doesn't *do* anything on its own, and neither does 
-the SDL in your ``default.esdl`` file. With SDL you are declaring 
+This is the first thing to know about SDL. Like an address to a 
+person's house, it doesn't *do* anything on its own. With SDL you are declaring 
 what you want the final result to be: a schema containing a single 
 type called ``User``, with a property of type ``str`` called ``name``.
 
@@ -128,15 +123,15 @@ what DDL looks like.
     };
 
 The declarative schema has now been turned into *imperative* DDL (imperative 
-meaning "giving orders"), namely commands telling the database how 
+meaning "giving orders"), specifically commands telling the database how 
 to get from the current state to the desired state. Note that, in 
 contrast to SDL, this code says nothing about the current schema or 
 its final state. This command would work with the schema of any database 
 at all that doesn't already have a type called ``User``.
 
-Let's try one more small migration, in which we decided that we don't 
+Let's try one more small migration, in which we decide that we don't 
 want the ``name`` property anymore. Once again, we are declaring the 
-final state: a ``User`` type with nothing inside.
+final state: a ``User`` type with nothing inside. Update your ``default.esdl`` to look like this:
 
 .. code-block:: sdl
 
