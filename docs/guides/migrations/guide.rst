@@ -907,8 +907,8 @@ That wasn't so bad, so why did the CLI tell us to try to "avoid accidental
 schema changes outside of the migration flow?" Why is DDL disabled 
 after running a migration in the first place?
 
-So you really wanted to use DDL but now regret it
-=================================================
+So, you really wanted to use DDL but now regret it?
+===================================================
 
 Let's start out with a very simple schema to see what happens after 
 DDL is used to directly modify a schema.
@@ -992,10 +992,10 @@ see it with the following query:
     },
     }
 
-Fortunately, the fix is not too hard: we can use a command called 
+Fortunately, the fix is not too hard: we can use the command
 ``edgedb migration extract``. This command will retrieve the migration(s) 
 created using DDL and assign each of them a proper file name and hash 
-inside the ``/migrations`` folder, effectively giving them a proper 
+inside the ``/dbschema/migrations`` folder, effectively giving them a proper 
 position inside the migration flow.
 
 Note that at this point your ``.esdl`` schema will still not match 
@@ -1048,7 +1048,7 @@ make each ``User`` friends with all of the others:
 Now what happens if we now want to change ``multi friends`` to an 
 ``array<str>``? If we were simply changing a scalar property to another 
 property it would be easy, because EdgeDB would prompt us for a conversion 
-expression. But a change from a link to a property is different:
+expression, but a change from a link to a property is different:
 
 .. code-block:: sdl
 
@@ -1133,12 +1133,12 @@ but an interesting one for those curious about what goes on behind
 the scenes during a migration.
 
 Migrations in EdgeDB before the advent of the EdgeDB Project flow 
-were still automated, but required more manual work if you didn't 
+were still automated but required more manual work if you didn't 
 want to accept all of the suggestions provided by the server. This 
 process is in fact still used to migrate even today; the CLI just 
 facilitates it by making it easy to respond to the generated suggestions.
 
-They took place `inside a transaction <transaction_>`_ handled by 
+`Early EdgeDB migrations took place inside a transaction <transaction_>`_ handled by 
 the user that essentially went like this: 
 
 .. code-block::
@@ -1152,8 +1152,8 @@ the server, and then ``commit migration`` to finish the process.
 Now, there is another option besides simply typing ``populate migration`` 
 that allows you to look at and handle the suggestions every step of 
 the way (in the same way the CLI does today), and this is what we 
-are going to have some fun with. You can see `the original RFC <rfc_>`_ 
-for this if you are curious.
+are going to have some fun with. You can see `the original migrations RFC <rfc_>`_ 
+if you are curious.
 
 It is *very* finicky compared to the CLI, resulting in a failed transaction 
 if any step along the way is different from the expected behavior, 
@@ -1166,7 +1166,7 @@ first set the CLI to make the format nicely readable with this command:
 
 .. code-block:: edgeql-repl
 
-    db> \set output format json-pretty
+    db> \set output-format json-pretty
 
 We will begin with the same simple schema used in the previous examples:
 
@@ -1210,7 +1210,7 @@ schema until we finally commit the migration.
 So now what do we do? We could simply type ``populate migration`` 
 to accept the server's suggested changes, but let's instead take a 
 look at them one step at a time. To see the current described change, 
-type ``describe current migration as json``. This will generate the 
+type ``describe current migration as json;``. This will generate the 
 following output:
 
 .. code-block::
@@ -1241,24 +1241,24 @@ statement:
 
     ALTER TYPE default::User { ALTER PROPERTY name { RENAME TO nam; };};
 
-Don't forget to remove the ``\n`` from inside the original suggestion 
-- the transaction will fail if you don't take them out. If the migration 
-fails at any step you will see ``[tx]`` change to ``[tx:failed]`` 
+Don't forget to remove the newlines (``\n``) from inside the original suggestion;
+the transaction will fail if you don't take them out. If the migration 
+fails at any step, you will see ``[tx]`` change to ``[tx:failed]`` 
 and you will have to type ``abort migration`` to leave the transaction 
 and begin the migration again.
 
 Technically, at this point you are permitted to write any DDL statement 
 you like and the migration tool will adapt its suggestions to reach 
-the desired schema. But this is more than likely to generate an error 
-when you try to commit the migration, and is bad practice in any case. 
-(But give it a try if you're curious)
+the desired schema. Doing so though is bad practice and is more than likely to generate an error 
+when you try to commit the migration. 
+(Even so, give it a try if you're curious.)
 
-So let's dutifully type the suggested statement above, and then use 
+Let's dutifully type the suggested statement above, and then use 
 ``describe current migration as json`` again to see what the current 
 status of the migration is. This time we see two major differences: 
 "complete" is now ``true``, meaning that we are at the end of the 
 proposed migration, and "proposed" does not contain anything. We can 
-also see our confirmed statement(s) inside "confirmed" at the bottom.
+also see our confirmed statement inside "confirmed" at the bottom.
 
 .. code-block::
 
@@ -1278,10 +1278,10 @@ will be complete.
     db[tx]> commit migration;
     OK: COMMIT MIGRATION
 
-And because this migration was created using direct DDL statements, 
+Since this migration was created using direct DDL statements, 
 you will need to use ``edgedb migration extract`` to extract the latest
 migration and give it a proper ``.edgeql`` file in the same way we 
-did above in the "So you really wanted to use DDL but now regret it"
+did above in the "So you really wanted to use DDL but now regret it?"
 section.
 
 .. lint-off
