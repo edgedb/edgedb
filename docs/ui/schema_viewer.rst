@@ -48,7 +48,8 @@ For example, a search for 'max val' immediately shows the following output:
         'Specifies the maximum value (as an open interval) for the subject.';
     ;
 
-    abstract constraint std::max_len_value(max: std::int64) on (std::len(<std::str>__subject__)) {
+    abstract constraint std::max_len_value(max: std::int64) 
+        on (std::len(<std::str>__subject__)) {
     using ((__subject__ <= max));
     }  errmessage := 
         '{__subject__} must be no longer than {max} characters.';

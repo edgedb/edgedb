@@ -23,4 +23,8 @@ Some behavior differs from that of the CLI REPL:
   has its own ``\retro`` slash command to change the UI layout to a 1980s
   classic green-on-black feel!)
 
+.. lint-off
+
 .. _slash_command: https://github.com/edgedb/edgedb-ui/blob/e1b63d9395d8ea8cfac4069811f9d6ffb0bf8a8d/shared/studio/tabs/repl/state/commands.ts#L31
+
+.. lint-on

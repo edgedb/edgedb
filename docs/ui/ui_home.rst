@@ -1,64 +1,34 @@
 .. _ref_ui_home:
 
-=============
-Schema Viewer
-=============
+=======
+UI Home
+=======
 
-.. image:: images/schema_viewer.png
-    :alt: The Schema Viewer page in the EdgeDB UI. The icon is two small
-          squares of blue and orange, connected by a purple line. A small
-          user-defined sample schema is shown with two concrete types
-          called Book and Library, along with an abstract type called
-          HasAddress that is extended by the Library type.
+.. image:: images/ui_home.png
+    :alt: The instance homepage in the EdgeDB UI. The instance name, called
+          myinstance, is shown on the top. One button gives access to a
+          database known as edgedb, another button to create an example
+          database, and a third button allows for the creation of a
+          new database.
     :width: 100%
 
-The UI schema viewer allows you to see your schema either as text, graph,
-or both.
+The UI homepage displays one button per database inside the instance.
+New instances will contain a database called ``edgedb`` by default.
 
-Text view
----------
+A new database can be added to the current instance by clicking on
+``Create new database`` and choosing a name.
 
-The UI's text view is similar to what is produced in the CLI through the
-``describe schema as sdl`` command, but includes inherited properties and
-links.
+The UI homepage also includes a ``Create example database`` option for
+those new to EdgeDB. Clicking on this will create a database called
+``_example`` that contains the same schema and objects as those in the
+EdgeDB tutorial.
 
-The schema viewer shows the user's defined schema by default under the
-name ``User``, and also includes ``Stdlib`` and ``System`` as a convenience.
-Along with the schema viewer's built-in search function, this makes
-the schema viewer often even more convenient than searching through EdgeDB's
-online documentation.
+As such, the quickest way for newcomers to EdgeDB to start interacting with
+a working database via the UI in EdgeDB is by doing the following:
 
-For example, a search for 'max val' immediately shows the following output:
+- ``edgedb project init`` on the command line to start an instance,
+- ``edgedb ui`` on the command line to open the UI,
+- Clicking on ``Create example database`` to create the example database.
 
-.. code-block:: sdl
-
-    abstract constraint std::max_value(max: anytype) {
-    using ((__subject__ <= max));
-    }  errmessage := 
-        'Maximum allowed value for {__subject__} is {max}.';
-    annotation std::description := 
-        'Specifies the maximum value for the subject.';
-    ;
-
-    abstract constraint std::max_ex_value(max: anytype) {
-    using ((__subject__ < max));
-    }  errmessage := 
-        '{__subject__} must be less than {max}.';
-    annotation std::description := 
-        'Specifies the maximum value (as an open interval) for the subject.';
-    ;
-
-    abstract constraint std::max_len_value(max: std::int64) on (std::len(<std::str>__subject__)) {
-    using ((__subject__ <= max));
-    }  errmessage := 
-        '{__subject__} must be no longer than {max} characters.';
-    annotation std::description := 
-        'Specifies the maximum length of subject string representation.';
-    ;
-
-Graph view
-----------
-
-- Types are shown as boxes with 
-- Links are shown as arrows from one type to another, with any link
-  properties shown tucked inside the arrow.
+Clicking on any of the databases on the UI homepage will take you to its
+dashboard.
