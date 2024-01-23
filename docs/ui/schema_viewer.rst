@@ -30,7 +30,7 @@ online documentation.
 
 For example, a search for 'max val' immediately shows the following output:
 
-.. code-block:: sdl
+.. code-block::
 
     abstract constraint std::max_value(max: anytype) {
     using ((__subject__ <= max));
