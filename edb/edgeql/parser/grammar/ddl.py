@@ -721,9 +721,26 @@ class CreateDatabaseStmt(Nonterm):
         """
         self.val = qlast.CreateDatabase(name=kids[2].val, commands=kids[3].val)
 
+    def reduce_CREATE_BRANCH_empty(self, *kids):
+        """%reduce CREATE EMPTY BRANCH DatabaseName \
+            OptCreateDatabaseCommandsBlock
+        """
+        self.val = qlast.CreateDatabase(name=kids[3].val, commands=kids[4].val)
+
     def reduce_CREATE_DATABASE_from_template(self, *kids):
         """%reduce
             CREATE DATABASE DatabaseName FROM AnyNodeName
+            OptCreateDatabaseCommandsBlock
+        """
+        self.val = qlast.CreateDatabase(
+            name=kids[2].val,
+            commands=kids[5].val,
+            template=kids[4].val,
+        )
+
+    def reduce_CREATE_BRANCH_from_template(self, *kids):
+        """%reduce
+            CREATE BRANCH DatabaseName FROM AnyNodeName
             OptCreateDatabaseCommandsBlock
         """
         self.val = qlast.CreateDatabase(
