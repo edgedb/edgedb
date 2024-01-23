@@ -1058,8 +1058,15 @@ you forgot to add it to the schema inside your ``.esdl`` file(s).
 Multiple migrations to keep data 
 ================================
 
-Let's say that we have a simple ``User`` type with a ``friends`` link 
-to other ``User`` objects.
+Sometimes you may want to change your schema in a complex way that doesn't
+allow you to keep existing data. For example, what if you decide that you
+don't need a ``multi`` link anymore but would like to keep some of the
+information in the currently linked to objects as an array instead? One
+way to make this happen is by migrating more than once.
+
+Let's give this a try by starting with with a simple ``User`` type that has
+a ``friends`` link to other ``User`` objects. (If you've been following along
+all this time, a quick migration to this schema will be a breeze.)
 
 .. code-block:: sdl
 
@@ -1123,9 +1130,13 @@ we will keep the ``friends`` link, while adding a new property called
       }
     }
 
-The CLI will simply ask us if we created a property called ``friend_names``. 
-We haven't applied the migration yet, so we might as well put the 
-data inside the same migration. A simple update will do the job!
+Upon using ``edgedb migration create``, the CLI will simply ask us if we
+created a property called ``friend_names``. We haven't applied the migration
+yet, so we might as well put the data inside the same migration. A simple
+``update`` will do the job! As we learned previously,
+``edgedb migration edit`` is the easiest way to add data to a migration. Or
+you can manually add the ``update``, try to apply the migration, and change
+the migration hash to the output suggested by the CLI.
 
 .. code-block::
 
@@ -1138,9 +1149,9 @@ data inside the same migration. A simple update will do the job!
     update User set { friend_names := array_agg(.friends.name) };
     };
 
-Now if we do a query we can confirm that the data inside ``.friends.name`` 
-when converted to an array is indeed the same as the data inside the 
-``friend_names`` property:
+Once the migration is applied, we can do a query to confirm that the data
+inside ``.friends.name`` when converted to an array is indeed the same as
+the data inside the ``friend_names`` property:
 
 .. code-block:: edgeql-repl
 
@@ -1160,8 +1171,7 @@ when converted to an array is indeed the same as the data inside the
       },
     }
 
-Or if we can't eyeball the data ourselves, we can use the ``all()`` 
-function to ensure that this is the case:
+Or we could also use the ``all()`` function to confirm that this is the case.
 
 .. code-block:: edgeql-repl
 
