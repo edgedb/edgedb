@@ -1234,8 +1234,9 @@ this format as readable as possible with the following command:
 
     db> \set output-format json-pretty
 
-First, let's begin with the same same simple schema used in the
-previous examples:
+First, let's begin with the same same simple schema used in the previous
+examples, via the regular ``edgedb migration create`` and ``edgedb migrate``
+commands.
 
 .. code-block:: sdl
 
@@ -1256,15 +1257,16 @@ And, as before, we will make a somewhat ambiguous change by changing
       }
     }
 
-Now we can start a migration by pasting this inside a ``start migration 
-to {};`` block:
+And now it's time to give the older migration method a try! To move to this
+schema using the old method, we will need to start a migration by pasting our
+desired schema into a ``start migration to {};`` block:
 
 .. code-block:: edgeql-repl
 
     db> start migration to {
     ...   module default {
     ...     type User {
-    ...       name: str;
+    ...       nam: str;
     ...     }
     ...   }
     ... };
