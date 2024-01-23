@@ -6987,10 +6987,12 @@ class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
         tenant_id = self._get_tenant_id(context)
         db_name = common.get_database_backend_name(
             str(self.classname), tenant_id=tenant_id)
+        # tpl_name = common.get_database_backend_name(
+        #     edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id) if (
+        #         not self.template
+        #     ) else None
         tpl_name = common.get_database_backend_name(
-            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id) if (
-                not self.template
-            ) else None
+            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
         self.pgops.add(
             dbops.CreateDatabase(
                 dbops.Database(

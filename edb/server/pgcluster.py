@@ -259,6 +259,8 @@ class BaseCluster:
         dbname: str,
         *,
         exclude_schemas: Iterable[str] = (),
+        include_schemas: Iterable[str] = (),
+        schema_only: bool = False,
         dump_object_owners: bool = True,
     ) -> bytes:
         status = await self.get_status()
@@ -279,10 +281,13 @@ class BaseCluster:
 
         if not dump_object_owners:
             args.append('--no-owner')
+        if schema_only:
+            args.append('--schema-only')
 
-        if exclude_schemas:
-            for exclude_schema in exclude_schemas:
-                args.append(f'--exclude-schema={exclude_schema}')
+        for exclude_schema in exclude_schemas:
+            args.append(f'--exclude-schema={exclude_schema}')
+        for include_schema in include_schemas:
+            args.append(f'--schema={include_schema}')
 
         stdout_lines, _, _ = await _run_logged_subprocess(
             args,
@@ -296,6 +301,82 @@ class BaseCluster:
         self,
         src_dbname: str,
         tgt_dbname: str,
+    ) -> None:
+        # XXX: do this right instead of wrong
+        to_skip = {
+            "0cbcddd2-ddfa-55df-ab69-a097b801b4ca",
+            "67996f7a-c82f-5b58-bb0a-f29764ee45c2",
+            "27d815f4-6518-598a-a3c5-9364342d6e06",
+            "2e1efa8d-b194-5b38-ad67-93b27aec520c",
+            "416fe1a6-d62c-5481-80cd-2102a37b3415",
+            "48a4615d-2402-5744-bd11-17015ad18bb9",
+            "b20a2c38-2942-5085-88a3-1bbb1eea755f",
+            "f5e31516-7567-519d-847f-397a0762ce23",
+        }
+
+        schema_dump = await self.dump_database(
+            src_dbname,
+            include_schemas=('edgedbpub',),
+            schema_only=True,
+        )
+        old_lines = schema_dump.decode('latin1').split('\n')
+        new_lines = []
+        skipping = False
+        for line in old_lines:
+            if line == ');' and skipping:
+                skipping = False
+                continue
+            elif line.startswith('CREATE SCHEMA'):
+                continue
+            elif line.startswith('CREATE TYPE'):
+                if any(skip in line for skip in to_skip):
+                    skipping = True
+            if skipping:
+                continue
+            new_lines.append(line)
+        s_schema_dump = '\n'.join(new_lines)
+        # print(s_schema_dump)
+
+        conn = await self.connect(database=tgt_dbname)
+        try:
+            await conn.sql_execute(s_schema_dump.encode('latin1'))
+        finally:
+            conn.terminate()
+        # print(schema_dump)
+        # breakpoint()
+
+        cmds: list[tuple[list[str], list[str]]] = [
+            # (['--schema-only', '--schema=edgedbpub', '--clean', '--if-exists'], []),
+            ([
+                '--data-only',
+                '--schema=edgedbstd',
+                '--schema=edgedbpub',
+                '--disable-triggers',
+                  # XXX
+                '--inserts',
+                '--rows-per-insert=100',
+                # XXX: this doesn't work really, we produce duplicates
+                # for multi properties;
+                # (maybe we could fix this if we always used an appropriate
+                # exclusive constraint)
+                '--on-conflict-do-nothing',
+            ], []),
+        ]
+
+        for src_args, tgt_args in cmds:
+            logger.info("asdf: %s", src_args)
+            await self._copy_database(
+                src_dbname, tgt_dbname, src_args, tgt_args
+            )
+
+        # XXX: std::Object and std::BaseObject are still fucked
+
+    async def _copy_database(
+        self,
+        src_dbname: str,
+        tgt_dbname: str,
+        src_args: list[str],
+        tgt_args: list[str],
         # exclude_schemas: Iterable[str] = (),
         # dump_object_owners: bool = True,
     ) -> None:
@@ -311,9 +392,13 @@ class BaseCluster:
         src_conn_args, src_env = self._dump_restore_conn_args(src_dbname)
         tgt_conn_args, tgt_env = self._dump_restore_conn_args(tgt_dbname)
 
-        dump_args = [pg_dump, '--verbose', '--format=t', *src_conn_args]
-        restore_args = [pg_restore, '--verbose', *tgt_conn_args]
-        print(dump_args)
+        dump_args = [
+            pg_dump, '--verbose', '--format=c', *src_conn_args, *src_args
+        ]
+        restore_args = [
+            pg_restore, '--verbose', *tgt_conn_args, *tgt_args
+        ]
+        print(' '.join(dump_args))
 
         # if exclude_schemas:
         #     for exclude_schema in exclude_schemas:
