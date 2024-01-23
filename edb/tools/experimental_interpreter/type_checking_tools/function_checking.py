@@ -152,7 +152,11 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                             if label_i in kwargs:
                                 new_tps = [*new_tps, kwargs_ck[label_i][0][0]]
                             elif label_i in fun_def.defaults:
-                                new_tps = [*new_tps, tc.synthesize_type(ctx, fun_def.defaults[label_i])[0][0]]
+                                default_expr = fun_def.defaults[label_i]
+                                if default_expr == e.MultiSetExpr([]):
+                                    new_tps = [*new_tps, fun_def.tp.args_tp[i]]
+                                else:
+                                    new_tps = [*new_tps, tc.synthesize_type(ctx, fun_def.defaults[label_i])[0][0]]
                             else:
                                 result_tp = None
                                 break

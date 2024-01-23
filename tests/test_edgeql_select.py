@@ -2014,6 +2014,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ''',
             )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Deduplication on non-path projections is not functioning")
     async def test_edgeql_select_nested_redefined_link(self):
         await self.assert_query_result(
             '''
@@ -7934,6 +7935,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TO TRIAGE: empty multiset as default arguments results in no overloading match")
     async def test_edgeql_select_null_tuple_02(self):
         await self.assert_query_result(
             r'''

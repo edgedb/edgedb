@@ -142,7 +142,7 @@ def like(value, pattern) -> bool:
 def ilike(value, pattern) -> bool:
     fnmatch_pattern = pattern.replace('%', '*').replace('_', '?').replace(r'\%', '%').replace(r'\_', '_')
     value = value.lower()
-    pattern = pattern.lower()
+    fnmatch_pattern = fnmatch_pattern.lower()
     return fnmatch.fnmatch(value, fnmatch_pattern)
 
 def like_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:

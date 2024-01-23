@@ -461,8 +461,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             # if len(arr) == 0:
                 # return (e.ResultTp(e.UnifiableTp(e.next_id()),
                 #                    e.CardAtMostOne), expr)  # this is a hack
-            assert len(arr) > 0, ("Empty multiset does not"
-                                  " support type synthesis")
+            if len(arr) == 0:
+                raise ValueError("Empty multiset does not support type synthesis")
             (first_tp, first_ck) = synthesize_type(ctx, arr[0])
             if len(arr[1:]) == 0:
                 result_expr = e.MultiSetExpr([first_ck])
