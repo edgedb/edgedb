@@ -693,11 +693,22 @@ in practice. First we'll begin with this schema:
     name: str;
   }
 
-Then remove ``name: str;`` from the ``User`` type, migrate, put it 
-back again, and migrate. You'll now have multiple files in your
-``/migrations`` folder and will now be able to squash them.
+Then remove ``name: str;`` from the ``User`` type, migrate, put it back
+again, and migrate. You can repeat this as many times as you like.
+One quick way to "remove" items from your schema that you might want
+to restore later is to simply use a ``#`` to comment out the entire line:
 
-Then change to this schema **without migrating it**:
+.. code-block:: sdl
+
+  type User {
+   # name: str;
+  }
+
+After a few of these simple migrations, you'll now have multiple files
+in your ``/migrations`` folder — none of which were all that useful — and
+may be in the mood to squash them into one.
+
+Next, change to this schema **without migrating it**:
 
 .. code-block:: sdl
 
