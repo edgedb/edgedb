@@ -783,7 +783,7 @@ class Tenant(ha_base.ClusterProtocol):
         try:
             conn = await self.acquire_pgcon(dbname)
         except pgcon_errors.BackendError as e:
-            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
+            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME) or True:
                 # database does not exist (anymore)
                 logger.warning(
                     "Detected concurrently-dropped database %s; skipping.",
@@ -1175,13 +1175,30 @@ class Tenant(ha_base.ClusterProtocol):
     async def on_before_create_db_from_template(
         self, dbname: str, current_dbname: str
     ) -> None:
-        if current_dbname == dbname:
-            raise errors.ExecutionError(
-                f"cannot create database using currently open database "
-                f"{dbname!r} as a template database"
-            )
+        pass
+        # if current_dbname == dbname:
+        #     raise errors.ExecutionError(
+        #         f"cannot create database using currently open database "
+        #         f"{dbname!r} as a template database"
+        #     )
 
-        await self.ensure_database_not_connected(dbname)
+        # await self.ensure_database_not_connected(dbname)
+
+    async def on_after_create_db_from_template(
+        self, tgt_dbname: str, src_dbname: str,
+    ) -> None:
+        logger.info('Starting copy from %s to %s', src_dbname, tgt_dbname)
+        from edb.pgsql import common
+
+        real_tgt_dbname = common.get_database_backend_name(
+            tgt_dbname, tenant_id=self._tenant_id)
+        real_src_dbname = common.get_database_backend_name(
+            src_dbname, tenant_id=self._tenant_id)
+
+        await self._cluster.copy_database(real_src_dbname, real_tgt_dbname)
+
+        logger.info('Finished copy from %s to %s', src_dbname, tgt_dbname)
+        # breakpoint()
 
     def on_after_drop_db(self, dbname: str) -> None:
         try:

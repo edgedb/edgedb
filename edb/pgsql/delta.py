@@ -6988,7 +6988,9 @@ class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
         db_name = common.get_database_backend_name(
             str(self.classname), tenant_id=tenant_id)
         tpl_name = common.get_database_backend_name(
-            self.template or edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
+            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id) if (
+                not self.template
+            ) else None
         self.pgops.add(
             dbops.CreateDatabase(
                 dbops.Database(

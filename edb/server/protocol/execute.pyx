@@ -158,6 +158,12 @@ async def execute(
                 dbv.declare_savepoint(
                     query_unit.sp_name, query_unit.sp_id)
 
+            if query_unit.create_db_template:
+                await tenant.on_after_create_db_from_template(
+                    query_unit.create_db,
+                    query_unit.create_db_template,
+                )
+
             if query_unit.create_db:
                 await tenant.introspect_db(query_unit.create_db)
 
@@ -197,10 +203,10 @@ async def execute(
     finally:
         if query_unit.drop_db:
             tenant.allow_database_connections(query_unit.drop_db)
-        if query_unit.create_db_template:
-            tenant.allow_database_connections(
-                query_unit.create_db_template,
-            )
+        # if query_unit.create_db_template:
+        #     tenant.allow_database_connections(
+        #         query_unit.create_db_template,
+        #     )
 
     return data
 

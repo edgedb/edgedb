@@ -90,7 +90,7 @@ class DatabaseExists(base.Condition):
 
 class CreateDatabase(ddl.CreateObject, ddl.NonTransactionalDDLOperation):
 
-    def __init__(self, object, *, template: str, **kwargs):
+    def __init__(self, object, *, template: str | None, **kwargs):
         super().__init__(object, **kwargs)
         self.template = template
 
