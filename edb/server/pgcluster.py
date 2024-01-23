@@ -327,11 +327,6 @@ class BaseCluster:
         restore_args = [
             pg_restore, '--verbose', *tgt_conn_args, *tgt_args
         ]
-        print(' '.join(dump_args))
-
-        # if exclude_schemas:
-        #     for exclude_schema in exclude_schemas:
-        #         args.append(f'--exclude-schema={exclude_schema}')
 
         # XXX: we need better error cleanup for all of this
         rpipe, wpipe = os.pipe()
@@ -362,9 +357,6 @@ class BaseCluster:
             dump_p.wait(), dump_out_r, dump_err_r,
             res_p.wait(), res_out_r, res_err_r,
         )
-
-        # print("RESTORE CODE", restore_exit_code)
-        # print("DUMP CODE", dump_exit_code)
 
         if dump_exit_code != 0 and dump_exit_code != -signal.SIGPIPE:
             raise ClusterError(  # XXX?
