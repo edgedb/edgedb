@@ -22,7 +22,7 @@ import json
 from typing import Any, Type
 from edb.server.protocol import execute
 
-from . import github, google, azure, apple
+from . import github, google, azure, apple, discord
 from . import errors, util, data, base, http_client
 
 
@@ -55,6 +55,8 @@ class Client:
                 provider_class = azure.AzureProvider
             case "builtin::oauth_apple":
                 provider_class = apple.AppleProvider
+            case "builtin::oauth_discord":
+                provider_class = discord.DiscordProvider
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
