@@ -1,8 +1,10 @@
 .. _ref_migration_tips:
 
-=====================
-Schema migration tips
-=====================
+====
+Tips
+====
+
+:edb-alt-title: Schema migration tips
 
 Adding backlinks
 ----------------

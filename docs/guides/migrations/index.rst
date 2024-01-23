@@ -1,8 +1,8 @@
 .. _ref_guide_advanced_migrations:
 
-===============
-Migration Guide
-===============
+=================
+Schema migrations
+=================
 
 Welcome to the guide to EdgeDB migrations! Let's get started.
 
