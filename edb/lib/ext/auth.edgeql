@@ -163,7 +163,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
 
         alter property display_name {
-            set default := 'slack';
+            set default := 'Slack';
         };
     };
 
