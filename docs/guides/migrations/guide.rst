@@ -9,28 +9,39 @@ Schemas and migration basics
 
 EdgeQL is a strongly-typed language, which means that it moves checks 
 and verification of your code to compile time as much as possible 
-instead of run time. EdgeDB's view is that a schema should allow you 
-to set types, constraints, expressions and more so that you can confidently 
-know what sort of behavior to expect from your data. Laying a type-safe 
-foundation means a bit more thinking up front, but saves you all kinds 
-of headaches down the road.
+instead of performing them at run time. EdgeDB's view is that a schema
+should allow you to set types, constraints, expressions, and more so that
+you can confidently know what sort of behavior to expect from your data.
+Laying a type-safe foundation means a bit more thinking up front, but saves
+you all kinds of headaches down the road.
 
-But it's not likely that you'll set your schema up perfectly with 
+It's not unlikely though that you'll define your schema up perfectly with 
 your first try, or that you'll build an application that never needs 
-to change its schema. For this you will need to migrate your schema 
-from its current state to a new state.
+its schema revised. When you *do* eventually need to make a change, you will
+need to migrate your schema from its current state to a new state.
 
-The basics of creating a project, modifying its schema and migrating 
+The basics of creating a project, modifying its schema, and migrating 
 it in EdgeDB are pretty easy:
 
 - Type ``edgedb project init`` to start a project,
-- Add a simple type like  ``SomeType { name: str; }`` inside your 
-  ``default.esdl`` file,
-- Type ``edgedb migration create``, click ``y`` to confirm the change, 
-  then ``edgedb migrate`` and you are done! You can now ``insert SomeType;``
-  in your database to your heart's content.
+- Open the newly created empty schema at ``dbschema/default.esdl`` and add
+  a simple type like  ``SomeType { name: str; }`` inside the empty ``module``
+- Run ``edgedb migration create``, type ``y`` to confirm the change, 
+  then run ``edgedb migrate``, and you are done! You can now
+  ``insert SomeType;`` in your database to your heart's content.
 
-But many EdgeDB users have needs that go beyond these basics. In addition, 
+.. note::
+
+   If you ever feel like outright removing and creating an instance anew
+   during this migration guide, you can use the command
+   ``edgedb instance destroy -I <instancename> --force``. And if you want to
+   remove all existing migrations as well, you can manually delete them inside
+   your ``/migrations`` folder (otherwise, the CLI will try to apply the
+   migrations again when you recreate your instance with
+   ``edgedb migration create``). Once that is done, you will have a blank
+   slate on which to start over again.
+
+But many EdgeDB users have needs that go beyond these basics. In addition,
 schema migrations are pretty interesting and teach you a lot about 
 what EdgeDB does behind the scenes. This guide will turn you from 
 a casual migration user into one with a lot more tools at hand, along 
@@ -40,10 +51,8 @@ time.
 EdgeDB's built-in tools are what make schema migrations easy, and 
 the way they work is through a pretty interesting interaction between 
 EdgeDB's SDL (Schema Definition Language) and DDL (Data Definition 
-Language).
-
-So the first thing to know about migrations is the difference between 
-SDL and DDL, and how they are used.
+Language). The first thing to understand about migrations is the difference
+between SDL and DDL, and how they are used.
 
 SDL: For humans
 ===============
@@ -52,16 +61,16 @@ SDL, not DDL, is the primary way for you to create and migrate your
 schema in EdgeDB. You don't need to work with DDL to use EdgeDB any 
 more than you need to know how to change a tire to drive a car.
 
-SDL is built for humans to read, which is why it is said to be *declarative*. 
+SDL is built for humans to read, which is why it is said to be *declarative*.
 The 'clar' inside *declarative* is the same word as *clear*, and this 
 is exactly what declarative means: making it *clear* what you want 
 the final result to be. An example of a declarative instruction in 
 real life would be telling a friend to show up at your house at 6416 
 Riverside Way. You've declared what the final result should be, but 
-it's up to your friend to find it.
+it's up to your friend to find how to achieve it.
 
 Now let's look at some real SDL and think about its role in EdgeDB. 
-Here is a simple example of a schema.
+Here is a simple example of a schema:
 
 .. code-block:: sdl
 
@@ -73,27 +82,24 @@ Here is a simple example of a schema.
 
 If you have EdgeDB installed and want to follow along, type ``edgedb 
 project init`` and copy the above schema into your ``default.esdl`` 
-file inside the ``/migrations`` folder.
+file inside the ``/dbschema`` folder it creates. Then save the file.
 
 .. note::
 
-    While schema is usually contained inside ``default.esdl`` file, 
+    While schema is usually contained inside the ``default.esdl`` file, 
     you can divide a schema over multiple files if you like. EdgeDB will 
     combine all ``.esdl`` files inside the ``/dbschema`` folder into a 
     single schema.
 
-Save the file, then type ``edgedb`` to start the EdgeDB REPL, and 
-then type ``describe schema as sdl``. The output will be 
-``{'module default{};'}`` - nothing more than the default module
-with nothing inside. So nothing happened! Our ``type User`` is
-nowhere to be seen.
+Type ``edgedb`` to start the EdgeDB REPL, and, into the REPL,  type 
+``describe schema as sdl``. The output will be ``{'module default{};'}`` 
+— nothing more than the empty ``default`` module. What happened? 
+Our ``type User`` is nowhere to be found.
 
-So that's the first thing to know about SDL. Like an address to a 
-person's house, it doesn't *do* anything on its own, and neither does 
-the SDL in your ``default.esdl`` file. With SDL you are declaring 
-what you want the final result to be: a schema containing a single 
+This is the first thing to know about SDL. Like an address to a 
+person's house, it doesn't *do* anything on its own. With SDL you are
+declaring what you want the final result to be: a schema containing a single
 type called ``User``, with a property of type ``str`` called ``name``.
-
 
 In order for a migration to happen, the EdgeDB server needs to receive 
 DDL statements telling it what changes to make, in the exact same 
@@ -109,16 +115,8 @@ DDL: For computers (mostly)
 ===========================
 
 To see what a schema migration file looks like, type ``edgedb migration 
-create`` and then hit ``y`` to say yes to the question you see below:
-
-
-.. code-block::
-
-    db> did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
-    > y
-
-Now look inside your ``/dbschema/migrations`` folder. You should see 
-a file called ``00001.esdl`` with the following, our first view into 
+create``. Now look inside your ``/dbschema/migrations`` folder. You should
+see a file called ``00001.esdl`` with the following, our first view into 
 what DDL looks like.
 
 .. code-block::
@@ -128,15 +126,16 @@ what DDL looks like.
     };
 
 The declarative schema has now been turned into *imperative* DDL (imperative 
-meaning "giving orders"), namely commands telling the database how 
+meaning "giving orders"), specifically commands telling the database how 
 to get from the current state to the desired state. Note that, in 
 contrast to SDL, this code says nothing about the current schema or 
 its final state. This command would work with the schema of any database 
 at all that doesn't already have a type called ``User``.
 
-Let's try one more small migration, in which we decided that we don't 
+Let's try one more small migration, in which we decide that we don't 
 want the ``name`` property anymore. Once again, we are declaring the 
-final state: a ``User`` type with nothing inside.
+final state: a ``User`` type with nothing inside. Update your ``default.esdl``
+to look like this:
 
 .. code-block:: sdl
 
@@ -144,14 +143,23 @@ final state: a ``User`` type with nothing inside.
       type User;
     }
 
-As before, typing ``edgedb migration create`` will create a DDL statement 
-to change it from the current state to the one we have declared. This 
-time we aren't starting from a blank schema, so the difference between 
-SDL and DDL is even clearer. The DDL statement alone doesn't give 
-us any indication what the schema looks like; all anyone could know 
-from this migration script alone is that there is a ``User`` type 
-inside a module called ``default`` that *doesn't* have a property 
-called ``name`` anymore.
+As before, typing ``edgedb migration create`` will create a DDL statement to
+change the schema from the current state to the one we have declared. This
+time we aren't starting from a blank schema, so the stakes are a bit higher.
+After all, dropping a property from a type will also drop all existing data
+under that property name. Thus, the schema planner will first ask a question
+to confirm the change with us. We will learn a lot more about working with
+these questions very soon, but in the meantime just press ``y`` to confirm
+the change.
+
+.. code-block::
+
+    db> did you drop property 'name' of object type 'default::User'?
+    [y,n,l,c,b,s,q,?]
+    > y
+
+Your ``/dbschema/migrations`` folder will now have a new file that contains
+the following:
 
 .. code-block::
 
@@ -159,15 +167,20 @@ called ``name`` anymore.
       DROP PROPERTY name;
   };
 
+The difference between SDL and DDL is even clearer this time. The DDL
+statement alone doesn't give us any indication what the schema looks like;
+all anyone could know from this migration script alone is that there is
+a ``User`` type inside a module called ``default`` that *doesn't* have
+a property called ``name`` anymore.
+
 .. note::
 
-    Migrations (and other commands) take even less time if you are 
-    inside the REPL. The commands themselves are also a bit shorter: 
-    ``\migration create`` followed by ``\migrate``. The migrations themselves
-    also happen in less time because you are continually connected to a
-    database when inside the REPL, compared to the command line which will
-    first establish a connection whenever you type the command to create and
-    apply a migration.
+    EdgeDB commands inside the REPL use a backslash instead of the ``edgedb``
+    command, so you can migrate your schema inside the REPL by typing
+    ``\migration create`` , followed by ``\migrate``. Not only are the comands
+    shorter, but they also execute faster. This is because the database client
+    is already connected to your database when you're inside the REPL, which
+    is not the case when creating and applying the migration via the CLI.
 
 Order matters in DDL
 --------------------
@@ -220,13 +233,11 @@ Now let's add the new scalar type mentioned above and give it to the
     +   scalar type Name extending str;
       }
 
-Note that we are able to put the ``scalar type Name`` below the ``User`` 
-type, because order doesn't matter in SDL. Let's migrate to this new 
-schema and then use ``describe schema;`` again. The output shows us 
-that the database has gone in the necessary order to make the schema: 
-first it creates the module, then a scalar type called ``Name``, and 
-finally the ``User`` type which is now able to have a property of 
-type ``Name``.
+Note that we are able to define the custom scalar type ``Name`` after we
+define the ``User`` type even though we use ``Name`` within that object
+because order doesn't matter in SDL. Let's migrate to this new schema
+and then use ``describe schema;`` again. You will see the following
+statements:
 
 .. code-block::
 
@@ -235,6 +246,11 @@ type ``Name``.
     create type default::User {
         create property name: default::Name;
     };
+
+The output shows us that the database has gone in the necessary order
+to make the schema: first it creates the module, then a scalar type
+called ``Name``, and finally the ``User`` type which is now able to
+have a property of type ``Name``.
 
 The output with ``describe schema as sdl;`` is also somewhat similar. 
 It's SDL, but the order matches that of the DDL statements.
@@ -248,21 +264,21 @@ It's SDL, but the order matches that of the DDL statements.
         };
     };
 
-So the schema produced with ``describe schema as sdl;`` may not match 
-the schema you've written inside ``default.esdl``, and it will also 
+Although the schema produced with ``describe schema as sdl;`` may not match
+the schema you've written inside ``default.esdl``, it will 
 show you the order in which statements were needed to reach this final 
-layout.
+schema.
 
 Non-interactive migrations
 --------------------------
 
-Now let's move back to the most basic schema with a single type that 
+Let's move back to the most basic schema with a single type that 
 has no properties.
 
 .. code-block:: sdl
 
     module default {
-      type SomeType;
+      type User;
     }
 
 Creating a migration with ``edgedb migration create`` will result 
@@ -297,7 +313,8 @@ made, and will fail otherwise.
 A non-interactive migration will fail if we make changes to our schema 
 that are ambiguous. Let's see if we can make a non-interactive migration 
 fail by doing just that. Delete the most recent ``.edgeql`` migration 
-file again, and change the schema to this:
+file again, and change the schema to the following that only differs by
+a single letter. Can you spot the difference?
 
 .. code-block:: sdl
 
@@ -309,17 +326,15 @@ file again, and change the schema to this:
     }
 
 The only difference from the current schema is that we would like 
-to change the property name ``name`` to ``nam``.
-
-But this time EdgeDB isn't sure what change we wanted to make. Did 
-we intend to:
+to change the property name ``name`` to ``nam``, but this time EdgeDB isn't
+sure what change we wanted to make. Did we intend to:
 
 - Change ``name`` to ``nam`` and keep the existing data?
 - Drop ``name`` and create a new property called ``nam``?
 - Do something else?
 
-So this time the non-interactive migration will fail, with some pretty 
-nice output:
+Because of the ambiguity, this non-interactive migration will fail, but with
+some pretty helpful output:
 
 .. code-block:: edgeql-repl
 
@@ -336,9 +351,9 @@ nice output:
     Please run in interactive mode to confirm changes, or use
     `--allow-unsafe`
 
-As the output suggests, you can add ``allow-unsafe`` to a non-interactive 
+As the output suggests, you can add ``--allow-unsafe`` to a non-interactive 
 migration if you truly want to push the suggestions through regardless 
-of the migration tool's confidence. But it's more likely in this case 
+of the migration tool's confidence, but it's more likely in this case 
 that you would like to interact with the CLI's questions to help it 
 make a decision. For example, if we had intended to drop the property 
 ``name`` and create a new property ``nam``, we would simply answer 
@@ -372,17 +387,19 @@ look like this:
 
 .. note::
 
-    See the section below on migration hashes if you are curious about 
-    how migrations are named)
+    See the section on
+    :ref:`data migrations <ref_migration_guide_migrations_and_hashes>`
+    and migration hashes if you are curious about how migrations are named.
 
-So the ``User`` type was altered via creating a new property, and 
+This migration will alter the ``User`` type by creating a new property and 
 dropping the old one. If that is what we wanted, then we can now type 
-``edgedb migrate`` to complete the migration.
+``\migrate`` in the REPL or ``edgedb migrate`` at the command line to complete
+the migration.
 
 Questions from the CLI
 ======================
 
-So far we've only learned how to say yes or no to the CLI's questions 
+So far we've only learned how to say "yes" or "no" to the CLI's questions 
 when we migrate a schema, but quite a few other options are presented 
 when the CLI asks us a question:
 
@@ -391,16 +408,16 @@ when the CLI asks us a question:
     did you create object type 'default::PlayerCharacter'? [y,n,l,c,b,s,q,?]
     > y
 
-The choices ``y`` and ``n`` are obviously yes and no, and you can 
-probably guess that ``?`` will pull up a help menu, but the others 
-aren't so clear. Let's go over every option to make sure we understand 
-them.
+The choices ``y`` and ``n`` are obviously "yes" and "no," and you can 
+probably guess that ``?`` will output help for the available response options,
+but the others aren't so clear. Let's go over every option to make sure we
+understand them.
 
 ``y`` (or ``yes``)
 ------------------
 
 This will accept the proposed change and move on to the next step. 
-If it's the last proposed change, the migration will now be complete.
+If it's the last proposed change, the migration will now be created.
 
 ``n`` (or ``no``)
 -----------------
@@ -411,22 +428,22 @@ always be able to do so.
  
 We can see this behavior with the same tiny schema change we made 
 above where we changed a property name from ``name`` to ``nam``. In 
-the output below, we see the following:
+the output of that ``migration create``, we see the following:
 
-- The CLI first asks us if we renamed the property, to which we say no.
+- The CLI first asks us if we renamed the property, to which we say "no".
 - It then tries to confirm that we have altered the ``User`` type. 
-  We say no again. 
+  We say "no" again. 
 - The CLI then guesses that maybe we are dropping and creating the 
-  whole ``User`` type instead. This time, we say yes.
+  whole ``User`` type instead. This time, we say "yes."
 - It then asks us to confirm that we are creating a ``User`` type, 
   since we have decided to drop the existing one.
 
-But if we say no again to this question, the CLI will throw its hands 
+If we say "no" again to the final question, the CLI will throw its hands 
 up and tell us that it doesn't know what we are trying to do because 
 there is no way left for it to migrate to the schema that we have 
 told it to move to.
 
-Here is the output:
+Here is what that would look like:
 
 .. code-block::
 
@@ -450,7 +467,7 @@ This is used to see (list) the actual DDL statements that are being proposed.
 When asked the question ``did you alter object type 'default::User'?``
 in the example above, we might be wondering exactly what changes will 
 be made here. How exactly does the database intend to alter the ``User`` 
-type if we say yes? Simply clicking ``l`` will show it:
+type if we say "yes?" Simply pressing ``l`` will show it:
 
 .. code-block::
 
@@ -460,10 +477,10 @@ type if we say yes? Simply clicking ``l`` will show it:
           DROP PROPERTY name;
       };
 
-This shows us clear as day that saying ``yes`` will result in creating 
+This shows us clear as day that saying "yes" will result in creating 
 a new property called ``nam`` and dropping the existing ``name`` property.
 
-So when doubts dwell, click the letter l!
+So when doubts dwell, press the letter "l!"
 
 ``c`` (or ``confirmed``)
 ------------------------
@@ -487,7 +504,7 @@ The following two keys will stop the migration, but in different ways:
 This is also known as a 'split'. Pressing ``s`` will complete the 
 migration at the current point. Any statements that you have applied 
 will be applied, but the schema will not yet match the schema in your 
-``.esdl`` file(s). But you can easily start another migration to complete 
+``.esdl`` file(s). You can easily start another migration to complete 
 the remaining changes once you have applied the migration that was 
 just created. This effectively splits the migration into two or more 
 files.
@@ -497,7 +514,9 @@ files.
 
 Pressing ``q`` will simply quit without saving any of your progress.
 
-Migration hashes and data migrations
+.. _ref_migration_guide_migrations_and_hashes:
+
+Data migrations and migration hashes
 ====================================
 
 Sometimes you may want to initialize a database with some default 
@@ -522,8 +541,8 @@ add ``--allow-empty`` to the command:
     Created myproject/dbschema/migrations/00002.edgeql,
     id: m1xseswmheqzxutr55cu66ko4oracannpddujg7gkna2zsjpqm2g3a
 
-You will now see an empty migration in which you can enter some queries. 
-It will look something like this:
+You will now see an empty migration in ``dbschema/migrations`` in which you
+can enter some queries. It will look something like this:
 
 .. code-block::
 
@@ -532,8 +551,8 @@ It will look something like this:
     {
     };
 
-You can now add your queries inside the braces. Assuming a schema 
-with a simple ``User`` type, we could then add a bunch of queries 
+Let's see what happens if we add some queries inside the braces. Assuming
+a schema with a simple ``User`` type, we could then add a bunch of queries
 such as the following:
 
 .. code-block::
@@ -546,13 +565,13 @@ such as the following:
         delete User filter .name = 'User 2';
     };
 
-But when you type ``edgedb migrate``, the CLI will then complain that 
-the migration hash doesn't match what it is supposed to be. However, 
-it helpfully provides the reason: "Migration names are computed from 
-the hash of the migration contents".
+The problem is, if you save that migration and run ``edgedb migrate``, the CLI
+will complain that the migration hash doesn't match what it is supposed to be.
+However, it helpfully provides the reason: "Migration names are computed from
+the hash of the migration contents."
 
-Fortunately, it also tells you exactly what the hash (the migration 
-name) will need to be and you can simply change it to that.
+Fortunately, it also tells you exactly what the hash (the migration name)
+will need to be:
 
 .. code-block::
 
@@ -573,33 +592,42 @@ name) will need to be and you can simply change it to that.
     ONTO ...
     Alternatively, revert the changes to the file.
 
-You can also create a migration that combines schema changes and data. 
-This is even easier, since it doesn't even require appending ``allow-empty`` 
-to the command. Just do the following:
+If you change the statement to read in exactly the way the output suggests,
+the migration will now work.
 
-- Change your schema,
-- Type ``edgedb migration create`` and respond to the CLI's questions,
-- Add your queries to the file (best done on the bottom after the 
-  DDL statements have changed the schema),
-- Type ``edgedb migrate`` and change the migration name to the suggested name,
-- Type ``edgedb migrate`` again.
+That's the manual way to do a data migration, but EdgeDB also has an
+``edgedb migration edit`` command that will automate the process for you.
+Using ``edgedb migration edit`` will open up the most recent migration for
+you to change, and update the migration hash when you close the window.
+
+Aside from exclusive data migrations, you can also create a migration that
+combines schema changes *and* data. This is even easier, since it doesn't even
+require appending ``--allow-empty`` to the command. Just do the following:
+
+1. Change your schema
+2. Type ``edgedb migration create`` and respond to the CLI's questions
+3. Add your queries to the file (best done on the bottom after the 
+   DDL statements have changed the schema) either manually or using 
+   ``edgedb migration edit``
+4. Type ``edgedb migrate`` to migrate the schema. If you have changed the
+   schema file manually, copy the suggested name into the migration hash
+   and type ``edgedb migrate`` again.
 
 The `EdgeDB tutorial <tutorial_>`_ is a good example of a database 
 set up with both a schema migration and a data migration. Setting 
-up a database with schema changes in one file and default data in 
-a second file is a nice way to separate the two operations and maintain 
-high readability at the same time. These two files can be `seen here 
-<tutorial_files_>`_.
+up a database with `schema changes in one file and default data in 
+a second file <tutorial_files_>`_ is a nice way to separate the two operations
+and maintain high readability at the same time.
 
 Squashing migrations
 ====================
 
-Users often end up making frequent changes to their schema because 
+Users often end up making many changes to their schema because 
 of how effortless it is to do. (And in the next section we will learn 
-about EdgeDB Watch, which is ever more effortless!) This leads to 
+about ``edgedb watch``, which is even more effortless!) This leads to 
 an interesting side effect: lots of ``.edgeql`` files, many of which 
 represent trials and approaches that don't end up making it to the 
-final form for your schema.
+final schema.
 
 Once you are done, you might want to squash the migrations into a 
 single file. This is especially nice if you need to frequently initialize 
@@ -623,9 +651,9 @@ to work through:
     ...and so on...
     Project initialized.
 
-To squash your migrations, just add ``--squash`` after ``edgedb migration 
-create``. Running this command will first display some helpful info 
-to keep in mind before committing to the operation:
+To squash your migrations, just run ``edgedb migration create`` with the
+``--squash`` option. Running this command will first display some helpful
+info to keep in mind before committing to the operation:
 
 .. code-block::
 
@@ -645,18 +673,18 @@ to keep in mind before committing to the operation:
 
     Proceed? [y/n]
 
-Then just press ``y`` to squash all of your existing migrations into 
+Press ``y`` to squash all of your existing migrations into 
 a single file.
 
 Fixups during a squash
 ----------------------
 
 If your schema doesn't match the schema in the database, EdgeDB will 
-prompt you to create a *fixup* file, which can be useful (as the CLI 
-says) to "automate upgrading other instances to a squashed revision". 
-You'll see fixups inside a folder called ``/fixups``. Their file names 
-are extremely long, but are simply two migration hashes joined together 
-by a dash. So a fixup that begins with
+prompt you to create a *fixup* file, which can be useful to, as the CLI 
+says, "automate upgrading other instances to a squashed revision". 
+You'll see fixups inside ``/dbschema/fixups``. Their file names 
+are extremely long because they are simply two migration hashes joined
+together by a dash. This means a fixup that begins with
 
 .. code-block::
 
@@ -668,9 +696,7 @@ will have a file name a full 116 characters in length.
 
 The CLI output when using squash along with a fixup is pretty informative 
 on its own, so let's just walk through the output as you'll see it 
-in practice.
-
-First we'll begin with this schema:
+in practice. First we'll begin with this schema:
 
 .. code-block:: sdl
 
@@ -678,11 +704,22 @@ First we'll begin with this schema:
     name: str;
   }
 
-Then remove ``name: str;`` from the ``User`` type, migrate, put it 
-back again, and migrate. You'll now have multiple files in your
-``/migrations`` folder and will now be able to squash them.
+Then remove ``name: str;`` from the ``User`` type, migrate, put it back
+again, and migrate. You can repeat this as many times as you like.
+One quick way to "remove" items from your schema that you might want
+to restore later is to simply use a ``#`` to comment out the entire line:
 
-Then change to this schema without migrating it:
+.. code-block:: sdl
+
+  type User {
+   # name: str;
+  }
+
+After a few of these simple migrations, you'll now have multiple files
+in your ``/migrations`` folder — none of which were all that useful — and
+may be in the mood to squash them into one.
+
+Next, change to this schema **without migrating it**:
 
 .. code-block:: sdl
 
@@ -691,7 +728,7 @@ Then change to this schema without migrating it:
     nickname: str;
   }
 
-Upon using ``edgedb migration create --squash``, the output is first 
+Now run ``edgedb migration create --squash``. The output is first 
 the same as with our previous squash:
 
 .. code-block:: bash
@@ -730,7 +767,7 @@ differs from what you have and offers to make a fixup file:
     Create a fixup file? [y/n]
     > y
 
-You will then see the the same questions that otherwise show up in 
+You will then see the the same questions that would otherwise show up in 
 a standard migration:
 
 .. code-block::
@@ -752,6 +789,10 @@ working with git after doing a squash with a fixup.
     The normal migration process will update your migration history:
         edgedb migrate
 
+We'll take its suggestion to apply the migration:
+
+.. code-block:: bash
+
     $ edgedb migrate
     
     Applied m1v3vqmwif4ml3ucbzi555mjgm4myxs2husqemopo2sz2m7otr22ka 
@@ -761,7 +802,7 @@ working with git after doing a squash with a fixup.
 
 .. note::
 
-    Squashing is still limited to schema changes, so queries inside 
+    Squashing is limited to schema changes, so queries inside 
     data migrations will be discarded during a squash.
 
 EdgeDB Watch
@@ -769,9 +810,9 @@ EdgeDB Watch
 
 Another option when quickly iterating over schema changes is ``edgedb watch``.
 This will create a long-running process that keeps track of every time you
-save as ``.esdl`` file inside your ``/migrations`` folder, letting you know
-if your changes have successfully compiled or not. The command itself will
-lead to the following input ``edgedb watch`` starts up:
+save an ``.esdl`` file inside your ``/migrations`` folder, letting you know
+if your changes have successfully compiled or not. The ``edgedb watch``
+command itself will show the following input when the process starts up:
 
 .. code-block::
 
@@ -781,13 +822,13 @@ lead to the following input ``edgedb watch`` starts up:
     to apply changes once done.
     Monitoring "/home/instancename".
 
-Unseen to the user, EdgeDB Watch will begin creating individual migration 
+Unseen to the user, ``edgedb watch`` will begin creating individual migration
 scripts for every time you save a change to one of your files. These 
 are stored as separate "dev mode" migrations, which are sort of like 
 preliminary migrations that haven't been turned into a standalone 
 migration script yet.
 
-If you start with this schema:
+We can test this out by starting with this schema:
 
 .. code-block:: sdl
 
@@ -797,7 +838,8 @@ If you start with this schema:
       }
     }
 
-And then add a single property:
+Now let's add a single property. Keep an eye on your terminal output and
+hit after making a change to the following schema:
 
 .. code-block:: sdl
 
@@ -808,11 +850,13 @@ And then add a single property:
       }
     }
 
-You will see EdgeDB Watch quickly display "calculating diff" before 
-disappearing once the difference has been calculated and deemed to 
-be good.
+You will see a quick "calculating diff" show up as ``edgedb watch`` checks
+to see that the change we made was a valid one. As the change we made was
+to a valid schema, the "calculating diff" message will disappear pretty
+quickly.
 
-However, if you add incorrect syntax to the schema:
+However, if the schema file you save is incorrect, the output will be a lot
+more verbose. Let's add some incorrect syntax to the existing schema:
 
 .. code-block:: sdl
 
@@ -824,8 +868,8 @@ However, if you add incorrect syntax to the schema:
       }
     }
 
-Then EdgeDB Watch will suddenly pipe up and inform you that the schema 
-can't be resolved:
+Once you hit save, ``edgedb watch`` will suddenly pipe up and inform you
+that the schema can't be resolved:
 
 .. code-block::
 
@@ -838,20 +882,24 @@ can't be resolved:
     Schema migration error:
     cannot proceed until .esdl files are fixed
 
-Once you correct the ``i32`` property to ``int32``, EdgeDB Watch will 
-let you know that things are okay now, and will become quiet again:
+Once you correct the ``i32`` type to ``int32``, you will see a message
+letting you know that things are okay now.
 
 .. code-block::
 
     Resolved. Schema is up to date now.
 
-EdgeDB Watch is best run in a separate tab on your command line so 
-that you can take care of other tasks—including officially migrating 
-when you are satisfied with your current schema—without having to 
+The process will once again quieten down, but will continue to watch your
+schema and apply migrations to any changes you make to your schema.
+
+``edgedb watch`` is best run in a separate instance of your command line so
+that you can take care of other tasks — including officially migrating 
+when you are satisfied with your current schema — without having to 
 stop the process.
 
-If you are curious what is happening as EdgeDB Watch does its thing, 
-try the following query after you have made some changes:
+If you are curious what is happening as ``edgedb watch`` does its thing, 
+try the following query after you have made some changes. It will return
+a few lists of applied migrations, grouped by the way they were generated.
 
 .. code-block::
 
@@ -861,25 +909,30 @@ try the following query after you have made some changes:
     } by .generated_by;
 
 Some migrations will contain nothing in their ``generated_by`` property, 
-while those generated by EdgeDB Watch will have a 
+while those generated by ``edgedb watch`` will have a 
 ``MigrationGeneratedBy.DevMode``. 
 
-(The final option for ``generated_by`` is
-``MigrationGeneratedBy.DDLStatement``, which will show up if you directly
-change your schema by using DDL - which is generally not recommended)
+.. note::
 
-Once you are satisfied with your changes while running EdgeDB Watch, 
+    The final option (aside from ``DevMode`` and the empty set) for
+    ``generated_by`` is ``MigrationGeneratedBy.DDLStatement``, which will
+    show up if you directly change your schema by using DDL, which is
+    generally not recommended.
+
+Once you are satisfied with your changes while running ``edgedb watch``, 
 just create the migration with ``edgedb migration create`` and then 
-apply them with one small change: ``edgedb migrate --dev-mode`` to 
-let the CLI know to apply the migrations made during dev mode that 
-were made by EdgeDB Watch.
+apply them with one small tweak to the ``migrate`` command:
+``edgedb migrate --dev-mode`` to let the CLI know to apply the migrations
+made during dev mode that were made by ``edgedb watch``.
 
-So you really want to use DDL
-=============================
+So, you really want to use DDL?
+===============================
 
 You might have a good reason to use a direct DDL statement or two 
 to change your schema. How do you make that happen? EdgeDB disables 
-the usage of DDL by default, so this attempt to use DDL will not work:
+the usage of DDL by default if you have already carried out a migration
+through the recommended migration commands, so this attempt to use DDL
+will not work:
 
 .. code-block:: edgeql-repl
 
@@ -897,7 +950,7 @@ the usage of DDL by default, so this attempt to use DDL will not work:
     migration flow.
 
 This configuration can be overridden by the following command which 
-changes the enum ``allow_bare_ddl``from the default ``NeverAllow`` 
+changes the enum ``allow_bare_ddl`` from the default ``NeverAllow`` 
 to the other option, ``AlwaysAllow``.
 
 .. code-block:: edgeql-repl
@@ -908,11 +961,11 @@ Note that the command is ``configure current database`` and not ``configure
 instance``, as ``allow_bare_ddl`` is evaluated on the database level.
 
 That wasn't so bad, so why did the CLI tell us to try to "avoid accidental 
-schema changes outside of the migration flow"? Why is DDL disabled 
-by default in the first place?
+schema changes outside of the migration flow?" Why is DDL disabled 
+after running a migration in the first place?
 
-So you really wanted to use DDL but now regret it
-=================================================
+So, you really wanted to use DDL but now regret it?
+===================================================
 
 Let's start out with a very simple schema to see what happens after 
 DDL is used to directly modify a schema.
@@ -996,10 +1049,10 @@ see it with the following query:
     },
     }
 
-Fortunately, the fix is not too hard: we can use a command called 
+Fortunately, the fix is not too hard: we can use the command
 ``edgedb migration extract``. This command will retrieve the migration(s) 
 created using DDL and assign each of them a proper file name and hash 
-inside the ``/migrations`` folder, effectively giving them a proper 
+inside the ``/dbschema/migrations`` folder, effectively giving them a proper 
 position inside the migration flow.
 
 Note that at this point your ``.esdl`` schema will still not match 
@@ -1016,8 +1069,15 @@ you forgot to add it to the schema inside your ``.esdl`` file(s).
 Multiple migrations to keep data 
 ================================
 
-Let's say that we have a simple ``User`` type with a ``friends`` link 
-to other ``User`` objects.
+Sometimes you may want to change your schema in a complex way that doesn't
+allow you to keep existing data. For example, what if you decide that you
+don't need a ``multi`` link anymore but would like to keep some of the
+information in the currently linked to objects as an array instead? One
+way to make this happen is by migrating more than once.
+
+Let's give this a try by starting with with a simple ``User`` type that has
+a ``friends`` link to other ``User`` objects. (If you've been following along
+all this time, a quick migration to this schema will be a breeze.)
 
 .. code-block:: sdl
 
@@ -1052,7 +1112,7 @@ make each ``User`` friends with all of the others:
 Now what happens if we now want to change ``multi friends`` to an 
 ``array<str>``? If we were simply changing a scalar property to another 
 property it would be easy, because EdgeDB would prompt us for a conversion 
-expression. But a change from a link to a property is different:
+expression, but a change from a link to a property is different:
 
 .. code-block:: sdl
 
@@ -1081,9 +1141,13 @@ we will keep the ``friends`` link, while adding a new property called
       }
     }
 
-The CLI will simply ask us if we created a property called ``friend_names``. 
-We haven't applied the migration yet, so we might as well put the 
-data inside the same migration. A simple update will do the job!
+Upon using ``edgedb migration create``, the CLI will simply ask us if we
+created a property called ``friend_names``. We haven't applied the migration
+yet, so we might as well put the data inside the same migration. A simple
+``update`` will do the job! As we learned previously,
+``edgedb migration edit`` is the easiest way to add data to a migration. Or
+you can manually add the ``update``, try to apply the migration, and change
+the migration hash to the output suggested by the CLI.
 
 .. code-block::
 
@@ -1096,9 +1160,9 @@ data inside the same migration. A simple update will do the job!
     update User set { friend_names := array_agg(.friends.name) };
     };
 
-Now if we do a query we can confirm that the data inside ``.friends.name`` 
-when converted to an array is indeed the same as the data inside the 
-``friend_names`` property:
+Once the migration is applied, we can do a query to confirm that the data
+inside ``.friends.name`` when converted to an array is indeed the same as
+the data inside the ``friend_names`` property:
 
 .. code-block:: edgeql-repl
 
@@ -1118,8 +1182,7 @@ when converted to an array is indeed the same as the data inside the
       },
     }
 
-Or if we can't eyeball the data ourselves, we can use the ``all()`` 
-function to ensure that this is the case:
+Or we could also use the ``all()`` function to confirm that this is the case.
 
 .. code-block:: edgeql-repl
 
@@ -1136,14 +1199,14 @@ We've now reached the most optional part of the migrations tutorial,
 but an interesting one for those curious about what goes on behind 
 the scenes during a migration.
 
-Migrations in EdgeDB before the advent of the EdgeDB Project flow 
-were still automated, but required more manual work if you didn't 
+Migrations in EdgeDB before the advent of the ``edgedb project`` flow 
+were still automated but required more manual work if you didn't 
 want to accept all of the suggestions provided by the server. This 
 process is in fact still used to migrate even today; the CLI just 
 facilitates it by making it easy to respond to the generated suggestions.
 
-They took place `inside a transaction <transaction_>`_ handled by 
-the user that essentially went like this: 
+`Early EdgeDB migrations took place inside a transaction <transaction_>`_ 
+handled by the user that essentially went like this: 
 
 .. code-block::
 
@@ -1156,8 +1219,8 @@ the server, and then ``commit migration`` to finish the process.
 Now, there is another option besides simply typing ``populate migration`` 
 that allows you to look at and handle the suggestions every step of 
 the way (in the same way the CLI does today), and this is what we 
-are going to have some fun with. You can see `the original RFC <rfc_>`_ 
-for this if you are curious.
+are going to have some fun with. You can see 
+`the original migrations RFC <rfc_>`_ if you are curious.
 
 It is *very* finicky compared to the CLI, resulting in a failed transaction 
 if any step along the way is different from the expected behavior, 
@@ -1165,14 +1228,16 @@ but is an entertaining challenge to try to get right if you want to
 truly understand how migrations work in EdgeDB.
 
 This process requires looking at the server's proposed solutions every 
-step of the way, and these steps are best seen in JSON format. Let's 
-first set the CLI to make the format nicely readable with this command:
+step of the way, and these steps are best seen in JSON format. We can make
+this format as readable as possible with the following command:
 
 .. code-block:: edgeql-repl
 
-    db> \set output format json-pretty
+    db> \set output-format json-pretty
 
-We will begin with the same simple schema used in the previous examples:
+First, let's begin with the same same simple schema used in the previous
+examples, via the regular ``edgedb migration create`` and ``edgedb migrate``
+commands.
 
 .. code-block:: sdl
 
@@ -1193,15 +1258,16 @@ And, as before, we will make a somewhat ambiguous change by changing
       }
     }
 
-Now we can start a migration by pasting this inside a ``start migration 
-to {};`` block:
+And now it's time to give the older migration method a try! To move to this
+schema using the old method, we will need to start a migration by pasting our
+desired schema into a ``start migration to {};`` block:
 
 .. code-block:: edgeql-repl
 
     db> start migration to {
     ...   module default {
     ...     type User {
-    ...       name: str;
+    ...       nam: str;
     ...     }
     ...   }
     ... };
@@ -1214,7 +1280,7 @@ schema until we finally commit the migration.
 So now what do we do? We could simply type ``populate migration`` 
 to accept the server's suggested changes, but let's instead take a 
 look at them one step at a time. To see the current described change, 
-type ``describe current migration as json``. This will generate the 
+type ``describe current migration as json;``. This will generate the 
 following output:
 
 .. code-block::
@@ -1245,24 +1311,24 @@ statement:
 
     ALTER TYPE default::User { ALTER PROPERTY name { RENAME TO nam; };};
 
-Don't forget to remove the ``\n`` from inside the original suggestion 
-- the transaction will fail if you don't take them out. If the migration 
-fails at any step you will see ``[tx]`` change to ``[tx:failed]`` 
+Don't forget to remove the newlines (``\n``) from inside the original
+suggestion; the transaction will fail if you don't take them out. If the
+migration fails at any step, you will see ``[tx]`` change to ``[tx:failed]`` 
 and you will have to type ``abort migration`` to leave the transaction 
 and begin the migration again.
 
 Technically, at this point you are permitted to write any DDL statement 
 you like and the migration tool will adapt its suggestions to reach 
-the desired schema. But this is more than likely to generate an error 
-when you try to commit the migration, and is bad practice in any case. 
-(But give it a try if you're curious)
+the desired schema. Doing so though is bad practice and is more than likely
+to generate an error when you try to commit the migration. 
+(Even so, give it a try if you're curious.)
 
-So let's dutifully type the suggested statement above, and then use 
+Let's dutifully type the suggested statement above, and then use 
 ``describe current migration as json`` again to see what the current 
 status of the migration is. This time we see two major differences: 
 "complete" is now ``true``, meaning that we are at the end of the 
 proposed migration, and "proposed" does not contain anything. We can 
-also see our confirmed statement(s) inside "confirmed" at the bottom.
+also see our confirmed statement inside "confirmed" at the bottom.
 
 .. code-block::
 
@@ -1274,7 +1340,7 @@ also see our confirmed statement(s) inside "confirmed" at the bottom.
     {\n RENAME TO nam;\n };\n};"]
     }
 
-With this done, you can type ``commit migration`` and the migration 
+With this done, you can commit the migration and the migration 
 will be complete.
 
 .. code-block:: edgeql-repl
@@ -1282,10 +1348,10 @@ will be complete.
     db[tx]> commit migration;
     OK: COMMIT MIGRATION
 
-And because this migration was created using direct DDL statements, 
+Since this migration was created using direct DDL statements, 
 you will need to use ``edgedb migration extract`` to extract the latest
 migration and give it a proper ``.edgeql`` file in the same way we 
-did above in the "So you really wanted to use DDL but now regret it"
+did above in the "So you really wanted to use DDL but now regret it?"
 section.
 
 .. lint-off
