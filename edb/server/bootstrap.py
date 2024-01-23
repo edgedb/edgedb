@@ -1106,7 +1106,21 @@ async def create_branch(
         src_dbname, tgt_dbname, dump_args, [],
     )
 
-    # XXX: std::Object and std::BaseObject are still fucked
+    # std::Object and std::BaseObject depend on user tables, so dump
+    # those and patch them to OR REPLACE.
+    std_views = [
+        pg_common.get_backend_name(
+            schema, schema.get(name), catenate=True, aspect='inhview'
+        )
+        for name in ('std::Object', 'std::BaseObject')
+    ]
+    views_dump = await cluster.dump_database(
+        src_dbname,
+        include_tables=std_views,
+        schema_only=True,
+    )
+    views_dump = views_dump.replace(b'CREATE VIEW', b'CREATE OR REPLACE VIEW')
+    await conn.sql_execute(views_dump)
 
 
 class StdlibBits(NamedTuple):
