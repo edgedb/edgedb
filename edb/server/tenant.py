@@ -1189,13 +1189,29 @@ class Tenant(ha_base.ClusterProtocol):
     ) -> None:
         logger.info('Starting copy from %s to %s', src_dbname, tgt_dbname)
         from edb.pgsql import common
+        from . import bootstrap  # noqa: F402
 
         real_tgt_dbname = common.get_database_backend_name(
             tgt_dbname, tenant_id=self._tenant_id)
         real_src_dbname = common.get_database_backend_name(
             src_dbname, tenant_id=self._tenant_id)
 
-        await self._cluster.copy_database(real_src_dbname, real_tgt_dbname)
+        try:
+            async with self.direct_pgcon(tgt_dbname) as con:
+                await bootstrap.create_branch(
+                    self._cluster,
+                    self._server.get_std_schema(),
+                    con,
+                    real_src_dbname,
+                    real_tgt_dbname,
+                )
+        except Exception:
+            # Is this the right place (no)??
+            async with self.use_sys_pgcon() as con:
+                await con.sql_execute(
+                    f'drop database "{real_tgt_dbname}"'.encode('utf-8')
+                )
+            raise
 
         logger.info('Finished copy from %s to %s', src_dbname, tgt_dbname)
         # breakpoint()

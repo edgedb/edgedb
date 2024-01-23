@@ -1035,6 +1035,74 @@ def prepare_patch(
     return regular_updates, sys_updates, updates, False
 
 
+async def create_branch(
+    cluster: pgcluster.BaseCluster,
+    stdschema: s_schema.Schema,
+    conn: metaschema.PGConnection,
+    src_dbname: str,
+    tgt_dbname: str,
+) -> None:
+    # XXX: do this right instead of wrong
+    to_skip = {
+        "0cbcddd2-ddfa-55df-ab69-a097b801b4ca",
+        "67996f7a-c82f-5b58-bb0a-f29764ee45c2",
+        "27d815f4-6518-598a-a3c5-9364342d6e06",
+        "2e1efa8d-b194-5b38-ad67-93b27aec520c",
+        "416fe1a6-d62c-5481-80cd-2102a37b3415",
+        "48a4615d-2402-5744-bd11-17015ad18bb9",
+        "b20a2c38-2942-5085-88a3-1bbb1eea755f",
+        "f5e31516-7567-519d-847f-397a0762ce23",
+    }
+
+    schema_dump = await cluster.dump_database(
+        src_dbname,
+        include_schemas=('edgedbpub',),
+        schema_only=True,
+    )
+    old_lines = schema_dump.decode('latin1').split('\n')
+    new_lines = []
+    skipping = False
+    for line in old_lines:
+        if line == ');' and skipping:
+            skipping = False
+            continue
+        elif line.startswith('CREATE SCHEMA'):
+            continue
+        elif line.startswith('CREATE TYPE'):
+            if any(skip in line for skip in to_skip):
+                skipping = True
+        if skipping:
+            continue
+        new_lines.append(line)
+    s_schema_dump = '\n'.join(new_lines)
+    # print(s_schema_dump)
+
+    await conn.sql_execute(s_schema_dump.encode('latin1'))
+    # print(schema_dump)
+    # breakpoint()
+
+    dump_args = [
+        '--data-only',
+        '--schema=edgedbstd',
+        '--schema=edgedbpub',
+        '--disable-triggers',
+        # XXX
+        '--inserts',
+        '--rows-per-insert=100',
+        # XXX: this doesn't work really, we produce duplicates
+        # for multi properties;
+        # (maybe we could fix this if we always used an appropriate
+        # exclusive constraint)
+        '--on-conflict-do-nothing',
+    ]
+
+    await cluster._copy_database(
+        src_dbname, tgt_dbname, src_args,
+    )
+
+    # XXX: std::Object and std::BaseObject are still fucked
+
+
 class StdlibBits(NamedTuple):
 
     #: User-visible std.
