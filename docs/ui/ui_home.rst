@@ -1,4 +1,4 @@
-.. _ref_ui_schema_viewer:
+.. _ref_ui_home:
 
 =============
 Schema Viewer
