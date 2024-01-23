@@ -1,9 +1,9 @@
 .. _ref_guide_tutorials:
 
 
-=========
-Tutorials
-=========
+====================
+Using EdgeDB with...
+====================
 
 .. toctree::
     :maxdepth: 1
