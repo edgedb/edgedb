@@ -299,12 +299,13 @@ def _build_object_mutation_shape(
             # an ObjectKeyDict collection that allow associating objects
             # with arbitrary values (a transposed ObjectDict).
             target_expr = f"""assert_distinct((
-                FOR v IN {{ json_array_unpack(<json>${var_n}) }}
+                FOR v IN {{ enumerate(json_array_unpack(<json>${var_n})) }}
                 UNION (
                     SELECT {target.get_name(schema)} {{
-                        @value := <str>v[1]
+                        @index := v.0,
+                        @value := <str>v.1[1],
                     }}
-                    FILTER .id = <uuid>v[0]
+                    FILTER .id = <uuid>v.1[0]
                 )
             ))"""
             args = props.get('args', [])

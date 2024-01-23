@@ -602,7 +602,7 @@ Bug fixes
 
 * Optimize the compiler and reduce time of an update test by ~52%
   (:eql:gh:`#6579`)
-  
+
 * Always retry system connection on any BackendError
   (:eql:gh:`#6588`)
 
@@ -638,3 +638,14 @@ Bug fixes
 
 * Fix changing a pointer to be computed when there is a subtype
   (:eql:gh:`#6565`)
+
+4.4
+===
+* Fix DML-containing FOR when the iterator is an object set with duplicates
+  (:eql:gh:`#6609`)
+
+* Fix very slow global introspection query when there are lots of databases
+  (:eql:gh:`#6633`)
+
+* Use correct signature for in-memory cache method
+  (:eql:gh:`#6643`)

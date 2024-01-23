@@ -1,11 +1,10 @@
 .. _ref_migration_guide:
 
-==========================
-Guide to schema migrations
-==========================
+======
+Basics
+======
 
-Schemas and migration basics
-============================
+:edb-alt-title: Schema migration basics
 
 EdgeQL is a strongly-typed language, which means that it moves checks 
 and verification of your code to compile time as much as possible 

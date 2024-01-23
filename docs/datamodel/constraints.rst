@@ -376,7 +376,7 @@ player picks in a color-based memory game:
       required name: str;
     }
 
-This constraint ensures that a single ``User`` cannot pick two ``Color``\s at
+This constraint ensures that a single ``Player`` cannot pick two ``Color``\s at
 the same ``@order``.
 
 .. _ref_datamodel_constraints_scalars:

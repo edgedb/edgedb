@@ -2316,8 +2316,15 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         astnode = self._get_ast_node(schema, context)
 
         if astnode.get_field('name'):
-            name = sn.shortname_from_fullname(self.classname)
-            name = context.early_renames.get(name, name)
+            # We need to be able to catch both renames of the object
+            # itself, which might have a long name (for pointers, for
+            # example) as well as an object being referenced by
+            # shortname, if this is (for example) a concrete
+            # constraint and the abstract constraint was renamed.
+            name = context.early_renames.get(self.classname, self.classname)
+            name = sn.shortname_from_fullname(name)
+            if self.classname not in context.early_renames:
+                name = context.early_renames.get(name, name)
             op = astnode(  # type: ignore
                 name=self._deparse_name(schema, context, name),
             )

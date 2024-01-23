@@ -229,9 +229,12 @@ provide those values and the ``additional_scope``:
    Provider to fulfill our minimal data needs. You can pass additional
    scope here in a space-separated string and we will request that
    additional scope when getting the authentication token from the
-   Identity Provider. \********Note:\*******\* We return this
-   authentication token with this scope from the Identity Provider when
-   we return our own authentication token.
+   Identity Provider.
+
+   .. note::
+
+        We return this authentication token with this scope from the Identity
+        Provider when we return our own authentication token.
 
 You’ll also need to set a callback URL in each provider’s interface. To build
 this callback URL, you will need the hostname, port, and database name of your

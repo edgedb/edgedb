@@ -1540,6 +1540,8 @@ def _get_compile_options(
         apply_query_rewrites=(
             not ctx.bootstrap_mode
             and not ctx.schema_reflection_mode
+            and not bool(
+                _get_config_val(ctx, '__internal_no_apply_query_rewrites'))
         ),
         apply_user_access_policies=_get_config_val(
             ctx, 'apply_access_policies'),
@@ -1696,7 +1698,13 @@ def _compile_ql_query(
     is_explain = explain_data is not None
     current_tx = ctx.state.current_tx()
 
-    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+    base_schema = (
+        ctx.compiler_state.std_schema
+        if not _get_config_val(ctx, '__internal_query_reflschema')
+        else ctx.compiler_state.refl_schema
+    )
+    schema = current_tx.get_schema(base_schema)
+
     options = _get_compile_options(ctx, is_explain=is_explain)
     ir = qlcompiler.compile_ast_to_ir(
         ql,
