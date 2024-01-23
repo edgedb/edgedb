@@ -30,6 +30,17 @@ it in EdgeDB are pretty easy:
   then run ``edgedb migrate``, and you are done! You can now
   ``insert SomeType;`` in your database to your heart's content.
 
+.. note::
+
+   If you ever feel like outright removing and creating an instance anew
+   during this migration guide, you can use the command
+   ``edgedb instance destroy -I <instancename> --force``. And if you want to
+   remove all existing migrations as well, you can manually delete them inside
+   your ``/migrations`` folder (otherwise, the CLI will try to apply the
+   migrations again when you recreate your instance with
+   ``edgedb migration create``). Once that is done, you will have a blank
+   slate on which to start over again.
+
 But many EdgeDB users have needs that go beyond these basics. In addition,
 schema migrations are pretty interesting and teach you a lot about 
 what EdgeDB does behind the scenes. This guide will turn you from 
@@ -89,7 +100,6 @@ This is the first thing to know about SDL. Like an address to a
 person's house, it doesn't *do* anything on its own. With SDL you are
 declaring what you want the final result to be: a schema containing a single
 type called ``User``, with a property of type ``str`` called ``name``.
-
 
 In order for a migration to happen, the EdgeDB server needs to receive 
 DDL statements telling it what changes to make, in the exact same 
@@ -1217,14 +1227,15 @@ but is an entertaining challenge to try to get right if you want to
 truly understand how migrations work in EdgeDB.
 
 This process requires looking at the server's proposed solutions every 
-step of the way, and these steps are best seen in JSON format. Let's 
-first set the CLI to make the format nicely readable with this command:
+step of the way, and these steps are best seen in JSON format. We can make
+this format as readable as possible with the following command:
 
 .. code-block:: edgeql-repl
 
     db> \set output-format json-pretty
 
-We will begin with the same simple schema used in the previous examples:
+First, let's begin with the same same simple schema used in the
+previous examples:
 
 .. code-block:: sdl
 
