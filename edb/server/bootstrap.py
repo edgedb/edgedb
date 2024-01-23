@@ -50,6 +50,7 @@ from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
+from edb.schema import properties as s_props
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
@@ -1037,21 +1038,15 @@ def prepare_patch(
 
 async def create_branch(
     cluster: pgcluster.BaseCluster,
-    stdschema: s_schema.Schema,
+    schema: s_schema.Schema,  # refl?
     conn: metaschema.PGConnection,
     src_dbname: str,
     tgt_dbname: str,
 ) -> None:
-    # XXX: do this right instead of wrong
+    # XXX: extensions??
+
     to_skip = {
-        "0cbcddd2-ddfa-55df-ab69-a097b801b4ca",
-        "67996f7a-c82f-5b58-bb0a-f29764ee45c2",
-        "27d815f4-6518-598a-a3c5-9364342d6e06",
-        "2e1efa8d-b194-5b38-ad67-93b27aec520c",
-        "416fe1a6-d62c-5481-80cd-2102a37b3415",
-        "48a4615d-2402-5744-bd11-17015ad18bb9",
-        "b20a2c38-2942-5085-88a3-1bbb1eea755f",
-        "f5e31516-7567-519d-847f-397a0762ce23",
+        str(obj.id) for obj in schema.get_objects(type=s_types.Tuple)
     }
 
     schema_dump = await cluster.dump_database(
@@ -1078,26 +1073,37 @@ async def create_branch(
     # print(s_schema_dump)
 
     await conn.sql_execute(s_schema_dump.encode('latin1'))
-    # print(schema_dump)
-    # breakpoint()
 
+    # HACK: Empty out all schema multi property tables. This is
+    # because the original template has the stdschema in it, and so we
+    # use --on-conflict-do-nothing to avoid conflicts since the dump
+    # will have that in it too. That works, except for multi properties
+    # where it won't conflict.
+    multi_properties = {
+        prop for prop in schema.get_objects(type=s_props.Property)
+        if prop.get_cardinality(schema).is_multi()
+        and prop.get_name(schema).module != 'cfg'  # XXX
+    }
+
+    for mprop in multi_properties:
+        name = pg_common.get_backend_name(schema, mprop, catenate=True)
+        await conn.sql_execute(f'delete from {name}'.encode('utf-8'))
+
+    # Do the dump/restore for the data
     dump_args = [
         '--data-only',
         '--schema=edgedbstd',
+        # TODO: make this configurable
         '--schema=edgedbpub',
         '--disable-triggers',
-        # XXX
+        # We need to use --inserts so that we can use --on-conflict-do-nothing
         '--inserts',
         '--rows-per-insert=100',
-        # XXX: this doesn't work really, we produce duplicates
-        # for multi properties;
-        # (maybe we could fix this if we always used an appropriate
-        # exclusive constraint)
         '--on-conflict-do-nothing',
     ]
 
     await cluster._copy_database(
-        src_dbname, tgt_dbname, src_args,
+        src_dbname, tgt_dbname, dump_args, [],
     )
 
     # XXX: std::Object and std::BaseObject are still fucked
