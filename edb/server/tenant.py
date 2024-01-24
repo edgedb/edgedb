@@ -1175,7 +1175,11 @@ class Tenant(ha_base.ClusterProtocol):
     async def on_before_create_db_from_template(
         self, dbname: str, current_dbname: str
     ) -> None:
-        pass
+        # Make sure the database exists.
+        # TODO: Is it worth producing a nicer error message if it
+        # fails on the backside? (Because of a race?)
+        self.get_db(dbname=dbname)
+
         # if current_dbname == dbname:
         #     raise errors.ExecutionError(
         #         f"cannot create database using currently open database "
