@@ -1180,14 +1180,6 @@ class Tenant(ha_base.ClusterProtocol):
         # fails on the backside? (Because of a race?)
         self.get_db(dbname=dbname)
 
-        # if current_dbname == dbname:
-        #     raise errors.ExecutionError(
-        #         f"cannot create database using currently open database "
-        #         f"{dbname!r} as a template database"
-        #     )
-
-        # await self.ensure_database_not_connected(dbname)
-
     async def on_after_create_db_from_template(
         self, tgt_dbname: str, src_dbname: str,
     ) -> None:
@@ -1219,7 +1211,6 @@ class Tenant(ha_base.ClusterProtocol):
             raise
 
         logger.info('Finished copy from %s to %s', src_dbname, tgt_dbname)
-        # breakpoint()
 
     def on_after_drop_db(self, dbname: str) -> None:
         try:

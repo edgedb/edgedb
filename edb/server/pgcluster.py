@@ -36,6 +36,7 @@ import textwrap
 import urllib.parse
 
 from edb import buildmeta
+from edb import errors
 from edb.common import supervisor
 from edb.common import uuidgen
 
@@ -310,8 +311,6 @@ class BaseCluster:
         tgt_dbname: str,
         src_args: list[str],
         tgt_args: list[str],
-        # exclude_schemas: Iterable[str] = (),
-        # dump_object_owners: bool = True,
     ) -> None:
         status = await self.get_status()
         if status != 'running':
@@ -366,11 +365,13 @@ class BaseCluster:
         )
 
         if dump_exit_code != 0 and dump_exit_code != -signal.SIGPIPE:
-            raise ClusterError(  # XXX?
-                f'{dump_args[0]} exited with status {dump_exit_code}'
+            raise errors.ExecutionError(
+                f'branch failed: {dump_args[0]} exited with status '
+                f'{dump_exit_code}'
             )
         if restore_exit_code != 0:
-            raise ClusterError(  # XXX?
+            raise errors.ExecutionError(
+                f'branch failed: '
                 f'{restore_args[0]} exited with status {restore_exit_code}'
             )
 
@@ -1404,42 +1405,43 @@ async def _start_logged_subprocess(
         **kwargs,
     )
 
-    # XXX: Should not do this.
-    if TYPE_CHECKING:
+    stderr_reader = None
+    if not override_stderr:
         assert process.stderr is not None
+        if log_stderr and capture_stderr:
+            stderr_reader = _capture_and_log_subprocess_output(
+                process.pid,
+                process.stderr,
+                logger,
+                level,
+                log_processor,
+            )
+        elif capture_stderr:
+            stderr_reader = _capture_subprocess_output(process.stderr)
+        elif log_stderr:
+            stderr_reader = _log_subprocess_output(
+                process.pid, process.stderr, logger, level, log_processor)
+
+    stderr_reader = stderr_reader or _dummy()
+
+    stdout_reader = None
+    if not override_stdout:
         assert process.stdout is not None
+        if log_stdout and capture_stdout:
+            stdout_reader = _capture_and_log_subprocess_output(
+                process.pid,
+                process.stdout,
+                logger,
+                level,
+                log_processor,
+            )
+        elif capture_stdout:
+            stdout_reader = _capture_subprocess_output(process.stdout)
+        elif log_stdout:
+            stdout_reader = _log_subprocess_output(
+                process.pid, process.stdout, logger, level, log_processor)
 
-    if log_stderr and capture_stderr:
-        stderr_reader = _capture_and_log_subprocess_output(
-            process.pid,
-            process.stderr,
-            logger,
-            level,
-            log_processor,
-        )
-    elif capture_stderr:
-        stderr_reader = _capture_subprocess_output(process.stderr)
-    elif log_stderr:
-        stderr_reader = _log_subprocess_output(
-            process.pid, process.stderr, logger, level, log_processor)
-    else:
-        stderr_reader = _dummy()
-
-    if log_stdout and capture_stdout:
-        stdout_reader = _capture_and_log_subprocess_output(
-            process.pid,
-            process.stdout,
-            logger,
-            level,
-            log_processor,
-        )
-    elif capture_stdout:
-        stdout_reader = _capture_subprocess_output(process.stdout)
-    elif log_stdout:
-        stdout_reader = _log_subprocess_output(
-            process.pid, process.stdout, logger, level, log_processor)
-    else:
-        stdout_reader = _dummy()
+    stdout_reader = stdout_reader or _dummy()
 
     return process, stdout_reader, stderr_reader
 
