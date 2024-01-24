@@ -10200,6 +10200,27 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
         )
 
+    def test_schema_describe_overload_01(self):
+        self._assert_describe(
+            """
+            abstract type Animal {
+                name: str;
+                parent: Animal;
+            }
+            type Human extending Animal {
+                overloaded parent: Human;
+            }
+            """,
+
+            'describe type test::Human as sdl',
+
+            """
+            type test::Human extending test::Animal {
+                overloaded link parent: test::Human;
+            };
+            """,
+        )
+
 
 class TestCreateMigration(tb.BaseSchemaTest):
 
