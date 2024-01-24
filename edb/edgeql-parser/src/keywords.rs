@@ -23,6 +23,7 @@ pub const UNRESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "constraint",
     "cube",
     "current",
+    "data",
     "database",
     "ddl",
     "declare",

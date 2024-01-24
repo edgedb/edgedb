@@ -1038,10 +1038,11 @@ def prepare_patch(
 
 async def create_branch(
     cluster: pgcluster.BaseCluster,
-    schema: s_schema.Schema,  # refl?
+    schema: s_schema.Schema,
     conn: metaschema.PGConnection,
     src_dbname: str,
     tgt_dbname: str,
+    mode: str,
     backend_id_fixup_sql: bytes,
 ) -> None:
     to_skip = {
@@ -1088,12 +1089,14 @@ async def create_branch(
         name = pg_common.get_backend_name(schema, mprop, catenate=True)
         await conn.sql_execute(f'delete from {name}'.encode('utf-8'))
 
-    # Do the dump/restore for the data
+    # Do the dump/restore for the data. We always need to copy over
+    # edgedbstd, since it has the reflected schema. We copy over
+    # edgedbpub when it is a data branch.
+    data_arg = ['--schema=edgedbpub'] if mode == 'data' else []
     dump_args = [
         '--data-only',
         '--schema=edgedbstd',
-        # TODO: make this configurable
-        '--schema=edgedbpub',
+        *data_arg,
         '--disable-triggers',
         # We need to use --inserts so that we can use --on-conflict-do-nothing
         '--inserts',

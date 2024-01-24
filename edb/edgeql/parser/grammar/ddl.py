@@ -719,34 +719,63 @@ class CreateDatabaseStmt(Nonterm):
     def reduce_CREATE_DATABASE_regular(self, *kids):
         """%reduce CREATE DATABASE DatabaseName OptCreateDatabaseCommandsBlock
         """
-        self.val = qlast.CreateDatabase(name=kids[2].val, commands=kids[3].val)
+        _, _, name, commands = kids
+        self.val = qlast.CreateDatabase(
+            name=name.val,
+            commands=commands.val,
+            mode='empty',
+        )
 
-    def reduce_CREATE_BRANCH_empty(self, *kids):
-        """%reduce CREATE EMPTY BRANCH DatabaseName \
-            OptCreateDatabaseCommandsBlock
-        """
-        self.val = qlast.CreateDatabase(name=kids[3].val, commands=kids[4].val)
-
+    # TODO: This one should probably not exist, and we'll get rid of
+    # it once we merge Victor's new testing.
     def reduce_CREATE_DATABASE_from_template(self, *kids):
         """%reduce
             CREATE DATABASE DatabaseName FROM AnyNodeName
             OptCreateDatabaseCommandsBlock
         """
+        _, _, name, _, template, commands = kids
         self.val = qlast.CreateDatabase(
-            name=kids[2].val,
-            commands=kids[5].val,
-            template=kids[4].val,
+            name=name.val,
+            commands=commands.val,
+            template=template.val,
+            mode='data',
         )
 
-    def reduce_CREATE_BRANCH_from_template(self, *kids):
-        """%reduce
-            CREATE BRANCH DatabaseName FROM AnyNodeName
+    def reduce_CREATE_BRANCH_empty(self, *kids):
+        """%reduce CREATE EMPTY BRANCH DatabaseName \
             OptCreateDatabaseCommandsBlock
         """
+        _, _, _, name, commands = kids
         self.val = qlast.CreateDatabase(
-            name=kids[2].val,
-            commands=kids[5].val,
-            template=kids[4].val,
+            name=name.val,
+            commands=commands.val,
+            mode='empty',
+        )
+
+    def reduce_CREATE_DATA_BRANCH_from_template(self, *kids):
+        """%reduce
+            CREATE DATA BRANCH DatabaseName FROM AnyNodeName
+            OptCreateDatabaseCommandsBlock
+        """
+        _, _, _, name, _, template, commands = kids
+        self.val = qlast.CreateDatabase(
+            name=name.val,
+            commands=commands.val,
+            template=template.val,
+            mode='data',
+        )
+
+    def reduce_CREATE_SCHEMA_BRANCH_from_template(self, *kids):
+        """%reduce
+            CREATE SCHEMA BRANCH DatabaseName FROM AnyNodeName
+            OptCreateDatabaseCommandsBlock
+        """
+        _, _, _, name, _, template, commands = kids
+        self.val = qlast.CreateDatabase(
+            name=name.val,
+            commands=commands.val,
+            template=template.val,
+            mode='schema',
         )
 
 
@@ -755,6 +784,9 @@ class CreateDatabaseStmt(Nonterm):
 #
 class DropDatabaseStmt(Nonterm):
     def reduce_DROP_DATABASE_DatabaseName(self, *kids):
+        self.val = qlast.DropDatabase(name=kids[2].val)
+
+    def reduce_DROP_BRANCH_DatabaseName(self, *kids):
         self.val = qlast.DropDatabase(name=kids[2].val)
 
 

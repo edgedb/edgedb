@@ -162,6 +162,7 @@ async def execute(
                 await tenant.on_after_create_db_from_template(
                     query_unit.create_db,
                     query_unit.create_db_template,
+                    query_unit.create_db_mode,
                 )
 
             if query_unit.create_db:

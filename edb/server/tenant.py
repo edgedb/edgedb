@@ -1181,7 +1181,7 @@ class Tenant(ha_base.ClusterProtocol):
         self.get_db(dbname=dbname)
 
     async def on_after_create_db_from_template(
-        self, tgt_dbname: str, src_dbname: str,
+        self, tgt_dbname: str, src_dbname: str, mode: str
     ) -> None:
         logger.info('Starting copy from %s to %s', src_dbname, tgt_dbname)
         from edb.pgsql import common
@@ -1196,10 +1196,11 @@ class Tenant(ha_base.ClusterProtocol):
             async with self.direct_pgcon(tgt_dbname) as con:
                 await bootstrap.create_branch(
                     self._cluster,
-                    self._server.get_std_schema(),
+                    self._server._refl_schema,
                     con,
                     real_src_dbname,
                     real_tgt_dbname,
+                    mode,
                     self._server._sys_queries['backend_id_fixup'],
                 )
         except Exception:

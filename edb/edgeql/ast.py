@@ -872,6 +872,7 @@ class DatabaseCommand(ExternalObjectCommand):
 class CreateDatabase(CreateObject, DatabaseCommand):
 
     template: typing.Optional[ObjectRef] = None
+    mode: str
 
 
 class AlterDatabase(AlterObject, DatabaseCommand):
