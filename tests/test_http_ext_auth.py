@@ -426,6 +426,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             client_id := '{uuid.uuid4()}',
         }};
 
+        CONFIGURE CURRENT DATABASE
         INSERT ext::auth::SlackOAuthProvider {{
             secret := '{SLACK_SECRET}',
             client_id := '{uuid.uuid4()}',
