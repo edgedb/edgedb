@@ -36,6 +36,9 @@ from . import referencing
 from . import schema as s_schema
 from . import types as s_types
 
+if TYPE_CHECKING:
+    from . import pointers as s_pointers
+
 
 class Rewrite(
     referencing.NamedReferencedInheritingObject,
@@ -69,6 +72,13 @@ class Rewrite(
         # inheritance for rewrites, and do lookups into parent object types
         # when retrieving them.
         return False
+
+    def get_ptr_target(self, schema: s_schema.Schema) -> s_types.Type:
+        pointer: s_pointers.Pointer = cast(
+            's_pointers.Pointer', self.get_subject(schema))
+        ptr_target = pointer.get_target(schema)
+        assert ptr_target
+        return ptr_target
 
 
 class RewriteCommandContext(
@@ -223,7 +233,9 @@ class RewriteCommand(
         value: Any,
     ) -> Optional[s_expr.Expression]:
         if field.name == 'expr':
-            return s_expr.Expression(text='false')
+            pt = self.scls.get_ptr_target(schema)
+            text = f'<{pt.get_displayname(schema)}>{{}}'
+            return s_expr.Expression(text=text)
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 
@@ -232,8 +244,6 @@ class RewriteCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        from . import pointers as s_pointers
-
         expr: s_expr.Expression = self.scls.get_expr(schema)
 
         if not expr.irast:
@@ -262,10 +272,7 @@ class RewriteCommand(
                 context=source_context,
             )
 
-        pointer = self.scls.get_subject(compiled_schema)
-        assert isinstance(pointer, s_pointers.Pointer)
-        ptr_target = pointer.get_target(compiled_schema)
-        assert ptr_target
+        ptr_target = self.scls.get_ptr_target(compiled_schema)
         if not typ.assignment_castable_to(ptr_target, compiled_schema):
             source_context = self.get_attribute_source_context('expr')
             raise errors.SchemaDefinitionError(
