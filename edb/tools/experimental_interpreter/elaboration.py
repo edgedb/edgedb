@@ -75,7 +75,8 @@ def elab_Introspect(node: qlast.Introspect) -> Expr:
 
 @elab.register(qlast.IsOp)
 def elab_TpIntersect(oper: qlast.IsOp) -> TpIntersectExpr:
-    assert oper.op == 'IS'
+    if oper.op != 'IS':
+        raise ValueError("Unknown Op Name for TpIntersection", oper.op)
     if isinstance(oper.right, qlast.TypeName):
         right = elab_TypeName(oper.right)
         # if not isinstance(right, e.UncheckedTypeName):

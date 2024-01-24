@@ -416,6 +416,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
     async def test_edgeql_select_computable_15(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -451,6 +452,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
     async def test_edgeql_select_computable_17(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -538,6 +540,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
     async def test_edgeql_select_computable_21(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -552,6 +555,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
     async def test_edgeql_select_computable_22(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -566,6 +570,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
     async def test_edgeql_select_computable_23(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -580,6 +585,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
     async def test_edgeql_select_computable_24(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -594,6 +600,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables")
     async def test_edgeql_select_computable_25(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -608,6 +615,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables")
     async def test_edgeql_select_computable_26(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -622,6 +630,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables")
     async def test_edgeql_select_computable_27(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -667,6 +676,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables")
     async def test_edgeql_select_computable_29(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -756,6 +766,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+
+    @test.decorators.experimental_interpreter_triaged_pending_feature("? distinctness checking for a computed link")
     async def test_edgeql_select_computable_34(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -1310,6 +1322,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OFFSET <int64>.<owner[IS Issue].number;
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Negative Limit should throw an exception")
     async def test_edgeql_select_limit_10(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
@@ -2387,6 +2400,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersectExpr with IS NOT")
     async def test_edgeql_select_instance_02(self):
         await self.assert_query_result(
             r'''
@@ -6165,6 +6179,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
+    @test.decorators.experimental_interpreter_exclude("link prop selected outside of path")
     async def test_edgeql_select_linkproperty_04(self):
         with self.assertRaisesRegex(
             edgedb.EdgeQLSyntaxError,
@@ -6266,6 +6281,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("IF returning heterogenous scalar values not throwing exceptions")
     async def test_edgeql_select_if_else_03(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'operator.*IF.*cannot be applied'):
@@ -7238,6 +7254,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ["Elvis"],
         )
 
+    @test.decorators.experimental_interpreter_bug_pending_fix("link deduplication on NON PATH expressions")
     async def test_edgeql_select_expr_objects_02(self):
         await self.assert_query_result(
             r'''
@@ -7391,6 +7408,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Banned Free Shape (distinct on free shapes)")
     async def test_edgeql_select_banned_free_shape_01(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,

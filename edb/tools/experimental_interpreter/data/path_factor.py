@@ -29,6 +29,8 @@ def all_prefixes_of_a_path(expr: Expr) -> List[Expr]:
             raise ValueError("not a path", expr)
 
 
+
+
 def path_lexicographic_key(e: Expr) -> str:
     match e:
         case FreeVarExpr(s):

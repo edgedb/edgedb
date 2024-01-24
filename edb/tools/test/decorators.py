@@ -57,7 +57,7 @@ def not_implemented(reason):
 
 def experimental_interpreter_exclude(msg = None):
     """
-    Do not execute this test case on when doing experimental intepreter:
+    This test case addresses a deficiency in the implementation but the experimental interpreter offers such features
     """
 
     def decorator(method):
@@ -76,7 +76,8 @@ class ExperimentalInterpreterFeatureOrBugPending(Exception):
 
 def experimental_interpreter_triaged_pending_feature(msg):
     """
-    Do not execute this test case on when doing experimental intepreter:
+    This is a feature that is not yet implemented in the experimental interpreter, 
+    or is not sure whether this is the feature to implement
     """
 
     def decorator(method):

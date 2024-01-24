@@ -998,13 +998,13 @@ class ConnectedTestCase(ClusterTestCase):
                 res = result
                 # Uncomment this for debugging.
                 # Otherwise the error message is obscure.
-                try:
-                    assert_data_shape.assert_data_shape(
-                        res, exp_result_json, self.fail, message=msg)
-                except AssertionError as e:
-                    raise AssertionError(
-                        str(e),
-                        "Expected", exp_result_json, "Actual", result)
+                # try:
+                assert_data_shape.assert_data_shape(
+                    res, exp_result_json, self.fail, message=msg)
+                # except AssertionError as e:
+                #     raise AssertionError(
+                #         str(e),
+                #         "Expected", exp_result_json, "Actual", result)
             else:
                 tx = self.con.transaction()
                 await tx.start()
