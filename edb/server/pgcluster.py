@@ -261,6 +261,7 @@ class BaseCluster:
         exclude_schemas: Iterable[str] = (),
         include_schemas: Iterable[str] = (),
         include_tables: Iterable[str] = (),
+        include_extensions: Iterable[str] = (),
         schema_only: bool = False,
         dump_object_owners: bool = True,
     ) -> bytes:
@@ -285,12 +286,15 @@ class BaseCluster:
         if schema_only:
             args.append('--schema-only')
 
-        for exclude_schema in exclude_schemas:
-            args.append(f'--exclude-schema={exclude_schema}')
-        for include_schema in include_schemas:
-            args.append(f'--schema={include_schema}')
-        for include_table in include_tables:
-            args.append(f'--table={include_table}')
+        configs = [
+            ('exclude-schema', exclude_schemas),
+            ('schema', include_schemas),
+            ('table', include_tables),
+            ('extension', include_extensions),
+        ]
+        for flag, vals in configs:
+            for val in vals:
+                args.append(f'--{flag}={val}')
 
         stdout_lines, _, _ = await _run_logged_subprocess(
             args,

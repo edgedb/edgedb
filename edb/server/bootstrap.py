@@ -1044,8 +1044,6 @@ async def create_branch(
     tgt_dbname: str,
     backend_id_fixup_sql: bytes,
 ) -> None:
-    # XXX: extensions??
-
     to_skip = {
         str(obj.id) for obj in schema.get_objects(type=s_types.Tuple)
     }
@@ -1053,6 +1051,7 @@ async def create_branch(
     schema_dump = await cluster.dump_database(
         src_dbname,
         include_schemas=('edgedbpub',),
+        include_extensions=('*',),
         schema_only=True,
     )
     old_lines = schema_dump.decode('latin1').split('\n')
@@ -1071,7 +1070,6 @@ async def create_branch(
             continue
         new_lines.append(line)
     s_schema_dump = '\n'.join(new_lines)
-    # print(s_schema_dump)
 
     await conn.sql_execute(s_schema_dump.encode('latin1'))
 
@@ -1122,6 +1120,10 @@ async def create_branch(
     )
     views_dump = views_dump.replace(b'CREATE VIEW', b'CREATE OR REPLACE VIEW')
     await conn.sql_execute(views_dump)
+
+    # Restore the search_path as the dump might have altered it.
+    await conn.sql_execute(
+        b"SELECT pg_catalog.set_config('search_path', 'edgedb', false)")
 
     # Fixup the backend ids in the schema to match what is actually in pg.
     await conn.sql_execute(backend_id_fixup_sql)
@@ -1836,23 +1838,24 @@ def compile_sys_queries(
     backend_id_fixup_edgeql = '''
         WITH
           _ := (
-            UPDATE schema::Type
+            UPDATE {schema::ScalarType, schema::Tuple}
             FILTER
                 NOT (.abstract ?? False)
                 AND NOT (.transient ?? False)
-                AND schema::Type IS schema::ScalarType | schema::Tuple
             SET {
                 backend_id := sys::_get_pg_type_for_edgedb_type(
                     .id,
                     .__type__.name,
                     <uuid>{},
-                    <str>{},
+                    [is schema::ScalarType].sql_type ?? (
+                      select [is schema::ScalarType]
+                      .bases[is schema::ScalarType] limit 1
+                    ).sql_type,
                 )
             }
           ),
           _ := (
-            UPDATE (
-                schema::Array UNION schema::Range UNION schema::MultiRange)
+            UPDATE {schema::Array, schema::Range, schema::MultiRange}
             FILTER
                 NOT (.abstract ?? False)
                 AND NOT (.transient ?? False)
@@ -1865,7 +1868,7 @@ def compile_sys_queries(
                 )
             }
           ),
-        SELECT 1
+        SELECT 1;
     '''
     _, sql = compile_bootstrap_script(
         compiler,
