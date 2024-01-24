@@ -333,29 +333,32 @@ class BaseCluster:
         ]
 
         # XXX: we need better error cleanup for all of this
+        # what if fork() fails in the second _start_logged_subprocess?
         rpipe, wpipe = os.pipe()
         wpipef = os.fdopen(wpipe, "wb")
 
-        dump_p, dump_out_r, dump_err_r = await _start_logged_subprocess(
-            dump_args,
-            logger=pg_dump_logger,
-            override_stdout=wpipef,
-            log_stdout=False,
-            capture_stdout=False,
-            capture_stderr=False,
-            env=src_env,
-        )
-        wpipef.close()
+        try:
+            dump_p, dump_out_r, dump_err_r = await _start_logged_subprocess(
+                dump_args,
+                logger=pg_dump_logger,
+                override_stdout=wpipef,
+                log_stdout=False,
+                capture_stdout=False,
+                capture_stderr=False,
+                env=src_env,
+            )
 
-        res_p, res_out_r, res_err_r = await _start_logged_subprocess(
-            restore_args,
-            logger=pg_restore_logger,
-            stdin=rpipe,
-            capture_stdout=False,
-            capture_stderr=False,
-            env=src_env,
-        )
-        os.close(rpipe)
+            res_p, res_out_r, res_err_r = await _start_logged_subprocess(
+                restore_args,
+                logger=pg_restore_logger,
+                stdin=rpipe,
+                capture_stdout=False,
+                capture_stderr=False,
+                env=src_env,
+            )
+        finally:
+            wpipef.close()
+            os.close(rpipe)
 
         dump_exit_code, _, _, restore_exit_code, _, _ = await asyncio.gather(
             dump_p.wait(), dump_out_r, dump_err_r,
