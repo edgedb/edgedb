@@ -2863,6 +2863,103 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 auth_data_redirect_on_failure["redirect_on_failure"],
             )
 
+    async def test_http_auth_ext_resend_verification_email_with_token(self):
+        with self.http_con() as http_con:
+            # Register a new user
+            provider_config = await self.get_builtin_provider_config_by_name(
+                "local_emailpassword"
+            )
+            provider_name = provider_config.name
+            email = "test_resend@example.com"
+            form_data = {
+                "provider": provider_name,
+                "email": email,
+                "password": "test_resend_password",
+                "challenge": str(uuid.uuid4()),
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            # Get the verification token from email
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], "noreply@example.com")
+            self.assertEqual(email_args["recipients"], form_data["email"])
+            html_msg = email_args["message"].get_payload(0).get_payload(1)
+            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
+            assert match is not None
+            verify_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(verify_url.query)
+            verification_token = search_params.get(
+                "verification_token", [None]
+            )[0]
+            assert verification_token is not None
+
+            # Resend verification email with the verification token
+            resend_data = {
+                "provider": form_data["provider"],
+                "verification_token": verification_token,
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 200)
+
+            # Resend verification email with just the email
+            resend_data = {
+                "provider": form_data["provider"],
+                "email": email,
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 200)
+
+            # Resend verification email with no email or token
+            resend_data = {
+                "provider": form_data["provider"],
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 400)
+
     async def test_http_auth_ext_token_01(self):
         with self.http_con() as http_con:
             # Create a PKCE challenge and verifier
