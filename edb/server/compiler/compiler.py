@@ -1553,7 +1553,10 @@ def _get_compile_options(
             and not ctx.schema_reflection_mode
         ) or is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
-        schema_reflection_mode=ctx.schema_reflection_mode,
+        schema_reflection_mode=(
+            ctx.schema_reflection_mode
+            or _get_config_val(ctx, '__internal_query_reflschema')
+        )
     )
 
 

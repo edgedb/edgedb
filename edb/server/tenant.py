@@ -1204,6 +1204,7 @@ class Tenant(ha_base.ClusterProtocol):
                     con,
                     real_src_dbname,
                     real_tgt_dbname,
+                    self._server._sys_queries['backend_id_fixup'],
                 )
         except Exception:
             # Is this the right place (no)??

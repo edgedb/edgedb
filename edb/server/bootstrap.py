@@ -1042,6 +1042,7 @@ async def create_branch(
     conn: metaschema.PGConnection,
     src_dbname: str,
     tgt_dbname: str,
+    backend_id_fixup_sql: bytes,
 ) -> None:
     # XXX: extensions??
 
@@ -1122,6 +1123,9 @@ async def create_branch(
     views_dump = views_dump.replace(b'CREATE VIEW', b'CREATE OR REPLACE VIEW')
     await conn.sql_execute(views_dump)
 
+    # Fixup the backend ids in the schema to match what is actually in pg.
+    await conn.sql_execute(backend_id_fixup_sql)
+
 
 class StdlibBits(NamedTuple):
 
@@ -1141,6 +1145,10 @@ class StdlibBits(NamedTuple):
     local_intro_query: str
     #: Global object introspection SQL query.
     global_intro_query: str
+    # XXX: All of sysqueries ought to go here, right?
+    # It would speed up instance creation a bit at little cost.
+    # (Oh, maybe testmode screws this idea up?)
+
     #: Number of patches already baked into the stdlib.
     num_patches: int
 
@@ -1568,6 +1576,7 @@ async def _init_stdlib(
 
     # Make sure that schema backend_id properties are in sync with
     # the database.
+    # XXX: is ScalarType sufficient here?
 
     compiler = edbcompiler.new_compiler(
         std_schema=stdlib.stdschema,
@@ -1651,70 +1660,6 @@ async def _init_stdlib(
 
     await metaschema.generate_more_support_functions(
         conn, compiler, stdlib.reflschema, testmode)
-
-    if tpldbdump is not None:
-        # When we restore a database from a dump, OIDs for non-system
-        # Postgres types might get skewed as they are not part of the dump.
-        # A good example of that is `std::bigint` which is implemented as
-        # a custom domain type. The OIDs are stored under
-        # `schema::Object.backend_id` property and are injected into
-        # array query arguments.
-        #
-        # The code below re-syncs backend_id properties of EdgeDB builtin
-        # types with the actual OIDs in the DB.
-
-        compiler = edbcompiler.new_compiler(
-            std_schema=stdlib.stdschema,
-            reflection_schema=stdlib.reflschema,
-            schema_class_layout=stdlib.classlayout,
-            global_intro_query=stdlib.global_intro_query,
-            local_intro_query=stdlib.local_intro_query,
-        )
-        _, sql = compile_bootstrap_script(
-            compiler,
-            stdlib.reflschema,
-            '''
-            UPDATE schema::Type
-            FILTER
-                .builtin
-                AND NOT (.abstract ?? False)
-                AND NOT (.transient ?? False)
-                AND schema::Type IS schema::ScalarType | schema::Tuple
-            SET {
-                backend_id := sys::_get_pg_type_for_edgedb_type(
-                    .id,
-                    .__type__.name,
-                    <uuid>{},
-                    <str>{},
-                )
-            }
-            ''',
-            expected_cardinality_one=False,
-        )
-        await conn.sql_execute(sql.encode("utf-8"))
-
-        _, sql = compile_bootstrap_script(
-            compiler,
-            stdlib.reflschema,
-            '''
-            UPDATE (
-                schema::Array UNION schema::Range UNION schema::MultiRange)
-            FILTER
-                .builtin
-                AND NOT (.abstract ?? False)
-                AND NOT (.transient ?? False)
-            SET {
-                backend_id := sys::_get_pg_type_for_edgedb_type(
-                    .id,
-                    .__type__.name,
-                    .element_type.id,
-                    <str>{},
-                )
-            }
-            ''',
-            expected_cardinality_one=False,
-        )
-        await conn.sql_execute(sql.encode("utf-8"))
 
     await _store_static_json_cache(
         ctx,
@@ -1878,6 +1823,57 @@ def compile_sys_queries(
     )
 
     queries['backend_tids'] = sql
+
+    # When we restore a database from a dump, OIDs for non-system
+    # Postgres types might get skewed as they are not part of the dump.
+    # A good example of that is `std::bigint` which is implemented as
+    # a custom domain type. The OIDs are stored under
+    # `schema::Object.backend_id` property and are injected into
+    # array query arguments.
+    #
+    # The code below re-syncs backend_id properties of EdgeDB builtin
+    # types with the actual OIDs in the DB.
+    backend_id_fixup_edgeql = '''
+        WITH
+          _ := (
+            UPDATE schema::Type
+            FILTER
+                NOT (.abstract ?? False)
+                AND NOT (.transient ?? False)
+                AND schema::Type IS schema::ScalarType | schema::Tuple
+            SET {
+                backend_id := sys::_get_pg_type_for_edgedb_type(
+                    .id,
+                    .__type__.name,
+                    <uuid>{},
+                    <str>{},
+                )
+            }
+          ),
+          _ := (
+            UPDATE (
+                schema::Array UNION schema::Range UNION schema::MultiRange)
+            FILTER
+                NOT (.abstract ?? False)
+                AND NOT (.transient ?? False)
+            SET {
+                backend_id := sys::_get_pg_type_for_edgedb_type(
+                    .id,
+                    .__type__.name,
+                    .element_type.id,
+                    <str>{},
+                )
+            }
+          ),
+        SELECT 1
+    '''
+    _, sql = compile_bootstrap_script(
+        compiler,
+        schema,
+        backend_id_fixup_edgeql,
+        expected_cardinality_one=True,
+    )
+    queries['backend_id_fixup'] = sql
 
     report_settings: list[str] = []
     for setname in config_spec:
@@ -2350,6 +2346,12 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
             compiler,
             config_spec,
         )
+
+        # Update schema backend_ids to match the reality after
+        await tpl_ctx.conn.sql_execute(
+            sysqueries['backend_id_fixup'].encode('utf-8')
+        )
+
         version_key = patches.get_version_key(stdlib.num_patches)
         await _store_static_json_cache(
             tpl_ctx,
