@@ -1045,17 +1045,24 @@ async def create_branch(
     mode: str,
     backend_id_fixup_sql: bytes,
 ) -> None:
-    to_skip = {
-        str(obj.id) for obj in schema.get_objects(type=s_types.Tuple)
-    }
+    """Create a new database (branch) based on an existing one."""
 
+    # Dump the edgedbpub schema that holds user data and any extensions.
     schema_dump = await cluster.dump_database(
         src_dbname,
         include_schemas=('edgedbpub',),
         include_extensions=('*',),
         schema_only=True,
     )
-    old_lines = schema_dump.decode('latin1').split('\n')
+
+    # Tuples types are always kept in edgedbpub, but some already
+    # exist from the std schema, so we need to skip those. We also
+    # need to skip recreating the schema. This requires doing some
+    # annoying postprocessing.
+    to_skip = [
+        str(obj.id) for obj in schema.get_objects(type=s_types.Tuple)
+    ]
+    old_lines = schema_dump.decode('utf-8').split('\n')
     new_lines = []
     skipping = False
     for line in old_lines:
@@ -1072,7 +1079,24 @@ async def create_branch(
         new_lines.append(line)
     s_schema_dump = '\n'.join(new_lines)
 
-    await conn.sql_execute(s_schema_dump.encode('latin1'))
+    await conn.sql_execute(s_schema_dump.encode('utf-8'))
+
+    # std::Object and std::BaseObject depend on user tables, so we
+    # need to dump those and patch them to OR REPLACE, now that we
+    # have created the user tables.
+    std_views = [
+        pg_common.get_backend_name(
+            schema, schema.get(name), catenate=True, aspect='inhview'
+        )
+        for name in ('std::Object', 'std::BaseObject')
+    ]
+    views_dump = await cluster.dump_database(
+        src_dbname,
+        include_tables=std_views,
+        schema_only=True,
+    )
+    views_dump = views_dump.replace(b'CREATE VIEW', b'CREATE OR REPLACE VIEW')
+    await conn.sql_execute(views_dump)
 
     # HACK: Empty out all schema multi property tables. This is
     # because the original template has the stdschema in it, and so we
@@ -1082,7 +1106,7 @@ async def create_branch(
     multi_properties = {
         prop for prop in schema.get_objects(type=s_props.Property)
         if prop.get_cardinality(schema).is_multi()
-        and prop.get_name(schema).module != 'cfg'  # XXX
+        and prop.get_name(schema).module not in delta_cmds.VIEW_MODULES
     }
 
     for mprop in multi_properties:
@@ -1103,26 +1127,9 @@ async def create_branch(
         '--rows-per-insert=100',
         '--on-conflict-do-nothing',
     ]
-
     await cluster._copy_database(
         src_dbname, tgt_dbname, dump_args, [],
     )
-
-    # std::Object and std::BaseObject depend on user tables, so dump
-    # those and patch them to OR REPLACE.
-    std_views = [
-        pg_common.get_backend_name(
-            schema, schema.get(name), catenate=True, aspect='inhview'
-        )
-        for name in ('std::Object', 'std::BaseObject')
-    ]
-    views_dump = await cluster.dump_database(
-        src_dbname,
-        include_tables=std_views,
-        schema_only=True,
-    )
-    views_dump = views_dump.replace(b'CREATE VIEW', b'CREATE OR REPLACE VIEW')
-    await conn.sql_execute(views_dump)
 
     # Restore the search_path as the dump might have altered it.
     await conn.sql_execute(
@@ -1150,12 +1157,11 @@ class StdlibBits(NamedTuple):
     local_intro_query: str
     #: Global object introspection SQL query.
     global_intro_query: str
-    # XXX: All of sysqueries ought to go here, right?
-    # It would speed up instance creation a bit at little cost.
-    # (Oh, maybe testmode screws this idea up?)
-
     #: Number of patches already baked into the stdlib.
     num_patches: int
+    # TODO: All of sysqueries ought to go here, right?
+    # It would speed up instance creation a bit at little cost.
+    # (Oh, maybe testmode screws this idea up?)
 
 
 async def _make_stdlib(
