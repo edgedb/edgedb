@@ -1405,56 +1405,37 @@ async def _start_logged_subprocess(
         **kwargs,
     )
 
-    stderr_reader = None
-    if not override_stderr:
+    if log_stderr or capture_stderr:
+        assert override_stderr is None
         assert process.stderr is not None
-        if log_stderr and capture_stderr:
-            stderr_reader = _capture_and_log_subprocess_output(
-                process.pid,
-                process.stderr,
-                logger,
-                level,
-                log_processor,
-            )
-        elif capture_stderr:
-            stderr_reader = _capture_subprocess_output(process.stderr)
-        elif log_stderr:
-            stderr_reader = _log_subprocess_output(
-                process.pid, process.stderr, logger, level, log_processor)
+        stderr_reader = _capture_and_log_subprocess_output(
+            process.pid,
+            process.stderr,
+            logger,
+            level,
+            log_processor,
+            capture_output=capture_stderr,
+            log_output=log_stderr,
+        )
+    else:
+        stderr_reader = _dummy()
 
-    stderr_reader = stderr_reader or _dummy()
-
-    stdout_reader = None
-    if not override_stdout:
+    if log_stdout or capture_stdout:
+        assert override_stdout is None
         assert process.stdout is not None
-        if log_stdout and capture_stdout:
-            stdout_reader = _capture_and_log_subprocess_output(
-                process.pid,
-                process.stdout,
-                logger,
-                level,
-                log_processor,
-            )
-        elif capture_stdout:
-            stdout_reader = _capture_subprocess_output(process.stdout)
-        elif log_stdout:
-            stdout_reader = _log_subprocess_output(
-                process.pid, process.stdout, logger, level, log_processor)
-
-    stdout_reader = stdout_reader or _dummy()
+        stdout_reader = _capture_and_log_subprocess_output(
+            process.pid,
+            process.stdout,
+            logger,
+            level,
+            log_processor,
+            capture_output=capture_stdout,
+            log_output=log_stdout,
+        )
+    else:
+        stdout_reader = _dummy()
 
     return process, stdout_reader, stderr_reader
-
-
-async def _capture_subprocess_output(
-    stream: asyncio.StreamReader,
-) -> List[bytes]:
-    lines = []
-    while not stream.at_eof():
-        line = await _safe_readline(stream)
-        if line or not stream.at_eof():
-            lines.append(line.rstrip(b'\n'))
-    return lines
 
 
 async def _capture_and_log_subprocess_output(
@@ -1463,35 +1444,23 @@ async def _capture_and_log_subprocess_output(
     logger: logging.Logger,
     level: int,
     log_processor: Optional[Callable[[str], Tuple[str, int]]] = None,
+    *,
+    capture_output: bool,
+    log_output: bool,
 ) -> List[bytes]:
     lines = []
     while not stream.at_eof():
         line = await _safe_readline(stream)
         if line or not stream.at_eof():
             line = line.rstrip(b'\n')
-            lines.append(line)
-            log_line = line.decode()
-            if log_processor is not None:
-                log_line, level = log_processor(log_line)
-            logger.log(level, log_line, extra={"process": pid})
+            if capture_output:
+                lines.append(line)
+            if log_output:
+                log_line = line.decode()
+                if log_processor is not None:
+                    log_line, level = log_processor(log_line)
+                logger.log(level, log_line, extra={"process": pid})
     return lines
-
-
-async def _log_subprocess_output(
-    pid: int,
-    stream: asyncio.StreamReader,
-    logger: logging.Logger,
-    level: int,
-    log_processor: Optional[Callable[[str], Tuple[str, int]]] = None,
-) -> List[bytes]:
-    while not stream.at_eof():
-        line = await _safe_readline(stream)
-        if line or not stream.at_eof():
-            log_line = line.rstrip(b'\n').decode()
-            if log_processor is not None:
-                log_line, level = log_processor(log_line)
-            logger.log(level, log_line, extra={"process": pid})
-    return []
 
 
 async def _safe_readline(stream: asyncio.StreamReader) -> bytes:
