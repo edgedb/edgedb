@@ -131,6 +131,11 @@ class TestDumpV2(tb.StableDumpTestCase, DumpTestCaseMixin):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)
 
+    async def test_dump_v2_branch_data(self):
+        await self.check_branching(
+            include_data=True,
+            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)
+
 
 class TestDumpV2Compat(
     tb.DumpCompatTestCase,
@@ -139,18 +144,3 @@ class TestDumpV2Compat(
     check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
 ):
     pass
-
-
-class TestBranchV2(tb.BrancingTestCase, DumpTestCaseMixin):
-    DEFAULT_MODULE = 'test'
-
-    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
-                                  'dump_v2_default.esdl')
-
-    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'dump_v2_setup.edgeql')
-
-    async def test_branch_dump_v2(self):
-        await self.check_branching(
-            include_data=True,
-            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)

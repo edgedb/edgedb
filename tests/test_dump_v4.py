@@ -129,9 +129,14 @@ class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'dump_v4_setup.edgeql')
 
-    async def test_dumpv4_dump_restore(self):
+    async def test_dump_v4_dump_restore(self):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)
+
+    async def test_dump_v4_branch_data(self):
+        await self.check_branching(
+            include_data=True,
+            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)
 
 
 class TestDumpV4Compat(

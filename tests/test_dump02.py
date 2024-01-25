@@ -252,6 +252,16 @@ class TestDump02(tb.StableDumpTestCase, DumpTestCaseMixin):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)
 
+    async def test_dump02_branch_schema(self):
+        await self.check_branching(
+            include_data=False,
+            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)
+
+    async def test_dump02_branch_data(self):
+        await self.check_branching(
+            include_data=True,
+            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)
+
 
 class TestDump02Compat(
     tb.DumpCompatTestCase,
@@ -267,29 +277,3 @@ class TestDump02Compat(
             '''))
         finally:
             super().tearDownClass()
-
-
-class TestBranch02(tb.BrancingTestCase, DumpTestCaseMixin):
-    DEFAULT_MODULE = 'test'
-
-    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
-                                  'dump02_default.esdl')
-
-    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'dump02_setup.edgeql')
-
-    TEARDOWN = '''
-        CONFIGURE CURRENT DATABASE RESET allow_dml_in_functions;
-    '''
-
-    @classmethod
-    def get_setup_script(cls):
-        script = (
-            'CONFIGURE CURRENT DATABASE SET allow_dml_in_functions := true;\n'
-        )
-        return script + super().get_setup_script()
-
-    async def test_branch_dump02(self):
-        await self.check_branching(
-            include_data=False,
-            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)

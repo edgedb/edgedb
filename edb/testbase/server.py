@@ -1536,43 +1536,38 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
             await con2.aclose()
             await drop_db(self.con, q_tgt_dbname)
 
-
-class BrancingTestCase(QueryTestCase):
-    TRANSACTION_ISOLATION = False
-    PARALLELISM_GRANULARITY = 'suite'
-
     async def check_branching(self, include_data=False, *, check_method):
         if not self.has_create_database:
             self.skipTest("create branch is not supported by the backend")
 
         orig_branch = self.get_database_name()
         new_branch = f'new_{orig_branch}'
-        # run the check_method on the main branch first
-        await check_method(self, include_data=include_data)
-        # close the connection to the current branch
-        await self.con.aclose()
-        await asyncio.sleep(0)
 
         # connect to a default branch so we can create a new branch
-        self.con = await self.connect(
-            database=edgedb_defines.EDGEDB_SUPERUSER_DB)
         branch_type = 'DATA' if include_data else 'SCHEMA'
         await self.con.execute(
             f'CREATE {branch_type} BRANCH {new_branch} '
             f'FROM {orig_branch}'
         )
-        # close the connection to the admin branch
-        await self.con.aclose()
-        await asyncio.sleep(0)
-        # run the check_method on the copied branch
-        self.con = await self.connect(database=new_branch)
-        await check_method(self, include_data=include_data)
-        await self.con.aclose()
-        await asyncio.sleep(0)
 
-        # reconnect to the orignal branch
-        self.con = await self.connect()
-        await drop_db(self.con, new_branch)
+        try:
+            con2 = await self.connect(database=new_branch)
+        except Exception:
+            await drop_db(self.con, new_branch)
+            raise
+
+        oldcon = self.con
+        self.__class__.con = con2
+        try:
+            # run the check_method on the copied branch
+            if include_data:
+                await check_method(self)
+            else:
+                await check_method(self, include_data=include_data)
+        finally:
+            self.__class__.con = oldcon
+            await con2.aclose()
+            await drop_db(self.con, new_branch)
 
 
 class StablePGDumpTestCase(BaseQueryTestCase):
