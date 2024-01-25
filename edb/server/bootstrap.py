@@ -1081,6 +1081,24 @@ async def create_branch(
 
     await conn.sql_execute(s_schema_dump.encode('utf-8'))
 
+    # Dump the database level config. Need to do more parsing to get this.
+    # FIXME: Is there a better way to extract this?
+    schema_dump = await cluster.dump_database(
+        src_dbname,
+        include_tables=('edgedb._dml_dummy',),
+        create_database=True,
+        schema_only=True,
+    )
+    old_lines = schema_dump.decode('utf-8').split('\n')
+    new_lines = []
+    old_alter = f'ALTER DATABASE "{src_dbname}"'
+    new_alter = f'ALTER DATABASE "{tgt_dbname}"'
+    for line in old_lines:
+        if line.startswith(old_alter):
+            new_lines.append(line.replace(old_alter, new_alter))
+    if new_lines:
+        await conn.sql_execute('\n'.join(new_lines).encode('utf-8'))
+
     # std::Object and std::BaseObject depend on user tables, so we
     # need to dump those and patch them to OR REPLACE, now that we
     # have created the user tables.
@@ -1088,7 +1106,7 @@ async def create_branch(
         pg_common.get_backend_name(
             schema, schema.get(name), catenate=True, aspect='inhview'
         )
-        for name in ('std::Object', 'std::BaseObject')
+        for name in ('std::Object', 'std::BaseObject', 'cfg::ExtensionConfig')
     ]
     views_dump = await cluster.dump_database(
         src_dbname,
@@ -1113,16 +1131,23 @@ async def create_branch(
         name = pg_common.get_backend_name(schema, mprop, catenate=True)
         await conn.sql_execute(f'delete from {name}'.encode('utf-8'))
 
+    await conn.sql_execute(f'''
+        delete from edgedbinstdata.instdata where key = 'configspec_ext'
+    '''.encode('utf-8'))
+
     # Do the dump/restore for the data. We always need to copy over
     # edgedbstd, since it has the reflected schema. We copy over
     # edgedbpub when it is a data branch.
-    data_arg = ['--schema=edgedbpub'] if mode == qlast.BranchType.DATA else []
+    data_arg = ['--table=edgedbpub.*'] if mode == qlast.BranchType.DATA else []
     dump_args = [
         '--data-only',
-        '--schema=edgedbstd',
+        '--table=edgedbstd.*',
+        '--table=edgedb._db_config',
+        '--table=edgedbinstdata.instdata',
         *data_arg,
         '--disable-triggers',
-        # We need to use --inserts so that we can use --on-conflict-do-nothing
+        # We need to use --inserts so that we can use --on-conflict-do-nothing.
+        # (See above, in discussion of the HACK.)
         '--inserts',
         '--rows-per-insert=100',
         '--on-conflict-do-nothing',

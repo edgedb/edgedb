@@ -265,6 +265,7 @@ class BaseCluster:
         include_extensions: Iterable[str] = (),
         schema_only: bool = False,
         dump_object_owners: bool = True,
+        create_database: bool = False,
     ) -> bytes:
         status = await self.get_status()
         if status != 'running':
@@ -286,6 +287,8 @@ class BaseCluster:
             args.append('--no-owner')
         if schema_only:
             args.append('--schema-only')
+        if create_database:
+            args.append('--create')
 
         configs = [
             ('exclude-schema', exclude_schemas),
