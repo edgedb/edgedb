@@ -668,5 +668,5 @@ Bug fixes
 * Get verification data from request body
   (:eql:gh:`#6723`)
 
-* Make overloading a link when omitting `link` keyword work
+* Make overloading a link when omitting ``link`` keyword work
   (:eql:gh:`#6718`)
