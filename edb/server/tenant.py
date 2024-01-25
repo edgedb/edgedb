@@ -734,7 +734,7 @@ class Tenant(ha_base.ClusterProtocol):
             # If there are open EdgeDB connections to the `dbname` DB
             # just raise the error Postgres would have raised itself.
             raise errors.ExecutionError(
-                f"database {dbname!r} is being accessed by other users"
+                f"database branch {dbname!r} is being accessed by other users"
             )
         else:
             self._block_new_connections.add(dbname)
@@ -774,7 +774,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         if conns:
             raise errors.ExecutionError(
-                f"database {dbname!r} is being accessed by other users"
+                f"database branch {dbname!r} is being accessed by other users"
             )
 
     async def _acquire_intro_pgcon(
@@ -786,7 +786,8 @@ class Tenant(ha_base.ClusterProtocol):
             if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
                 # database does not exist (anymore)
                 logger.warning(
-                    "Detected concurrently-dropped database %s; skipping.",
+                    "Detected concurrently-dropped database branch %s; "
+                    "skipping.",
                     dbname,
                 )
                 if self._dbindex is not None and self._dbindex.has_db(dbname):
@@ -1167,7 +1168,7 @@ class Tenant(ha_base.ClusterProtocol):
     ) -> None:
         if current_dbname == dbname:
             raise errors.ExecutionError(
-                f"cannot drop the currently open database {dbname!r}"
+                f"cannot drop the currently open database branch {dbname!r}"
             )
 
         await self.ensure_database_not_connected(dbname)
@@ -1177,8 +1178,8 @@ class Tenant(ha_base.ClusterProtocol):
     ) -> None:
         if current_dbname == dbname:
             raise errors.ExecutionError(
-                f"cannot create database using currently open database "
-                f"{dbname!r} as a template database"
+                f"cannot create database branch using currently open branch "
+                f"{dbname!r} as a template branch"
             )
 
         await self.ensure_database_not_connected(dbname)

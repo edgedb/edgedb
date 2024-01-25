@@ -26,15 +26,17 @@ from edb.testbase import server as tb
 
 class DumpTestCaseMixin:
 
-    async def ensure_schema_data_integrity(self):
+    async def ensure_schema_data_integrity(self, include_data=True):
         tx = self.con.transaction()
         await tx.start()
         try:
-            await self._ensure_schema_data_integrity()
+            await self._ensure_schema_integrity()
+            if include_data:
+                await self._ensure_data_integrity()
         finally:
             await tx.rollback()
 
-    async def _ensure_schema_data_integrity(self):
+    async def _ensure_schema_integrity(self):
         # Validate access policies
         await self.assert_query_result(
             r'''
@@ -76,6 +78,7 @@ class DumpTestCaseMixin:
             ],
         )
 
+    async def _ensure_data_integrity(self):
         # Test that on source delete all work correctly still
         await self.con.execute(r'DELETE SourceA FILTER .name = "s0"')
 
@@ -136,3 +139,18 @@ class TestDumpV2Compat(
     check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
 ):
     pass
+
+
+class TestBranchV2(tb.BrancingTestCase, DumpTestCaseMixin):
+    DEFAULT_MODULE = 'test'
+
+    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
+                                  'dump_v2_default.esdl')
+
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'dump_v2_setup.edgeql')
+
+    async def test_branch_dump_v2(self):
+        await self.check_branching(
+            include_data=True,
+            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)

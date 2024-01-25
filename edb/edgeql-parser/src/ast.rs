@@ -1211,6 +1211,7 @@ pub struct CommitMigrationRewrite {}
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateDatabase {
     pub template: Option<ObjectRef>,
+    pub branch_type: BranchType,
 }
 
 #[derive(Debug, Clone)]
@@ -2042,4 +2043,13 @@ pub enum ConfigScope {
     DATABASE,
     SESSION,
     GLOBAL,
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "python", derive(IntoPython))]
+#[cfg_attr(feature = "python", py_enum(qlast.BranchType))]
+pub enum BranchType {
+    EMPTY,
+    SCHEMA,
+    DATA,
 }
