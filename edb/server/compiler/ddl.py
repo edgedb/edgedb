@@ -256,6 +256,11 @@ def compile_and_apply_ddl_stmt(
         create_db = stmt.name.name
         create_db_template = stmt.template.name if stmt.template else None
         create_db_mode = stmt.branch_type
+    elif isinstance(stmt, qlast.AlterDatabase):
+        for cmd in stmt.commands:
+            if isinstance(cmd, qlast.Rename):
+                drop_db = stmt.name.name
+                create_db = cmd.new_name.name
 
     if debug.flags.delta_execute_ddl:
         debug.header('Delta Script (DDL Only)')

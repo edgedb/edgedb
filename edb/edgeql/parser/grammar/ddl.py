@@ -707,6 +707,10 @@ class DatabaseStmt(Nonterm):
     def reduce_DropDatabaseStmt(self, *kids):
         pass
 
+    @parsing.inline(0)
+    def reduce_AlterDatabaseStmt(self, *kids):
+        pass
+
 
 #
 # CREATE DATABASE
@@ -761,6 +765,34 @@ class DropDatabaseStmt(Nonterm):
         )
 
 
+#
+# ALTER DATABASE
+#
+
+
+commands_block(
+    'AlterDatabase',
+    RenameStmt,
+    opt=False
+)
+
+
+class AlterDatabaseStmt(Nonterm):
+    def reduce_ALTER_DATABASE_DatabaseName_AlterDatabaseCommandsBlock(
+        self, *kids
+    ):
+        _, _, name, commands = kids
+        self.val = qlast.AlterDatabase(
+            name=name.val,
+            commands=commands.val,
+        )
+
+
+#
+# BRANCH
+#
+
+
 class BranchStmt(Nonterm):
 
     @parsing.inline(0)
@@ -771,6 +803,9 @@ class BranchStmt(Nonterm):
     def reduce_DropBranchStmt(self, *kids):
         pass
 
+    @parsing.inline(0)
+    def reduce_AlterBranchStmt(self, *kids):
+        pass
 
 #
 # CREATE BRANCH
@@ -817,6 +852,29 @@ class CreateBranchStmt(Nonterm):
 class DropBranchStmt(Nonterm):
     def reduce_DROP_BRANCH_DatabaseName(self, *kids):
         self.val = qlast.DropDatabase(name=kids[2].val)
+
+
+#
+# ALTER BRANCH/DATABASE
+#
+
+
+commands_block(
+    'AlterBranch',
+    RenameStmt,
+    opt=False
+)
+
+
+class AlterBranchStmt(Nonterm):
+    def reduce_ALTER_BRANCH_DatabaseName_AlterBranchCommandsBlock(
+        self, *kids
+    ):
+        _, _, name, commands = kids
+        self.val = qlast.AlterDatabase(
+            name=name.val,
+            commands=commands.val,
+        )
 
 
 #

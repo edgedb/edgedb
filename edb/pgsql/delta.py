@@ -7026,6 +7026,43 @@ class DropDatabase(MetaCommand, DatabaseMixin, adapts=s_db.DropDatabase):
         return schema
 
 
+class AlterDatabase(MetaCommand, DatabaseMixin, adapts=s_db.AlterDatabase):
+    pass
+
+
+class RenameDatabase(MetaCommand, DatabaseMixin, adapts=s_db.RenameDatabase):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        backend_params = self._get_backend_params(context)
+        self.ensure_has_create_database(backend_params)
+
+        schema = super().apply(schema, context)
+        tenant_id = self._get_tenant_id(context)
+        db_name = common.get_database_backend_name(
+            str(self.classname), tenant_id=tenant_id)
+        new_name = common.get_database_backend_name(
+            str(self.new_name), tenant_id=tenant_id)
+        self.pgops.add(
+            dbops.RenameDatabase(
+                dbops.Database(
+                    new_name,
+                    metadata=dict(
+                        id=str(self.scls.id),
+                        tenant_id=tenant_id,
+                        # builtin=self.scls.get_builtin(schema),
+                        builtin=False,
+                        name=str(self.new_name),
+                    ),
+                ),
+                old_name=db_name,
+            )
+        )
+        return schema
+
+
 class RoleMixin:
     def ensure_has_create_role(self, backend_params):
         if not backend_params.has_create_role:

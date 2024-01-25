@@ -118,3 +118,16 @@ class DropDatabase(ddl.SchemaObjectOperation,
 
     def code(self, block: base.PLBlock) -> str:
         return f'DROP DATABASE {qi(self.name)}'
+
+
+class RenameDatabase(ddl.AlterObject,
+                     ddl.NonTransactionalDDLOperation):
+    def __init__(self, object, *, old_name: str, **kwargs):
+        super().__init__(object, **kwargs)
+        self.old_name = old_name
+
+    def code(self, block: base.PLBlock) -> str:
+        return (
+            f'ALTER DATABASE {qi(self.old_name)} '
+            f'RENAME TO {self.object.get_id()}'
+        )

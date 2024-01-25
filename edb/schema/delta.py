@@ -3790,6 +3790,9 @@ class DeleteExternalObject(
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
+        if self.scls is not _dummy_object:
+            schema = schema.delete(self.scls)
+
         return schema
 
     def apply(
@@ -3797,7 +3800,10 @@ class DeleteExternalObject(
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        self.scls = _dummy_object  # type: ignore
+        # *If* the object is actually in the schema, make sure to
+        # *delete it.
+        self.scls = self.get_object(
+            schema, context, default=_dummy_object)  # type: ignore
 
         with self.new_context(schema, context, self.scls):
             schema = self._delete_begin(schema, context)
