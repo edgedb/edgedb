@@ -1116,7 +1116,7 @@ async def create_branch(
     # Do the dump/restore for the data. We always need to copy over
     # edgedbstd, since it has the reflected schema. We copy over
     # edgedbpub when it is a data branch.
-    data_arg = ['--schema=edgedbpub'] if mode == 'data' else []
+    data_arg = ['--schema=edgedbpub'] if mode == qlast.BranchType.DATA else []
     dump_args = [
         '--data-only',
         '--schema=edgedbstd',

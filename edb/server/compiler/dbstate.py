@@ -148,7 +148,7 @@ class DDLQuery(BaseQuery):
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
     create_db_template: Optional[str] = None
-    create_db_mode: Optional[str] = None
+    create_db_mode: Optional[qlast.BranchType] = None
     ddl_stmt_id: Optional[str] = None
     config_ops: List[config.Operation] = (
         dataclasses.field(default_factory=list))

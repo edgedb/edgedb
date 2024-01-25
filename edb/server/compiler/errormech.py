@@ -80,15 +80,18 @@ constraint_errors = frozenset({
     pgerrors.ERROR_EXCLUSION_VIOLATION,
 })
 
+branch_errors = {
+    pgerrors.ERROR_INVALID_CATALOG_NAME: errors.UnknownDatabaseError,
+    pgerrors.ERROR_DUPLICATE_DATABASE: errors.DuplicateDatabaseDefinitionError,
+}
+
 directly_mappable = {
     pgerrors.ERROR_DIVISION_BY_ZERO: errors.DivisionByZeroError,
     pgerrors.ERROR_INTERVAL_FIELD_OVERFLOW: errors.NumericOutOfRangeError,
     pgerrors.ERROR_READ_ONLY_SQL_TRANSACTION: errors.TransactionError,
     pgerrors.ERROR_SERIALIZATION_FAILURE: errors.TransactionSerializationError,
     pgerrors.ERROR_DEADLOCK_DETECTED: errors.TransactionDeadlockError,
-    pgerrors.ERROR_INVALID_CATALOG_NAME: errors.UnknownDatabaseError,
     pgerrors.ERROR_OBJECT_IN_USE: errors.ExecutionError,
-    pgerrors.ERROR_DUPLICATE_DATABASE: errors.DuplicateDatabaseDefinitionError,
     pgerrors.ERROR_IDLE_IN_TRANSACTION_TIMEOUT:
         errors.IdleTransactionTimeoutError,
     pgerrors.ERROR_QUERY_CANCELLED: errors.QueryTimeoutError,
@@ -292,6 +295,20 @@ def static_interpret_by_code(
     from_graphql: bool = False,
 ):
     return errors.InternalServerError(err_details.message)
+
+
+@static_interpret_by_code.register_for_all(
+    branch_errors.keys())
+def _static_interpret_branch_errors(
+    code: str,
+    err_details: ErrorDetails,
+    from_graphql: bool = False,
+):
+    errcls = branch_errors[code]
+
+    msg = err_details.message.replace('database', 'branch', 1)
+
+    return errcls(msg)
 
 
 @static_interpret_by_code.register_for_all(

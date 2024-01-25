@@ -26,15 +26,17 @@ from edb.testbase import server as tb
 
 class DumpTestCaseMixin:
 
-    async def ensure_schema_data_integrity(self):
+    async def ensure_schema_data_integrity(self, include_data=True):
         tx = self.con.transaction()
         await tx.start()
         try:
-            await self._ensure_schema_data_integrity()
+            await self._ensure_schema_integrity()
+            if include_data:
+                await self._ensure_data_integrity()
         finally:
             await tx.rollback()
 
-    async def _ensure_schema_data_integrity(self):
+    async def _ensure_schema_integrity(self):
         # check that all the type annotations are in place
         await self.assert_query_result(
             r'''
@@ -704,6 +706,7 @@ class DumpTestCaseMixin:
             ]
         )
 
+    async def _ensure_data_integrity(self):
         # validate single props for all basic scalar types
         await self.assert_query_result(
             r'''
@@ -1880,7 +1883,6 @@ class DumpTestCaseMixin:
 
 
 class TestDump01(tb.StableDumpTestCase, DumpTestCaseMixin):
-
     SCHEMA_TEST = os.path.join(os.path.dirname(__file__), 'schemas',
                                'dump01_test.esdl')
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
@@ -1901,3 +1903,18 @@ class TestDump01Compat(
     check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
 ):
     pass
+
+
+class TestBranch01(tb.BrancingTestCase, DumpTestCaseMixin):
+    SCHEMA_TEST = os.path.join(os.path.dirname(__file__), 'schemas',
+                               'dump01_test.esdl')
+    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
+                                  'dump01_default.esdl')
+
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'dump01_setup.edgeql')
+
+    async def test_branch_dump01(self):
+        await self.check_branching(
+            include_data=False,
+            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)

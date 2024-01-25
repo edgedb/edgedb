@@ -3998,6 +3998,54 @@ aa';
         DROP DATABASE abstract;
         """
 
+    def test_edgeql_syntax_ddl_branch_01(self):
+        """
+        CREATE EMPTY BRANCH mytestdb;
+        DROP BRANCH mytestdb;
+        CREATE EMPTY BRANCH `mytest"db"`;
+        DROP BRANCH `mytest"db"`;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=29)
+    def test_edgeql_syntax_ddl_branch_02(self):
+        """
+        CREATE EMPTY BRANCH (mytestdb);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=32)
+    def test_edgeql_syntax_ddl_branch_03(self):
+        """
+        CREATE EMPTY BRANCH foo::mytestdb;
+        """
+
+    def test_edgeql_syntax_ddl_branch_04(self):
+        """
+        CREATE EMPTY BRANCH if;
+        CREATE EMPTY BRANCH abstract;
+
+% OK %
+
+        CREATE EMPTY BRANCH `if`;
+        CREATE EMPTY BRANCH abstract;
+        """
+
+    def test_edgeql_syntax_ddl_branch_05(self):
+        """
+        DROP BRANCH if;
+        DROP BRANCH abstract;
+
+% OK %
+
+        DROP BRANCH `if`;
+        DROP BRANCH abstract;
+        """
+
+    def test_edgeql_syntax_ddl_branch_06(self):
+        """
+        CREATE SCHEMA BRANCH foo FROM bar;
+        CREATE DATA BRANCH foo FROM bar;
+        """
+
     def test_edgeql_syntax_ddl_role_01(self):
         """
         CREATE ROLE username;

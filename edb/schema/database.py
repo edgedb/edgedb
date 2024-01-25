@@ -72,7 +72,8 @@ class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
 
     astnode = qlast.CreateDatabase
     template = struct.Field(str, default=None)
-    mode = struct.Field(str, default='empty')
+    branch_type = struct.Field(
+        qlast.BranchType, default=qlast.BranchType.EMPTY)
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -87,7 +88,7 @@ class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
         assert isinstance(astnode, qlast.CreateDatabase)
         if astnode.template is not None:
             cmd.template = astnode.template.name
-        cmd.mode = astnode.mode
+        cmd.branch_type = astnode.branch_type
 
         return cmd
 

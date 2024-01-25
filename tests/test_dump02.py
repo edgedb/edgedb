@@ -24,15 +24,99 @@ from edb.testbase import server as tb
 
 class DumpTestCaseMixin:
 
-    async def ensure_schema_data_integrity(self):
+    async def ensure_schema_data_integrity(self, include_data=True):
         tx = self.con.transaction()
         await tx.start()
         try:
-            await self._ensure_schema_data_integrity()
+            await self._ensure_schema_integrity()
+            if include_data:
+                await self._ensure_data_integrity()
         finally:
             await tx.rollback()
 
-    async def _ensure_schema_data_integrity(self):
+    async def _ensure_schema_integrity(self):
+        # Check that index exists
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr,
+                    },
+                    properties: {
+                        name,
+                        default,
+                    } FILTER .name != 'id',
+                } FILTER .name = 'default::Łukasz';
+            ''',
+            [
+                {
+                    'name': 'default::Łukasz',
+                    'indexes': [{
+                        'expr': '.`Ł🤞`'
+                    }],
+                }
+            ]
+        )
+
+        # Check that scalar types exist
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT (
+                    SELECT ScalarType {
+                        name,
+                    } FILTER .name LIKE 'default%'
+                ).name;
+            ''',
+            {
+                'default::你好',
+                'default::مرحبا',
+                'default::🚀🚀🚀',
+            }
+        )
+
+        # Check that abstract constraint exists
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Constraint {
+                    name,
+                } FILTER .name LIKE 'default%' AND .abstract;
+            ''',
+            [
+                {'name': 'default::🚀🍿'},
+            ]
+        )
+
+        # Check that abstract constraint was applied properly
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Constraint {
+                    name,
+                    params: {
+                        @value
+                    } FILTER .num > 0
+                }
+                FILTER
+                    .name = 'default::🚀🍿' AND
+                    NOT .abstract AND
+                    Constraint.<constraints[IS ScalarType].name =
+                        'default::🚀🚀🚀';
+            ''',
+            [
+                {
+                    'name': 'default::🚀🍿',
+                    'params': [
+                        {'@value': '100'}
+                    ]
+                },
+            ]
+        )
+
+    async def _ensure_data_integrity(self):
         await self.assert_query_result(
             r'''
                 SELECT A {
@@ -121,87 +205,6 @@ class DumpTestCaseMixin:
             ]
         )
 
-        # Check that index exists
-        await self.assert_query_result(
-            r'''
-                WITH MODULE schema
-                SELECT ObjectType {
-                    name,
-                    indexes: {
-                        expr,
-                    },
-                    properties: {
-                        name,
-                        default,
-                    } FILTER .name != 'id',
-                } FILTER .name = 'default::Łukasz';
-            ''',
-            [
-                {
-                    'name': 'default::Łukasz',
-                    'indexes': [{
-                        'expr': '.`Ł🤞`'
-                    }],
-                }
-            ]
-        )
-
-        # Check that scalar types exist
-        await self.assert_query_result(
-            r'''
-                WITH MODULE schema
-                SELECT (
-                    SELECT ScalarType {
-                        name,
-                    } FILTER .name LIKE 'default%'
-                ).name;
-            ''',
-            {
-                'default::你好',
-                'default::مرحبا',
-                'default::🚀🚀🚀',
-            }
-        )
-
-        # Check that abstract constraint exists
-        await self.assert_query_result(
-            r'''
-                WITH MODULE schema
-                SELECT Constraint {
-                    name,
-                } FILTER .name LIKE 'default%' AND .abstract;
-            ''',
-            [
-                {'name': 'default::🚀🍿'},
-            ]
-        )
-
-        # Check that abstract constraint was applied properly
-        await self.assert_query_result(
-            r'''
-                WITH MODULE schema
-                SELECT Constraint {
-                    name,
-                    params: {
-                        @value
-                    } FILTER .num > 0
-                }
-                FILTER
-                    .name = 'default::🚀🍿' AND
-                    NOT .abstract AND
-                    Constraint.<constraints[IS ScalarType].name =
-                        'default::🚀🚀🚀';
-            ''',
-            [
-                {
-                    'name': 'default::🚀🍿',
-                    'params': [
-                        {'@value': '100'}
-                    ]
-                },
-            ]
-        )
-
         # Check the default value
         await self.con.execute(r'INSERT Łukasz')
         await self.assert_query_result(
@@ -264,3 +267,29 @@ class TestDump02Compat(
             '''))
         finally:
             super().tearDownClass()
+
+
+class TestBranch02(tb.BrancingTestCase, DumpTestCaseMixin):
+    DEFAULT_MODULE = 'test'
+
+    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
+                                  'dump02_default.esdl')
+
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'dump02_setup.edgeql')
+
+    TEARDOWN = '''
+        CONFIGURE CURRENT DATABASE RESET allow_dml_in_functions;
+    '''
+
+    @classmethod
+    def get_setup_script(cls):
+        script = (
+            'CONFIGURE CURRENT DATABASE SET allow_dml_in_functions := true;\n'
+        )
+        return script + super().get_setup_script()
+
+    async def test_branch_dump02(self):
+        await self.check_branching(
+            include_data=False,
+            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)
