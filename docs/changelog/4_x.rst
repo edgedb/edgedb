@@ -649,3 +649,24 @@ Bug fixes
 
 * Use correct signature for in-memory cache method
   (:eql:gh:`#6643`)
+
+4.5
+===
+
+* Fix spurious delete/create of constraints with arguments in migrations
+  (:eql:gh:`#6712`)
+
+* Speed up introspection of system objects like Database and Role
+  (:eql:gh:`#6665`)
+
+* Fix some alter+rename combos on pointers in POPULATE MIGRATION
+  (:eql:gh:`#6666`)
+
+* Fix issue with schema changes when trigger depends on a rewrite
+  (:eql:gh:`#6706`)
+
+* Get verification data from request body
+  (:eql:gh:`#6723`)
+
+* Make overloading a link when omitting ``link`` keyword work
+  (:eql:gh:`#6718`)
