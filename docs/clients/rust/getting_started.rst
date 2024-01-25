@@ -41,7 +41,7 @@ The Rust client uses tokio so add this to Cargo.toml as well:
 
 .. code-block:: toml
     
-  tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }`
+  tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }
 
 If you are avoiding async code and want to emulate a blocking client, you will
 still need to use tokio as a dependency but can bridge with async using one of
