@@ -2129,7 +2129,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Path factoring on <complex_expr>.label is incorrect")
+    # @test.decorators.experimental_interpreter_triaged_pending_feature("Path factoring on <complex_expr>.label is incorrect")
     async def test_edgeql_select_tvariant_04(self):
         await self.assert_query_result(
             r"""

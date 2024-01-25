@@ -293,7 +293,7 @@ def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
                 abstract_over_expr(
                     e.ShapedExprExpr(expr=e.FreeObjectExpr(),
                         shape=e.ShapeExpr(shape=
-                        {StrLabel("subject"): abstract_over_expr(FreeVarExpr(bindname)),
+                        {StrLabel("__edgedb_reserved_subject__"): abstract_over_expr(FreeVarExpr(bindname)),
                         **{StrLabel(l) : 
                             abstract_over_expr(select_hoist(
                                 iterative_subst_expr_for_expr(
@@ -322,7 +322,7 @@ def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
                             for (l, o) in order.items()
                         }
                     ),
-                    label="subject"
+                    label="__edgedb_reserved_subject__"
                 )
             post_process_transform = post_processing
         case _:

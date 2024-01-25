@@ -206,10 +206,16 @@ class EvaluationLogsWrapper:
 
 eval_logs_wrapper = EvaluationLogsWrapper()
 
-def call_user_defined_funcs():
-    pass
 
 
+def do_conditional_dedup(val: MultiSetVal) -> MultiSetVal:
+    if all(val_is_ref_val(v) for v in val.vals):
+        return MultiSetVal(object_dedup(val.vals))
+    # elif all(val_is_primitive(v) for v in val.vals):
+    #     return val
+    # else:
+    #     raise ValueError("Expecting all references or all primitives")
+    return val
 
 # the database is a mutable reference that keeps track of a read snapshot inside
 @eval_logs_wrapper
@@ -223,12 +229,13 @@ def eval_expr(ctx: EvalEnv,
             return MultiSetVal(vals=[e.RefVal(next_id(), val=e.ObjectVal(val={}))])
         case e.ConditionalDedupExpr(expr=inner):
             inner_val = eval_expr(ctx, db, inner)
-            if all(val_is_primitive(v) for v in inner_val.vals):
-                return inner_val
-            elif all(val_is_ref_val(v) for v in inner_val.vals):
-                return MultiSetVal(object_dedup(inner_val.vals))
-            else:
-                raise ValueError("Expecting all references or all primitives")
+            return do_conditional_dedup(inner_val)
+            # if all(val_is_primitive(v) for v in inner_val.vals):
+            #     return inner_val
+            # elif all(val_is_ref_val(v) for v in inner_val.vals):
+            #     return MultiSetVal(object_dedup(inner_val.vals))
+            # else:
+            #     raise ValueError("Expecting all references or all primitives")
         case InsertExpr(tname, arg):
             assert isinstance(tname, e.QualifiedName), "Should be updated during tcking"
             id = db.insert(tname, {})
@@ -330,7 +337,14 @@ def eval_expr(ctx: EvalEnv,
                 p
                 for v in subjectv.vals
                 for p in singular_proj(ctx, db, v, StrLabel(label)).vals]
-            return MultiSetVal(projected)
+            if (label == "__edgedb_reserved_subject__"
+                or label.isdigit() # do not deduplicate on tuple projection or path factoring projection
+                #TODO : NAMED TUPLE projections should also not deduplicate
+            ): 
+                return MultiSetVal(projected)
+            else:
+                return do_conditional_dedup(MultiSetVal(projected))
+            # return MultiSetVal(projected)
         case BackLinkExpr(subject=subject, label=label):
             subjectv = eval_expr(ctx, db, subject)
             # subjectv = assume_link_target(subjectv)
