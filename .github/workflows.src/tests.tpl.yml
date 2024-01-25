@@ -119,7 +119,7 @@ jobs:
       run: |
         mkdir -p .results/
         cp .tmp/time_stats.csv .results/shard_${SHARD/\//_}.csv
-        edb test -j2 -v -s ${SHARD} --running-times-log=.results/shard_${SHARD/\//_}.csv
+        edb test -j4 -v -s ${SHARD} --running-times-log=.results/shard_${SHARD/\//_}.csv
 
     - name: Upload test results
       uses: actions/upload-artifact@v3
