@@ -1193,10 +1193,12 @@ class Tenant(ha_base.ClusterProtocol):
         real_src_dbname = common.get_database_backend_name(
             src_dbname, tenant_id=self._tenant_id)
 
-        async with self.direct_pgcon(tgt_dbname) as con:
+        async with self.direct_pgcon(tgt_dbname) as con, \
+                   self.direct_pgcon(src_dbname) as old_con:
             await bootstrap.create_branch(
                 self._cluster,
                 self._server._refl_schema,
+                old_con,
                 con,
                 real_src_dbname,
                 real_tgt_dbname,
