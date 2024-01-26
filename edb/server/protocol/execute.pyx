@@ -204,10 +204,6 @@ async def execute(
     finally:
         if query_unit.drop_db:
             tenant.allow_database_connections(query_unit.drop_db)
-        # if query_unit.create_db_template:
-        #     tenant.allow_database_connections(
-        #         query_unit.create_db_template,
-        #     )
 
     return data
 
