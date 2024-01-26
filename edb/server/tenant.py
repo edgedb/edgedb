@@ -783,7 +783,7 @@ class Tenant(ha_base.ClusterProtocol):
         try:
             conn = await self.acquire_pgcon(dbname)
         except pgcon_errors.BackendError as e:
-            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME) or True:
+            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
                 # database does not exist (anymore)
                 logger.warning(
                     "Detected concurrently-dropped database branch %s; "
