@@ -1193,24 +1193,16 @@ class Tenant(ha_base.ClusterProtocol):
         real_src_dbname = common.get_database_backend_name(
             src_dbname, tenant_id=self._tenant_id)
 
-        try:
-            async with self.direct_pgcon(tgt_dbname) as con:
-                await bootstrap.create_branch(
-                    self._cluster,
-                    self._server._refl_schema,
-                    con,
-                    real_src_dbname,
-                    real_tgt_dbname,
-                    mode,
-                    self._server._sys_queries['backend_id_fixup'],
-                )
-        except Exception:
-            # Is this the right place (no)??
-            async with self.use_sys_pgcon() as con:
-                await con.sql_execute(
-                    f'drop database "{real_tgt_dbname}"'.encode('utf-8')
-                )
-            raise
+        async with self.direct_pgcon(tgt_dbname) as con:
+            await bootstrap.create_branch(
+                self._cluster,
+                self._server._refl_schema,
+                con,
+                real_src_dbname,
+                real_tgt_dbname,
+                mode,
+                self._server._sys_queries['backend_id_fixup'],
+            )
 
         logger.info('Finished copy from %s to %s', src_dbname, tgt_dbname)
 
