@@ -1039,7 +1039,6 @@ def prepare_patch(
 async def create_branch(
     cluster: pgcluster.BaseCluster,
     schema: s_schema.Schema,
-    old_conn: metaschema.PGConnection,
     conn: metaschema.PGConnection,
     src_dbname: str,
     tgt_dbname: str,
@@ -1082,33 +1081,12 @@ async def create_branch(
 
     await conn.sql_execute(s_schema_dump.encode('utf-8'))
 
-    # Dump and restore the database level config.
-    dump_cfg_query = f'''
-        SELECT coalesce(string_agg(
-          'ALTER DATABASE '
-                || quote_ident({pg_common.quote_literal(tgt_dbname)})
-                || ' SET ' || quote_ident(nameval.name) || ' = '
-                || quote_literal(nameval.value) || ';\n',
-           ''), '')
-        FROM
-            pg_db_role_setting AS cfg,
-            LATERAL unnest(cfg.setconfig) as cfg_set(s),
-            LATERAL (
-                SELECT
-                    split_part(cfg_set.s, '=', 1) AS name,
-                    split_part(cfg_set.s, '=', 2) AS value
-            ) AS nameval
-        WHERE
-            setdatabase = (
-                SELECT oid
-                FROM pg_database
-                WHERE datname = current_database()
-            )
-            AND setrole = 0;
+    # Copy database config variables over directly
+    copy_cfg_query = f'''
+        select edgedb._copy_database_configs(
+            {pg_common.quote_literal(src_dbname)})
     '''.encode('utf-8')
-    db_config_commands = await old_conn.sql_fetch_val(dump_cfg_query)
-    if db_config_commands:
-        await conn.sql_execute(db_config_commands)
+    await conn.sql_execute(copy_cfg_query)
 
     # std::Object and std::BaseObject depend on user tables, so we
     # need to dump those and patch them to OR REPLACE, now that we

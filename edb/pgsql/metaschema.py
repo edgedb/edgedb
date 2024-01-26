@@ -747,6 +747,37 @@ class AlterCurrentDatabaseSetArray(dbops.Function):
         )
 
 
+class CopyDatabaseConfigs(dbops.Function):
+    """Copy database configs from one database to the current one"""
+    text = '''
+        SELECT edgedb._alter_current_database_set(nameval.name, nameval.value)
+        FROM
+            pg_db_role_setting AS cfg,
+            LATERAL unnest(cfg.setconfig) as cfg_set(s),
+            LATERAL (
+                SELECT
+                    split_part(cfg_set.s, '=', 1) AS name,
+                    split_part(cfg_set.s, '=', 2) AS value
+            ) AS nameval
+        WHERE
+            setdatabase = (
+                SELECT oid
+                FROM pg_database
+                WHERE datname = source_db
+            )
+            AND setrole = 0;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_copy_database_configs'),
+            args=[('source_db', ('text',))],
+            returns=('text',),
+            volatility='volatile',
+            text=self.text,
+        )
+
+
 class StrToBigint(dbops.Function):
     """Parse bigint from text."""
 
@@ -4400,6 +4431,7 @@ async def bootstrap(
         dbops.CreateFunction(AlterCurrentDatabaseSetStringArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetNonArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetArray()),
+        dbops.CreateFunction(CopyDatabaseConfigs()),
         dbops.CreateFunction(GetBackendCapabilitiesFunction()),
         dbops.CreateFunction(GetBackendTenantIDFunction()),
         dbops.CreateFunction(GetDatabaseBackendNameFunction()),
