@@ -792,9 +792,18 @@ def update_scope(
         assert p.path_id is not None
         ctx.path_scope[p.path_id] = stmt
 
+
+def update_scope_masks(
+        ir_set: irast.Set, rvar: pgast.PathRangeVar, *,
+        ctx: context.CompilerContextLevel) -> None:
+
+    if not isinstance(rvar, pgast.RangeSubselect):
+        return
+    stmt = rvar.subquery
+
     # Mark any paths under the scope tree as masked, so that they
     # won't get picked up by pull_path_namespace.
-    for child_path in scope_tree.get_all_paths():
+    for child_path in ctx.scope_tree.get_all_paths():
         pathctx.put_path_id_mask(stmt, child_path)
 
     # If this is an optional scope node, we need to be certain that
@@ -807,11 +816,11 @@ def update_scope(
     # with some DML linkprop cases (probably easy to fix) and a number
     # of materialization cases (possibly hard to fix), so I'm going
     # with a more conservative approach.
-    if scope_tree.is_optional(ir_set.path_id):
+    if ctx.scope_tree.is_optional(ir_set.path_id):
         # Since compilation is done, anything visible to us *will* be
         # up on the spine. Anything tucked away under a node must have
         # been pulled up.
-        for anc in scope_tree.ancestors:
+        for anc in ctx.scope_tree.ancestors:
             for direct_child in anc.path_children:
                 if not direct_child.optional:
                     pathctx.put_path_id_mask(stmt, direct_child.path_id)
