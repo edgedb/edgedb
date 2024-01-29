@@ -337,13 +337,13 @@ def eval_expr(ctx: EvalEnv,
                 p
                 for v in subjectv.vals
                 for p in singular_proj(ctx, db, v, StrLabel(label)).vals]
-            if (label == "__edgedb_reserved_subject__"
-                or label.isdigit() # do not deduplicate on tuple projection or path factoring projection
-                #TODO : NAMED TUPLE projections should also not deduplicate
-            ): 
-                return MultiSetVal(projected)
-            else:
-                return do_conditional_dedup(MultiSetVal(projected))
+            # if (label == "__edgedb_reserved_subject__"
+            #     or label.isdigit() # do not deduplicate on tuple projection or path factoring projection
+            #     #TODO : NAMED TUPLE projections should also not deduplicate
+            # ): 
+            return MultiSetVal(projected)
+            # else:
+            #     return do_conditional_dedup(MultiSetVal(projected))
             # return MultiSetVal(projected)
         case BackLinkExpr(subject=subject, label=label):
             subjectv = eval_expr(ctx, db, subject)

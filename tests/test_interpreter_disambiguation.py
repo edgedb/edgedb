@@ -18,16 +18,16 @@ class TestInterpreterDisambiguationSmokeTests(tb.QueryTestCase):
 
     async def test_link_dedup_test_02(self):
         await self.assert_query_result(
-            """"select (
+            """select {
                  (select A filter True), (select A filter True)
-                 ).b""",
+                 }.b""",
             [{}],
         )
 
     async def test_link_dedup_test_03(self):
         await self.assert_query_result(
-            """"select (
+            """select {
                  (select A filter True), (select A filter True)
-                 ).b@b_lp""",
-            [{}, {}],
+                 }.b@b_lp""",
+            ['a1_b1_lp', 'a1_b1_lp'],
         )
