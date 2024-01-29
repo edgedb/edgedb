@@ -1,5 +1,3 @@
-
-
 from edb.common import assert_data_shape
 import os
 from edb.testbase import server as tb

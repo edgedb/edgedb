@@ -2027,7 +2027,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ''',
             )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Deduplication on non-path projections is not functioning")
+    # @test.decorators.experimental_interpreter_triaged_pending_feature("Deduplication on non-path projections is not functioning")
     async def test_edgeql_select_nested_redefined_link(self):
         await self.assert_query_result(
             '''
@@ -7254,7 +7254,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ["Elvis"],
         )
 
-    @test.decorators.experimental_interpreter_bug_pending_fix("link deduplication on NON PATH expressions")
+    # @test.decorators.experimental_interpreter_bug_pending_fix("link deduplication on NON PATH expressions")
     async def test_edgeql_select_expr_objects_02(self):
         await self.assert_query_result(
             r'''
