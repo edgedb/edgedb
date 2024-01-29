@@ -23,6 +23,26 @@ Some behavior differs from that of the CLI REPL:
   has its own ``\retro`` slash command to change the UI layout to a 1980s
   classic green-on-black feel!)
 
+Shortcuts
+---------
+
+- ``Ctrl+Enter``: Run query
+- ``Ctrl+ArrowUp/ArrowDown``: Navigate query history
+
+Backslash commands
+------------------
+
+- ``\l``, or ``\list databases``: List databases
+- ``\ls``, or ``\list scalars``: List scalar types
+- ``\lt``, or ``\list types``: List scalar types
+- ``\lr``, or ``\list roles``: List roles
+- ``\lm``, or ``\list modules``: List modules
+- ``\la``, or ``\list aliases``: List expression aliases
+- ``\lc``, or ``\list casts``: List casts
+- ``\li``, or ``\list indexes``: List indexes
+- ``\c DBNAME``, or ``\connect DBNAME``: Connect to database DBNAME
+- ``\?``, ``\h``, or ``\help``: Show help on backslash commands
+
 .. lint-off
 
 .. _slash_command: https://github.com/edgedb/edgedb-ui/blob/e1b63d9395d8ea8cfac4069811f9d6ffb0bf8a8d/shared/studio/tabs/repl/state/commands.ts#L31

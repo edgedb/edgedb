@@ -5,7 +5,7 @@ UI
 ==
 
 EdgeDB UI is a beautiful, feature-rich admin panel baked directly into all 
-EdgeDB 2.0+ instances.
+EdgeDB instances.
 
 The UI automatically opens in your default browser on a ``localhost`` page
 via a single command:
@@ -34,12 +34,12 @@ or set the ``EDGEDB_SERVER_ADMIN_UI`` :ref:`environment variable
 <ref_reference_envvar_admin_ui>` to ``enabled``.
 
 The UI has three similar pages that each allow users to query the database:
-the REPL, the Editor, and the Data Explorer.
+the REPL, the editor, and the data explorer.
 
 Outright new users to EdgeDB who need to query or work with objects in a
-database will find the Data Explorer tab the easiest to use, as it allows
+database will find the data explorer tab the easiest to use, as it allows
 simple point-and-click access to objects without using any EdgeQL. The next
-easiest page to use is the Query Builder inside the Editor tab, which does
+easiest page to use is the query builder inside the Editor tab, which does
 use EdgeQL but is also point-and-click as it walks users through every step
 of a query. The REPL is the most advanced tab in the UI as it requires the
 user to be able to compose queries in EdgeQL.

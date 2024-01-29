@@ -60,6 +60,10 @@ For example, a search for 'max val' immediately shows the following output:
 Graph view
 ----------
 
-- Types are shown as boxes with 
-- Links are shown as arrows from one type to another, with any link
+- Object types are shown as either blue boxes for concrete types, or gray
+  boxes for abstract types. Object types that extend another object type
+  will show this via a gray arrow.
+- Links show up as purple arrows from one type to another, with any link
   properties shown tucked inside the arrow.
+- Zooming in and out along with dragging and dropping boxes allow you to
+  visually interact with your schema.

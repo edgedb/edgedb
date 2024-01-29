@@ -12,7 +12,7 @@ UI Home
           new database.
     :width: 100%
 
-The UI homepage displays one button per database inside the instance.
+The UI homepage displays one button per database inside an instance.
 New instances will contain a database called ``edgedb`` by default.
 
 A new database can be added to the current instance by clicking on
@@ -24,11 +24,12 @@ those new to EdgeDB. Clicking on this will create a database called
 EdgeDB tutorial.
 
 As such, the quickest way for newcomers to EdgeDB to start interacting with
-a working database via the UI in EdgeDB is by doing the following:
+a working database with populated objects in the UI can be done in just
+three steps:
 
 - ``edgedb project init`` on the command line to start an instance,
 - ``edgedb ui`` on the command line to open the UI,
 - Clicking on ``Create example database`` to create the example database.
 
 Clicking on any of the databases on the UI homepage will take you to its
-dashboard.
+own dashboard.

@@ -9,9 +9,9 @@ Client settings
     :width: 100%
 
 The UI exposes a number of :ref:`configuration parameters <ref_std_cfg>`
-in a dropdown bar at the top of all database dashboard screens when the
-Client Settings button is clicked. They can be modified by double
-clicking on the bar.
+in a dropdown bar at the top of all database dashboard screens. Clicking
+on the Client Settings button will show the bar, after which a double
+click allows you to modify them.
 
 The parameters are as follows:
 
@@ -24,8 +24,8 @@ Globals
 Config
 ------
 
-- ``allow_bare_ddl``: Whether DDL is allowed to be used outside the normal
-  migration flow. Default: ``NeverAllow``, can be set to ``AlwaysAllow``.
+- ``allow_bare_ddl``: Whether DDL may be used outside the normal migration
+  flow. Default: ``NeverAllow``, can be set to ``AlwaysAllow``.
   Note: This parameter accepts enum values, not booleans.
 - ``allow_user_specified_id``: Whether users are allowed to manually set the
   'id' property. Default: ``false``.

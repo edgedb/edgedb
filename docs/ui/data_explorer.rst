@@ -5,7 +5,7 @@ Data Explorer
 =============
 
 .. image:: images/data_explorer.png
-    :alt: The Data Explorer page in the EdgeDB UI. The icon is three bars
+    :alt: The data explorer page in the EdgeDB UI. The icon is three bars
           stacked on top of each other: blue, purple, and orange. A sample
           query via the Data Explorer shows information about a user-defined
           object type called a Booking.
@@ -17,9 +17,9 @@ which by nature must be specified manually). Instead, the data explorer gives
 point-and-click access to the database's objects, including inserting
 new objects and modifying existing ones.
 
-This makes the data explorer the ideal solution for any users of an EdgeDB
-database who lack a technical background or the time needed to learn
-the ins and outs of a new database. It is also useful for skilled users
-who are looking to explore the links between multiple object types in
-possible multiple levels of depth without having to continually modify a
-query to do so.
+This makes the data explorer the ideal solution for EdgeDB users without
+a technical background or new users lacking the time needed to learn the
+ins and outs of a new database. It is also useful for skilled users
+who are looking to explore the links between object types over possible
+multiple levels of depth without having to continually recreate queries
+to do so.

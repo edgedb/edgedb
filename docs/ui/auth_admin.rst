@@ -4,9 +4,9 @@
 Auth Admin
 ==========
 
-The Auth page inside the EdgeDB is used to set up authentication for
+The auth page inside the EdgeDB UI allows you to set up authentication for
 your app built into the EdgeDB server. The details for setting up auth
-admin via are in their own guide :ref:`here <ref_guide_auth>`.
+admin are in their own guide :ref:`here <ref_guide_auth>`.
 
 .. image:: ../guides/auth/images/ui-auth.png
     :alt: The EdgeDB local development server UI highlighting the auth admin
