@@ -1,9 +1,9 @@
 
 
 type A {
-    name : str
+    name : str;
     b : B {
-        @b_lp : str
+        b_lp : str
     }
 }
 
