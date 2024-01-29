@@ -84,9 +84,15 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property challenge: std::bytes {
             create constraint exclusive;
         };
-        create required property email: std::str {
-            create constraint exclusive;
-        };
+        create required property email: std::str;
+        create link factor: ext::auth::WebAuthnFactor;
+
+        create constraint exclusive on ((.factor, .email, .challenge));
+        create constraint on (
+            if exists __subject__.factor
+            then __subject__.factor.email = .email
+            else true
+        );
     };
 
     create type ext::auth::PKCEChallenge extending ext::auth::Auditable {
