@@ -322,7 +322,7 @@ Reference
 
     .. code-block:: edgeql-repl
 
-        db> select to_str(['one', 'two', 'three'], ', ');
+        db> select array_join(['one', 'two', 'three'], ', ');
         {'one, two, three'}
 
 
