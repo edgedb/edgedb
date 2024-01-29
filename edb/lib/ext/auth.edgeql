@@ -66,6 +66,29 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property password_hash: std::str;
     };
 
+    create type ext::auth::WebAuthnFactor extending ext::auth::EmailFactor {
+        alter property email {
+            drop constraint exclusive;
+        };
+        create required property credential_id: std::bytes {
+            create constraint exclusive;
+        };
+        create required property public_key: std::bytes {
+            create constraint exclusive;
+        };
+
+        create constraint exclusive on ((.email, .credential_id));
+    };
+
+    create type ext::auth::WebAuthnChallenge extending ext::auth::Auditable {
+        create required property challenge: std::bytes {
+            create constraint exclusive;
+        };
+        create required property email: std::str {
+            create constraint exclusive;
+        };
+    };
+
     create type ext::auth::PKCEChallenge extending ext::auth::Auditable {
         create required property challenge: std::str {
             create constraint exclusive;
@@ -194,6 +217,30 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         alter property name {
             set default := 'builtin::local_emailpassword';
             set protected := true;
+        };
+
+        create required property require_verification: std::bool {
+            set default := true;
+        };
+    };
+
+    create type ext::auth::WebAuthnProviderConfig
+        extending ext::auth::ProviderConfig {
+        alter property name {
+            set default := 'builtin::local_webauthn';
+            set protected := true;
+        };
+
+        create required property relying_party_origin: std::str {
+            create annotation std::description :=
+                "The full origin of the sign-in page including protocol and \
+                port of the application. If using the built-in UI, this \
+                should be the origin of the EdgeDB server.";
+        };
+
+        create required property relying_party_name: std::str {
+            create annotation std::description :=
+                "The human-readable name of the application.";
         };
 
         create required property require_verification: std::bool {
