@@ -2,16 +2,7 @@
 from edb.common import assert_data_shape
 import os
 from edb.testbase import server as tb
-
-
-
 class TestInterpreterDisambiguationSmokeTests(tb.QueryTestCase):
-    """Unit tests for the toy evaluator model.
-
-    These are intended as smoke tests. Since obviously we don't want
-    two totally parallel sets of tests for EdgeQL queries, an eventual
-    goal should be that we could run the real tests against the model.
-    """
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'interpreter_disambiguation.esdl')
