@@ -7000,7 +7000,6 @@ class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
                         id=str(db.id),
                         tenant_id=tenant_id,
                         builtin=self.get_attribute_value('builtin'),
-                        name=str(self.classname),
                     ),
                 ),
                 template=tpl_name,
@@ -7049,13 +7048,6 @@ class RenameDatabase(MetaCommand, DatabaseMixin, adapts=s_db.RenameDatabase):
             dbops.RenameDatabase(
                 dbops.Database(
                     new_name,
-                    metadata=dict(
-                        id=str(self.scls.id),
-                        tenant_id=tenant_id,
-                        # builtin=self.scls.get_builtin(schema),
-                        builtin=False,
-                        name=str(self.new_name),
-                    ),
                 ),
                 old_name=db_name,
             )

@@ -258,3 +258,36 @@ class TestDatabase(tb.ConnectedTestCase):
 
         finally:
             await tb.drop_db(self.con, 'test_tpl')
+
+    async def test_branch_rename_01(self):
+        if not self.has_create_database:
+            self.skipTest("create database is not supported by the backend")
+
+        await self.con.execute('CREATE EMPTY BRANCH mytestdb;')
+
+        name = 'mytestdb'
+        conn = None
+        try:
+            res_old = await self.con.query('''
+                SELECT sys::Database.id filter sys::Database.name = <str>$0
+            ''', name)
+
+            await self.con.execute('''
+                ALTER BRANCH mytestdb RENAME TO mytestdb2;
+            ''')
+            name = 'mytestdb2'
+
+            res_new = await self.con.query('''
+                SELECT sys::Database.id filter sys::Database.name = <str>$0
+            ''', name)
+            self.assertEqual(res_old, res_new)
+
+            conn = await self.connect(database=name)
+
+            dbname = await conn.query('SELECT sys::get_current_database();')
+            self.assertEqual(dbname, [name])
+
+        finally:
+            if conn:
+                await conn.aclose()
+            await tb.drop_db(self.con, name)

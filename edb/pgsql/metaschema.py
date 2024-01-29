@@ -1035,6 +1035,32 @@ class GetDatabaseBackendNameFunction(dbops.Function):
         )
 
 
+class GetDatabaseFrontendNameFunction(dbops.Function):
+
+    text = f'''
+    SELECT
+        CASE
+        WHEN
+            (edgedb.get_backend_capabilities()
+             & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+        THEN
+            substring(db_name, position('_' in db_name) + 1)
+        ELSE
+            'edgedb'
+        END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_database_frontend_name'),
+            args=[('db_name', ('text',))],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
 class GetRoleBackendNameFunction(dbops.Function):
 
     text = f'''
@@ -4435,6 +4461,7 @@ async def bootstrap(
         dbops.CreateFunction(GetBackendCapabilitiesFunction()),
         dbops.CreateFunction(GetBackendTenantIDFunction()),
         dbops.CreateFunction(GetDatabaseBackendNameFunction()),
+        dbops.CreateFunction(GetDatabaseFrontendNameFunction()),
         dbops.CreateFunction(GetRoleBackendNameFunction()),
         dbops.CreateFunction(GetUserSequenceBackendNameFunction()),
         dbops.CreateFunction(GetStdModulesFunction()),
@@ -4693,8 +4720,12 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
                 )
              ELSE False END
         )""",
-        'name': "(d.description)->>'name'",
-        'name__internal': "(d.description)->>'name'",
+        'name': (
+            'edgedb.get_database_frontend_name(datname) COLLATE "default"'
+        ),
+        'name__internal': (
+            'edgedb.get_database_frontend_name(datname) COLLATE "default"'
+        ),
         'computed_fields': 'ARRAY[]::text[]',
         'builtin': "((d.description)->>'builtin')::bool",
     }

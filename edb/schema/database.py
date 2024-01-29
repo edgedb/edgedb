@@ -70,7 +70,7 @@ class DatabaseCommand(
             )
 
 
-class CreateDatabase(DatabaseCommand, sd.CreateObject[Database]):
+class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
 
     astnode = qlast.CreateDatabase
     template = struct.Field(str, default=None)
@@ -94,17 +94,6 @@ class CreateDatabase(DatabaseCommand, sd.CreateObject[Database]):
 
         return cmd
 
-    def _create_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        if self.get_object(schema, context, default=None):
-            raise errors.DuplicateDatabaseDefinitionError(
-                f'database branch "{self.classname}" already exists'
-            )
-        return super()._create_begin(schema, context)
-
     def validate_create(
         self,
         schema: s_schema.Schema,
@@ -115,7 +104,7 @@ class CreateDatabase(DatabaseCommand, sd.CreateObject[Database]):
         self._validate_name(schema, context)
 
 
-class AlterDatabase(DatabaseCommand, sd.AlterObject[Database]):
+class AlterDatabase(DatabaseCommand, sd.AlterExternalObject[Database]):
     astnode = qlast.AlterDatabase
 
     def validate_alter(
@@ -127,8 +116,6 @@ class AlterDatabase(DatabaseCommand, sd.AlterObject[Database]):
         self._validate_name(schema, context)
 
 
-# I've kept DropDatabase as a DeleteExternalObject so that it can be used
-# to drop a database that hasn't synced up properly for some reason.
 class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Database]):
     astnode = qlast.DropDatabase
 
@@ -145,4 +132,13 @@ class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Database]):
 
 
 class RenameDatabase(DatabaseCommand, sd.RenameObject[Database]):
-    pass
+    # databases are ExternalObjects, so they might not be properly
+    # present in the schema, so we can't do a proper rename.
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        scls = self.get_parent_op(context).scls
+        self.scls = cast(Database, scls)
+        return schema
