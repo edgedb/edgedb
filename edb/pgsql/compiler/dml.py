@@ -382,6 +382,7 @@ def merge_iterator(
         put_iterator_bond(iterator, select)
         relctx.include_rvar(
             select, iterator_rvar,
+            aspects=('source', 'value', iterator.aspect),
             path_id=iterator.path_id,
             overwrite_path_rvar=True,
             ctx=ctx)
