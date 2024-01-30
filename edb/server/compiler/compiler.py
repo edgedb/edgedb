@@ -1800,8 +1800,7 @@ def _compile_ql_query(
     pg_debug.dump_ast_and_query(sql_res.ast, ir)
 
     cache_sql = None
-    if use_persistent_cache:
-        assert ctx.cache_key is not None
+    if use_persistent_cache and ctx.cache_key is not None:
         key = ctx.cache_key.hex
         func = pg_dbops.Function(
             name=('edgedb', f'__qh_{key}'),
