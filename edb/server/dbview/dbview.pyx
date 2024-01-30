@@ -1011,11 +1011,16 @@ cdef class DatabaseConnectionView:
         started_at = time.monotonic()
         try:
             if self.in_tx():
+                # TODO(fantix): temporary restoration of source
+                if req.normalized:
+                    source = edgeql.NormalizedSource.from_string(req.query)
+                else:
+                    source = edgeql.Source.from_string(req.query)
                 result = await compiler_pool.compile_in_tx(
                     self.txid,
                     self._last_comp_state,
                     self._last_comp_state_id,
-                    req.query,
+                    source,
                     req.output_format,
                     req.expect_one,
                     req.implicit_limit,
