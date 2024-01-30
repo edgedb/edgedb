@@ -318,9 +318,9 @@ def _compile_dml_coalesce(
 
     The basic approach is to extract the pieces from the ?? and
     rewrite them into:
-        for optional x in (LHS,) union (
+        for optional x in (LHS) union (
           {
-            x.0,
+            x,
             (for _ in (select () filter not exists x) union (RHS)),
           }
         )
@@ -328,12 +328,6 @@ def _compile_dml_coalesce(
     Optional for is needed because the LHS needs to be bound in a for
     in order to get put in a CTE and only executed once, but the RHS
     needs to be dependent on the LHS being empty.
-
-    We hackily wrap the LHS in a 1-ary tuple and then project it back
-    out because the OPTIONAL FOR implementation doesn't properly
-    handle object-type iterators. OPTIONAL FOR relies on having a
-    non-NULL identity ref but objects use their actual id, which
-    will be NULL.
     """
     with ctx.newscope(fenced=False) as subctx:
         # We have to compile it under a factoring fence to prevent
@@ -380,11 +374,8 @@ def _compile_dml_coalesce(
 
         full = qlast.ForQuery(
             iterator_alias=alias,
-            iterator=qlast.Tuple(elements=[subctx.create_anchor(lhs_ir, 'b')]),
-            result=qlast.Set(elements=[
-                qlast.Path(steps=[cond_path, qlast.Ptr(name='0')]),
-                rhs_b
-            ]),
+            iterator=subctx.create_anchor(lhs_ir, 'b'),
+            result=qlast.Set(elements=[cond_path, rhs_b]),
             optional=True,
             from_desugaring=True,
         )
@@ -393,7 +384,8 @@ def _compile_dml_coalesce(
         res = dispatch.compile(full, ctx=subctx)
         # Indicate that the original ?? code should determine the
         # cardinality/multiplicity.
-        res.card_inference_override = ir
+        assert isinstance(res.expr, irast.SelectStmt)
+        res.expr.card_inference_override = ir
 
         return res
 
@@ -479,7 +471,8 @@ def _compile_dml_ifelse(
         res = dispatch.compile(full, ctx=subctx)
         # Indicate that the original IF/ELSE code should determine the
         # cardinality/multiplicity.
-        res.card_inference_override = ir
+        assert isinstance(res.expr, irast.SelectStmt)
+        res.expr.card_inference_override = ir
 
         return res
 
@@ -523,7 +516,29 @@ def compile_GlobalExpr(
         # Wrap the reference in a subquery so that it does not get
         # factored out or go directly into the scope tree.
         qry = qlast.SelectQuery(result=qlast.Path(steps=[obj_ref]))
-        return dispatch.compile(qry, ctx=ctx)
+        target = dispatch.compile(qry, ctx=ctx)
+
+        # If the global is single, use type_rewrites to make sure it
+        # is computed only once in the SQL query.
+        if glob.get_cardinality(ctx.env.schema).is_single():
+            key = (setgen.get_set_type(target, ctx=ctx), False)
+            if not ctx.env.type_rewrites.get(key):
+                ctx.env.type_rewrites[key] = target
+            rewrite_target = ctx.env.type_rewrites[key]
+
+            # We need to have the set with expr=None, so that the rewrite
+            # will be applied, but we also need to wrap it with a
+            # card_inference_override so that we use the real cardinality
+            # instead of assuming it is MANY.
+            assert isinstance(rewrite_target, irast.Set)
+            target = setgen.new_set_from_set(target, expr=None, ctx=ctx)
+            wrap = irast.SelectStmt(
+                result=target,
+                card_inference_override=rewrite_target,
+            )
+            target = setgen.new_set_from_set(target, expr=wrap, ctx=ctx)
+
+        return target
 
     default = glob.get_default(ctx.env.schema)
 
@@ -590,6 +605,20 @@ def compile_TypeCast(
     ir_expr: Union[irast.Set, irast.Expr]
 
     if isinstance(expr.expr, qlast.Parameter):
+        if (
+            # generic types not explicitly allowed
+            not ctx.env.options.allow_generic_type_output and
+            # not compiling a function which hadles its own generic types
+            ctx.env.options.func_name is None and
+            target_stype.is_polymorphic(ctx.env.schema)
+        ):
+            raise errors.QueryError(
+                f'parameter cannot be a generic type '
+                f'{target_stype.get_displayname(ctx.env.schema)!r}',
+                hint="Please ensure you don't use generic "
+                     '"any" types or abstract scalars.',
+                context=expr.context)
+
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
 
         param_name = expr.expr.name
@@ -684,7 +713,7 @@ def compile_TypeCast(
             target_stype,
             cardinality_mod=expr.cardinality_mod,
             ctx=subctx,
-            srcctx=expr.expr.context,
+            srcctx=expr.context,
         )
 
     return stmt.maybe_add_view(res, ctx=ctx)

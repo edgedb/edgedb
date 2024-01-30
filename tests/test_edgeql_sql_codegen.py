@@ -294,3 +294,29 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             sql,
             "fts::search score should not be serialized when not needed",
         )
+
+    def test_codegen_typeid_no_join(self):
+        sql = self._compile(
+            '''
+            select Issue { name, number, tid := .__type__.id }
+            '''
+        )
+
+        self.assertNotIn(
+            "edgedbstd",
+            sql,
+            "typeid injection shouldn't joining ObjectType table",
+        )
+
+    def test_codegen_nested_for_no_uuid(self):
+        sql = self._compile(
+            '''
+            for x in {1,2,3} union (for y in {3,4,5} union (x+y))
+            '''
+        )
+
+        self.assertNotIn(
+            "uuid_generate",
+            sql,
+            "unnecessary uuid_generate for FOR loop without volatility",
+        )

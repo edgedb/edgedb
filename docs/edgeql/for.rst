@@ -74,6 +74,14 @@ A similar approach can be used for bulk updates.
 Conditional DML
 ---------------
 
+.. versionadded:: 4.0
+
+    DML is now supported in ``if..else``. The method of achieving conditional
+    DML demonstrated below is a workaround for earlier versions of EdgeDB
+    before this support was introduced in EdgeDB 4.0. If you're on EdgeDB 4.0
+    or higher, use :eql:op:`if..else` for a cleaner way to achieve conditional
+    DML.
+
 DML (i.e., :ref:`insert <ref_eql_insert>`, :ref:`update <ref_eql_update>`,
 :ref:`delete <ref_eql_delete>`) is not supported in :eql:op:`if..else`. If you
 need to do one of these conditionally, you can use a ``for`` loop as a

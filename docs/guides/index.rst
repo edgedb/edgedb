@@ -18,9 +18,10 @@ guide!
     :maxdepth: 1
 
     cloud
-    auth/index
-    tutorials/index
-    deployment/index
-    migrations/index
     cheatsheet/index
+    deployment/index
+    datamigrations/index
+    tutorials/index
+    auth/index
+    migrations/index
     contributing/index

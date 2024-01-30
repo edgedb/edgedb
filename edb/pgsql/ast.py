@@ -148,7 +148,7 @@ class EdgeQLPathInfo(Base):
 
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {
-        'path_id', 'path_scope', 'path_outputs', 'is_distinct',
+        'path_id', 'path_bonds', 'path_outputs', 'is_distinct',
         'path_id_mask', 'path_namespace',
         'packed_path_outputs', 'packed_path_namespace',
     }
@@ -160,7 +160,7 @@ class EdgeQLPathInfo(Base):
     is_distinct: bool = True
 
     # A subset of paths necessary to perform joining.
-    path_scope: typing.Set[irast.PathId] = ast.field(factory=set)
+    path_bonds: typing.Set[tuple[irast.PathId, bool]] = ast.field(factory=set)
 
     # Map of res target names corresponding to paths.
     path_outputs: typing.Dict[
@@ -880,7 +880,7 @@ class RangeSubselect(PathRangeVar):
     subquery: Query
 
     @property
-    def query(self):
+    def query(self) -> Query:
         return self.subquery
 
 
@@ -1056,6 +1056,11 @@ class IteratorCTE(ImmutableBase):
     # A list of other paths to *also* register the iterator rvar as
     # providing when it is merged into a statement.
     other_paths: tuple[tuple[irast.PathId, str], ...] = ()
+    iterator_bond: bool = False
+
+    @property
+    def aspect(self) -> str:
+        return 'iterator' if self.iterator_bond else 'identity'
 
 
 class Statement(Base):

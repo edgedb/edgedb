@@ -133,10 +133,18 @@ SET {
 };
 
 
-# Make the database more populated so that it uses indexes...
-for i in range_unpack(range(1, 1000)) union (
+# Add a function that disables sequential scan.
+create function _set_seqscan(val: std::str) -> std::str {
+    using sql $$
+      select set_config('enable_seqscan', val, true)
+    $$;
+};
+
+
+# Generate some data ...
+for i in range_unpack(range(1, 10)) union (
   with u := (insert User { name := <str>i }),
-  for j in range_unpack(range(0, 5)) union (
+  for j in range_unpack(range(0, 3)) union (
     insert Issue {
       owner := u,
       number := <str>(i*100 + j),
@@ -150,7 +158,7 @@ update User set {
 };
 
 
-for x in range_unpack(range(0, 900_000)) union (
+for x in range_unpack(range(0, 100)) union (
   insert RangeTest {
     rval := range(-(x * 101419 % 307), x * 201881 % 307),
     mval := multirange([
@@ -181,7 +189,7 @@ for x in range_unpack(range(0, 900_000)) union (
 );
 
 
-for x in range_unpack(range(0, 100_000)) union (
+for x in range_unpack(range(0, 100)) union (
     insert JSONTest{val := <json>(a:=x, b:=x * 40123 % 10007)}
 );
 

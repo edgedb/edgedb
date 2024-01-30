@@ -202,17 +202,6 @@ def compile_ForQuery(
                 context=qlstmt.context,
             )
 
-        if qlstmt.optional and iterator_stmt.path_id.is_objtype_path():
-            # FIXME: Object-type iterators are busted because the
-            # identity is NULL, which breaks volatility refs among
-            # other things. Probably to make it work we'll need to arrange
-            # to generate a fresh uuid for identity in the optional wrapper
-            # for these.
-            raise errors.UnsupportedFeatureError(
-                "'FOR OPTIONAL' doesn't work with object-type iterators yet",
-                context=qlstmt.context,
-            )
-
         pathctx.register_set_in_scope(
             iterator_stmt,
             path_scope=sctx.path_scope,
@@ -284,7 +273,7 @@ def _make_group_binding(
     binding_set.is_visible_binding_ref = True
 
     name = s_name.UnqualName(alias)
-    ctx.aliased_views[name] = binding_type
+    ctx.aliased_views[name] = binding_set
     ctx.view_sets[binding_type] = binding_set
     ctx.env.path_scope_map[binding_set] = context.ScopeInfo(
         path_scope=ctx.path_scope,
@@ -585,16 +574,6 @@ def compile_InsertQuery(
     return result
 
 
-def _get_dunder_type_ptrref(ctx: context.ContextLevel) -> irast.PointerRef:
-    return typeutils.lookup_obj_ptrref(
-        ctx.env.schema,
-        s_name.QualName('std', 'BaseObject'),
-        s_name.UnqualName('__type__'),
-        cache=ctx.env.ptr_ref_cache,
-        typeref_cache=ctx.env.type_ref_cache,
-    )
-
-
 @dispatch.compile.register(qlast.UpdateQuery)
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
@@ -613,10 +592,7 @@ def compile_UpdateQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.UpdateStmt(
-            context=expr.context,
-            dunder_type_ptrref=_get_dunder_type_ptrref(ctx),
-        )
+        stmt = irast.UpdateStmt(context=expr.context)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         with ictx.new() as ectx:

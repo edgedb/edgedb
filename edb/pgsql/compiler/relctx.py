@@ -212,7 +212,7 @@ def include_rvar(
         Compiler context.
     """
     if aspects is None:
-        aspects = ('value',)
+        aspects = ('value', 'iterator')
         if path_id.is_objtype_path():
             if isinstance(rvar, pgast.RangeSubselect):
                 if pathctx.has_path_aspect(
@@ -621,10 +621,9 @@ def _new_mapped_pointer_rvar(
         name=[tgt_col],
         nullable=not ptrref.required)
 
-    # Set up references according to the link direction.
     if (
         ir_ptr.direction == s_pointers.PointerDirection.Inbound
-        or ptrref.computed_backlink
+        or ptrref.computed_link_alias_is_backward
     ):
         near_ref = target_ref
         far_ref = source_ref
@@ -714,19 +713,6 @@ def semi_join(
     return set_rvar
 
 
-def ensure_bond_for_expr(
-    ir_set: irast.Set,
-    stmt: pgast.BaseRelation,
-    *,
-    ctx: context.CompilerContextLevel,
-) -> None:
-    if ir_set.path_id.is_objtype_path():
-        # ObjectTypes have inherent identity
-        return
-
-    ensure_transient_identity_for_path(ir_set.path_id, stmt, ctx=ctx)
-
-
 def apply_volatility_ref(
         stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> None:
@@ -745,11 +731,12 @@ def apply_volatility_ref(
         )
 
 
-def ensure_transient_identity_for_path(
+def create_iterator_identity_for_path(
     path_id: irast.PathId,
     stmt: pgast.BaseRelation,
     *,
     ctx: context.CompilerContextLevel,
+    apply_volatility: bool=True,
 ) -> None:
 
     id_expr = pgast.FuncCall(
@@ -757,11 +744,13 @@ def ensure_transient_identity_for_path(
         args=[],
     )
 
-    pathctx.put_path_identity_var(stmt, path_id, id_expr, force=True)
-    pathctx.put_path_bond(stmt, path_id)
-
     if isinstance(stmt, pgast.SelectStmt):
-        apply_volatility_ref(stmt, ctx=ctx)
+        path_id = pathctx.map_path_id(path_id, stmt.view_path_id_map)
+        if apply_volatility:
+            apply_volatility_ref(stmt, ctx=ctx)
+
+    pathctx.put_path_var(stmt, path_id, id_expr, force=True, aspect='iterator')
+    pathctx.put_path_bond(stmt, path_id, iterator=True)
 
 
 def get_scope(
@@ -1290,15 +1279,19 @@ def _plain_join(
 ) -> None:
     condition = None
 
-    for path_id in right_rvar.query.path_scope:
-        lref = maybe_get_path_var(query, path_id, aspect='identity', ctx=ctx)
-        if lref is None:
+    for path_id, iterator_var in right_rvar.query.path_bonds:
+        lref = None
+        aspect = 'iterator' if iterator_var else 'identity'
+
+        lref = maybe_get_path_var(
+            query, path_id, aspect=aspect, ctx=ctx)
+        if lref is None and not iterator_var:
             lref = maybe_get_path_var(query, path_id, aspect='value', ctx=ctx)
         if lref is None:
             continue
 
-        rref = pathctx.get_rvar_path_identity_var(
-            right_rvar, path_id, env=ctx.env)
+        rref = pathctx.get_rvar_path_var(
+            right_rvar, path_id, aspect=aspect, env=ctx.env)
 
         assert isinstance(lref, pgast.ColumnRef)
         assert isinstance(rref, pgast.ColumnRef)
@@ -1333,17 +1326,18 @@ def _lateral_union_join(
     for component in astutils.each_query_in_set(right_rvar.subquery):
         condition = None
 
-        for path_id in right_rvar.query.path_scope:
+        for path_id, iterator_var in right_rvar.query.path_bonds:
+            aspect = 'iterator' if iterator_var else 'identity'
             lref = maybe_get_path_var(
-                query, path_id, aspect='identity', ctx=ctx)
-            if lref is None:
+                query, path_id, aspect=aspect, ctx=ctx)
+            if lref is None and not iterator_var:
                 lref = maybe_get_path_var(
                     query, path_id, aspect='value', ctx=ctx)
             if lref is None:
                 continue
 
-            rref = pathctx.get_path_identity_var(
-                component, path_id, env=ctx.env)
+            rref = pathctx.get_path_var(
+                component, path_id, aspect=aspect, env=ctx.env)
 
             assert isinstance(lref, pgast.ColumnRef)
             assert isinstance(rref, pgast.ColumnRef)
@@ -1366,6 +1360,21 @@ def _lateral_union_join(
             type='cross', larg=larg, rarg=rarg)
 
 
+def _needs_cte(typeref: irast.TypeRef) -> bool:
+    """Check whether a typeref needs to be forced into a materialized CTE.
+
+    The main use case here is for sys::SystemObjects which are stored as
+    views that populate their data by parsing JSON metadata embedded in
+    comments on the SQL system objects. The query plans when fetching multi
+    links from these objects wind up being pretty pathologically quadratic.
+
+    So instead we force the objects and links into materialized CTEs
+    so that they *can't* be shoved into nested loops.
+    """
+    assert isinstance(typeref.name_hint, sn.QualName)
+    return typeref.name_hint.module == 'sys'
+
+
 def range_for_material_objtype(
     typeref: irast.TypeRef,
     path_id: irast.PathId,
@@ -1381,8 +1390,14 @@ def range_for_material_objtype(
 
     env = ctx.env
 
-    if typeref.material_type is not None:
+    # If this is a view type, but it still appears in rewrites, that is
+    # because it is a global that we are caching.
+    if (
+        typeref.material_type is not None
+        and (typeref.id, include_descendants) not in ctx.env.type_rewrites
+    ):
         typeref = typeref.material_type
+    is_global = typeref.material_type is not None
 
     relation: Union[pgast.Relation, pgast.CommonTableExpr]
 
@@ -1393,12 +1408,24 @@ def range_for_material_objtype(
     )
     rw_key = (typeref.id, include_descendants)
     key = rw_key + (dml_source_key,)
+    force_cte = _needs_cte(typeref)
     if (
-        not ignore_rewrites
-        and (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
+        (not ignore_rewrites or is_global)
+        and (
+            (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
+            or force_cte
+        )
         and rw_key not in ctx.pending_type_ctes
         and not for_mutation
     ):
+        if not rewrite:
+            # If we are forcing CTE materialization but there is not a
+            # real rewrite, then create a trivial one.
+            rewrite = irast.Set(
+                path_id=irast.PathId.from_typeref(typeref, namespace={'rw'}),
+                typeref=typeref,
+            )
+
         # Don't include overlays in the normal way in trigger mode
         # when a type cte is used, because we bake the overlays into
         # the cte instead (and so including them normally could union
@@ -1429,13 +1456,13 @@ def range_for_material_objtype(
                 # If we are expanding inhviews, we also expand type
                 # rewrites, so don't populate type_ctes. The normal
                 # case is to stick it in a CTE and cache that, though.
-                if ctx.env.expand_inhviews:
+                if ctx.env.expand_inhviews and not is_global:
                     type_rel = sctx.rel
                 else:
                     type_cte = pgast.CommonTableExpr(
-                        name=ctx.env.aliases.get('t'),
+                        name=ctx.env.aliases.get(f't_{typeref.name_hint}'),
                         query=sctx.rel,
-                        materialized=False,
+                        materialized=is_global or force_cte,
                     )
                     ctx.type_ctes[key] = type_cte
                     type_rel = type_cte
@@ -1718,6 +1745,7 @@ def wrap_set_op_query(
 def anti_join(
     lhs: pgast.SelectStmt, rhs: pgast.SelectStmt,
     path_id: Optional[irast.PathId], *,
+    aspect: str='identity',
     ctx: context.CompilerContextLevel,
 ) -> None:
     """Filter elements out of the LHS that appear on the RHS"""
@@ -1725,10 +1753,10 @@ def anti_join(
     if path_id:
         # grab the identity from the LHS and do an
         # anti-join against the RHS.
-        src_ref = pathctx.get_path_identity_var(
-            lhs, path_id=path_id, env=ctx.env)
-        pathctx.get_path_identity_output(
-            rhs, path_id=path_id, env=ctx.env)
+        src_ref = pathctx.get_path_var(
+            lhs, path_id=path_id, aspect=aspect, env=ctx.env)
+        pathctx.get_path_output(
+            rhs, path_id=path_id, aspect=aspect, env=ctx.env)
         cond_expr: pgast.BaseExpr = astutils.new_binop(
             src_ref, rhs, 'NOT IN')
     else:
@@ -1788,6 +1816,36 @@ def range_from_queryset(
     return rvar
 
 
+def _make_link_table_cte(
+    ptrref: irast.PointerRef,
+    relation: pgast.Relation,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.Relation:
+    if (ptr_cte := ctx.ptr_ctes.get(ptrref.id)) is None:
+        ptr_select = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(val=pgast.ColumnRef(name=[pgast.Star()])),
+            ],
+            from_clause=[pgast.RelRangeVar(relation=relation)],
+        )
+        ptr_cte = pgast.CommonTableExpr(
+            name=ctx.env.aliases.get(f'p_{ptrref.name}'),
+            query=ptr_select,
+            materialized=True,
+        )
+        ctx.ptr_ctes[ptrref.id] = ptr_cte
+
+    # We've set up the CTE to be a perfect drop in replacement for
+    # the real table (with a select *), so instead of pointing the
+    # rvar at the CTE (which would require routing path ids), just
+    # treat it like a base relation.
+    return pgast.Relation(
+        name=ptr_cte.name,
+        type_or_ptr_ref=ptrref,
+    )
+
+
 def table_from_ptrref(
     ptrref: irast.PointerRef,
     ptr_info: pg_types.PointerStorageInfo,
@@ -1809,6 +1867,9 @@ def table_from_ptrref(
         name=table_name,
         type_or_ptr_ref=ptrref,
     )
+
+    if aspect == 'inhview' and _needs_cte(ptrref.out_source):
+        relation = _make_link_table_cte(ptrref, relation, ctx=ctx)
 
     # Pseudo pointers (tuple and type intersection) have no schema id.
     sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
@@ -1854,8 +1915,8 @@ def range_for_ptrref(
         # needs to appear in *all* of the tables, so we just pick any
         # one of them.
         refs = {next(iter((ptrref.intersection_components)))}
-    elif ptrref.computed_backlink:
-        refs = {ptrref.computed_backlink}
+    elif ptrref.computed_link_alias:
+        refs = {ptrref.computed_link_alias}
     else:
         refs = {ptrref}
         assert isinstance(ptrref, irast.PointerRef), \

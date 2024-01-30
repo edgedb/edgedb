@@ -377,7 +377,7 @@ class ExpressionShell(so.Shell):
             text=self.text,
             refs=so.ObjectSet.create(
                 schema,
-                (s.resolve(schema) for s in self.refs),
+                [s.resolve(schema) for s in self.refs],
             ) if self.refs is not None else None,
             _qlast=self._qlast,
             _irast=self._irast,  # type: ignore[arg-type]

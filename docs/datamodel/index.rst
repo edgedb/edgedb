@@ -158,7 +158,10 @@ called ``default``.
             }
 
             module combat {
-                function fight(one: Person, two: Person) -> str
+                function fight(
+                  one: dracula::Person,
+                  two: dracula::Person
+                ) -> str
                   using (
                     (one.name ?? 'Fighter 1') ++ ' wins!'
                     IF (one.strength ?? 0) > (two.strength ?? 0)

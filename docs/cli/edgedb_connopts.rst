@@ -23,10 +23,13 @@ Connection flags
 
 :cli:synopsis:`-I <name>, --instance=<name>`
     Specifies the named instance to connect to. The actual connection
-    parameters are stored in ``<edgedb_config_dir>/credentials`` and are
-    usually created by :ref:`ref_cli_edgedb_instance_create` or similar
-    commands. Run ``edgedb info`` to see the location of
-    ``<edgedb_config_dir>`` on your machine.
+    parameters for local and self-hosted instances are stored in
+    ``<edgedb_config_dir>/credentials`` and are usually created by
+    :ref:`ref_cli_edgedb_instance_create` or similar commands. Run ``edgedb
+    info`` to see the location of ``<edgedb_config_dir>`` on your machine.
+
+    EdgeDB Cloud instance names are in the format
+    ``<org-name>/<instance-name>``.
 
     This option overrides host and port.
 
@@ -108,7 +111,8 @@ Connection flags
 
 :cli:synopsis:`--secret-key <key>`
     Specifies the secret key to use for authentication with EdgeDB Cloud
-    instances.
+    instances. This is not required when connecting to your own EdgeDB Cloud
+    instance if you have logged in with :ref:`ref_cli_edgedb_cloud_login`.
 
 :cli:synopsis:`--wait-until-available=<wait_time>`
     In case EdgeDB connection can't be established, keep retrying up

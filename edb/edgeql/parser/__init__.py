@@ -38,6 +38,8 @@ ParserError = Tuple[
     Optional[str]
 ]
 
+SPEC_LOADED = False
+
 
 def append_module_aliases(tree, aliases):
     modaliases = []
@@ -124,6 +126,9 @@ def parse(
     source: Union[str, qltokenizer.Source],
     filename: Optional[str] = None,
 ):
+    if not SPEC_LOADED:
+        preload_spec()
+
     if isinstance(source, str):
         source = qltokenizer.Source.from_string(source)
 
@@ -248,8 +253,10 @@ def _cst_to_ast(
 
 
 def preload_spec() -> None:
+    global SPEC_LOADED
     path = get_spec_filepath()
     rust_parser.preload_spec(path)
+    SPEC_LOADED = True
 
 
 def get_spec_filepath():

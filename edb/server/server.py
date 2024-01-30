@@ -92,6 +92,7 @@ class BaseServer:
     _local_intro_query: bytes
     _global_intro_query: bytes
     _report_config_typedesc: dict[defines.ProtocolVersion, bytes]
+    _use_monitor_fs: bool
     _file_watch_handles: list[asyncio.Handle]
 
     _std_schema: s_schema.Schema
@@ -145,8 +146,10 @@ class BaseServer:
         admin_ui: bool = False,
         disable_dynamic_system_config: bool = False,
         compiler_state: edbcompiler.CompilerState,
+        use_monitor_fs: bool = False,
     ):
         self.__loop = asyncio.get_running_loop()
+        self._use_monitor_fs = use_monitor_fs
 
         self._schema_class_layout = compiler_state.schema_class_layout
         self._config_settings = compiler_state.config_spec
@@ -337,11 +340,26 @@ class BaseServer:
     def monitor_fs(
         self, path: str | pathlib.Path,
         cb: Callable[[str, int], None],
-    ) -> None:
-        self._file_watch_handles.append(
-            # ... we depend on an event loop internal _monitor_fs
-            self.__loop._monitor_fs(str(path), cb)  # type: ignore
-        )
+    ) -> Callable[[], None]:
+        if not self._use_monitor_fs:
+            return lambda: None
+
+        # ... we depend on an event loop internal _monitor_fs
+        handle = self.__loop._monitor_fs(str(path), cb)  # type: ignore
+
+        def finalizer():
+            try:
+                self._file_watch_handles.remove(handle)
+            except ValueError:
+                # The server may have cleared _file_watch_handles before the
+                # tenants do, so we can skip the double cancel here.
+                pass
+            else:
+                handle.cancel()
+
+        self._file_watch_handles.append(handle)
+
+        return finalizer
 
     def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         raise NotImplementedError
@@ -1265,15 +1283,18 @@ class Server(BaseServer):
 
                 if sql:
                     await conn.sql_fetch(sql)
+                logger.info(
+                    "finished applying patch %d to database '%s'", num, dbname)
 
     async def _maybe_patch_db(
-        self, dbname: str, patches: dict[int, bootstrap.PatchEntry]
+        self, dbname: str, patches: dict[int, bootstrap.PatchEntry], sem: Any
     ) -> None:
         logger.info("applying patches to database '%s'", dbname)
 
         try:
-            async with self._tenant.direct_pgcon(dbname) as conn:
-                await self._maybe_apply_patches(dbname, conn, patches)
+            async with sem:
+                async with self._tenant.direct_pgcon(dbname) as conn:
+                    await self._maybe_apply_patches(dbname, conn, patches)
         except Exception as e:
             if (
                 isinstance(e, errors.EdgeDBError)
@@ -1296,15 +1317,21 @@ class Server(BaseServer):
             dbnames = await self.get_dbnames(syscon)
 
         async with taskgroup.TaskGroup(name='apply patches') as g:
+            # Cap the parallelism used when applying patches, to avoid
+            # having huge numbers of in flight patches that make
+            # little visible progress in the logs.
+            sem = asyncio.Semaphore(16)
+
             # Patch all the databases
             for dbname in dbnames:
                 if dbname != defines.EDGEDB_SYSTEM_DB:
-                    g.create_task(self._maybe_patch_db(dbname, patches))
+                    g.create_task(
+                        self._maybe_patch_db(dbname, patches, sem))
 
             # Patch the template db, so that any newly created databases
             # will have the patches.
             g.create_task(self._maybe_patch_db(
-                defines.EDGEDB_TEMPLATE_DB, patches))
+                defines.EDGEDB_TEMPLATE_DB, patches, sem))
 
         await self._tenant.ensure_database_not_connected(
             defines.EDGEDB_TEMPLATE_DB

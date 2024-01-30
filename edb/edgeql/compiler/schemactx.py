@@ -73,10 +73,6 @@ def get_schema_object(
     else:
         name = sn.UnqualName(name=lname)
 
-    view = _get_type_variant(name, ctx)
-    if view is not None:
-        return view
-
     try:
         stype = ctx.env.get_schema_object_and_track(
             name=name,
@@ -100,17 +96,14 @@ def get_schema_object(
         )
         raise
 
-    view = _get_type_variant(stype.get_name(ctx.env.schema), ctx)
-    if view is not None:
-        return view
-    elif stype == ctx.defining_view:
+    if stype == ctx.defining_view:
         # stype is the view in process of being defined and as such is
         # not yet a valid schema object
         raise errors.SchemaDefinitionError(
             f'illegal self-reference in definition of {str(name)!r}',
             context=srcctx)
-    else:
-        return stype
+
+    return stype
 
 
 def _get_partial_path_prefix_type(
@@ -124,17 +117,6 @@ def _get_partial_path_prefix_type(
 
     _, type = typeutils.ir_typeref_to_type(ctx.env.schema, ppp.typeref)
     return type
-
-
-def _get_type_variant(
-    name: sn.Name,
-    ctx: context.ContextLevel,
-) -> Optional[s_obj.Object]:
-    type_variant = ctx.aliased_views.get(name)
-    if type_variant is not None:
-        return type_variant
-    else:
-        return None
 
 
 def get_schema_type(
@@ -327,7 +309,8 @@ def derive_ptr(
     # actually deriving from it.
     if derive_backlink:
         attrs = attrs.copy() if attrs else {}
-        attrs['computed_backlink'] = ptr
+        attrs['computed_link_alias'] = ptr
+        attrs['computed_link_alias_is_backward'] = True
         ptr = ctx.env.schema.get('std::link', type=s_pointers.Pointer)
 
     ctx.env.schema, derived = ptr.derive_ref(

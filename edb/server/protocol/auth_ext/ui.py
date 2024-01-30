@@ -30,6 +30,8 @@ known_oauth_provider_names = [
     'builtin::oauth_google',
     'builtin::oauth_apple',
     'builtin::oauth_azure',
+    'builtin::oauth_discord',
+    'builtin::oauth_slack',
 ]
 
 

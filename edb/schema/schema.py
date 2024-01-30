@@ -293,9 +293,9 @@ class Schema(abc.ABC):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
     ) -> Optional[so.Object_T]:
         raise NotImplementedError
 
@@ -1305,9 +1305,13 @@ class FlatSchema(Schema):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
+        # Deep u-optimization; this is the hottest path in the system,
+        # so avoid needing to do lookups for this function.
+        _raw_schema_restore: Callable[[str, uuid.UUID], so.Object] = (
+            so.Object.raw_schema_restore),
     ) -> Optional[so.Object_T]:
         try:
             sclass_name = self._id_to_type[obj_id]
@@ -1320,7 +1324,7 @@ class FlatSchema(Schema):
             else:
                 return default
         else:
-            obj = so.Object.schema_restore((sclass_name, obj_id))
+            obj = _raw_schema_restore(sclass_name, obj_id)
             if type is not None and not isinstance(obj, type):
                 raise TypeError(
                     f'schema object {obj_id!r} exists, but is a '
@@ -1330,6 +1334,10 @@ class FlatSchema(Schema):
 
             # Avoid the overhead of cast(Object_T) below
             return obj  # type: ignore
+
+    # Important micro-optimization
+    if not TYPE_CHECKING:
+        get_by_id = _get_by_id
 
     def _get_global(
         self,
@@ -1755,7 +1763,7 @@ class ChainedSchema(Schema):
         self,
         obj: so.Object,
     ) -> Optional[Tuple[Any, ...]]:
-        if isinstance(obj, so.GlobalObject):
+        if obj.is_global_object:
             return self._global_schema.maybe_get_obj_data_raw(obj)
         else:
             top = self._top_schema.maybe_get_obj_data_raw(obj)
@@ -1768,14 +1776,17 @@ class ChainedSchema(Schema):
         self,
         obj: so.Object,
     ) -> Tuple[Any, ...]:
-        if isinstance(obj, so.GlobalObject):
-            return self._global_schema.get_obj_data_raw(obj)
+        top = self._top_schema.maybe_get_obj_data_raw(obj)
+        if top is not None:
+            return top
         else:
-            top = self._top_schema.maybe_get_obj_data_raw(obj)
-            if top is not None:
-                return top
-            else:
+            try:
                 return self._base_schema.get_obj_data_raw(obj)
+            except errors.SchemaError:
+                if obj.is_global_object:
+                    return self._global_schema.get_obj_data_raw(obj)
+                else:
+                    raise
 
     def set_obj_field(
         self,
@@ -1965,9 +1976,9 @@ class ChainedSchema(Schema):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
     ) -> Optional[so.Object_T]:
         obj = self._top_schema.get_by_id(obj_id, type=type, default=None)
         if obj is None:
@@ -1977,6 +1988,10 @@ class ChainedSchema(Schema):
                 obj = self._global_schema.get_by_id(
                     obj_id, default=default, type=type)
         return obj
+
+    # Important micro-optimization
+    if not TYPE_CHECKING:
+        get_by_id = _get_by_id
 
     def _get_global(
         self,

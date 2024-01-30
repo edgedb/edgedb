@@ -19,6 +19,17 @@ Create trigger
 :ref:`Define <ref_eql_sdl_triggers>` a new trigger.
 
 .. eql:synopsis::
+    :version-lt: 4.0
+
+    {create | alter} type <type-name> "{"
+      create trigger <name>
+        after
+        {insert | update | delete} [, ...]
+        for {each | all}
+        do <expr>
+    "}"
+
+.. eql:synopsis::
 
     {create | alter} type <type-name> "{"
       create trigger <name>
@@ -61,6 +72,25 @@ Declare a trigger that inserts a ``Log`` object for each new ``User`` object:
         }
       );
     };
+
+..versionadded:: 4.0
+
+Declare a trigger that inserts a ``Log`` object conditionally when an update
+query makes a change to a ``User`` object:
+
+.. code-block:: edgeql
+
+    alter type User {
+      create trigger log_update after update for each
+      when (<json>__old__ {**} != <json>__new__ {**})
+      do (
+        insert Log {
+          action := 'update',
+          target_name := __new__.name,
+          change := __old__.name ++ '->' ++ __new__.name
+        }
+      );
+    }
 
 
 Drop trigger
