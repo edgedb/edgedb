@@ -240,6 +240,7 @@ def get_set_rvar(
                 null_query, (pgast.SelectStmt, pgast.NullRelation))
             null_query.where_clause = pgast.BooleanConstant(val=False)
 
+        relctx.update_scope_masks(ir_set, rvars.main.rvar, ctx=subctx)
         result_rvar = _include_rvars(rvars, scope_stmt=scope_stmt, ctx=subctx)
         for aspect in rvars.main.aspects:
             pathctx.put_path_rvar_if_not_exists(
