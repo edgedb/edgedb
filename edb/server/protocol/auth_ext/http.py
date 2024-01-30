@@ -917,6 +917,38 @@ class Router:
                 brand_color=app_details_config.brand_color,
             )
 
+    async def handle_ui_webauthn(self, request: Any, response: Any):
+        ui_config = self._get_ui_config()
+        webauthn_provider = (
+            self._get_webauthn_provider() if ui_config is not None else None
+        )
+
+        if ui_config is None or webauthn_provider is None:
+            response.status = http.HTTPStatus.NOT_FOUND
+            response.body = (
+                b'WebAuthn provider not configured'
+                if ui_config
+                else b'Auth UI not enabled'
+            )
+        else:
+            query = urllib.parse.parse_qs(
+                request.url.query.decode("ascii") if request.url.query else ""
+            )
+            challenge = _get_search_param(query, "challenge")
+
+            response.status = http.HTTPStatus.OK
+            response.content_type = b'text/html'
+            response.body = ui.render_webauthn_page(
+                base_path=self.base_path,
+                provider_name=webauthn_provider.name,
+                error_message=_maybe_get_search_param(query, 'error'),
+                challenge=challenge,
+                app_name=ui_config.app_name,
+                logo_url=ui_config.logo_url,
+                dark_logo_url=ui_config.dark_logo_url,
+                brand_color=ui_config.brand_color,
+            )
+
     async def handle_ui_reset_password(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
         password_provider = (
@@ -1374,6 +1406,21 @@ class Router:
         ]
 
         return password_providers[0] if len(password_providers) == 1 else None
+
+    def _get_webauthn_provider(self):
+        providers = cast(
+            list[config.ProviderConfig],
+            util.get_config(
+                self.db,
+                "ext::auth::AuthConfig::providers",
+                frozenset,
+            ),
+        )
+        webauthn_providers = [
+            p for p in providers if (p.name == 'builtin::local_webauthn')
+        ]
+
+        return webauthn_providers[0] if len(webauthn_providers) == 1 else None
 
     async def _send_verification_email(
         self,

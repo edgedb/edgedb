@@ -168,6 +168,12 @@ a.field-note:hover {
   margin-left: 12px;
 }
 
+.action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
 .divider {
   display: flex;
   align-items: center;

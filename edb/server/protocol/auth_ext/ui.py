@@ -19,7 +19,7 @@
 from typing import *
 
 import html
-import urllib
+import urllib.parse
 import re
 from email.mime import multipart
 from email.mime import text as mime_text
@@ -51,14 +51,15 @@ def render_login_page(
     brand_color: Optional[str] = None,
 ):
     password_provider = None
+    webauthn_provider = None
+    oauth_providers = []
     for p in providers:
         if p.name == 'builtin::local_emailpassword':
             password_provider = p
-            break
-
-    oauth_providers = [
-        p for p in providers if p.name.startswith('builtin::oauth_')
-    ]
+        elif p.name == 'builtin::webauthn':
+            webauthn_provider = p
+        elif p.name.startswith('builtin::oauth_'):
+            oauth_providers.append(p)
 
     oauth_params = {
         'redirect_to': redirect_to,
@@ -120,6 +121,18 @@ def render_login_page(
       <div class="oauth-buttons">
         {oauth_buttons}
       </div>""" if len(oauth_providers) > 0 else ''
+    }
+    {
+      f"""
+      <div class="oauth-buttons">
+        <a href="webauthn&challenge={challenge}">
+          <img src="_static/icon_webauthn.svg" alt="WebAuthn Icon" />
+          <span>Sign up with WebAuthn</span>
+        </a>
+      </div>
+      """
+      if webauthn_provider is not None
+      else ""
     }
     {
       """
@@ -185,14 +198,15 @@ def render_signup_page(
     brand_color: Optional[str] = None,
 ):
     password_provider = None
+    webauthn_provider = None
+    oauth_providers = []
     for p in providers:
         if p.name == 'builtin::local_emailpassword':
             password_provider = p
-            break
-
-    oauth_providers = [
-        p for p in providers if p.name.startswith('builtin::oauth_')
-    ]
+        elif p.name == 'builtin::webauthn':
+            webauthn_provider = p
+        elif p.name.startswith('builtin::oauth_'):
+            oauth_providers.append(p)
 
     oauth_params = {
         'redirect_to': redirect_to,
@@ -236,6 +250,18 @@ def render_signup_page(
       <div class="oauth-buttons">
         {oauth_buttons}
       </div>""" if len(oauth_providers) > 0 else ''
+    }
+    {
+      f"""
+      <div class="oauth-buttons">
+        <a href="webauthn&challenge={challenge}">
+          <img src="_static/icon_webauthn.svg" alt="WebAuthn Icon" />
+          <span>Sign up with WebAuthn</span>
+        </a>
+      </div>
+      """
+      if webauthn_provider is not None
+      else ""
     }
     {
       """
@@ -328,6 +354,60 @@ def render_forgot_password_page(
         <a href="signin">Sign In</a>
       </div>
     </form>''',
+    )
+
+
+def render_webauthn_register_page(
+    *,
+    base_path: str,
+    provider_name: str,
+    challenge: str,
+    error_message: Optional[str] = None,
+    # config
+    redirect_to: str,
+    redirect_to_on_signup: Optional[str] = None,
+    app_name: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
+    brand_color: Optional[str] = None,
+):
+    return _render_base_page(
+        title=f'Sign up {f" to {app_name}" if app_name else ""}',
+        logo_url=logo_url,
+        dark_logo_url=dark_logo_url,
+        brand_color=brand_color,
+        cleanup_search_params=['error', 'email'],
+        content=f'''
+    <form id="register-form" class="container">
+      <h1>
+        <span>
+          Sign up {
+            f' to</span> {html.escape(app_name)}' if app_name else '</span>'
+          }
+      </h1>
+
+      {_render_error_message(error_message)}
+
+      <input type="hidden" name="provider" value="{provider_name}" />
+      <input type="hidden" name="challenge" value="{challenge}" />
+      <input type="hidden" name="redirect_on_failure" value="{
+          base_path}/ui/webauthn?challenge={challenge}" />
+      <input type="hidden" name="redirect_to" value="{
+          redirect_to_on_signup or redirect_to}" />
+      <input type="hidden" name="verify_url" value="{base_path}/ui/verify" />
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required />
+
+      <div class="action-buttons">
+        {_render_button("Sign Up")}
+      </div>
+
+      <div class="bottom-note">
+        Back to <a href="signup">Sign Up</a>
+      </div>
+    </form>
+    <script type="module" src="./_static/webauthn-register.js"></script>''',
     )
 
 
@@ -623,9 +703,16 @@ def _render_success_message(success_message: str):
         </div>'''
 
 
-def _render_button(text: str):
+def _render_button(
+    text: str,
+    *,
+    id: Optional[str] = None,
+):
     return f'''
-    <button type="submit">
+    <button
+        type="submit"
+        {f'id="{id}"' if id else ''}
+    >
         <span>{text}</span>
         <svg
           xmlns="http://www.w3.org/2000/svg"
