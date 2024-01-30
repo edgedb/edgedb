@@ -32,10 +32,10 @@ def compute_projection(cursor: sqlite3.Cursor,
         property_tp = property_tp_row[0]
         if property_tp == "INT":
             cursor.execute(f"SELECT int_value FROM \"{table_name}\" WHERE id=?", (id,))
-            return MultiSetVal([IntVal(row[0]) for row in cursor.fetchall()])
+            return e.ResultMultiSetVal([IntVal(row[0]) for row in cursor.fetchall()])
         elif property_tp == "STRING":
             cursor.execute(f"SELECT string_value FROM \"{table_name}\" WHERE id=?", (id,))
-            return MultiSetVal([StrVal(row[0]) for row in cursor.fetchall()])
+            return e.ResultMultiSetVal([StrVal(row[0]) for row in cursor.fetchall()])
         elif property_tp == "LINK":
             cursor.execute(f"SELECT link_value FROM \"{table_name}\" WHERE id=?", (id,))
             targets : List[Val]= []
@@ -61,14 +61,14 @@ def compute_projection(cursor: sqlite3.Cursor,
                         if link_property_tp == "INT":
                             cursor.execute(f"SELECT int_value FROM \"{link_property_table_name}\" WHERE source_id=? AND target_id=?", 
                                             (link_source_id, link_target_id))
-                            link_props[LinkPropLabel(link_property_name)] = (Visible(), MultiSetVal([IntVal(row[0]) for row in cursor.fetchall()]))
+                            link_props[LinkPropLabel(link_property_name)] = (Visible(), e.ResultMultiSetVal([IntVal(row[0]) for row in cursor.fetchall()]))
                         elif link_property_tp == "STRING":
                             cursor.execute(f"SELECT string_value FROM \"{link_property_table_name}\" WHERE source_id=? AND target_id=?",
                                                 (link_source_id, link_target_id))
-                            link_props[LinkPropLabel(link_property_name)] = (Visible(), MultiSetVal([StrVal(row[0]) for row in cursor.fetchall()]))
+                            link_props[LinkPropLabel(link_property_name)] = (Visible(), e.ResultMultiSetVal([StrVal(row[0]) for row in cursor.fetchall()]))
 
                 targets.append(RefVal(link_target_id, ObjectVal(link_props)))
-            return MultiSetVal(targets)
+            return e.ResultMultiSetVal(targets)
         else:
             raise ValueError(f"Unknown property type {property_tp}")
 
@@ -202,14 +202,14 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                             raise ValueError("Link property cannot be a link property")
                         case "INT":
                             self.cursor.execute(f"SELECT int_value FROM \"{link_property_table}\" WHERE source_id=? AND target_id=?", (source_id, target_id))
-                            link_props[LinkPropLabel(property_name)] = (Visible(), MultiSetVal([IntVal(row[0]) for row in self.cursor.fetchall()]))
+                            link_props[LinkPropLabel(property_name)] = (Visible(), e.ResultMultiSetVal([IntVal(row[0]) for row in self.cursor.fetchall()]))
                         case "STRING":
                             self.cursor.execute(f"SELECT string_value FROM \"{link_property_table}\" WHERE source_id=? AND target_id=?", (source_id, target_id))
-                            link_props[LinkPropLabel(property_name)] = (Visible(), MultiSetVal([StrVal(row[0]) for row in self.cursor.fetchall()]))
+                            link_props[LinkPropLabel(property_name)] = (Visible(), e.ResultMultiSetVal([StrVal(row[0]) for row in self.cursor.fetchall()]))
                         case _:
                             raise ValueError(f"Unknown property type {link_property_type}")
                 result.append(RefVal(refid=source_id, val=ObjectVal(link_props)))
-        return MultiSetVal(result)
+        return e.ResultMultiSetVal(result)
 
     def delete(self, id: EdgeID) -> None:
         self.to_delete.append(id)

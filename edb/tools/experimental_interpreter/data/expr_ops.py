@@ -485,9 +485,9 @@ def object_dedup(val: Sequence[Val]) -> Sequence[Val]:
 #     targets = [get_link_target(v) if isinstance(
 #         v, LinkPropVal) else v for v in val.vals]
 #     if all(val_is_object(t) for t in targets):
-#         return MultiSetVal(object_dedup(targets))
+#         return e.ResultMultiSetVal(object_dedup(targets))
 #     elif all(val_is_primitive(t) for t in targets):
-#         return MultiSetVal(targets)
+#         return e.ResultMultiSetVal(targets)
 #     else:
 #         raise ValueError("link targets not uniform", val)
 

@@ -85,7 +85,7 @@ def apply_shape(ctx: EvalEnv, db : EdgeDatabaseInterface, shape: ShapeExpr, valu
             else:
                 pass
         for (key, shape_elem) in shape.shape.items():
-            new_ctx, shape_body = ctx_extend(ctx, shape_elem, MultiSetVal([value]))
+            new_ctx, shape_body = ctx_extend(ctx, shape_elem, e.ResultMultiSetVal([value]))
             new_val: MultiSetVal = eval_expr(new_ctx, db, shape_body)
             result = { **result, key: (Visible(), (new_val))}
 
@@ -118,7 +118,7 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
             elif isinstance(label, StrLabel):
                 label_str = label.label
                 if label_str == "id":
-                    return e.MultiSetVal([e.UuidVal(id)])
+                    return e.e.ResultMultiSetVal([e.UuidVal(id)])
                 else:
                     return db.project(id, label_str)
             else:
@@ -127,10 +127,10 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
             match label:
                 case StrLabel(l):
                     if l in dic.keys():
-                        return MultiSetVal([dic[l]])
+                        return e.ResultMultiSetVal([dic[l]])
                     else:
                         if l.isdigit() and int(l) < len(dic.keys()):
-                            return MultiSetVal([dic[list(dic.keys())[int(l)]]])
+                            return e.ResultMultiSetVal([dic[list(dic.keys())[int(l)]]])
                         else:
                             raise ValueError("key DNE")
             raise ValueError("Label not Str")
@@ -138,7 +138,7 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
             match label:
                 case StrLabel(l):
                     if l.isdigit() and int(l) < len(arr):
-                        return MultiSetVal([arr[int(l)]])
+                        return e.ResultMultiSetVal([arr[int(l)]])
                     else:
                         raise ValueError("key DNE")
             raise ValueError("Label not Str")
@@ -169,7 +169,7 @@ def make_invisible(val : MultiSetVal) -> MultiSetVal:
                 result = [*result, RefVal(refid=id, val=ObjectVal({k: (Invisible(), v) for k, (_, v) in dictval.val.items()}))]
             case _:
                 result = [*result, v]
-    return MultiSetVal(result)
+    return e.ResultMultiSetVal(result)
 
 
 class EvaluationLogsWrapper:
@@ -191,7 +191,7 @@ class EvaluationLogsWrapper:
                 parent = self.logs
                 [parent := parent[i] for i in self.indexes]
                 self.indexes.append(len(parent))
-                parent.append([(expr, MultiSetVal([StrVal("NOT AVAILABLE!!!")]))])
+                parent.append([(expr, e.ResultMultiSetVal([StrVal("NOT AVAILABLE!!!")]))])
                 rt_val = self.original_eval_expr(ctx, db, expr)
                 parent[self.indexes[-1]][0] = (parent[self.indexes[-1]][0][0],
                                                rt_val)
@@ -210,7 +210,7 @@ eval_logs_wrapper = EvaluationLogsWrapper()
 
 def do_conditional_dedup(val: MultiSetVal) -> MultiSetVal:
     if all(val_is_ref_val(v) for v in val.vals):
-        return MultiSetVal(object_dedup(val.vals))
+        return e.ResultMultiSetVal(object_dedup(val.vals))
     # elif all(val_is_primitive(v) for v in val.vals):
     #     return val
     # else:
@@ -224,16 +224,16 @@ def eval_expr(ctx: EvalEnv,
                 expr: Expr) -> MultiSetVal:
     match expr:
         case ScalarVal(_):
-            return MultiSetVal([expr])
+            return e.ResultMultiSetVal([expr])
         case e.FreeObjectExpr():
-            return MultiSetVal(vals=[e.RefVal(next_id(), val=e.ObjectVal(val={}))])
+            return e.ResultMultiSetVal(vals=[e.RefVal(next_id(), val=e.ObjectVal(val={}))])
         case e.ConditionalDedupExpr(expr=inner):
             inner_val = eval_expr(ctx, db, inner)
             return do_conditional_dedup(inner_val)
             # if all(val_is_primitive(v) for v in inner_val.vals):
             #     return inner_val
             # elif all(val_is_ref_val(v) for v in inner_val.vals):
-            #     return MultiSetVal(object_dedup(inner_val.vals))
+            #     return e.ResultMultiSetVal(object_dedup(inner_val.vals))
             # else:
             #     raise ValueError("Expecting all references or all primitives")
         case InsertExpr(tname, arg):
@@ -246,7 +246,7 @@ def eval_expr(ctx: EvalEnv,
                 new_object = coerce_to_storage(
                     arg_object, tops.get_storage_tp(type_def))
                 db.update(id, {k : v  for k, v in new_object.items() })
-                return MultiSetVal([RefVal(id, ObjectVal({}))])
+                return e.ResultMultiSetVal([RefVal(id, ObjectVal({}))])
             else:
                 raise ValueError("Cannot insert into scalar types")
             # inserts return empty dict
@@ -259,7 +259,7 @@ def eval_expr(ctx: EvalEnv,
                         db, 
                         filter_body)
                 for select_i in selected.vals
-                for new_ctx, filter_body in [ctx_extend(ctx, filter, MultiSetVal([select_i]))]]
+                for new_ctx, filter_body in [ctx_extend(ctx, filter, e.ResultMultiSetVal([select_i]))]]
             after_condition: Sequence[Val] = [
                 select_i
                 for (select_i, condition) in zip(selected.vals, conditions)
@@ -268,15 +268,15 @@ def eval_expr(ctx: EvalEnv,
             for after_condition_i in after_condition:
                 current : Dict[str, Val] = {}
                 for (l, o) in order.items():
-                    new_ctx, o_body = ctx_extend(ctx, o, MultiSetVal([after_condition_i]))
+                    new_ctx, o_body = ctx_extend(ctx, o, e.ResultMultiSetVal([after_condition_i]))
                     current = {**current, l: eval_expr(new_ctx, db, o_body)}
                 orders = [*orders, current]
             after_order = eval_order_by(after_condition, orders)
-            return MultiSetVal(after_order)
+            return e.ResultMultiSetVal(after_order)
         case ShapedExprExpr(expr=subject, shape=shape):
             subjectv = eval_expr(ctx, db, subject)
             after_shape: Sequence[Val] = [apply_shape(ctx, db, shape, v) for v in subjectv.vals]
-            return MultiSetVal(after_shape)
+            return e.ResultMultiSetVal(after_shape)
         case FreeVarExpr(var=name):
             if name in ctx.keys():
                 # binder needs to be invisible when selected
@@ -287,7 +287,7 @@ def eval_expr(ctx: EvalEnv,
                 all_ids: Sequence[Val] = [
                     RefVal(id, ObjectVal({}))
                     for id in db.query_ids_for_a_type(expr)]
-                return MultiSetVal(all_ids)
+                return e.ResultMultiSetVal(all_ids)
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):
             assert idx is not None, "overloading index must be set in type checking"
             argsv = eval_expr_list(ctx, db, args)
@@ -326,11 +326,11 @@ def eval_expr(ctx: EvalEnv,
                 for vset in argv_final:
                     body = looked_up_fun.impl
                     for i, arg in enumerate(vset):
-                        ctx, body = ctx_extend(ctx, body, MultiSetVal(arg))
+                        ctx, body = ctx_extend(ctx, body, e.ResultMultiSetVal(arg))
                     after_fun_vals = [*after_fun_vals, eval_expr(ctx, db, body)]
             else:
                 raise ValueError("Not implemented yet", looked_up_fun)
-            return MultiSetVal(after_fun_vals)
+            return e.ResultMultiSetVal(after_fun_vals)
         case ObjectProjExpr(subject=subject, label=label):
             subjectv = eval_expr(ctx, db, subject)
             projected = [
@@ -341,10 +341,10 @@ def eval_expr(ctx: EvalEnv,
             #     or label.isdigit() # do not deduplicate on tuple projection or path factoring projection
             #     #TODO : NAMED TUPLE projections should also not deduplicate
             # ): 
-            return MultiSetVal(projected)
+            return e.ResultMultiSetVal(projected)
             # else:
-            #     return do_conditional_dedup(MultiSetVal(projected))
-            # return MultiSetVal(projected)
+            #     return do_conditional_dedup(e.ResultMultiSetVal(projected))
+            # return e.ResultMultiSetVal(projected)
         case BackLinkExpr(subject=subject, label=label):
             subjectv = eval_expr(ctx, db, subject)
             # subjectv = assume_link_target(subjectv)
@@ -367,21 +367,21 @@ def eval_expr(ctx: EvalEnv,
                             after_intersect = [*after_intersect, v]
                     case _:
                         raise ValueError("Expecting References")
-            return MultiSetVal(after_intersect)
+            return e.ResultMultiSetVal(after_intersect)
         # case TypeCastExpr(tp=tp, arg=arg):
         #     argv2 = eval_expr(ctx, db, arg)
         #     casted = [type_cast(tp, v) for v in argv2.vals]
-        #     return  MultiSetVal(casted)
+        #     return  e.ResultMultiSetVal(casted)
         case e.CheckedTypeCastExpr(cast_tp=_, cast_spec=cast_spec, arg=arg):
             argv2 = eval_expr(ctx, db, arg)
             casted = [cast_spec.cast_fun(v) for v in argv2.vals]
-            return  MultiSetVal(casted)
+            return  e.ResultMultiSetVal(casted)
         case UnnamedTupleExpr(val=tuples):
             tuplesv = eval_expr_list(ctx, db, tuples)
             result_list: List[Val] = []
             for prod in itertools.product(*map_expand_multiset_val(tuplesv)):
                 result_list.append(UnnamedTupleVal(list(prod)))
-            return MultiSetVal(result_list)
+            return e.ResultMultiSetVal(result_list)
         case NamedTupleExpr(val=tuples):
             tuplesv = eval_expr_list(ctx, db, list(tuples.values()))
             result_list: List[Val] = []
@@ -389,18 +389,18 @@ def eval_expr(ctx: EvalEnv,
                 result_list.append(NamedTupleVal({k: p
                            for (k, p) in zip(tuples.keys(), prod, strict=True)})
                 )
-            return MultiSetVal(result_list)
+            return e.ResultMultiSetVal(result_list)
         case UnionExpr(left=l, right=r):
             lvals = eval_expr(ctx, db, l)
             rvals = eval_expr(ctx, db, r)
-            return MultiSetVal([*lvals.vals, *rvals.vals])
+            return e.ResultMultiSetVal([*lvals.vals, *rvals.vals])
         case ArrExpr(elems=elems):
             elemsv = eval_expr_list(ctx, db, elems)
             arr_result = [ArrVal(list(el))
                           for el in itertools.product(
                           *map_expand_multiset_val(
                               elemsv))]
-            return MultiSetVal(arr_result)
+            return e.ResultMultiSetVal(arr_result)
         case e.DeleteExpr(subject=subject):
             subjectv = eval_expr(ctx, db, subject)
             if all([val_is_ref_val(v) for v in subjectv.vals]):
@@ -422,13 +422,13 @@ def eval_expr(ctx: EvalEnv,
                         u.refid,
                         coerce_to_storage(u.val, ObjectTp(cut_tp))
                     )
-                return MultiSetVal(updated)
+                return e.ResultMultiSetVal(updated)
             else:
                 return eval_error(expr, "expecting all references")
         case MultiSetExpr(expr=elems):
             elemsv = eval_expr_list(ctx, db, elems)
             result_list = [e for el in elemsv for e in el.vals]
-            return MultiSetVal(result_list)
+            return e.ResultMultiSetVal(result_list)
         case WithExpr(bound=bound, next=next):
             boundv = eval_expr(ctx, db, bound)
             new_ctx, next_body = ctx_extend(ctx, next, boundv)
@@ -445,7 +445,7 @@ def eval_expr(ctx: EvalEnv,
             result_list = list(limit_vals(
                              offset_vals(subjectv.vals, offsetv),
                              limitv))
-            return MultiSetVal(result_list)
+            return e.ResultMultiSetVal(result_list)
         case SubqueryExpr(expr=expr):
             exprv = eval_expr(ctx, db , expr)
             return exprv
@@ -456,16 +456,16 @@ def eval_expr(ctx: EvalEnv,
             subjectv = eval_expr(ctx, db, subject)
             projected = [p for v in subjectv.vals for p in singular_proj(
                 ctx, db, v, LinkPropLabel(label)).vals]
-            return MultiSetVal(projected)
+            return e.ResultMultiSetVal(projected)
         case ForExpr(bound=bound, next=next):
             boundv = eval_expr(ctx, db, bound)
             vv = []
             for v in boundv.vals:
-                new_ctx, next_body = ctx_extend(ctx, next, MultiSetVal([v]))
+                new_ctx, next_body = ctx_extend(ctx, next, e.ResultMultiSetVal([v]))
                 nextv = eval_expr(new_ctx, db, next_body)
                 vv.append(nextv)
             result_list = [p for v in vv for p in v.vals]
-            return MultiSetVal(result_list)
+            return e.ResultMultiSetVal(result_list)
         case e.IfElseExpr(then_branch=then_branch,
                           condition=condition,
                           else_branch=else_branch):
@@ -476,19 +476,19 @@ def eval_expr(ctx: EvalEnv,
                 eval_error(condition, "condition must be a boolean")
                 for v in conditionv.vals])
             result_list = [p for v in vv2 for p in v.vals]
-            return MultiSetVal(result_list)
+            return e.ResultMultiSetVal(result_list)
         case OptionalForExpr(bound=bound, next=next):
             boundv = eval_expr(ctx, db, bound)
             if boundv.vals:
                 vv = []
                 for v in boundv.vals:
-                    new_ctx, next_body = ctx_extend(ctx, next, MultiSetVal([v]))
+                    new_ctx, next_body = ctx_extend(ctx, next, e.ResultMultiSetVal([v]))
                     nextv = eval_expr(new_ctx, db, next_body)
                     vv.append(nextv)
                 result_list = [p for v in vv for p in v.vals]
-                return MultiSetVal(result_list)
+                return e.ResultMultiSetVal(result_list)
             else:
-                new_ctx, next_body = ctx_extend(ctx, next, MultiSetVal([]))
+                new_ctx, next_body = ctx_extend(ctx, next, e.ResultMultiSetVal([]))
                 return eval_expr(new_ctx, db, next_body)
 
     raise ValueError("Not Implemented", expr)

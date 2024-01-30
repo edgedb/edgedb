@@ -69,11 +69,11 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> Dict[str, MultiSetVal]:
             "Coercion failed, object missing keys:", left_out_keys,
             "when coercing ", pp.show(val), " to ", pp.show(fmt))
     return {
-        k: (MultiSetVal(
+        k: (e.ResultMultiSetVal(
                         [make_storage_atomic(v, tp[0])
                          for v in val.val[StrLabel(k)][1].vals])
                        if StrLabel(k) in val.val.keys()
-                       else MultiSetVal([]))
+                       else e.ResultMultiSetVal([]))
         for (k, tp) in fmt.val.items()
         # if not isinstance(tp.tp, e.ComputableTp)
     }

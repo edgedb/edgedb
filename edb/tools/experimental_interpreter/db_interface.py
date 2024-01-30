@@ -155,7 +155,7 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
                                 RefVal(
                                     refid=id,
                                     val=obj_linkprop_val)]
-        return MultiSetVal(results)
+        return e.ResultMultiSetVal(results)
 
     def delete(self, id: EdgeID) -> None:
         self.to_delete.append(id)

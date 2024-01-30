@@ -280,7 +280,7 @@ def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
                                    for lbl, el in elems.items()) + ")"
         case e.ArrVal(val=arr):
             return "[" + ", ".join(show_val(el) for el in arr) + "]"
-        case e.MultiSetVal(vals=arr):
+        case e.e.ResultMultiSetVal(vals=arr):
             return "{" + ", ".join(show_val(el) for el in arr) + "}"
         case _:
             raise ValueError('Unimplemented', val)

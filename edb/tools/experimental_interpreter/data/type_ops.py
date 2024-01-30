@@ -529,7 +529,7 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
 #             case e.ComputableTp(_):
 #                 continue
 #             case _:
-#                 result[e.StrLabel(lbl)] = (e.Visible(), e.MultiSetVal([]))
+#                 result[e.StrLabel(lbl)] = (e.Visible(), e.e.ResultMultiSetVal([]))
 #     return e.ShapeExpr(val=result)
 
 
