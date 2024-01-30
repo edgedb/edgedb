@@ -26,7 +26,7 @@ Query Editor
 The query editor outwardly resembles the REPL with some auto-completion
 functionality, but is most useful when paired with the ``analyze`` keyword.
 Prepending ``analyze`` to the front of any query will display a visual
-analyzer to help you tweak the performance of your EdgeQL queries.
+analyzer to help you understand the performance of your EdgeQL queries.
 
 Query Builder
 -------------
