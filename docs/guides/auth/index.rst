@@ -292,7 +292,7 @@ to define access policies and make authenticated queries.
 Select your method for detailed configuration:
 
 .. toctree::
-    :maxdepth: 3
+    :maxdepth: 1
 
     built_in_ui
     email_password
