@@ -125,13 +125,16 @@ cdef class CompileRequest:
         self.cache_key = None
         return self
 
-    def deserialize(self, bytes data) -> CompileRequest:
+    def deserialize(
+        self, bytes data, cache_key: uuid.UUID | None = None
+    ) -> CompileRequest:
         if data[0] == 0:
             self._deserialize_v0(data)
         else:
             raise errors.UnsupportedProtocolVersionError(
                 f"unsupported compile cache: version {data[0]}"
             )
+        self.cache_key = cache_key
         return self
 
     def serialize(self) -> bytes:
@@ -274,7 +277,7 @@ cdef class CompileRequest:
         self.cache_key = uuidgen.from_bytes(buf.read_bytes(16))
 
     def __hash__(self):
-        return hash(self.cache_key)
+        return hash(self.get_cache_key())
 
     def __eq__(self, other: CompileRequest) -> bool:
-        return self.serialize() == other.serialize()
+        return self.get_cache_key() == other.get_cache_key()

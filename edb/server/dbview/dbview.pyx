@@ -86,12 +86,16 @@ cdef class CompiledQuery:
         query_unit_group: dbstate.QueryUnitGroup,
         first_extra: Optional[int]=None,
         extra_counts=(),
-        extra_blobs=()
+        extra_blobs=(),
+        serialized=None,
+        request=None,
     ):
         self.query_unit_group = query_unit_group
         self.first_extra = first_extra
         self.extra_counts = extra_counts
         self.extra_blobs = extra_blobs
+        self.serialized = serialized
+        self.request = request
 
 
 cdef class Database:
@@ -918,6 +922,7 @@ cdef class DatabaseConnectionView:
         cached_globally=False,
         use_metrics=True,
     ) -> CompiledQuery:
+        pickled_qu_group = None
         source = query_req.source
         if cached_globally:
             # WARNING: only set cached_globally to True when the query is
@@ -958,6 +963,10 @@ cdef class DatabaseConnectionView:
                 else:
                     raise
 
+            if isinstance(query_unit_group, bytes):
+                pickled_qu_group = query_unit_group
+                query_unit_group = pickle.loads(pickled_qu_group)
+
             self.check_capabilities(
                 query_unit_group.capabilities,
                 query_req.allow_capabilities,
@@ -987,6 +996,9 @@ cdef class DatabaseConnectionView:
                 self.cache_compiled_query(
                     query_req.compile_request, query_unit_group, schema_version
                 )
+        else:
+            # We don't need the serialized result if it's not cacheable
+            pickled_qu_group = None
 
         if use_metrics:
             metrics.edgeql_query_compilations.inc(
@@ -1000,12 +1012,14 @@ cdef class DatabaseConnectionView:
             first_extra=source.first_extra(),
             extra_counts=source.extra_counts(),
             extra_blobs=source.extra_blobs(),
+            serialized=pickled_qu_group,
+            request=query_req.compile_request,
         )
 
     async def _compile(
         self,
         req: rpc.CompileRequest,
-    ) -> dbstate.QueryUnitGroup:
+    ) -> dbstate.QueryUnitGroup | bytes:
         compiler_pool = self._db._index._server.get_compiler_pool()
 
         started_at = time.monotonic()
@@ -1049,11 +1063,7 @@ cdef class DatabaseConnectionView:
             )
 
         unit_group, self._last_comp_state, self._last_comp_state_id = result
-
-        if isinstance(unit_group, bytes):
-            return pickle.loads(unit_group)
-        else:
-            return unit_group
+        return unit_group
 
     cdef check_capabilities(
         self,

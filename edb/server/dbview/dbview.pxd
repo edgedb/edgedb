@@ -47,6 +47,8 @@ cdef class CompiledQuery:
     cdef public object first_extra  # Optional[int]
     cdef public object extra_counts
     cdef public object extra_blobs
+    cdef public bytes serialized
+    cdef public object request
 
 
 cdef class DatabaseIndex:

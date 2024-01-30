@@ -104,11 +104,23 @@ async def execute(
         else:
             config_ops = query_unit.config_ops
 
-            if query_unit.cache_sql:
-                # PoC
+            if compiled.serialized:
                 persist, evict = query_unit.cache_sql
-                await be_conn.sql_execute(evict)
-                await be_conn.sql_execute(persist)
+                await be_conn.sql_execute((evict, persist))
+                await be_conn.sql_fetch(
+                    b'INSERT INTO "edgedb"."_query_cache" '
+                    b'(key, schema_version, input, output) '
+                    b'VALUES ($1, $2, $3, $4) '
+                    b'ON CONFLICT (key, schema_version) DO UPDATE SET '
+                    b'input=$3, output=$4',
+                    args=(
+                        compiled.request.get_cache_key().bytes,
+                        dbv.schema_version.bytes,
+                        compiled.request.serialize(),
+                        compiled.serialized,
+                    ),
+                    use_prep_stmt=True,
+                )
             if query_unit.sql:
                 if query_unit.ddl_stmt_id:
                     ddl_ret = await be_conn.run_ddl(query_unit, state)
