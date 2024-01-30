@@ -236,6 +236,14 @@ cdef class Database:
         else:
             return old_serializer
 
+    def hydrate_cache(self, query_cache):
+        for cache_key, schema_version, out_data in query_cache:
+            self._cache_compiled_query(
+                uuidgen.from_bytes(cache_key),
+                pickle.loads(out_data),
+                uuidgen.from_bytes(schema_version),
+            )
+
     def iter_views(self):
         yield from self._views
 
@@ -924,6 +932,7 @@ cdef class DatabaseConnectionView:
     ) -> CompiledQuery:
         pickled_qu_group = None
         source = query_req.source
+        cache_key = query_req.compile_request.get_cache_key()
         if cached_globally:
             # WARNING: only set cached_globally to True when the query is
             # strictly referring to only shared stable objects in user schema
@@ -931,14 +940,12 @@ cdef class DatabaseConnectionView:
             #     YES:  select ext::auth::UIConfig { ... }
             #     NO:   select default::User { ... }
             query_unit_group = (
-                self.server.system_compile_cache.get(query_req.compile_request)
+                self.server.system_compile_cache.get(cache_key)
                 if self._query_cache_enabled
                 else None
             )
         else:
-            query_unit_group = self.lookup_compiled_query(
-                query_req.compile_request
-            )
+            query_unit_group = self.lookup_compiled_query(cache_key)
         cached = True
         if query_unit_group is None:
             # Cache miss; need to compile this query.
@@ -989,12 +996,10 @@ cdef class DatabaseConnectionView:
 
         if not cached and query_unit_group.cacheable:
             if cached_globally:
-                self.server.system_compile_cache[
-                    query_req.compile_request
-                ] = query_unit_group
+                self.server.system_compile_cache[cache_key] = query_unit_group
             else:
                 self.cache_compiled_query(
-                    query_req.compile_request, query_unit_group, schema_version
+                    cache_key, query_unit_group, schema_version
                 )
         else:
             # We don't need the serialized result if it's not cacheable

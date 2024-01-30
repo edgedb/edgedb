@@ -57,6 +57,31 @@ cdef object logger = logging.getLogger('edb.server')
 cdef object FMT_NONE = compiler.OutputFormat.NONE
 
 
+async def persist_cache(
+    be_conn: pgcon.PGConnection,
+    dbv: dbview.DatabaseConnectionView,
+    compiled: dbview.CompiledQuery,
+):
+    assert len(compiled.query_unit_group) == 1
+    query_unit = compiled.query_unit_group[0]
+    persist, evict = query_unit.cache_sql
+    await be_conn.sql_execute((evict, persist))
+    await be_conn.sql_fetch(
+        b'INSERT INTO "edgedb"."_query_cache" '
+        b'(key, schema_version, input, output) '
+        b'VALUES ($1, $2, $3, $4) '
+        b'ON CONFLICT (key, schema_version) DO UPDATE SET '
+        b'input=$3, output=$4',
+        args=(
+            compiled.request.get_cache_key().bytes,
+            dbv.schema_version.bytes,
+            compiled.request.serialize(),
+            compiled.serialized,
+        ),
+        use_prep_stmt=True,
+    )
+
+
 # TODO: can we merge execute and execute_script?
 async def execute(
     be_conn: pgcon.PGConnection,
@@ -104,23 +129,9 @@ async def execute(
         else:
             config_ops = query_unit.config_ops
 
-            if compiled.serialized:
-                persist, evict = query_unit.cache_sql
-                await be_conn.sql_execute((evict, persist))
-                await be_conn.sql_fetch(
-                    b'INSERT INTO "edgedb"."_query_cache" '
-                    b'(key, schema_version, input, output) '
-                    b'VALUES ($1, $2, $3, $4) '
-                    b'ON CONFLICT (key, schema_version) DO UPDATE SET '
-                    b'input=$3, output=$4',
-                    args=(
-                        compiled.request.get_cache_key().bytes,
-                        dbv.schema_version.bytes,
-                        compiled.request.serialize(),
-                        compiled.serialized,
-                    ),
-                    use_prep_stmt=True,
-                )
+            if compiled.serialized is not None:
+                await persist_cache(be_conn, dbv, compiled)
+
             if query_unit.sql:
                 if query_unit.ddl_stmt_id:
                     ddl_ret = await be_conn.run_ddl(query_unit, state)

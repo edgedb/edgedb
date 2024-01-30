@@ -876,6 +876,11 @@ class Tenant(ha_base.ClusterProtocol):
             db_config_json = await self._server.introspect_db_config(conn)
 
             extensions = await self._introspect_extensions(conn)
+
+            query_cache = await conn.sql_fetch(
+                b'SELECT "key", "schema_version", "output" '
+                b'FROM "edgedb"."_query_cache"'
+            )
         finally:
             self.release_pgcon(dbname, conn)
 
@@ -898,6 +903,8 @@ class Tenant(ha_base.ClusterProtocol):
             parsed_db.protocol_version,
             parsed_db.state_serializer,
         )
+        if query_cache:
+            db.hydrate_cache(query_cache)
 
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.

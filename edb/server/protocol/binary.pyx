@@ -799,6 +799,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 .set_system_config(_dbview.get_compilation_system_config())
         )
         compiled = await self._parse(query_req)
+        if compiled.serialized:
+            conn = await self.get_pgcon()
+            try:
+                await execute.persist_cache(conn, _dbview, compiled)
+            finally:
+                self.maybe_release_pgcon(conn)
 
         buf = self.make_command_data_description_msg(compiled)
 
@@ -848,7 +854,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             query_unit_group = compiled.query_unit_group
         else:
             query_unit_group = _dbview.lookup_compiled_query(
-                query_req.compile_request
+                query_req.compile_request.get_cache_key()
             )
             if query_unit_group is None:
                 if self.debug:
