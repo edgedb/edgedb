@@ -4112,3 +4112,22 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 }
             ],
         )
+
+    async def test_edgeql_scope_filter_qeq_01(self):
+        await self.assert_query_result(
+            r'''
+            select User filter .avatar ?= <Card>{} and .name = 'Bob';
+            ''',
+            [
+                {},
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select User filter .name = 'Bob' and .avatar ?= <Card>{}
+            ''',
+            [
+                {},
+            ],
+        )
