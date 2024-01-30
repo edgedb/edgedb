@@ -1788,13 +1788,16 @@ async def run_script(
     conn = new_edge_connection(server, tenant)
     await conn._start_connection(database)
     try:
-        compiled = await conn.get_dbview().parse(
-            dbview.QueryRequestInfo(
-                edgeql.Source.from_string(script),
-                conn.protocol_version,
-                output_format=FMT_NONE,
-            )
+        req = dbview.QueryRequestInfo(
+            edgeql.Source.from_string(script),
         )
+        req.compile_request = rpc.CompileRequest(server.comp_serializer)
+        req.compile_request.update(
+            req.source,
+            conn.protocol_version,
+            output_format=FMT_NONE,
+        )
+        compiled = await conn.get_dbview().parse(req)
         if len(compiled.query_unit_group) > 1:
             await conn._execute_script(compiled, b'')
         else:
