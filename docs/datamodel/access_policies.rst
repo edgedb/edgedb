@@ -392,10 +392,13 @@ sub-policies: ``update read`` and ``update write``.
 
 - ``update read``: This policy restricts *which* objects can be updated. It
   runs *pre-update*; that is, this policy is executed before the updates have
-  been applied.
+  been applied. As a result, an empty set is returned on an ``update read``
+  when a query lacks access to perform the operation.
 - ``update write``: This policy restricts *how* you update the objects; you
-  can think of it as a *post-update* validity check. This could be used to
-  prevent a ``User`` from transferring a ``BlogPost`` to another ``User``.
+  can think of it as a *post-update* validity check. As a result, an error
+  is returned on an ``update write`` when a query lacks access to perform
+  the operation. Preventing a ``User`` from transferring a ``BlogPost`` to
+  another ``User`` is one example of an ``update write`` access policy.
 
 Finally, there's an umbrella policy that can be used as a shorthand for all
 the others.
@@ -530,8 +533,11 @@ policy, you will get a generic error message.
 
 .. note::
 
-    When attempting a ``select`` queries, you simply won't get the data that
-    is being restricted by the access policy.
+    Restricted access is represented either as an error message or an empty
+    set, depending on the filtering order of the operation. The operations
+    ``select``, ``delete``, or ``update read`` filter up front, and thus you
+    simply won't get the data that is being restricted. Other operations
+    (``insert`` and ``update write``) will return an error message.
 
 If you have multiple access policies, it can be useful to know which policy is
 restricting your query and provide a friendly error message. You can do this
