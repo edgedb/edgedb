@@ -75,6 +75,7 @@ ALTER TYPE cfg::AbstractConfig {
 
     CREATE PROPERTY __internal_testmode -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
         SET default := false;
     };
 
