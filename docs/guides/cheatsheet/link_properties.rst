@@ -193,6 +193,26 @@ object that is being inserted in the same query, along with a link property
     )
   }
 
+Similarly, ``with`` can be used to capture an expression returning an
+object type, after which a link property can be added when linking it to
+another object type:
+
+.. code-block:: edgeql
+
+  with
+  _friends := (
+    insert Person {
+     name := "Alice"
+    } unless conflict on .name
+    else (select Person filter .name = "Alice" limit 1 )
+  )
+  insert Person {
+    name := "Bob",
+    friends := _friends {
+      @strength := 3.14
+    }
+  };
+
 Updating
 --------
 
