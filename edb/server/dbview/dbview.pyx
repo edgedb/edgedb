@@ -71,55 +71,11 @@ cdef class QueryRequestInfo:
     def __cinit__(
         self,
         source: edgeql.Source,
-        protocol_version: tuple,
         *,
-        output_format: compiler.OutputFormat = compiler.OutputFormat.BINARY,
-        input_format: compiler.InputFormat = compiler.InputFormat.BINARY,
-        expect_one: bint = False,
-        implicit_limit: int = 0,
-        inline_typeids: bint = False,
-        inline_typenames: bint = False,
-        inline_objectids: bint = True,
         allow_capabilities: uint64_t = <uint64_t>compiler.Capability.ALL,
     ):
         self.source = source
-        self.protocol_version = protocol_version
-        self.output_format = output_format
-        self.input_format = input_format
-        self.expect_one = expect_one
-        self.implicit_limit = implicit_limit
-        self.inline_typeids = inline_typeids
-        self.inline_typenames = inline_typenames
-        self.inline_objectids = inline_objectids
         self.allow_capabilities = allow_capabilities
-
-        self.cached_hash = hash((
-            self.source.cache_key(),
-            self.protocol_version,
-            self.output_format,
-            self.input_format,
-            self.expect_one,
-            self.implicit_limit,
-            self.inline_typeids,
-            self.inline_typenames,
-            self.inline_objectids,
-        ))
-
-    def __hash__(self):
-        return self.cached_hash
-
-    def __eq__(self, other: QueryRequestInfo) -> bool:
-        return (
-            self.source.cache_key() == other.source.cache_key() and
-            self.protocol_version == other.protocol_version and
-            self.output_format == other.output_format and
-            self.input_format == other.input_format and
-            self.expect_one == other.expect_one and
-            self.implicit_limit == other.implicit_limit and
-            self.inline_typeids == other.inline_typeids and
-            self.inline_typenames == other.inline_typenames and
-            self.inline_objectids == other.inline_objectids
-        )
 
 
 @cython.final
@@ -722,12 +678,6 @@ cdef class DatabaseConnectionView:
         assert query_unit_group.cacheable
 
         if not self._in_tx_with_ddl:
-            key = (
-                key,
-                self.get_modaliases(),
-                self.get_session_config(),
-                self.get_compilation_system_config(),
-            )
             self._db._cache_compiled_query(
                 key, query_unit_group, schema_version
             )
@@ -738,12 +688,6 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_ddl):
             return None
 
-        key = (
-            key,
-            self.get_modaliases(),
-            self.get_session_config(),
-            self.get_compilation_system_config(),
-        )
         query_unit_group, qu_ver = self._db._eql_to_compiled.get(
             key, DICTDEFAULT)
         if query_unit_group is not None and qu_ver != self._db.schema_version:
@@ -982,12 +926,14 @@ cdef class DatabaseConnectionView:
             #     YES:  select ext::auth::UIConfig { ... }
             #     NO:   select default::User { ... }
             query_unit_group = (
-                self.server.system_compile_cache.get(query_req)
+                self.server.system_compile_cache.get(query_req.compile_request)
                 if self._query_cache_enabled
                 else None
             )
         else:
-            query_unit_group = self.lookup_compiled_query(query_req)
+            query_unit_group = self.lookup_compiled_query(
+                query_req.compile_request
+            )
         cached = True
         if query_unit_group is None:
             # Cache miss; need to compile this query.
@@ -995,7 +941,9 @@ cdef class DatabaseConnectionView:
             schema_version = self._db.schema_version
 
             try:
-                query_unit_group = await self._compile(query_req)
+                query_unit_group = await self._compile(
+                    query_req.compile_request
+                )
             except (errors.EdgeQLSyntaxError, errors.InternalServerError):
                 raise
             except errors.EdgeDBError:
@@ -1032,10 +980,12 @@ cdef class DatabaseConnectionView:
 
         if not cached and query_unit_group.cacheable:
             if cached_globally:
-                self.server.system_compile_cache[query_req] = query_unit_group
+                self.server.system_compile_cache[
+                    query_req.compile_request
+                ] = query_unit_group
             else:
                 self.cache_compiled_query(
-                    query_req, query_unit_group, schema_version
+                    query_req.compile_request, query_unit_group, schema_version
                 )
 
         if use_metrics:
@@ -1054,7 +1004,7 @@ cdef class DatabaseConnectionView:
 
     async def _compile(
         self,
-        query_req: QueryRequestInfo,
+        req: rpc.CompileRequest,
     ) -> dbstate.QueryUnitGroup:
         compiler_pool = self._db._index._server.get_compiler_pool()
 
@@ -1065,15 +1015,15 @@ cdef class DatabaseConnectionView:
                     self.txid,
                     self._last_comp_state,
                     self._last_comp_state_id,
-                    query_req.source,
-                    query_req.output_format,
-                    query_req.expect_one,
-                    query_req.implicit_limit,
-                    query_req.inline_typeids,
-                    query_req.inline_typenames,
+                    req.query,
+                    req.output_format,
+                    req.expect_one,
+                    req.implicit_limit,
+                    req.inline_typeids,
+                    req.inline_typenames,
                     self._protocol_version,
-                    query_req.inline_objectids,
-                    query_req.input_format is compiler.InputFormat.JSON,
+                    req.inline_objectids,
+                    req.json_parameters,
                     self.in_tx_error(),
                 )
             else:
@@ -1084,17 +1034,7 @@ cdef class DatabaseConnectionView:
                     self.reflection_cache,
                     self.get_database_config(),
                     self.get_compilation_system_config(),
-                    query_req.source,
-                    self.get_modaliases(),
-                    self.get_session_config(),
-                    query_req.output_format,
-                    query_req.expect_one,
-                    query_req.implicit_limit,
-                    query_req.inline_typeids,
-                    query_req.inline_typenames,
-                    self._protocol_version,
-                    query_req.inline_objectids,
-                    query_req.input_format is compiler.InputFormat.JSON,
+                    req.serialize(),
                     client_id=self.tenant.client_id,
                 )
         finally:
@@ -1105,7 +1045,10 @@ cdef class DatabaseConnectionView:
 
         unit_group, self._last_comp_state, self._last_comp_state_id = result
 
-        return unit_group
+        if isinstance(unit_group, bytes):
+            return pickle.loads(unit_group)
+        else:
+            return unit_group
 
     cdef check_capabilities(
         self,

@@ -349,6 +349,8 @@ class QueryUnit:
 @dataclasses.dataclass
 class QueryUnitGroup:
 
+    cache_key: Optional[uuid.UUID] = None
+
     # All capabilities used by any query units in this group
     capabilities: enums.Capability = enums.Capability(0)
 

@@ -84,6 +84,7 @@ from . import explain
 from . import sertypes
 from . import status
 from . import ddl
+from . import rpc
 
 if TYPE_CHECKING:
     from edb.pgsql import metaschema
@@ -127,6 +128,7 @@ class CompileContext:
     dump_restore_mode: bool = False
     notebook: bool = False
     persistent_cache: bool = False
+    cache_key: Optional[uuid.UUID] = None
 
     def _assert_not_in_migration_block(
         self,
@@ -396,6 +398,10 @@ class CompilerState:
         return sertypes.StateSerializerFactory(
             self.std_schema, self.config_spec
         )
+
+    @functools.cached_property
+    def request_serializer(self) -> sertypes.CompilationConfigSerializer:
+        return self.state_serializer_factory.make_compilation()
 
 
 class Compiler:
@@ -813,6 +819,45 @@ class Compiler:
 
         return sql_units
 
+    def compile_request(
+        self,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
+        reflection_cache: immutables.Map[str, Tuple[str, ...]],
+        database_config: Optional[immutables.Map[str, config.SettingValue]],
+        system_config: Optional[immutables.Map[str, config.SettingValue]],
+        serialized_request: bytes,
+    ) -> Tuple[bytes, Optional[dbstate.CompilerConnectionState]]:
+        request = rpc.CompileRequest(self.state.request_serializer)
+        request.deserialize(serialized_request)
+
+        source: edgeql.Source
+        if request.normalized:
+            source = edgeql.NormalizedSource.from_string(request.query)
+        else:
+            source = edgeql.Source.from_string(request.query)
+
+        units, cstate = self.compile(
+            user_schema,
+            global_schema,
+            reflection_cache,
+            database_config,
+            system_config,
+            source,
+            request.modaliases,
+            request.session_config,
+            request.output_format,
+            request.expect_one,
+            request.implicit_limit,
+            request.inline_typeids,
+            request.inline_typenames,
+            request.protocol_version,
+            request.inline_objectids,
+            request.json_parameters,
+            request.get_cache_key(),
+        )
+        return pickle.dumps(units), cstate
+
     def compile(
         self,
         user_schema: s_schema.Schema,
@@ -831,6 +876,7 @@ class Compiler:
         protocol_version: defines.ProtocolVersion,
         inline_objectids: bool = True,
         json_parameters: bool = False,
+        cache_key: Optional[uuid.UUID] = None,
     ) -> Tuple[dbstate.QueryUnitGroup,
                Optional[dbstate.CompilerConnectionState]]:
 
@@ -869,6 +915,7 @@ class Compiler:
             source=source,
             protocol_version=protocol_version,
             persistent_cache=True,
+            cache_key=cache_key,
         )
 
         unit_group = compile(ctx=ctx, source=source)
@@ -1025,6 +1072,11 @@ class Compiler:
             global_schema,
             protocol_version,
         )
+
+    def make_compilation_config_serializer(
+        self
+    ) -> sertypes.CompilationConfigSerializer:
+        return self.state.request_serializer
 
     def describe_database_dump(
         self,
@@ -1749,8 +1801,8 @@ def _compile_ql_query(
 
     cache_sql = None
     if use_persistent_cache:
-
-        key = hashlib.sha1(sql_text.encode(defines.EDGEDB_ENCODING)).hexdigest()
+        assert ctx.cache_key is not None
+        key = ctx.cache_key.hex
         func = pg_dbops.Function(
             name=('edgedb', f'__qh_{key}'),
             args=[(None, arg) for arg in sql_res.detached_params or []],
@@ -2429,7 +2481,7 @@ def _try_compile(
     if not len(statements):  # pragma: no cover
         raise errors.ProtocolError('nothing to compile')
 
-    rv = dbstate.QueryUnitGroup()
+    rv = dbstate.QueryUnitGroup(cache_key=ctx.cache_key)
 
     is_script = statements_len > 1
     script_info = None

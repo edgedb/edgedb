@@ -1635,20 +1635,35 @@ class StateSerializerFactory:
         schema, config_type = derive_alias(
             schema, free_obj, 'state_config'
         )
-        config_shape: list[tuple[str, s_types.Type, enums.Cardinality]] = []
+        config_shape: list[InputShapeElement] = []
+
+        # Build type descriptors and codecs for compiler RPC
+        # comp_config := cfg::Config { comp_cfg1, comp_cfg2, ... }
+        schema, self._comp_config_type = derive_alias(
+            schema, free_obj, 'comp_config'
+        )
+        self._comp_config_shape: list[InputShapeElement] = []
+
+        def add_to_shape(
+            setting: config.Setting, shape: list[InputShapeElement]
+        ) -> None:
+            setting_type_name = setting.schema_type_name
+            assert setting_type_name is not None
+            setting_type = schema.get(setting_type_name, type=s_types.Type)
+            shape.append(
+                (
+                    setting.name,
+                    setting_type,
+                    enums.Cardinality.MANY if setting.set_of else
+                    enums.Cardinality.AT_MOST_ONE,
+                )
+            )
 
         for setting in config_spec.values():
             if not setting.system:
-                setting_type_name = setting.schema_type_name
-                setting_type = schema.get(setting_type_name, type=s_types.Type)
-                config_shape.append(
-                    (
-                        setting.name,
-                        setting_type,
-                        enums.Cardinality.MANY if setting.set_of else
-                        enums.Cardinality.AT_MOST_ONE,
-                    )
-                )
+                add_to_shape(setting, config_shape)
+            if setting.affects_compilation:
+                add_to_shape(setting, self._comp_config_shape)
 
         self._input_shapes: immutables.Map[
             s_types.Type,
@@ -1720,25 +1735,39 @@ class StateSerializerFactory:
             type_id, type_data, global_reps, protocol_version
         )
 
+    def make_compilation(self) -> CompilationConfigSerializer:
+        ctx = Context(
+            schema=self._schema,
+            protocol_version=edbdef.CURRENT_PROTOCOL,
+        )
+        type_id = describe_input_shape(
+            self._comp_config_type,
+            {self._comp_config_type: self._comp_config_shape},
+            ctx=ctx
+        )
+        type_data = b''.join(ctx.buffer)
+        return CompilationConfigSerializer(
+            type_id,
+            type_data,
+            edbdef.CURRENT_PROTOCOL
+        )
 
-class StateSerializer:
+
+class BaseSerializer:
     def __init__(
         self,
         type_id: uuid.UUID,
         type_data: bytes,
-        global_reps: dict[str, object],
         protocol_version: edbdef.ProtocolVersion,
-    ) -> None:
+    ):
         self._type_id = type_id
         self._type_data = type_data
-        self._global_reps = global_reps
         self._protocol_version = protocol_version
 
     @functools.cached_property
-    def _codec(self) -> TypeDesc:
+    def _codec(self) -> InputShapeDesc:
         codec = parse(self._type_data, self._protocol_version)
         assert isinstance(codec, InputShapeDesc)
-        codec.fields['globals'][1].__dict__['data_raw'] = True
         return codec
 
     @property
@@ -1754,11 +1783,33 @@ class StateSerializer:
     def decode(self, state: bytes) -> Any:
         return self._codec.decode(state)
 
+
+class StateSerializer(BaseSerializer):
+    def __init__(
+        self,
+        type_id: uuid.UUID,
+        type_data: bytes,
+        global_reps: dict[str, object],
+        protocol_version: edbdef.ProtocolVersion,
+    ) -> None:
+        super().__init__(type_id, type_data, protocol_version)
+        self._global_reps = global_reps
+
+    @functools.cached_property
+    def _codec(self) -> InputShapeDesc:
+        codec = super()._codec
+        codec.fields['globals'][1].__dict__['data_raw'] = True
+        return codec
+
     def get_global_type_rep(
         self,
         global_name: str,
     ) -> Optional[object]:
         return self._global_reps.get(global_name)
+
+
+class CompilationConfigSerializer(BaseSerializer):
+    pass
 
 
 def derive_alias(

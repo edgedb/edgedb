@@ -195,7 +195,7 @@ def compile(
 ):
     client_schema = clients[client_id]
     db = client_schema.dbs[dbname]
-    units, cstate = COMPILER.compile(
+    units, cstate = COMPILER.compile_request(
         db.user_schema,
         client_schema.global_schema,
         db.reflection_cache,

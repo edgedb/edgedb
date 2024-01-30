@@ -21,6 +21,8 @@ cimport cython
 
 from libc.stdint cimport uint64_t
 
+from edb.server.compiler cimport rpc
+
 cdef DEFAULT_STATE
 
 cpdef enum SideEffects:
@@ -35,17 +37,8 @@ cpdef enum SideEffects:
 @cython.final
 cdef class QueryRequestInfo:
     cdef public object source  # edgeql.Source
-    cdef public tuple protocol_version
-    cdef public object output_format
-    cdef public object input_format
-    cdef public bint expect_one
-    cdef public int implicit_limit
-    cdef public bint inline_typeids
-    cdef public bint inline_typenames
-    cdef public bint inline_objectids
     cdef public uint64_t allow_capabilities
-
-    cdef int cached_hash
+    cdef public rpc.CompileRequest compile_request
 
 
 @cython.final
