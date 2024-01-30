@@ -593,9 +593,6 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             ],
         }
 
-        from edb.common.markup import dump
-        dump(res['fine_grained'], marker='test_edgeql_explain.py:546')
-
         self.assert_plan(res['fine_grained'], shape)
 
     async def test_edgeql_explain_computed_backlink_01(self):
