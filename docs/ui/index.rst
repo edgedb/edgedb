@@ -34,15 +34,86 @@ or set the ``EDGEDB_SERVER_ADMIN_UI`` :ref:`environment variable
 <ref_reference_envvar_admin_ui>` to ``enabled``.
 
 The UI has three similar pages that each allow users to query the database:
-the REPL, the editor, and the data explorer.
+the REPL, the editor, and the data explorer. Which one to use can generally
+be decided based on your use case.
 
-Outright new users to EdgeDB who need to query or work with objects in a
-database will find the data explorer tab the easiest to use, as it allows
-simple point-and-click access to objects without using any EdgeQL. The next
-easiest page to use is the query builder inside the Editor tab, which does
-use EdgeQL but is also point-and-click as it walks users through every step
-of a query. The REPL is the most advanced tab in the UI as it requires the
-user to be able to compose queries in EdgeQL.
+The *data explorer* offers simple point-and-click access to objects without
+needing any EdgeQL, making it the recommended for:
+
+- Outright new users to EdgeDB who lack a technical background or the time
+  to familiarize themself with EdgeQL,
+- Existing users of EdgeDB looking to "walk" the database's objects without
+  needing to construct a new query each time.
+
+The Editor page's *query builder* is recommended for:
+
+- Users who are learning EdgeQL but still lacking the muscle memory to compose
+  queries on the fly,
+- Users querying objects with a large number of properties or links, as the
+  query builder displays all properties and links by default. This makes
+  visualizing an object's structure easier compared to using a command like
+  ``describe type <TypeName>`` to see its internals.
+
+The Editor page's *query editor* is recommended for:
+
+- Users experimenting with various raw queries who want quick visual
+  point-and-click access to past queries in order to call them up again
+  and refine them.
+
+The UI's REPL is recommended for:
+
+- Users comfortable with EdgeQL.
+
+Additionally, users who spend a lot of time comparing raw queries may also
+wish to give the CLI's REPL a try. A general rule of thumb is that the
+UI's REPL provides a more slicker experience and more verbose output, while
+the CLI's REPL is a more performant tool that usually returns query results
+instantaneously.
+
+For example, the output from an object type in the UI's REPL will show more
+information on a scalar object's type name:
+
+.. code-block::
+
+  # CLI REPL output
+  default::Sailor {
+    id: f0b4aaf0-be4c-11ee-b84b-6b87ec260333,
+    cents: 0,
+    dollars: 0,
+    pence: 149,
+    pounds: 14,
+    shillings: 28,
+    total_cents: 0,
+    total_pence: 4069,
+    approx_wealth_in_pounds: 17,
+  },
+
+  # UI REPL output
+  default::Sailor {
+    id: <uuid>'f0b4aaf0-be4c-11ee-b84b-6b87ec260333',
+    cents: <default::Money>0,
+    dollars: <default::Money>0,
+    pence: <default::Money>149,
+    pounds: <default::Money>14,
+    shillings: <default::Money>28,
+    total_cents: 0,
+    total_pence: 4069,
+    approx_wealth_in_pounds: 17,
+  },
+
+One more example of CLI vs. UI output, showing a user-defined function:
+
+.. code-block::
+
+  # CLI REPL output
+  'function default::get_url() ->  std::str using
+  (<std::str>\'https://geohack.toolforge.org/geohack.php?params=\');'}
+
+  # UI REPL output
+  function default::get_url() -> std::str {
+  volatility := 'Immutable';
+  using (<std::str>'https://geohack.toolforge.org/geohack.php?params=');
+  }
 
 .. toctree::
   :maxdepth: 1
