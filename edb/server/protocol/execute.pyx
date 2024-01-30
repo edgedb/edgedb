@@ -80,7 +80,13 @@ async def persist_cache(
         ),
         use_prep_stmt=True,
     )
-
+    dbv.tenant.create_task(
+        dbv.tenant.signal_sysevent(
+            'query-cache-changes',
+            dbname=dbv.dbname,
+        ),
+        interruptable=False,
+    )
 
 # TODO: can we merge execute and execute_script?
 async def execute(

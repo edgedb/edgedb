@@ -811,7 +811,9 @@ class Tenant(ha_base.ClusterProtocol):
 
         return extensions
 
-    async def introspect_db(self, dbname: str) -> None:
+    async def introspect_db(
+        self, dbname: str, hydrate_cache: bool = False
+    ) -> None:
         """Use this method to (re-)introspect a DB.
 
         If the DB is already registered in self._dbindex, its
@@ -877,10 +879,12 @@ class Tenant(ha_base.ClusterProtocol):
 
             extensions = await self._introspect_extensions(conn)
 
-            query_cache = await conn.sql_fetch(
-                b'SELECT "key", "schema_version", "output" '
-                b'FROM "edgedb"."_query_cache"'
-            )
+            query_cache: list[tuple[bytes, ...]] | None = None
+            if hydrate_cache:
+                query_cache = await conn.sql_fetch(
+                    b'SELECT "key", "schema_version", "output" '
+                    b'FROM "edgedb"."_query_cache"'
+                )
         finally:
             self.release_pgcon(dbname, conn)
 
@@ -1384,6 +1388,41 @@ class Tenant(ha_base.ClusterProtocol):
             except Exception:
                 metrics.background_errors.inc(
                     1.0, self._instance_name, "on_global_schema_change"
+                )
+                raise
+
+        self.create_task(task(), interruptable=True)
+
+    async def _load_query_cache(
+        self, conn: pgcon.PGConnection
+    ) -> list[tuple[bytes, ...]] | None:
+        return await conn.sql_fetch(
+            b'SELECT "key", "schema_version", "output" '
+            b'FROM "edgedb"."_query_cache"',
+            use_prep_stmt=True,
+        )
+
+    def on_remote_query_cache_change(self, dbname: str) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        async def task():
+            try:
+                conn = await self._acquire_intro_pgcon(dbname)
+                if not conn:
+                    return
+
+                try:
+                    query_cache = await self._load_query_cache(conn)
+                finally:
+                    self.release_pgcon(dbname, conn)
+
+                if query_cache:
+                    self.get_db(dbname=dbname).hydrate_cache(query_cache)
+
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, self._instance_name, "on_remote_query_cache_change"
                 )
                 raise
 

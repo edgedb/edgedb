@@ -238,11 +238,14 @@ cdef class Database:
 
     def hydrate_cache(self, query_cache):
         for cache_key, schema_version, out_data in query_cache:
-            self._cache_compiled_query(
-                uuidgen.from_bytes(cache_key),
-                pickle.loads(out_data),
-                uuidgen.from_bytes(schema_version),
-            )
+            schema_version = uuidgen.from_bytes(schema_version)
+            _, cached_ver = self._sql_to_compiled.get(cache_key, DICTDEFAULT)
+            if cached_ver != schema_version:
+                self._cache_compiled_query(
+                    uuidgen.from_bytes(cache_key),
+                    pickle.loads(out_data),
+                    schema_version,
+                )
 
     def iter_views(self):
         yield from self._views
@@ -254,7 +257,9 @@ cdef class Database:
         if self.user_schema_pickle is None:
             async with self._introspection_lock:
                 if self.user_schema_pickle is None:
-                    await self.tenant.introspect_db(self.name)
+                    await self.tenant.introspect_db(
+                        self.name, hydrate_cache=True
+                    )
 
 
 cdef class DatabaseConnectionView:
