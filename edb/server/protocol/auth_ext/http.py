@@ -607,18 +607,42 @@ class Router:
     ):
         data = self._get_data_from_request(request)
 
-        _check_keyset(data, {"verification_token", "provider"})
-        (
-            identity_id,
-            _,
-            verify_url,
-            maybe_challenge,
-            maybe_redirect_to,
-        ) = self._get_data_from_verification_token(data["verification_token"])
-
+        _check_keyset(data, {"provider"})
         local_client = local.Client(db=self.db, provider_name=data["provider"])
-        email = await local_client.get_email_by_identity_id(identity_id)
-        if email is None:
+        verify_url = data.get("verify_url", f"{self.base_path}/ui/verify")
+        if "verification_token" in data:
+            (
+                identity_id,
+                _,
+                verify_url,
+                maybe_challenge,
+                maybe_redirect_to,
+            ) = self._get_data_from_verification_token(
+                data["verification_token"]
+            )
+            email = await local_client.get_email_by_identity_id(identity_id)
+        elif "email" in data:
+            email = data["email"]
+            maybe_challenge = None
+            maybe_redirect_to = data.get("redirect_to")
+            if maybe_redirect_to and not self._is_url_allowed(
+                maybe_redirect_to
+            ):
+                raise errors.InvalidData(
+                    "Redirect URL does not match any allowed URLs.",
+                )
+
+            try:
+                (identity, _) = await local_client.get_identity_and_secret(
+                    {"email": email}
+                )
+                identity_id = identity.id
+            except errors.NoIdentityFound:
+                identity_id = None
+        else:
+            raise errors.InvalidData("Missing 'verification_token' or 'email'")
+
+        if identity_id is None or email is None:
             await auth_emails.send_fake_email(self.tenant)
         else:
             await self._send_verification_email(
@@ -1364,7 +1388,7 @@ class Router:
                 "iat": issued_at,
                 "challenge": maybe_challenge,
                 "redirect_to": maybe_redirect_to,
-                "verify_url": verify_url
+                "verify_url": verify_url,
             },
             expires_in=datetime.timedelta(seconds=0),
         )

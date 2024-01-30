@@ -570,3 +570,103 @@ Bug fixes
   This might be considered a breaking change, but as it is clearly a bug in
   user schema and as it could also be considered a bug in the compiler, we are
   fixing it in a minor version.
+
+4.3
+===
+* Fix non-rewritten tuple literals
+  (:eql:gh:`#6521`)
+
+* Support ``connect_timeout`` in backend DSN
+  (:eql:gh:`#6531`)
+
+* Fix coalesced DML in FOR loops over objects
+  (:eql:gh:`#6526`)
+
+* Fix inserts silently failing when a ``json->array`` handles 'null'
+  (:eql:gh:`#6544`)
+
+* Fix tracing of enums in type expressions
+  (:eql:gh:`#6548`)
+
+* Fix dumps with FTS indexes
+  (:eql:gh:`#6560`)
+
+* Allow indexes that use user-defined functions to actually get hit
+  (:eql:gh:`#6551`)
+
+* Fix reloading readiness state and JWT ``*_list`` files in multi-tenant mode
+  (:eql:gh:`#6562`)
+
+* Handle OPTIONS in the extension path which is needed for CORS preflight
+  (:eql:gh:`#6577`)
+
+* Optimize the compiler and reduce time of an update test by ~52%
+  (:eql:gh:`#6579`)
+
+* Always retry system connection on any BackendError
+  (:eql:gh:`#6588`)
+
+* Properly support @source/@target on multi-link constraints
+  (:eql:gh:`#6585`)
+
+* Fix constant extraction's interaction with the new if-then-else
+  (:eql:gh:`#6591`)
+
+* Fix migrating between aliased and non-aliased computeds
+  (:eql:gh:`#6566`)
+
+* Improve error message for illegal casts and parameters.
+  (:eql:gh:`#6511`)
+
+* Don't eval ext::auth::ClientTokenIdentity on every row in a filter
+  (:eql:gh:`#6607`)
+
+* Expose __type__ via SQL adapter
+  (:eql:gh:`#6519`)
+
+* Fix some bugs involving union and coalescing of optional values
+  (:eql:gh:`#6590`)
+
+* Avoid doing a join when injecting type ids
+  (:eql:gh:`#6601`)
+
+* Generate better code for ?? with multi RHS or object type
+  (:eql:gh:`#6532`)
+
+* Fix pgast nullability inference for subqueries and coalesce
+  (:eql:gh:`#6529`)
+
+* Fix changing a pointer to be computed when there is a subtype
+  (:eql:gh:`#6565`)
+
+4.4
+===
+* Fix DML-containing FOR when the iterator is an object set with duplicates
+  (:eql:gh:`#6609`)
+
+* Fix very slow global introspection query when there are lots of databases
+  (:eql:gh:`#6633`)
+
+* Use correct signature for in-memory cache method
+  (:eql:gh:`#6643`)
+
+4.5
+===
+
+* Fix spurious delete/create of constraints with arguments in migrations
+  (:eql:gh:`#6712`)
+
+* Speed up introspection of system objects like Database and Role
+  (:eql:gh:`#6665`)
+
+* Fix some alter+rename combos on pointers in POPULATE MIGRATION
+  (:eql:gh:`#6666`)
+
+* Fix issue with schema changes when trigger depends on a rewrite
+  (:eql:gh:`#6706`)
+
+* Get verification data from request body
+  (:eql:gh:`#6723`)
+
+* Make overloading a link when omitting ``link`` keyword work
+  (:eql:gh:`#6718`)

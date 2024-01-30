@@ -5526,21 +5526,16 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 f'''
         SELECT
             edgedb.get_current_database()::{sql_ident} AS table_catalog,
-            vt.schema_name::{sql_ident} AS table_schema,
-            vt.table_name::{sql_ident} AS table_name,
-            COALESCE(
-                sp.name || case when sl.id is not null then '_id' else '' end,
-                isc.column_name
-            )::{sql_ident} AS column_name,
+            vt_table_schema::{sql_ident} AS table_schema,
+            vt_table_name::{sql_ident} AS table_name,
+            v_column_name::{sql_ident} as column_name,
             ROW_NUMBER() OVER (
-                PARTITION BY vt.schema_name, vt.table_name
-                ORDER BY
-                    CASE WHEN isc.column_name = 'id' THEN 0 ELSE 1 END,
-                    COALESCE(sp.name, isc.column_name)
+                PARTITION BY vt_table_schema, vt_table_name
+                ORDER BY position, v_column_name
             ) AS ordinal_position,
-            isc.column_default,
-            isc.is_nullable,
-            isc.data_type,
+            column_default,
+            is_nullable,
+            data_type,
             NULL::{sql_card} AS character_maximum_length,
             NULL::{sql_card} AS character_octet_length,
             NULL::{sql_card} AS numeric_precision,
@@ -5577,11 +5572,34 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'NEVER'::{sql_str} AS is_generated,
             NULL::{sql_str} AS generation_expression,
             'YES'::{sql_bool} AS is_updatable
+        FROM (
+        SELECT
+            vt.schema_name AS vt_table_schema,
+            vt.table_name AS vt_table_name,
+            COALESCE(
+                -- this happends for id and __type__
+                spec.name,
+
+                -- fallback to pointer name, with suffix '_id' for links
+                sp.name || case when sl.id is not null then '_id' else '' end
+            ) AS v_column_name,
+            COALESCE(spec.position, 2) as position,
+            isc.*
         FROM information_schema.columns isc
         JOIN edgedbsql.virtual_tables vt ON vt.id::text = isc.table_name
+
+        -- id is duplicated to get id and __type__ columns out of it
+        LEFT JOIN (
+            VALUES  ('id', 'id', 0),
+                    ('id', '__type__', 1),
+                    ('source', 'source', 0),
+                    ('target', 'target', 1)
+        ) spec(k, name, position) ON (spec.k = isc.column_name)
+
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = isc.column_name
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = isc.column_name
-        WHERE column_name != '__type__' AND column_name != '__fts_document__'
+        WHERE isc.column_name <> '__fts_document__'
+        ) t
             '''
             ),
         ),
@@ -5849,24 +5867,15 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         UNION ALL
 
         SELECT attrelid,
-            COALESCE(
-                sp.name || case when sl.id is not null then '_id' else '' end,
-                pa.attname
-            ) AS attname,
+            col_name as attname,
             atttypid,
             attstattarget,
             attlen,
             (ROW_NUMBER() OVER (
                 PARTITION BY attrelid
-                ORDER BY
-                    CASE
-                        WHEN pa.attnum <= 0 THEN pa.attnum
-                        WHEN pa.attname = 'id' THEN 1
-                        ELSE 2
-                    END,
-                    COALESCE(sp.name, pa.attname)
+                ORDER BY col_position, col_name
             ) - 6)::smallint AS attnum,
-            pa.attnum as attnum_internal,
+            t.attnum as attnum_internal,
             attndims,
             attcacheoff,
             atttypmod,
@@ -5887,18 +5896,36 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attoptions,
             attfdwoptions,
             null::int[] as attmissingval,
-            pa.tableoid,
-            pa.xmin,
-            pa.cmin,
-            pa.xmax,
-            pa.cmax,
-            pa.ctid
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM (
+        SELECT
+            COALESCE(
+                spec.name, -- for special columns
+                sp.name || case when sl.id is not null then '_id' else '' end,
+                pa.attname -- for system columns
+            ) as col_name,
+            CASE
+                WHEN pa.attnum <= 0 THEN pa.attnum
+                ELSE COALESCE(spec.position, 2)
+            END as col_position,
+            pa.*,
+            pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
         FROM pg_attribute pa
         JOIN pg_class pc ON pc.oid = pa.attrelid
         JOIN edgedbsql.virtual_tables vt ON vt.backend_id = pc.reltype
+
+        -- id is duplicated to get id and __type__ columns out of it
+        LEFT JOIN (
+            VALUES  ('id', 'id', 0),
+                    ('id', '__type__', 1),
+                    ('source', 'source', 0),
+                    ('target', 'target', 1)
+        ) spec(k, name, position) ON (spec.k = pa.attname)
+
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = pa.attname
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = pa.attname
-        WHERE pa.attname NOT IN ('__type__', '__fts_document__')
+        WHERE pa.attname <> '__fts_document__'
+        ) t
         """,
         ),
         dbops.View(

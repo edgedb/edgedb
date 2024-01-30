@@ -161,6 +161,10 @@ class Source(
         Returns a list of columns that are present in the backing table of
         this source, apart from the columns for pointers.
         """
+        # Beware: when adding columns here, make sure to update SQL
+        # introspection views. If you do not, these new addon columns will
+        # appear in pg_attribute and information_schema.column, but will not
+        # be queryable.
         res = []
         from edb.common import debug
 

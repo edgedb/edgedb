@@ -583,12 +583,14 @@ def ptrref_from_ptrcls(
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
         kwargs['defined_here'] = ptrcls.get_defined_here(schema)
-        if backlink := ptrcls.get_computed_backlink(schema):
+        if backlink := ptrcls.get_computed_link_alias(schema):
             assert isinstance(backlink, s_pointers.Pointer)
-            kwargs['computed_backlink'] = ptrref_from_ptrcls(
+            kwargs['computed_link_alias'] = ptrref_from_ptrcls(
                 ptrcls=backlink, schema=schema,
                 cache=cache, typeref_cache=typeref_cache,
             )
+            kwargs['computed_link_alias_is_backward'] = (
+                ptrcls.get_computed_link_alias_is_backward(schema))
 
     else:
         raise AssertionError(f'unexpected pointer class: {ptrcls}')

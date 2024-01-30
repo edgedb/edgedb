@@ -210,7 +210,7 @@ Set the security policy to strict.
 
    .. code-block:: bash
 
-      $ apt-get update && apt-get install --only-upgrade edgedb-server-3
+      $ apt-get update && apt-get install --only-upgrade edgedb-server-4
       $ systemctl restart edgedb
 
 That's it! Refer to the :ref:`Construct the DSN

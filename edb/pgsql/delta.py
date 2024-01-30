@@ -83,7 +83,7 @@ from edb.server import defines as edbdef
 from edb.server import config
 from edb.server.config import ops as config_ops
 
-from . import ast as pg_ast
+from . import ast as pgast
 from .common import qname as q
 from .common import quote_literal as ql
 from .common import quote_ident as qi
@@ -3640,7 +3640,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 # casts, strip them as they mess with the requirement that
                 # index expressions are IMMUTABLE (also indexes expect the
                 # usage of literals and will do their own implicit casts).
-                if isinstance(kw_sql_tree, pg_ast.TypeCast):
+                if isinstance(kw_sql_tree, pgast.TypeCast):
                     kw_sql_tree = kw_sql_tree.arg
                 sql = codegen.generate_source(kw_sql_tree)
                 sql_kwarg_exprs[name] = sql
@@ -4972,7 +4972,7 @@ class PointerMetaCommand(
             backend_runtime_params=context.backend_runtime_params,
         )
         sql_tree = sql_res.ast
-        assert isinstance(sql_tree, pg_ast.SelectStmt)
+        assert isinstance(sql_tree, pgast.SelectStmt)
 
         if produce_ctes:
             # ensure the result contains the object id in the second column
@@ -4989,47 +4989,47 @@ class PointerMetaCommand(
         if check_non_null:
             # wrap into raise_on_null
             pointer_name = 'link' if is_link else 'property'
-            msg = pg_ast.StringConstant(
+            msg = pgast.StringConstant(
                 val=f"missing value for required {pointer_name}"
             )
             # Concat to string which is a JSON. Great. Equivalent to SQL:
             # '{"object_id": "' || {obj_id_ref} || '"}'
-            detail = pg_ast.Expr(
+            detail = pgast.Expr(
                 name='||',
-                lexpr=pg_ast.StringConstant(val='{"object_id": "'),
-                rexpr=pg_ast.Expr(
+                lexpr=pgast.StringConstant(val='{"object_id": "'),
+                rexpr=pgast.Expr(
                     name='||',
-                    lexpr=pg_ast.ColumnRef(name=('id', )),
-                    rexpr=pg_ast.StringConstant(val='"}'),
+                    lexpr=pgast.ColumnRef(name=('id',)),
+                    rexpr=pgast.StringConstant(val='"}'),
                 )
             )
-            column = pg_ast.StringConstant(val=str(pointer.id))
+            column = pgast.StringConstant(val=str(pointer.id))
 
-            null_check = pg_ast.FuncCall(
+            null_check = pgast.FuncCall(
                 name=("edgedb", "raise_on_null"),
                 args=[
-                    pg_ast.ColumnRef(name=("val", )),
-                    pg_ast.StringConstant(val="not_null_violation"),
-                    pg_ast.NamedFuncArg(name="msg", val=msg),
-                    pg_ast.NamedFuncArg(name="detail", val=detail),
-                    pg_ast.NamedFuncArg(name="column", val=column),
+                    pgast.ColumnRef(name=("val",)),
+                    pgast.StringConstant(val="not_null_violation"),
+                    pgast.NamedFuncArg(name="msg", val=msg),
+                    pgast.NamedFuncArg(name="detail", val=detail),
+                    pgast.NamedFuncArg(name="column", val=column),
                 ],
             )
 
             inner_colnames = ["val"]
-            target_list = [pg_ast.ResTarget(val=null_check)]
+            target_list = [pgast.ResTarget(val=null_check)]
             if produce_ctes:
                 inner_colnames.append("id")
                 target_list.append(
-                    pg_ast.ResTarget(val=pg_ast.ColumnRef(name=("id", )))
+                    pgast.ResTarget(val=pgast.ColumnRef(name=("id",)))
                 )
 
-            sql_tree = pg_ast.SelectStmt(
+            sql_tree = pgast.SelectStmt(
                 target_list=target_list,
                 from_clause=[
-                    pg_ast.RangeSubselect(
+                    pgast.RangeSubselect(
                         subquery=sql_tree,
-                        alias=pg_ast.Alias(
+                        alias=pgast.Alias(
                             aliasname="_inner", colnames=inner_colnames
                         )
                     )
@@ -5040,11 +5040,13 @@ class PointerMetaCommand(
 
         if produce_ctes:
             # convert root query into last CTE
-            ctes.append(pg_ast.CommonTableExpr(
-                name="_conv_rel",
-                aliascolnames=["val", "id"],
-                query=sql_tree
-            ))
+            ctes.append(
+                pgast.CommonTableExpr(
+                    name="_conv_rel",
+                    aliascolnames=["val", "id"],
+                    query=sql_tree,
+                )
+            )
             # compile to SQL
             ctes_sql = codegen.generate_ctes_source(ctes)
 

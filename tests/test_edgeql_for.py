@@ -1215,9 +1215,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ['Alice!'],
         )
 
-    @test.xerror('''
-        FOR OPTIONAL is disabled for object-type iterators
-    ''')
     async def test_edgeql_for_optional_02(self):
         await self.assert_query_result(
             r'''

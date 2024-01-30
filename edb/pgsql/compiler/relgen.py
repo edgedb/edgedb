@@ -1089,7 +1089,8 @@ def process_set_as_path(
             and not source_rptr.is_inbound
             and not irtyputils.is_computable_ptrref(source_rptr.ptrref)
             and not irutils.is_type_intersection_reference(ir_set)
-            and not pathctx.has_type_rewrite(ir_source.typeref, env=ctx.env)):
+            and not pathctx.link_needs_type_rewrite(
+                ir_source.typeref, env=ctx.env)):
 
         src_src_is_visible = ctx.scope_tree.is_visible(
             source_rptr.source.path_id)
@@ -1348,6 +1349,15 @@ def process_set_as_subquery(
         source_is_visible = False
 
     with ctx.new() as newctx:
+        # Suppress volatility refs while compiling schema
+        # aliases/globals.  While they might try to apply volatility
+        # refs due to FOR/free objects, it shouldn't be semantically
+        # necessary that they actually are attached to the enclosing
+        # location. This turns out to be an important optimization for
+        # ext::auth::ClientTokenIdentity.
+        if ir_set.is_schema_alias:
+            newctx.volatility_ref = ()
+
         outer_id = ir_set.path_id
         semi_join = False
 
@@ -1982,7 +1992,6 @@ def process_set_as_tuple(
             typeref=ir_set.typeref,
         )
 
-    relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr)
 
     # This is an unfortunate hack. If any of those types that we
@@ -2286,6 +2295,8 @@ def process_set_as_singleton_assertion(
                 ),
             ],
         )
+
+        output.add_null_test(arg_ref, newctx.rel)
 
         # Force Postgres to actually evaluate the result target
         # by putting it into an ORDER BY.

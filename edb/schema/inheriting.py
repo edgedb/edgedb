@@ -985,6 +985,45 @@ class AlterInheritingObjectOrFragment(
                     orig_value=cur_inh_fields,
                 )
 
+    # HACK: Recursively propagate the value of is_derived. Use to deal
+    # with altering computed pointers that are aliases. We should
+    # instead not have those be marked is_derived.
+    def _propagate_is_derived_flat(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        val: Optional[bool],
+    ) -> None:
+        self.set_attribute_value('is_derived', val)
+        self._propagate_field_alter(schema, context, self.scls, ('is_derived',))
+
+        mcls = self.get_schema_metaclass()
+        for refdict in mcls.get_refdicts():
+            attr = refdict.attr
+            if not issubclass(refdict.ref_cls, so.InheritingObject):
+                continue
+            for obj in self.scls.get_field_value(schema, attr).objects(schema):
+                cmd = obj.init_delta_command(schema, sd.AlterObject)
+                cmd._propagate_is_derived_flat(schema, context, val)
+                self.add(cmd)
+
+    def _propagate_is_derived(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        val: Optional[bool],
+    ) -> None:
+        self._propagate_is_derived_flat(schema, context, val)
+        for descendant in self.scls.ordered_descendants(schema):
+            d_root_cmd, d_alter_cmd, ctx_stack = descendant.init_delta_branch(
+                schema, context, sd.AlterObject)
+
+            with ctx_stack():
+                assert isinstance(d_alter_cmd, AlterInheritingObject)
+                d_alter_cmd._propagate_is_derived_flat(schema, context, val)
+
+            self.add(d_root_cmd)
+
 
 class AlterInheritingObject(
     AlterInheritingObjectOrFragment[so.InheritingObjectT],

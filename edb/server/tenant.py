@@ -604,17 +604,19 @@ class Tenant(ha_base.ClusterProtocol):
         try:
             conn = None
             while self._running:
+                # Keep retrying as far as:
+                #   1. This tenant is still running
+                #   2. We still cannot connect to the Postgres cluster
                 try:
                     conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
                     break
                 except OSError:
-                    # Keep retrying as far as:
-                    #   1. This tenant is still running,
-                    #   2. We still cannot connect to the Postgres cluster, or
                     pass
                 except pgcon_errors.BackendError as e:
-                    #   3. The Postgres cluster is still starting up, or the
-                    #      HA failover is still in progress
+                    # Be quiet if the Postgres cluster is still starting up,
+                    # or the HA failover is still in progress.
+                    # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
+                    # once PostgreSQL supports SERIALIZABLE in hot standbys
                     if not (
                         e.code_is(pgcon_errors.ERROR_FEATURE_NOT_SUPPORTED)
                         or e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW)
@@ -622,11 +624,10 @@ class Tenant(ha_base.ClusterProtocol):
                             pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION
                         )
                     ):
-                        # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
-                        # once PostgreSQL supports SERIALIZABLE in hot standbys
-                        raise
+                        logger.error("Failed connecting to the backend: %s", e)
 
                 if self._running:
+                    logger.info("Waiting for the backend to recover")
                     try:
                         # Retry after INTERVAL seconds, unless the event is set
                         # and we can retry immediately after the event.

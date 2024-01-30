@@ -552,7 +552,7 @@ class PgProtocol(asyncio.Protocol):
         self.messages.put_nowait(None)
 
     async def read(self, expect=None):
-        rv = await asyncio.wait_for(self.messages.get(), 5)
+        rv = await asyncio.wait_for(self.messages.get(), 60)
         if expect is not None and not isinstance(rv, expect):
             raise AssertionError(f"expect {expect}, got {rv}")
         return rv

@@ -375,7 +375,8 @@ class TestDocSnippets(unittest.TestCase):
         except Exception as ex:
             raise AssertionError(
                 f'unable to parse {block.lang} code block in '
-                f'{block.filename}, around line {block.lineno}') from ex
+                f'{block.filename}, around line {block.lineno}: '
+                f'{code}') from ex
 
     @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_cqa_doc_snippets(self):

@@ -17,6 +17,7 @@ for managing EdgeDB instances.
     :hidden:
 
     edgedb_instance_create
+    edgedb_instance_credentials
     edgedb_instance_destroy
     edgedb_instance_link
     edgedb_instance_list
@@ -35,6 +36,8 @@ for managing EdgeDB instances.
 
     * - :ref:`ref_cli_edgedb_instance_create`
       - Initialize a new server instance
+    * - :ref:`ref_cli_edgedb_instance_credentials`
+      - Display instance credentials
     * - :ref:`ref_cli_edgedb_instance_destroy`
       - Destroy a server instance and remove the data stored
     * - :ref:`ref_cli_edgedb_instance_link`

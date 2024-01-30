@@ -145,6 +145,28 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
+    create type ext::auth::DiscordOAuthProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set default := 'builtin::oauth_discord';
+        };
+
+        alter property display_name {
+            set default := 'Discord';
+        };
+    };
+
+    create type ext::auth::SlackOAuthProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set default := 'builtin::oauth_slack';
+        };
+
+        alter property display_name {
+            set default := 'Slack';
+        };
+    };
+
     create type ext::auth::GitHubOAuthProvider
         extending ext::auth::OAuthProviderConfig {
         alter property name {

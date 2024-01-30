@@ -10190,6 +10190,26 @@ type default::Foo {
             CREATE TYPE Comment EXTENDING Text;
         """)
 
+        await self.assert_query_result(
+            """
+            select schema::Constraint {
+                name, params: {name, @index} order by @index
+            }
+            filter .name = 'std::max_len_value'
+            and .subject.name = 'body'
+            and .subject[is schema::Pointer].source.name ='default::Text';
+            """,
+            [
+                {
+                    "name": "std::max_len_value",
+                    "params": [
+                        {"name": "__subject__", "@index": 0},
+                        {"name": "max", "@index": 1}
+                    ]
+                }
+            ],
+        )
+
         await self.con.execute("""
             ALTER TYPE Text
                 ALTER PROPERTY body
@@ -13085,6 +13105,25 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         #     ['test'],
         # )
 
+    async def test_edgeql_ddl_create_migration_05(self):
+        await self.con.execute('''
+            create type X { create property x -> str; };
+        ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidReferenceError,
+                "property 'x' does not"):
+            await self.con.execute('''
+                CREATE MIGRATION
+                {
+                    alter type default::X {
+                        alter property x rename to y;
+                    };
+                    alter type default::X {
+                        alter property x create constraint exclusive;
+                    };
+                };
+            ''')
+
     async def test_edgeql_ddl_naked_backlink_in_computable(self):
         await self.con.execute('''
             CREATE TYPE User {
@@ -13201,6 +13240,33 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             ALTER TYPE Note RENAME TO foo::Note;
             DROP TYPE foo::Note;
             DROP TYPE foo::Tag;
+        """)
+
+    async def test_edgeql_ddl_rewrite_and_trigger_01(self):
+        await self.con.execute("""
+            create type Entry {
+                create property x := 0;
+                create property y -> int64 {
+                    create rewrite insert, update using (.x);
+                };
+            };
+            create type Foo {
+                create trigger log0 after insert for each do (insert Entry);
+            };
+            create type Bar {
+                create trigger log1 after insert for each do (insert Foo);
+            };
+        """)
+
+        await self.con.execute(f"""
+            alter type Entry alter property x using (1)
+        """)
+
+        await self.con.execute(f"""
+            alter type Entry alter property y drop rewrite insert, update;
+        """)
+        await self.con.execute(f"""
+            alter type Foo drop trigger log0;
         """)
 
     async def _simple_rename_ref_test(
@@ -14410,9 +14476,6 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
                 insert Away { x := '2', y := '1' }
             """)
 
-    @test.xerror('''
-        This fails because of the alias nonsense in pointers
-    ''')
     async def test_edgeql_ddl_adjust_computed_16(self):
         # this is caused by the annoying thing where pointers that are
         # a simple alias like this just inherit from the other point.

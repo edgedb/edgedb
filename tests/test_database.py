@@ -120,7 +120,7 @@ class TestDatabase(tb.ConnectedTestCase):
                 await conn.aclose()
 
         finally:
-            await self.con.execute('DROP DATABASE test_db_drop;')
+            await tb.drop_db(self.con, 'test_db_drop')
 
     async def test_database_non_exist_template(self):
         if not self.has_create_database:
@@ -141,4 +141,4 @@ class TestDatabase(tb.ConnectedTestCase):
                 await conn.aclose()
 
         finally:
-            await self.con.execute('DROP DATABASE test_tpl;')
+            await tb.drop_db(self.con, 'test_tpl')

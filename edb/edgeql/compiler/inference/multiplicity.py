@@ -227,11 +227,6 @@ def _infer_set(
     result = _infer_set_inner(
         ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx
     )
-    if ir.card_inference_override:
-        result = _infer_set_inner(
-            ir.card_inference_override, is_mutation=is_mutation,
-            scope_tree=scope_tree, ctx=ctx)
-
     ctx.inferred_multiplicity[ir, scope_tree, ctx.distinct_iterator] = result
 
     # The shape doesn't affect multiplicity, but requires validation.
@@ -625,7 +620,7 @@ def __infer_select_stmt(
 ) -> inf_ctx.MultiplicityInfo:
 
     if ir.iterator_stmt is not None:
-        return _infer_for_multiplicity(ir, scope_tree=scope_tree, ctx=ctx)
+        stmt_mult = _infer_for_multiplicity(ir, scope_tree=scope_tree, ctx=ctx)
     else:
         stmt_mult = _infer_stmt_multiplicity(
             ir, scope_tree=scope_tree, ctx=ctx)
@@ -639,7 +634,11 @@ def __infer_select_stmt(
             new_scope = inf_utils.get_set_scope(clause, scope_tree, ctx=ctx)
             infer_multiplicity(clause, scope_tree=new_scope, ctx=ctx)
 
-        return stmt_mult
+    if ir.card_inference_override:
+        stmt_mult = infer_multiplicity(
+            ir.card_inference_override, scope_tree=scope_tree, ctx=ctx)
+
+    return stmt_mult
 
 
 @_infer_multiplicity.register

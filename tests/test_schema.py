@@ -8190,6 +8190,118 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """
         ])
 
+    def test_schema_migrations_rename_and_modify_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Branch{
+                  property branchURL: std::str {
+                    constraint max_len_value(500);
+                    constraint min_len_value(5);
+                  };
+                };
+            """,
+            r"""
+                type Branch{
+                  property email: std::str {
+                    constraint max_len_value(50);
+                    constraint min_len_value(5);
+                  };
+                };
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_02(self):
+        self._assert_migration_equivalence([
+            r"""
+                type X {
+                    obj: Object {
+                        foo: str;
+                    };
+                };
+            """,
+            r"""
+                type X {
+                    obj2: Object {
+                        bar: int64;
+                    };
+                };
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_03(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Branch{
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property branchURL: std::str {
+                    constraint max_len_value(500);
+                    constraint regexp("url");
+                    constraint min_len_value(5);
+                  };
+                };
+            """,
+            r"""
+                type Branch{
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property phoneNumber: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"phone");
+                  };
+                  property email: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"email");
+                  };
+                };
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_04(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Branch{
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property branchURL: std::str {
+                    constraint max_len_value(500);
+                    constraint regexp("url");
+                    constraint min_len_value(5);
+                  };
+                };
+            """,
+            r"""
+                type Branch2 {
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property phoneNumber: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"phone");
+                  };
+                  property email: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"email");
+                  };
+                };
+            """
+        ])
+
     def test_schema_migrations_except_01(self):
         self._assert_migration_equivalence([
             r"""
@@ -10086,6 +10198,27 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 create link user := (.<identity[is test::User]);
             };
             """
+        )
+
+    def test_schema_describe_overload_01(self):
+        self._assert_describe(
+            """
+            abstract type Animal {
+                name: str;
+                parent: Animal;
+            }
+            type Human extending Animal {
+                overloaded parent: Human;
+            }
+            """,
+
+            'describe type test::Human as sdl',
+
+            """
+            type test::Human extending test::Animal {
+                overloaded link parent: test::Human;
+            };
+            """,
         )
 
 

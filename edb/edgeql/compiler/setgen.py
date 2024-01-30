@@ -153,6 +153,7 @@ def new_set_from_set(
         expr: Optional[irast.Expr | KeepCurrentT]=KeepCurrent,
         context: Optional[parsing.ParserContext]=None,
         is_binding: Optional[irast.BindingKind]=None,
+        is_schema_alias: Optional[bool]=None,
         is_materialized_ref: Optional[bool]=None,
         is_visible_binding_ref: Optional[bool]=None,
         skip_subtypes: Optional[bool]=None,
@@ -182,6 +183,8 @@ def new_set_from_set(
         context = ir_set.context
     if is_binding is None:
         is_binding = ir_set.is_binding
+    if is_schema_alias is None:
+        is_schema_alias = ir_set.is_schema_alias
     if is_materialized_ref is None:
         is_materialized_ref = ir_set.is_materialized_ref
     if is_visible_binding_ref is None:
@@ -198,6 +201,7 @@ def new_set_from_set(
         rptr=rptr,
         context=context,
         is_binding=is_binding,
+        is_schema_alias=is_schema_alias,
         is_materialized_ref=is_materialized_ref,
         is_visible_binding_ref=is_visible_binding_ref,
         skip_subtypes=skip_subtypes,
@@ -325,21 +329,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if refnode is not None:
                 path_tip = new_set_from_set(refnode, ctx=ctx)
             else:
-                stype = schemactx.get_schema_type(
-                    step,
-                    condition=lambda o: (
-                        isinstance(o, s_types.Type)
-                        and (
-                            o.is_object_type() or
-                            o.is_view(ctx.env.schema) or
-                            o.is_enum(ctx.env.schema)
-                        )
-                    ),
-                    label='object type or alias',
-                    item_type=s_types.QualifiedType,
-                    srcctx=step.context,
-                    ctx=ctx,
-                )
+                (view_set, stype) = resolve_name(step, ctx=ctx)
 
                 if (stype.is_enum(ctx.env.schema) and
                         not stype.is_view(ctx.env.schema)):
@@ -358,7 +348,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     # a WITH-block or inline alias view.
                     stype = stmtctx.declare_view_from_schema(stype, ctx=ctx)
 
-                view_set = ctx.view_sets.get(stype)
+                if not view_set:
+                    view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
                     view_scope_info = ctx.env.path_scope_map[view_set]
                     path_tip = new_set_from_set(
@@ -404,6 +395,20 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         "outside of a path expression",
                         context=ptr_expr.context,
                     )
+
+                # The backend can't really handle @source/@target
+                # outside of the singleton mode compiler, and they
+                # aren't really particularly useful outside that
+                # anyway, so disallow them.
+                if (
+                    ptr_expr.name in ('source', 'target')
+                    and ctx.env.options.schema_object_context
+                    not in (s_constr.Constraint, s_indexes.Index)
+                ):
+                    raise errors.QueryError(
+                        f'@{ptr_expr.name} may only be used in index and '
+                        'constraint definitions',
+                        context=step.context)
 
                 if isinstance(path_tip.rptr.ptrref,
                               irast.TypeIntersectionPointerRef):
@@ -607,6 +612,36 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     return path_tip
 
 
+def resolve_name(
+    name: qlast.ObjectRef, *, ctx: context.ContextLevel
+) -> Tuple[Optional[irast.Set], s_types.Type]:
+
+    view_set = None
+    stype = None
+    if not name.module:
+        view_set = ctx.aliased_views.get(s_name.UnqualName(name.name))
+        if view_set:
+            stype = get_set_type(view_set, ctx=ctx)
+            return (view_set, stype)
+
+    stype = schemactx.get_schema_type(
+        name,
+        condition=lambda o: (
+            isinstance(o, s_types.Type)
+            and (
+                o.is_object_type() or
+                o.is_view(ctx.env.schema) or
+                o.is_enum(ctx.env.schema)
+            )
+        ),
+        label='object type or alias',
+        item_type=s_types.QualifiedType,
+        srcctx=name.context,
+        ctx=ctx,
+    )
+    return (None, stype)
+
+
 def resolve_special_anchor(
         anchor: qlast.SpecialAnchor, *,
         ctx: context.ContextLevel) -> irast.Set:
@@ -725,14 +760,15 @@ def resolve_ptr_with_intersections(
             s_name.UnqualName(pointer_name),
         )
 
-        # If we couldn't anything, but the source is a computed backlink,
-        # look for a link property on the reverse side of it. This allows
-        # us to access link properties in both directions on links, including
-        # when the backlink has been stuck in a computed.
+        # If we couldn't anything, but the source is a computed link
+        # that aliases some other link, look for a link property on
+        # it. This allows us to access link properties in both
+        # directions on links, including when the backlink has been
+        # stuck in a computed.
         if (
             ptr is None
-            and isinstance(near_endpoint, s_pointers.Pointer)
-            and (back := near_endpoint.get_computed_backlink(ctx.env.schema))
+            and isinstance(near_endpoint, s_links.Link)
+            and (back := near_endpoint.get_computed_link_alias(ctx.env.schema))
             and isinstance(back, s_links.Link)
             and (nptr := back.maybe_get_ptr(
                 ctx.env.schema,
@@ -742,8 +778,24 @@ def resolve_ptr_with_intersections(
             # around a bunch of stuff inside them.
             and not nptr.is_pure_computable(ctx.env.schema)
         ):
-            ptr = schemactx.derive_ptr(nptr, near_endpoint, ctx=ctx)
-            path_id_ptr = ptr
+            src_type = downcast(
+                s_types.Type, near_endpoint.get_source(ctx.env.schema)
+            )
+            if not src_type.is_view(ctx.env.schema):
+                # HACK: If the source is in the standard library, and
+                # not a view, we can't add a derived pointer.  For
+                # consistency, just always require it be a view.
+                new_source = downcast(
+                    s_objtypes.ObjectType,
+                    schemactx.derive_view(src_type, ctx=ctx),
+                )
+                new_endpoint = downcast(s_links.Link, schemactx.derive_ptr(
+                    near_endpoint, new_source, ctx=ctx))
+            else:
+                new_endpoint = near_endpoint
+
+            ptr = schemactx.derive_ptr(nptr, new_endpoint, ctx=ctx)
+            path_id_ptr = nptr
 
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
