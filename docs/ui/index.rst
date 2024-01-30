@@ -44,6 +44,9 @@ needing any EdgeQL, making it the recommended for:
   to familiarize themself with EdgeQL,
 - Existing users of EdgeDB looking to "walk" the database's objects without
   needing to construct a new query each time.
+- Users with a desire to double- or triple-check inserts, updates and
+  deletions, as as the data explorer will first collect and display all user
+  changes in a double-confirm dialog before allowing an operation to proceed.
 
 The Editor page's *query builder* is recommended for:
 
