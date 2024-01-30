@@ -734,13 +734,22 @@ class ArrVal:
 # emptyfirst/emptylast is handled correctly
 @dataclass(frozen=True, order=True)
 class ResultMultiSetVal:
-    vals: Sequence[Val]
+    _vals: Sequence[Val]
     # singleton: bool = False
+
+    def getVals(self) -> Sequence[Val]:
+        return self._vals
 
 
 @dataclass(frozen=True)
 class ConditionalDedupMultiSetVal:
-    expr: Sequence[Val]
+    _vals: Sequence[Val]
+
+    def getVals(self) -> Sequence[Val]:
+        from . import expr_ops as eops
+        if all(isinstance(v, RefVal) for v in self._vals):
+            return eops.object_dedup(self._vals)
+        return self._vals
 
 MultiSetVal = ResultMultiSetVal | ConditionalDedupMultiSetVal
 

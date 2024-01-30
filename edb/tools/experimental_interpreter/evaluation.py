@@ -208,14 +208,14 @@ eval_logs_wrapper = EvaluationLogsWrapper()
 
 
 
-def do_conditional_dedup(val: MultiSetVal) -> MultiSetVal:
-    if all(val_is_ref_val(v) for v in val.vals):
-        return e.ResultMultiSetVal(object_dedup(val.vals))
-    # elif all(val_is_primitive(v) for v in val.vals):
-    #     return val
-    # else:
-    #     raise ValueError("Expecting all references or all primitives")
-    return val
+# def do_conditional_dedup(val: MultiSetVal) -> MultiSetVal:
+#     if all(val_is_ref_val(v) for v in val.vals):
+#         return e.ResultMultiSetVal(object_dedup(val.vals))
+#     # elif all(val_is_primitive(v) for v in val.vals):
+#     #     return val
+#     # else:
+#     #     raise ValueError("Expecting all references or all primitives")
+#     return val
 
 # the database is a mutable reference that keeps track of a read snapshot inside
 @eval_logs_wrapper
@@ -341,7 +341,7 @@ def eval_expr(ctx: EvalEnv,
             #     or label.isdigit() # do not deduplicate on tuple projection or path factoring projection
             #     #TODO : NAMED TUPLE projections should also not deduplicate
             # ): 
-            return e.ResultMultiSetVal(projected)
+            return e.ConditionalDedupMultiSetVal(projected)
             # else:
             #     return do_conditional_dedup(e.ResultMultiSetVal(projected))
             # return e.ResultMultiSetVal(projected)
