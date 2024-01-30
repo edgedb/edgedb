@@ -256,6 +256,27 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 UI is disabled.";
         };
 
+        create property app_name: std::str {
+            create annotation std::description :=
+                "The name of your application.";
+        };
+
+        create property logo_url: std::str {
+            create annotation std::description :=
+                "A url to an image of your application's logo.";
+        };
+
+        create property dark_logo_url: std::str {
+            create annotation std::description :=
+                "A url to an image of your application's logo to be used \
+                with the dark theme.";
+        };
+
+        create property brand_color: std::str {
+            create annotation std::description :=
+                "The brand color of your application as a hex string.";
+        };
+
         create property auth_signing_key -> std::str {
             set secret := true;
             create annotation std::description :=

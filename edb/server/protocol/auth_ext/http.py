@@ -278,9 +278,9 @@ class Router:
             }
             if error_description is not None:
                 params["error_description"] = error_description
-            response.custom_headers[
-                "Location"
-            ] = _join_url_params(redirect_to, params)
+            response.custom_headers["Location"] = _join_url_params(
+                redirect_to, params
+            )
             response.status = http.HTTPStatus.FOUND
             return
 
@@ -332,8 +332,9 @@ class Router:
             )
         new_url = _join_url_params(
             (redirect_to_on_signup or redirect_to)
-            if new_identity else redirect_to,
-            {"code": pkce_code, "provider": provider_name}
+            if new_identity
+            else redirect_to,
+            {"code": pkce_code, "provider": provider_name},
         )
         session_token = self._make_session_token(identity.id)
         response.status = http.HTTPStatus.FOUND
@@ -438,7 +439,7 @@ class Router:
                     if require_verification
                     else {
                         "code": cast(str, pkce_code),
-                        "provider": register_provider_name
+                        "provider": register_provider_name,
                     }
                 )
                 response.custom_headers["Location"] = _join_url_params(
@@ -454,10 +455,9 @@ class Router:
                 else:
                     if pkce_code is None:
                         raise errors.PKCECreationFailed
-                    response.body = json.dumps({
-                        "code": pkce_code,
-                        "provider": register_provider_name
-                    }).encode()
+                    response.body = json.dumps(
+                        {"code": pkce_code, "provider": register_provider_name}
+                    ).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
                 "redirect_on_failure", maybe_redirect_to
@@ -466,7 +466,7 @@ class Router:
                 response.status = http.HTTPStatus.FOUND
                 redirect_params = {
                     "error": str(ex),
-                    "email": data.get('email', '')
+                    "email": data.get('email', ''),
                 }
                 response.custom_headers["Location"] = _join_url_params(
                     redirect_on_failure, redirect_params
@@ -809,6 +809,7 @@ class Router:
                     'No providers are configured',
                 )
 
+            app_details_config = self._get_app_details_config()
             query = urllib.parse.parse_qs(
                 request.url.query.decode("ascii") if request.url.query else ""
             )
@@ -833,10 +834,10 @@ class Router:
                 error_message=_maybe_get_search_param(query, 'error'),
                 email=_maybe_get_search_param(query, 'email'),
                 challenge=maybe_challenge,
-                app_name=ui_config.app_name,
-                logo_url=ui_config.logo_url,
-                dark_logo_url=ui_config.dark_logo_url,
-                brand_color=ui_config.brand_color,
+                app_name=app_details_config.app_name,
+                logo_url=app_details_config.logo_url,
+                dark_logo_url=app_details_config.dark_logo_url,
+                brand_color=app_details_config.brand_color,
             )
 
     async def handle_ui_signup(self, request: Any, response: Any):
@@ -869,6 +870,7 @@ class Router:
                 raise errors.InvalidData(
                     'Missing "challenge" in register request'
                 )
+            app_details_config = self._get_app_details_config()
 
             response.status = http.HTTPStatus.OK
             response.content_type = b'text/html'
@@ -880,10 +882,10 @@ class Router:
                 error_message=_maybe_get_search_param(query, 'error'),
                 email=_maybe_get_search_param(query, 'email'),
                 challenge=maybe_challenge,
-                app_name=ui_config.app_name,
-                logo_url=ui_config.logo_url,
-                dark_logo_url=ui_config.dark_logo_url,
-                brand_color=ui_config.brand_color,
+                app_name=app_details_config.app_name,
+                logo_url=app_details_config.logo_url,
+                dark_logo_url=app_details_config.dark_logo_url,
+                brand_color=app_details_config.brand_color,
             )
 
     async def handle_ui_forgot_password(self, request: Any, response: Any):
@@ -904,6 +906,7 @@ class Router:
                 request.url.query.decode("ascii") if request.url.query else ""
             )
             challenge = _get_search_param(query, "challenge")
+            app_details_config = self._get_app_details_config()
 
             response.status = http.HTTPStatus.OK
             response.content_type = b'text/html'
@@ -914,10 +917,10 @@ class Router:
                 email=_maybe_get_search_param(query, 'email'),
                 email_sent=_maybe_get_search_param(query, 'email_sent'),
                 challenge=challenge,
-                app_name=ui_config.app_name,
-                logo_url=ui_config.logo_url,
-                dark_logo_url=ui_config.dark_logo_url,
-                brand_color=ui_config.brand_color,
+                app_name=app_details_config.app_name,
+                logo_url=app_details_config.logo_url,
+                dark_logo_url=app_details_config.dark_logo_url,
+                brand_color=app_details_config.brand_color,
             )
 
     async def handle_ui_reset_password(self, request: Any, response: Any):
@@ -962,6 +965,7 @@ class Router:
             else:
                 is_valid = False
 
+            app_details_config = self._get_app_details_config()
             response.status = http.HTTPStatus.OK
             response.content_type = b'text/html'
             response.body = ui.render_reset_password_page(
@@ -972,10 +976,10 @@ class Router:
                 reset_token=reset_token,
                 challenge=challenge,
                 error_message=_maybe_get_search_param(query, 'error'),
-                app_name=ui_config.app_name,
-                logo_url=ui_config.logo_url,
-                dark_logo_url=ui_config.dark_logo_url,
-                brand_color=ui_config.brand_color,
+                app_name=app_details_config.app_name,
+                logo_url=app_details_config.logo_url,
+                dark_logo_url=app_details_config.dark_logo_url,
+                brand_color=app_details_config.brand_color,
             )
 
     async def handle_ui_verify(self, request: Any, response: Any):
@@ -1072,16 +1076,17 @@ class Router:
             response.custom_headers["Location"] = redirect_to
             return
 
+        app_details_config = self._get_app_details_config()
         response.status = http.HTTPStatus.OK
         response.content_type = b'text/html'
         response.body = ui.render_email_verification_page(
             verification_token=maybe_verification_token,
             is_valid=is_valid,
             error_messages=error_messages,
-            app_name=ui_config.app_name,
-            logo_url=ui_config.logo_url,
-            dark_logo_url=ui_config.dark_logo_url,
-            brand_color=ui_config.brand_color,
+            app_name=app_details_config.app_name,
+            logo_url=app_details_config.logo_url,
+            dark_logo_url=app_details_config.dark_logo_url,
+            brand_color=app_details_config.brand_color,
         )
 
     async def handle_ui_resend_verification(self, request: Any, response: Any):
@@ -1128,6 +1133,7 @@ class Router:
         except Exception:
             is_valid = False
 
+        app_details_config = self._get_app_details_config()
         response.status = http.HTTPStatus.OK
         response.content_type = b"text/html"
         response.body = ui.render_resend_verification_done_page(
@@ -1135,10 +1141,10 @@ class Router:
             verification_token=_maybe_get_search_param(
                 query, "verification_token"
             ),
-            app_name=ui_config.app_name,
-            logo_url=ui_config.logo_url,
-            dark_logo_url=ui_config.dark_logo_url,
-            brand_color=ui_config.brand_color,
+            app_name=app_details_config.app_name,
+            logo_url=app_details_config.logo_url,
+            dark_logo_url=app_details_config.dark_logo_url,
+            brand_color=app_details_config.brand_color,
         )
 
     def _get_callback_url(self) -> str:
@@ -1308,10 +1314,18 @@ class Router:
             maybe_redirect_to,
         ):
             case (
-                str(id), float(issued_at), verify_url, challenge, redirect_to
+                str(id),
+                float(issued_at),
+                verify_url,
+                challenge,
+                redirect_to,
             ):
                 return_value = (
-                    id, issued_at, verify_url, challenge, redirect_to
+                    id,
+                    issued_at,
+                    verify_url,
+                    challenge,
+                    redirect_to,
                 )
             case (_, _, _, _, _):
                 raise errors.InvalidData(
@@ -1347,6 +1361,27 @@ class Router:
             util.maybe_get_config(
                 self.db, "ext::auth::AuthConfig::ui", CompositeConfigType
             ),
+        )
+
+    def _get_app_details_config(self):
+        app_name = util.maybe_get_config(
+            self.db, "ext::auth::AuthConfig::app_name"
+        )
+        logo_url = util.maybe_get_config(
+            self.db, "ext::auth::AuthConfig::logo_url"
+        )
+        dark_logo_url = util.maybe_get_config(
+            self.db, "ext::auth::AuthConfig::dark_logo_url"
+        )
+        brand_color = util.maybe_get_config(
+            self.db, "ext::auth::AuthConfig::brand_color"
+        )
+
+        return config.AppDetailsConfig(
+            app_name=app_name,
+            logo_url=logo_url,
+            dark_logo_url=dark_logo_url,
+            brand_color=brand_color,
         )
 
     def _get_password_provider(self):
@@ -1434,9 +1469,7 @@ class Router:
 
         ui_config = self._get_ui_config()
         if ui_config:
-            allowed_urls = allowed_urls.union(
-                {ui_config.redirect_to}
-            )
+            allowed_urls = allowed_urls.union({ui_config.redirect_to})
             if ui_config.redirect_to_on_signup:
                 allowed_urls = allowed_urls.union(
                     {ui_config.redirect_to_on_signup}
@@ -1543,7 +1576,7 @@ def _join_url_params(url: str, params: dict[str, str]):
     parsed_url = urllib.parse.urlparse(url)
     query_params = {
         **urllib.parse.parse_qs(parsed_url.query),
-        **{key: [val] for key, val in params.items()}
+        **{key: [val] for key, val in params.items()},
     }
     new_query_params = urllib.parse.urlencode(query_params, doseq=True)
     return parsed_url._replace(query=new_query_params).geturl()
