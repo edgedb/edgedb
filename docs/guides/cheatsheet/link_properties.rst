@@ -140,7 +140,9 @@ subquery. This is only valid in a subquery *inside* an ``insert`` statement.
 
 
 When doing a nested insert, link properties can be directly included in the
-inner ``insert`` subquery.
+inner ``insert`` subquery. The query below creates a link to a ``Person``
+object that is being inserted in the same query, along with a link property
+``strength`` that has a value of 3.14.
 
 .. code-block:: edgeql
 
