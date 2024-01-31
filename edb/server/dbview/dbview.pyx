@@ -40,6 +40,7 @@ from edb.edgeql import qltypes
 from edb.schema import schema as s_schema
 from edb.server import compiler, defines, config, metrics
 from edb.server.compiler import dbstate, enums, sertypes
+from edb.server.protocol import execute
 from edb.pgsql import dbops
 from edb.server.compiler_pool import state as compiler_state_mod
 
@@ -923,6 +924,62 @@ cdef class DatabaseConnectionView:
         rows = await conn.sql_fetch(b'SELECT "edgedb"."_clear_query_cache"()')
         self._db._eql_to_compiled.clear()
         return [row[0] for row in rows or []]
+
+    async def recompile_all(self, conn, requests: typing.Iterable[bytes]):
+        compiler_pool = self.server.get_compiler_pool()
+        concurrency = max(1, compiler_pool.get_size_hint() - 1)
+        i = asyncio.Queue(maxsize=concurrency)
+        o = asyncio.Queue()
+
+        async def recompile_request():
+            while True:
+                request = await i.get()
+                if request is None:
+                    o.put_nowait((None, None))
+                    break
+                try:
+                    result = await compiler_pool.compile(
+                        self.dbname,
+                        self.get_user_schema_pickle(),
+                        self.get_global_schema_pickle(),
+                        self.reflection_cache,
+                        self.get_database_config(),
+                        self.get_compilation_system_config(),
+                        request,
+                        "<unknown>",
+                        client_id=self.tenant.client_id,
+                    )
+                except Exception:
+                    # discard cache entry that cannot be recompiled
+                    pass
+                else:
+                    query_req = rpc.CompilationRequest(
+                        self.server.compilation_config_serializer)
+                    query_req.deserialize(request, "<unknown>")
+                    o.put_nowait((query_req, result[0]))
+
+        async def persist_cache():
+            count = concurrency
+            while count > 0:
+                query_req, query_unit_group = await o.get()
+                if query_req is None:
+                    count -= 1
+                else:
+                    await execute.persist_cache(
+                        conn, self, query_req, query_unit_group
+                    )
+                    self._db._eql_to_compiled[query_req] = (
+                        query_unit_group, self.schema_version
+                    )
+
+        async with asyncio.TaskGroup() as g:
+            for _ in range(concurrency):
+                g.create_task(recompile_request())
+            g.create_task(persist_cache())
+            for data in requests:
+                await i.put(data)
+            for _ in range(concurrency):
+                await i.put(None)
 
     async def apply_config_ops(self, conn, ops):
         settings = self.get_config_spec()
