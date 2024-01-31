@@ -66,10 +66,9 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property password_hash: std::str;
     };
 
-    create type ext::auth::WebAuthnFactor extending ext::auth::EmailFactor {
-        alter property email {
-            drop constraint exclusive;
-        };
+    create type ext::auth::WebAuthnFactor extending ext::auth::Factor {
+        create required property email: str;
+        create property verified_at: std::datetime;
         create required property credential_id: std::bytes {
             create constraint exclusive;
         };
@@ -88,11 +87,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create link factor: ext::auth::WebAuthnFactor;
 
         create constraint exclusive on ((.factor, .email, .challenge));
-        create constraint on (
-            if exists __subject__.factor
-            then __subject__.factor.email = .email
-            else true
-        );
     };
 
     create type ext::auth::PKCEChallenge extending ext::auth::Auditable {
