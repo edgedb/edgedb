@@ -212,7 +212,7 @@ def include_rvar(
         Compiler context.
     """
     if aspects is None:
-        aspects = ('value', 'iterator')
+        aspects = ('value',)
         if path_id.is_objtype_path():
             if isinstance(rvar, pgast.RangeSubselect):
                 if pathctx.has_path_aspect(
