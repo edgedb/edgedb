@@ -60,10 +60,9 @@ cdef object FMT_NONE = compiler.OutputFormat.NONE
 async def persist_cache(
     be_conn: pgcon.PGConnection,
     dbv: dbview.DatabaseConnectionView,
-    compiled: dbview.CompiledQuery,
+    request: rpc.CompilationRequest,
+    units: compiler.QueryUnitGroup,
 ):
-    units = compiled.query_unit_group
-
     # FIXME: this is temporary; drop this assertion when we support scripts
     assert len(units) == 1
     query_unit = units[0]
@@ -83,9 +82,9 @@ async def persist_cache(
     '''
     bind_datas = [args_ser.combine_raw_args()] * 2
     bind_datas += [args_ser.combine_raw_args((
-        compiled.request.get_cache_key().bytes,
+        query_unit.cache_key.bytes,
         dbv.schema_version.bytes,
-        compiled.request.serialize(),
+        request.serialize(),
         serialized_result,
         evict,
     ))]
@@ -154,6 +153,7 @@ async def execute(
     new_types = None
     server = dbv.server
     tenant = dbv.tenant
+    recompile_requests = None
 
     data = None
 
@@ -180,12 +180,13 @@ async def execute(
             config_ops = query_unit.config_ops
 
             if compiled.request and query_unit.cache_sql:
-                await persist_cache(be_conn, dbv, compiled)
+                await persist_cache(
+                    be_conn, dbv, compiled.request, compiled.query_unit_group)
 
             if query_unit.sql:
                 if query_unit.user_schema:
                     # TODO(fantix): do this in the same transaction
-                    _recompile_requests = await dbv.clear_cache_keys(be_conn)
+                    recompile_requests = await dbv.clear_cache_keys(be_conn)
                     ddl_ret = await be_conn.run_ddl(query_unit, state)
                     if ddl_ret and ddl_ret['new_types']:
                         new_types = ddl_ret['new_types']
@@ -299,6 +300,8 @@ async def execute(
                 #   1. An orphan ROLLBACK command without a paring start tx
                 #   2. There was no SQL, so the state can't have been synced.
                 be_conn.last_state = state
+        if recompile_requests:
+            await dbv.recompile_all(be_conn, recompile_requests)
     finally:
         if query_unit.drop_db:
             tenant.allow_database_connections(query_unit.drop_db)
@@ -335,11 +338,12 @@ async def execute_script(
         orig_state = state = dbv.serialize_state()
 
     data = None
+    recompile_requests = None
 
     try:
         if any(query_unit.user_schema for query_unit in unit_group):
             # TODO(fantix): do this in the same transaction
-            _recompile_requests = await dbv.clear_cache_keys(conn)
+            recompile_requests = await dbv.clear_cache_keys(conn)
 
         if conn.last_state == state:
             # the current status in be_conn is in sync with dbview, skip the
@@ -487,6 +491,8 @@ async def execute_script(
                 conn.last_state = state
         if unit_group.state_serializer is not None:
             dbv.set_state_serializer(unit_group.state_serializer)
+        if recompile_requests:
+            await dbv.recompile_all(conn, recompile_requests)
 
     finally:
         if sent and not sync:

@@ -2595,6 +2595,7 @@ def _try_compile(
             cardinality=default_cardinality,
             capabilities=capabilities,
             output_format=stmt_ctx.output_format,
+            cache_key=ctx.cache_key,
         )
 
         if not comp.is_transactional:

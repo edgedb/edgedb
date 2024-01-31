@@ -217,6 +217,7 @@ class QueryUnit:
     # EdgeQL queries, the status reflects the last query in the unit.
     status: bytes
 
+    cache_key: Optional[uuid.UUID] = None
     cache_sql: Optional[Tuple[bytes, bytes]] = None  # (persist, evict)
 
     # Output format of this query unit
