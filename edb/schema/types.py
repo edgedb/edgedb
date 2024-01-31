@@ -513,7 +513,7 @@ class Type(
         if self.is_compound_type(schema):
             cmd.set_object_aux_data('is_compound_type', True)
 
-    def as_type_delete_if_dead(
+    def as_type_delete_if_unused(
         self: TypeT,
         schema: s_schema.Schema,
     ) -> Optional[sd.DeleteObject[TypeT]]:
@@ -1107,7 +1107,7 @@ class Collection(Type, s_abc.Collection):
     def get_schema_class_displayname(cls) -> str:
         return 'collection'
 
-    def as_type_delete_if_dead(
+    def as_type_delete_if_unused(
         self: CollectionTypeT,
         schema: s_schema.Schema,
     ) -> sd.DeleteObject[CollectionTypeT]:
@@ -1149,7 +1149,7 @@ class CollectionExprAlias(QualifiedType, Collection):
         """Return the concrete collection class for this ExprAlias class."""
         raise NotImplementedError
 
-    def as_underlying_type_delete_if_dead(
+    def as_underlying_type_delete_if_unused(
         self,
         schema: s_schema.Schema,
     ) -> sd.DeleteObject[Type]:
@@ -1164,12 +1164,12 @@ class CollectionExprAlias(QualifiedType, Collection):
             if_exists=True,
         )
 
-    def as_type_delete_if_dead(
+    def as_type_delete_if_unused(
         self: CollectionExprAliasT,
         schema: s_schema.Schema,
     ) -> sd.DeleteObject[CollectionExprAliasT]:
         cmd = self.init_delta_command(schema, sd.DeleteObject, if_exists=True)
-        cmd.add_prerequisite(self.as_underlying_type_delete_if_dead(schema))
+        cmd.add_prerequisite(self.as_underlying_type_delete_if_unused(schema))
         return cmd
 
 
@@ -3192,7 +3192,7 @@ class DeleteCollectionType(
         schema = super()._delete_begin(schema, context)
         if not context.canonical:
             for el in self.scls.get_subtypes(schema):
-                if op := el.as_type_delete_if_dead(schema):
+                if op := el.as_type_delete_if_unused(schema):
                     self.add_caused(op)
         return schema
 
@@ -3216,7 +3216,7 @@ class DeleteCollectionExprAlias(
         scls: CollectionExprAliasT,
     ) -> List[sd.Command]:
         ops = super()._canonicalize(schema, context, scls)
-        ops.append(scls.as_underlying_type_delete_if_dead(schema))
+        ops.append(scls.as_underlying_type_delete_if_unused(schema))
         return ops
 
 

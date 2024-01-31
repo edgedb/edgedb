@@ -334,7 +334,7 @@ class ObjectType(
     ) -> bool:
         return not self.is_view(schema) or refdict.attr == 'pointers'
 
-    def as_type_delete_if_dead(
+    def as_type_delete_if_unused(
         self,
         schema: s_schema.Schema,
     ) -> Optional[sd.DeleteObject[ObjectType]]:

@@ -2257,7 +2257,7 @@ class DeletePointer(
             not context.canonical
             and (target := self.scls.get_target(schema)) is not None
             and not self.scls.is_endpoint_pointer(schema)
-            and (del_cmd := target.as_type_delete_if_dead(schema)) is not None
+            and (del_cmd := target.as_type_delete_if_unused(schema)) is not None
         ):
             self.add_caused(del_cmd)
 
@@ -2538,7 +2538,7 @@ class SetPointerType(
             )
 
             if orig_target is not None and scls.is_property(schema):
-                if cleanup_op := orig_target.as_type_delete_if_dead(schema):
+                if cleanup_op := orig_target.as_type_delete_if_unused(schema):
                     parent_op = self.get_parent_op(context)
                     parent_op.add_caused(cleanup_op)
 
