@@ -25,14 +25,18 @@ import dataclasses
 import json
 import datetime
 import pathlib
+import traceback
+import sys
 
 import shutil
+from unittest.result import STDERR_LINE, STDOUT_LINE
 import click
 import binascii
 
 import edgedb
 
 from edb.common import typing_inspect
+from edb.common import traceback as edb_traceback
 
 if typing.TYPE_CHECKING:
     from . import runner
@@ -70,11 +74,7 @@ def _collect_case_data(
     if runner._is_exc_info(err):
         if isinstance(err[1], edgedb.EdgeDBError):
             server_traceback = err[1].get_server_context()
-        from unittest.result import TestResult
-
-        error_message = TestResult._exc_info_to_string(  # type: ignore
-            result, err, test
-        )
+        error_message = _exc_info_to_string(result, err, test)
     elif isinstance(err, runner.SerializedServerError):
         error_message, server_traceback = err.test_error, err.server_error
     elif isinstance(err, str):
@@ -88,6 +88,36 @@ def _collect_case_data(
         error_message=error_message,
         server_traceback=server_traceback,
     )
+
+
+def _exc_info_to_string(
+    result: runner.ParallelTextTestResult,
+    err: typing.Any,
+    test: unittest.TestCase,
+):
+    """Converts a sys.exc_info()-style tuple of values into a string."""
+    # Copied from unittest.TestResult._exc_info_to_string
+
+    exctype, value, tb = err
+    tb = result._clean_tracebacks(exctype, value, tb, test)  # type: ignore
+    tb_e = traceback.TracebackException(
+        exctype, value, tb, capture_locals=result.tb_locals, compact=True
+    )
+    tb_e.stack = edb_traceback.StandardStackSummary(tb_e.stack)
+    msgLines = list(tb_e.format())
+
+    if result.buffer:
+        output = sys.stdout.getvalue()  # type: ignore
+        error = sys.stderr.getvalue()  # type: ignore
+        if output:
+            if not output.endswith('\n'):
+                output += '\n'
+            msgLines.append(STDOUT_LINE % output)
+        if error:
+            if not error.endswith('\n'):
+                error += '\n'
+            msgLines.append(STDERR_LINE % error)
+    return ''.join(msgLines)
 
 
 @dataclasses.dataclass()
