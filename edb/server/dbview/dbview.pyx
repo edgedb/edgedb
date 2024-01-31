@@ -94,8 +94,8 @@ cdef class CompiledQuery:
 
 cdef class Database:
 
-    # Global LRU cache of compiled anonymous queries
-    _eql_to_compiled: typing.Mapping[str, dbstate.QueryUnitGroup]
+    # Global LRU cache of compiled queries
+    _eql_to_compiled: stmt_cache.StatementsCache[uuid.UUID, dbstate.QueryUnitGroup]
 
     def __init__(
         self,
@@ -121,8 +121,8 @@ cdef class Database:
 
         self._introspection_lock = asyncio.Lock()
 
-        self._eql_to_compiled = lru.LRUMapping(
-            maxsize=defines._MAX_QUERIES_CACHE)
+        self._eql_to_compiled = stmt_cache.StatementsCache(
+            maxsize=defines._MAX_QUERIES_CACHE_DB)
         self._sql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
 
@@ -177,7 +177,6 @@ cdef class Database:
         self.backend_ids.update(new_types)
 
     cdef _invalidate_caches(self):
-        self._eql_to_compiled.clear()
         self._sql_to_compiled.clear()
         self._index.invalidate_caches()
 
@@ -194,6 +193,14 @@ cdef class Database:
 
         # Store the matching schema version, see also the comments at origin
         self._eql_to_compiled[key] = compiled, schema_version
+        keys = []
+        while self._eql_to_compiled.needs_cleanup():
+            keys.append(self._eql_to_compiled.cleanup_one().get_cache_key())
+        if keys:
+            self.tenant.create_task(
+                self.tenant.evict_query_cache(self.name, keys),
+                interruptable=False,
+            )
 
     def cache_compiled_sql(self, key, compiled: list[str], schema_version):
         existing, ver = self._sql_to_compiled.get(key, DICTDEFAULT)
@@ -251,7 +258,7 @@ cdef class Database:
                 group.append(unit)
                 self._eql_to_compiled[query_req] = group, schema_version
 
-        for query_req in list(self._eql_to_compiled.keys()):
+        for query_req in list(self._eql_to_compiled):
             if query_req not in new:
                 del self._eql_to_compiled[query_req]
 
