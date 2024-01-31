@@ -41,6 +41,7 @@ import pickle
 import struct
 import sys
 import time
+import uuid
 
 import immutables
 
@@ -1454,6 +1455,33 @@ class Tenant(ha_base.ClusterProtocol):
             b'FROM "edgedb"."_query_cache"',
             use_prep_stmt=True,
         )
+
+    async def evict_query_cache(
+        self, dbname: str,
+        keys: Iterable[uuid.UUID],
+    ) -> None:
+        try:
+            conn = await self._acquire_intro_pgcon(dbname)
+            if not conn:
+                return
+
+            try:
+                for key in keys:
+                    await conn.sql_fetch(
+                        b'SELECT "edgedb"."_evict_query_cache"($1)',
+                        args=(key.bytes,),
+                        use_prep_stmt=True,
+                    )
+            finally:
+                self.release_pgcon(dbname, conn)
+
+            await self.signal_sysevent("query-cache-changes", dbname=dbname)
+
+        except Exception:
+            logger.exception("error in evict_query_cache():")
+            metrics.background_errors.inc(
+                1.0, self._instance_name, "evict_query_cache"
+            )
 
     def on_remote_query_cache_change(self, dbname: str) -> None:
         if not self._accept_new_tasks:
