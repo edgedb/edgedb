@@ -670,6 +670,9 @@ class AbstractPool:
     def get_debug_info(self):
         return {}
 
+    def get_size_hint(self) -> int:
+        raise NotImplementedError
+
 
 class BaseLocalPool(
     AbstractPool, amsg.ServerProtocol, asyncio.SubprocessProtocol
@@ -948,6 +951,9 @@ class FixedPool(BaseLocalPool):
             await trans._wait()
             trans.close()
 
+    def get_size_hint(self) -> int:
+        return self._pool_size
+
 
 @srvargs.CompilerPoolMode.OnDemand.assign_implementation
 class SimpleAdaptivePool(BaseLocalPool):
@@ -1071,6 +1077,9 @@ class SimpleAdaptivePool(BaseLocalPool):
         )[:-self._pool_size]:
             worker.close()
 
+    def get_size_hint(self) -> int:
+        return self._max_num_workers
+
 
 class RemoteWorker(BaseWorker):
     def __init__(self, con, secret, *args):
@@ -1098,6 +1107,7 @@ class RemotePool(AbstractPool):
         self._worker = None
         self._sync_lock = asyncio.Lock()
         self._semaphore = asyncio.BoundedSemaphore(pool_size)
+        self._pool_size = pool_size
         secret = os.environ.get("_EDGEDB_SERVER_COMPILER_POOL_SECRET")
         if not secret:
             raise AssertionError(
@@ -1248,6 +1258,9 @@ class RemotePool(AbstractPool):
             size=self._semaphore._bound_value,  # type: ignore
             free=self._semaphore._value,  # type: ignore
         )
+
+    def get_size_hint(self) -> int:
+        return self._pool_size
 
 
 @dataclasses.dataclass

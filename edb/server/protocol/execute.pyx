@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 from typing import (
     Any,
     Mapping,
@@ -64,6 +63,23 @@ async def persist_cache(
 ):
     assert len(compiled.query_unit_group) == 1
     query_unit = compiled.query_unit_group[0]
+    return await persist_cache_spec(
+        be_conn,
+        dbv,
+        query_unit,
+        compiled.request.serialize(),
+        compiled.serialized,
+        compiled.request.get_cache_key(),
+    )
+
+async def persist_cache_spec(
+    be_conn: pgcon.PGConnection,
+    dbv: dbview.DatabaseConnectionView,
+    query_unit,
+    request,
+    response,
+    cache_key,
+):
     persist, evict = query_unit.cache_sql
     await be_conn.sql_execute((evict, persist))
     await be_conn.sql_fetch(
@@ -73,10 +89,10 @@ async def persist_cache(
         b'ON CONFLICT (key) DO UPDATE SET '
         b'"schema_version"=$2, "input"=$3, "output"=$4, "evict"=$5',
         args=(
-            compiled.request.get_cache_key().bytes,
+            cache_key.bytes,
             dbv.schema_version.bytes,
-            compiled.request.serialize(),
-            compiled.serialized,
+            request,
+            response,
             evict,
         ),
         use_prep_stmt=True,
@@ -114,6 +130,7 @@ async def execute(
     new_types = None
     server = dbv.server
     tenant = dbv.tenant
+    recompile_requests = None
 
     data = None
 
@@ -140,7 +157,12 @@ async def execute(
                 await persist_cache(be_conn, dbv, compiled)
 
             if query_unit.sql:
+                if query_unit.has_ddl:
+                    # TODO(fantix): do this in the same transaction
+                    recompile_requests = await dbv.clear_cache_keys(be_conn)
                 if query_unit.ddl_stmt_id:
+                    await be_conn.sql_execute(
+                        b'delete from "edgedb"."_query_cache"')
                     ddl_ret = await be_conn.run_ddl(query_unit, state)
                     if ddl_ret and ddl_ret['new_types']:
                         new_types = ddl_ret['new_types']
@@ -230,6 +252,8 @@ async def execute(
                 #   1. An orphan ROLLBACK command without a paring start tx
                 #   2. There was no SQL, so the state can't have been synced.
                 be_conn.last_state = state
+        if recompile_requests:
+            await dbv.recompile_all(be_conn, recompile_requests)
     finally:
         if query_unit.drop_db:
             tenant.allow_database_connections(query_unit.drop_db)
