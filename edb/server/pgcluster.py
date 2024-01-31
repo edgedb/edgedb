@@ -334,12 +334,12 @@ class BaseCluster:
             pg_restore, '--verbose', *tgt_conn_args, *tgt_args
         ]
 
-        # XXX: we need better error cleanup for all of this
-        # what if fork() fails in the second _start_logged_subprocess?
         rpipe, wpipe = os.pipe()
         wpipef = os.fdopen(wpipe, "wb")
 
         try:
+            # N.B: uvloop will waitpid() on the child process even if we don't
+            # actually await on it due to a later error.
             dump_p, dump_out_r, dump_err_r = await _start_logged_subprocess(
                 dump_args,
                 logger=pg_dump_logger,
