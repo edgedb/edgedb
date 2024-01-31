@@ -1536,6 +1536,39 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
             await con2.aclose()
             await drop_db(self.con, q_tgt_dbname)
 
+    async def check_branching(self, include_data=False, *, check_method):
+        if not self.has_create_database:
+            self.skipTest("create branch is not supported by the backend")
+
+        orig_branch = self.get_database_name()
+        new_branch = f'new_{orig_branch}'
+
+        # connect to a default branch so we can create a new branch
+        branch_type = 'DATA' if include_data else 'SCHEMA'
+        await self.con.execute(
+            f'CREATE {branch_type} BRANCH {new_branch} '
+            f'FROM {orig_branch}'
+        )
+
+        try:
+            con2 = await self.connect(database=new_branch)
+        except Exception:
+            await drop_db(self.con, new_branch)
+            raise
+
+        oldcon = self.con
+        self.__class__.con = con2
+        try:
+            # run the check_method on the copied branch
+            if include_data:
+                await check_method(self)
+            else:
+                await check_method(self, include_data=include_data)
+        finally:
+            self.__class__.con = oldcon
+            await con2.aclose()
+            await drop_db(self.con, new_branch)
+
 
 class StablePGDumpTestCase(BaseQueryTestCase):
 

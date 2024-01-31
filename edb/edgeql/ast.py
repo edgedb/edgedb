@@ -862,16 +862,24 @@ class ExternalObjectCommand(GlobalObjectCommand):
     __rust_ignore__ = True
 
 
+class BranchType(s_enum.StrEnum):
+    EMPTY = 'EMPTY'
+    SCHEMA = 'SCHEMA'
+    DATA = 'DATA'
+
+
 class DatabaseCommand(ExternalObjectCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.DATABASE
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.BRANCH
+    flavor: str = 'BRANCH'
 
 
 class CreateDatabase(CreateObject, DatabaseCommand):
 
     template: typing.Optional[ObjectRef] = None
+    branch_type: BranchType
 
 
 class AlterDatabase(AlterObject, DatabaseCommand):

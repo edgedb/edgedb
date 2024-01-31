@@ -158,6 +158,24 @@ async def execute(
                 dbv.declare_savepoint(
                     query_unit.sp_name, query_unit.sp_id)
 
+            if query_unit.create_db_template:
+                try:
+                    await tenant.on_after_create_db_from_template(
+                        query_unit.create_db,
+                        query_unit.create_db_template,
+                        query_unit.create_db_mode,
+                    )
+                except Exception:
+                    # Clean up the database if we failed to restore into it.
+                    # TODO: Is it worth having 'ready' flag that we set after
+                    # the database is fully set up, and use that to clean up
+                    # databases where a crash prevented doing this cleanup?
+                    db_name = f'{tenant.tenant_id}_{query_unit.create_db}'
+                    await be_conn.sql_execute(
+                        b'drop database "%s"' % db_name.encode('utf-8')
+                    )
+                    raise
+
             if query_unit.create_db:
                 await tenant.introspect_db(query_unit.create_db)
 
@@ -197,10 +215,6 @@ async def execute(
     finally:
         if query_unit.drop_db:
             tenant.allow_database_connections(query_unit.drop_db)
-        if query_unit.create_db_template:
-            tenant.allow_database_connections(
-                query_unit.create_db_template,
-            )
 
     return data
 

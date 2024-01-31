@@ -130,6 +130,11 @@ class TestDumpV3(tb.StableDumpTestCase, DumpTestCaseMixin):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)
 
+    async def test_dump_v3_branch_data(self):
+        await self.check_branching(
+            include_data=True,
+            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)
+
 
 class TestDumpV3Compat(
     tb.DumpCompatTestCase,

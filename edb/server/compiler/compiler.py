@@ -1553,7 +1553,10 @@ def _get_compile_options(
             and not ctx.schema_reflection_mode
         ) or is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
-        schema_reflection_mode=ctx.schema_reflection_mode,
+        schema_reflection_mode=(
+            ctx.schema_reflection_mode
+            or _get_config_val(ctx, '__internal_query_reflschema')
+        )
     )
 
 
@@ -2441,6 +2444,7 @@ def _try_compile(
             unit.create_db = comp.create_db
             unit.drop_db = comp.drop_db
             unit.create_db_template = comp.create_db_template
+            unit.create_db_mode = comp.create_db_mode
             unit.ddl_stmt_id = comp.ddl_stmt_id
             if not ctx.dump_restore_mode:
                 if comp.user_schema is not None:

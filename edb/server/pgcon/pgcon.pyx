@@ -396,7 +396,11 @@ async def connect(
                     'in_hot_standby' not in pgcon.parameter_status
                 ),
             )
-        await pgcon.sql_execute(INIT_CON_SCRIPT)
+        try:
+            await pgcon.sql_execute(INIT_CON_SCRIPT)
+        except Exception:
+            await pgcon.close()
+            raise
 
     return pgcon
 

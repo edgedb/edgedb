@@ -734,7 +734,7 @@ class Tenant(ha_base.ClusterProtocol):
             # If there are open EdgeDB connections to the `dbname` DB
             # just raise the error Postgres would have raised itself.
             raise errors.ExecutionError(
-                f"database {dbname!r} is being accessed by other users"
+                f"database branch {dbname!r} is being accessed by other users"
             )
         else:
             self._block_new_connections.add(dbname)
@@ -774,7 +774,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         if conns:
             raise errors.ExecutionError(
-                f"database {dbname!r} is being accessed by other users"
+                f"database branch {dbname!r} is being accessed by other users"
             )
 
     async def _acquire_intro_pgcon(
@@ -786,7 +786,8 @@ class Tenant(ha_base.ClusterProtocol):
             if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
                 # database does not exist (anymore)
                 logger.warning(
-                    "Detected concurrently-dropped database %s; skipping.",
+                    "Detected concurrently-dropped database branch %s; "
+                    "skipping.",
                     dbname,
                 )
                 if self._dbindex is not None and self._dbindex.has_db(dbname):
@@ -1167,7 +1168,7 @@ class Tenant(ha_base.ClusterProtocol):
     ) -> None:
         if current_dbname == dbname:
             raise errors.ExecutionError(
-                f"cannot drop the currently open database {dbname!r}"
+                f"cannot drop the currently open database branch {dbname!r}"
             )
 
         await self.ensure_database_not_connected(dbname)
@@ -1175,13 +1176,35 @@ class Tenant(ha_base.ClusterProtocol):
     async def on_before_create_db_from_template(
         self, dbname: str, current_dbname: str
     ) -> None:
-        if current_dbname == dbname:
-            raise errors.ExecutionError(
-                f"cannot create database using currently open database "
-                f"{dbname!r} as a template database"
+        # Make sure the database exists.
+        # TODO: Is it worth producing a nicer error message if it
+        # fails on the backside? (Because of a race?)
+        self.get_db(dbname=dbname)
+
+    async def on_after_create_db_from_template(
+        self, tgt_dbname: str, src_dbname: str, mode: str
+    ) -> None:
+        logger.info('Starting copy from %s to %s', src_dbname, tgt_dbname)
+        from edb.pgsql import common
+        from . import bootstrap  # noqa: F402
+
+        real_tgt_dbname = common.get_database_backend_name(
+            tgt_dbname, tenant_id=self._tenant_id)
+        real_src_dbname = common.get_database_backend_name(
+            src_dbname, tenant_id=self._tenant_id)
+
+        async with self.direct_pgcon(tgt_dbname) as con:
+            await bootstrap.create_branch(
+                self._cluster,
+                self._server._refl_schema,
+                con,
+                real_src_dbname,
+                real_tgt_dbname,
+                mode,
+                self._server._sys_queries['backend_id_fixup'],
             )
 
-        await self.ensure_database_not_connected(dbname)
+        logger.info('Finished copy from %s to %s', src_dbname, tgt_dbname)
 
     def on_after_drop_db(self, dbname: str) -> None:
         try:

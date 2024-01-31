@@ -747,6 +747,37 @@ class AlterCurrentDatabaseSetArray(dbops.Function):
         )
 
 
+class CopyDatabaseConfigs(dbops.Function):
+    """Copy database configs from one database to the current one"""
+    text = '''
+        SELECT edgedb._alter_current_database_set(nameval.name, nameval.value)
+        FROM
+            pg_db_role_setting AS cfg,
+            LATERAL unnest(cfg.setconfig) as cfg_set(s),
+            LATERAL (
+                SELECT
+                    split_part(cfg_set.s, '=', 1) AS name,
+                    split_part(cfg_set.s, '=', 2) AS value
+            ) AS nameval
+        WHERE
+            setdatabase = (
+                SELECT oid
+                FROM pg_database
+                WHERE datname = source_db
+            )
+            AND setrole = 0;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_copy_database_configs'),
+            args=[('source_db', ('text',))],
+            returns=('text',),
+            volatility='volatile',
+            text=self.text,
+        )
+
+
 class StrToBigint(dbops.Function):
     """Parse bigint from text."""
 
@@ -996,6 +1027,32 @@ class GetDatabaseBackendNameFunction(dbops.Function):
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'get_database_backend_name'),
+            args=[('db_name', ('text',))],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetDatabaseFrontendNameFunction(dbops.Function):
+
+    text = f'''
+    SELECT
+        CASE
+        WHEN
+            (edgedb.get_backend_capabilities()
+             & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+        THEN
+            substring(db_name, position('_' in db_name) + 1)
+        ELSE
+            'edgedb'
+        END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_database_frontend_name'),
             args=[('db_name', ('text',))],
             returns=('text',),
             language='sql',
@@ -4400,9 +4457,11 @@ async def bootstrap(
         dbops.CreateFunction(AlterCurrentDatabaseSetStringArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetNonArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetArray()),
+        dbops.CreateFunction(CopyDatabaseConfigs()),
         dbops.CreateFunction(GetBackendCapabilitiesFunction()),
         dbops.CreateFunction(GetBackendTenantIDFunction()),
         dbops.CreateFunction(GetDatabaseBackendNameFunction()),
+        dbops.CreateFunction(GetDatabaseFrontendNameFunction()),
         dbops.CreateFunction(GetRoleBackendNameFunction()),
         dbops.CreateFunction(GetUserSequenceBackendNameFunction()),
         dbops.CreateFunction(GetStdModulesFunction()),
@@ -4661,8 +4720,12 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
                 )
              ELSE False END
         )""",
-        'name': "(d.description)->>'name'",
-        'name__internal': "(d.description)->>'name'",
+        'name': (
+            'edgedb.get_database_frontend_name(datname) COLLATE "default"'
+        ),
+        'name__internal': (
+            'edgedb.get_database_frontend_name(datname) COLLATE "default"'
+        ),
         'computed_fields': 'ARRAY[]::text[]',
         'builtin': "((d.description)->>'builtin')::bool",
     }

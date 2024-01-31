@@ -1066,13 +1066,27 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit_list(node.bases)
 
     def visit_CreateDatabase(self, node: qlast.CreateDatabase) -> None:
-        self._visit_CreateObject(node, 'DATABASE')
+        if node.flavor == 'BRANCH':
+            if node.branch_type == qlast.BranchType.EMPTY:
+                self._visit_CreateObject(node, 'EMPTY BRANCH')
+            else:
+                def after_name() -> None:
+                    self._write_keywords(' FROM ')
+                    assert node.template
+                    self.visit(node.template)
+                self._visit_CreateObject(
+                    node, f'{node.branch_type} BRANCH', after_name=after_name)
+        elif node.flavor == 'DATABASE':
+            self._visit_CreateObject(node, 'DATABASE')
+        else:
+            raise EdgeQLSourceGeneratorError(
+                f'unknown branch command flavor: {node.flavor!r}')
 
     def visit_AlterDatabase(self, node: qlast.AlterDatabase) -> None:
-        self._visit_AlterObject(node, 'DATABASE')
+        self._visit_AlterObject(node, node.flavor)
 
     def visit_DropDatabase(self, node: qlast.DropDatabase) -> None:
-        self._visit_DropObject(node, 'DATABASE')
+        self._visit_DropObject(node, node.flavor)
 
     def visit_CreateRole(self, node: qlast.CreateRole) -> None:
         after_name = lambda: self._ddl_visit_bases(node)
