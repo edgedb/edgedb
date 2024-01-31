@@ -78,9 +78,7 @@ class CompileRequest:
     def serialize(self) -> bytes:
         ...
 
-    def deserialize(
-        self, data: bytes, cache_key: uuid.UUID | None = None
-    ) -> CompileRequest:
+    def deserialize(self, data: bytes) -> CompileRequest:
         ...
 
     def get_cache_key(self) -> uuid.UUID:
