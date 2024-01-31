@@ -169,13 +169,40 @@ class QueryCacheTable(dbops.Table):
             dbops.Column(name='schema_version', type='uuid', required=True),
             dbops.Column(name='input', type='bytea', required=True),
             dbops.Column(name='output', type='bytea', required=True),
+            dbops.Column(name='evict', type='text', required=True),
         ])
 
         self.add_constraint(
             dbops.PrimaryKey(
                 table_name=('edgedb', '_query_cache'),
-                columns=['key', 'schema_version'],
+                columns=['key'],
             ),
+        )
+
+
+class EvictQueryCacheFunction(dbops.Function):
+
+    text = f'''
+    DECLARE
+        evict_sql text;
+    BEGIN
+        DELETE FROM "edgedb"."_query_cache"
+            WHERE "key" = cache_key
+            RETURNING "evict" INTO evict_sql;
+        IF evict_sql IS NOT NULL THEN
+            EXECUTE evict_sql;
+        END IF;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_evict_query_cache'),
+            args=[("cache_key", ("uuid",))],
+            returns=("void",),
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
         )
 
 
@@ -4409,6 +4436,7 @@ async def bootstrap(
         dbops.CreateTable(DMLDummyTable()),
         dbops.CreateTable(QueryCacheTable()),
         dbops.Query(DMLDummyTable.SETUP_QUERY),
+        dbops.CreateFunction(EvictQueryCacheFunction()),
         dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
         dbops.CreateFunction(UuidGenerateV4Function('edgedbext')),
         dbops.CreateFunction(UuidGenerateV5Function('edgedbext')),

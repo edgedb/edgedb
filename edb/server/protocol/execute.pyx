@@ -68,15 +68,16 @@ async def persist_cache(
     await be_conn.sql_execute((evict, persist))
     await be_conn.sql_fetch(
         b'INSERT INTO "edgedb"."_query_cache" '
-        b'(key, schema_version, input, output) '
-        b'VALUES ($1, $2, $3, $4) '
-        b'ON CONFLICT (key, schema_version) DO UPDATE SET '
-        b'input=$3, output=$4',
+        b'("key", "schema_version", "input", "output", "evict") '
+        b'VALUES ($1, $2, $3, $4, $5) '
+        b'ON CONFLICT (key) DO UPDATE SET '
+        b'"schema_version"=$2, "input"=$3, "output"=$4, "evict"=$5',
         args=(
             compiled.request.get_cache_key().bytes,
             dbv.schema_version.bytes,
             compiled.request.serialize(),
             compiled.serialized,
+            evict,
         ),
         use_prep_stmt=True,
     )

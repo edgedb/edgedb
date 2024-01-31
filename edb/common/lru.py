@@ -22,7 +22,7 @@ from __future__ import annotations
 import collections.abc
 
 
-class LRUMapping(collections.abc.MutableMapping):
+class ManualLRUMapping(collections.abc.MutableMapping):
 
     # We use an OrderedDict for LRU implementation.  Operations:
     #
@@ -61,8 +61,10 @@ class LRUMapping(collections.abc.MutableMapping):
             self._dict.move_to_end(key, last=True)
         else:
             self._dict[key] = o
-            if len(self._dict) > self._maxsize:
-                self._dict.popitem(last=False)
+
+    def gc(self):
+        while len(self._dict) > self._maxsize:
+            yield self._dict.popitem(last=False)
 
     def __delitem__(self, key):
         del self._dict[key]
@@ -75,3 +77,14 @@ class LRUMapping(collections.abc.MutableMapping):
 
     def __iter__(self):
         return iter(self._dict)
+
+
+class LRUMapping(ManualLRUMapping):
+    def __setitem__(self, key, o):
+        if key in self._dict:
+            self._dict[key] = o
+            self._dict.move_to_end(key, last=True)
+        else:
+            self._dict[key] = o
+            if len(self._dict) > self._maxsize:
+                self._dict.popitem(last=False)

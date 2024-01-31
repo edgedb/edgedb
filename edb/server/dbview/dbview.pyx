@@ -28,6 +28,7 @@ import pickle
 import struct
 import time
 import typing
+import uuid
 import weakref
 
 import immutables
@@ -100,8 +101,8 @@ cdef class CompiledQuery:
 
 cdef class Database:
 
-    # Global LRU cache of compiled anonymous queries
-    _eql_to_compiled: typing.Mapping[str, dbstate.QueryUnitGroup]
+    # Global LRU cache of compiled queries
+    _query_cache: lru.ManualLRUMapping[uuid.UUID, dbstate.QueryUnitGroup]
 
     def __init__(
         self,
@@ -126,8 +127,8 @@ cdef class Database:
 
         self._introspection_lock = asyncio.Lock()
 
-        self._eql_to_compiled = lru.LRUMapping(
-            maxsize=defines._MAX_QUERIES_CACHE)
+        self._query_cache = lru.ManualLRUMapping(
+            maxsize=defines._MAX_QUERIES_CACHE_DB)
         self._sql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
 
@@ -181,7 +182,6 @@ cdef class Database:
         self.backend_ids.update(new_types)
 
     cdef _invalidate_caches(self):
-        self._eql_to_compiled.clear()
         self._sql_to_compiled.clear()
         self._index.invalidate_caches()
 
@@ -190,12 +190,18 @@ cdef class Database:
     ):
         assert compiled.cacheable
 
-        existing, existing_ver = self._eql_to_compiled.get(key, DICTDEFAULT)
+        existing, existing_ver = self._query_cache.get(key, DICTDEFAULT)
         if existing is not None and existing_ver == self.schema_version:
             # We already have a cached query for a more recent DB version.
             return
 
-        self._eql_to_compiled[key] = compiled, schema_version
+        self._query_cache[key] = compiled, schema_version
+        keys = [k for k, _ in self._query_cache.gc()]
+        if keys:
+            self.tenant.create_task(
+                self.tenant.evict_query_cache(self.name, keys),
+                interruptable=False,
+            )
 
     def cache_compiled_sql(self, key, compiled: list[str]):
         existing, ver = self._sql_to_compiled.get(key, DICTDEFAULT)
@@ -237,21 +243,26 @@ cdef class Database:
             return old_serializer
 
     def hydrate_cache(self, query_cache):
+        new = set()
         for cache_key, schema_version, out_data in query_cache:
+            cache_key = uuidgen.from_bytes(cache_key)
             schema_version = uuidgen.from_bytes(schema_version)
-            _, cached_ver = self._sql_to_compiled.get(cache_key, DICTDEFAULT)
+            new.add(cache_key)
+
+            _, cached_ver = self._query_cache.get(cache_key, DICTDEFAULT)
             if cached_ver != schema_version:
-                self._cache_compiled_query(
-                    uuidgen.from_bytes(cache_key),
-                    pickle.loads(out_data),
-                    schema_version,
+                self._query_cache[cache_key] = (
+                    pickle.loads(out_data), schema_version
                 )
+        for cache_key in list(self._query_cache.keys()):
+            if cache_key not in new:
+                self._query_cache.pop(cache_key)
 
     def iter_views(self):
         yield from self._views
 
     def get_query_cache_size(self):
-        return len(self._eql_to_compiled) + len(self._sql_to_compiled)
+        return len(self._query_cache) + len(self._sql_to_compiled)
 
     async def introspection(self):
         if self.user_schema_pickle is None:
@@ -705,7 +716,7 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_ddl):
             return None
 
-        query_unit_group, qu_ver = self._db._eql_to_compiled.get(
+        query_unit_group, qu_ver = self._db._query_cache.get(
             key, DICTDEFAULT)
         if query_unit_group is not None and qu_ver != self._db.schema_version:
             query_unit_group = None
