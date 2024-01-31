@@ -55,20 +55,22 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     };
 
     create type ext::auth::EmailFactor extending ext::auth::Factor {
-        create required property email: str {
-            create delegated constraint exclusive;
-        };
+        create required property email: str;
         create property verified_at: std::datetime;
     };
 
     create type ext::auth::EmailPasswordFactor
         extending ext::auth::EmailFactor {
+        alter property email {
+            create constraint exclusive;
+        };
         create required property password_hash: std::str;
     };
 
-    create type ext::auth::WebAuthnFactor extending ext::auth::Factor {
-        create required property email: str;
-        create property verified_at: std::datetime;
+    create type ext::auth::WebAuthnFactor extending ext::auth::EmailFactor {
+        create required property user_handle: std::bytes {
+            create constraint exclusive;
+        };
         create required property credential_id: std::bytes {
             create constraint exclusive;
         };
@@ -77,16 +79,26 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
 
         create constraint exclusive on ((.email, .credential_id));
+        create constraint exclusive on ((.email, .user_handle));
     };
 
-    create type ext::auth::WebAuthnChallenge extending ext::auth::Auditable {
+    create type ext::auth::WebAuthnRegistrationChallenge
+        extending ext::auth::Auditable {
         create required property challenge: std::bytes {
             create constraint exclusive;
         };
         create required property email: std::str;
-        create link factor: ext::auth::WebAuthnFactor;
+        create required property user_handle: std::bytes;
 
-        create constraint exclusive on ((.factor, .email, .challenge));
+        create constraint exclusive on ((.user_handle, .email, .challenge));
+    };
+
+    create type ext::auth::WebAuthnAuthenticationChallenge
+        extending ext::auth::Auditable {
+        create required property challenge: std::bytes {
+            create constraint exclusive;
+        };
+        create required link factor: ext::auth::WebAuthnFactor;
     };
 
     create type ext::auth::PKCEChallenge extending ext::auth::Auditable {
@@ -236,11 +248,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 "The full origin of the sign-in page including protocol and \
                 port of the application. If using the built-in UI, this \
                 should be the origin of the EdgeDB server.";
-        };
-
-        create required property relying_party_name: std::str {
-            create annotation std::description :=
-                "The human-readable name of the application.";
         };
 
         create required property require_verification: std::bool {

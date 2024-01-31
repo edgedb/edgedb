@@ -33,6 +33,7 @@ from typing import *
 
 import aiosmtplib
 from jwcrypto import jwk, jwt
+from webauthn import generate_registration_options, options_to_json
 
 from edb import errors as edb_errors
 from edb.common import debug
@@ -41,7 +42,17 @@ from edb.ir import statypes
 from edb.server import tenant as edbtenant
 from edb.server.config.types import CompositeConfigType
 
-from . import oauth, local, errors, util, pkce, ui, config, email as auth_emails
+from . import (
+    oauth,
+    local,
+    errors,
+    util,
+    pkce,
+    ui,
+    config,
+    email as auth_emails,
+    webauthn,
+)
 
 
 logger = logging.getLogger('edb.server')
@@ -96,6 +107,12 @@ class Router:
                     return await self.handle_send_reset_email(*handler_args)
                 case ('reset-password',):
                     return await self.handle_reset_password(*handler_args)
+
+                # WebAuthn routes
+                case ('webauthn', 'options'):
+                    return await self.handle_webauthn_options(*handler_args)
+                case ('webauthn', 'register'):
+                    return await self.handle_webauthn_register(*handler_args)
 
                 # UI routes
                 case ('ui', 'signin'):
@@ -785,6 +802,122 @@ class Router:
             else:
                 raise ex
 
+    async def handle_webauthn_options(self, request: Any, response: Any):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        email = _get_search_param(query, "email")
+        webauthn_provider = self._get_webauthn_provider()
+        if webauthn_provider is None:
+            raise errors.MissingConfiguration(
+                "ext::auth::AuthConfig::providers",
+                "WebAuthn provider is not configured",
+            )
+
+        app_details_config = self._get_app_details_config()
+
+        registration_options = generate_registration_options(
+            rp_id=webauthn_provider.relying_party_id,
+            rp_name=(
+                app_details_config.app_name
+                or webauthn_provider.relying_party_origin
+            ),
+            user_name=email,
+            user_display_name=email,
+        )
+
+        await webauthn.create_registration_challenge(
+            self.db,
+            email=email,
+            challenge=registration_options.challenge,
+            user_handle=registration_options.user.id,
+        )
+
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"application/json"
+        _set_cookie(
+            response,
+            "edgedb-webauthn-registration-user-handle",
+            base64.urlsafe_b64encode(registration_options.user.id).decode(),
+        )
+        response.body = options_to_json(registration_options).encode()
+
+    async def handle_webauthn_register(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(
+            data,
+            {"provider", "challenge", "email", "credentials", "verify_url"},
+        )
+        provider_config = self._get_webauthn_provider()
+        if provider_config is None:
+            raise errors.MissingConfiguration(
+                "ext::auth::AuthConfig::providers",
+                "WebAuthn provider is not configured",
+            )
+
+        provider_name: str = data["provider"]
+        email: str = data["email"]
+        verify_url: str = data["verify_url"]
+        credentials: str = data["credentials"]
+        pkce_challenge: str = data["challenge"]
+
+        user_handle_cookie = request.cookies.get(
+            "edgedb-webauthn-registration-user-handle"
+        ).value
+        if user_handle_cookie is None:
+            raise errors.InvalidData(
+                "Missing 'edgedb-webauthn-registration-user-handle' cookie"
+            )
+        try:
+            user_handle = base64.urlsafe_b64decode(user_handle_cookie)
+        except Exception as e:
+            raise errors.InvalidData(
+                "Failed to decode 'edgedb-webauthn-registration-user-handle'"
+                " cookie"
+            ) from e
+
+        require_verification = provider_config.require_verification
+        pkce_code: Optional[str] = None
+
+        identity = await webauthn.register(
+            self.db,
+            credentials=credentials,
+            email=email,
+            user_handle=user_handle,
+            provider_config=provider_config,
+        )
+        if not require_verification:
+            await pkce.create(self.db, pkce_challenge)
+            pkce_code = await pkce.link_identity_challenge(
+                self.db, identity.id, pkce_challenge
+            )
+
+        await self._send_verification_email(
+            provider=provider_name,
+            identity_id=identity.id,
+            to_addr=data["email"],
+            verify_url=verify_url,
+            maybe_challenge=pkce_challenge,
+            maybe_redirect_to=None,
+        )
+
+        response.status = http.HTTPStatus.CREATED
+        response.content_type = b"application/json"
+        if require_verification:
+            now_iso8601 = datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+            response.body = json.dumps(
+                {"verification_email_sent_at": (now_iso8601)}
+            ).encode()
+        else:
+            if pkce_code is None:
+                raise errors.PKCECreationFailed
+            response.body = json.dumps(
+                {"code": pkce_code, "provider": provider_name}
+            ).encode()
+
     async def handle_ui_signin(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
 
@@ -917,7 +1050,7 @@ class Router:
                 brand_color=app_details_config.brand_color,
             )
 
-    async def handle_ui_webauthn(self, request: Any, response: Any):
+    async def handle_ui_webauthn_signup(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
         webauthn_provider = (
             self._get_webauthn_provider() if ui_config is not None else None
@@ -936,17 +1069,20 @@ class Router:
             )
             challenge = _get_search_param(query, "challenge")
 
+            app_details_config = self._get_app_details_config()
             response.status = http.HTTPStatus.OK
             response.content_type = b'text/html'
-            response.body = ui.render_webauthn_page(
+            response.body = ui.render_webauthn_register_page(
                 base_path=self.base_path,
                 provider_name=webauthn_provider.name,
                 error_message=_maybe_get_search_param(query, 'error'),
                 challenge=challenge,
-                app_name=ui_config.app_name,
-                logo_url=ui_config.logo_url,
-                dark_logo_url=ui_config.dark_logo_url,
-                brand_color=ui_config.brand_color,
+                app_name=app_details_config.app_name,
+                logo_url=app_details_config.logo_url,
+                dark_logo_url=app_details_config.dark_logo_url,
+                brand_color=app_details_config.brand_color,
+                redirect_to=ui_config.redirect_to,
+                redirect_to_on_signup=ui_config.redirect_to_on_signup,
             )
 
     async def handle_ui_reset_password(self, request: Any, response: Any):
@@ -1407,7 +1543,7 @@ class Router:
 
         return password_providers[0] if len(password_providers) == 1 else None
 
-    def _get_webauthn_provider(self):
+    def _get_webauthn_provider(self) -> config.WebAuthnProvider | None:
         providers = cast(
             list[config.ProviderConfig],
             util.get_config(
@@ -1416,11 +1552,20 @@ class Router:
                 frozenset,
             ),
         )
-        webauthn_providers = [
-            p for p in providers if (p.name == 'builtin::local_webauthn')
-        ]
+        webauthn_providers = cast(
+            list[config.WebAuthnProviderConfig],
+            [p for p in providers if (p.name == 'builtin::local_webauthn')],
+        )
 
-        return webauthn_providers[0] if len(webauthn_providers) == 1 else None
+        if len(webauthn_providers) == 1:
+            provider = webauthn_providers[0]
+            return config.WebAuthnProvider(
+                name=provider.name,
+                relying_party_origin=provider.relying_party_origin,
+                require_verification=provider.require_verification,
+            )
+        else:
+            return None
 
     async def _send_verification_email(
         self,

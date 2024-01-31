@@ -28,6 +28,39 @@ export async function register({
   }
 
   // Fetch WebAuthn options from the server
+  const options = await getCreateOptions(email);
+
+  // Register the new credential
+  const credentials = await navigator.credentials.create({
+    publicKey: options,
+  });
+
+  // Verify the credentials on the server
+  const verifyResult = await verifyCredentials({
+    email,
+    credentials,
+    provider,
+    challenge,
+    verifyUrl,
+  });
+
+  return verifyResult.code ?? null;
+}
+
+export function authenticate(email) {
+  // Check if WebAuthn is supported
+  if (!window.PublicKeyCredential) {
+    console.error("WebAuthn is not supported in this browser.");
+    return;
+  }
+}
+
+/**
+ * Fetch WebAuthn options from the server
+ * @param {string} email - Email address to register
+ * @returns {Promise<globalThis.PublicKeyCredentialCreationOptions>}
+ */
+async function getCreateOptions(email) {
   const url = new URL(WEBAUTHN_OPTIONS_URL);
   url.searchParams.append("email", email);
 
@@ -42,28 +75,38 @@ export async function register({
     );
     throw new Error("Failed to fetch WebAuthn options");
   }
-  let options;
+
   try {
-    options = await optionsResponse.json();
+    return await optionsResponse.json();
   } catch (e) {
     console.error("Failed to parse WebAuthn options:", e);
     throw new Error("Failed to parse WebAuthn options");
   }
+}
 
-  // Register the new credential
-  const credentials = await navigator.credentials.create({
-    publicKey: options,
-  });
+/**
+ * @typedef VerifyProps
+ * @property {string} email
+ * @property {Object} credentials
+ * @property {string} provider
+ * @property {string} challenge
+ * @property {string} verifyUrl
+ */
 
-  // Verify the credentials on the server
+/**
+ * Verify the credentials on the server
+ * @param {VerifyProps} props
+ * @returns {Promise<Object>}
+ */
+async function verifyCredentials(props) {
   const verifyResponse = await fetch(WEBAUTHN_VERIFY_URL, {
     method: "POST",
     body: JSON.stringify({
-      email,
-      credentials,
-      provider,
-      challenge,
-      verify_url: verifyUrl,
+      email: props.email,
+      credentials: props.credentials,
+      provider: props.provider,
+      challenge: props.challenge,
+      verify_url: props.verifyUrl,
     }),
   });
 
@@ -74,21 +117,11 @@ export async function register({
     );
     throw new Error("Failed to verify WebAuthn credentials");
   }
-  let verifyResult;
+
   try {
-    verifyResult = await verifyResponse.json();
+    return await verifyResponse.json();
   } catch (e) {
     console.error("Failed to parse WebAuthn verification result:", e);
     throw new Error("Failed to parse WebAuthn verification result");
-  }
-
-  return verifyResult.code ?? null;
-}
-
-export function authenticate(email) {
-  // Check if WebAuthn is supported
-  if (!window.PublicKeyCredential) {
-    console.error("WebAuthn is not supported in this browser.");
-    return;
   }
 }
