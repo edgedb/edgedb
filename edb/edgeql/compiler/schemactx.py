@@ -236,7 +236,7 @@ def derive_view(
         if (
             stype.is_view(ctx.env.schema)
             # XXX: Previously, the main check here was just for
-            # (not stype.generic(...)). generic isn't really the
+            # (not stype.is_non_concrete(...)). is_non_concrete isn't really the
             # right way to figure out if something is a view, since
             # some aliases will be generic. On changing it to is_view
             # instead, though, two GROUP BY tests that grouped
@@ -248,7 +248,7 @@ def derive_view(
             # a way that they count as being generic, but for now
             # preserve that behavior.
             and not (
-                stype.generic(ctx.env.schema)
+                stype.is_non_concrete(ctx.env.schema)
                 and (view_ir := ctx.view_sets.get(stype))
                 and (scope_info := ctx.env.path_scope_map.get(view_ir))
                 and scope_info.binding_kind
@@ -325,7 +325,7 @@ def derive_ptr(
         transient=True,
         attrs=attrs)
 
-    if not ptr.generic(ctx.env.schema):
+    if not ptr.is_non_concrete(ctx.env.schema):
         if isinstance(derived, s_sources.Source):
             ptr = cast(s_links.Link, ptr)
             scls_pointers = ptr.get_pointers(ctx.env.schema)

@@ -206,7 +206,7 @@ class ObjectType(
                     and not lnk.get_source_type(schema).is_union_type(schema)
                     # Only grab the "base" pointers
                     and all(
-                        b.generic(schema)
+                        b.is_non_concrete(schema)
                         for b in lnk.get_bases(schema).objects(schema)
                     )
                     and (not sources or lnk.get_source_type(schema) in sources)

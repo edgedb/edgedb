@@ -97,8 +97,8 @@ class Property(
             other, our_schema=our_schema,
             their_schema=their_schema, context=context)
 
-        if (not self.generic(our_schema) and
-                not other.generic(their_schema) and
+        if (not self.is_non_concrete(our_schema) and
+                not other.is_non_concrete(their_schema) and
                 self.issubclass(
                     our_schema,
                     our_schema.get('std::source', type=Property)) and
@@ -148,7 +148,7 @@ class Property(
     ) -> bool:
         source = self.get_source(schema)
         if isinstance(source, pointers.Pointer):
-            if source.generic(schema):
+            if source.is_non_concrete(schema):
                 return True
             else:
                 source = source.get_source(schema)

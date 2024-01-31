@@ -275,7 +275,7 @@ class Index(
 
         return super().add_parent_name(base_name, schema)
 
-    def generic(self, schema: s_schema.Schema) -> bool:
+    def is_non_concrete(self, schema: s_schema.Schema) -> bool:
         return self.get_subject(schema) is None
 
     @classmethod

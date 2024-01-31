@@ -695,6 +695,7 @@ class GQLCoreSchema:
                 pn = str(unqual_pn)
                 if pn == '__type__':
                     continue
+                assert isinstance(ptr, s_pointers.Pointer)
 
                 tgt = ptr.get_target(self.edb_schema)
                 assert tgt is not None
@@ -712,6 +713,7 @@ class GQLCoreSchema:
                     # We want to look at the pointer lineage because that
                     # will be reflected into GraphQL interface that is
                     # being extended and the type cannot be changed.
+                    ancestors: Tuple[s_pointers.Pointer, ...]
                     ancestors = ptr.get_ancestors(
                         self.edb_schema).objects(self.edb_schema)
 
@@ -723,7 +725,7 @@ class GQLCoreSchema:
                     # since we're inspecting the lineage of a pointer
                     # belonging to an actual type.
                     for ancestor in reversed((ptr,) + ancestors):
-                        if not ancestor.generic(self.edb_schema):
+                        if not ancestor.is_non_concrete(self.edb_schema):
                             ptr = ancestor
                             break
 
