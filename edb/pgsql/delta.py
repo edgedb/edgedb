@@ -102,14 +102,19 @@ if TYPE_CHECKING:
 VIEW_MODULES = ('sys', 'cfg')
 
 
-def has_table(obj, schema):
+def has_table(obj: Optional[so.InheritingObject], schema: s_schema.Schema):
+    assert obj != None
+
     if isinstance(obj, s_objtypes.ObjectType):
         return not (
             obj.is_compound_type(schema) or
             obj.get_is_derived(schema) or
             obj.is_view(schema)
         )
-    elif obj.is_pure_computable(schema) or obj.get_is_derived(schema):
+
+    assert isinstance(obj, s_pointers.Pointer)
+
+    if obj.is_pure_computable(schema) or obj.get_is_derived(schema):
         return False
     elif obj.is_non_concrete(schema):
         return (
@@ -5081,8 +5086,13 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
 
     @classmethod
     def _create_table(
-            cls, link, schema, context, conditional=False, create_bases=True,
-            create_children=True):
+        cls,
+        link: s_links.Link,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        conditional: bool = False,
+        create_children: bool = True,
+    ):
         new_table_name = cls._get_table_name(link, schema)
 
         create_c = dbops.CommandGroup()
@@ -5153,8 +5163,12 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             for l_descendant in link.descendants(schema):
                 if has_table(l_descendant, schema):
                     lc = LinkMetaCommand._create_table(
-                        l_descendant, schema, context, conditional=True,
-                        create_bases=False, create_children=False)
+                        l_descendant,
+                        schema,
+                        context,
+                        conditional=True,
+                        create_children=False,
+                    )
                     create_c.add_command(lc)
 
         return create_c
@@ -5556,8 +5570,13 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
     @classmethod
     def _create_table(
-            cls, prop, schema, context, conditional=False, create_bases=True,
-            create_children=True):
+        cls,
+        prop: s_props.Property,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        conditional: bool = False,
+        create_children: bool = True,
+    ):
         new_table_name = cls._get_table_name(prop, schema)
 
         create_c = dbops.CommandGroup()
@@ -5615,8 +5634,12 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
             for p_descendant in prop.descendants(schema):
                 if has_table(p_descendant, schema):
                     pc = PropertyMetaCommand._create_table(
-                        p_descendant, schema, context, conditional=True,
-                        create_bases=False, create_children=False)
+                        p_descendant,
+                        schema,
+                        context,
+                        conditional=True,
+                        create_children=False,
+                    )
                     create_c.add_command(pc)
 
         return create_c
