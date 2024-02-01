@@ -11,13 +11,13 @@ that can be selected, inserted, updated, or deleted by a particular query.
 This is known as *object-level security* and it is similar in function to SQL's
 row-level security.
 
-Let's start with a simple schema without any access policies.
+Let's start with a simple schema for a blog without any access policies.
 
 .. code-block:: sdl
     :version-lt: 3.0
 
     type User {
-      required property email -> str { constraint exclusive; };
+      required property email -> str { constraint exclusive; }
     }
 
     type BlogPost {
@@ -28,7 +28,7 @@ Let's start with a simple schema without any access policies.
 .. code-block:: sdl
 
     type User {
-      required email: str { constraint exclusive; };
+      required email: str { constraint exclusive; }
     }
 
     type BlogPost {
@@ -37,29 +37,48 @@ Let's start with a simple schema without any access policies.
     }
 
 When no access policies are defined, object-level security is not activated.
-Any properly authenticated client can select or modify any object in the
-database.
+Any properly authenticated client can carry out any operation on any object
+in the database. At the moment, we would need to ensure that the app handles
+the logic to restrict users from accessing other users' posts. Access
+policies allow us to ensure that the database itself handles this logic,
+thereby freeing us up from implementing access control in each and every
+piece of software that accesses the data.
 
 .. warning::
 
-    ⚠️ Once a policy is added to a particular object type, **all operations**
+    Once a policy is added to a particular object type, **all operations**
     (``select``, ``insert``, ``delete``, ``update``, etc.) on any object of
     that type are now *disallowed by default* unless specifically allowed by an
-    access policy!
+    access policy! See the subsection on resolution order below for details.
 
 Defining a global
 ^^^^^^^^^^^^^^^^^
 
-To start, we'll add a *global variable* to our schema. We'll use this global
-to represent the identity of the user executing the query.
+Global variables are the a convenient way to provide the context needed to
+determine what sort of access should be allowed for a given object, as they
+can be set and reset by the application as needed.
+
+To start, we'll add two global variables to our schema. We'll use one global
+``uuid`` to represent the identity of the user executing the query, and an
+enum for the other to represent the type of country that the user is currently
+in. The enum represents three types of countries: those where the service has
+not been rolled out, those with read-only access, and those with full access.
+A global makes sense in this case because a user's current country is
+context-specific: the same user who can access certain content in one country
+might not be able to in another country due to different legal frameworks
+(such as copyright length).
 
 .. code-block:: sdl-diff
     :version-lt: 3.0
 
+    +   scalar type Country extending enum<Full, ReadOnly, None>;
     +   global current_user -> uuid;
+    +   required global current_country -> Country {
+    +     default := Country.None
+    +   }
 
         type User {
-          required property email -> str { constraint exclusive; };
+          required property email -> str { constraint exclusive; }
         }
 
         type BlogPost {
@@ -69,10 +88,14 @@ to represent the identity of the user executing the query.
 
 .. code-block:: sdl-diff
 
+    +   scalar type Country extending enum<Full, ReadOnly, None>;
     +   global current_user: uuid;
+    +   required global current_country: Country {
+    +     default := Country.None
+    +   }
 
         type User {
-          required email: str { constraint exclusive; };
+          required email: str { constraint exclusive; }
         }
 
         type BlogPost {
@@ -80,11 +103,8 @@ to represent the identity of the user executing the query.
           required author: User;
         }
 
-Global variables are a generic mechanism for providing *context* to a query.
-Most commonly, they are used in the context of access policies.
-
-The value of these variables is attached to the *client* you use to execute
-queries. The exact API depends on which client library you're using:
+The value of these global variables is attached to the *client* you use to
+execute queries. The exact API depends on which client library you're using:
 
 .. tabs::
 
@@ -148,7 +168,10 @@ queries. The exact API depends on which client library you're using:
 
   .. code-tab:: rust
 
-    use uuid::Uuid;
+    use edgedb_protocol::{
+      model::Uuid,
+      value::EnumValue
+    };
 
     let client = edgedb_tokio::create_client()
         .await
@@ -160,7 +183,11 @@ queries. The exact API depends on which client library you're using:
                     Uuid::parse_str("2141a5b4-5634-4ccc-b835-437863534c51")
                         .expect("Uuid should have parsed"),
                 ),
-            )
+            );
+            c.set(
+                "current_country",
+                Value::Enum(EnumValue::from("Full"))
+            );
         });
     client
         .query_required_single::<Uuid, _>("select global current_user;", &())
@@ -171,15 +198,19 @@ queries. The exact API depends on which client library you're using:
 Defining a policy
 ^^^^^^^^^^^^^^^^^
 
-Let's add a policy to our sample schema.
+Let's add two policies to our sample schema.
 
 .. code-block:: sdl-diff
     :version-lt: 3.0
 
         global current_user -> uuid;
+        required global current_country -> Country {
+          default := Country.None
+        }
+        scalar type Country extending enum<Full, ReadOnly, None>;
 
         type User {
-          required property email -> str { constraint exclusive; };
+          required property email -> str { constraint exclusive; }
         }
 
         type BlogPost {
@@ -188,15 +219,26 @@ Let's add a policy to our sample schema.
 
     +     access policy author_has_full_access
     +       allow all
-    +       using (global current_user ?= .author.id);
+    +       using (global current_user    ?= .author.id
+    +         and  global current_country ?= Country.Full) {
+    +        errmessage := "User does not have full access";
+    +       }
+    +      access policy author_has_read_access
+    +        allow select
+    +        using (global current_user    ?= .author.id 
+    +          and  global current_country ?= Country.ReadOnly);
         }
 
 .. code-block:: sdl-diff
 
         global current_user: uuid;
+        required global current_country: Country {
+          default := Country.None
+        }
+        scalar type Country extending enum<Full, ReadOnly, None>;
 
         type User {
-          required email: str { constraint exclusive; };
+          required email: str { constraint exclusive; }
         }
 
         type BlogPost {
@@ -205,28 +247,41 @@ Let's add a policy to our sample schema.
 
     +     access policy author_has_full_access
     +       allow all
-    +       using (global current_user ?= .author.id);
+    +       using (global current_user    ?= .author.id
+    +         and  global current_country ?= Country.Full) {
+    +        errmessage := "User does not have full access";
+    +       }
+    +      access policy author_has_read_access
+    +        allow select
+    +        using (global current_user    ?= .author.id 
+    +          and  global current_country ?= Country.ReadOnly);
         }
 
-
-Let's break down the access policy syntax piece-by-piece. This policy grants
-full read-write access (``all``) to the ``author`` of each ``BlogPost``. No
-one else will be able to edit, delete, or view this post.
+Let's break down the access policy syntax piece-by-piece. These policies grant
+full read-write access (``all``) to the ``author`` of each ``BlogPost``, if
+the author is in a country that allows full access to the service. Otherwise,
+the same author will be restricted to either read-only access or no access at
+all, depending on the country.
 
 .. note::
 
-  We're using the *coalescing equality* operator ``?=`` which returns
+  We're using the *coalescing equality* operator ``?=`` because it returns
   ``false`` even if one of its arguments is an empty set.
 
 - ``access policy``: The keyword used to declare a policy inside an object
   type.
-- ``author_has_full_access``: The name of this policy; could be any string.
+- ``author_has_full_access`` and ``author_has_read_access``: The names of these
+  policies; could be any string.
 - ``allow``: The kind of policy; could be ``allow`` or ``deny``
 - ``all``: The set of operations being allowed/denied; a comma-separated list
-  of the following: ``all``, ``select``, ``insert``, ``delete``, ``update``,
-  ``update read``, ``update write``.
+  of any number of the following: ``all``, ``select``, ``insert``, ``delete``,
+  ``update``, ``update read``, and ``update write``.
 - ``using (<expr>)``: A boolean expression. Think of this as a ``filter``
   expression that defines the set of objects to which the policy applies.
+- ``errmessage``: Here we have added an error message that will be shown in
+  case the policy expression returns ``false``. We could have added other
+  annotations of our own inside this code block instead of, or in addition
+  to ``errmessage``.
 
 Let's do some experiments.
 
@@ -234,7 +289,10 @@ Let's do some experiments.
 
   db> insert User { email := "test@edgedb.com" };
   {default::User {id: be44b326-03db-11ed-b346-7f1594474966}}
-  db> set global current_user := <uuid>"be44b326-03db-11ed-b346-7f1594474966";
+  db> set global current_user := 
+  ...   <uuid>"be44b326-03db-11ed-b346-7f1594474966";
+  OK: SET GLOBAL
+  db> set global current_country := Country.Full;
   OK: SET GLOBAL
   db> insert BlogPost {
   ...    title := "My post",
@@ -242,9 +300,9 @@ Let's do some experiments.
   ...  };
   {default::BlogPost {id: e76afeae-03db-11ed-b346-fbb81f537ca6}}
 
-We've created a ``User``, set the value of ``current_user`` to its ``id``, and
-created a new ``BlogPost``. When we try to select all ``BlogPost`` objects,
-we'll see the post we just created.
+We've created a ``User``, set the value of ``current_user`` to its ``id``, the
+country to ``Country.Full``, and created a new ``BlogPost``. When we try to
+select all ``BlogPost`` objects, we'll see the post we just created.
 
 .. code-block:: edgeql-repl
 
@@ -253,7 +311,50 @@ we'll see the post we just created.
   db> select count(BlogPost);
   {1}
 
-Now let's unset ``current_user`` and see what happens.
+Next, let's test what happens when the same user is in two other countries:
+one that allows read-only access to our app, and another where we haven't
+yet been given permission to roll out our service.
+
+.. code-block:: edgeql-repl
+
+  db> set global current_country := Country.ReadOnly;
+  OK: SET GLOBAL
+  db> select BlogPost;
+  {default::BlogPost {id: dd274432-94ff-11ee-953e-0752e8ad3010}}
+  db> insert BlogPost {
+  ...    title := "My second post",
+  ...    author := (select User filter .id = global current_user)
+  ...  };
+  edgedb error: AccessPolicyError: access policy violation on 
+  insert of default::BlogPost (User does not have full access)
+  db> set global current_country := Country.None;
+  OK: SET GLOBAL
+  db> select BlogPost;
+  {}
+
+Note that for a ``select`` operation, the access policy works as a filter
+by simply returning an empty set. Meanwhile, when attempting an ``insert``
+operation, the operation may or may not work and thus we have provided a
+helpful error message in the access policy to give users a heads up on what
+went wrong.
+
+Now let's move back to a country with full access, but set the 
+``global current_user`` to some other id: a new user that has yet to write
+any blog posts. Now the number of ``BlogPost`` objects returned via
+the ``count`` function is zero:
+
+.. code-block:: edgeql-repl
+
+  db> set global current_country := Country.Full;
+  OK: SET GLOBAL
+  db> set global current_user :=
+  ...   <uuid>'d1c64b84-8e3c-11ee-86f0-d7ddecf3e9bd';
+  OK: SET GLOBAL
+  db> select count(BlogPost);
+  {0}
+
+Finally, let's unset ``current_user`` and see how many blog posts are returned
+when we count them.
 
 .. code-block:: edgeql-repl
 
@@ -264,9 +365,12 @@ Now let's unset ``current_user`` and see what happens.
   db> select count(BlogPost);
   {0}
 
-Now ``select BlogPost`` returns zero results. We can only ``select`` the
-*posts* written by the *user* specified by ``current_user``. When
-``current_user`` has no value, we can't read any posts.
+``select BlogPost`` returns zero results in this case as well. We can only
+``select`` the *posts* written by the *user* specified by ``current_user``.
+When ``current_user`` has no value or has a different value from the
+``.author.id`` of any existing ``BlogPost`` objects, we can't read any posts.
+But thanks to ``Country`` being set to ``Country.Full``, this user will be
+able to write a new blog post.
 
 The access policies use global variables to define a "subgraph" of data that
 is visible to a particular query.
@@ -288,10 +392,13 @@ sub-policies: ``update read`` and ``update write``.
 
 - ``update read``: This policy restricts *which* objects can be updated. It
   runs *pre-update*; that is, this policy is executed before the updates have
-  been applied.
+  been applied. As a result, an empty set is returned on an ``update read``
+  when a query lacks access to perform the operation.
 - ``update write``: This policy restricts *how* you update the objects; you
-  can think of it as a *post-update* validity check. This could be used to
-  prevent a ``User`` from transferring a ``BlogPost`` to another ``User``.
+  can think of it as a *post-update* validity check. As a result, an error
+  is returned on an ``update write`` when a query lacks access to perform
+  the operation. Preventing a ``User`` from transferring a ``BlogPost`` to
+  another ``User`` is one example of an ``update write`` access policy.
 
 Finally, there's an umbrella policy that can be used as a shorthand for all
 the others.
@@ -342,7 +449,7 @@ objects other than the ones they are defined on. For example:
     );
 
     type User {
-      required property email -> str { constraint exclusive; };
+      required property email -> str { constraint exclusive; }
       required property is_admin -> bool { default := false };
 
       access policy admin_only
@@ -367,7 +474,7 @@ objects other than the ones they are defined on. For example:
     );
 
     type User {
-      required email: str { constraint exclusive; };
+      required email: str { constraint exclusive; }
       required is_admin: bool { default := false };
 
       access policy admin_only
@@ -426,8 +533,11 @@ policy, you will get a generic error message.
 
 .. note::
 
-    When attempting a ``select`` queries, you simply won't get the data that
-    is being restricted by the access policy.
+    Restricted access is represented either as an error message or an empty
+    set, depending on the filtering order of the operation. The operations
+    ``select``, ``delete``, or ``update read`` filter up front, and thus you
+    simply won't get the data that is being restricted. Other operations
+    (``insert`` and ``update write``) will return an error message.
 
 If you have multiple access policies, it can be useful to know which policy is
 restricting your query and provide a friendly error message. You can do this
@@ -495,7 +605,7 @@ author.
       global current_user -> uuid;
 
       type User {
-        required property email -> str { constraint exclusive; };
+        required property email -> str { constraint exclusive; }
       }
 
       type BlogPost {
@@ -516,7 +626,7 @@ author.
       global current_user: uuid;
 
       type User {
-        required email: str { constraint exclusive; };
+        required email: str { constraint exclusive; }
       }
 
       type BlogPost {
@@ -540,7 +650,7 @@ Blog posts are visible to friends but only modifiable by the author.
       global current_user -> uuid;
 
       type User {
-        required property email -> str { constraint exclusive; };
+        required property email -> str { constraint exclusive; }
     +   multi link friends -> User;
       }
 
@@ -561,7 +671,7 @@ Blog posts are visible to friends but only modifiable by the author.
       global current_user: uuid;
 
       type User {
-        required email: str { constraint exclusive; };
+        required email: str { constraint exclusive; }
     +   multi friends: User;
       }
 
@@ -584,7 +694,7 @@ the author.
     :version-lt: 3.0
 
       type User {
-        required property email -> str { constraint exclusive; };
+        required property email -> str { constraint exclusive; }
     +   multi link blocked -> User;
       }
 
@@ -605,7 +715,7 @@ the author.
 .. code-block:: sdl-diff
 
       type User {
-        required email: str { constraint exclusive; };
+        required email: str { constraint exclusive; }
     +   multi blocked: User;
       }
 
@@ -630,7 +740,7 @@ the author.
     :version-lt: 3.0
 
       type User {
-        required property email -> str { constraint exclusive; };
+        required property email -> str { constraint exclusive; }
       }
 
       type BlogPost {
@@ -651,7 +761,7 @@ the author.
 .. code-block:: sdl-diff
 
       type User {
-        required email: str { constraint exclusive; };
+        required email: str { constraint exclusive; }
       }
 
       type BlogPost {
@@ -689,7 +799,7 @@ Here's a policy that limits the number of blog posts a ``User`` can post.
     :version-lt: 3.0
 
       type User {
-        required property email -> str { constraint exclusive; };
+        required property email -> str { constraint exclusive; }
     +   multi link posts := .<author[is BlogPost]
       }
 
@@ -709,7 +819,7 @@ Here's a policy that limits the number of blog posts a ``User`` can post.
     :version-lt: 4.0
 
       type User {
-        required email: str { constraint exclusive; };
+        required email: str { constraint exclusive; }
     +   multi link posts := .<author[is BlogPost]
       }
 
@@ -728,7 +838,7 @@ Here's a policy that limits the number of blog posts a ``User`` can post.
 .. code-block:: sdl-diff
 
       type User {
-        required email: str { constraint exclusive; };
+        required email: str { constraint exclusive; }
     +   multi posts := .<author[is BlogPost]
       }
 

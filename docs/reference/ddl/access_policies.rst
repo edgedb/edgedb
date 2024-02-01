@@ -25,7 +25,10 @@ Create access policy
         [ when (<condition>) ; ]
         { allow | deny } <action> [, <action> ... ; ]
         [ using (<expr>) ; ]
-        [ create annotation <annotation-name> := <value> ; ]
+        [ "{"
+           [ set errmessage := value ; ]
+           [ create annotation annotation-name := value ; ]
+          "}" ]
     "}"
 
     # where <action> is one of
@@ -37,17 +40,17 @@ Create access policy
 
 .. eql:synopsis::
 
-    [ with with-item [, ...] ]
-    { create | alter } type TypeName "{"
+    [ with <with-item> [, ...] ]
+    { create | alter } type <TypeName> "{"
       [ ... ]
-      create access policy name
-        [ when (condition) ; ]
+      create access policy <name>
+        [ when (<condition>) ; ]
         { allow | deny } action [, action ... ; ]
-        [ using (expr) ; ]
-        [ create annotation annotation-name := value ; ]
+        [ using (<expr>) ; ]
         [ "{"
            [ set errmessage := value ; ]
-          "}" ; ]
+           [ create annotation annotation-name := value ; ]
+          "}" ]
     "}"
 
     # where <action> is one of
