@@ -499,27 +499,26 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         else:
             return edgeql.NormalizedSource.from_string(text)
 
-    async def _heartbeat(self, stop_event):
-        """A heartbeat function that keeps the connection from going idle.
+    async def _suppress_tx_timeout(self):
+        async with self.with_pgcon() as conn:
+            await conn.sql_execute(b'''
+                select pg_catalog.set_config(
+                    'idle_in_transaction_session_timeout', '0', false)
+            ''')
 
-        We run this while we are running the compiler from within a
-        transaction, to keep the postgres transaction from going idle
-        during long-running compiles.
-
-        The heartbeat duration is tuned for the default 10s timeout.
-        """
-        while True:
-            conn = await self.get_pgcon()
-            try:
-                await conn.sql_execute(b'SELECT 1')
-            finally:
-                self.maybe_release_pgcon(conn)
-
-            try:
-                await asyncio.wait_for(stop_event.wait(), timeout=5.0)
-                return
-            except TimeoutError:
-                pass
+    async def _restore_tx_timeout(self, dbview.DatabaseConnectionView dbv):
+        old_timeout = dbv.get_session_config().get(
+            'session_idle_transaction_timeout',
+        )
+        timeout = (
+            'NULL' if not old_timeout
+            else repr(old_timeout.value.to_backend_str())
+        )
+        async with self.with_pgcon() as conn:
+            await conn.sql_execute(f'''
+                select pg_catalog.set_config(
+                    'idle_in_transaction_session_timeout', {timeout}, false)
+            '''.encode('utf-8'))
 
     async def _parse(
         self,
@@ -550,22 +549,19 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         query_unit_group = dbv.lookup_compiled_query(query_req)
 
-        # If we have to do a compile within a transaction, spin up a
-        # heartbeat task to keep the SQL connection from going idle.
-        if dbv.in_tx() and not dbv.in_tx_error() and query_unit_group is None:
-            event = asyncio.Event()
-            heartbeat_task = self.tenant.create_task(
-                self._heartbeat(event), interruptable=False)
-        else:
-            heartbeat_task = event = None
+        # If we have to do a compile within a transaction, suppress
+        # the idle_in_transaction_session_timeout.
+        suppress_timeout = (
+            dbv.in_tx() and not dbv.in_tx_error() and query_unit_group is None
+        )
+        if suppress_timeout:
+            await self._suppress_tx_timeout()
 
         try:
             return await dbv.parse(query_req, query_unit_group=query_unit_group)
         finally:
-            # Stop the heartbeat task.
-            if heartbeat_task:
-                event.set()
-                await heartbeat_task
+            if suppress_timeout:
+                await self._restore_tx_timeout(dbv)
 
     cdef parse_cardinality(self, bytes card):
         if card[0] == CARD_MANY.value:
