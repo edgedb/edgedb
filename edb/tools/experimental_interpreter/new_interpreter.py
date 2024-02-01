@@ -37,6 +37,8 @@ from .type_checking_tools import schema_checking as sck
 # sys.setrecursionlimit(10000)
 
 
+
+
 def empty_db(schema : DBSchema) -> EdgeDatabaseInterface:
     return InMemoryEdgeDatabase(schema)
 
@@ -118,7 +120,7 @@ def run_statement(db: EdgeDatabaseInterface,
     result = eval_expr_toplevel(db, type_checked, logs=logs)
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
-        debug.print(pp.show_val(result))
+        debug.print(pp.show_multiset_val(result))
         # print(typed_multi_set_val_to_json_like(
         #     tp, eops.assume_link_target(result), dbschema))
         print(typed_multi_set_val_to_json_like(tp, result, dbschema))
@@ -245,7 +247,13 @@ def repl(*, init_sdl_file=None,
                             print_asts=debug_print, logs=logs)
     except Exception:
         traceback.print_exception(*sys.exc_info())
-        
+
+    history_file = ".edgeql_interpreter_history.temp.txt"
+    try:
+        readline.read_history_file(history_file)
+    except FileNotFoundError:
+        pass
+
     while True:
         if trace_to_file_path is not None:
             write_logs_to_file(logs, trace_to_file_path)
@@ -272,6 +280,7 @@ def repl(*, init_sdl_file=None,
             if not s:
                 return
         try:
+            readline.write_history_file(history_file)
             res = run_str(db, dbschema, s, print_asts=debug_print,
                                 logs=logs, skip_type_checking=skip_type_checking)
             print("\n".join(json.dumps(multi_set_val_to_json_like(v))

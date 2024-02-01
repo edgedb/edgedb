@@ -55,7 +55,8 @@ def val_to_json_like(v: Val) -> json_like:
 
 
 def multi_set_val_to_json_like(m: MultiSetVal) -> json_like:
-    result = [val_to_json_like(v) for v in m.vals]
+    # do not dedup when converting to json (see test_edgeql_shape_for_01)
+    result = [val_to_json_like(v) for v in m.getRawVals()]
     return result
 
 
@@ -181,14 +182,15 @@ def typed_multi_set_val_to_json_like(
                      the result's type is a singleton.
     """
     if tp.mode.upper == e.CardNumOne:
-        if len(m.vals) > 1:
+        if len(m.getVals()) > 1:
             raise ValueError("Single Multiset must have cardinality at most 1")
-        if len(m.vals) == 1:
-            result = typed_val_to_json_like(m.vals[0], tp.tp, dbschema)
+        if len(m.getVals()) == 1:
+            result = typed_val_to_json_like(m.getVals()[0], tp.tp, dbschema)
             if top_level:
                 result = [result]
         else:
             result = []
     else:
-        result = [typed_val_to_json_like(v, tp.tp, dbschema) for v in m.vals]
+        # do not dedup when converting to json (see test_edgeql_shape_for_01)
+        result = [typed_val_to_json_like(v, tp.tp, dbschema) for v in m.getRawVals()]
     return result

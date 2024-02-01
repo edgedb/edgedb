@@ -229,7 +229,7 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
 
         # retrive the type from the values and tp, and create appropriate table
         result_tp = None
-        if len(val.vals) == 0:
+        if len(val.getVals()) == 0:
             schema = self.get_schema()
             base_tp = schema.val[tp].val[prop].tp
             if lp_prop is None:
@@ -255,11 +255,11 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                             case _:
                                 raise ValueError(f"Unknown type {link_props.val[lp_prop]}")
         else:
-            if all(isinstance(v, StrVal) for v in val.vals):
+            if all(isinstance(v, StrVal) for v in val.getVals()):
                 result_tp =  "STRING"
-            elif all(isinstance(v, IntVal) for v in val.vals):
+            elif all(isinstance(v, IntVal) for v in val.getVals()):
                 result_tp =  "INT"
-            elif all(isinstance(v, RefVal) for v in val.vals):
+            elif all(isinstance(v, RefVal) for v in val.getVals()):
                 result_tp =  "LINK"
             else:
                 raise ValueError(f"Unknown type for {val}")
@@ -313,7 +313,7 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
             target_table_tp = self.get_type_for_proprty(tp, prop, None, val)
             
             # insert the property value
-            for v in val.vals:
+            for v in val.getVals():
                 match v:
                     case StrVal(s):
                         self.cursor.execute(f"INSERT INTO \"{tp}.{prop}\" (id, string_value) VALUES (?, ?)", (id, s))
@@ -325,7 +325,7 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                             lp_tp = self.get_type_for_proprty(tp, prop, lp_name.label, val)
 
                             # insert the link property value
-                            for v in val.vals:
+                            for v in val.getVals():
                                 match v:
                                     case StrVal(s):
                                         self.cursor.execute(f"INSERT INTO {tp}.{prop}.{lp_name.label} (source_id, target_id, string_value) VALUES (?, ?, ?)", (id, refid, v))
@@ -359,17 +359,17 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                 match prop_tp_str:
                     case "STRING":
                         self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}\" WHERE id=?", (id,))
-                        for v in prop_val.vals:
+                        for v in prop_val.getVals():
                             assert isinstance(v, StrVal), "type mismatch"
                             self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}\" VALUES (?, ?)", (id, v.val))
                     case "INT":
                         self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}\" WHERE id=?", (id,))
-                        for v in prop_val.vals:
+                        for v in prop_val.getVals():
                             assert isinstance(v, IntVal), "type mismatch"
                             self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}\" VALUES (?, ?)", (id, v.val))
                     case "LINK":
                         self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}\" WHERE id=?", (id,))
-                        for v in prop_val.vals:
+                        for v in prop_val.getVals():
                             assert isinstance(v, RefVal), "type mismatch"
                             self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}\" VALUES (?, ?)", (id, v.refid))
                             # replace all link properties
@@ -378,11 +378,11 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                                 self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}.{lp_name.label}\" WHERE source_id=? AND target_id=?", (id, v.refid))
                                 match lp_prop_tp_str:
                                     case "STRING":
-                                        for lp_v in lp_val.vals:
+                                        for lp_v in lp_val.getVals():
                                             assert isinstance(lp_v, StrVal), "type mismatch"
                                             self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}.{lp_name.label}\" (source_id, target_id, string_value) VALUES (?, ?, ?)", (id, v.refid, lp_v.val))
                                     case "INT":
-                                        for lp_v in lp_val.vals:
+                                        for lp_v in lp_val.getVals():
                                             assert isinstance(lp_v, IntVal), "type mismatch"
                                             self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}.{lp_name.label}\" (source_id, target_id, int_value) VALUES (?, ?, ?)", (id, v.refid, lp_v.val))
                                     case _:

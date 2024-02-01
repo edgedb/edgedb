@@ -483,7 +483,7 @@ def object_dedup(val: Sequence[Val]) -> Sequence[Val]:
 
 # def assume_link_target(val: MultiSetVal) -> MultiSetVal:
 #     targets = [get_link_target(v) if isinstance(
-#         v, LinkPropVal) else v for v in val.vals]
+#         v, LinkPropVal) else v for v in val.getVals()]
 #     if all(val_is_object(t) for t in targets):
 #         return e.ResultMultiSetVal(object_dedup(targets))
 #     elif all(val_is_primitive(t) for t in targets):
@@ -504,7 +504,7 @@ def object_dedup(val: Sequence[Val]) -> Sequence[Val]:
 
 def map_expand_multiset_val(
         sv: Sequence[MultiSetVal]) -> Sequence[Sequence[Val]]:
-    return [v.vals for v in sv]
+    return [v.getVals() for v in sv]
 
 
 def val_is_link_convertible(val: Val) -> bool:

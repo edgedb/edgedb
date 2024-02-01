@@ -1,0 +1,9 @@
+select                 (Issue.time_spent_log UNION LogEntry, Issue).0 ;
+select User.deck;
+select User.deck@count;
+select {
+                 (select A filter True), (select A filter True)
+                 }.b;
+select A;
+select A.b
+;

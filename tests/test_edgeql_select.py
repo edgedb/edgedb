@@ -2786,6 +2786,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_select_setops_13c(self):
+        "This is a similar to the above test, but without WITH"
+        await self.assert_query_result(
+            r"""
+                (Issue.time_spent_log UNION LogEntry, Issue).0 
+                { 
+                    body
+                };
+            """,
+            [
+                # not only do we expect duplicates, but we actually
+                # expect 5 entries here:
+                # - 1 for the actual `time_spent_log' links from Issue
+                # - 4 from the UNION for each Issue.time_spent_log
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+            ],
+        )
+
     @test.decorators.experimental_interpreter_exclude("This seems fine, we allow computed properties to override in the interpreter")
     async def test_edgeql_select_setops_14(self):
         with self.assertRaisesRegex(

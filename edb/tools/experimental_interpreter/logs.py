@@ -16,7 +16,7 @@ def do_write_logs(logs: List[Any], filename: str):
 
     def format_entry(entry, index):
         entry_id = '_'.join(map(str, index))
-        result = """<a href='#' onclick='toggle("{}")'>
+        result = """<a href='#/' onclick='toggle("{}")'>
                     Input/Output {}</a>\n""".format(
             entry_id, entry_id)
         result += """<button onclick='foldEntry(\"{}\")'>Fold</button>
@@ -48,7 +48,7 @@ def do_write_logs(logs: List[Any], filename: str):
             result += "<li>\n"
             if isinstance(entry, list):
                 sub_index = index + (i,)
-                result += """<a href='#' onclick='toggle("{}")'>
+                result += """<a href='#/' onclick='toggle("{}")'>
                              Log {}</a>\n""".format(
                     '_'.join(map(str, sub_index)),
                     '_'.join(map(str, sub_index)))
@@ -80,7 +80,7 @@ def do_write_logs(logs: List[Any], filename: str):
         f.write(
             "  entry.style.display = entry.style.display === 'none' ?"
             " 'block' : 'none';\n""")
-        f.write("}\n")
+        f.write("return False;}\n")
         f.write("function foldAll() {\n")
         f.write("  var entries = document.getElementsByClassName('entry');\n")
         f.write("  for (var i = 0; i < entries.length; i++) {\n")

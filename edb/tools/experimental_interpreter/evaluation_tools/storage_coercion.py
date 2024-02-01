@@ -71,7 +71,7 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> Dict[str, MultiSetVal]:
     return {
         k: (e.ResultMultiSetVal(
                         [make_storage_atomic(v, tp[0])
-                         for v in val.val[StrLabel(k)][1].vals])
+                         for v in val.val[StrLabel(k)][1].getVals()])
                        if StrLabel(k) in val.val.keys()
                        else e.ResultMultiSetVal([]))
         for (k, tp) in fmt.val.items()

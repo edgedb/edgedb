@@ -269,7 +269,7 @@ def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
         case e.ScalarVal(_, _):
             return show_scalar_val(val)
         case e.ObjectVal(val=elems):
-            return "{" + ", ".join(f'{show_label(lbl)} ({show_visibility_marker(m)}): {show_val(el)}'
+            return "{" + ", ".join(f'{show_label(lbl)} ({show_visibility_marker(m)}): {show_multiset_val(el)}'
                                    for (lbl, (m, el)) in elems.items()) + "}"
         case e.RefVal(refid=id, val=v):
             return f"ref({id})" + show_val(v)
@@ -280,13 +280,21 @@ def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
                                    for lbl, el in elems.items()) + ")"
         case e.ArrVal(val=arr):
             return "[" + ", ".join(show_val(el) for el in arr) + "]"
-        case e.e.ResultMultiSetVal(vals=arr):
-            return "{" + ", ".join(show_val(el) for el in arr) + "}"
+        # case e.ResultMultiSetVal(_vals=arr):
+        #     return "(multiset val){" + ", ".join(show_val(el) for el in arr) + "}"
+        # case e.ConditionalDedupMultiSetVal(_vals=arr):
+        #     return "(dedup pending){" + ", ".join(show_val(el) for el in arr) + "}"
         case _:
             raise ValueError('Unimplemented', val)
 
 def show_multiset_val(val: e.MultiSetVal) -> str:
-    return "[" + ", ".join(show_val(el) for el in val.vals) + "]"
+    match val:
+        case e.ResultMultiSetVal(_vals=arr):
+            return "(multiset val){" + ", ".join(show_val(el) for el in arr) + "}"
+        case e.ConditionalDedupMultiSetVal(_vals=arr):
+            return "(dedup pending){" + ", ".join(show_val(el) for el in arr) + "}"
+        case _:
+            raise ValueError('Unimplemented', val)
         
 def show_ctx(ctx: e.TcCtx) -> str:
     return (

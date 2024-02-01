@@ -111,7 +111,7 @@ def reverse_elab_object_val(val: ObjectVal) -> qlast.Expr:
         elements=reverse_elab_shape(
             ShapeExpr(
                 shape={lbl: abstract_over_expr(
-                    MultiSetExpr([e for e in mv.vals]))
+                    MultiSetExpr([e for e in mv.getVals()]))
                     for (lbl, (u, mv)) in val.val.items()})))
 
 

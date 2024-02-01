@@ -138,7 +138,7 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
         results: List[Val] = []
         for (id, obj) in self.db.dbdata.items():
             if prop in obj.data.keys():
-                object_vals = obj.data[prop].vals
+                object_vals = obj.data[prop].getVals()
                 if all(isinstance(object_val, RefVal)
                         for object_val in object_vals):
                     object_id_mapping = {
