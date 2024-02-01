@@ -317,6 +317,11 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 raise RuntimeError(
                     'unexpected ObjectRef as a non-first path item')
 
+            if step.name == 'slowcompile':
+                import time
+                print("SLOW")
+                time.sleep(10)
+
             refnode = None
 
             if (
