@@ -1822,6 +1822,35 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ]),
         )
 
+    async def test_edgeql_coalesce_single_links_01(self):
+        await self.con.execute(
+            '''
+            CREATE TYPE default::Content;
+            CREATE TYPE default::Noob {
+                CREATE LINK primary: default::Content;
+                CREATE LINK secondary: default::Content;
+            };
+            insert Noob {
+              primary := (insert Content)
+            };
+            insert Noob {
+              secondary := (insert Content)
+            };
+            '''
+        )
+
+        await self.assert_query_result(
+            r'''
+            select Noob {
+              coalesce := (.primary ?? .secondary),
+            };
+            ''',
+            [
+                {'coalesce': {'id': str}},
+                {'coalesce': {'id': str}},
+            ],
+        )
+
     async def test_edgeql_optional_leakage_01(self):
         await self.con.execute(
             r'''
