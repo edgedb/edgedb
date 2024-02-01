@@ -102,16 +102,21 @@ if TYPE_CHECKING:
 VIEW_MODULES = ('sys', 'cfg')
 
 
-def has_table(obj, schema):
+def has_table(obj: Optional[so.InheritingObject], schema: s_schema.Schema):
+    assert obj
+
     if isinstance(obj, s_objtypes.ObjectType):
         return not (
             obj.is_compound_type(schema) or
             obj.get_is_derived(schema) or
             obj.is_view(schema)
         )
-    elif obj.is_pure_computable(schema) or obj.get_is_derived(schema):
+
+    assert isinstance(obj, s_pointers.Pointer)
+
+    if obj.is_pure_computable(schema) or obj.get_is_derived(schema):
         return False
-    elif obj.generic(schema):
+    elif obj.is_non_concrete(schema):
         return (
             not isinstance(obj, s_props.Property)
             and str(obj.get_name(schema)) != 'std::link'
@@ -2072,7 +2077,7 @@ class ConstraintCommand(MetaCommand):
 
         ancestors = [
             a for a in constraint.get_ancestors(schema).objects(schema)
-            if not a.generic(schema)
+            if not a.is_non_concrete(schema)
         ]
 
         if (
@@ -2086,7 +2091,7 @@ class ConstraintCommand(MetaCommand):
 
         match subject:
             case s_pointers.Pointer():
-                if subject.generic(schema):
+                if subject.is_non_concrete(schema):
                     return True
                 else:
                     return has_table(subject.get_source(schema), schema)
@@ -2759,7 +2764,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         cmd = sd.DeltaRoot()
         for prop, new_typ in props.items():
             rnew_typ = new_typ.resolve(schema)
-            if delete := rnew_typ.as_type_delete_if_dead(schema):
+            if delete := rnew_typ.as_type_delete_if_unused(schema):
                 cmd.add_caused(delete)
 
             delta_alter, cmd_alter, _ = prop.init_delta_branch(
@@ -3306,7 +3311,7 @@ class CompositeMetaCommand(MetaCommand):
             ptrs
             and isinstance(obj, s_links.Link)
             and sn.UnqualName('source') not in ptrs
-            and obj.generic(schema)
+            and obj.is_non_concrete(schema)
         ):
             ptrs[sn.UnqualName('source')] = ('source', ('uuid',))
 
@@ -5081,8 +5086,13 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
 
     @classmethod
     def _create_table(
-            cls, link, schema, context, conditional=False, create_bases=True,
-            create_children=True):
+        cls,
+        link: s_links.Link,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        conditional: bool = False,
+        create_children: bool = True,
+    ):
         new_table_name = cls._get_table_name(link, schema)
 
         create_c = dbops.CommandGroup()
@@ -5105,8 +5115,8 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 table_name=new_table_name,
                 columns=[src_col, tgt_col]))
 
-        if not link.generic(schema) and link.scalar():
-            tgt_prop = link.getptr(schema, 'target')
+        if not link.is_non_concrete(schema) and link.scalar():
+            tgt_prop = link.getptr(schema, sn.UnqualName('target'))
             tgt_ptr = types.get_pointer_storage_info(
                 tgt_prop, schema=schema)
             columns.append(
@@ -5153,8 +5163,12 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             for l_descendant in link.descendants(schema):
                 if has_table(l_descendant, schema):
                     lc = LinkMetaCommand._create_table(
-                        l_descendant, schema, context, conditional=True,
-                        create_bases=False, create_children=False)
+                        l_descendant,
+                        schema,
+                        context,
+                        conditional=True,
+                        create_children=False,
+                    )
                     create_c.add_command(lc)
 
         return create_c
@@ -5293,7 +5307,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
         old_table_name = self._get_table_name(link, schema)
 
         if (
-            not link.generic(orig_schema)
+            not link.is_non_concrete(orig_schema)
             and has_table(link.get_source(orig_schema), orig_schema)
             and not link.is_pure_computable(orig_schema)
         ):
@@ -5422,7 +5436,7 @@ class AlterLinkUpperCardinality(
         # or else the view update in the child might fail if a
         # link table isn't created in the parent yet.
         if (
-            not self.scls.generic(schema)
+            not self.scls.is_non_concrete(schema)
             and not self.scls.is_pure_computable(schema)
             and has_table(self.scls.get_source(schema), schema)
         ):
@@ -5446,7 +5460,7 @@ class AlterLinkLowerCardinality(
         orig_schema = schema
         schema = super().apply(schema, context)
 
-        if not self.scls.generic(schema):
+        if not self.scls.is_non_concrete(schema):
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
@@ -5484,7 +5498,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
         orig_schema = context.current().original_schema
 
         link = self.scls
-        is_abs = link.generic(schema)
+        is_abs = link.is_non_concrete(schema)
         is_comp = link.is_pure_computable(schema)
         was_comp = link.is_pure_computable(orig_schema)
 
@@ -5556,13 +5570,17 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
     @classmethod
     def _create_table(
-            cls, prop, schema, context, conditional=False, create_bases=True,
-            create_children=True):
+        cls,
+        prop: s_props.Property,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        conditional: bool = False,
+        create_children: bool = True,
+    ):
         new_table_name = cls._get_table_name(prop, schema)
 
         create_c = dbops.CommandGroup()
 
-        constraints = []
         columns = []
 
         src_col = common.edgedb_name_to_pg_name('source')
@@ -5583,13 +5601,12 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
         ci = dbops.CreateIndex(pg_index)
 
-        if not prop.generic(schema):
+        if not prop.is_non_concrete(schema):
             tgt_cols = cls.get_columns(prop, schema, None)
             columns.extend(tgt_cols)
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
-        table.constraints = constraints
 
         ct = dbops.CreateTable(table=table)
 
@@ -5615,8 +5632,12 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
             for p_descendant in prop.descendants(schema):
                 if has_table(p_descendant, schema):
                     pc = PropertyMetaCommand._create_table(
-                        p_descendant, schema, context, conditional=True,
-                        create_bases=False, create_children=False)
+                        p_descendant,
+                        schema,
+                        context,
+                        conditional=True,
+                        create_children=False,
+                    )
                     create_c.add_command(pc)
 
         return create_c
@@ -5889,7 +5910,7 @@ class AlterPropertyUpperCardinality(
         # or else the view update in the child might fail if a
         # link table isn't created in the parent yet.
         if (
-            not self.scls.generic(schema)
+            not self.scls.is_non_concrete(schema)
             and not self.scls.is_pure_computable(schema)
             and not self.scls.is_endpoint_pointer(schema)
             and has_table(self.scls.get_source(schema), schema)
@@ -5914,7 +5935,7 @@ class AlterPropertyLowerCardinality(
         orig_schema = schema
         schema = super().apply(schema, context)
 
-        if not self.scls.generic(schema):
+        if not self.scls.is_non_concrete(schema):
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
@@ -6633,12 +6654,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 and link.get_implicit_bases(eff_schema)
             ) and isinstance(link, s_links.Link)
 
-            if (
-                link.generic(eff_schema)
-                or (
-                    link.is_pure_computable(eff_schema)
-                    and link.is_pure_computable(orig_schema)
-                )
+            if link.is_non_concrete(eff_schema) or (
+                link.is_pure_computable(eff_schema)
+                and link.is_pure_computable(orig_schema)
             ):
                 continue
 

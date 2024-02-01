@@ -188,7 +188,7 @@ class ReferencedInheritingObject(
     ) -> List[ReferencedInheritingObjectT]:
         return [
             b for b in self.get_bases(schema).objects(schema)
-            if not b.generic(schema)
+            if not b.is_non_concrete(schema)
         ]
 
     def get_implicit_ancestors(
@@ -197,7 +197,7 @@ class ReferencedInheritingObject(
     ) -> List[ReferencedInheritingObjectT]:
         return [
             b for b in self.get_ancestors(schema).objects(schema)
-            if not b.generic(schema)
+            if not b.is_non_concrete(schema)
         ]
 
     def get_name_impacting_ancestors(
@@ -748,7 +748,7 @@ class ReferencedInheritingObjectCommand(
         default_base = refcls.get_default_base_name()
         explicit_bases = [
             b for b in child_bases
-            if b.generic(schema) and b.get_name(schema) != default_base
+            if b.is_non_concrete(schema) and b.get_name(schema) != default_base
         ]
 
         new_bases = implicit_bases + explicit_bases
@@ -766,7 +766,7 @@ class ReferencedInheritingObjectCommand(
         scls = self.scls
         implicit_bases = [
             b for b in scls.get_bases(schema).objects(schema)
-            if not b.generic(schema)
+            if not b.is_non_concrete(schema)
         ]
 
         referrer_ctx = self.get_referrer_context_or_die(context)
@@ -1345,7 +1345,7 @@ class RenameReferencedInheritingObject(
             referrer = referrer_ctx.scls
             schema = referrer.refresh_classref(schema, refdict.attr)
 
-        if not context.canonical and not scls.generic(schema):
+        if not context.canonical and not scls.is_non_concrete(schema):
             assert referrer_ctx
             orig_ref_fqname = scls.get_name(orig_schema)
             orig_ref_lname = reftype.get_key_for_name(schema, orig_ref_fqname)

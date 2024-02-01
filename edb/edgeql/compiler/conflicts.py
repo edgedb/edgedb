@@ -304,7 +304,7 @@ def _constr_matters(
 ) -> bool:
     schema = ctx.env.schema
     return (
-        not constr.generic(schema)
+        not constr.is_non_concrete(schema)
         and not constr.get_delegated(schema)
         and (
             # In some use sites we always process ancestor constraints
@@ -313,8 +313,10 @@ def _constr_matters(
             # applying.
             not only_local
             or constr.get_owned(schema)
-            or all(anc.get_delegated(schema) or anc.generic(schema) for anc
-                   in constr.get_ancestors(schema).objects(schema))
+            or all(
+                anc.get_delegated(schema) or anc.is_non_concrete(schema)
+                for anc in constr.get_ancestors(schema).objects(schema)
+            )
         )
     )
 
