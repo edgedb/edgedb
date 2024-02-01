@@ -1542,12 +1542,14 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
 
         orig_branch = self.get_database_name()
         new_branch = f'new_{orig_branch}'
+        # record the original schema
+        orig_schema = await self.con.query_single('describe schema as sdl')
 
         # connect to a default branch so we can create a new branch
-        branch_type = 'DATA' if include_data else 'SCHEMA'
+        branch_type = 'data' if include_data else 'schema'
         await self.con.execute(
-            f'CREATE {branch_type} BRANCH {new_branch} '
-            f'FROM {orig_branch}'
+            f'create {branch_type} branch {new_branch} '
+            f'from {orig_branch}'
         )
 
         try:
@@ -1559,6 +1561,21 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
         oldcon = self.con
         self.__class__.con = con2
         try:
+            # We cannot compare the SDL text of the new branch schema to the
+            # original because the order in which it renders all the
+            # components is not guaranteed. Instead we will use migrations to
+            # compare the new branch schema to the original. We expect there
+            # to be no difference and therefore a new migration to the
+            # original schema should have the "complete" status right away.
+            await self.con.execute(f'start migration to {{ {orig_schema} }}')
+            mig_status = json.loads(
+                await self.con.query_single_json(
+                    'describe current migration as json'
+                )
+            )
+            self.assertTrue(mig_status.get('complete'))
+            await self.con.execute('abort migration')
+
             # run the check_method on the copied branch
             if include_data:
                 await check_method(self)
