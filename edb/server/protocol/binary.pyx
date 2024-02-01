@@ -499,6 +499,28 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         else:
             return edgeql.NormalizedSource.from_string(text)
 
+    async def _heartbeat(self, stop_event):
+        """A heartbeat function that keeps the connection from going idle.
+
+        We run this while we are running the compiler from within a
+        transaction, to keep the postgres transaction from going idle
+        during long-running compiles.
+
+        The heartbeat duration is tuned for the default 10s timeout.
+        """
+        while True:
+            conn = await self.get_pgcon()
+            try:
+                await conn.sql_execute(b'SELECT 1')
+            finally:
+                self.maybe_release_pgcon(conn)
+
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=5.0)
+                return
+            except TimeoutError:
+                pass
+
     async def _parse(
         self,
         dbview.QueryRequestInfo query_req,
@@ -526,7 +548,24 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.debug_print('Extra variables', source.variables(),
                              'after', source.first_extra())
 
-        return await dbv.parse(query_req)
+        query_unit_group = dbv.lookup_compiled_query(query_req)
+
+        # If we have to do a compile within a transaction, spin up a
+        # heartbeat task to keep the SQL connection from going idle.
+        if dbv.in_tx() and query_unit_group is None:
+            event = asyncio.Event()
+            heartbeat_task = self.tenant.create_task(
+                self._heartbeat(event), interruptable=False)
+        else:
+            heartbeat_task = event = None
+
+        try:
+            return await dbv.parse(query_req, query_unit_group=query_unit_group)
+        finally:
+            # Stop the heartbeat task.
+            if heartbeat_task:
+                event.set()
+                await heartbeat_task
 
     cdef parse_cardinality(self, bytes card):
         if card[0] == CARD_MANY.value:
