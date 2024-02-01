@@ -313,8 +313,10 @@ def _constr_matters(
             # applying.
             not only_local
             or constr.get_owned(schema)
-            or all(anc.get_delegated(schema) or anc.is_non_concrete(schema) for anc
-                   in constr.get_ancestors(schema).objects(schema))
+            or all(
+                anc.get_delegated(schema) or anc.is_non_concrete(schema)
+                for anc in constr.get_ancestors(schema).objects(schema)
+            )
         )
     )
 

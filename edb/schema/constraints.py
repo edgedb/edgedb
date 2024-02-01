@@ -179,7 +179,9 @@ class Constraint(
             self, schema: s_schema.Schema) -> List[Constraint]:
         origins: List[Constraint] = []
         for base in self.get_bases(schema).objects(schema):
-            if not base.is_non_concrete(schema) and not base.get_delegated(schema):
+            if not base.is_non_concrete(schema) and not base.get_delegated(
+                schema
+            ):
                 origins.extend(
                     x for x in base.get_constraint_origins(schema)
                     if x not in origins

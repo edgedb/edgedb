@@ -6633,12 +6633,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 and link.get_implicit_bases(eff_schema)
             ) and isinstance(link, s_links.Link)
 
-            if (
-                link.is_non_concrete(eff_schema)
-                or (
-                    link.is_pure_computable(eff_schema)
-                    and link.is_pure_computable(orig_schema)
-                )
+            if link.is_non_concrete(eff_schema) or (
+                link.is_pure_computable(eff_schema)
+                and link.is_pure_computable(orig_schema)
             ):
                 continue
 

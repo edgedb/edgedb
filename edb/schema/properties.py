@@ -97,14 +97,16 @@ class Property(
             other, our_schema=our_schema,
             their_schema=their_schema, context=context)
 
-        if (not self.is_non_concrete(our_schema) and
-                not other.is_non_concrete(their_schema) and
-                self.issubclass(
-                    our_schema,
-                    our_schema.get('std::source', type=Property)) and
-                other.issubclass(
-                    their_schema,
-                    their_schema.get('std::source', type=Property))):
+        if (
+            not self.is_non_concrete(our_schema)
+            and not other.is_non_concrete(their_schema)
+            and self.issubclass(
+                our_schema, our_schema.get('std::source', type=Property)
+            )
+            and other.issubclass(
+                their_schema, their_schema.get('std::source', type=Property)
+            )
+        ):
             # Make std::source link property ignore differences in its target.
             # This is consistent with skipping the comparison on Pointer.source
             # in general.
