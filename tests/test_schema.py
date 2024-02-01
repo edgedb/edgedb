@@ -1590,6 +1590,14 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    def test_schema_scalar_order_01(self):
+        # Make sure scalar types account for base types when tracing SDL
+        # dependencies.
+        """
+            scalar type two extending one;
+            scalar type one extending str;
+        """
+
     def test_schema_property_cardinality_alter_01(self):
         schema = self.load_schema('''
             type Foo {
