@@ -553,6 +553,15 @@ def trace_layout_Schema(
 
 
 @trace_layout.register
+def trace_layout_CreateScalarType(
+    node: qlast.CreateScalarType,
+    *,
+    ctx: LayoutTraceContext,
+) -> None:
+    _trace_item_layout(node, ctx=ctx)
+
+
+@trace_layout.register
 def trace_layout_CreateObjectType(
     node: qlast.CreateObjectType,
     *,
