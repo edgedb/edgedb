@@ -503,7 +503,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         async with self.with_pgcon() as conn:
             await conn.sql_execute(b'''
                 select pg_catalog.set_config(
-                    'idle_in_transaction_session_timeout', '0', false)
+                    'idle_in_transaction_session_timeout', '0', true)
             ''')
 
     async def _restore_tx_timeout(self, dbview.DatabaseConnectionView dbv):
