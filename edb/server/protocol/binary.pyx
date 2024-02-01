@@ -552,7 +552,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         # If we have to do a compile within a transaction, spin up a
         # heartbeat task to keep the SQL connection from going idle.
-        if dbv.in_tx() and query_unit_group is None:
+        if dbv.in_tx() and not dbv.in_tx_error() and query_unit_group is None:
             event = asyncio.Event()
             heartbeat_task = self.tenant.create_task(
                 self._heartbeat(event), interruptable=False)
