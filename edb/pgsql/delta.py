@@ -103,7 +103,7 @@ VIEW_MODULES = ('sys', 'cfg')
 
 
 def has_table(obj: Optional[so.InheritingObject], schema: s_schema.Schema):
-    assert obj != None
+    assert obj
 
     if isinstance(obj, s_objtypes.ObjectType):
         return not (
@@ -5116,7 +5116,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 columns=[src_col, tgt_col]))
 
         if not link.is_non_concrete(schema) and link.scalar():
-            tgt_prop = link.getptr(schema, 'target')
+            tgt_prop = link.getptr(schema, sn.UnqualName('target'))
             tgt_ptr = types.get_pointer_storage_info(
                 tgt_prop, schema=schema)
             columns.append(
@@ -5581,7 +5581,6 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
         create_c = dbops.CommandGroup()
 
-        constraints = []
         columns = []
 
         src_col = common.edgedb_name_to_pg_name('source')
@@ -5608,7 +5607,6 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
-        table.constraints = constraints
 
         ct = dbops.CreateTable(table=table)
 
