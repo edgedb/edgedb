@@ -41,3 +41,5 @@ docs/_build
 /compile_commands.json
 
 temp_*
+
+*.temp.txt
