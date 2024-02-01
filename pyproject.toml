@@ -87,7 +87,7 @@ requires = [
     "Cython (>=0.29.32, <0.30.0)",
     "packaging >= 21.0",
     "setuptools >= 67",
-    "setuptools-rust ~= 0.12.1",
+    "setuptools-rust ~= 1.8",
     "wheel",
 
     "parsing ~= 2.0",
