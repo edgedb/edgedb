@@ -1364,25 +1364,7 @@ class Router:
         )
 
     def _get_app_details_config(self):
-        app_name = util.maybe_get_config(
-            self.db, "ext::auth::AuthConfig::app_name"
-        )
-        logo_url = util.maybe_get_config(
-            self.db, "ext::auth::AuthConfig::logo_url"
-        )
-        dark_logo_url = util.maybe_get_config(
-            self.db, "ext::auth::AuthConfig::dark_logo_url"
-        )
-        brand_color = util.maybe_get_config(
-            self.db, "ext::auth::AuthConfig::brand_color"
-        )
-
-        return config.AppDetailsConfig(
-            app_name=app_name,
-            logo_url=logo_url,
-            dark_logo_url=dark_logo_url,
-            brand_color=brand_color,
-        )
+        return util.get_app_details_config(self.db)
 
     def _get_password_provider(self):
         providers = cast(

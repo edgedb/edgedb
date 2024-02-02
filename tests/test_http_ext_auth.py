@@ -377,7 +377,6 @@ DARK_LOGO_URL = "http://example.com/darklogo.png"
 BRAND_COLOR = "f0f8ff"
 
 
-
 class TestHttpExtAuth(tb.ExtAuthTestCase):
     TRANSACTION_ISOLATION = False
     PARALLELISM_GRANULARITY = 'suite'
