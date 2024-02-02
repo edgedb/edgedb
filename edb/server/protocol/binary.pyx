@@ -517,7 +517,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         async with self.with_pgcon() as conn:
             await conn.sql_execute(f'''
                 select pg_catalog.set_config(
-                    'idle_in_transaction_session_timeout', {timeout}, false)
+                    'idle_in_transaction_session_timeout', {timeout}, true)
             '''.encode('utf-8'))
 
     async def _parse(
