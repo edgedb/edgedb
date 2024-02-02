@@ -209,7 +209,8 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                                         args=[reverse_elab(inner)])
         case e.FreeObjectExpr():
             return qlast.Path(steps=[qlast.ObjectRef(name="std::FreeObject")])
-        case ObjectProjExpr(subject=subject, label=label):
+        case (ObjectProjExpr(subject=subject, label=label) |
+                e.TupleProjExpr(subject=subject, label=label)):
             label_path_component = qlast.Ptr(
                 name=label,
                 direction=PointerDirection.Outbound, type=None)

@@ -122,6 +122,7 @@ def run_statement(db: EdgeDatabaseInterface,
     deduped = insert_conditional_dedup(type_checked)
 
     if should_print:
+        debug.print(pp.show(deduped))
         reverse_elabed = reverse_elab(deduped)
         debug.dump_edgeql(reverse_elabed)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")

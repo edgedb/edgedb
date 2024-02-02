@@ -117,6 +117,8 @@ def map_expr(
                     val={k: recur(e) for (k, e) in val.items()})
             case ObjectProjExpr(subject=subject, label=label):
                 return ObjectProjExpr(subject=recur(subject), label=label)
+            case e.TupleProjExpr(subject=subject, label=label):
+                return e.TupleProjExpr(subject=recur(subject), label=label)
             case BackLinkExpr(subject=subject, label=label):
                 return BackLinkExpr(subject=recur(subject), label=label)
             case TpIntersectExpr(subject=subject, tp=tp_name):

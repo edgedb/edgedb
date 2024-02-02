@@ -383,6 +383,15 @@ def match_param_modifier(p : e.ParamModifier, m : e.CMMode) -> e.CMMode:
 def is_order_spec(tp: e.ResultTp) -> bool:
     print("WARNING: is_order_spec not implemented")
     return True
+
+def is_tp_projection_tuple_proj(tp: e.Tp) -> bool:
+    match tp:
+        case e.NamedTupleTp(val=tp_tuple):
+            return True
+        case e.CompositeTp(kind=e.CompositeTpKind.Tuple, tps=tp_tuple):
+            return True
+        case _:
+            return False
     
 def can_project_label_from_tp(ctx: e.TcCtx | e.DBSchema, tp: e.Tp, label: e.Label) -> bool:
     match tp:

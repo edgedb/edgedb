@@ -201,6 +201,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_tp, result_card = tops.tp_project(
                 ctx, subject_tp, e.StrLabel(label))
+            """ If the projection is a computable expression, project from the subject"""
             if isinstance(result_tp, e.ComputableTp):
                 comp_expr = e.WithExpr(
                     subject_ck,
@@ -209,7 +210,10 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 result_expr = check_type(ctx, comp_expr, e.ResultTp(result_tp.tp, result_card))
                 result_tp = result_tp.tp
             else:
-                result_expr = e.ObjectProjExpr(subject_ck, label)
+                if tops.is_tp_projection_tuple_proj(subject_tp.tp):
+                    result_expr = e.TupleProjExpr(subject_ck, label)
+                else:
+                    result_expr = e.ObjectProjExpr(subject_ck, label)
         case e.LinkPropProjExpr(subject=subject, linkprop=lp):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_tp, result_card = tops.tp_project(

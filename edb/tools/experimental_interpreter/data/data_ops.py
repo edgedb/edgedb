@@ -544,6 +544,11 @@ class ObjectProjExpr:
     subject: Expr
     label: str
 
+@dataclass(frozen=True)
+class TupleProjExpr:
+    subject: Expr
+    label: str
+
 
 @dataclass(frozen=True)
 class BackLinkExpr:
@@ -771,7 +776,7 @@ Expr = (
     ObjectProjExpr | LinkPropProjExpr | WithExpr | ForExpr | OptionalForExpr |
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
-    FreeObjectExpr | ConditionalDedupExpr |
+    FreeObjectExpr | ConditionalDedupExpr | TupleProjExpr | 
     # ObjectExpr | 
     BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
     ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr

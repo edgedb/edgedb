@@ -145,6 +145,8 @@ def show_expr(expr: e.Expr) -> str:
             return var
         case e.ObjectProjExpr(subject=subject, label=label):
             return show_expr(subject) + "." + label
+        case e.TupleProjExpr(subject=subject, label=label):
+            return show_expr(subject) + ".→" + label
         case e.LinkPropProjExpr(subject=subject, linkprop=linkprop):
             return show_expr(subject) + "@" + linkprop
         case e.WithExpr(bound=bound, next=next):

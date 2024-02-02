@@ -334,20 +334,14 @@ def eval_expr(ctx: EvalEnv,
             else:
                 raise ValueError("Not implemented yet", looked_up_fun)
             return e.ResultMultiSetVal(after_fun_vals)
-        case ObjectProjExpr(subject=subject, label=label):
+        case (TupleProjExpr(subject=subject, label=label) |
+                ObjectProjExpr(subject=subject, label=label)):
             subjectv = eval_expr(ctx, db, subject)
             projected = [
                 p
                 for v in subjectv.getVals()
                 for p in singular_proj(ctx, db, v, StrLabel(label)).getRawVals()]
-            # if (label == "__edgedb_reserved_subject__"
-            #     or label.isdigit() # do not deduplicate on tuple projection or path factoring projection
-            #     #TODO : NAMED TUPLE projections should also not deduplicate
-            # ): 
             return e.ResultMultiSetVal(projected)
-            # else:
-            #     return do_conditional_dedup(e.ResultMultiSetVal(projected))
-            # return e.ResultMultiSetVal(projected)
         case BackLinkExpr(subject=subject, label=label):
             subjectv = eval_expr(ctx, db, subject)
             # subjectv = assume_link_target(subjectv)

@@ -2742,7 +2742,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
             WITH
-                L := LogEntry  # there happens to only be 1 entry
+                L := LogEntry 
             SELECT
                 (Issue.time_spent_log UNION L, Issue).0 {
                     body
