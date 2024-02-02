@@ -109,10 +109,20 @@ class Router:
                     return await self.handle_reset_password(*handler_args)
 
                 # WebAuthn routes
-                case ('webauthn', 'options'):
-                    return await self.handle_webauthn_options(*handler_args)
                 case ('webauthn', 'register'):
                     return await self.handle_webauthn_register(*handler_args)
+                case ('webauthn', 'register', 'options'):
+                    return await self.handle_webauthn_register_options(
+                        *handler_args
+                    )
+                case ('webauthn', 'authenticate'):
+                    return await self.handle_webauthn_authenticate(
+                        *handler_args
+                    )
+                case ('webauthn', 'authenticate', 'options'):
+                    return await self.handle_webauthn_authenticate_options(
+                        *handler_args
+                    )
 
                 # UI routes
                 case ('ui', 'signin'):
@@ -802,7 +812,7 @@ class Router:
             else:
                 raise ex
 
-    async def handle_webauthn_options(self, request: Any, response: Any):
+    async def handle_webauthn_register_options(self, request: Any, response: Any):
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
@@ -917,6 +927,30 @@ class Router:
             response.body = json.dumps(
                 {"code": pkce_code, "provider": provider_name}
             ).encode()
+
+    async def handle_webauthn_authenticate(
+        self, request: Any, response: Any
+    ):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(data, {"provider", "challenge", "email", "credentials", "verify_url"})
+        provider_config = self._get_webauthn_provider()
+        if provider_config is None:
+            raise errors.MissingConfiguration(
+                "ext::auth::AuthConfig::providers",
+                "WebAuthn provider is not configured",
+            )
+
+        provider_name: str = data["provider"]
+        email: str = data["email"]
+        verify_url: str = data["verify_url"]
+        credentials: str = data["credentials"]
+        pkce_challenge: str = data["challenge"]
+
+        user_handle_cookie = request.cookies.get(
+            "edgedb-webauthn-registration-user-handle"
+        ).value
+
 
     async def handle_ui_signin(self, request: Any, response: Any):
         ui_config = self._get_ui_config()

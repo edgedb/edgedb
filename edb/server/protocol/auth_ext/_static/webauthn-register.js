@@ -24,6 +24,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const redirectTo = formData.get("redirect_to");
     const verifyUrl = formData.get("verify_url");
 
+    if (redirectTo === null) {
+      throw new Error("Missing redirect_to parameter");
+    }
+
     try {
       const maybeCode = await register({
         email,
@@ -41,14 +45,14 @@ document.addEventListener("DOMContentLoaded", () => {
       window.location.href = redirectUrl.href;
     } catch (error) {
       console.error("Failed to register WebAuthn credentials:", error);
-      const url = new URL(redirectOnFailure);
+      const url = new URL(redirectOnFailure ?? redirectTo);
       url.searchParams.append("error", error.message);
       window.location.href = url.href;
     }
   });
 });
 
-const WEBAUTHN_OPTIONS_URL = new URL("../webauthn/options", window.location);
+const WEBAUTHN_OPTIONS_URL = new URL("../webauthn/register/options", window.location);
 const WEBAUTHN_REGISTER_URL = new URL("../webauthn/register", window.location);
 
 /**
@@ -76,16 +80,12 @@ function encodeBase64Url(bytes) {
 }
 
 /**
- * @typedef {Object} RegisterProps
- * @property {string} email - Email address to register
- * @property {string} provider - WebAuthn provider
- * @property {string} challenge - PKCE challenge
- * @property {string} verifyUrl - URL to verify email after registration
- */
-
-/**
  * Register a new WebAuthn credential for the given email address
- * @param {RegisterProps} props
+ * @param {Object} props - The properties for registration
+ * @param {string} props.email - Email address to register
+ * @param {string} props.provider - WebAuthn provider
+ * @param {string} props.challenge - PKCE challenge
+ * @param {string} props.verifyUrl - URL to verify email after registration
  * @returns {Promise<string | null>} - The PKCE code or null if the application
  *   requires email verification
  */
