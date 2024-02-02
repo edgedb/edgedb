@@ -744,20 +744,20 @@ class ResultMultiSetVal:
         return self._vals
 
 
-@dataclass(frozen=True, order=True)
-class ConditionalDedupMultiSetVal:
-    _vals: Sequence[Val]
+# @dataclass(frozen=True, order=True)
+# class ConditionalDedupMultiSetVal:
+#     _vals: Sequence[Val]
 
-    def getVals(self) -> Sequence[Val]:
-        from . import expr_ops as eops
-        if all(isinstance(v, RefVal) for v in self._vals):
-            return eops.object_dedup(self._vals)
-        return self._vals
+#     def getVals(self) -> Sequence[Val]:
+#         from . import expr_ops as eops
+#         if all(isinstance(v, RefVal) for v in self._vals):
+#             return eops.object_dedup(self._vals)
+#         return self._vals
     
-    def getRawVals(self) -> Sequence[Val]:
-        return self._vals
+#     def getRawVals(self) -> Sequence[Val]:
+#         return self._vals
 
-MultiSetVal = ResultMultiSetVal | ConditionalDedupMultiSetVal
+MultiSetVal = ResultMultiSetVal 
 
 
 Val = (ScalarVal | RefVal | UnnamedTupleVal | NamedTupleVal | ArrVal )  

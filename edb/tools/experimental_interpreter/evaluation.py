@@ -208,14 +208,14 @@ eval_logs_wrapper = EvaluationLogsWrapper()
 
 
 
-# def do_conditional_dedup(val: MultiSetVal) -> MultiSetVal:
-#     if all(val_is_ref_val(v) for v in val.getVals()):
-#         return e.ResultMultiSetVal(object_dedup(val.getVals()))
-#     # elif all(val_is_primitive(v) for v in val.getVals()):
-#     #     return val
-#     # else:
-#     #     raise ValueError("Expecting all references or all primitives")
-#     return val
+def do_conditional_dedup(val: MultiSetVal) -> MultiSetVal:
+    if all(val_is_ref_val(v) for v in val.getVals()):
+        return e.ResultMultiSetVal(object_dedup(val.getVals()))
+    # elif all(val_is_primitive(v) for v in val.getVals()):
+    #     return val
+    # else:
+    #     raise ValueError("Expecting all references or all primitives")
+    return val
 
 # the database is a mutable reference that keeps track of a read snapshot inside
 @eval_logs_wrapper
@@ -229,7 +229,7 @@ def eval_expr(ctx: EvalEnv,
             return e.ResultMultiSetVal([e.RefVal(next_id(), val=e.ObjectVal(val={}))])
         case e.ConditionalDedupExpr(expr=inner):
             inner_val = eval_expr(ctx, db, inner)
-            return (inner_val)
+            return do_conditional_dedup(inner_val)
             # if all(val_is_primitive(v) for v in inner_val.getVals()):
             #     return inner_val
             # elif all(val_is_ref_val(v) for v in inner_val.getVals()):
@@ -272,9 +272,7 @@ def eval_expr(ctx: EvalEnv,
                     current = {**current, l: eval_expr(new_ctx, db, o_body)}
                 orders = [*orders, current]
             after_order = eval_order_by(after_condition, orders)
-            if isinstance(selected, e.ConditionalDedupMultiSetVal):
-                return e.ConditionalDedupMultiSetVal(after_order)
-            elif isinstance(selected, e.ResultMultiSetVal):
+            if isinstance(selected, e.ResultMultiSetVal):
                 return e.ResultMultiSetVal(after_order)
             else:
                 raise ValueError("Not Implemented", selected)
@@ -346,7 +344,7 @@ def eval_expr(ctx: EvalEnv,
             #     or label.isdigit() # do not deduplicate on tuple projection or path factoring projection
             #     #TODO : NAMED TUPLE projections should also not deduplicate
             # ): 
-            return e.ConditionalDedupMultiSetVal(projected)
+            return e.ResultMultiSetVal(projected)
             # else:
             #     return do_conditional_dedup(e.ResultMultiSetVal(projected))
             # return e.ResultMultiSetVal(projected)

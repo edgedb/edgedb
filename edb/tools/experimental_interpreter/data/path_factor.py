@@ -199,27 +199,28 @@ def toppath_for_factoring(expr: Expr, dbschema: e.TcCtx) -> List[Expr]:
         key=path_lexicographic_key)
 
 def insert_conditional_dedup(path):
-    match path:
-        case FreeVarExpr(_):
-            return path
-        case LinkPropProjExpr(subject=subject, linkprop=linkprop):
-            return e.ConditionalDedupExpr(
-                e.LinkPropProjExpr(subject=insert_conditional_dedup(subject), 
-                                   linkprop=linkprop))
-        case ObjectProjExpr(subject=subject, label=label):
-            return e.ConditionalDedupExpr(
-                e.ObjectProjExpr(subject=insert_conditional_dedup(subject), 
-                                 label=label))
-        case e.TpIntersectExpr(subject=subject, tp=tp):
-            return e.ConditionalDedupExpr(
-                e.TpIntersectExpr(subject=insert_conditional_dedup(subject),
-                                  tp=tp))
-        case BackLinkExpr(subject=subject, label=label):
-            return e.ConditionalDedupExpr(
-                e.BackLinkExpr(subject=insert_conditional_dedup(subject), 
-                               label=label))
-        case _:
-            raise ValueError("not a path", e)
+    return path
+    # match path:
+    #     case FreeVarExpr(_):
+    #         return path
+    #     case LinkPropProjExpr(subject=subject, linkprop=linkprop):
+    #         return e.ConditionalDedupExpr(
+    #             e.LinkPropProjExpr(subject=insert_conditional_dedup(subject), 
+    #                                linkprop=linkprop))
+    #     case ObjectProjExpr(subject=subject, label=label):
+    #         return e.ConditionalDedupExpr(
+    #             e.ObjectProjExpr(subject=insert_conditional_dedup(subject), 
+    #                              label=label))
+    #     case e.TpIntersectExpr(subject=subject, tp=tp):
+    #         return e.ConditionalDedupExpr(
+    #             e.TpIntersectExpr(subject=insert_conditional_dedup(subject),
+    #                               tp=tp))
+    #     case BackLinkExpr(subject=subject, label=label):
+    #         return e.ConditionalDedupExpr(
+    #             e.BackLinkExpr(subject=insert_conditional_dedup(subject), 
+    #                            label=label))
+    #     case _:
+    #         raise ValueError("not a path", e)
 
 
 def trace_input_output(func):
