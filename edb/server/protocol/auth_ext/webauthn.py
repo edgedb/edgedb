@@ -20,11 +20,17 @@ import dataclasses
 import base64
 import json
 import webauthn
-from edb.errors import ConstraintViolationError
 
+from typing import Any, Optional, Tuple
+from webauthn.helpers import (
+    structs as webauthn_structs,
+    exceptions as webauthn_exceptions,
+)
+
+from edb.errors import ConstraintViolationError
 from edb.server.protocol import execute
 
-from . import config, data, errors
+from . import config, data, errors, util, local
 
 
 @dataclasses.dataclass(repr=False)
@@ -39,130 +45,398 @@ class WebAuthnRegistrationChallenge:
     email: str
 
 
-async def create_registration_challenge(
-    db,
-    *,
-    email: str,
-    challenge: bytes,
-    user_handle: bytes,
-):
-    await execute.parse_execute_json(
-        db,
-        """
-        with
-            challenge := <str>$challenge,
-            user_handle := <str>$user_handle,
-        insert ext::auth::WebAuthnRegistrationChallenge {
-            challenge := enc::base64_decode(challenge),
-            user_handle := enc::base64_decode(user_handle),
-            email := <str>$email,
-        }""",
-        variables={
-            "challenge": base64.b64encode(challenge).decode(),
-            "user_handle": base64.b64encode(user_handle).decode(),
-            "email": email,
-        },
-        cached_globally=True,
-    )
+class Client(local.Client):
+    def __init__(self, db: Any):
+        self.db = db
+        self.provider = self._get_provider()
+        self.app_name = self._get_app_name()
 
+    def _get_provider(self) -> config.WebAuthnProvider:
+        provider_name = "builtin::local_webauthn"
+        provider_client_config = util.get_config(
+            self.db, "ext::auth::AuthConfig::providers", frozenset
+        )
+        for cfg in provider_client_config:
+            if cfg.name == provider_name:
+                return config.WebAuthnProvider(
+                    name=cfg.name,
+                    relying_party_origin=cfg.relying_party_origin,
+                    require_verification=cfg.require_verification,
+                )
 
-async def register(
-    db,
-    *,
-    credentials: str,
-    email: str,
-    user_handle: bytes,
-    provider_config: config.WebAuthnProvider,
-):
-    registration_challenge = await get_registration_challenge(
-        db,
-        email=email,
-        user_handle=user_handle,
-    )
-    registration_verification = webauthn.verify_registration_response(
-        credential=credentials,
-        expected_challenge=registration_challenge.challenge,
-        expected_rp_id=provider_config.relying_party_id,
-        expected_origin=provider_config.relying_party_origin,
-    )
+        raise errors.MissingConfiguration(
+            provider_name, f"Provider is not configured"
+        )
 
-    try:
-        result = await execute.parse_execute_json(
-            db,
+    def _get_app_name(self) -> Optional[str]:
+        return util.maybe_get_config(self.db, "ext::auth::AuthConfig::app_name")
+
+    async def create_registration_options_for_email(self, email: str):
+        registration_options = webauthn.generate_registration_options(
+            rp_id=self.provider.relying_party_id,
+            rp_name=(self.app_name or self.provider.relying_party_origin),
+            user_name=email,
+            user_display_name=email,
+        )
+
+        await self._create_registration_challenge(
+            email=email,
+            challenge=registration_options.challenge,
+            user_handle=registration_options.user.id,
+        )
+
+        return (
+            base64.urlsafe_b64encode(registration_options.user.id).decode(),
+            webauthn.options_to_json(registration_options).encode(),
+        )
+
+    async def _create_registration_challenge(
+        self,
+        email: str,
+        challenge: bytes,
+        user_handle: bytes,
+    ):
+        await execute.parse_execute_json(
+            self.db,
             """
-            with
-                email := <str>$email,
-                user_handle := <str>$user_handle,
-                credential_id := <str>$credential_id,
-                public_key := <str>$public_key,
-                identity := (insert ext::auth::LocalIdentity {
-                    issuer := "local",
-                    subject := "",
-                }),
-                factor := (insert ext::auth::WebAuthnFactor {
-                    email := <str>$email,
-                    user_handle := enc::base64_decode(<str>$user_handle),
-                    credential_id := enc::base64_decode(<str>$credential_id),
-                    public_key := enc::base64_decode(<str>$public_key),
-                    identity := identity,
-                }),
-            select identity { * };""",
+with
+    challenge := <str>$challenge,
+    user_handle := <str>$user_handle,
+    email := <str>$email,
+insert ext::auth::WebAuthnRegistrationChallenge {
+    challenge := enc::base64_decode(challenge),
+    user_handle := enc::base64_decode(user_handle),
+    email := email,
+}""",
             variables={
-                "email": email,
+                "challenge": base64.b64encode(challenge).decode(),
                 "user_handle": base64.b64encode(user_handle).decode(),
-                "credential_id": base64.b64encode(
-                    registration_verification.credential_id
-                ).decode(),
-                "public_key": base64.b64encode(
-                    registration_verification.credential_public_key
-                ).decode(),
+                "email": email,
             },
             cached_globally=True,
         )
-    except Exception as e:
-        exc = await execute.interpret_error(e, db)
-        if isinstance(exc, ConstraintViolationError):
-            raise errors.UserAlreadyRegistered()
-        else:
-            raise exc
 
-    result_json = json.loads(result.decode())
-    assert len(result_json) == 1
+    async def register(
+        self,
+        credentials: str,
+        email: str,
+        user_handle: bytes,
+    ):
+        registration_challenge = await self._get_registration_challenge(
+            email=email,
+            user_handle=user_handle,
+        )
+        await self._delete_registration_challenges(
+            email=email,
+            user_handle=user_handle,
+        )
 
-    return data.LocalIdentity(**result_json[0])
+        registration_verification = webauthn.verify_registration_response(
+            credential=credentials,
+            expected_challenge=registration_challenge.challenge,
+            expected_rp_id=self.provider.relying_party_id,
+            expected_origin=self.provider.relying_party_origin,
+        )
 
+        try:
+            result = await execute.parse_execute_json(
+                self.db,
+                """
+with
+    email := <str>$email,
+    user_handle := <str>$user_handle,
+    credential_id := <str>$credential_id,
+    public_key := <str>$public_key,
+    identity := (insert ext::auth::LocalIdentity {
+        issuer := "local",
+        subject := "",
+    }),
+    factor := (insert ext::auth::WebAuthnFactor {
+        email := <str>$email,
+        user_handle := enc::base64_decode(<str>$user_handle),
+        credential_id := enc::base64_decode(<str>$credential_id),
+        public_key := enc::base64_decode(<str>$public_key),
+        identity := identity,
+    }),
+select identity { * };""",
+                variables={
+                    "email": email,
+                    "user_handle": base64.b64encode(user_handle).decode(),
+                    "credential_id": base64.b64encode(
+                        registration_verification.credential_id
+                    ).decode(),
+                    "public_key": base64.b64encode(
+                        registration_verification.credential_public_key
+                    ).decode(),
+                },
+                cached_globally=True,
+            )
+        except Exception as e:
+            exc = await execute.interpret_error(e, self.db)
+            if isinstance(exc, ConstraintViolationError):
+                raise errors.UserAlreadyRegistered()
+            else:
+                raise exc
 
-async def get_registration_challenge(
-    db,
-    *,
-    email: str,
-    user_handle: bytes,
-) -> WebAuthnRegistrationChallenge:
-    result = await execute.parse_execute_json(
-        db,
-        """
-        select ext::auth::WebAuthnRegistrationChallenge {
+        result_json = json.loads(result.decode())
+        assert len(result_json) == 1
+
+        return data.LocalIdentity(**result_json[0])
+
+    async def _get_registration_challenge(
+        self,
+        email: str,
+        user_handle: bytes,
+    ) -> WebAuthnRegistrationChallenge:
+        result = await execute.parse_execute_json(
+            self.db,
+            """
+select ext::auth::WebAuthnRegistrationChallenge {
+    id,
+    challenge,
+    user_handle,
+    email,
+}
+filter .email = <str>$email
+and .user_handle = enc::base64_decode(<str>$user_handle);""",
+            variables={
+                "email": email,
+                "user_handle": base64.b64encode(user_handle).decode(),
+            },
+            cached_globally=True,
+        )
+        result_json = json.loads(result.decode())
+        assert len(result_json) == 1
+        challenge_dict = result_json[0]
+
+        return WebAuthnRegistrationChallenge(
+            id=challenge_dict["id"],
+            challenge=base64.b64decode(challenge_dict["challenge"]),
+            user_handle=base64.b64decode(challenge_dict["user_handle"]),
+            email=challenge_dict["email"],
+        )
+
+    async def _delete_registration_challenges(
+        self,
+        email: str,
+        user_handle: bytes,
+    ):
+        await execute.parse_execute_json(
+            self.db,
+            """
+with
+    email := <str>$email,
+    user_handle := enc::base64_decode(<str>$user_handle),
+delete ext::auth::WebAuthnRegistrationChallenge
+filter .email = email and .user_handle = user_handle;""",
+            variables={
+                "email": email,
+                "user_handle": base64.b64encode(user_handle).decode(),
+            },
+        )
+
+    async def create_authentication_options_for_email(
+        self,
+        *,
+        webauthn_provider: config.WebAuthnProvider,
+        email: str,
+    ) -> Tuple[str, bytes]:
+        # Find credential IDs by email
+        result = await execute.parse_execute_json(
+            self.db,
+            """
+select ext::auth::WebAuthnFactor {
+    user_handle_encoded := enc::base64_encode(.user_handle),
+    credential_id_encoded := enc::base64_encode(.credential_id),
+}
+filter .email = <str>$email;""",
+            variables={
+                "email": email,
+            },
+            cached_globally=True,
+        )
+        result_json = json.loads(result.decode())
+        user_handles: set[str] = {x["user_handle_encoded"] for x in result_json}
+        assert len(user_handles) == 1
+        user_handle = base64.b64decode(result_json[0]["user_handle_encoded"])
+
+        credential_ids = [
+            webauthn_structs.PublicKeyCredentialDescriptor(
+                base64.b64decode(x["credential_id_encoded"])
+            )
+            for x in result_json
+        ]
+
+        registration_options = webauthn.generate_authentication_options(
+            rp_id=webauthn_provider.relying_party_id,
+            allow_credentials=credential_ids,
+        )
+
+        await execute.parse_execute_json(
+            self.db,
+            """
+with
+    challenge := <str>$challenge,
+    user_handle := <str>$user_handle,
+    email := <str>$email,
+    factor := (
+        assert_exists(assert_single((
+            select ext::auth::WebAuthnFactor
+            filter .user_handle = enc::base64_decode(user_handle)
+            and .email = email
+        )))
+    )
+insert ext::auth::WebAuthnAuthenticationChallenge {
+    challenge := enc::base64_decode(challenge),
+    factor := factor,
+}
+unless conflict on .factor
+else (
+    update ext::auth::WebAuthnAuthenticationChallenge
+    set {
+        challenge := enc::base64_decode(challenge)
+    }
+);""",
+            variables={
+                "challenge": base64.b64encode(
+                    registration_options.challenge
+                ).decode(),
+                "user_handle": base64.b64encode(user_handle).decode(),
+                "email": email,
+            },
+        )
+
+        return (
+            base64.urlsafe_b64encode(user_handle).decode(),
+            webauthn.options_to_json(registration_options).encode(),
+        )
+
+    async def is_email_verified(
+        self,
+        email: str,
+        user_handle: bytes,
+    ) -> bool:
+        result = await execute.parse_execute_json(
+            self.db,
+            """
+with
+    email := <str>$email,
+    user_handle := enc::base64_decode(<str>$user_handle),
+    factor := (
+        select ext::auth::WebAuthnFactor
+        filter .email = email and .user_handle = user_handle
+    ),
+select (factor.verified_at <= std::datetime_current()) ?? false;""",
+            variables={
+                "email": email,
+                "user_handle": base64.b64encode(user_handle).decode(),
+            },
+            cached_globally=True,
+        )
+        result_json = json.loads(result.decode())
+        return bool(result_json[0])
+
+    async def _get_authentication_challenge(
+        self,
+        email: str,
+        user_handle: bytes,
+    ):
+        result = await execute.parse_execute_json(
+            self.db,
+            """
+with
+    email := <str>$email,
+    user_handle := enc::base64_decode(<str>$user_handle),
+select ext::auth::WebAuthnAuthenticationChallenge {
+    id,
+    created_at,
+    modified_at,
+    challenge,
+    factor: {
+        id,
+        created_at,
+        modified_at,
+        email,
+        verified_at,
+        user_handle,
+        credential_id,
+        public_key,
+        identity: {
+            created_at,
+            modified_at,
             id,
-            challenge,
-            user_handle,
-            email,
+            issuer,
+            subject,
         }
-        filter .email = <str>$email
-        and .user_handle = enc::base64_decode(<str>$user_handle);
-        """,
-        variables={
-            "email": email,
-            "user_handle": base64.b64encode(user_handle).decode(),
-        },
-        cached_globally=True,
-    )
-    result_json = json.loads(result.decode())
-    assert len(result_json) == 1
-    challenge_dict = result_json[0]
+    },
+}
+filter .factor.email = email and .factor.user_handle = user_handle;""",
+            variables={
+                "email": email,
+                "user_handle": base64.b64encode(user_handle).decode(),
+            },
+            cached_globally=True,
+        )
+        result_json = json.loads(result.decode())
+        if len(result_json) == 0:
+            raise errors.WebAuthnAuthenticationFailed(
+                "Could not find a challenge. Please retry authentication."
+            )
+        elif len(result_json) > 1:
+            raise errors.WebAuthnAuthenticationFailed(
+                "Multiple challenges found. Please retry authentication."
+            )
+        return data.WebAuthnAuthenticationChallenge(**result_json[0])
 
-    return WebAuthnRegistrationChallenge(
-        id=challenge_dict["id"],
-        challenge=base64.b64decode(challenge_dict["challenge"]),
-        user_handle=base64.b64decode(challenge_dict["user_handle"]),
-        email=challenge_dict["email"],
-    )
+    async def _delete_authentication_challenges(
+        self,
+        email: str,
+        user_handle: bytes,
+    ):
+        await execute.parse_execute_json(
+            self.db,
+            """
+with
+    email := <str>$email,
+    user_handle := enc::base64_decode(<str>$user_handle),
+delete ext::auth::WebAuthnAuthenticationChallenge
+filter .factor.email = email and .factor.user_handle = user_handle;""",
+            variables={
+                "email": email,
+                "user_handle": base64.b64encode(user_handle).decode(),
+            },
+        )
+
+    async def authenticate(
+        self,
+        *,
+        email: str,
+        user_handle: bytes,
+        assertion: str,
+    ) -> data.LocalIdentity:
+        authentication_challenge = await self._get_authentication_challenge(
+            email=email,
+            user_handle=user_handle,
+        )
+        await self._delete_authentication_challenges(
+            email=email,
+            user_handle=user_handle,
+        )
+
+        try:
+            webauthn.verify_authentication_response(
+                credential=assertion,
+                expected_challenge=authentication_challenge.challenge,
+                credential_public_key=(
+                    authentication_challenge.factor.public_key
+                ),
+                credential_current_sign_count=0,
+                expected_rp_id=self.provider.relying_party_id,
+                expected_origin=self.provider.relying_party_origin,
+            )
+        except webauthn_exceptions.InvalidAuthenticationResponse:
+            raise errors.WebAuthnAuthenticationFailed(
+                "Invalid authentication response. Please retry authentication."
+            )
+
+        return authentication_challenge.factor.identity

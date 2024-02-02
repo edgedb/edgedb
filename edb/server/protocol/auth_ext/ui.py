@@ -21,6 +21,7 @@ from typing import *
 import html
 import urllib.parse
 import re
+
 from email.mime import multipart
 from email.mime import text as mime_text
 
@@ -105,6 +106,63 @@ def render_login_page(
         else ''
     )
 
+    email_factor_form = f"""
+      <input type="hidden" name="redirect_on_failure" value="{
+        base_path}/ui/signin" />
+      <input type="hidden" name="redirect_to" value="{
+          redirect_to_on_signup or redirect_to}" />
+      <input type="hidden" name="challenge" value="{challenge}" />
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{email or ''}" />
+    """
+
+    has_email_factor = (
+        password_provider is not None or webauthn_provider is not None
+    )
+
+    email_factor_form += (
+        f"""
+        <input type="hidden" name="provider" value="{password_provider.name}" />
+        <div class="field-header">
+          <label for="password">Password</label>
+          <a
+            id="forgot-password-link"
+            class="field-note"
+            href="forgot-password&challenge={challenge}"
+            tabindex="2">
+            Forgot password?
+          </a>
+        </div>
+        <input id="password" name="password" type="password" />
+        """
+        if password_provider is not None
+        else ""
+    )
+    match (password_provider, webauthn_provider):
+        case (None, None):
+            email_factor_form += ""
+        case (None, _):
+            email_factor_form += f"""
+            {_render_button('Sign In', id='webauthn-signin')}
+            """
+        case (_, None):
+            email_factor_form += f"""
+            {_render_button("Sign In", id="password-signin")}
+            """
+        case (_, _):
+            email_factor_form += f"""
+            {_render_button('Sign In', id='webauthn-signin')}
+            {_render_button("Sign in with password", id="password-signin")}
+            """
+
+    email_factor_form += f"""
+        <div class="bottom-note">
+          Don't have an account?
+          <a href="signup" tabindex="3">Sign up</a>
+        </div>
+        """
+
     return _render_base_page(
         title=f'Sign in{f" to {app_name}" if app_name else ""}',
         logo_url=logo_url,
@@ -112,7 +170,13 @@ def render_login_page(
         brand_color=brand_color,
         cleanup_search_params=['error', 'email'],
         content=f'''
-    <form class="container" method="POST" action="../authenticate" novalidate>
+    <form
+      class="container"
+      id="email-factor"
+      method="POST"
+      action="../authenticate"
+      novalidate
+    >
       <h1>{f'<span>Sign in to</span> {html.escape(app_name)}'
            if app_name else '<span>Sign in</span>'}</h1>
 
@@ -123,62 +187,23 @@ def render_login_page(
       </div>""" if len(oauth_providers) > 0 else ''
     }
     {
-      f"""
-      <div class="oauth-buttons">
-        <a href="webauthn/signin?challenge={challenge}">
-          <img src="_static/icon_webauthn.svg" alt="WebAuthn Icon" />
-          <span>Sign up with WebAuthn</span>
-        </a>
-      </div>
-      """
-      if webauthn_provider is not None
-      else ""
-    }
-    {
       """
       <div class="divider">
         <span>or</span>
       </div>"""
-      if password_provider is not None
+      if has_email_factor is not None
         and len(oauth_providers) > 0
       else ''
     }
-    {
-      f"""
-      <input type="hidden" name="provider" value="{
-        password_provider.name}" />
-      <input type="hidden" name="redirect_on_failure" value="{
-        base_path}/ui/signin" />
-      <input type="hidden" name="redirect_to" value="{redirect_to}" />
-      <input type="hidden" name="challenge" value="{challenge}" />
-
-      {_render_error_message(error_message)}
-
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" value="{email or ''}"
-        autofocus />
-
-      <div class="field-header">
-        <label for="password">Password</label>
-        <a
-          id="forgot-password-link"
-          class="field-note"
-          href="forgot-password&challenge={challenge}"
-          tabindex="2">
-          Forgot password?
-        </a>
-      </div>
-      <input id="password" name="password" type="password" />
-
-      {_render_button('Sign In')}
-
-      <div class="bottom-note">
-        Don't have an account?
-        <a href="signup" tabindex="3">Sign up</a>
-      </div>""" if password_provider is not None else ''
-    }
+    {email_factor_form if has_email_factor else ''}
     </form>
-    {forgot_link_script}''',
+    {forgot_link_script}
+    {
+      """
+      <script type="module" src="_static/webauthn-authenticate.js"></script>"""
+      if webauthn_provider is not None else ''
+    }
+    ''',
     )
 
 
@@ -380,60 +405,6 @@ def render_forgot_password_page(
         <a href="signin">Sign In</a>
       </div>
     </form>''',
-    )
-
-
-def render_webauthn_register_page(
-    *,
-    base_path: str,
-    provider_name: str,
-    challenge: str,
-    error_message: Optional[str] = None,
-    # config
-    redirect_to: str,
-    redirect_to_on_signup: Optional[str] = None,
-    app_name: Optional[str] = None,
-    logo_url: Optional[str] = None,
-    dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None,
-):
-    return _render_base_page(
-        title=f'Sign up {f" to {app_name}" if app_name else ""}',
-        logo_url=logo_url,
-        dark_logo_url=dark_logo_url,
-        brand_color=brand_color,
-        cleanup_search_params=['error', 'email'],
-        content=f'''
-    <form id="register-form" class="container">
-      <h1>
-        <span>
-          Sign up {
-            f' to</span> {html.escape(app_name)}' if app_name else '</span>'
-          }
-      </h1>
-
-      {_render_error_message(error_message)}
-
-      <input type="hidden" name="provider" value="{provider_name}" />
-      <input type="hidden" name="challenge" value="{challenge}" />
-      <input type="hidden" name="redirect_on_failure" value="{
-          base_path}/ui/webauthn?challenge={challenge}" />
-      <input type="hidden" name="redirect_to" value="{
-          redirect_to_on_signup or redirect_to}" />
-      <input type="hidden" name="verify_url" value="{base_path}/ui/verify" />
-
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" required />
-
-      <div class="action-buttons">
-        {_render_button("Sign Up")}
-      </div>
-
-      <div class="bottom-note">
-        Back to <a href="signup">Sign Up</a>
-      </div>
-    </form>
-    <script type="module" src="_static/webauthn-register.js"></script>''',
     )
 
 

@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   registerForm.addEventListener("submit", async (event) => {
-    if (event.submitter?.id !== "webauthn-signup") {
+    if (event.submitter?.id !== "webauthn-signin") {
       return;
     }
     event.preventDefault();
@@ -19,22 +19,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const challenge = formData.get("challenge");
     const redirectOnFailure = formData.get("redirect_on_failure");
     const redirectTo = formData.get("redirect_to");
-    const verifyUrl = formData.get("verify_url");
 
     if (redirectTo === null) {
       throw new Error("Missing redirect_to parameter");
     }
 
     try {
-      const maybeCode = await register({
+      const maybeCode = await authenticate({
         email,
         provider,
         challenge,
-        verifyUrl,
       });
 
       const redirectUrl = new URL(redirectTo);
-      redirectUrl.searchParams.append("isSignup", "true");
       if (maybeCode !== null) {
         redirectUrl.searchParams.append("code", maybeCode);
       }
@@ -50,22 +47,23 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 const WEBAUTHN_OPTIONS_URL = new URL(
-  "../webauthn/register/options",
+  "../webauthn/authenticate/options",
   window.location
 );
-const WEBAUTHN_REGISTER_URL = new URL("../webauthn/register", window.location);
-
+const WEBAUTHN_AUTHENTICATE_URL = new URL(
+  "../webauthn/authenticate",
+  window.location
+);
 /**
- * Register a new WebAuthn credential for the given email address
+ * Authenticate an existing WebAuthn credential for the given email address
  * @param {Object} props - The properties for registration
  * @param {string} props.email - Email address to register
  * @param {string} props.provider - WebAuthn provider
  * @param {string} props.challenge - PKCE challenge
- * @param {string} props.verifyUrl - URL to verify email after registration
  * @returns {Promise<string | null>} - The PKCE code or null if the application
  *   requires email verification
  */
-export async function register({ email, provider, challenge, verifyUrl }) {
+export async function authenticate({ email, provider, challenge }) {
   // Check if WebAuthn is supported
   if (!window.PublicKeyCredential) {
     console.error("WebAuthn is not supported in this browser.");
@@ -73,27 +71,25 @@ export async function register({ email, provider, challenge, verifyUrl }) {
   }
 
   // Fetch WebAuthn options from the server
-  const options = await getCreateOptions(email);
+  const options = await getAuthenticateOptions(email);
 
-  // Register the new credential
-  const credentials = await navigator.credentials.create({
+  // Get the existing credentials assertion
+  const assertion = await navigator.credentials.get({
     publicKey: {
       ...options,
       challenge: decodeBase64Url(options.challenge),
-      user: {
-        ...options.user,
-        id: decodeBase64Url(options.user.id),
-      },
+      allowCredentials: options.allowCredentials.map((credential) => ({
+        ...credential,
+        id: decodeBase64Url(credential.id),
+      })),
     },
   });
 
   // Register the credentials on the server
-  const registerResult = await registerCredentials({
+  const registerResult = await authenticateAssertion({
     email,
-    credentials,
-    provider,
+    assertion,
     challenge,
-    verifyUrl,
   });
 
   return registerResult.code ?? null;
@@ -104,7 +100,7 @@ export async function register({ email, provider, challenge, verifyUrl }) {
  * @param {string} email - Email address to register
  * @returns {Promise<globalThis.PublicKeyCredentialCreationOptions>}
  */
-async function getCreateOptions(email) {
+async function getAuthenticateOptions(email) {
   const url = new URL(WEBAUTHN_OPTIONS_URL);
   url.searchParams.set("email", email);
 
@@ -130,57 +126,61 @@ async function getCreateOptions(email) {
 }
 
 /**
- * Register the credentials on the server
+ * Authenticate the credentials on the server
  * @param {Object} props
  * @param {string} props.email
- * @param {Object} props.credentials
+ * @param {Object} props.assertion
  * @param {string} props.provider
  * @param {string} props.challenge
- * @param {string} props.verifyUrl
  * @returns {Promise<Object>}
  */
-async function registerCredentials(props) {
-  // Credentials include raw bytes, so need to be encoded as base64url
+async function authenticateAssertion(props) {
+  // Assertion includes raw bytes, so need to be encoded as base64url
   // for transmission
-  const encodedCredentials = {
-    ...props.credentials,
-    rawId: encodeBase64Url(new Uint8Array(props.credentials.rawId)),
+  const encodedAssertion = {
+    ...props.assertion,
+    rawId: encodeBase64Url(new Uint8Array(props.assertion.rawId)),
     response: {
-      ...props.credentials.response,
-      attestationObject: encodeBase64Url(
-        new Uint8Array(props.credentials.response.attestationObject)
+      ...props.assertion.response,
+      authenticatorData: encodeBase64Url(
+        new Uint8Array(props.assertion.response.authenticatorData)
       ),
       clientDataJSON: encodeBase64Url(
-        new Uint8Array(props.credentials.response.clientDataJSON)
+        new Uint8Array(props.assertion.response.clientDataJSON)
       ),
+      signature: encodeBase64Url(
+        new Uint8Array(props.assertion.response.signature)
+      ),
+      userHandle: props.assertion.response.userHandle ? encodeBase64Url(
+        new Uint8Array(props.assertion.response.userHandle)
+      ) : null,
     },
   };
 
-  const registerResponse = await fetch(WEBAUTHN_REGISTER_URL, {
+  const authenticateResponse = await fetch(WEBAUTHN_AUTHENTICATE_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       email: props.email,
-      credentials: encodedCredentials,
+      assertion: encodedAssertion,
       provider: props.provider,
       challenge: props.challenge,
-      verify_url: props.verifyUrl,
     }),
   });
 
-  if (!registerResponse.ok) {
+  if (!authenticateResponse.ok) {
     console.error(
-      "Failed to register WebAuthn credentials:",
-      registerResponse.statusText
+      "Failed to authenticate WebAuthn credentials:",
+      authenticateResponse.statusText
     );
-    console.error(await registerResponse.text());
-    throw new Error("Failed to register WebAuthn credentials");
+    console.error(await authenticateResponse.text());
+    throw new Error("Failed to authenticate WebAuthn credentials");
   }
 
   try {
-    return await registerResponse.json();
+    return await authenticateResponse.json();
   } catch (e) {
     console.error("Failed to parse WebAuthn registration result:", e);
     throw new Error("Failed to parse WebAuthn registration result");

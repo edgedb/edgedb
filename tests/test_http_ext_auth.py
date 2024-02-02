@@ -241,8 +241,9 @@ class MockAuthProvider:
         path: str,
     ):
         def wrapper(
-            handler: ResponseType
-            | Callable[[MockHttpServerHandler], ResponseType]
+            handler: (
+                ResponseType | Callable[[MockHttpServerHandler], ResponseType]
+            )
         ):
             self.routes[(method, server, path)] = handler
             return handler
@@ -3525,14 +3526,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertIn(BRAND_COLOR, body_str)
             self.assertEqual(status, 200)
 
-    async def test_http_auth_ext_webauthn_options(self):
+    async def test_http_auth_ext_webauthn_register_options(self):
         with self.http_con() as http_con:
             email = "user@example.com"
             query_params = urllib.parse.urlencode({"email": email})
 
             body, _, status = self.http_con_request(
                 http_con,
-                path=f"webauthn/options?{query_params}",
+                path=f"webauthn/register/options?{query_params}",
             )
 
             body_json = json.loads(body.decode())
@@ -3589,6 +3590,85 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         filter .challenge = <bytes>$challenge
                         AND .email = <str>$email
                         AND .user_handle = <bytes>$user_handle
+                    )
+                    ''',
+                    challenge=challenge_bytes,
+                    email=email,
+                    user_handle=user_handle,
+                )
+            )
+
+    async def test_http_auth_ext_webauthn_authenticate_options(self):
+        with self.http_con() as http_con:
+            email = "test@example.com"
+            user_handle = uuid.uuid4().bytes
+            credential_id = uuid.uuid4().bytes
+            public_key = uuid.uuid4().bytes
+
+            await self.con.query_single(
+                """
+                with identity := (insert ext::auth::LocalIdentity {
+                    issuer := "local",
+                    subject := "",
+                })
+                INSERT ext::auth::WebAuthnFactor {
+                    email := <str>$email,
+                    user_handle := <bytes>$user_handle,
+                    credential_id := <bytes>$credential_id,
+                    public_key := <bytes>$public_key,
+                    identity := identity,
+                };
+                """,
+                email=email,
+                user_handle=user_handle,
+                credential_id=credential_id,
+                public_key=public_key,
+            )
+
+            body, _, status = self.http_con_request(
+                http_con,
+                path=f"webauthn/authenticate/options?email={email}",
+            )
+
+            self.assertEqual(status, 200)
+
+            body_json = json.loads(body)
+            self.assertIn("challenge", body_json)
+            self.assertIsInstance(body_json["challenge"], str)
+            self.assertIn("rpId", body_json)
+            self.assertIsInstance(body_json["rpId"], str)
+            self.assertIn("timeout", body_json)
+            self.assertIsInstance(body_json["timeout"], int)
+            self.assertIn("allowCredentials", body_json)
+            self.assertIsInstance(body_json["allowCredentials"], list)
+            allow_credentials = body_json["allowCredentials"]
+            self.assertTrue(
+                all(
+                    "type" in cred and "id" in cred
+                    for cred in allow_credentials
+                ),
+                "Each credential should have 'type' and 'id' keys",
+            )
+            self.assertIn(
+                base64.urlsafe_b64encode(credential_id).rstrip(b"=").decode(),
+                [cred["id"] for cred in allow_credentials],
+                (
+                    "The generated credential_id should be in the "
+                    "'allowCredentials' list"
+                ),
+            )
+
+            challenge_bytes = base64.urlsafe_b64decode(
+                f'{body_json["challenge"]}==='
+            )
+            self.assertTrue(
+                await self.con.query_single(
+                    '''
+                    SELECT EXISTS (
+                        SELECT ext::auth::WebAuthnAuthenticationChallenge
+                        filter .challenge = <bytes>$challenge
+                        AND .factor.email = <str>$email
+                        AND .factor.user_handle = <bytes>$user_handle
                     )
                     ''',
                     challenge=challenge_bytes,
