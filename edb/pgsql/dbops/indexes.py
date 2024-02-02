@@ -80,8 +80,13 @@ class Index(tables.InheritableTableObject):
         else:
             exprs = [qi(c) for c in self.columns]
 
-        code: str = self.get_metadata('code')
-        using, expr = code.split(' ', 1)
+        # Break down the code into the index name (if present) and the rest of
+        # the expression
+        m = re.match(r'(?P<using>\w+)?\s*(?P<expr>.+)',
+                     self.get_metadata('code').strip())
+        assert m is not None
+        using = m['using']
+        expr = m['expr']
 
         code = 'CREATE'
         if self.unique:
@@ -91,6 +96,8 @@ class Index(tables.InheritableTableObject):
         if using:
             code += f' USING {using}'
 
+        # expr is expected to be wrapped in parentheses, but in order to
+        # manipulate it better we strip the parentheses
         expr = expr[1:-1].replace('__col__', '{col}')
         expr = ', '.join(expr.format(col=e) for e in exprs)
 
@@ -101,6 +108,7 @@ class Index(tables.InheritableTableObject):
             expr = re.sub(r'(__kw_(\w+?)__)', r'{\2}', expr)
             expr = expr.format(**kwargs)
 
+        # Put the stripped parentheses back
         code += f'({expr})'
 
         if self.with_clause:

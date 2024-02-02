@@ -122,6 +122,9 @@ def is_index_valid_for_type(
             'ext::pgvector::ivfflat_euclidean'
             | 'ext::pgvector::ivfflat_ip'
             | 'ext::pgvector::ivfflat_cosine'
+            | 'ext::pgvector::hnsw_euclidean'
+            | 'ext::pgvector::hnsw_ip'
+            | 'ext::pgvector::hnsw_cosine'
         ):
             return expr_type.issubclass(
                 schema,

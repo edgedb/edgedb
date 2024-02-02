@@ -12078,7 +12078,7 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         # Add vector and migrate automatically (because we have an assignment
         # cast available from array<int64> to vector).
         await self.migrate('''
-            using extension pgvector version '0.4';
+            using extension pgvector version '0.5';
 
             module default {
                 scalar type v3 extending ext::pgvector::vector<3>;
