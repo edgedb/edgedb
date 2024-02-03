@@ -7,9 +7,8 @@ in Rust that uses Axum as its web server and EdgeDB to hold weather data.
 The app itself simply calls into a service called Open-Meteo once a minute
 to look for updated weather information on the cities in the database, and
 goes back to sleep once it is done. Open-Meteo is being used here because
-their service doesn't require any sort of registration. Give it a try in
-your browser
-`here! <https://api.open-meteo.com/v1/forecast?latitude=37&longitude=126&current_weather=true&timezone=CET>`_.
+their service doesn't require any sort of registration. Give it a try 
+`in your browser`_!
 
 Getting started
 ---------------
@@ -353,7 +352,8 @@ insert just six cities and have full coverage of its nationwide weather
 conditions. Note that the ``Error`` type for the EdgeDB client has an
 ``.is()`` method that lets us check what sort of error was returned. We will
 use it to check for a ``ConstraintViolationError`` to see if a city has
-already been inserted, and otherwise print an "Unexpected error" for anything else.
+already been inserted, and otherwise print an "Unexpected error" for anything
+else.
 
 .. code-block:: rust
 
@@ -409,7 +409,8 @@ keep looping.
       .. 
         } in self.get_cities().await?
       {
-        let CurrentWeather { temperature, time } = weather_for(latitude, longitude).await?;
+        let CurrentWeather { temperature, time } = 
+            weather_for(latitude, longitude).await?;
 
         match self
           .db
@@ -522,18 +523,21 @@ convenient! Axum makes use of this pattern in its examples quite a bit.
 
 .. code-block:: rust
 
-    async fn remove_city(Path(name): Path<String>, State(client): State<Client>) -> String {
-      match client
-        .query::<Value, _>(delete_city(), &(&name,))
-        .await
-      {
-        Ok(v) if v.is_empty() => format!("No city {name} found to remove!"),
-        Ok(_) => format!("City {name} removed!"),
-        Err(e) => e.to_string(),
-      }
+  async fn remove_city(Path(name): Path<String>, State(client): State<Client>)
+       -> String 
+    {
+    match client
+      .query::<Value, _>(delete_city(), &(&name,))
+      .await
+    {
+      Ok(v) if v.is_empty() => format!("No city {name} found to remove!"),
+      Ok(_) => format!("City {name} removed!"),
+      Err(e) => e.to_string(),
     }
+  }
 
-Getting a list of city names is just as easy. The query is just a few words long:
+Getting a list of city names is just as easy. The query is just a few word
+long:
 
 .. code-block::
 
@@ -566,11 +570,11 @@ use of. The query is a simple ``select``:
     conditions: { temperature, time }
   } "
 
-After which we will filter on the name of the ``City``. The method used here is
-``.query_required_single()``, because we know that only a single ``City`` can
-be returned thanks to the ``exclusive`` constraint on its ``name`` property.
-Don't forget that our ``City`` objects already order their weather conditions
-by time, so we don't need to do any ordering ourselves:
+After which we will filter on the name of the ``City``. The method used here
+is ``.query_required_single()``, because we know that only a single ``City``
+can be returned thanks to the ``exclusive`` constraint on its ``name``
+property. Don't forget that our ``City`` objects already order their weather
+conditions by time, so we don't need to do any ordering ourselves:
 
 .. code-block::
 
@@ -583,7 +587,9 @@ it into two and thereby get rid of the ``T``.
 
 .. code-block:: rust
 
-  async fn get_conditions(Path(city_name): Path<String>, State(client): State<Client>) -> String {
+  async fn get_conditions(Path(city_name): Path<String>, 
+      State(client): State<Client>) -> String 
+    {
     let query = select_city("filter .name = <str>$0");
     match client
       .query_required_single::<City, _>(&query, &(&city_name,))
@@ -592,7 +598,8 @@ it into two and thereby get rid of the ``T``.
       Ok(city) => {
         let mut conditions = format!("Conditions for {city_name}:\n\n");
         for condition in city.conditions.unwrap_or_default() {
-          let (date, hour) = condition.time.split_once("T").unwrap_or_default();
+          let (date, hour) = condition.time.split_once("T")
+            .unwrap_or_default();
           conditions.push_str(&format!("{date} {hour}\t"));
           conditions.push_str(&format!("{}\n", condition.temperature));
         }
@@ -647,7 +654,8 @@ happens if that is the case.
       .execute(insert_conditions(), &(&name, temperature, time))
       .await
     {
-      return format!("Inserted City {name} but couldn't insert conditions: {e}");
+      return format!("Inserted City {name} \
+        but couldn't insert conditions: {e}");
     }
   format!("Inserted city {name}!")
   }
@@ -950,5 +958,7 @@ Here is all of the Rust code:
       axum::serve(listener, app).await.unwrap();
       Ok(())
   }
+
+.. _in your browser: https://api.open-meteo.com/v1/forecast?latitude=37&longitude=126&current_weather=true&timezone=CET
 
 .. lint-on
