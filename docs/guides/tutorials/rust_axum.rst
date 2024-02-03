@@ -2,6 +2,27 @@
 Rust Axum
 =========
 
+This guide will show you step by step how to create a small working app
+in Rust that uses Axum as its web server and EdgeDB to hold weather data.
+The app itself simply calls into a service called Open-Meteo once a minute
+to look for updated weather information on the cities in the database, and
+goes back to sleep once it is done. Open-Meteo is being used here because
+their service doesn't require any sort of registration. Give it a try in
+your browser
+`here! <https://api.open-meteo.com/v1/forecast?latitude=37&longitude=126&current_weather=true&timezone=CET>`_.
+
+Getting started
+---------------
+
+To get started, first type ``cargo new weather_app``, or whatever name
+you would like to give the project. Go into the directory that was created
+and type ``edgedb project init`` to start an EdgeDB instance. Inside, you
+will see your schema inside the ``default.esdl`` in the ``/dbschema``
+directory.
+
+Schema
+------
+
 The schema is simple but leverages a lot of EdgeDB's guarantees so that
 we don't have to think about them on the client side.
 
@@ -43,19 +64,25 @@ we don't have to think about them on the client side.
     }
   }
 
-Three scalar types have been extended to give us some type safety when it
-comes to Latitude, Longitude, and Temperature. Latitude can't exceed
-±90.0 on Earth, and longitude can't exceed ±180.0. Open-Meteo does its own
-checks for latitude and longitude when querying the conditions for a location,
-but we might decide to switch to a different weather service one day and
-having constraints up front makes it easy for users to see which values are
-allowed and which are not.
+Let's go over some of the advantages EdgeDB gives us even in a schema as
+simple as this one.
+
+First are the three scalar types have been extended to give us some type
+safety when it comes to latitude, longitude, and temperature. Latitude can't
+exceed 90 degrees on Earth, and longitude can't exceed 180. Open-Meteo does
+its own checks for latitude and longitude when querying the conditions for a
+location, but we might decide to switch to a different weather service one day
+and having constraints up front makes it easy for users to see which values
+are allowed and which are not.
 
 Plus, sometimes another server's data will just go haywire for some reason
-or another, such as the time a weather map predicted a high of thousands of
-degrees for various cities in Arizona. https://www.youtube.com/watch?v=iXuc7SAyk2s With the
-constraints in place, we are at least guaranteed to not add temperature data
-that reaches that point!
+or another, such as the time a weather map showed a high of 
+`thousands of degrees <https://www.youtube.com/watch?v=iXuc7SAyk2s>`_ for
+various cities in Arizona.  With the constraints in place, we are at least
+guaranteed to not add temperature data that reaches that point! We'll go
+with a maximum of 70.0 and low of 100.0 degrees. (The highest and lowest
+temperatures over recorded on Earth are 56.7 °C and -89.2°C, so our
+constraints provide a lot of room.)
 
 .. code-block:: edgeql
 
@@ -75,11 +102,10 @@ that reaches that point!
     }
 
 Open-Meteo returns a good deal of information when you query it for current
-weather:
+weather. If you clicked on the link above, you will have seen an output that
+looks like the following:
 
 .. code-block::
-
-    # Query: https://api.open-meteo.com/v1/forecast?latitude=50&longitude=50&current_weather=true&timezone=CET
 
     {
         "latitude": 49.9375,
@@ -109,9 +135,14 @@ weather:
         }
     }
 
-But we only want the ``time`` and ``temperature`` located inside
-``current_weather``. We can then use this info to insert a type called
-``Conditions`` that will look like this:
+
+But we only need the ``time`` and ``temperature`` located inside
+``current_weather``. (Small challenge: feel free to grow the schema with
+other scalar types to incorporate all the other information returned
+from Open-Meteo!)
+
+We can then use this info to insert a type called ``Conditions`` that
+will look like this:
 
 .. code-block:: edgeql
 
@@ -152,32 +183,44 @@ The ``City`` type is pretty simple:
 
 The line with
 ``multi conditions := (select .<city[is Conditions] order by .time);``
-has two 
+is a backlink, giving us access to any ``Conditions`` objects connected to
+a ``City`` by a link called ``city``. A backlink alone would look like
+this: ``.<city[is Conditions]``. But we might as well order them by date here
+so that we don't have to do it inside the Rust code, or any other programming
+language we might want to use. EdgeDB here lets us have consistent behavior
+regardless of which programming language we use to build an app using this
+data.
 
 ``City`` has an ``exclusive`` constraint for city names, which for the time
 being is fine but as our database grows we would want to change this because
 cities can have the same name. One possibility later on would be to give a
-``City`` a computed key formed from the ``name``, ``latitude``, and ``longitude``.
-Then ``latitude`` and ``longitude`` could be cast into an ``int64`` before being
-cast into a ``str`` so that users could not insert a city of the same name
-that is 0.00001 degrees different from an existing city (i.e. the same city).
+``City`` a computed key formed from the ``name``, ``latitude``, and
+``longitude``. Then ``latitude`` and ``longitude`` could be cast into an
+``int64`` before being cast into a ``str`` so that users could not insert
+a city of the same name that is 0.00001 degrees different from an existing
+city (i.e. the same city).
 
 .. code-block:: edgeql-diff
 
-    type City {
+  type City {
     required name: str;
     required latitude: Latitude;
     required longitude: Longitude;
     multi conditions := (select .<city[is Conditions] order by .time);
-    + key := .name ++ <str><int64>.latitude ++ <str><int64>.longitude;
-    + constraint exclusive on (.key);
-    }
+  + key := .name ++ <str><int64>.latitude ++ <str><int64>.longitude;
+  + constraint exclusive on (.key);
+  }
 
+You could give this or another method a try if you are feeling ambitious.
+
+And with that out of the way, let's move on to the Rust code.
 
 Rust code
 ---------
 
-Dependencies:
+Here are the dependencies you will need to add to ``cargo.toml`` (with
+the exception of ``anyhow`` which isn't strictly needed but is always
+nice to use).
 
 .. code-block::
 
@@ -191,7 +234,7 @@ Dependencies:
   serde_json = "1.0.113"
   tokio = { version = "1.36.0", features = ["rt", "macros"] }
 
-Use statements:
+And then a few use statements at the top:
 
 .. code-block::
 
@@ -208,11 +251,15 @@ Use statements:
     use std::time::Duration;
     use tokio::{time::sleep, net::TcpListener};
 
-The first part of the code is just a few functions that return a String or a
-&'static str so that we can review all the queries we will need in one place
-and keep the following code clean. The ``select_city`` function also has an
+And now to the real code.
+
+The first part of the code is just a few functions that return a ``String`` or
+a ``&'static str``. They aren't strictly necessary, but are nice to have on
+so that we can review all the queries we will need in one place and keep the
+following code clean. Note that the ``select_city()`` function also has an
 optional filter, and uses a ``mut String`` instead of the ``format!`` macro
-so that we don't need to escape the single braces with ``{{`` everywhere.
+because inside ``format!`` you need to use ``{{`` double braces in place of
+single braces, which quickly makes things ugly.
 
 .. code-block:: rust
 
@@ -252,9 +299,9 @@ so that we don't need to escape the single braces with ``{{`` everywhere.
     "select City.name order by City.name"
   }
 
-Next are a few structs to work with the output from Open-Meteo, and a function
-that uses ``reqwest`` to get the weather information we need and deserialize
-it into a Rust type.
+Next are a few structs to work with the output from Open-Meteo, and a
+function that uses ``reqwest`` to get the weather information we need and
+deserialize it into a Rust type.
 
 .. code-block:: rust
 
@@ -299,13 +346,14 @@ Client to connect to EdgeDB.
 
 Then inside ``impl WeatherApp`` we have a few methods.
 
-First there is ``init()``, which just gives the app some initial data. Andorra
-is a small enough country that we can insert six cities and have full coverage
-of its weather conditions, so we will go with that. Note that the ``Error``
-type for the EdgeDB client has an ``.is()`` method that lets us check what
-sort of error was returned, and here we will check for a
-``ConstraintViolationError`` to see if a city has already been inserted, and
-otherwise print an "Unexpected error" for anything else.
+First there is ``init()``, which just gives the app some initial data. We'll
+choose the small country of Andorra located in between Spain and France and
+where the Catalan language is spoken. With a country of that size we can
+insert just six cities and have full coverage of its nationwide weather
+conditions. Note that the ``Error`` type for the EdgeDB client has an
+``.is()`` method that lets us check what sort of error was returned. We will
+use it to check for a ``ConstraintViolationError`` to see if a city has
+already been inserted, and otherwise print an "Unexpected error" for anything else.
 
 .. code-block:: rust
 
@@ -558,7 +606,7 @@ Adding a ``City`` is a tiny bit more complicated, because we don't know
 exactly how Open-Meteo's internals work. That means that there is always
 a chance that a request might not work for some reason, and in that case
 we don't want to insert a ``City`` into our database because then the
-``WeatherApp`` will just keep giving requisting data from Open-Meteo that
+``WeatherApp`` will just keep giving requesting data from Open-Meteo that
 it refuses to provide.
 
 In fact, you can take a look at this by trying a query for Open-Meteo for
@@ -568,7 +616,7 @@ database we allow these values to be *up to* 80.0 and 180.0. This example
 code pretends that we didn't notice that. Plus, there is no guarantee that
 Open-Meteo will be the only service that our weather app uses.
 
-So that means that the ``add_city`` function will first make sure that
+So that means that the ``add_city()`` function will first make sure that
 Open-Meteo returns a good result, and only then inserts a City. Finally,
 it will get the most recent conditions for the new city. These two steps
 could be done in a single query in EdgeDB, but doing it one simple step at
@@ -590,23 +638,18 @@ happens if that is the case.
     };
 
     // Then insert the City
-    let _ = client
-      .execute(insert_city(), &(&name, lat, long))
-      .await
-      .or_else(|e| {
-        return Err(e.to_string());
-      });
+    if let Err(e) = client.execute(insert_city(), &(&name, lat, long)).await {
+      return e.to_string();
+    }
 
     // And finally the Conditions
-    let _ = client
+    if let Err(e) = client
       .execute(insert_conditions(), &(&name, temperature, time))
       .await
-      .or_else(|e| {
-        return Err(format!(
-          "Inserted City {name} but couldn't insert conditions: {e}"
-        ));
-      });
-    format!("Inserted city {name}!")
+    {
+      return format!("Inserted City {name} but couldn't insert conditions: {e}");
+    }
+  format!("Inserted city {name}!")
   }
 
 And with that, we have our app! Running the app inside the console should
@@ -655,261 +698,257 @@ to fit them is not all that hard.
 
 Here is all of the Rust code:
 
+.. lint-off
+
 .. code-block:: rust
 
-    use axum::{
-        extract::{Path, State},
-        routing::get,
-        Router,
-    };
+  use axum::{
+      extract::{Path, State},
+      routing::get,
+      Router,
+  };
 
-    use edgedb_errors::ConstraintViolationError;
-    use edgedb_protocol::value::Value;
-    use edgedb_tokio::{create_client, Client, Queryable};
-    use serde::Deserialize;
-    use std::time::Duration;
-    use tokio::{time::sleep, net::TcpListener};
+  use edgedb_errors::ConstraintViolationError;
+  use edgedb_protocol::value::Value;
+  use edgedb_tokio::{create_client, Client, Queryable};
+  use serde::Deserialize;
+  use std::time::Duration;
+  use tokio::{net::TcpListener, time::sleep};
 
-    fn select_city(filter: &str) -> String {
-        let mut output = "select City { 
-            name, 
-            latitude, 
-            longitude,
-            conditions: { temperature, time }
-        } "
-        .to_string();
-        output.push_str(filter);
-        output
-    }
+  fn select_city(filter: &str) -> String {
+      let mut output = "select City { 
+          name, 
+          latitude, 
+          longitude,
+          conditions: { temperature, time }
+      } "
+      .to_string();
+      output.push_str(filter);
+      output
+  }
 
-    fn insert_city() -> &'static str {
-        "insert City {
-            name := <str>$0,
-            latitude := <float64>$1,
-            longitude := <float64>$2,
-        };"
-    }
+  fn insert_city() -> &'static str {
+      "insert City {
+          name := <str>$0,
+          latitude := <float64>$1,
+          longitude := <float64>$2,
+      };"
+  }
 
-    fn insert_conditions() -> &'static str {
-        "insert Conditions {
-            city := (select City filter .name = <str>$0),
-            temperature := <float64>$1,
-            time := <str>$2 
-        }"
-    }
+  fn insert_conditions() -> &'static str {
+      "insert Conditions {
+          city := (select City filter .name = <str>$0),
+          temperature := <float64>$1,
+          time := <str>$2 
+      }"
+  }
 
-    fn delete_city() -> &'static str {
-        "delete City filter .name = <str>$0"
-    }
+  fn delete_city() -> &'static str {
+      "delete City filter .name = <str>$0"
+  }
 
-    fn select_city_names() -> &'static str {
-        "select City.name order by City.name"
-    }
+  fn select_city_names() -> &'static str {
+      "select City.name order by City.name"
+  }
 
-    #[derive(Queryable)]
-    struct City {
-        name: String,
-        latitude: f64,
-        longitude: f64,
-        conditions: Option<Vec<CurrentWeather>>,
-    }
+  #[derive(Queryable)]
+  struct City {
+      name: String,
+      latitude: f64,
+      longitude: f64,
+      conditions: Option<Vec<CurrentWeather>>,
+  }
 
-    #[derive(Deserialize, Queryable)]
-    struct WeatherResult {
-        current_weather: CurrentWeather,
-    }
+  #[derive(Deserialize, Queryable)]
+  struct WeatherResult {
+      current_weather: CurrentWeather,
+  }
 
-    #[derive(Deserialize, Queryable)]
-    struct CurrentWeather {
-        temperature: f64,
-        time: String,
-    }
+  #[derive(Deserialize, Queryable)]
+  struct CurrentWeather {
+      temperature: f64,
+      time: String,
+  }
 
-    async fn weather_for(latitude: f64, longitude: f64) -> Result<CurrentWeather, anyhow::Error> {
-        let url = format!("https://api.open-meteo.com/v1/forecast?\
-            latitude={latitude}&longitude={longitude}\
-            &current_weather=true&timezone=CET");
-        let res = reqwest::get(url).await?.text().await?;
-        let weather_result: WeatherResult = serde_json::from_str(&res)?;
-        Ok(weather_result.current_weather)
-    }
+  async fn weather_for(latitude: f64, longitude: f64) -> Result<CurrentWeather, anyhow::Error> {
+      let url = format!(
+          "https://api.open-meteo.com/v1/forecast?\
+          latitude={latitude}&longitude={longitude}\
+          &current_weather=true&timezone=CET"
+      );
+      let res = reqwest::get(url).await?.text().await?;
+      let weather_result: WeatherResult = serde_json::from_str(&res)?;
+      Ok(weather_result.current_weather)
+  }
 
-    struct WeatherApp {
-        db: Client,
-    }
+  struct WeatherApp {
+      db: Client,
+  }
 
-    impl WeatherApp {
-        async fn init(&self) {
-            let city_data = [
-                ("Andorra la Vella", 42.3, 1.3),
-                ("El Serrat", 42.37, 1.33),
-                ("Encamp", 42.32, 1.35),
-                ("Les Escaldes", 42.3, 1.32),
-                ("Sant Julià de Lòria", 42.28, 1.29),
-                ("Soldeu", 42.34, 1.4),
-            ];
+  impl WeatherApp {
+      async fn init(&self) {
+          let city_data = [
+              ("Andorra la Vella", 42.3, 1.3),
+              ("El Serrat", 42.37, 1.33),
+              ("Encamp", 42.32, 1.35),
+              ("Les Escaldes", 42.3, 1.32),
+              ("Sant Julià de Lòria", 42.28, 1.29),
+              ("Soldeu", 42.34, 1.4),
+          ];
 
-            let query = insert_city();
-            for (name, lat, long) in city_data {
-                match self.db.execute(query, &(name, lat, long)).await {
-                    Ok(_) => println!("City {name} inserted!"),
-                    Err(e) => {
-                        if e.is::<ConstraintViolationError>() {
-                            println!("City {name} already in db");
-                        } else {
-                            println!("Unexpected error: {e:?}");
-                        }
-                    }
-                }
-            }
-        }
+          let query = insert_city();
+          for (name, lat, long) in city_data {
+              match self.db.execute(query, &(name, lat, long)).await {
+                  Ok(_) => println!("City {name} inserted!"),
+                  Err(e) => {
+                      if e.is::<ConstraintViolationError>() {
+                          println!("City {name} already in db");
+                      } else {
+                          println!("Unexpected error: {e:?}");
+                      }
+                  }
+              }
+          }
+      }
 
-        async fn get_cities(&self) -> Result<Vec<City>, anyhow::Error> {
-            Ok(self.db.query::<City, _>(&select_city(""), &()).await?)
-        }
+      async fn get_cities(&self) -> Result<Vec<City>, anyhow::Error> {
+          Ok(self.db.query::<City, _>(&select_city(""), &()).await?)
+      }
 
-        async fn update_conditions(&self) -> Result<(), anyhow::Error> {
-            for City {
-                name,
-                latitude,
-                longitude,
-                ..
-            } in self.get_cities().await?
-            {
-                let CurrentWeather { temperature, time } = weather_for(latitude, longitude).await?;
+      async fn update_conditions(&self) -> Result<(), anyhow::Error> {
+          for City {
+              name,
+              latitude,
+              longitude,
+              ..
+          } in self.get_cities().await?
+          {
+              let CurrentWeather { temperature, time } = weather_for(latitude, longitude).await?;
 
-                match self
-                    .db
-                    .execute(insert_conditions(), &(&name, temperature, time))
-                    .await
-                {
-                    Ok(()) => println!("Inserted new conditions for {}", name),
-                    Err(e) => {
-                        if !e.is::<ConstraintViolationError>() {
-                            println!("Unexpected error: {e}");
-                        }
-                    }
-                }
-            }
-            Ok(())
-        }
+              match self
+                  .db
+                  .execute(insert_conditions(), &(&name, temperature, time))
+                  .await
+              {
+                  Ok(()) => println!("Inserted new conditions for {}", name),
+                  Err(e) => {
+                      if !e.is::<ConstraintViolationError>() {
+                          println!("Unexpected error: {e}");
+                      }
+                  }
+              }
+          }
+          Ok(())
+      }
 
-        async fn run(&self) {
-            sleep(Duration::from_millis(100)).await;
-            loop {
-                println!("Looping...");
-                if let Err(e) = self.update_conditions().await {
-                    println!("Loop isn't working: {e}")
-                }
-                sleep(Duration::from_secs(60)).await;
-            }
-        }
-    }
+      async fn run(&self) {
+          sleep(Duration::from_millis(100)).await;
+          loop {
+              println!("Looping...");
+              if let Err(e) = self.update_conditions().await {
+                  println!("Loop isn't working: {e}")
+              }
+              sleep(Duration::from_secs(60)).await;
+          }
+      }
+  }
 
-    // Axum functions
+  // Axum functions
 
-    async fn menu() -> &'static str {
-        "Routes:
-                /conditions/<name>
-                /add_city/<name>/<latitude>/<longitude>
-                /remove_city/<name>
-                /city_names"
-    }
+  async fn menu() -> &'static str {
+      "Routes:
+              /conditions/<name>
+              /add_city/<name>/<latitude>/<longitude>
+              /remove_city/<name>
+              /city_names"
+  }
 
-    async fn get_conditions(Path(city_name): Path<String>, State(client): State<Client>) -> String {
-        let query = select_city("filter .name = <str>$0");
-        match client
-            .query_required_single::<City, _>(&query, &(&city_name,))
-            .await
-        {
-            Ok(city) => {
-                let mut conditions = format!("Conditions for {city_name}:\n\n");
-                for condition in city.conditions.unwrap_or_default() {
-                    let (date, hour) = condition.time.split_once("T").unwrap_or_default();
-                    conditions.push_str(&format!("{date} {hour}\t"));
-                    conditions.push_str(&format!("{}\n", condition.temperature));
-                }
-                conditions
-            }
-            Err(e) => format!("Couldn't find {city_name}: {e}"),
-        }
-    }
+  async fn get_conditions(Path(city_name): Path<String>, State(client): State<Client>) -> String {
+      let query = select_city("filter .name = <str>$0");
+      match client
+          .query_required_single::<City, _>(&query, &(&city_name,))
+          .await
+      {
+          Ok(city) => {
+              let mut conditions = format!("Conditions for {city_name}:\n\n");
+              for condition in city.conditions.unwrap_or_default() {
+                  let (date, hour) = condition.time.split_once("T").unwrap_or_default();
+                  conditions.push_str(&format!("{date} {hour}\t"));
+                  conditions.push_str(&format!("{}\n", condition.temperature));
+              }
+              conditions
+          }
+          Err(e) => format!("Couldn't find {city_name}: {e}"),
+      }
+  }
 
-    async fn add_city(
-        State(client): State<Client>,
-        Path((name, lat, long)): Path<(String, f64, f64)>,
-    ) -> String {
-        // First make sure that Open-Meteo is okay with it
-        let (temperature, time) = match weather_for(lat, long).await {
-            Ok(c) => (c.temperature, c.time),
-            Err(e) => {
-                return format!("Couldn't get weather info: {e}");
-            }
-        };
+  async fn add_city(
+      State(client): State<Client>,
+      Path((name, lat, long)): Path<(String, f64, f64)>,
+  ) -> String {
+      // First make sure that Open-Meteo is okay with it
+      let (temperature, time) = match weather_for(lat, long).await {
+          Ok(c) => (c.temperature, c.time),
+          Err(e) => {
+              return format!("Couldn't get weather info: {e}");
+          }
+      };
 
-        // Then insert the City
-        let _ = client
-            .execute(insert_city(), &(&name, lat, long))
-            .await
-            .or_else(|e| {
-                return Err(e.to_string());
-            });
+      // Then insert the City
+      if let Err(e) = client.execute(insert_city(), &(&name, lat, long)).await {
+          return e.to_string();
+      }
 
-        // And finally the Conditions
-        let _ = client
-            .execute(insert_conditions(), &(&name, temperature, time))
-            .await
-            .or_else(|e| {
-                return Err(format!(
-                    "Inserted City {name} but couldn't insert conditions: {e}"
-                ));
-            });
-        format!("Inserted city {name}!")
-    }
+      // And finally the Conditions
+      if let Err(e) = client
+          .execute(insert_conditions(), &(&name, temperature, time))
+          .await
+      {
+          return format!("Inserted City {name} but couldn't insert conditions: {e}");
+      }
 
-    async fn remove_city(Path(name): Path<String>, State(client): State<Client>) -> String {
-        match client
-            .query::<Value, _>(delete_city(), &(&name,))
-            .await
-        {
-            Ok(v) if v.is_empty() => format!("No city {name} found to remove!"),
-            Ok(_) => format!("City {name} removed!"),
-            Err(e) => e.to_string(),
-        }
-    }
+      format!("Inserted city {name}!")
+  }
 
-    async fn city_names(State(client): State<Client>) -> String {
-        match client
-            .query::<String, _>(select_city_names(), &())
-            .await
-        {
-            Ok(cities) => format!("{cities:#?}"),
-            Err(e) => e.to_string(),
-        }
-    }
+  async fn remove_city(Path(name): Path<String>, State(client): State<Client>) -> String {
+      match client.query::<Value, _>(delete_city(), &(&name,)).await {
+          Ok(v) if v.is_empty() => format!("No city {name} found to remove!"),
+          Ok(_) => format!("City {name} removed!"),
+          Err(e) => e.to_string(),
+      }
+  }
 
-    #[tokio::main]
-    async fn main() -> Result<(), anyhow::Error> {
-        let client = create_client().await?;
+  async fn city_names(State(client): State<Client>) -> String {
+      match client.query::<String, _>(select_city_names(), &()).await {
+          Ok(cities) => format!("{cities:#?}"),
+          Err(e) => e.to_string(),
+      }
+  }
 
-        let weather_app = WeatherApp { db: client.clone() };
+  #[tokio::main]
+  async fn main() -> Result<(), anyhow::Error> {
+      let client = create_client().await?;
 
-        weather_app.init().await;
+      let weather_app = WeatherApp { db: client.clone() };
 
-        tokio::task::spawn(async move {
-            weather_app.run().await;
-        });
+      weather_app.init().await;
 
-        let app = Router::new()
-            .route("/", get(menu))
-            .route("/conditions/:name", get(get_conditions))
-            .route("/add_city/:name/:latitude/:longitude", get(add_city))
-            .route("/remove_city/:name", get(remove_city))
-            .route("/city_names", get(city_names))
-            .with_state(client)
-            .into_make_service();
+      tokio::task::spawn(async move {
+          weather_app.run().await;
+      });
 
-        let listener = TcpListener::bind("0.0.0.0:3000").await.unwrap();
-        axum::serve(listener, app).await.unwrap();
-        Ok(())
-    }
+      let app = Router::new()
+          .route("/", get(menu))
+          .route("/conditions/:name", get(get_conditions))
+          .route("/add_city/:name/:latitude/:longitude", get(add_city))
+          .route("/remove_city/:name", get(remove_city))
+          .route("/city_names", get(city_names))
+          .with_state(client)
+          .into_make_service();
+
+      let listener = TcpListener::bind("0.0.0.0:3000").await.unwrap();
+      axum::serve(listener, app).await.unwrap();
+      Ok(())
+  }
+
+.. lint-on
