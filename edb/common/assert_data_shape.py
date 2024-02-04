@@ -133,11 +133,9 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
 
     def _assert_list_shape(path, data, shape):
         if not isinstance(data, (list, tuple)):
-            # hack singleton type checking
-            data = [data]
-            # fail(
-            #     f'{message}: expected list got {type(data)} '
-            #     f'{_format_path(path)}')
+            fail(
+                f'{message}: expected list got {type(data)} '
+                f'{_format_path(path)}')
 
         if not data and shape:
             fail(
@@ -351,7 +349,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                         f'{_format_path(path)}')
             elif isinstance(shape, (str, int, bytes, timedelta,
                                     decimal.Decimal)):
-                if (data != shape) and (data != [shape]): # singleton cheat
+                if data != shape:
                     fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
@@ -366,7 +364,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
             elif shape is None:
-                if data is not None and data != []:
+                if data is not None:
                     fail(
                         f'{message}: {data!r} is expected to be None '
                         f'{_format_path(path)}')
