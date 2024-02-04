@@ -386,8 +386,8 @@ def is_order_spec(tp: e.ResultTp) -> bool:
 
 def is_tp_projection_tuple_proj(tp: e.Tp) -> bool:
     match tp:
-        case e.NamedTupleTp(val=tp_tuple):
-            return True
+        # case e.NamedTupleTp(val=tp_tuple):
+        #     return True
         case e.CompositeTp(kind=e.CompositeTpKind.Tuple, tps=tp_tuple):
             return True
         case _:
@@ -504,23 +504,28 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                                                            tp.mode)
                     else:
                         raise ValueError("Label not found", lbl, tp_obj.keys())
-                case e.NamedTupleTp(val=tp_tuple):
-                    if lbl in tp_tuple.keys():
-                        result_base_tp = tp_tuple[lbl]
-                        result_mode = tp.mode 
-                        return post_process_result_base_tp(
-                            result_base_tp, result_mode)
-                    elif lbl.isdigit():
-                        result_base_tp = list(tp_tuple.values())[int(lbl)]
-                        result_mode = tp.mode
-                        return post_process_result_base_tp(
-                            result_base_tp, result_mode)
-                    else:
-                        raise ValueError("Label not found")
-                case e.CompositeTp(kind=e.CompositeTpKind.Tuple, tps=tp_tuple):
+                # case e.NamedTupleTp(val=tp_tuple):
+                #     if lbl in tp_tuple.keys():
+                #         result_base_tp = tp_tuple[lbl]
+                #         result_mode = tp.mode 
+                #         return post_process_result_base_tp(
+                #             result_base_tp, result_mode)
+                #     elif lbl.isdigit():
+                #         result_base_tp = list(tp_tuple.values())[int(lbl)]
+                #         result_mode = tp.mode
+                #         return post_process_result_base_tp(
+                #             result_base_tp, result_mode)
+                #     else:
+                #         raise ValueError("Label not found")
+                case e.CompositeTp(kind=e.CompositeTpKind.Tuple, tps=tp_tuple, labels=lbls):
                     if lbl.isdigit():
                         result_base_tp = tp_tuple[int(lbl)]
                         result_mode = tp.mode
+                        return post_process_result_base_tp(
+                            result_base_tp, result_mode)
+                    if lbl in lbls:
+                        result_base_tp = tp_tuple[lbls.index(lbl)]
+                        result_mode = tp.mode 
                         return post_process_result_base_tp(
                             result_base_tp, result_mode)
                     else:

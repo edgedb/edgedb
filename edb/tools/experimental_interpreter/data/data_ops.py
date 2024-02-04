@@ -97,9 +97,7 @@ def UuidTp():
 #     name: str
 
 
-@dataclass(frozen=True)
-class NamedTupleTp:
-    val: Dict[str, Tp]
+
 
 
 # @dataclass(frozen=True)
@@ -142,6 +140,10 @@ def ArrTp(tp: Tp):
 def UnnamedTupleTp(tps: List[Tp]):
     return CompositeTp(CompositeTpKind.Tuple, tps, [])
 
+def NamedTupleTp(val: Dict[str, Tp]):
+    lbls = val.keys()
+    tps = val.values()
+    return CompositeTp(CompositeTpKind.Tuple, tps, lbls)
 
 @dataclass(frozen=True)
 class UnionTp:
@@ -224,7 +226,6 @@ class SomeTp:
 
 
 Tp = (ObjectTp | NamedNominalLinkTp  | NominalLinkTp | ScalarTp | UncheckedTypeName
-      | NamedTupleTp 
       | CompositeTp | AnyTp | SomeTp | UnionTp | IntersectTp  | OverloadedTargetTp
     #   | UnifiableTp
       | ComputableTp | DefaultTp | UncheckedComputableTp 

@@ -47,9 +47,9 @@ def map_tp(
             case e.ObjectTp(val=val):
                 return e.ObjectTp(val={k: e.ResultTp(recur(v), card)
                                        for k, (v, card) in val.items()})
-            case e.NamedTupleTp(val=val):
-                return e.NamedTupleTp(val={k: recur(v)
-                                           for k, v in val.items()})
+        #  case e.NamedTupleTp(val=val):
+        #         return e.NamedTupleTp(val={k: recur(v)
+        #                                    for k, v in val.items()})
             # case e.UnnamedTupleTp(val=val):
             #     return e.UnnamedTupleTp(val=[recur(v) for v in val])
             case e.CompositeTp(kind=k, tps=tps, labels=labels):
