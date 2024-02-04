@@ -7,17 +7,18 @@ in Rust that uses Axum as its web server and EdgeDB to hold weather data.
 The app itself simply calls into a service called Open-Meteo once a minute
 to look for updated weather information on the cities in the database, and
 goes back to sleep once it is done. Open-Meteo is being used here because
-their service doesn't require any sort of registration. Give it a try 
-`in your browser`_!
+`their service <https://open-meteo.com/en/docs>`_ doesn't require any sort
+of registration. Give it a try `in your browser`_! We'll be saving the time
+and temperature information from this output to the database.
 
 Getting started
 ---------------
 
-To get started, first type ``cargo new weather_app``, or whatever name
-you would like to give the project. Go into the directory that was created
-and type ``edgedb project init`` to start an EdgeDB instance. Inside, you
-will see your schema inside the ``default.esdl`` in the ``/dbschema``
-directory.
+To get started, first create a new Cargo project with
+``cargo new weather_app``, or whatever name you would like to call it.
+Go into the directory that was created and type ``edgedb project init``
+to start an EdgeDB instance. Inside, you will see your schema inside
+the ``default.esdl`` in the ``/dbschema`` directory.
 
 Schema
 ------
@@ -25,7 +26,7 @@ Schema
 The schema is simple but leverages a lot of EdgeDB's guarantees so that
 we don't have to think about them on the client side.
 
-.. code-block:: edgeql
+.. code-block:: sdl
 
   module default {
 
@@ -66,7 +67,7 @@ we don't have to think about them on the client side.
 Let's go over some of the advantages EdgeDB gives us even in a schema as
 simple as this one.
 
-First are the three scalar types have been extended to give us some type
+First are the three scalar types extend ``float64`` to give us some type
 safety when it comes to latitude, longitude, and temperature. Latitude can't
 exceed 90 degrees on Earth, and longitude can't exceed 180. Open-Meteo does
 its own checks for latitude and longitude when querying the conditions for a
@@ -77,13 +78,17 @@ are allowed and which are not.
 Plus, sometimes another server's data will just go haywire for some reason
 or another, such as the time a weather map showed a high of 
 `thousands of degrees <https://www.youtube.com/watch?v=iXuc7SAyk2s>`_ for
-various cities in Arizona.  With the constraints in place, we are at least
+various cities in Arizona. If our database simply accepted anything, we might
+end up with some weird outlying numbers that affect any calculations we
+make on the data.
+
+With the constraints in place, we are at least
 guaranteed to not add temperature data that reaches that point! We'll go
 with a maximum of 70.0 and low of 100.0 degrees. (The highest and lowest
 temperatures over recorded on Earth are 56.7 °C and -89.2°C, so our
 constraints provide a lot of room.)
 
-.. code-block:: edgeql
+.. code-block:: sdl
 
     scalar type Latitude extending float64 {
         constraint max_value(90.0);
@@ -143,7 +148,7 @@ from Open-Meteo!)
 We can then use this info to insert a type called ``Conditions`` that
 will look like this:
 
-.. code-block:: edgeql
+.. code-block:: sdl
 
     type Conditions {
         required city: City {
@@ -169,7 +174,7 @@ will end up seeing four temperatures an hour added for each city.
 
 The ``City`` type is pretty simple:
 
-.. code-block:: edgeql
+.. code-block:: sdl
 
     type City {
     required name: str {
@@ -199,7 +204,7 @@ cities can have the same name. One possibility later on would be to give a
 a city of the same name that is 0.00001 degrees different from an existing
 city (i.e. the same city).
 
-.. code-block:: edgeql-diff
+.. code-block:: sdl-diff
 
   type City {
     required name: str;
@@ -960,5 +965,103 @@ Here is all of the Rust code:
   }
 
 .. _in your browser: https://api.open-meteo.com/v1/forecast?latitude=37&longitude=126&current_weather=true&timezone=CET
+
+.. lint-on
+
+Let's finish up this guide with two quick tips on how to speed up your
+development time when working with JSON, Rust types, and EdgeQL queries.
+
+Generating structs from JSON and queries from structs
+-----------------------------------------------------
+
+EdgeDB's Rust client does not yet have a query builder, but there are some
+ways to speed up some of the manual typing you often need to do to ensure
+type safety in Rust.
+
+Let's say you wanted to put together some structs to incorporate more of this
+output from the Open-Meteo endpoint that we have been using:
+
+.. code-block::
+
+  {
+      "latitude": 49.9375,
+      "longitude": 50,
+      "generationtime_ms": 0.06604194641113281,
+      "utc_offset_seconds": 3600,
+      "timezone": "Europe/Paris",
+      "timezone_abbreviation": "CET",
+      "elevation": 6,
+      "current_weather_units": {
+          "time": "iso8601",
+          "interval": "seconds",
+          "temperature": "°C",
+          "windspeed": "km/h",
+          "winddirection": "°",
+          "is_day": "",
+          "weathercode": "wmo code"
+      },
+      "current_weather": {
+          "time": "2024-02-07T01:00",
+          "interval": 900,
+          "temperature": -3.7,
+          "windspeed": 38.9,
+          "winddirection": 289,
+          "is_day": 0,
+          "weathercode": 3
+      }
+  }
+
+This will require up to three structs, and is a bit tedious to type.
+To speed up the process, simply paste the JSON into your IDE using the
+rust-analyzer extension. A lightbulb icon should pop up that offers to
+turn the JSON into matching structs. If you click on the icon, the JSON
+will turn into the following code:
+
+.. code-block:: rust
+
+  #[derive(Serialize, Deserialize)]
+  struct Struct2 {
+      interval: i64,
+      is_day: i64,
+      temperature: f64,
+      time: String,
+      weathercode: i64,
+      winddirection: i64,
+      windspeed: f64,
+  }
+  #[derive(Serialize, Deserialize)]
+  struct Struct3 {
+      interval: String,
+      is_day: String,
+      temperature: String,
+      time: String,
+      weathercode: String,
+      winddirection: String,
+      windspeed: String,
+  }
+  #[derive(Serialize, Deserialize)]
+  struct Struct1 {
+      current_weather: Struct2,
+      current_weather_units: Struct3,
+      elevation: i64,
+      generationtime_ms: f64,
+      latitude: f64,
+      longitude: i64,
+      timezone: String,
+      timezone_abbreviation: String,
+      utc_offset_seconds: i64,
+  }
+
+With this, the only remaining work is to name the structs and made some
+decisions on where to choose a different type from the automatically
+generated parameters. The ``time`` parameter for example can be turned
+into a ``LocalDatetime`` instead of a ``String``.
+
+.. lint-off
+
+Conversely, the unofficial
+`edgedb-query-derive <https://docs.rs/edgedb-query-derive/latest/edgedb_query_derive/attr.select_query.html>`
+crate provides a way to turn Rust types into EdgeQL queries using its
+``.to_edge_query()`` method.
 
 .. lint-on
