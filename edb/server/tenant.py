@@ -738,7 +738,8 @@ class Tenant(ha_base.ClusterProtocol):
                 # If there are open EdgeDB connections to the `dbname` DB
                 # just raise the error Postgres would have raised itself.
                 raise errors.ExecutionError(
-                    f"database branch {dbname!r} is being accessed by other users"
+                    f"database branch {dbname!r} is being accessed by "
+                    f"other users"
                 )
 
         self._block_new_connections.add(dbname)
