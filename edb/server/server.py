@@ -987,11 +987,11 @@ class BaseServer:
         self._servers = {}
 
         for conn in self._binary_conns:
-            conn.stop()
+            conn.request_stop()
         self._binary_conns.clear()
 
         for conn in self._pgext_conns.values():
-            conn.stop()
+            conn.request_stop()
         self._pgext_conns.clear()
 
     async def serve_forever(self):

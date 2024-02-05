@@ -455,7 +455,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                     if self.debug:
                         self.debug_print("CancelRequest", pid, secret)
                     self.server.cancel_pgext_connection(pid, secret)
-                    self.stop()
+                    self.request_stop()
                     break
 
                 elif proto_ver_minor == 5679:  # SSLRequest
@@ -760,7 +760,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.write_error(ex)
             self.write(self.ready_for_query())
             self.flush()
-            self.stop()
+            self.request_stop()
 
     async def _main_step(self, char mtype):
         cdef:

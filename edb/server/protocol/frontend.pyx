@@ -454,7 +454,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             self._transport.abort()
             self._transport = None
 
-    def stop(self):
+    def request_stop(self):
         # Actively stop a frontend connection - this is used by the server
         # when it's stopping.
         self._stop_requested = True
