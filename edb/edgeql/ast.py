@@ -883,7 +883,7 @@ class CreateDatabase(CreateObject, DatabaseCommand):
 
 
 class AlterDatabase(AlterObject, DatabaseCommand):
-    pass
+    reset_connections: bool = False
 
 
 class DropDatabase(DropObject, DatabaseCommand):

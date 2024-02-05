@@ -264,6 +264,40 @@ class TestDatabase(tb.ConnectedTestCase):
             except edgedb.UnknownDatabaseError:
                 pass
 
+    async def test_branch_rename_disconnect(self):
+        if not self.has_create_database:
+            self.skipTest("create branch is not supported by the backend")
+
+        await self.con.execute('CREATE EMPTY BRANCH test_db_rename;')
+        conn = await self.connect(database='test_db_rename')
+
+        try:
+            dbname = await conn.query(
+                'SELECT sys::get_current_database();')
+            self.assertEqual(dbname, ['test_db_rename'])
+
+            # Drop branch while the frontend connection is active
+            await self.con.execute('''
+                ALTER BRANCH RESET CONNECTIONS test_db_rename
+                RENAME TO test_db_rename2
+            ''')
+
+            # The frontend connection should be closed by the server now
+            self.assertTrue(conn.is_closed())
+
+            conn2 = await self.connect(database='test_db_rename2')
+            dbname = await conn2.query(
+                'SELECT sys::get_current_database();')
+            self.assertEqual(dbname, ['test_db_rename2'])
+
+        finally:
+            await conn.aclose()
+            await conn2.aclose()
+            try:
+                await tb.drop_db(self.con, 'test_db_rename')
+            except edgedb.UnknownDatabaseError:
+                await tb.drop_db(self.con, 'test_db_rename2')
+
     async def test_branch_non_exist_template(self):
         if not self.has_create_database:
             self.skipTest("create branch is not supported by the backend")

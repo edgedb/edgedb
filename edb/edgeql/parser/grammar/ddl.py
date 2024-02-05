@@ -872,13 +872,22 @@ commands_block(
 
 
 class AlterBranchStmt(Nonterm):
-    def reduce_ALTER_BRANCH_DatabaseName_AlterBranchCommandsBlock(
-        self, *kids
-    ):
+    def reduce_ALTER_BRANCH_DatabaseName_AlterBranchCommandsBlock(self, *kids):
         _, _, name, commands = kids
         self.val = qlast.AlterDatabase(
             name=name.val,
             commands=commands.val,
+        )
+
+    def reduce_alter_branch_reset_connections(self, *kids):
+        """%reduce
+            ALTER BRANCH RESET CONNECTIONS DatabaseName AlterBranchCommandsBlock
+        """
+        _, _, _, _, name, commands = kids
+        self.val = qlast.AlterDatabase(
+            name=name.val,
+            commands=commands.val,
+            reset_connections=True,
         )
 
 
