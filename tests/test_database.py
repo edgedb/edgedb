@@ -238,7 +238,7 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             await tb.drop_db(self.con, 'test_db_drop')
 
-    async def test_branch_drop_disconnect(self):
+    async def _test_branch_drop_disconnect(self, *, with_transaction):
         if not self.has_create_database:
             self.skipTest("create branch is not supported by the backend")
 
@@ -246,6 +246,9 @@ class TestDatabase(tb.ConnectedTestCase):
         conn = await self.connect(database='test_db_disconnect')
 
         try:
+            if with_transaction:
+                await conn.query('START TRANSACTION')
+
             dbname = await conn.query(
                 'SELECT sys::get_current_database();')
             self.assertEqual(dbname, ['test_db_disconnect'])
@@ -263,6 +266,12 @@ class TestDatabase(tb.ConnectedTestCase):
                 await tb.drop_db(self.con, 'test_db_disconnect')
             except edgedb.UnknownDatabaseError:
                 pass
+
+    async def test_branch_drop_disconnect_01(self):
+        await self._test_branch_drop_disconnect(with_transaction=False)
+
+    async def test_branch_drop_disconnect_02(self):
+        await self._test_branch_drop_disconnect(with_transaction=True)
 
     async def test_branch_rename_disconnect(self):
         if not self.has_create_database:
