@@ -769,7 +769,7 @@ class Tenant(ha_base.ClusterProtocol):
                 WHERE
                     datname = $1
                 """,
-                args=[dbname.encode("utf-8")],
+                args=[self.get_pg_dbname(dbname).encode("utf-8")],
             )
 
         if conns:

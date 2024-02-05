@@ -637,18 +637,7 @@ def _extract_background_errors(metrics: str) -> str | None:
 
 
 async def drop_db(conn, dbname):
-    # The connection might not *actually* be closed on the db
-    # side yet. This is a bug (#4567), but hack around it
-    # with a retry loop. Without this, tests would flake
-    # a lot.
-    async for tr in TestCase.try_until_succeeds(
-        ignore=(edgedb.ExecutionError, edgedb.ClientConnectionError),
-        timeout=30
-    ):
-        async with tr:
-            await conn.execute(
-                f'DROP DATABASE {dbname};'
-            )
+    await conn.execute(f'DROP DATABASE {dbname}')
 
 
 class ClusterTestCase(BaseHTTPTestCase):
