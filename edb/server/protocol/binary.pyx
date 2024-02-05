@@ -1088,7 +1088,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self.write_log(
             EdgeSeverity.EDGE_SEVERITY_NOTICE,
             errors.LogMessage.get_code(),
-            'server is stopped; disconnecting now')
+            'requested to stop; disconnecting now')
 
     async def recover_from_error(self):
         # Consume all messages until sync.

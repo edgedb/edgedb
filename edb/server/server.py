@@ -25,6 +25,7 @@ from typing import *
 import asyncio
 import collections
 import ipaddress
+import itertools
 import json
 import logging
 import os
@@ -424,6 +425,13 @@ class BaseServer:
     @property
     def system_compile_cache(self):
         return self._system_compile_cache
+
+    def request_stop_fe_conns(self, dbname: str) -> None:
+        for conn in itertools.chain(
+            self._binary_conns.keys(), self._pgext_conns.values()
+        ):
+            if conn.dbname == dbname:
+                conn.request_stop()
 
     def _idle_gc_collector(self):
         try:

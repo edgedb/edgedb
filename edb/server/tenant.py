@@ -1211,6 +1211,7 @@ class Tenant(ha_base.ClusterProtocol):
             if self._dbindex.has_db(dbname):
                 self._dbindex.unregister_db(dbname)
             self._block_new_connections.discard(dbname)
+            self._server.request_stop_fe_conns(dbname)
         except Exception:
             metrics.background_errors.inc(
                 1.0, self._instance_name, "on_after_drop_db"
