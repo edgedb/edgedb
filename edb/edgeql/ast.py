@@ -887,7 +887,7 @@ class AlterDatabase(AlterObject, DatabaseCommand):
 
 
 class DropDatabase(DropObject, DatabaseCommand):
-    pass
+    reset_connections: bool = False
 
 
 class ExtensionPackageCommand(GlobalObjectCommand):

@@ -248,10 +248,12 @@ def compile_and_apply_ddl_stmt(
 
     create_db = None
     drop_db = None
+    drop_db_reset_connections = False
     create_db_template = None
     create_db_mode = None
     if isinstance(stmt, qlast.DropDatabase):
         drop_db = stmt.name.name
+        drop_db_reset_connections = stmt.reset_connections
     elif isinstance(stmt, qlast.CreateDatabase):
         create_db = stmt.name.name
         create_db_template = stmt.template.name if stmt.template else None
@@ -283,6 +285,7 @@ def compile_and_apply_ddl_stmt(
         ),
         create_db=create_db,
         drop_db=drop_db,
+        drop_db_reset_connections=drop_db_reset_connections,
         create_db_template=create_db_template,
         create_db_mode=create_db_mode,
         ddl_stmt_id=ddl_stmt_id,

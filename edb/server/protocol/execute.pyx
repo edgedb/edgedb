@@ -98,7 +98,9 @@ async def execute(
             )
         if query_unit.drop_db:
             await tenant.on_before_drop_db(
-                query_unit.drop_db, dbv.dbname, close_frontend_conns=False
+                query_unit.drop_db,
+                dbv.dbname,
+                close_frontend_conns=query_unit.drop_db_reset_connections,
             )
         if query_unit.system_config:
             await execute_system_config(be_conn, dbv, query_unit, state)

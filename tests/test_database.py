@@ -21,7 +21,6 @@ import edgedb
 
 from edb.schema import defines as s_def
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestDatabase(tb.ConnectedTestCase):
@@ -239,7 +238,6 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             await tb.drop_db(self.con, 'test_db_drop')
 
-    @test.xerror("complete this test")
     async def test_branch_drop_disconnect(self):
         if not self.has_create_database:
             self.skipTest("create branch is not supported by the backend")
@@ -253,13 +251,18 @@ class TestDatabase(tb.ConnectedTestCase):
             self.assertEqual(dbname, ['test_db_disconnect'])
 
             # Drop branch while the frontend connection is active
-            await self.con.execute('DROP BRANCH test_db_disconnect')
+            await self.con.execute(
+                'DROP BRANCH RESET CONNECTIONS test_db_disconnect'
+            )
 
             # The frontend connection should be closed by the server now
             self.assertTrue(conn.is_closed())
         finally:
             await conn.aclose()
-            await tb.drop_db(self.con, 'test_db_disconnect')
+            try:
+                await tb.drop_db(self.con, 'test_db_disconnect')
+            except edgedb.UnknownDatabaseError:
+                pass
 
     async def test_branch_non_exist_template(self):
         if not self.has_create_database:

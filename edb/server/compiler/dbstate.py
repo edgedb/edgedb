@@ -147,6 +147,7 @@ class DDLQuery(BaseQuery):
     single_unit: bool = False
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
+    drop_db_reset_connections: bool = False
     create_db_template: Optional[str] = None
     create_db_mode: Optional[qlast.BranchType] = None
     ddl_stmt_id: Optional[str] = None
@@ -268,6 +269,7 @@ class QueryUnit:
     # close all inactive unused pooled connections to it.
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
+    drop_db_reset_connections: bool = False
 
     # If non-None, contains a name of the DB that will be used as
     # a template database to create the database. The server should

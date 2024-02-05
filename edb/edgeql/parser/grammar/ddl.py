@@ -851,7 +851,12 @@ class CreateBranchStmt(Nonterm):
 #
 class DropBranchStmt(Nonterm):
     def reduce_DROP_BRANCH_DatabaseName(self, *kids):
-        self.val = qlast.DropDatabase(name=kids[2].val)
+        _, _, name = kids
+        self.val = qlast.DropDatabase(name=name.val)
+
+    def reduce_DROP_BRANCH_RESET_CONNECTIONS_DatabaseName(self, *kids):
+        _, _, _, _, name = kids
+        self.val = qlast.DropDatabase(name=name.val, reset_connections=True)
 
 
 #

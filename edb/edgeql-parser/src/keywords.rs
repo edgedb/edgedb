@@ -20,6 +20,7 @@ pub const UNRESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "committed",
     "config",
     "conflict",
+    "connections",
     "constraint",
     "cube",
     "current",
