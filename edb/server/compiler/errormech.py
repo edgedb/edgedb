@@ -620,10 +620,9 @@ def _interpret_constraint_errors(
             obj_ptr = obj_type.getptr(schema, sn.UnqualName('id'))
             constraint = obj_ptr.get_exclusive_constraints(schema)[0]
 
-        msg = constraint.format_error(schema)
         subject = constraint.get_subject(schema)
         vname = subject.get_verbosename(schema, with_parent=True)
-        details = constraint.format_error_message(schema, vname)
+        msg = constraint.format_error_message(schema, vname)
 
         if from_graphql:
             msg = gql_replace_type_names_in_text(msg)

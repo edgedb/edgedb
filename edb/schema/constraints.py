@@ -218,21 +218,6 @@ class Constraint(
             self.get_field_value(schema, 'subject'),
         )
 
-    def format_error(
-        self,
-        schema: s_schema.Schema,
-    ) -> str:
-        subject = self.get_subject(schema)
-        titleattr = subject.get_annotation(schema, sn.QualName('std', 'title'))
-
-        if not titleattr:
-            subjname = subject.get_shortname(schema)
-            subjtitle = subjname.name
-        else:
-            subjtitle = titleattr
-
-        return self.format_error_message(schema, subjtitle)
-
     def format_error_message(
         self,
         schema: s_schema.Schema,
