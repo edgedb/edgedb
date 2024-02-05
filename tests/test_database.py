@@ -238,6 +238,23 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             await tb.drop_db(self.con, 'test_db_drop')
 
+    async def test_branch_drop_disconnect(self):
+        if not self.has_create_database:
+            self.skipTest("create branch is not supported by the backend")
+
+        await self.con.execute('CREATE EMPTY BRANCH test_db_disconnect;')
+        conn = await self.connect(database='test_db_disconnect')
+
+        dbname = await conn.query(
+            'SELECT sys::get_current_database();')
+        self.assertEqual(dbname, ['test_db_disconnect'])
+
+        # Drop branch while the frontend connection is active
+        await self.con.execute('DROP BRANCH test_db_disconnect')
+
+        # The frontend connection should be closed by the server now
+        self.assertTrue(conn.is_closed())
+
     async def test_branch_non_exist_template(self):
         if not self.has_create_database:
             self.skipTest("create branch is not supported by the backend")
