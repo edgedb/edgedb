@@ -725,11 +725,13 @@ def ddlast_from_delta(
     sdlmode: bool = False,
     testmode: bool = False,
     descriptive_mode: bool = False,
+    include_ext_version: bool = True,
 ) -> Dict[qlast.DDLOperation, sd.Command]:
     context = sd.CommandContext(
         descriptive_mode=descriptive_mode,
         declarative=sdlmode,
         testmode=testmode,
+        include_ext_version=include_ext_version,
     )
 
     if schema_a is None:
@@ -767,6 +769,7 @@ def statements_from_delta(
     # Used for backwards compatibility with older migration text.
     uppercase: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    include_ext_version: bool = True,
 ) -> Tuple[Tuple[str, qlast.DDLOperation, sd.Command], ...]:
 
     stmts = ddlast_from_delta(
@@ -775,6 +778,7 @@ def statements_from_delta(
         delta,
         sdlmode=sdlmode,
         descriptive_mode=descriptive_mode,
+        include_ext_version=include_ext_version,
     )
 
     ql_classes_src = {
@@ -841,6 +845,7 @@ def text_from_delta(
     sdlmode: bool = False,
     descriptive_mode: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    include_ext_version: bool = True,
 ) -> str:
     stmts = statements_from_delta(
         schema_a,
@@ -849,6 +854,7 @@ def text_from_delta(
         sdlmode=sdlmode,
         descriptive_mode=descriptive_mode,
         limit_ref_classes=limit_ref_classes,
+        include_ext_version=include_ext_version,
     )
     return '\n'.join(text for text, _, _ in stmts)
 
@@ -857,6 +863,8 @@ def ddl_text_from_delta(
     schema_a: Optional[s_schema.Schema],
     schema_b: s_schema.Schema,
     delta: sd.DeltaRoot,
+    *,
+    include_ext_version: bool = True,
 ) -> str:
     """Return DDL text corresponding to a delta plan.
 
@@ -872,7 +880,13 @@ def ddl_text_from_delta(
     Returns:
         DDL text corresponding to *delta*.
     """
-    return text_from_delta(schema_a, schema_b, delta, sdlmode=False)
+    return text_from_delta(
+        schema_a,
+        schema_b,
+        delta,
+        sdlmode=False,
+        include_ext_version=include_ext_version,
+    )
 
 
 def sdl_text_from_delta(
@@ -954,7 +968,8 @@ def ddl_text_from_schema(
         include_derived_types=False,
         include_migrations=include_migrations,
     )
-    return ddl_text_from_delta(None, schema, diff)
+    return ddl_text_from_delta(None, schema, diff,
+                               include_ext_version=not include_migrations)
 
 
 def sdl_text_from_schema(
