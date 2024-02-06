@@ -35,6 +35,10 @@ class RollingAverage:
         self._hist_size = history_size
         self._cached_avg = 0
 
+    def clear(self) -> None:
+        self._hist = [0] * self._hist_size
+        self._cached_avg = 0
+
     def add(self, n: float) -> None:
         self._hist[self._pos % self._hist_size] = n
         self._pos += 1

@@ -1201,6 +1201,12 @@ class Pool(BasePool[C]):
                 return_exceptions=True
             )
 
+        # Clear the block's nwaiters_avg rolling average, so that
+        # _tick will understand we are inactive and not try to
+        # schedule new connections here.
+        # TODO: Is it possible to safely drop the block?
+        block.nwaiters_avg.clear()
+
     async def prune_all_connections(self) -> None:
         # Brutally close all connections. This is used by HA failover.
         coros = []
