@@ -133,6 +133,7 @@ class Block(typing.Generic[C]):
 
     querytime_avg: rolavg.RollingAverage
     nwaiters_avg: rolavg.RollingAverage
+    suppressed: bool
 
     _cached_calibrated_demand: float
 
@@ -161,6 +162,7 @@ class Block(typing.Generic[C]):
 
         self.querytime_avg = rolavg.RollingAverage(history_size=20)
         self.nwaiters_avg = rolavg.RollingAverage(history_size=3)
+        self.suppressed = False
 
         self._is_log_batching = False
         self._last_log_timestamp = 0
@@ -226,11 +228,7 @@ class Block(typing.Generic[C]):
 
         return self.conn_stack.popleft()
 
-    async def acquire(self) -> C:
-        # There can be a race between a waiter scheduled for to wake up
-        # and a connection being stolen (due to quota being enforced,
-        # for example).  In which case the waiter might get finally
-        # woken up with an empty queue -- hence we use a `while` loop here.
+    async def try_acquire(self) -> typing.Optional[C]:
         self.conn_waiters_num += 1
         try:
             attempts = 0
@@ -240,7 +238,7 @@ class Block(typing.Generic[C]):
             # extremely hard to always take the shortcut and starve the queue
             # without blocking the main loop, so we are fine here. (This is
             # also how asyncio.Queue is implemented.)
-            while not self.conn_stack:
+            if not self.conn_stack:
                 waiter = self.loop.create_future()
 
                 attempts += 1
@@ -271,10 +269,24 @@ class Block(typing.Generic[C]):
                         self._wakeup_next_waiter()
                     raise
 
+            # There can be a race between a waiter scheduled for to wake up
+            # and a connection being stolen (due to quota being enforced,
+            # for example).  In which case the waiter might get finally
+            # woken up with an empty queue -- hence try 'try'.
+            # acquire will put a while loop around this
+
             # Yield the most recently used connection from the top of the stack
-            return self.conn_stack.pop()
+            if self.conn_stack:
+                return self.conn_stack.pop()
+            else:
+                return None
         finally:
             self.conn_waiters_num -= 1
+
+    async def acquire(self) -> C:
+        while (c := await self.try_acquire()) is None:
+            pass
+        return c
 
     def release(self, conn: C) -> None:
         # Put the connection (back) to the top of the stack,
@@ -578,7 +590,12 @@ class BasePool(typing.Generic[C]):
         await self._disconnect(from_conn, from_block)
         from_block.log_connection('transferred out')
         self._cur_capacity += 1
+        print('ACTUAL TRANSFER CONNECT', to_block.dbname)
+        # for _ in range(5):
+        #     await asyncio.sleep(0)
+        # await asyncio.sleep(0.2)
         await self._connect(to_block, started_at, 'transferred in')
+        print('ACTUAL TRANSFER CONNECT DONE', to_block.dbname)
 
     def _schedule_transfer(
         self,
@@ -586,6 +603,7 @@ class BasePool(typing.Generic[C]):
         from_conn: C,
         to_block: Block[C],
     ) -> None:
+        print('SCHEDULE TRANSFER', to_block.dbname, to_block.nwaiters_avg.avg())
         started_at = time.monotonic()
         assert not from_block.conns[from_conn].in_use
         from_block.conns.pop(from_conn)
@@ -749,7 +767,7 @@ class Pool(BasePool[C]):
             total_nwaiters += nwaiters
             block.nwaiters_avg.add(nwaiters)
             nwaiters_avg = block.nwaiters_avg.avg()
-            if nwaiters_avg:
+            if nwaiters_avg and not block.suppressed:
                 # GOTCHA: this is a counter of blocks that need at least 1
                 # connection. If this number is greater than _max_capacity,
                 # some block will be starving with zero connection.
@@ -1023,7 +1041,7 @@ class Pool(BasePool[C]):
             block_size = block.count_conns()
             block_demand = block.count_waiters()
 
-            if block_size or not block_demand:
+            if block_size or not block_demand or block.suppressed:
                 continue
 
             if block_demand > max_need:
@@ -1039,7 +1057,7 @@ class Pool(BasePool[C]):
         for block in self._blocks.values():
             block_size = block.count_conns()
             block_quota = block.quota
-            if block_quota > block_size:
+            if block_quota > block_size and not block.suppressed:
                 need = block_quota - block_size
                 if need > max_need:
                     max_need = need
@@ -1052,6 +1070,7 @@ class Pool(BasePool[C]):
 
     async def _acquire(self, dbname: str) -> C:
         block = self._get_block(dbname)
+        block.suppressed = False
 
         room_for_new_conns = self._cur_capacity < self._max_capacity
         block_nconns = block.count_conns()
@@ -1191,11 +1210,23 @@ class Pool(BasePool[C]):
         except KeyError:
             return None
 
+        block.suppressed = True
+
         conns = []
         while (conn := block.try_steal()) is not None:
             conns.append(conn)
 
+        while not block.count_waiters() and block.pending_conns:
+            print('WAITING FOR PENDING CONN', block.pending_conns, block.dbname)
+            import sys
+            sys.stdout.flush()
+            # try_acquire, because it can get stolen
+            if c := await block.try_acquire():
+                conns.append(c)
+            print('got it', block.dbname)
+
         if conns:
+            print("discarding", block.dbname)
             await asyncio.gather(
                 *(self._discard_conn(block, conn) for conn in conns),
                 return_exceptions=True
@@ -1205,7 +1236,12 @@ class Pool(BasePool[C]):
         # _tick will understand we are inactive and not try to
         # schedule new connections here.
         # TODO: Is it possible to safely drop the block?
-        block.nwaiters_avg.clear()
+        nwaiters = block.count_waiters() + block.conn_acquired_num
+        # block.nwaiters_avg.clear()
+        print('DOWN!', block.dbname, nwaiters, block.pending_conns)
+
+        if block.pending_conns:
+            print('\n\n==== FUCK IT IS FUCKED')
 
     async def prune_all_connections(self) -> None:
         # Brutally close all connections. This is used by HA failover.
