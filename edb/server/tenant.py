@@ -749,7 +749,7 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
             rloop = retryloop.RetryLoop(
-                backoff=retryloop.exp_backoff(),
+                # backoff=retryloop.exp_backoff(),
                 timeout=10.0,
                 ignore=errors.ExecutionError,
             )
