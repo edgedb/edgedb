@@ -87,7 +87,7 @@ Authentication
 .. versionadded:: 4.0
 
 Authentication for the GraphQL endpoint is identical to that for the
-:ref:`EdgeQL HTTP endpoing <ref_http_auth>`.
+:ref:`EdgeQL HTTP endpoint <ref_http_auth>`.
 
 .. _ref_graphql_protocol:
 
