@@ -440,16 +440,16 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         pass
 
     def close(self):
-        self.stop_connection()
         self.abort_pinned_pgcon()
+        self.stop_connection()
         if self._transport is not None:
             self.flush()
             self._transport.close()
             self._transport = None
 
     def abort(self):
-        self.stop_connection()
         self.abort_pinned_pgcon()
+        self.stop_connection()
         if self._transport is not None:
             self._transport.abort()
             self._transport = None
