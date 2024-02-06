@@ -285,7 +285,7 @@ def fini_expression(
             ctx.env.schema_refs - ctx.env.created_schema_objects),
         schema_ref_exprs=ctx.env.schema_ref_exprs,
         new_coll_types=frozenset(
-            t for t in (ctx.env.schema_refs | ctx.env.created_schema_objects)
+            t for t in ctx.env.created_schema_objects
             if isinstance(t, s_types.Collection) and t != expr_type
         ),
         type_rewrites={
