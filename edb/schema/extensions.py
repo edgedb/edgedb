@@ -441,9 +441,14 @@ class CreateExtension(
         assert isinstance(node, qlast.CreateExtension)
         pkg = self.get_resolved_attribute_value(
             'package', schema=schema, context=context)
-        node.version = qlast.StringConstant(
-            value=str(pkg.get_version(schema))
-        )
+        # When performing dumps we don't want to include the extension version
+        # as we're not guaranteed that the same version will be avaialble when
+        # restoring the dump. We also have no mechanism of installing a specific
+        # extension version, yet.
+        if context.include_ext_version:
+            node.version = qlast.StringConstant(
+                value=str(pkg.get_version(schema))
+            )
         return node
 
 

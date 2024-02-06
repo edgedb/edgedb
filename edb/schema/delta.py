@@ -1267,6 +1267,7 @@ class CommandContext:
         ] = None,
         backend_runtime_params: Optional[Any] = None,
         compat_ver: Optional[verutils.Version] = None,
+        include_ext_version: bool = True,
     ) -> None:
         self.stack: List[CommandContextToken[Command]] = []
         self._cache: Dict[Hashable, Any] = {}
@@ -1294,6 +1295,7 @@ class CommandContext:
             List[Tuple[Command, AlterObject[so.Object], List[str]]],
         ] = collections.defaultdict(list)
         self.compat_ver = compat_ver
+        self.include_ext_version = include_ext_version
 
     @property
     def modaliases(self) -> Mapping[Optional[str], str]:
