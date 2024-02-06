@@ -242,6 +242,23 @@ class TestHttpAuth(BaseTestHttpAuth):
             headers['Access-Control-Expose-Headers']
         )
 
+        with self.http_con() as con:
+            _, headers, status = self.http_con_request(
+                con, {}, path="token",
+                headers={'Origin': 'https://example.edgedb.com'}
+            )
+            self.assertEqual(status, 401)
+            self.assertIn('access-control-allow-origin', headers)
+            self.assertIn('access-control-expose-headers', headers)
+            self.assertIn(
+                'WWW-Authenticate',
+                headers['access-control-expose-headers']
+            )
+            self.assertIn(
+                'Authentication-Info',
+                headers['access-control-expose-headers']
+            )
+
 
 class TestHttpAuthSystem(BaseTestHttpAuth):
 

@@ -316,3 +316,20 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
             'EdgeDB-Protocol-Version',
             headers['Access-Control-Expose-Headers']
         )
+
+        req = urllib.request.Request(self.http_addr, method='POST')
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('Authorization', self.make_auth_header())
+        req.add_header('Origin', 'https://example.edgedb.com')
+        response = urllib.request.urlopen(
+            req,
+            json.dumps({'queries': ['select 123']}).encode(),
+            context=self.tls_context
+        )
+        headers = response.headers
+        self.assertIn('Access-Control-Allow-Origin', headers)
+        self.assertIn('Access-Control-Expose-Headers', headers)
+        self.assertIn(
+            'EdgeDB-Protocol-Version',
+            headers['Access-Control-Expose-Headers']
+        )
