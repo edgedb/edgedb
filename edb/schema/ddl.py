@@ -317,12 +317,9 @@ def delta_schemas(
                         obj: so.Object,
                     ) -> bool:
                         assert isinstance(obj, so.DerivableObject)
-                        return (
-                            obj.generic(schema)
-                            or (
-                                isinstance(obj, s_types.Type)
-                                and obj.get_from_global(schema)
-                            )
+                        return obj.is_non_concrete(schema) or (
+                            isinstance(obj, s_types.Type)
+                            and obj.get_from_global(schema)
                         )
                     filters.append(_only_generic)
                 incl_modules = included_modules

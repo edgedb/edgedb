@@ -206,7 +206,7 @@ class ObjectType(
                     and not lnk.get_source_type(schema).is_union_type(schema)
                     # Only grab the "base" pointers
                     and all(
-                        b.generic(schema)
+                        b.is_non_concrete(schema)
                         for b in lnk.get_bases(schema).objects(schema)
                     )
                     and (not sources or lnk.get_source_type(schema) in sources)
@@ -334,7 +334,7 @@ class ObjectType(
     ) -> bool:
         return not self.is_view(schema) or refdict.attr == 'pointers'
 
-    def as_type_delete_if_dead(
+    def as_type_delete_if_unused(
         self,
         schema: s_schema.Schema,
     ) -> Optional[sd.DeleteObject[ObjectType]]:

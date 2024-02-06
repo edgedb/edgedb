@@ -24,15 +24,16 @@ from edb.testbase import server as tb
 
 class DumpTestCaseMixin:
 
-    async def ensure_schema_data_integrity(self):
+    async def ensure_schema_data_integrity(self, include_secrets=False):
         tx = self.con.transaction()
         await tx.start()
         try:
-            await self._ensure_schema_data_integrity()
+            await self._ensure_schema_data_integrity(
+                include_secrets=include_secrets)
         finally:
             await tx.rollback()
 
-    async def _ensure_schema_data_integrity(self):
+    async def _ensure_schema_data_integrity(self, include_secrets):
         await self.assert_query_result(
             r'''
                 select count(L2)
@@ -65,6 +66,14 @@ class DumpTestCaseMixin:
         ):
             return
 
+        if include_secrets:
+            secrets = [
+                dict(name='4', value='spam', extra=None,
+                     tname='ext::_conf::SecretObj')
+            ]
+        else:
+            secrets = []
+
         await self.assert_query_result(
             '''
                 select cfg::Config {
@@ -83,17 +92,16 @@ class DumpTestCaseMixin:
                     dict(name='2', value='bar', tname='ext::_conf::Obj'),
                     dict(name='3', value='baz', extra=42,
                          tname='ext::_conf::SubObj'),
-                    # No SecretObj
+                    *secrets,
                 ],
             ))]
         )
 
-        # Secret shouldn't make it
         await self.assert_query_result(
             '''
             select ext::_conf::get_top_secret()
             ''',
-            [],
+            ['secret'] if include_secrets else [] ,
         )
 
         # We took a version snapshot for 4.0, but then needed to
@@ -129,9 +137,15 @@ class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'dump_v4_setup.edgeql')
 
-    async def test_dumpv4_dump_restore(self):
+    async def test_dump_v4_dump_restore(self):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)
+
+    async def test_dump_v4_branch_data(self):
+        await self.check_branching(
+            include_data=True,
+            check_method=lambda self: self.ensure_schema_data_integrity(
+                include_secrets=True))
 
 
 class TestDumpV4Compat(

@@ -87,7 +87,7 @@ def merge_cardinality(
 
     for base in bases:
         # ignore abstract pointers
-        if base.generic(schema):
+        if base.is_non_concrete(schema):
             continue
 
         nextval: Optional[qltypes.SchemaCardinality] = (
@@ -147,7 +147,7 @@ def merge_readonly(
 
     for source in list(sources):
         # ignore abstract pointers
-        if source.generic(schema):
+        if source.is_non_concrete(schema):
             continue
 
         # We want the field value including the default, not just
@@ -590,7 +590,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         with_parent: bool=False,
     ) -> str:
         vn = super().get_verbosename(schema)
-        if self.generic(schema):
+        if self.is_non_concrete(schema):
             return f'abstract {vn}'
         else:
             if with_parent:
@@ -771,7 +771,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
             and not self.get_shortname(schema).name == '__type__'
         )
 
-    def generic(self, schema: s_schema.Schema) -> bool:
+    def is_non_concrete(self, schema: s_schema.Schema) -> bool:
         return self.get_source(schema) is None
 
     def get_referrer(self, schema: s_schema.Schema) -> Optional[so.Object]:
@@ -779,8 +779,8 @@ class Pointer(referencing.NamedReferencedInheritingObject,
 
     def get_exclusive_constraints(
             self, schema: s_schema.Schema) -> Sequence[constraints.Constraint]:
-        if self.generic(schema):
-            raise ValueError(f'{self!r} is generic')
+        if self.is_non_concrete(schema):
+            raise ValueError(f'{self!r} is not a concrete pointer')
 
         exclusive = schema.get('std::exclusive', type=constraints.Constraint)
 
@@ -1083,7 +1083,7 @@ class PseudoPointer(s_abc.Pointer):
     def is_link_property(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def generic(self, schema: s_schema.Schema) -> bool:
+    def is_non_concrete(self, schema: s_schema.Schema) -> bool:
         return False
 
     def singular(
@@ -1605,7 +1605,7 @@ class PointerCommand(
 
         if is_computable:
             if any(
-                b.generic(schema)
+                b.is_non_concrete(schema)
                 and not str(b.get_name(schema)) in (
                     'std::link', 'std::property')
                 for b in scls.get_bases(schema).objects(schema)
@@ -1630,7 +1630,7 @@ class PointerCommand(
         for iid in scls.get_ancestors(schema)._ids:
             try:
                 p = cast(Pointer_T, schema.get_by_id(iid))
-                if not p.generic(schema) and p.get_owned(schema):
+                if not p.is_non_concrete(schema) and p.get_owned(schema):
                     lineage.append(p)
             except errors.InvalidReferenceError:
                 pass
@@ -2257,7 +2257,7 @@ class DeletePointer(
             not context.canonical
             and (target := self.scls.get_target(schema)) is not None
             and not self.scls.is_endpoint_pointer(schema)
-            and (del_cmd := target.as_type_delete_if_dead(schema)) is not None
+            and (del_cmd := target.as_type_delete_if_unused(schema)) is not None
         ):
             self.add_caused(del_cmd)
 
@@ -2538,7 +2538,7 @@ class SetPointerType(
             )
 
             if orig_target is not None and scls.is_property(schema):
-                if cleanup_op := orig_target.as_type_delete_if_dead(schema):
+                if cleanup_op := orig_target.as_type_delete_if_unused(schema):
                     parent_op = self.get_parent_op(context)
                     parent_op.add_caused(cleanup_op)
 

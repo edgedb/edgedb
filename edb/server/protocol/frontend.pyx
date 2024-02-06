@@ -18,6 +18,7 @@
 
 
 import asyncio
+import contextlib
 import logging
 import time
 
@@ -166,6 +167,14 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                     conn,
                     discard=debug.flags.server_clobber_pg_conns,
                 )
+
+    @contextlib.asynccontextmanager
+    async def with_pgcon(self):
+        con = await self.get_pgcon()
+        try:
+            yield con
+        finally:
+            self.maybe_release_pgcon(con)
 
     def on_aborted_pgcon(self, pgcon.PGConnection conn):
         try:

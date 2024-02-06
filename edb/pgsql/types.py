@@ -523,7 +523,7 @@ def get_pointer_storage_info(
     resolve_type: bool = True,
     link_bias: bool = False,
 ) -> PointerStorageInfo:
-    assert not pointer.generic(
+    assert not pointer.is_non_concrete(
         schema
     ), "only specialized pointers can be stored"
     if pointer.get_computable(schema):

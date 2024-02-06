@@ -17,7 +17,7 @@ guide!
 .. toctree::
     :maxdepth: 1
 
-    cloud
+    cloud/index
     cheatsheet/index
     deployment/index
     datamigrations/index

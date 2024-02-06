@@ -1672,7 +1672,7 @@ def _get_schema_computed_ctx(
             # path derived from the pointer source.
             if not (
                 isinstance(src, s_pointers.Pointer)
-                and src.generic(ctx.env.schema)
+                and src.is_non_concrete(ctx.env.schema)
             ):
                 inner_path_id = not_none(irast.PathId.from_pointer(
                     ctx.env.schema, ptr, namespace=subctx.path_id_namespace,

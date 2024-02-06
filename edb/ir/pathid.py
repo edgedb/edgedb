@@ -208,7 +208,7 @@ class PathId:
         Returns:
             A ``PathId`` instance.
         """
-        if pointer.generic(schema):
+        if pointer.is_non_concrete(schema):
             raise ValueError(f'invalid PathId: {pointer} is not concrete')
 
         source = pointer.get_source(schema)

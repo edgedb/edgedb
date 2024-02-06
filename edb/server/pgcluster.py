@@ -30,11 +30,13 @@ import pathlib
 import re
 import shlex
 import shutil
+import signal
 import struct
 import textwrap
 import urllib.parse
 
 from edb import buildmeta
+from edb import errors
 from edb.common import supervisor
 from edb.common import uuidgen
 
@@ -52,6 +54,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger('edb.pgcluster')
 pg_dump_logger = logging.getLogger('pg_dump')
+pg_restore_logger = logging.getLogger('pg_restore')
 pg_ctl_logger = logging.getLogger('pg_ctl')
 pg_config_logger = logging.getLogger('pg_config')
 initdb_logger = logging.getLogger('initdb')
@@ -233,12 +236,36 @@ class BaseCluster:
     async def get_status(self) -> str:
         raise NotImplementedError
 
+    def _dump_restore_conn_args(
+        self,
+        dbname: str,
+    ) -> tuple[list[str], dict[str, str]]:
+        conn_spec = self.get_connection_spec()
+
+        args = [
+            f'--dbname={dbname}',
+            f'--host={conn_spec["host"]}',
+            f'--port={conn_spec["port"]}',
+            f'--username={conn_spec["user"]}',
+        ]
+
+        env = os.environ.copy()
+        if conn_spec.get("password"):
+            env['PGPASSWORD'] = conn_spec["password"]
+
+        return args, env
+
     async def dump_database(
         self,
         dbname: str,
         *,
         exclude_schemas: Iterable[str] = (),
+        include_schemas: Iterable[str] = (),
+        include_tables: Iterable[str] = (),
+        include_extensions: Iterable[str] = (),
+        schema_only: bool = False,
         dump_object_owners: bool = True,
+        create_database: bool = False,
     ) -> bytes:
         status = await self.get_status()
         if status != 'running':
@@ -247,27 +274,31 @@ class BaseCluster:
         if self._pg_bin_dir is None:
             await self.lookup_postgres()
         pg_dump = self._find_pg_binary('pg_dump')
-        conn_spec = self.get_connection_spec()
+
+        conn_args, env = self._dump_restore_conn_args(dbname)
 
         args = [
             pg_dump,
             '--inserts',
-            f'--dbname={dbname}',
-            f'--host={conn_spec["host"]}',
-            f'--port={conn_spec["port"]}',
-            f'--username={conn_spec["user"]}',
+            *conn_args,
         ]
 
         if not dump_object_owners:
             args.append('--no-owner')
+        if schema_only:
+            args.append('--schema-only')
+        if create_database:
+            args.append('--create')
 
-        env = os.environ.copy()
-        if conn_spec.get("password"):
-            env['PGPASSWORD'] = conn_spec["password"]
-
-        if exclude_schemas:
-            for exclude_schema in exclude_schemas:
-                args.append(f'--exclude-schema={exclude_schema}')
+        configs = [
+            ('exclude-schema', exclude_schemas),
+            ('schema', include_schemas),
+            ('table', include_tables),
+            ('extension', include_extensions),
+        ]
+        for flag, vals in configs:
+            for val in vals:
+                args.append(f'--{flag}={val}')
 
         stdout_lines, _, _ = await _run_logged_subprocess(
             args,
@@ -276,6 +307,76 @@ class BaseCluster:
             env=env,
         )
         return b'\n'.join(stdout_lines)
+
+    async def _copy_database(
+        self,
+        src_dbname: str,
+        tgt_dbname: str,
+        src_args: list[str],
+        tgt_args: list[str],
+    ) -> None:
+        status = await self.get_status()
+        if status != 'running':
+            raise ClusterError('cannot dump: cluster is not running')
+
+        if self._pg_bin_dir is None:
+            await self.lookup_postgres()
+        pg_dump = self._find_pg_binary('pg_dump')
+        pg_restore = self._find_pg_binary('pg_restore')
+
+        src_conn_args, src_env = self._dump_restore_conn_args(src_dbname)
+        tgt_conn_args, tgt_env = self._dump_restore_conn_args(tgt_dbname)
+
+        dump_args = [
+            pg_dump, '--verbose', '--format=c', *src_conn_args, *src_args
+        ]
+        restore_args = [
+            pg_restore, '--verbose', *tgt_conn_args, *tgt_args
+        ]
+
+        rpipe, wpipe = os.pipe()
+        wpipef = os.fdopen(wpipe, "wb")
+
+        try:
+            # N.B: uvloop will waitpid() on the child process even if we don't
+            # actually await on it due to a later error.
+            dump_p, dump_out_r, dump_err_r = await _start_logged_subprocess(
+                dump_args,
+                logger=pg_dump_logger,
+                override_stdout=wpipef,
+                log_stdout=False,
+                capture_stdout=False,
+                capture_stderr=False,
+                env=src_env,
+            )
+
+            res_p, res_out_r, res_err_r = await _start_logged_subprocess(
+                restore_args,
+                logger=pg_restore_logger,
+                stdin=rpipe,
+                capture_stdout=False,
+                capture_stderr=False,
+                env=src_env,
+            )
+        finally:
+            wpipef.close()
+            os.close(rpipe)
+
+        dump_exit_code, _, _, restore_exit_code, _, _ = await asyncio.gather(
+            dump_p.wait(), dump_out_r, dump_err_r,
+            res_p.wait(), res_out_r, res_err_r,
+        )
+
+        if dump_exit_code != 0 and dump_exit_code != -signal.SIGPIPE:
+            raise errors.ExecutionError(
+                f'branch failed: {dump_args[0]} exited with status '
+                f'{dump_exit_code}'
+            )
+        if restore_exit_code != 0:
+            raise errors.ExecutionError(
+                f'branch failed: '
+                f'{restore_args[0]} exited with status {restore_exit_code}'
+            )
 
     def _find_pg_binary(self, binary: str) -> str:
         assert self._pg_bin_dir is not None
@@ -1229,6 +1330,7 @@ async def _run_logged_subprocess(
     capture_stdout: bool = True,
     capture_stderr: bool = True,
     timeout: Optional[float] = None,
+    stdin: Any = asyncio.subprocess.PIPE,
     **kwargs: Any,
 ) -> Tuple[List[bytes], List[bytes], int]:
     process, stdout_reader, stderr_reader = await _start_logged_subprocess(
@@ -1239,8 +1341,12 @@ async def _run_logged_subprocess(
         log_stderr=log_stderr,
         capture_stdout=capture_stdout,
         capture_stderr=capture_stderr,
+        stdin=stdin,
         **kwargs,
     )
+
+    if isinstance(stdin, int) and stdin >= 0:
+        os.close(stdin)
 
     exit_code, stdout_lines, stderr_lines = await asyncio.wait_for(
         asyncio.gather(process.wait(), stdout_reader, stderr_reader),
@@ -1262,10 +1368,13 @@ async def _start_logged_subprocess(
     *,
     logger: logging.Logger,
     level: int = logging.DEBUG,
+    override_stdout: Any = None,
+    override_stderr: Any = None,
     log_stdout: bool = True,
     log_stderr: bool = True,
     capture_stdout: bool = True,
     capture_stderr: bool = True,
+    stdin: Any = asyncio.subprocess.PIPE,
     log_processor: Optional[Callable[[str], Tuple[str, int]]] = None,
     **kwargs: Any,
 ) -> Tuple[
@@ -1280,65 +1389,56 @@ async def _start_logged_subprocess(
 
     process = await asyncio.create_subprocess_exec(
         *args,
+        stdin=stdin,
         stdout=(
-            asyncio.subprocess.PIPE if log_stdout or capture_stdout
+            override_stdout
+            if override_stdout
+            else asyncio.subprocess.PIPE
+            if log_stdout or capture_stdout
             else asyncio.subprocess.DEVNULL
         ),
         stderr=(
-            asyncio.subprocess.PIPE if log_stderr or capture_stderr
+            override_stderr
+            if override_stderr
+            else asyncio.subprocess.PIPE
+            if log_stderr or capture_stderr
             else asyncio.subprocess.DEVNULL
         ),
         limit=2 ** 20,  # 1 MiB
         **kwargs,
     )
 
-    assert process.stderr is not None
-    assert process.stdout is not None
-
-    if log_stderr and capture_stderr:
+    if log_stderr or capture_stderr:
+        assert override_stderr is None
+        assert process.stderr is not None
         stderr_reader = _capture_and_log_subprocess_output(
             process.pid,
             process.stderr,
             logger,
             level,
             log_processor,
+            capture_output=capture_stderr,
+            log_output=log_stderr,
         )
-    elif capture_stderr:
-        stderr_reader = _capture_subprocess_output(process.stderr)
-    elif log_stderr:
-        stderr_reader = _log_subprocess_output(
-            process.pid, process.stderr, logger, level, log_processor)
     else:
         stderr_reader = _dummy()
 
-    if log_stdout and capture_stdout:
+    if log_stdout or capture_stdout:
+        assert override_stdout is None
+        assert process.stdout is not None
         stdout_reader = _capture_and_log_subprocess_output(
             process.pid,
             process.stdout,
             logger,
             level,
             log_processor,
+            capture_output=capture_stdout,
+            log_output=log_stdout,
         )
-    elif capture_stdout:
-        stdout_reader = _capture_subprocess_output(process.stdout)
-    elif log_stdout:
-        stdout_reader = _log_subprocess_output(
-            process.pid, process.stdout, logger, level, log_processor)
     else:
         stdout_reader = _dummy()
 
     return process, stdout_reader, stderr_reader
-
-
-async def _capture_subprocess_output(
-    stream: asyncio.StreamReader,
-) -> List[bytes]:
-    lines = []
-    while not stream.at_eof():
-        line = await _safe_readline(stream)
-        if line or not stream.at_eof():
-            lines.append(line.rstrip(b'\n'))
-    return lines
 
 
 async def _capture_and_log_subprocess_output(
@@ -1347,35 +1447,23 @@ async def _capture_and_log_subprocess_output(
     logger: logging.Logger,
     level: int,
     log_processor: Optional[Callable[[str], Tuple[str, int]]] = None,
+    *,
+    capture_output: bool,
+    log_output: bool,
 ) -> List[bytes]:
     lines = []
     while not stream.at_eof():
         line = await _safe_readline(stream)
         if line or not stream.at_eof():
             line = line.rstrip(b'\n')
-            lines.append(line)
-            log_line = line.decode()
-            if log_processor is not None:
-                log_line, level = log_processor(log_line)
-            logger.log(level, log_line, extra={"process": pid})
+            if capture_output:
+                lines.append(line)
+            if log_output:
+                log_line = line.decode()
+                if log_processor is not None:
+                    log_line, level = log_processor(log_line)
+                logger.log(level, log_line, extra={"process": pid})
     return lines
-
-
-async def _log_subprocess_output(
-    pid: int,
-    stream: asyncio.StreamReader,
-    logger: logging.Logger,
-    level: int,
-    log_processor: Optional[Callable[[str], Tuple[str, int]]] = None,
-) -> List[bytes]:
-    while not stream.at_eof():
-        line = await _safe_readline(stream)
-        if line or not stream.at_eof():
-            log_line = line.rstrip(b'\n').decode()
-            if log_processor is not None:
-                log_line, level = log_processor(log_line)
-            logger.log(level, log_line, extra={"process": pid})
-    return []
 
 
 async def _safe_readline(stream: asyncio.StreamReader) -> bytes:

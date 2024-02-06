@@ -2135,7 +2135,7 @@ class DerivableObject(QualifiedObject):
             derived_name_base=derived_name_base,
         )
 
-    def generic(self, schema: s_schema.Schema) -> bool:
+    def is_non_concrete(self, schema: s_schema.Schema) -> bool:
         return self.get_shortname(schema) == self.get_name(schema)
 
     def get_derived_name_base(self, schema: s_schema.Schema) -> sn.Name:
@@ -3412,7 +3412,7 @@ class DerivableInheritingObject(DerivableObject, InheritingObject):
         schema: s_schema.Schema,
     ) -> DerivableInheritingObjectT:
         obj = self
-        while not obj.generic(schema):
+        while not obj.is_non_concrete(schema):
             obj = obj.get_bases(schema).first(schema)
         return obj
 

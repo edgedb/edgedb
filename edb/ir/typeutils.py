@@ -691,7 +691,7 @@ def ptrref_from_ptrcls(
     std_parent_name = None
     for ancestor in ptrcls.get_ancestors(schema).objects(schema):
         ancestor_name = ancestor.get_name(schema)
-        if ancestor_name.module == 'std' and ancestor.generic(schema):
+        if ancestor_name.module == 'std' and ancestor.is_non_concrete(schema):
             std_parent_name = ancestor_name
             break
 
@@ -847,7 +847,7 @@ def cardinality_from_ptrcls(
             required, out_card)
         # Backward link cannot be required, but exclusivity
         # controls upper bound on cardinality.
-        if not ptrcls.generic(schema) and ptrcls.is_exclusive(schema):
+        if not ptrcls.is_non_concrete(schema) and ptrcls.is_exclusive(schema):
             in_cardinality = qltypes.Cardinality.AT_MOST_ONE
         else:
             in_cardinality = qltypes.Cardinality.MANY

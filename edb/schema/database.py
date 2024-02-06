@@ -33,6 +33,8 @@ from . import delta as sd
 from . import objects as so
 from . import schema as s_schema
 
+from typing import *
+
 
 class Database(
     so.ExternalObject,
@@ -72,6 +74,8 @@ class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
 
     astnode = qlast.CreateDatabase
     template = struct.Field(str, default=None)
+    branch_type = struct.Field(
+        qlast.BranchType, default=qlast.BranchType.EMPTY)
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -85,12 +89,8 @@ class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
 
         assert isinstance(astnode, qlast.CreateDatabase)
         if astnode.template is not None:
-            if not context.testmode:
-                raise errors.EdgeQLSyntaxError(
-                    f'unexpected {astnode.template.name!r}',
-                    context=astnode.template.context,
-                )
             cmd.template = astnode.template.name
+        cmd.branch_type = astnode.branch_type
 
         return cmd
 
@@ -104,7 +104,7 @@ class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
         self._validate_name(schema, context)
 
 
-class AlterDatabase(DatabaseCommand, sd.AlterObject[Database]):
+class AlterDatabase(DatabaseCommand, sd.AlterExternalObject[Database]):
     astnode = qlast.AlterDatabase
 
     def validate_alter(
@@ -129,3 +129,16 @@ class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Database]):
             raise errors.ExecutionError(
                 f"database {self.classname.name!r} cannot be dropped"
             )
+
+
+class RenameDatabase(DatabaseCommand, sd.RenameObject[Database]):
+    # databases are ExternalObjects, so they might not be properly
+    # present in the schema, so we can't do a proper rename.
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        scls = self.get_parent_op(context).scls
+        self.scls = cast(Database, scls)
+        return schema

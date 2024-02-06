@@ -3763,6 +3763,41 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         return schema
 
 
+class AlterExternalObject(
+    AlterObject[so.ExternalObject_T],
+    ExternalObjectCommand[so.ExternalObject_T],
+):
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        schema = self.apply_prerequisites(schema, context)
+        return schema
+
+    def _alter_innards(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        return self.apply_subcommands(schema, context)
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        self.scls = _dummy_object  # type: ignore
+
+        with self.new_context(schema, context, self.scls):
+            schema = self._alter_begin(schema, context)
+            schema = self._alter_innards(schema, context)
+            schema = self.apply_caused(schema, context)
+            schema = self._alter_finalize(schema, context)
+
+        return schema
+
+
 class DeleteExternalObject(
     DeleteObject[so.ExternalObject_T],
     ExternalObjectCommand[so.ExternalObject_T],

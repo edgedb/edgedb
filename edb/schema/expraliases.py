@@ -577,10 +577,10 @@ def define_alias(
     if prev_ir is not None:
         assert old_schema
         for vt in prev_coll_expr_aliases:
-            dt = vt.as_type_delete_if_dead(old_schema)
+            dt = vt.as_type_delete_if_unused(old_schema)
             derived_delta.prepend(dt)
         for vt in prev_ir.new_coll_types:
-            dt = vt.as_type_delete_if_dead(old_schema)
+            dt = vt.as_type_delete_if_unused(old_schema)
             derived_delta.prepend(dt)
 
     for vt in coll_expr_aliases:

@@ -382,7 +382,17 @@ class CreateExtension(
         if pkg_attr := self.get_attribute_value('package'):
             pkg = pkg_attr.resolve(schema)
         else:
-            version = self.get_attribute_value('version')
+            # If we're restoring a dump ignore the extension package version
+            # as the current EdgeDB might have a different version available
+            # and we don't have a way to select specific versions yet.
+            #
+            # Use `compat_ver` as a way to detect that we're working with a
+            # dump rather than some other operation.
+            if context.compat_ver is not None:
+                version = None
+            else:
+                version = self.get_attribute_value('version')
+
             pkg = get_package(self.classname, version, schema)
 
         self.discard_attribute('version')

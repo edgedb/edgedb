@@ -1013,6 +1013,9 @@ cdef class DatabaseConnectionView:
         query_req: QueryRequestInfo,
         cached_globally=False,
         use_metrics=True,
+        # allow passing in the query_unit_group, in case the call site needs
+        # to make decisions based on whether the cache is hit
+        query_unit_group=None,
     ) -> CompiledQuery:
         pickled_qu_group = None
         source = query_req.source
@@ -1028,7 +1031,7 @@ cdef class DatabaseConnectionView:
                 if self._query_cache_enabled
                 else None
             )
-        else:
+        elif query_unit_group is None:
             query_unit_group = self.lookup_compiled_query(cache_key)
         cached = True
         if query_unit_group is None:

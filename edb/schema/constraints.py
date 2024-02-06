@@ -170,7 +170,7 @@ class Constraint(
     def get_name_impacting_ancestors(
         self, schema: s_schema.Schema,
     ) -> List[Constraint]:
-        if self.generic(schema):
+        if self.is_non_concrete(schema):
             return []
         else:
             return [self.get_nearest_generic_parent(schema)]
@@ -179,7 +179,9 @@ class Constraint(
             self, schema: s_schema.Schema) -> List[Constraint]:
         origins: List[Constraint] = []
         for base in self.get_bases(schema).objects(schema):
-            if not base.generic(schema) and not base.get_delegated(schema):
+            if not base.is_non_concrete(schema) and not base.get_delegated(
+                schema
+            ):
                 origins.extend(
                     x for x in base.get_constraint_origins(schema)
                     if x not in origins
@@ -200,14 +202,14 @@ class Constraint(
         with_parent: bool = False
     ) -> str:
         vn = super().get_verbosename(schema, with_parent=with_parent)
-        if self.generic(schema):
+        if self.is_non_concrete(schema):
             return f'abstract {vn}'
         else:
             # concrete constraint must have a subject
             assert self.get_subject(schema) is not None
             return vn
 
-    def generic(self, schema: s_schema.Schema) -> bool:
+    def is_non_concrete(self, schema: s_schema.Schema) -> bool:
         return self.get_subject(schema) is None
 
     def get_subject(self, schema: s_schema.Schema) -> ConsistencySubject:
@@ -303,7 +305,7 @@ class Constraint(
             and self.field_is_inherited(schema, 'subjectexpr')
             and (bases := self.get_bases(schema).objects(schema))
             and (
-                bases[0].generic(schema)
+                bases[0].is_non_concrete(schema)
                 or 'subjectexpr' not in (
                     bases[0].get_ddl_identity(schema) or ())
             )
@@ -711,7 +713,7 @@ class ConstraintCommand(
         # these attrs through the normal inherit_fields() mechanisms,
         # and populating them ourselves will just mess up
         # inherited_fields.
-        if not constr_base.generic(schema):
+        if not constr_base.is_non_concrete(schema):
             return
 
         orig_subjectexpr = subjectexpr
@@ -1481,7 +1483,7 @@ class AlterConstraint(
 
         concrete_bases = [
             b for b in self.scls.get_bases(schema).objects(schema)
-            if not b.generic(schema) and not b.get_delegated(schema)
+            if not b.is_non_concrete(schema) and not b.get_delegated(schema)
         ]
         if concrete_bases:
             tgt_repr = self.scls.get_verbosename(schema, with_parent=True)

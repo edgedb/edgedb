@@ -122,6 +122,9 @@ def is_index_valid_for_type(
             'ext::pgvector::ivfflat_euclidean'
             | 'ext::pgvector::ivfflat_ip'
             | 'ext::pgvector::ivfflat_cosine'
+            | 'ext::pgvector::hnsw_euclidean'
+            | 'ext::pgvector::hnsw_ip'
+            | 'ext::pgvector::hnsw_cosine'
         ):
             return expr_type.issubclass(
                 schema,
@@ -275,7 +278,7 @@ class Index(
 
         return super().add_parent_name(base_name, schema)
 
-    def generic(self, schema: s_schema.Schema) -> bool:
+    def is_non_concrete(self, schema: s_schema.Schema) -> bool:
         return self.get_subject(schema) is None
 
     @classmethod
