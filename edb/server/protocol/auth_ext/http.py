@@ -187,7 +187,7 @@ class Router:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
-                ex=ex,
+                ex=edb_errors.InternalServerError(str(ex)),
             )
 
     async def handle_authorize(self, request: Any, response: Any):
