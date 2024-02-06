@@ -210,7 +210,7 @@ Querying
 
     .. code-block:: edgeql
 
-        # 🚫
+        # 🚫 Does not work
         insert Movie {
           title := 'The Incredible Hulk',
           actors := {(
@@ -232,7 +232,7 @@ Querying
 
     .. code-block:: edgeql
 
-        # ✅
+        # ✅ Works!
         insert Movie {
           title := 'The Incredible Hulk',
           actors := assert_distinct((

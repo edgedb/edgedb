@@ -89,7 +89,7 @@ workaround. For example, you might want to write this conditional:
 
 .. code-block::
 
-    # 🚫
+    # 🚫 Does not work
     with admin := (select User filter .role = 'admin')
     select admin if exists admin
       else (insert User {role := 'admin'});
@@ -99,7 +99,7 @@ Here's how you can accomplish the same thing using the workaround:
 
 .. code-block:: edgeql
 
-    # ✅
+    # ✅ Works!
     with
       admin := (select User filter .role = 'admin'),
       new := (for _ in (select () filter not exists admin) union (
