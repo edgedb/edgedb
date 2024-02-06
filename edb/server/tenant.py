@@ -739,9 +739,6 @@ class Tenant(ha_base.ClusterProtocol):
         else:
             self._block_new_connections.add(dbname)
 
-            # Prune our inactive connections.
-            await self._pg_pool.prune_inactive_connections(dbname)
-
             # Signal adjacent servers to prune their connections to this
             # database.
             await self.signal_sysevent(
@@ -749,13 +746,20 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
             rloop = retryloop.RetryLoop(
-                # backoff=retryloop.exp_backoff(),
                 timeout=10.0,
                 ignore=errors.ExecutionError,
             )
 
             async for iteration in rloop:
                 async with iteration:
+                    # Prune our inactive connections.  We do this in
+                    # the retry loop because
+                    # prune_inactive_connections doesn't prevent
+                    # already scheduled transfers from adding new
+                    # connections, so we might need to try a few times.
+                    await self._pg_pool.prune_inactive_connections(dbname)
+
+                    # Verify we are disconnected
                     await self._pg_ensure_database_not_connected(dbname)
 
     async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
