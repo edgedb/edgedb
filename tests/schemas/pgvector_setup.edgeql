@@ -32,4 +32,7 @@ union (
     (insert HNSW_L2 {vec := <v3>x}),
     (insert HNSW_IP {vec := <v3>x}),
     (insert HNSW_Cosine {vec := <v3>x}),
+    (insert SHNSW_L2 {vec := <sv3>x}),
+    (insert SHNSW_IP {vec := <sv3>x}),
+    (insert SHNSW_Cosine {vec := <sv3>x}),
 );

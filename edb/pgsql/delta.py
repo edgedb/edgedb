@@ -7411,7 +7411,8 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
         qry = textwrap.dedent(f'''\
             with v as (
                select name, version,
-               string_to_array(version, '.')::int8[] as split
+               string_to_array(
+                  split_part(version, '-', 1), '.')::int8[] as split
                from pg_available_extension_versions
                where name = {ql(ext)}
             )

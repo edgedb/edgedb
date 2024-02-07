@@ -131,6 +131,15 @@ def is_index_valid_for_type(
                 schema.get('ext::pgvector::vector', type=s_scalars.ScalarType),
             )
         case (
+            'ext::pgsparse::hnsw_euclidean'
+            | 'ext::pgsparse::hnsw_ip'
+            | 'ext::pgsparse::hnsw_cosine'
+        ):
+            return expr_type.issubclass(
+                schema,
+                schema.get('ext::pgsparse::vector', type=s_scalars.ScalarType),
+            )
+        case (
             'ext::pg_trgm::gin'
             | 'ext::pg_trgm::gist'
         ):

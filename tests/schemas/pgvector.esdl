@@ -18,6 +18,7 @@
 
 
 scalar type v3 extending ext::pgvector::vector<3>;
+scalar type sv3 extending ext::pgsparse::vector<3>;
 
 scalar type myf64 extending float64 {
     constraint max_value(100);
@@ -58,6 +59,21 @@ type HNSW_IP {
 type HNSW_Cosine {
     required vec: v3;
     index ext::pgvector::hnsw_cosine(m := 2, ef_construction := 4) on (.vec);
+}
+
+type SHNSW_L2 {
+    required vec: sv3;
+    index ext::pgsparse::hnsw_euclidean() on (.vec);
+}
+
+type SHNSW_IP {
+    required vec: sv3;
+    index ext::pgsparse::hnsw_ip(m := 4) on (.vec);
+}
+
+type SHNSW_Cosine {
+    required vec: sv3;
+    index ext::pgsparse::hnsw_cosine(m := 2, ef_construction := 4) on (.vec);
 }
 
 type Con {

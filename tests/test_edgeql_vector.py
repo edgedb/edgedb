@@ -26,7 +26,7 @@ from edb.tools import test
 
 
 class TestEdgeQLVector(tb.QueryTestCase):
-    EXTENSIONS = ['pgvector']
+    EXTENSIONS = ['pgvector', 'pgsparse']
     BACKEND_SUPERUSER = True
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
@@ -695,7 +695,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
             if isinstance(obj, dict) and obj.get('plan_type') == "IndexScan":
                 return any(
                     prop['title'] == 'index_name'
-                    and f'pgvector::{index_type}_{index_op}' in prop['value']
+                    and f'{index_type}_{index_op}' in prop['value']
                     for prop in obj.get('properties', [])
                 )
 
@@ -710,7 +710,15 @@ class TestEdgeQLVector(tb.QueryTestCase):
         if not look(json.loads(plan)):
             raise AssertionError(f'query did not use {index_type} index')
 
-    async def _check_index(self, obj, func, index_type, index_op):
+    async def _check_index(
+        self,
+        ext,
+        obj,
+        prop_type,
+        func,
+        index_type,
+        index_op,
+    ):
         # Test that we actually hit the indexes by looking at the query plans.
 
         obj_id = (await self.con.query_single(f"""
@@ -727,7 +735,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
 
         await self._assert_index_use(
             f'''
-            with vec as module ext::pgvector,
+            with vec as module ext::{ext},
                  base := (select {obj} filter .id = <uuid>$0),
             select {obj}
             filter {obj}.id != base.id
@@ -735,66 +743,96 @@ class TestEdgeQLVector(tb.QueryTestCase):
             empty last limit 5;
             ''',
             obj_id,
-            index_type=index_type,
+            index_type=f'{ext}::{index_type}',
             index_op=index_op,
         )
 
         await self._assert_index_use(
             f'''
-            with vec as module ext::pgvector
+            with vec as module ext::{ext}
             select {obj}
-            order by vec::{func}(.vec, <v3>to_json(<str>$0))
+            order by vec::{func}(.vec, <{prop_type}>to_json(<str>$0))
             empty last limit 5;
             ''',
             str(embedding),
-            index_type=index_type,
+            index_type=f'{ext}::{index_type}',
             index_op=index_op,
         )
 
         await self._assert_index_use(
             f'''
-            with vec as module ext::pgvector
+            with vec as module ext::{ext}
             select {obj}
-            order by vec::{func}(.vec, <v3><json>$0)
+            order by vec::{func}(.vec, <{prop_type}><json>$0)
             empty last limit 5;
             ''',
             json.dumps(embedding),
-            index_type=index_type,
+            index_type=f'{ext}::{index_type}',
             index_op=index_op,
         )
 
         await self._assert_index_use(
             f'''
-            with vec as module ext::pgvector
+            with vec as module ext::{ext}
             select {obj}
-            order by vec::{func}(.vec, <v3><array<float32>>$0)
+            order by vec::{func}(.vec, <{prop_type}><array<float32>>$0)
             empty last limit 5;
             ''',
             embedding,
-            index_type=index_type,
+            index_type=f'{ext}::{index_type}',
             index_op=index_op,
         )
 
     async def test_edgeql_vector_index_01(self):
         await self._check_index(
-            'IVFFlat_L2', 'euclidean_distance', 'ivfflat', 'euclidean')
+            'pgvector', 'IVFFlat_L2', 'v3', 'euclidean_distance',
+            'ivfflat', 'euclidean',
+        )
 
     async def test_edgeql_vector_index_02(self):
         await self._check_index(
-            'IVFFlat_Cosine', 'cosine_distance', 'ivfflat', 'cosine')
+            'pgvector', 'IVFFlat_Cosine', 'v3', 'cosine_distance',
+            'ivfflat', 'cosine',
+        )
 
     async def test_edgeql_vector_index_03(self):
         await self._check_index(
-            'IVFFlat_IP', 'neg_inner_product', 'ivfflat', 'ip')
+            'pgvector', 'IVFFlat_IP', 'v3', 'neg_inner_product',
+            'ivfflat', 'ip',
+        )
 
     async def test_edgeql_vector_index_04(self):
         await self._check_index(
-            'HNSW_L2', 'euclidean_distance', 'hnsw', 'euclidean')
+            'pgvector', 'HNSW_L2', 'v3', 'euclidean_distance',
+            'hnsw', 'euclidean',
+        )
 
     async def test_edgeql_vector_index_05(self):
         await self._check_index(
-            'HNSW_Cosine', 'cosine_distance', 'hnsw', 'cosine')
+            'pgvector', 'HNSW_Cosine', 'v3', 'cosine_distance',
+            'hnsw', 'cosine',
+        )
 
     async def test_edgeql_vector_index_06(self):
         await self._check_index(
-            'HNSW_IP', 'neg_inner_product', 'hnsw', 'ip')
+            'pgvector', 'HNSW_IP', 'v3', 'neg_inner_product',
+            'hnsw', 'ip',
+        )
+
+    async def test_edgeql_vector_index_07(self):
+        await self._check_index(
+            'pgsparse', 'SHNSW_L2', 'sv3', 'euclidean_distance',
+            'hnsw', 'euclidean',
+        )
+
+    async def test_edgeql_vector_index_08(self):
+        await self._check_index(
+            'pgsparse', 'SHNSW_Cosine', 'sv3', 'cosine_distance',
+            'hnsw', 'cosine',
+        )
+
+    async def test_edgeql_vector_index_09(self):
+        await self._check_index(
+            'pgsparse', 'SHNSW_IP', 'sv3', 'neg_inner_product',
+            'hnsw', 'ip',
+        )

@@ -49,6 +49,10 @@ PGVECTOR_REPO = 'https://github.com/pgvector/pgvector.git'
 # This can be a branch, tag, or commit
 PGVECTOR_COMMIT = 'v0.6.0'
 
+PGSPARSE_REPO = 'https://github.com/paradedb/paradedb.git'
+# This can be a branch, tag, or commit
+PGSPARSE_COMMIT = 'v0.5.4'
+
 SAFE_EXT_CFLAGS: list[str] = []
 if flag := os.environ.get('EDGEDB_OPT_CFLAG'):
     SAFE_EXT_CFLAGS += [flag]
@@ -322,6 +326,62 @@ def _compile_pgvector(build_base, build_temp):
     cflags = os.environ.get("CFLAGS", "")
     cflags = f"{cflags} {' '.join(SAFE_EXT_CFLAGS)} -std=gnu99"
 
+    subprocess.run(
+        [
+            'make',
+            f'PG_CONFIG={pg_config}',
+        ],
+        cwd=pgv_root,
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            'make',
+            'install',
+            f'PG_CONFIG={pg_config}',
+        ],
+        cwd=pgv_root,
+        check=True,
+    )
+
+
+def _compile_pgsparse(build_base, build_temp):
+    git_rev = _get_git_rev(PGSPARSE_REPO, PGSPARSE_COMMIT)
+
+    paradedb_root = (build_temp / 'paradedb').resolve()
+    if not paradedb_root.exists():
+        subprocess.run(
+            [
+                'git',
+                'clone',
+                '--recursive',
+                PGSPARSE_REPO,
+                paradedb_root,
+            ],
+            check=True
+        )
+    else:
+        subprocess.run(
+            ['git', 'fetch', '--all'],
+            check=True,
+            cwd=paradedb_root,
+        )
+
+    subprocess.run(
+        ['git', 'reset', '--hard', git_rev],
+        check=True,
+        cwd=paradedb_root,
+    )
+
+    pg_config = (
+        build_base / 'postgres' / 'install' / 'bin' / 'pg_config'
+    ).resolve()
+
+    cflags = os.environ.get("CFLAGS", "")
+    cflags = f"{cflags} {' '.join(SAFE_EXT_CFLAGS)} -std=gnu99"
+
+    pgv_root = (paradedb_root / 'pg_sparse').resolve()
     subprocess.run(
         [
             'make',
@@ -626,6 +686,10 @@ class build_postgres(setuptools.Command):
             produce_compile_commands_json=self.compile_commands,
         )
         _compile_pgvector(
+            pathlib.Path(build.build_base).resolve(),
+            pathlib.Path(build.build_temp).resolve(),
+        )
+        _compile_pgsparse(
             pathlib.Path(build.build_base).resolve(),
             pathlib.Path(build.build_temp).resolve(),
         )
