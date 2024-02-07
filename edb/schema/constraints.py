@@ -176,18 +176,27 @@ class Constraint(
             return [self.get_nearest_generic_parent(schema)]
 
     def get_constraint_origins(
-            self, schema: s_schema.Schema) -> List[Constraint]:
-        origins: List[Constraint] = []
-        for base in self.get_bases(schema).objects(schema):
-            if not base.is_non_concrete(schema) and not base.get_delegated(
-                schema
-            ):
-                origins.extend(
-                    x for x in base.get_constraint_origins(schema)
-                    if x not in origins
-                )
+        self, schema: s_schema.Schema
+    ) -> List[Constraint]:
+        """
+        Find the transitive closure of all constraints that apply.
+        Return parents of these constraints.
+        """
+        # I'm not sure that this explanation is clear (or even entirely correct)
 
-        return [self] if not origins else origins
+        origins: Set[Constraint] = set()
+        for base in self.get_bases(schema).objects(schema):
+
+            # if this base applies
+            is_concrete = not base.is_non_concrete(schema)
+            if is_concrete and not base.get_delegated(schema):
+
+                # add all of its origins
+                for x in base.get_constraint_origins(schema):
+                    origins.add(x)
+
+        # if there no origin, return self
+        return [self] if not origins else list(origins)
 
     def is_independent(self, schema: s_schema.Schema) -> bool:
         return (
