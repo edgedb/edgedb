@@ -627,8 +627,7 @@ def _interpret_constraint_errors(
         msg = constraint.format_error_message(schema)
 
         # details is for the "developer" that must explain what's going on
-        # under the hood. It should be picked up from the errmessage on the
-        # first ancestor constraint that's in std module.
+        # under the hood. It contains verbose descriptions of object involved.
         subject = constraint.get_subject(schema)
         subject_description = subject.get_verbosename(schema, with_parent=True)
         constraint_description = constraint.get_verbosename(schema)
