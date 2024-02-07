@@ -17,9 +17,12 @@
 #
 
 
-from typing import Optional
+from typing import Literal, Optional
 from dataclasses import dataclass
 import urllib.parse
+
+
+from edb.ir import statypes
 
 
 class UIConfig:
@@ -66,3 +69,9 @@ class WebAuthnProvider:
                 "Invalid relying_party_origin, hostname cannot be None"
             )
         self.relying_party_id = parsed_url.hostname
+
+
+@dataclass
+class MagicLinkProviderConfig(ProviderConfig):
+    name: Literal["builtin::local_magic_link"]
+    token_time_to_live: statypes.Duration

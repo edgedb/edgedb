@@ -4,54 +4,49 @@ import {
   parseResponseAsJSON,
 } from "./utils.js";
 
-document.addEventListener("DOMContentLoaded", () => {
-  /** @type {HTMLFormElement | null} */
-  const authenticateForm = document.getElementById("email-factor");
-
-  if (authenticateForm === null) {
+/**
+ * Handle the form submission for WebAuthn authentication
+ * @param {SubmitEvent} event
+ * @param {HTMLFormElement} form
+ * @returns void
+ */
+export async function onAuthenticateSubmit(event, form) {
+  if (event.submitter?.id !== "webauthn-signin") {
     return;
   }
+  event.preventDefault();
 
-  authenticateForm.addEventListener("submit", async (event) => {
-    if (event.submitter?.id !== "webauthn-signin") {
-      return;
+  const formData = new FormData(form);
+  const email = formData.get("email");
+  const provider = "builtin::local_webauthn";
+  const challenge = formData.get("challenge");
+  const redirectOnFailure = formData.get("redirect_on_failure");
+  const redirectTo = formData.get("redirect_to");
+
+  if (redirectTo === null) {
+    throw new Error("Missing redirect_to parameter");
+  }
+
+  try {
+    const maybeCode = await authenticate({
+      email,
+      provider,
+      challenge,
+    });
+
+    const redirectUrl = new URL(redirectTo);
+    if (maybeCode !== null) {
+      redirectUrl.searchParams.append("code", maybeCode);
     }
-    event.preventDefault();
 
-    const formData = new FormData(
-      /** @type {HTMLFormElement} */ authenticateForm
-    );
-    const email = formData.get("email");
-    const provider = "builtin::local_webauthn";
-    const challenge = formData.get("challenge");
-    const redirectOnFailure = formData.get("redirect_on_failure");
-    const redirectTo = formData.get("redirect_to");
-
-    if (redirectTo === null) {
-      throw new Error("Missing redirect_to parameter");
-    }
-
-    try {
-      const maybeCode = await authenticate({
-        email,
-        provider,
-        challenge,
-      });
-
-      const redirectUrl = new URL(redirectTo);
-      if (maybeCode !== null) {
-        redirectUrl.searchParams.append("code", maybeCode);
-      }
-
-      window.location.href = redirectUrl.href;
-    } catch (error) {
-      console.error("Failed to register WebAuthn credentials:", error);
-      const url = new URL(redirectOnFailure ?? redirectTo);
-      url.searchParams.append("error", error.message);
-      window.location.href = url.href;
-    }
-  });
-});
+    window.location.href = redirectUrl.href;
+  } catch (error) {
+    console.error("Failed to register WebAuthn credentials:", error);
+    const url = new URL(redirectOnFailure ?? redirectTo);
+    url.searchParams.append("error", error.message);
+    window.location.href = url.href;
+  }
+}
 
 const WEBAUTHN_OPTIONS_URL = new URL(
   "../webauthn/authenticate/options",

@@ -51,5 +51,5 @@ export async function parseResponseAsJSON(response, handlers = []) {
     );
   }
 
-  return response.json();
+  return JSON.parse(bodyText);
 }
