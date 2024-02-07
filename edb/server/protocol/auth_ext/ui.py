@@ -81,14 +81,15 @@ def render_login_page(
     brand_color: Optional[str] = None,
 ):
     password_provider = None
+    webauthn_provider = None
+    oauth_providers = []
     for p in providers:
         if p.name == 'builtin::local_emailpassword':
             password_provider = p
-            break
-
-    oauth_providers = [
-        p for p in providers if p.name.startswith('builtin::oauth_')
-    ]
+        elif p.name == 'builtin::local_webauthn':
+            webauthn_provider = p
+        elif p.name.startswith('builtin::oauth_'):
+            oauth_providers.append(p)
 
     oauth_params = {
         'redirect_to': redirect_to,
@@ -118,6 +119,63 @@ def render_login_page(
         else ''
     )
 
+    email_factor_form = f"""
+      <input type="hidden" name="redirect_on_failure" value="{
+        base_path}/ui/signin" />
+      <input type="hidden" name="redirect_to" value="{
+          redirect_to_on_signup or redirect_to}" />
+      <input type="hidden" name="challenge" value="{challenge}" />
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{email or ''}" />
+    """
+
+    has_email_factor = (
+        password_provider is not None or webauthn_provider is not None
+    )
+
+    email_factor_form += (
+        f"""
+        <input type="hidden" name="provider" value="{password_provider.name}" />
+        <div class="field-header">
+          <label for="password">Password</label>
+          <a
+            id="forgot-password-link"
+            class="field-note"
+            href="forgot-password&challenge={challenge}"
+            tabindex="2">
+            Forgot password?
+          </a>
+        </div>
+        <input id="password" name="password" type="password" />
+        """
+        if password_provider is not None
+        else ""
+    )
+    match (password_provider, webauthn_provider):
+        case (None, None):
+            email_factor_form += ""
+        case (None, _):
+            email_factor_form += f"""
+            {_render_button('Sign In', id='webauthn-signin')}
+            """
+        case (_, None):
+            email_factor_form += f"""
+            {_render_button("Sign In", id="password-signin")}
+            """
+        case (_, _):
+            email_factor_form += f"""
+            {_render_button('Sign In', id='webauthn-signin')}
+            {_render_button("Sign in with password", id="password-signin")}
+            """
+
+    email_factor_form += f"""
+        <div class="bottom-note">
+          Don't have an account?
+          <a href="signup" tabindex="3">Sign up</a>
+        </div>
+        """
+
     return _render_base_page(
         title=f'Sign in{f" to {app_name}" if app_name else ""}',
         logo_url=logo_url,
@@ -125,50 +183,35 @@ def render_login_page(
         brand_color=brand_color,
         cleanup_search_params=['error', 'email'],
         content=f'''
-    <form class="container" method="POST" action="../authenticate" novalidate>
+    <form
+      class="container"
+      id="email-factor"
+      method="POST"
+      action="../authenticate"
+      novalidate
+    >
       <h1>{f'<span>Sign in to</span> {html.escape(app_name)}'
            if app_name else '<span>Sign in</span>'}</h1>
 
       {_render_oauth_buttons(oauth_providers, oauth_params, oauth_label)}
-      {"""
-       <div class="divider">
-         <span>or</span>
-       </div>
-       """ if password_provider and oauth_providers else ''}
-      {f"""
-       <input type="hidden" name="provider"
-              value="{password_provider.name}" />
-       <input type="hidden" name="redirect_on_failure"
-              value="{base_path}/ui/signin" />
-       <input type="hidden" name="redirect_to" value="{redirect_to}" />
-       <input type="hidden" name="challenge" value="{challenge}" />
-
-       {_render_error_message(error_message)}
-
-       <label for="email">Email</label>
-       <input id="email" name="email" type="email" value="{email or ''}"
-              autofocus />
-
-       <div class="field-header">
-         <label for="password">Password</label>
-         <a
-           id="forgot-password-link"
-           class="field-note"
-           href="forgot-password&challenge={challenge}"
-           tabindex="2">
-           Forgot password?
-         </a>
-       </div>
-       <input id="password" name="password" type="password" />
-
-       {_render_button('Sign In')}
-
-       <div class="bottom-note">
-         Don't have an account?
-         <a href="signup" tabindex="3">Sign up</a>
-       </div>""" if password_provider else ''}
-    </form>
-    {forgot_link_script}''',
+      {
+        """
+        <div class="divider">
+          <span>or</span>
+        </div>"""
+        if has_email_factor is not None
+          and len(oauth_providers) > 0
+        else ''
+      }
+      {email_factor_form if has_email_factor else ''}
+      </form>
+      {forgot_link_script}
+      {
+        """
+        <script type="module" src="_static/webauthn-authenticate.js"></script>"""
+        if webauthn_provider is not None else ''
+      }
+      ''',
     )
 
 
