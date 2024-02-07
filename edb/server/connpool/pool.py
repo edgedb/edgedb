@@ -590,9 +590,7 @@ class BasePool(typing.Generic[C]):
         await self._disconnect(from_conn, from_block)
         from_block.log_connection('transferred out')
         self._cur_capacity += 1
-        print('ACTUAL TRANSFER CONNECT', to_block.dbname)
         await self._connect(to_block, started_at, 'transferred in')
-        print('ACTUAL TRANSFER CONNECT DONE', to_block.dbname)
 
     def _schedule_transfer(
         self,
@@ -600,7 +598,6 @@ class BasePool(typing.Generic[C]):
         from_conn: C,
         to_block: Block[C],
     ) -> None:
-        print('SCHEDULE TRANSFER', to_block.dbname, to_block.nwaiters_avg.avg())
         started_at = time.monotonic()
         assert not from_block.conns[from_conn].in_use
         from_block.conns.pop(from_conn)
@@ -1210,6 +1207,7 @@ class Pool(BasePool[C]):
         # Mark the block as suppressed, so that nothing will be
         # transferred to it. It will be unsuppressed if anything
         # actually tries to connect.
+        # TODO: Is it possible to safely drop the block?
         block.suppressed = True
 
         conns = []
@@ -1217,24 +1215,15 @@ class Pool(BasePool[C]):
             conns.append(conn)
 
         while not block.count_waiters() and block.pending_conns:
-            print('WAITING FOR PENDING CONN', block.pending_conns, block.dbname)
             # try_acquire, because it can get stolen
             if c := await block.try_acquire():
                 conns.append(c)
-            print('got it', block.dbname)
 
         if conns:
-            print("discarding", block.dbname)
             await asyncio.gather(
                 *(self._discard_conn(block, conn) for conn in conns),
                 return_exceptions=True
             )
-
-        # TODO: Is it possible to safely drop the block?
-        print('DOWN!', block.dbname, block.pending_conns)
-
-        if block.pending_conns:
-            print('\n\n==== FUCK IT IS FUCKED')
 
     async def prune_all_connections(self) -> None:
         # Brutally close all connections. This is used by HA failover.

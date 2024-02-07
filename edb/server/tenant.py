@@ -757,12 +757,10 @@ class Tenant(ha_base.ClusterProtocol):
                     # prune_inactive_connections doesn't prevent
                     # already scheduled transfers from adding new
                     # connections, so we might need to try a few times.
-                    print('TRY', dbname)
                     await self._pg_pool.prune_inactive_connections(dbname)
 
                     # Verify we are disconnected
                     await self._pg_ensure_database_not_connected(dbname)
-            print('DONE', dbname)
 
     async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
         async with self.use_sys_pgcon() as pgcon:
