@@ -730,13 +730,11 @@ class Tenant(ha_base.ClusterProtocol):
         )
 
     async def ensure_database_not_connected(self, dbname: str) -> None:
-        # await asyncio.sleep(0)  # UHHHH
-        if self._dbindex and (n := self._dbindex.count_connections(dbname)):
+        if self._dbindex and self._dbindex.count_connections(dbname):
             # If there are open EdgeDB connections to the `dbname` DB
             # just raise the error Postgres would have raised itself.
             raise errors.ExecutionError(
                 f"database branch {dbname!r} is being accessed by other users"
-                f": {n}"
             )
         else:
             self._block_new_connections.add(dbname)
@@ -762,16 +760,12 @@ class Tenant(ha_base.ClusterProtocol):
                     print('TRY', dbname)
                     await self._pg_pool.prune_inactive_connections(dbname)
 
-                    # self._pg_pool._tick()
-                    # await asyncio.sleep(0)
-
                     # Verify we are disconnected
                     await self._pg_ensure_database_not_connected(dbname)
             print('DONE', dbname)
 
     async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
         async with self.use_sys_pgcon() as pgcon:
-            # await asyncio.sleep(0.1)
             conns = await pgcon.sql_fetch_col(
                 b"""
                 SELECT

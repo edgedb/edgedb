@@ -591,9 +591,6 @@ class BasePool(typing.Generic[C]):
         from_block.log_connection('transferred out')
         self._cur_capacity += 1
         print('ACTUAL TRANSFER CONNECT', to_block.dbname)
-        # for _ in range(5):
-        #     await asyncio.sleep(0)
-        # await asyncio.sleep(0.2)
         await self._connect(to_block, started_at, 'transferred in')
         print('ACTUAL TRANSFER CONNECT DONE', to_block.dbname)
 
@@ -1210,6 +1207,9 @@ class Pool(BasePool[C]):
         except KeyError:
             return None
 
+        # Mark the block as suppressed, so that nothing will be
+        # transferred to it. It will be unsuppressed if anything
+        # actually tries to connect.
         block.suppressed = True
 
         conns = []
@@ -1218,8 +1218,6 @@ class Pool(BasePool[C]):
 
         while not block.count_waiters() and block.pending_conns:
             print('WAITING FOR PENDING CONN', block.pending_conns, block.dbname)
-            import sys
-            sys.stdout.flush()
             # try_acquire, because it can get stolen
             if c := await block.try_acquire():
                 conns.append(c)
@@ -1232,13 +1230,8 @@ class Pool(BasePool[C]):
                 return_exceptions=True
             )
 
-        # Clear the block's nwaiters_avg rolling average, so that
-        # _tick will understand we are inactive and not try to
-        # schedule new connections here.
         # TODO: Is it possible to safely drop the block?
-        nwaiters = block.count_waiters() + block.conn_acquired_num
-        # block.nwaiters_avg.clear()
-        print('DOWN!', block.dbname, nwaiters, block.pending_conns)
+        print('DOWN!', block.dbname, block.pending_conns)
 
         if block.pending_conns:
             print('\n\n==== FUCK IT IS FUCKED')

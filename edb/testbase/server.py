@@ -1134,7 +1134,6 @@ class DatabaseTestCase(ConnectedTestCase):
                     pass
 
                 elif class_set_up == 'run' or cls.uses_database_copies():
-                    assert cls.con.is_closed()
                     dbname = qlquote.quote_ident(cls.get_database_name())
                     await drop_db(cls.admin_conn, dbname)
 

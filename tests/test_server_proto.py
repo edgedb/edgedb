@@ -3232,11 +3232,6 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
                 for con in cons:
                     g.create_task(con.aclose())
 
-        print("CONCURRENT DONE")
-        for con in cons:
-            assert con.is_closed()
-        print("CONCURRENT CHECKED")
-
 
 class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
 
