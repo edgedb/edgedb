@@ -164,6 +164,16 @@ class Index(
     data_safe=True,
 ):
 
+    # redefine, so we can change compcoef
+    bases = so.SchemaField(
+        so.ObjectList[so.InheritingObject],
+        type_is_generic_self=True,
+        default=so.DEFAULT_CONSTRUCTOR,
+        coerce=True,
+        inheritable=False,
+        compcoef=0.0, # can't rebase
+    )
+
     subject = so.SchemaField(
         so.Object,
         default=None,
