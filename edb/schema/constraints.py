@@ -261,6 +261,7 @@ class Constraint(
         subject_name: str,
     ) -> str:
         text = self.get_errmessage(schema)
+        assert text
         args = self.get_args(schema)
         if args:
             args_ql: List[qlast.Base] = [

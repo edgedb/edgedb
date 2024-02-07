@@ -1147,15 +1147,16 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         # making sure the constraint was applied successfully
         async with self.assertRaisesRegexTx(
-            edgedb.ConstraintViolationError,
-            'My custom message.'
+            edgedb.ConstraintViolationError, 'My custom message.'
         ):
             try:
-                await self.con.execute("""
+                await self.con.execute(
+                    """
                     INSERT ConstraintOnTest3 {
                         foo := 'Test'
                     };
-                """)
+                    """
+                )
             except edgedb.ConstraintViolationError as e:
                 # edgedb-python does not expose a nicer access to details field
                 details = e._attrs[2].decode("utf-8")
@@ -1163,10 +1164,9 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     details,
                     "violated constraint 'default::mymax3' on "
                     "property 'foo' of "
-                    "object type 'default::ConstraintOnTest3'"
+                    "object type 'default::ConstraintOnTest3'",
                 )
                 raise
-
 
         # testing interpolation
         await self.con.execute(r"""
@@ -1179,13 +1179,14 @@ class TestConstraintsDDL(tb.DDLTestCase):
             };
         """)
         async with self.assertRaisesRegexTx(
-            edgedb.ConstraintViolationError,
-            '{"json": "{nope} {min} 4"}'
+            edgedb.ConstraintViolationError, '{"json": "{nope} {min} 4"}'
         ):
             try:
-                await self.con.execute("""
+                await self.con.execute(
+                    """
                     INSERT ConstraintOnTest4_2 { email := '' };
-                """)
+                    """
+                )
             except edgedb.ConstraintViolationError as e:
                 # edgedb-python does not expose a nicer access to details field
                 details = e._attrs[2].decode("utf-8")
@@ -1193,7 +1194,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     details,
                     "violated constraint 'std::min_len_value' on "
                     "property 'email' of "
-                    "object type 'default::ConstraintOnTest4_2'"
+                    "object type 'default::ConstraintOnTest4_2'",
                 )
                 raise
 
