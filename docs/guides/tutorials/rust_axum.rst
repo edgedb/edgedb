@@ -2,14 +2,16 @@
 Rust Axum
 =========
 
-This guide will show you step by step how to create a small working app
-in Rust that uses Axum as its web server and EdgeDB to hold weather data.
-The app itself simply calls into a service called Open-Meteo once a minute
-to look for updated weather information on the cities in the database, and
-goes back to sleep once it is done. Open-Meteo is being used here because
+This guide will show you step by step how to create a small app in Rust
+that uses Axum as its web server and EdgeDB to hold weather data. The app 
+itself simply calls into the Open-Meteo API to look for updated weather
+information on the cities in the database, and goes back to sleep for a
+minute every time it finishes looking for updates.
+
+Open-Meteo is being used here because
 `their service <https://open-meteo.com/en/docs>`_ doesn't require any sort
-of registration. Give it a try `in your browser`_! We'll be saving the time
-and temperature information from this output to the database.
+of registration or API key. Give it a try `in your browser`_! We'll be
+saving the time and temperature information from this output to the database.
 
 Getting started
 ---------------
@@ -23,8 +25,9 @@ the ``default.esdl`` in the ``/dbschema`` directory.
 Schema
 ------
 
-The schema is simple but leverages a lot of EdgeDB's guarantees so that
-we don't have to think about them on the client side.
+The schema inside ``default.esdl`` is simple but leverages a lot of EdgeDB's
+guarantees so that we don't have to think about them on the client side. Here
+is what the final schema will look like:
 
 .. code-block:: sdl
 
@@ -64,29 +67,26 @@ we don't have to think about them on the client side.
     }
   }
 
-Let's go over some of the advantages EdgeDB gives us even in a schema as
-simple as this one.
+Let's go over it one part at a time to see what advantages EdgeDB has
+given us even in a schema as simple as this one.
 
 First are the three scalar types extend ``float64`` to give us some type
 safety when it comes to latitude, longitude, and temperature. Latitude can't
-exceed 90 degrees on Earth, and longitude can't exceed 180. Open-Meteo does
-its own checks for latitude and longitude when querying the conditions for a
-location, but we might decide to switch to a different weather service one day
-and having constraints up front makes it easy for users to see which values
-are allowed and which are not.
+exceed 90 degrees, and longitude can't exceed 180. Open-Meteo does its own
+checks for latitude and longitude when querying the conditions for a location,
+but we might decide to switch to a different weather service one day
+and having constraints in our schema up front makes it easy for users to see
+which values are valid and which are not.
 
-Plus, sometimes another server's data will just go haywire for some reason
-or another, such as the time a weather map showed a high of 
-`thousands of degrees <https://www.youtube.com/watch?v=iXuc7SAyk2s>`_ for
-various cities in Arizona. If our database simply accepted anything, we might
-end up with some weird outlying numbers that affect any calculations we
-make on the data.
-
-With the constraints in place, we are at least
-guaranteed to not add temperature data that reaches that point! We'll go
-with a maximum of 70.0 and low of 100.0 degrees. (The highest and lowest
-temperatures over recorded on Earth are 56.7 °C and -89.2°C, so our
-constraints provide a lot of room.)
+On top of this, sometimes another server's data will just go haywire for some
+reason or another, such as the time a weather map showed a high of 
+`thousands of degrees <https://www.youtube.com/watch?v=iXuc7SAyk2s>`_ (!) for
+various cities in Arizona. If our database simply accepted any and all output,
+we might end up with some weird outlying numbers that affect any calculations
+we make on the data. With the constraints in place, we are at least guaranteed
+to not add temperature data that reaches that point! The highest and lowest
+temperatures ever recorded on Earth are 56.7 °C and -89.2°C, so 70.0 and
+-100.00 should be a good range for our ``Temperature`` scalar type.
 
 .. code-block:: sdl
 
@@ -106,8 +106,8 @@ constraints provide a lot of room.)
     }
 
 Open-Meteo returns a good deal of information when you query it for current
-weather. If you clicked on the link above, you will have seen an output that
-looks like the following:
+weather. The endpoint in the link above produces an output that looks like
+this:
 
 .. code-block::
 
@@ -139,11 +139,10 @@ looks like the following:
         }
     }
 
-
-But we only need the ``time`` and ``temperature`` located inside
-``current_weather``. (Small challenge: feel free to grow the schema with
-other scalar types to incorporate all the other information returned
-from Open-Meteo!)
+To keep the weather app simple, we will only use ``time`` and ``temperature``
+located inside ``current_weather``. (Small challenge: feel free to grow the
+schema with other scalar types to incorporate all the other information
+returned from Open-Meteo!)
 
 We can then use this info to insert a type called ``Conditions`` that
 will look like this:
@@ -167,10 +166,11 @@ source`` so that any time a ``City`` object is deleted, all of the now useless
 ``Conditions`` objects get deleted along with it.
 
 This type also contains an ``exclusive`` constraint on time and city, because
-the app will continue to query Open-Meteo for data but shouldn't insert a
-``Conditions`` object for a city and time that has already been inserted. In
-Open-Meteo's case, these weather conditions are updated every 15 minutes so we
-will end up seeing four temperatures an hour added for each city.
+the app will continue to query Open-Meteo once a minute for data but shouldn't
+insert a ``Conditions`` object for a city and time that has already been
+inserted. In Open-Meteo's case, these weather conditions are updated every
+15 minutes, so we will end up seeing four temperatures an hour added for
+each city.
 
 The ``City`` type is pretty simple:
 
@@ -189,20 +189,20 @@ The line with
 ``multi conditions := (select .<city[is Conditions] order by .time);``
 is a backlink, giving us access to any ``Conditions`` objects connected to
 a ``City`` by a link called ``city``. A backlink alone would look like
-this: ``.<city[is Conditions]``. But we might as well order them by date here
-so that we don't have to do it inside the Rust code, or any other programming
-language we might want to use. EdgeDB here lets us have consistent behavior
-regardless of which programming language we use to build an app using this
-data.
+this: ``.<city[is Conditions]``. But we might as well order the ``conditions``
+by date here so that we don't have to do it inside the Rust code, or any
+other programming language we might want to use. Here, EdgeDB ensures that our
+output is consistent regardless of which programming language we use to build
+an app using this data.
 
-``City`` has an ``exclusive`` constraint for city names, which for the time
-being is fine but as our database grows we would want to change this because
-cities can have the same name. One possibility later on would be to give a
+``City`` has an ``exclusive`` constraint for city names. This is fine for our
+simple app, but in reality we would want to change this because a city can
+have the same name as another. One possibility later on would be to give a
 ``City`` a computed key formed from the ``name``, ``latitude``, and
 ``longitude``. Then ``latitude`` and ``longitude`` could be cast into an
 ``int64`` before being cast into a ``str`` so that users could not insert
-a city of the same name that is 0.00001 degrees different from an existing
-city (i.e. the same city).
+a city of the same name that is only a fraction of a degree different from
+an existing city (i.e. the same location).
 
 .. code-block:: sdl-diff
 
@@ -262,8 +262,8 @@ a ``&'static str``. They aren't strictly necessary, but are nice to have on
 so that we can review all the queries we will need in one place and keep the
 following code clean. Note that the ``select_city()`` function also has an
 optional filter, and uses a ``mut String`` instead of the ``format!`` macro
-because inside ``format!`` you need to use ``{{`` double braces in place of
-single braces, which quickly makes things ugly.
+because inside ``format!`` you need to use the ``{{`` double brace escape
+sequence in place of single braces, which quickly makes things ugly.
 
 .. code-block:: rust
 
@@ -387,18 +387,20 @@ else.
       }
     }
 
-The ``.get_cities()`` method simply gets all the cities in the database
+The ``.get_cities()`` method simply returns all the cities in the database
 without filtering. The ``.update_conditions()`` method then uses this
 to cycle through the cities and get their weather conditions. The
 ``Conditions`` type in our database has a
-``constraint exclusive on ((.time, .city));`` so most of the time the
-result from Open-Meteo will violate this and a new object will not be
-inserted, and so inside ``update_conditions`` we won't do anything if
-this is the case. In practice we know that new conditions will only be
-added every 15 minutes, but there is no guarantee what Open-Meteo's future
-behavior might be, or if our weather app will start using another service
-or multiple services to get weather info, so the easiest thing to do is just
-keep looping.
+``constraint exclusive on ((.time, .city));``. Most of the time the
+results from Open-Meteo will violate this and a new object will not be
+inserted, and so inside ``update_conditions`` we won't log anything if
+this is the case as this is expected behavior. In practice, we know that
+new conditions will only be added every 15 minutes, but there is no
+guarantee what Open-Meteo's future behavior might be, or if our weather
+app will start using another service or multiple services to get weather
+info, so the easiest thing to do is just keep looping while ignoring
+constraint violation errors. All we are concerned with is keeping weather
+information that does has a new time stamp, and ignoring the rest.
 
 .. code-block:: rust
 
@@ -434,7 +436,7 @@ keep looping.
     }
 
 Finally, a ``.run()`` method will get our ``WeatherApp`` to run forever,
-sleeping for 60 seconds each time. (Weather doesn't change that often...)
+sleeping for 60 seconds each time.
 
 .. code-block:: rust
 
@@ -453,9 +455,10 @@ So that code will be enough to have an app that loops forever, looking for
 new weather information. But we'd also like users to be able to add and
 remove cities, and Axum will allow us to add some endpoints to make this
 happen. To start, we'll put a ``menu()`` function together that simply
-lists the endpoints so that the user knows what options are available.
-Note that the function is an ``async fn`` because Axum requires all routes
-to be handled by an async function (or closure).
+lists the endpoints so that the user knows what options are available when
+they access ``http://localhost:3000/``. Note that the function is an
+``async fn`` despite not having any async code because Axum requires all
+routes to be handled by an async function (or closure).
 
 .. code-block:: rust
 
@@ -467,7 +470,7 @@ to be handled by an async function (or closure).
         /city_names"
   }
 
-So this will allow users to see the conditions for a city, to add a city
+So our API will allow users to see the conditions for a city, to add a city
 along with its location, remove a city, and also display a list of all city
 names in the database.
 
@@ -510,10 +513,10 @@ All together, the code for ``main()`` looks like this:
     Ok(())
     }
 
-Finally, we just need to write the Axum functions.
+Now we just need to write the Axum functions to complete our app.
 
-Removing a City is pretty easy, just use this query returned by the
-``delete_city()`` function and do a query with it.
+Removing a City is pretty easy: just use this query returned by the
+``delete_city()`` function and call ``.query()`` with it.
 
 .. code-block::
 
@@ -549,7 +552,7 @@ long:
   "select City.name order by City.name"
 
 And so is the method to do the query. It will just return a set of strings,
-so we don't even need to deserialize it into a Rust type:
+so we don't need to deserialize it into our own Rust type either:
 
 .. code-block:: rust
 
@@ -618,22 +621,24 @@ Adding a ``City`` is a tiny bit more complicated, because we don't know
 exactly how Open-Meteo's internals work. That means that there is always
 a chance that a request might not work for some reason, and in that case
 we don't want to insert a ``City`` into our database because then the
-``WeatherApp`` will just keep giving requesting data from Open-Meteo that
-it refuses to provide.
+``WeatherApp`` will just keep requesting data that Open-Meteo refuses
+to provide.
 
 In fact, you can take a look at this by trying a query for Open-Meteo for
 a location at latitude 80.0 or longitude 180.0. They won't work, because
 Open-Meteo allows queries *up to or less than* these values, but in our
-database we allow these values to be *up to* 80.0 and 180.0. This example
+database we allow these values to be *up to* 80.0 and 180.0. Our example
 code pretends that we didn't notice that. Plus, there is no guarantee that
-Open-Meteo will be the only service that our weather app uses.
+Open-Meteo will be the only service that our weather app uses, and other
+services might allow values of 80.0 and 180.0.
 
 So that means that the ``add_city()`` function will first make sure that
-Open-Meteo returns a good result, and only then inserts a City. Finally,
-it will get the most recent conditions for the new city. These two steps
-could be done in a single query in EdgeDB, but doing it one simple step at
-a time feels most readable here and allows us to see at which point an error
-happens if that is the case.
+Open-Meteo returns a good result, and only then inserts a ``City``. With this
+step done, it will insert the most recent conditions for the new city using
+the ``.execute()`` method which returns ``()``. These two steps could also be
+done in a single query in EdgeDB, but doing it one simple step at a time feels
+most readable here and allows us to see at which point an error happens if
+that is the case.
 
 .. code-block:: rust
 
@@ -680,12 +685,6 @@ yourself.
     Looping...
     Looping...
     Looping...
-    Looping...
-    Looping...
-    Looping...
-    Looping...
-    Looping...
-    Looping...
 
 And inside your browser you should be able to see any city you like with
 an address like the following: ``http://localhost:3000/conditions/El Serrat``
@@ -699,15 +698,14 @@ The output will look like this:
     2024-02-05 02:15	4.6
     2024-02-05 02:30	4.5
     2024-02-05 02:45	4.7
-    2024-02-05 03:00	4.7
-    2024-02-05 03:15	4.6
-    2024-02-05 03:30	4.7
     ... and so on...
 
 So that's how to get started with EdgeDB and Axum! You can now use this code
 as a template to modify to get your own app started. Rust's other main web
 servers are implemented with Actix-web and Rocket, and modifying the code
-to fit them is not all that hard.
+to fit them is not all that hard. Changing the code below into code that works
+for Actix-web or Rocket could be a good exercise to internalize it in your
+mind if you are still new to EdgeDB and/or Rust and want some active practice.
 
 Here is all of the Rust code:
 
