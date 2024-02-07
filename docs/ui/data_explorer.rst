@@ -21,5 +21,5 @@ This makes the data explorer the ideal solution for EdgeDB users without
 a technical background or new users lacking the time needed to learn the
 ins and outs of a new database. It is also useful for skilled users
 who are looking to explore the links between object types over possible
-multiple levels of depth without having to continually recreate queries
+multiple levels of depth without having to continually write new queries
 to do so.

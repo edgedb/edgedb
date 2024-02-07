@@ -12,8 +12,8 @@ REPL
     :width: 100%
 
 The REPL available in the EdgeDB UI is largely the same as the CLI REPL,
-so most of the :ref:`CLI REPL commands <ref_cheatsheet_repl>` will pertain to the
-UI REPL as well.
+so most of the :ref:`CLI REPL commands <ref_cheatsheet_repl>` will pertain to
+the UI REPL as well.
 
 Some behavior differs from that of the CLI REPL:
 
@@ -33,14 +33,14 @@ Backslash commands
 ------------------
 
 - ``\l`` or ``\list databases``: List databases
-- ``\ls``, or ``\list scalars``: List scalar types
-- ``\lt``, or ``\list types``: List scalar types
-- ``\lr``, or ``\list roles``: List roles
-- ``\lm``, or ``\list modules``: List modules
-- ``\la``, or ``\list aliases``: List expression aliases
-- ``\lc``, or ``\list casts``: List casts
-- ``\li``, or ``\list indexes``: List indexes
-- ``\c DBNAME``, or ``\connect DBNAME``: Connect to database DBNAME
+- ``\ls`` or ``\list scalars``: List scalar types
+- ``\lt`` or ``\list types``: List scalar types
+- ``\lr`` or ``\list roles``: List roles
+- ``\lm`` or ``\list modules``: List modules
+- ``\la`` or ``\list aliases``: List expression aliases
+- ``\lc`` or ``\list casts``: List casts
+- ``\li`` or ``\list indexes``: List indexes
+- ``\c DBNAME`` or ``\connect DBNAME``: Connect to database DBNAME
 - ``\?``, ``\h``, or ``\help``: Show help on backslash commands
 
 .. lint-off

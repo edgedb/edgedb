@@ -1,8 +1,8 @@
 .. _ref_ui_editor:
 
-======
+============
 Query editor
-======
+============
 
 .. image:: images/editor.png
     :alt: The editor page in the EdgeDB UI, inside which the query builder
