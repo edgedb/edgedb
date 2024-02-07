@@ -133,6 +133,7 @@ class Block(typing.Generic[C]):
 
     querytime_avg: rolavg.RollingAverage
     nwaiters_avg: rolavg.RollingAverage
+    suppressed: bool
 
     _cached_calibrated_demand: float
 
@@ -161,6 +162,7 @@ class Block(typing.Generic[C]):
 
         self.querytime_avg = rolavg.RollingAverage(history_size=20)
         self.nwaiters_avg = rolavg.RollingAverage(history_size=3)
+        self.suppressed = False
 
         self._is_log_batching = False
         self._last_log_timestamp = 0
@@ -226,24 +228,17 @@ class Block(typing.Generic[C]):
 
         return self.conn_stack.popleft()
 
-    async def acquire(self) -> C:
-        # There can be a race between a waiter scheduled for to wake up
-        # and a connection being stolen (due to quota being enforced,
-        # for example).  In which case the waiter might get finally
-        # woken up with an empty queue -- hence we use a `while` loop here.
+    async def try_acquire(self, *, attempts: int = 1) -> typing.Optional[C]:
         self.conn_waiters_num += 1
         try:
-            attempts = 0
-
             # Skip the waiters' queue if we can grab a connection from the
             # stack immediately - this is not completely fair, but it's
             # extremely hard to always take the shortcut and starve the queue
             # without blocking the main loop, so we are fine here. (This is
             # also how asyncio.Queue is implemented.)
-            while not self.conn_stack:
+            if not self.conn_stack:
                 waiter = self.loop.create_future()
 
-                attempts += 1
                 if attempts > 1:
                     # If the waiter was woken up only to discover that
                     # it needs to wait again, we don't want it to lose
@@ -271,10 +266,25 @@ class Block(typing.Generic[C]):
                         self._wakeup_next_waiter()
                     raise
 
+            # There can be a race between a waiter scheduled for to wake up
+            # and a connection being stolen (due to quota being enforced,
+            # for example).  In which case the waiter might get finally
+            # woken up with an empty queue -- hence the 'try'.
+            # acquire will put a while loop around this
+
             # Yield the most recently used connection from the top of the stack
-            return self.conn_stack.pop()
+            if self.conn_stack:
+                return self.conn_stack.pop()
+            else:
+                return None
         finally:
             self.conn_waiters_num -= 1
+
+    async def acquire(self) -> C:
+        attempts = 1
+        while (c := await self.try_acquire(attempts=attempts)) is None:
+            attempts += 1
+        return c
 
     def release(self, conn: C) -> None:
         # Put the connection (back) to the top of the stack,
@@ -749,7 +759,7 @@ class Pool(BasePool[C]):
             total_nwaiters += nwaiters
             block.nwaiters_avg.add(nwaiters)
             nwaiters_avg = block.nwaiters_avg.avg()
-            if nwaiters_avg:
+            if nwaiters_avg and not block.suppressed:
                 # GOTCHA: this is a counter of blocks that need at least 1
                 # connection. If this number is greater than _max_capacity,
                 # some block will be starving with zero connection.
@@ -1023,7 +1033,7 @@ class Pool(BasePool[C]):
             block_size = block.count_conns()
             block_demand = block.count_waiters()
 
-            if block_size or not block_demand:
+            if block_size or not block_demand or block.suppressed:
                 continue
 
             if block_demand > max_need:
@@ -1039,7 +1049,7 @@ class Pool(BasePool[C]):
         for block in self._blocks.values():
             block_size = block.count_conns()
             block_quota = block.quota
-            if block_quota > block_size:
+            if block_quota > block_size and not block.suppressed:
                 need = block_quota - block_size
                 if need > max_need:
                     max_need = need
@@ -1052,6 +1062,7 @@ class Pool(BasePool[C]):
 
     async def _acquire(self, dbname: str) -> C:
         block = self._get_block(dbname)
+        block.suppressed = False
 
         room_for_new_conns = self._cur_capacity < self._max_capacity
         block_nconns = block.count_conns()
@@ -1191,9 +1202,20 @@ class Pool(BasePool[C]):
         except KeyError:
             return None
 
+        # Mark the block as suppressed, so that nothing will be
+        # transferred to it. It will be unsuppressed if anything
+        # actually tries to connect.
+        # TODO: Is it possible to safely drop the block?
+        block.suppressed = True
+
         conns = []
         while (conn := block.try_steal()) is not None:
             conns.append(conn)
+
+        while not block.count_waiters() and block.pending_conns:
+            # try_acquire, because it can get stolen
+            if c := await block.try_acquire():
+                conns.append(c)
 
         if conns:
             await asyncio.gather(

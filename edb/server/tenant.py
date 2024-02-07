@@ -749,13 +749,13 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
             rloop = retryloop.RetryLoop(
-                backoff=retryloop.exp_backoff(),
                 timeout=10.0,
                 ignore=errors.ExecutionError,
             )
 
             async for iteration in rloop:
                 async with iteration:
+                    # Verify we are disconnected
                     await self._pg_ensure_database_not_connected(dbname)
 
     async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
@@ -769,7 +769,7 @@ class Tenant(ha_base.ClusterProtocol):
                 WHERE
                     datname = $1
                 """,
-                args=[dbname.encode("utf-8")],
+                args=[self.get_pg_dbname(dbname).encode("utf-8")],
             )
 
         if conns:

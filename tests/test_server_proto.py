@@ -27,6 +27,7 @@ import edgedb
 
 from edb.common import devmode
 from edb.common import taskgroup as tg
+from edb.common import asyncutil
 from edb.testbase import server as tb
 from edb.server.compiler import enums
 from edb.tools import test
@@ -2282,7 +2283,6 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
         async with tb.start_edgedb_server(**server_args) as sd:
 
-            print("SERVER", sd)
             await self.con.execute("CREATE EXTENSION notebook;")
 
             # First, ensure that the local server is aware of the new ext.
@@ -3207,7 +3207,10 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
         try:
             async with tg.TaskGroup() as g:
                 for i, con in enumerate(cons):
-                    g.create_task(con.execute(f'''
+                    # deferred_shield ensures that none of the
+                    # operations get cancelled, which allows us to
+                    # aclose them all cleanly.
+                    g.create_task(asyncutil.deferred_shield(con.execute(f'''
                         CREATE TYPE {typename_prefix}{i} {{
                             CREATE REQUIRED PROPERTY prop1 -> std::int64;
                         }};
@@ -3215,7 +3218,7 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
                         INSERT {typename_prefix}{i} {{
                             prop1 := {i}
                         }};
-                    '''))
+                    ''')))
         except tg.TaskGroupError as e:
             self.assertIn(
                 edgedb.TransactionSerializationError,
@@ -3250,9 +3253,12 @@ class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
         try:
             async with tg.TaskGroup() as g:
                 for i, con in enumerate(cons):
-                    g.create_task(con.execute(f'''
+                    # deferred_shield ensures that none of the
+                    # operations get cancelled, which allows us to
+                    # aclose them all cleanly.
+                    g.create_task(asyncutil.deferred_shield(con.execute(f'''
                         CREATE SUPERUSER ROLE concurrent_{i}
-                    '''))
+                    ''')))
         except tg.TaskGroupError as e:
             self.assertIn(
                 edgedb.TransactionSerializationError,
