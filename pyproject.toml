@@ -9,7 +9,7 @@ dependencies = [
     'httptools>=0.6.0',
     'immutables>=0.18',
     'parsing~=2.0',
-    'uvloop~=0.17.0',
+    'uvloop~=0.19.0',
 
     'click~=8.0',
     'cryptography~=42.0',
@@ -37,7 +37,7 @@ test = [
     'flake8-bugbear~=23.1.20',
     'pycodestyle~=2.10.0',
     'pyflakes~=3.0.1',
-    'asyncpg~=0.26.0',
+    'asyncpg~=0.29.0',
 
     # Needed for test_docs_sphinx_ext
     'requests-xml~=0.2.3',
