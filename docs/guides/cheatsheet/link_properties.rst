@@ -113,6 +113,43 @@ To index on a link property, you must declare an abstract link and extend it.
       };
     }
 
+Conceptualizing link properties
+-------------------------------
+
+A good way to conceptualize the difference between a regular property and
+a link property for object types is that regular properties are used to
+*construct* expressions that return object types, while link properties are
+*appended* to expressions that return object types to qualify the link.
+
+For example, the properties ``name`` and ``email`` are used to construct a
+``Person`` object that is inserted, also returning the same ``Person`` object.
+
+.. code-block:: edgeql
+
+  insert Person {
+    name := "Jane",
+    email := "jane@jane.com"
+  }
+
+If this ``Person`` object is inserted while linking it to another ``Person``
+object we are inserting, we can append a ``@strength`` property to the link.
+``@strength`` is not used to construct a ``Person``, but to quantify the link.
+
+.. code-block:: edgeql
+
+  insert Person {
+    name := "Bob",
+    email := "bob@bob.com",
+    friends := (
+      insert Person {
+        name := "Jane",
+        email := "jane@jane.com",
+        @strength := 3.14
+      }
+    )
+  }
+
+Keep this in mind when reading through the following examples.
 
 Inserting
 ---------
@@ -140,7 +177,9 @@ subquery. This is only valid in a subquery *inside* an ``insert`` statement.
 
 
 When doing a nested insert, link properties can be directly included in the
-inner ``insert`` subquery.
+inner ``insert`` subquery. The query below creates a link to a ``Person``
+object that is being inserted in the same query, along with a link property
+``strength`` that has a value of 3.14.
 
 .. code-block:: edgeql
 
@@ -153,6 +192,26 @@ inner ``insert`` subquery.
       }
     )
   }
+
+Similarly, ``with`` can be used to capture an expression returning an
+object type, after which a link property can be added when linking it to
+another object type:
+
+.. code-block:: edgeql
+
+  with
+  _friends := (
+    insert Person {
+     name := "Alice"
+    } unless conflict on .name
+    else (select Person filter .name = "Alice" limit 1 )
+  )
+  insert Person {
+    name := "Bob",
+    friends := _friends {
+      @strength := 3.14
+    }
+  };
 
 Updating
 --------
