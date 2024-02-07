@@ -599,6 +599,8 @@ def _interpret_constraint_errors(
     # no need for else clause since it would have been handled by
     # the static version
 
+    print(error_type)
+
     if error_type == 'constraint' or error_type == 'idconstraint':
         assert err_details.constraint_name
 
@@ -628,13 +630,9 @@ def _interpret_constraint_errors(
         # under the hood. It should be picked up from the errmessage on the
         # first ancestor constraint that's in std module.
         subject = constraint.get_subject(schema)
-        verbose_name = subject.get_verbosename(schema, with_parent=True)
-        if std_ancestor := constraint.get_ancestor_from_std(schema):
-            details = std_ancestor.format_error_text(schema, verbose_name)
-        else:
-            # this constrain does not have ancestor from std module
-            constraint_name = constraint.get_verbosename(schema)
-            details = f'constraint {constraint_name} violated'
+        subject_description = subject.get_verbosename(schema, with_parent=True)
+        constraint_description = constraint.get_verbosename(schema)
+        details = f'violated {constraint_description} on {subject_description}'
 
         if from_graphql:
             msg = gql_replace_type_names_in_text(msg)
