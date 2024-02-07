@@ -2283,7 +2283,6 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
         async with tb.start_edgedb_server(**server_args) as sd:
 
-            print("SERVER", sd)
             await self.con.execute("CREATE EXTENSION notebook;")
 
             # First, ensure that the local server is aware of the new ext.
