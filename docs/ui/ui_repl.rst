@@ -11,8 +11,8 @@ REPL
           user-defined type called a Booking Log Entry is displayed.
     :width: 100%
 
-The REPL used in the EdgeDB UI is largely the same as the CLI REPL,
-so most of the commands :ref:`here <ref_cheatsheet_repl>` will pertain to the
+The REPL available in the EdgeDB UI is largely the same as the CLI REPL,
+so most of the :ref:`CLI REPL commands <ref_cheatsheet_repl>` will pertain to the
 UI REPL as well.
 
 Some behavior differs from that of the CLI REPL:
@@ -32,7 +32,7 @@ Shortcuts
 Backslash commands
 ------------------
 
-- ``\l``, or ``\list databases``: List databases
+- ``\l`` or ``\list databases``: List databases
 - ``\ls``, or ``\list scalars``: List scalar types
 - ``\lt``, or ``\list types``: List scalar types
 - ``\lr``, or ``\list roles``: List roles

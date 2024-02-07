@@ -1,7 +1,7 @@
 .. _ref_ui_editor:
 
 ======
-Editor
+Query editor
 ======
 
 .. image:: images/editor.png
@@ -32,8 +32,7 @@ Query Builder
 -------------
 
 The query builder is by far the easiest way for new users to EdgeDB to
-put together a ``select`` query, and the second easiest part of the UI
-to use after the data explorer. The query builder is an entirely
+put together a ``select`` query. It is an entirely
 point-and-click interface that walks you through the steps of a ``select``
 query, including selecting properties and links inside an object,
 ``filter``, ``order by``, and setting an ``offset`` and ``limit``

@@ -19,7 +19,7 @@ Globals
 -------
 
 - Nothing by default. Any globals defined in your schema will show up and
-  can be modified here.
+  can be set here.
 
 Config
 ------
@@ -31,8 +31,9 @@ Config
   'id' property. Default: ``false``.
 - ``apply_access_policies``: Whether
   :ref:`access policies <ref_datamodel_access_policies>` will be applied
-  when running queries. Default: ``true``. When set to ``false``, any
-  and all operations can be used on any object in the database.
+  when running queries. Default: ``true``. When set to ``false``, access
+  policies will no longer restrict any operations they would naturally
+  restrict.
 - ``force_database_error``: A hook to force all queries to produce an error.
   Default: ``'false'`` (note: a string ``'false'``, not a boolean). This 
   parameter takes a ``str`` instead of a ``bool`` to allow more verbose

@@ -23,9 +23,8 @@ those new to EdgeDB. Clicking on this will create a database called
 ``_example`` that contains the same schema and objects as those in the
 EdgeDB tutorial.
 
-As such, the quickest way for newcomers to EdgeDB to start interacting with
-a working database with populated objects in the UI can be done in just
-three steps:
+This is the quickest way for newcomers to start interacting with a
+populated database. Take these three simple steps:
 
 - ``edgedb project init`` on the command line to start an instance,
 - ``edgedb ui`` on the command line to open the UI,
