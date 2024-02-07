@@ -228,11 +228,9 @@ class Block(typing.Generic[C]):
 
         return self.conn_stack.popleft()
 
-    async def try_acquire(self) -> typing.Optional[C]:
+    async def try_acquire(self, *, attempts: int = 1) -> typing.Optional[C]:
         self.conn_waiters_num += 1
         try:
-            attempts = 0
-
             # Skip the waiters' queue if we can grab a connection from the
             # stack immediately - this is not completely fair, but it's
             # extremely hard to always take the shortcut and starve the queue
@@ -241,7 +239,6 @@ class Block(typing.Generic[C]):
             if not self.conn_stack:
                 waiter = self.loop.create_future()
 
-                attempts += 1
                 if attempts > 1:
                     # If the waiter was woken up only to discover that
                     # it needs to wait again, we don't want it to lose
@@ -284,8 +281,9 @@ class Block(typing.Generic[C]):
             self.conn_waiters_num -= 1
 
     async def acquire(self) -> C:
-        while (c := await self.try_acquire()) is None:
-            pass
+        attempts = 1
+        while (c := await self.try_acquire(attempts=attempts)) is None:
+            attempts += 1
         return c
 
     def release(self, conn: C) -> None:
