@@ -7272,11 +7272,11 @@ async def execute_sql_script(
         text = None
 
         if position is not None:
-            point = int(position)
+            point = int(position) - 1
             text = sql_text
 
         elif internal_position is not None:
-            point = int(internal_position)
+            point = int(internal_position) - 1
             text = e.get_field('q')
 
         elif pl_func_line:

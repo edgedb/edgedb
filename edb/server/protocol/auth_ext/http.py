@@ -130,60 +130,55 @@ class Router:
                 case _:
                     raise errors.NotFound("Unknown auth endpoint")
 
+        # User-facing errors
         except errors.NotFound as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.NOT_FOUND,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
             )
 
         except errors.InvalidData as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.BAD_REQUEST,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
-            )
-
-        except errors.MissingConfiguration as ex:
-            _fail_with_error(
-                response=response,
-                status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
             )
 
         except errors.PKCEVerificationFailed as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.FORBIDDEN,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
             )
 
-        except errors.NoIdentityFound:
+        except errors.NoIdentityFound as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.FORBIDDEN,
-                message="No identity found",
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
             )
 
         except errors.UserAlreadyRegistered as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.CONFLICT,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
             )
 
         except errors.VerificationRequired as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.UNAUTHORIZED,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
+            )
+
+        # Server errors
+        except errors.MissingConfiguration as ex:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
+                ex=ex,
             )
 
         except Exception as ex:
@@ -192,8 +187,7 @@ class Router:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
-                message=str(ex),
-                ex_type=edb_errors.InternalServerError,
+                ex=edb_errors.InternalServerError(str(ex)),
             )
 
     async def handle_authorize(self, request: Any, response: Any):
@@ -1455,13 +1449,11 @@ def _fail_with_error(
     *,
     response: Any,
     status: http.HTTPStatus,
-    message: str,
-    ex_type: Any,
+    ex: Exception,
 ):
     err_dct = {
-        "message": message,
-        "type": str(ex_type.__name__),
-        "code": ex_type.get_code(),
+        "message": str(ex),
+        "type": str(ex.__class__.__name__),
     }
 
     response.body = json.dumps({"error": err_dct}).encode()

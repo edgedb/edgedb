@@ -453,7 +453,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
         await self.assert_query_result(
             '''
                 with module ext::pgvector
-                select len(default::L2.vec) limit 1;
+                select len(default::IVFFlat_L2.vec) limit 1;
             ''',
             [3],
         )
@@ -474,7 +474,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
             '''
                 with module ext::pgvector
                 select euclidean_distance(
-                    default::L2.vec,
+                    default::IVFFlat_L2.vec,
                     <vector>[0, 1, 0],
                 );
             ''',
@@ -493,7 +493,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
         await self.assert_query_result(
             '''
                 with module ext::pgvector
-                select euclidean_norm(default::L2.vec);
+                select euclidean_norm(default::IVFFlat_L2.vec);
             ''',
             {2.5079872331917934, 10.208432276239787, 12.014573942925704},
         )
@@ -514,7 +514,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
             '''
                 with module ext::pgvector
                 select neg_inner_product(
-                    default::IP.vec,
+                    default::IVFFlat_IP.vec,
                     <vector>[3, 4, 1],
                 );
             ''',
@@ -537,7 +537,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
             '''
                 with module ext::pgvector
                 select cosine_distance(
-                    default::Cosine.vec,
+                    default::IVFFlat_Cosine.vec,
                     <vector>[3, 4, 1],
                 );
             ''',
@@ -562,7 +562,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
             '''
                 with module ext::pgvector
                 select <array<float32>>
-                    mean(default::L2.vec);
+                    mean(default::IVFFlat_L2.vec);
             ''',
             [[1.8333334, 2.8999999, 7.103333]],
         )
@@ -572,7 +572,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
         res = [0, 3, 4]
         async with self._run_and_rollback():
             await self.con.execute(r"""
-                insert L2 {
+                insert IVFFlat_L2 {
                     vec := array_agg(
                         Raw.p_int16 order by Raw.p_int16
                     )[:3]
@@ -582,7 +582,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
                 '''
                     with res := <array<float32>>$res
                     select <array<float32>>(
-                        select L2
+                        select IVFFlat_L2
                         filter .vec = <ext::pgvector::vector>res
                     ).vec
                 ''',
@@ -592,7 +592,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
 
         async with self._run_and_rollback():
             await self.con.execute(r"""
-                insert L2 {
+                insert IVFFlat_L2 {
                     vec := array_agg(
                         Raw.p_int32 order by Raw.p_int32
                     )[:3]
@@ -602,7 +602,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
                 '''
                     with res := <array<float32>>$res
                     select <array<float32>>(
-                        select L2
+                        select IVFFlat_L2
                         filter .vec = <ext::pgvector::vector>res
                     ).vec
                 ''',
@@ -612,7 +612,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
 
         async with self._run_and_rollback():
             await self.con.execute(r"""
-                insert L2 {
+                insert IVFFlat_L2 {
                     vec := array_agg(
                         Raw.p_int64 order by Raw.p_int64
                     )[:3]
@@ -622,7 +622,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
                 '''
                     with res := <array<float32>>$res
                     select <array<float32>>(
-                        select L2
+                        select IVFFlat_L2
                         filter .vec = <ext::pgvector::vector>res
                     ).vec
                 ''',
@@ -635,7 +635,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
         res = [0, 3, 4.25]
         async with self._run_and_rollback():
             await self.con.execute(r"""
-                insert L2 {
+                insert IVFFlat_L2 {
                     vec := array_agg(
                         Raw.p_float32 order by Raw.p_float32
                     )[:3]
@@ -645,7 +645,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
                 '''
                     with res := <array<float32>>$res
                     select <array<float32>>(
-                        select L2
+                        select IVFFlat_L2
                         filter .vec = <ext::pgvector::vector>res
                     ).vec
                 ''',
@@ -655,7 +655,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
 
         async with self._run_and_rollback():
             await self.con.execute(r"""
-                insert L2 {
+                insert IVFFlat_L2 {
                     vec := array_agg(
                         Raw.val order by Raw.val
                     )[:3]
@@ -665,7 +665,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
                 '''
                     with res := <array<float32>>$res
                     select <array<float32>>(
-                        select L2
+                        select IVFFlat_L2
                         filter .vec = <ext::pgvector::vector>res
                     ).vec
                 ''',
@@ -690,12 +690,12 @@ class TestEdgeQLVector(tb.QueryTestCase):
                 }
             """)
 
-    async def _assert_index_use(self, query, *args, index_type):
+    async def _assert_index_use(self, query, *args, index_type, index_op):
         def look(obj):
             if isinstance(obj, dict) and obj.get('plan_type') == "IndexScan":
                 return any(
                     prop['title'] == 'index_name'
-                    and f'pgvector::ivfflat_{index_type}' in prop['value']
+                    and f'pgvector::{index_type}_{index_op}' in prop['value']
                     for prop in obj.get('properties', [])
                 )
 
@@ -708,9 +708,9 @@ class TestEdgeQLVector(tb.QueryTestCase):
 
         plan = await self.con.query_json(f'analyze {query}', *args)
         if not look(json.loads(plan)):
-            raise AssertionError("query did not use ivfflat index")
+            raise AssertionError(f'query did not use {index_type} index')
 
-    async def _check_index(self, obj, func, index_type):
+    async def _check_index(self, obj, func, index_type, index_op):
         # Test that we actually hit the indexes by looking at the query plans.
 
         obj_id = (await self.con.query_single(f"""
@@ -736,6 +736,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
             ''',
             obj_id,
             index_type=index_type,
+            index_op=index_op,
         )
 
         await self._assert_index_use(
@@ -747,6 +748,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
             ''',
             str(embedding),
             index_type=index_type,
+            index_op=index_op,
         )
 
         await self._assert_index_use(
@@ -758,6 +760,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
             ''',
             json.dumps(embedding),
             index_type=index_type,
+            index_op=index_op,
         )
 
         await self._assert_index_use(
@@ -769,13 +772,29 @@ class TestEdgeQLVector(tb.QueryTestCase):
             ''',
             embedding,
             index_type=index_type,
+            index_op=index_op,
         )
 
     async def test_edgeql_vector_index_01(self):
-        await self._check_index('L2', 'euclidean_distance', 'euclidean')
+        await self._check_index(
+            'IVFFlat_L2', 'euclidean_distance', 'ivfflat', 'euclidean')
 
     async def test_edgeql_vector_index_02(self):
-        await self._check_index('Cosine', 'cosine_distance', 'cosine')
+        await self._check_index(
+            'IVFFlat_Cosine', 'cosine_distance', 'ivfflat', 'cosine')
 
     async def test_edgeql_vector_index_03(self):
-        await self._check_index('IP', 'neg_inner_product', 'ip')
+        await self._check_index(
+            'IVFFlat_IP', 'neg_inner_product', 'ivfflat', 'ip')
+
+    async def test_edgeql_vector_index_04(self):
+        await self._check_index(
+            'HNSW_L2', 'euclidean_distance', 'hnsw', 'euclidean')
+
+    async def test_edgeql_vector_index_05(self):
+        await self._check_index(
+            'HNSW_Cosine', 'cosine_distance', 'hnsw', 'cosine')
+
+    async def test_edgeql_vector_index_06(self):
+        await self._check_index(
+            'HNSW_IP', 'neg_inner_product', 'hnsw', 'ip')

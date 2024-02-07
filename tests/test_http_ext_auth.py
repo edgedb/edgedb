@@ -712,13 +712,23 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             }
             state_token = self.generate_state_value(state_claims, signing_key)
 
-            _, _, status = self.http_con_request(
+            body, _, status = self.http_con_request(
                 http_con,
                 {"state": state_token, "code": "abc123"},
                 path="callback",
             )
 
+            try:
+                body_json = json.loads(body)
+                self.assertIsNotNone(body_json)
+            except json.JSONDecodeError:
+                self.fail("Failed to parse JSON from response body")
+
             self.assertEqual(status, 400)
+            self.assertEqual(body_json.get("error"), {
+                "type": "InvalidData",
+                "message": "Invalid state token",
+            })
 
     async def test_http_auth_ext_github_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:

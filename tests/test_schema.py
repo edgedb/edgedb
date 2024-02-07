@@ -10026,7 +10026,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
     def test_schema_describe_schema_03(self):
         self._assert_describe(
             """
-            using extension pgvector version '0.4';
+            using extension pgvector version '0.5';
             module default {
                 scalar type v3 extending ext::pgvector::vector<3>;
 
@@ -10039,7 +10039,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'describe schema as ddl',
 
             """
-            create extension vector version '0.4';
+            create extension vector version '0.5';
             create module default if not exists;
             create scalar type default::v3 extending ext::pgvector::vector<3>;
             create type default::Foo {
@@ -10050,7 +10050,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'describe schema as sdl',
 
             r"""
-            using extension pgvector version '0.4';
+            using extension pgvector version '0.5';
             module default {
                 scalar type v3 extending ext::pgvector::vector<3>;
                 type Foo {
