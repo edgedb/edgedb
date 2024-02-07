@@ -338,7 +338,7 @@ jobs:
             multi-tenant-mode: 'multi-tenant'
     services:
       postgres:
-        image: fantix/pgvector:${{ matrix.postgres-version }}
+        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
         env:
           POSTGRES_PASSWORD: postgres
         options: >-
