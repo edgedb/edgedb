@@ -620,10 +620,21 @@ def _interpret_constraint_errors(
             obj_ptr = obj_type.getptr(schema, sn.UnqualName('id'))
             constraint = obj_ptr.get_exclusive_constraints(schema)[0]
 
-        msg = constraint.format_error(schema)
+        # msg is for the "end user" that should not mention pointers and object
+        # type it is also affected by setting `errmessage` in user schema.
+        msg = constraint.format_error_message(schema)
+        
+        # details is for the "developer" that must explain what's going on
+        # under the hood. It should be picked up from the errmessage on the
+        # first ancestor constraint that's in std module.
         subject = constraint.get_subject(schema)
-        vname = subject.get_verbosename(schema, with_parent=True)
-        details = constraint.format_error_message(schema, vname)
+        verbose_name = subject.get_verbosename(schema, with_parent=True)
+        if std_ancestor := constraint.get_ancestor_from_std(schema):
+            details = std_ancestor.format_error_text(schema, verbose_name)
+        else:
+            # this constrain does not have ancestor from std module
+            constraint_name = constraint.get_verbosename(schema)
+            details = f'constraint {constraint_name} violated'
 
         if from_graphql:
             msg = gql_replace_type_names_in_text(msg)
