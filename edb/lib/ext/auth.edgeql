@@ -67,6 +67,12 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property password_hash: std::str;
     };
 
+    create type ext::auth::MagicLinkFactor extending ext::auth::EmailFactor {
+        alter property email {
+            create constraint exclusive;
+        };
+    };
+
     create type ext::auth::WebAuthnFactor extending ext::auth::EmailFactor {
         create required property user_handle: std::bytes;
         create required property credential_id: std::bytes {
@@ -261,6 +267,20 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
         create required property require_verification: std::bool {
             set default := true;
+        };
+    };
+
+    create type ext::auth::MagicLinkProviderConfig
+        extending ext::auth::ProviderConfig {
+        alter property name {
+            set default := 'builtin::local_magic_link';
+            set protected := true;
+        };
+
+        create required property token_time_to_live: std::duration {
+            set default := <std::duration>'10 minutes';
+            create annotation std::description :=
+                "The time after which a magic link token expires.";
         };
     };
 

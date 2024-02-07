@@ -464,6 +464,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             relying_party_origin := 'https://example.com:8080',
             require_verification := false,
         }};
+
+        CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::MagicLinkProviderConfig {{}};
         """,
     ]
 
@@ -3766,6 +3769,69 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     email=email,
                     user_handle=user_handle,
                 )
+            )
+
+    async def test_http_auth_ext_magic_link_01(self):
+        email = "test@example.com"
+        challenge = "test_challenge"
+        callback_url = "https://example.com/auth/callback"
+
+        with self.http_con() as http_con:
+            body, _, status = self.http_con_request(
+                http_con,
+                method="POST",
+                path="magic-link/register",
+                body=json.dumps(
+                    {
+                        "provider": "builtin::local_magic_link",
+                        "email": email,
+                        "challenge": challenge,
+                        "callback_url": callback_url,
+                    }
+                ).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            self.assertEqual(status, 200)
+
+            # Get the token from email
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], "noreply@example.com")
+            self.assertEqual(email_args["recipients"], email)
+            html_msg = email_args["message"].get_payload(0).get_payload(1)
+            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
+            assert match is not None
+            verify_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(verify_url.query)
+            token = search_params.get("token", [None])[0]
+            assert token is not None
+
+            _, headers, status = self.http_con_request(
+                http_con,
+                method="GET",
+                path=f"magic-link/authenticate?token={token}",
+            )
+
+            self.assertEqual(status, 302)
+            location = headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                callback_url,
             )
 
     async def test_client_token_identity_card(self):
