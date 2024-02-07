@@ -605,13 +605,6 @@ class TypeShell(so.ObjectShell[TypeT_co]):
         self.expr = expr
         self.extra_args = extra_args
 
-    def resolve(self, schema: s_schema.Schema) -> TypeT_co:
-        return schema.get(
-            self.get_name(schema),
-            type=self.schemaclass,
-            sourcectx=self.sourcectx,
-        )
-
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return self.resolve(schema).is_polymorphic(schema)
 
@@ -1512,13 +1505,6 @@ class ArrayTypeShell(CollectionTypeShell[Array_T_co]):
     def get_displayname(self, schema: s_schema.Schema) -> str:
         return f'array<{self.subtype.get_displayname(schema)}>'
 
-    def resolve(self, schema: s_schema.Schema) -> Array_T_co:
-        if isinstance(self.name, s_name.QualName):
-            arr = schema.get(self.name, type=Array)
-        else:
-            arr = schema.get_global(Array, self.get_name(schema))
-        return arr  # type: ignore
-
     def as_create_delta(
         self,
         schema: s_schema.Schema,
@@ -2077,13 +2063,6 @@ class TupleTypeShell(CollectionTypeShell[Tuple_T_co]):
     def is_named(self) -> bool:
         return self.typemods is not None and self.typemods.get('named', False)
 
-    def resolve(self, schema: s_schema.Schema) -> Tuple_T_co:
-        if isinstance(self.name, s_name.QualName):
-            tup = schema.get(self.name, type=Tuple)
-        else:
-            tup = schema.get_global(Tuple, self.get_name(schema))
-        return tup  # type: ignore
-
     def as_create_delta(
         self,
         schema: s_schema.Schema,
@@ -2473,13 +2452,6 @@ class RangeTypeShell(CollectionTypeShell[Range_T_co]):
     def get_displayname(self, schema: s_schema.Schema) -> str:
         return f'range<{self.subtype.get_displayname(schema)}>'
 
-    def resolve(self, schema: s_schema.Schema) -> Range_T_co:
-        if isinstance(self.name, s_name.QualName):
-            rng = schema.get(self.name, type=Range)
-        else:
-            rng = schema.get_global(Range, self.get_name(schema))
-        return rng  # type: ignore
-
     def as_create_delta(
         self,
         schema: s_schema.Schema,
@@ -2819,13 +2791,6 @@ class MultiRangeTypeShell(CollectionTypeShell[MultiRange_T_co]):
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
         return f'multirange<{self.subtype.get_displayname(schema)}>'
-
-    def resolve(self, schema: s_schema.Schema) -> MultiRange_T_co:
-        if isinstance(self.name, s_name.QualName):
-            rng = schema.get(self.name, type=MultiRange)
-        else:
-            rng = schema.get_global(MultiRange, self.get_name(schema))
-        return rng  # type: ignore
 
     def as_create_delta(
         self,

@@ -2193,17 +2193,15 @@ class ObjectShell(Shell, Generic[Object_T_co]):
                 'cannot resolve anonymous ObjectShell'
             )
 
-        if (
-            self.schemaclass is Object
-            or issubclass(self.schemaclass, QualifiedObject)
-        ):
+        name = self.get_name(schema)
+        if isinstance(name, sn.QualName):
             return schema.get(
-                self.name,
-                type=self.schemaclass,
-                sourcectx=self.sourcectx,
+                name, type=self.schemaclass, sourcectx=self.sourcectx,
             )
         else:
-            return schema.get_global(self.schemaclass, self.name)
+            return schema.get_global(
+                self.schemaclass, name
+            )
 
     def get_refname(self, schema: s_schema.Schema) -> sn.Name:
         if self.origname is not None:
