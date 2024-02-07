@@ -172,25 +172,29 @@ def eval_FuncCall(
     if fn_name == "set_config":
         # HACK: allow set_config('search_path', '', false) to support pg_dump
         # HACK: allow set_config('bytea_output','hex',false) to support pgadmin
+        # HACK: allow set_config('jit', ...) to support asyncpg
         if args := eval_list(expr.args, ctx=ctx):
             name, value, is_local = args
-            if (
-                isinstance(name, pgast.StringConstant)
-                and isinstance(value, pgast.StringConstant)
-                and isinstance(is_local, pgast.BooleanConstant)
-            ):
+            if isinstance(name, pgast.StringConstant):
                 if (
-                    name.val == "search_path"
-                    and value.val == ""
-                    and not is_local.val
+                    isinstance(value, pgast.StringConstant)
+                    and isinstance(is_local, pgast.BooleanConstant)
                 ):
-                    return value
+                    if (
+                        name.val == "search_path"
+                        and value.val == ""
+                        and not is_local.val
+                    ):
+                        return value
 
-                if (
-                    name.val == "bytea_output"
-                    and value.val == "hex"
-                    and not is_local.val
-                ):
+                    if (
+                        name.val == "bytea_output"
+                        and value.val == "hex"
+                        and not is_local.val
+                    ):
+                        return value
+
+                if name.val == "jit":
                     return value
 
         raise errors.QueryError(
