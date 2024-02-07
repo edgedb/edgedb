@@ -267,9 +267,7 @@ class MockAuthProvider:
         headers = {k.lower(): v for k, v in dict(handler.headers).items()}
         query_params = urllib.parse.parse_qs(parsed_path.query)
         if 'content-length' in headers:
-            body = handler.rfile.read(
-                int(headers['content-length'])
-            ).decode()
+            body = handler.rfile.read(int(headers['content-length'])).decode()
         else:
             body = None
 
@@ -373,6 +371,10 @@ AZURE_SECRET = 'c' * 32
 APPLE_SECRET = 'c' * 32
 DISCORD_SECRET = 'd' * 32
 SLACK_SECRET = 'd' * 32
+APP_NAME = "Test App"
+LOGO_URL = "http://example.com/logo.png"
+DARK_LOGO_URL = "http://example.com/darklogo.png"
+BRAND_COLOR = "f0f8ff"
 
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
@@ -386,6 +388,24 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::token_time_to_live := <duration>'24 hours';
+
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::AuthConfig::app_name := '{APP_NAME}';
+
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::AuthConfig::logo_url := '{LOGO_URL}';
+
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::AuthConfig::dark_logo_url := '{DARK_LOGO_URL}';
+
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::AuthConfig::brand_color := '{BRAND_COLOR}';
+
+        CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::UIConfig {{
+          redirect_to := 'https://example.com',
+          redirect_to_on_signup := 'https://example.com/signup',
+        }};
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::SMTPConfig::sender := 'noreply@example.com';
@@ -3479,6 +3499,25 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_ui_signin(self):
+        with self.http_con() as http_con:
+            challenge = (
+                base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode()
+            )
+            query_params = urllib.parse.urlencode({"challenge": challenge})
+
+            body, _, status = self.http_con_request(
+                http_con,
+                path=f"ui/signin?{query_params}",
+            )
+
+            body_str = body.decode()
+
+            self.assertIn(APP_NAME, body_str)
+            self.assertIn(LOGO_URL, body_str)
+            self.assertIn(BRAND_COLOR, body_str)
+            self.assertEqual(status, 200)
 
     async def test_client_token_identity_card(self):
         await self.con.query_single(

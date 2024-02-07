@@ -18,11 +18,16 @@
 
 
 from typing import Optional
+from dataclasses import dataclass
 
 
 class UIConfig:
     redirect_to: str
     redirect_to_on_signup: Optional[str]
+
+
+@dataclass
+class AppDetailsConfig:
     app_name: Optional[str]
     logo_url: Optional[str]
     dark_logo_url: Optional[str]

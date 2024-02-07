@@ -2,11 +2,10 @@ import asyncio
 import urllib.parse
 import random
 
-from typing import Any, Coroutine, cast
+from typing import Any, Coroutine
 from edb.server import tenant
-from edb.server.config.types import CompositeConfigType
 
-from . import util, ui, smtp, config
+from . import util, ui, smtp
 
 
 async def send_password_reset_email(
@@ -17,17 +16,15 @@ async def send_password_reset_email(
     test_mode: bool,
 ):
     from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
-    ui_config = cast(config.UIConfig, util.maybe_get_config(
-        db, "ext::auth::AuthConfig::ui", CompositeConfigType
-    ))
-    if ui_config is None:
+    app_details_config = util.get_app_details_config(db)
+    if app_details_config is None:
         email_args = {}
     else:
         email_args = dict(
-            app_name=ui_config.app_name,
-            logo_url=ui_config.logo_url,
-            dark_logo_url=ui_config.dark_logo_url,
-            brand_color=ui_config.brand_color,
+            app_name=app_details_config.app_name,
+            logo_url=app_details_config.logo_url,
+            dark_logo_url=app_details_config.dark_logo_url,
+            brand_color=app_details_config.brand_color,
         )
     msg = ui.render_password_reset_email(
         from_addr=from_addr,
@@ -55,9 +52,7 @@ async def send_verification_email(
     test_mode: bool,
 ):
     from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
-    ui_config = cast(config.UIConfig, util.maybe_get_config(
-        db, "ext::auth::AuthConfig::ui", CompositeConfigType
-    ))
+    app_details_config = util.get_app_details_config(db)
     verification_token_params = urllib.parse.urlencode(
         {
             "verification_token": verification_token,
@@ -66,14 +61,14 @@ async def send_verification_email(
         }
     )
     verify_url = f"{verify_url}?{verification_token_params}"
-    if ui_config is None:
+    if app_details_config is None:
         email_args = {}
     else:
         email_args = dict(
-            app_name=ui_config.app_name,
-            logo_url=ui_config.logo_url,
-            dark_logo_url=ui_config.dark_logo_url,
-            brand_color=ui_config.brand_color,
+            app_name=app_details_config.app_name,
+            logo_url=app_details_config.logo_url,
+            dark_logo_url=app_details_config.dark_logo_url,
+            brand_color=app_details_config.brand_color,
         )
     msg = ui.render_verification_email(
         from_addr=from_addr,

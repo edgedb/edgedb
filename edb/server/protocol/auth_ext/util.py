@@ -22,20 +22,17 @@ from typing import TypeVar, Type, overload, Any
 from edb.server import config
 
 from . import errors
+from .config import AppDetailsConfig
 
 T = TypeVar("T")
 
 
-def maybe_get_config_unchecked(
-    db: Any, key: str
-) -> Any:
+def maybe_get_config_unchecked(db: Any, key: str) -> Any:
     return config.lookup(key, db.db_config, spec=db.user_config_spec)
 
 
 @overload
-def maybe_get_config(
-    db: Any, key: str, expected_type: Type[T]
-) -> T | None:
+def maybe_get_config(db: Any, key: str, expected_type: Type[T]) -> T | None:
     ...
 
 
@@ -71,9 +68,7 @@ def get_config(db: Any, key: str) -> str:
     ...
 
 
-def get_config(
-    db: Any, key: str, expected_type: Type[object] = str
-) -> object:
+def get_config(db: Any, key: str, expected_type: Type[object] = str) -> object:
     value = maybe_get_config(db, key, expected_type)
     if value is None:
         raise errors.MissingConfiguration(
@@ -83,9 +78,7 @@ def get_config(
     return value
 
 
-def get_config_unchecked(
-    db: Any, key: str
-) -> Any:
+def get_config_unchecked(db: Any, key: str) -> Any:
     value = maybe_get_config_unchecked(db, key)
     if value is None:
         raise errors.MissingConfiguration(
@@ -97,3 +90,14 @@ def get_config_unchecked(
 
 def get_config_typename(config_value: config.SettingValue) -> str:
     return config_value._tspec.name  # type: ignore
+
+
+def get_app_details_config(db: Any) -> AppDetailsConfig:
+    return AppDetailsConfig(
+        app_name=maybe_get_config(db, "ext::auth::AuthConfig::app_name"),
+        logo_url=maybe_get_config(db, "ext::auth::AuthConfig::logo_url"),
+        dark_logo_url=maybe_get_config(
+            db, "ext::auth::AuthConfig::dark_logo_url"
+        ),
+        brand_color=maybe_get_config(db, "ext::auth::AuthConfig::brand_color"),
+    )
