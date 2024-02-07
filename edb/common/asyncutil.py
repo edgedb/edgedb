@@ -51,10 +51,12 @@ async def deferred_shield(arg: Awaitable[_T]) -> _T:
         try:
             await asyncio.shield(task)
         except asyncio.CancelledError as cex:
+            if ex is not None:
+                cex.__context__ = ex
             ex = cex
         except Exception:
-            if ex:  # Or would we rather raise the actual exception?
-                raise ex
+            if ex:
+                raise ex from None
             raise
 
     if ex:
