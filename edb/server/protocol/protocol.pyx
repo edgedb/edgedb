@@ -756,20 +756,20 @@ cdef class HttpProtocol:
         if origin_allowed:
             response.custom_headers['Access-Control-Allow-Origin'] = origin
             if expose_headers is not None:
-                response.custom_headers['Access-Control-Expose-Headers'] = \
-                    ', '.join(expose_headers)
+                response.custom_headers['Access-Control-Expose-Headers'] = (
+                    ', '.join(expose_headers))
 
         if request.method == b'OPTIONS':
             response.status = http.HTTPStatus.NO_CONTENT
             if origin_allowed:
                 if allow_methods is not None:
-                    response.custom_headers['Access-Control-Allow-Methods'] = \
-                        ', '.join(allow_methods)
-                response.custom_headers['Access-Control-Allow-Headers'] = \
-                    ', '.join(['Content-Type'] + allow_headers)
+                    response.custom_headers['Access-Control-Allow-Methods'] = (
+                        ', '.join(allow_methods))
+                response.custom_headers['Access-Control-Allow-Headers'] = (
+                    ', '.join(['Content-Type'] + allow_headers))
                 if allow_credentials:
-                    response.custom_headers['Access-Control-Allow-Credentials'] = \
-                        'true'
+                    response.custom_headers['Access-Control-Allow-Credentials'] = (
+                        'true')
                 
             return True
 
