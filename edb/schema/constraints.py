@@ -198,19 +198,6 @@ class Constraint(
         # if there no origin, return self
         return [self] if not origins else list(origins)
 
-    def get_ancestor_from_std(
-        self, schema: s_schema.Schema
-    ) -> Optional[Constraint]:
-        name: sn.QualName = self.get_name(schema)
-        if name.module == 'std':
-            return self
-
-        for base in self.get_bases(schema).objects(schema):
-            std_ancestor = base.get_ancestor_from_std(schema)
-            if std_ancestor:
-                return std_ancestor
-        return None
-
     def is_independent(self, schema: s_schema.Schema) -> bool:
         return (
             not self.descendants(schema)
