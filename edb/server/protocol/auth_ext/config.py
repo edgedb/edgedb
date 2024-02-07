@@ -19,6 +19,7 @@
 
 from typing import Optional
 from dataclasses import dataclass
+import urllib.parse
 
 
 class UIConfig:
@@ -36,3 +37,28 @@ class AppDetailsConfig:
 
 class ProviderConfig:
     name: str
+
+
+class WebAuthnProviderConfig(ProviderConfig):
+    relying_party_origin: str
+    require_verification: bool
+
+
+@dataclass
+class WebAuthnProvider:
+    name: str
+    relying_party_origin: str
+    require_verification: bool
+
+    def __init__(
+        self, name: str, relying_party_origin: str, require_verification: bool
+    ):
+        self.name = name
+        self.relying_party_origin = relying_party_origin
+        self.require_verification = require_verification
+        parsed_url = urllib.parse.urlparse(self.relying_party_origin)
+        if parsed_url.hostname is None:
+            raise ValueError(
+                "Invalid relying_party_origin, hostname cannot be None"
+            )
+        self.relying_party_id = parsed_url.hostname

@@ -241,8 +241,9 @@ class MockAuthProvider:
         path: str,
     ):
         def wrapper(
-            handler: ResponseType
-            | Callable[[MockHttpServerHandler], ResponseType]
+            handler: (
+                ResponseType | Callable[[MockHttpServerHandler], ResponseType]
+            )
         ):
             self.routes[(method, server, path)] = handler
             return handler
@@ -454,6 +455,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::EmailPasswordProviderConfig {{
+            require_verification := false,
+        }};
+
+        CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::WebAuthnProviderConfig {{
+            relying_party_origin := 'https://example.com:8080',
             require_verification := false,
         }};
         """,
@@ -3518,6 +3525,78 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertIn(LOGO_URL, body_str)
             self.assertIn(BRAND_COLOR, body_str)
             self.assertEqual(status, 200)
+
+    async def test_http_auth_ext_webauthn_register_options(self):
+        with self.http_con() as http_con:
+            email = "user@example.com"
+            query_params = urllib.parse.urlencode({"email": email})
+
+            body, _, status = self.http_con_request(
+                http_con,
+                path=f"webauthn/register/options?{query_params}",
+            )
+
+            body_json = json.loads(body.decode())
+            self.assertEqual(status, 200)
+
+            # Check the structure of the PublicKeyCredentialCreationOptions
+            self.assertIn("rp", body_json)
+            self.assertIn("user", body_json)
+            self.assertIn("challenge", body_json)
+            self.assertIn("pubKeyCredParams", body_json)
+            self.assertIn("timeout", body_json)
+            self.assertIn("excludeCredentials", body_json)
+            self.assertIn("attestation", body_json)
+
+            self.assertIsInstance(body_json["rp"], dict)
+            self.assertIn("name", body_json["rp"])
+            self.assertEqual(body_json["rp"]["name"], APP_NAME)
+            self.assertIn("id", body_json["rp"])
+            self.assertEqual(body_json["rp"]["id"], "example.com")
+
+            self.assertIsInstance(body_json["user"], dict)
+            self.assertIn("id", body_json["user"])
+            self.assertIsInstance(body_json["user"]["id"], str)
+            self.assertIn("name", body_json["user"])
+            self.assertEqual(body_json["user"]["name"], email)
+            self.assertIn("displayName", body_json["user"])
+            self.assertEqual(body_json["user"]["displayName"], email)
+
+            self.assertIsInstance(body_json["pubKeyCredParams"], list)
+            self.assertTrue(len(body_json["pubKeyCredParams"]) > 0)
+            for param in body_json["pubKeyCredParams"]:
+                self.assertIn("type", param)
+                self.assertEqual(param["type"], "public-key")
+                self.assertIn("alg", param)
+                self.assertIsInstance(param["alg"], int)
+
+            self.assertEqual(body_json["timeout"], 60000)
+
+            self.assertIsInstance(body_json["excludeCredentials"], list)
+
+            self.assertEqual(body_json["attestation"], "none")
+
+            challenge_bytes = base64.urlsafe_b64decode(
+                f'{body_json["challenge"]}==='
+            )
+            user_handle = base64.urlsafe_b64decode(
+                f'{body_json["user"]["id"]}==='
+            )
+            self.assertTrue(
+                await self.con.query_single(
+                    '''
+                    SELECT EXISTS (
+                        SELECT ext::auth::WebAuthnRegistrationChallenge
+                        filter .challenge = <bytes>$challenge
+                        AND .email = <str>$email
+                        AND .user_handle = <bytes>$user_handle
+                    )
+                    ''',
+                    challenge=challenge_bytes,
+                    email=email,
+                    user_handle=user_handle,
+                )
+            )
 
     async def test_client_token_identity_card(self):
         await self.con.query_single(

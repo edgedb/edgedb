@@ -19,6 +19,8 @@
 
 import dataclasses
 import datetime
+import base64
+
 from typing import Optional, NamedTuple
 
 
@@ -140,3 +142,43 @@ class ProviderConfig(NamedTuple):
     client_id: str
     secret: str
     additional_scope: Optional[str]
+
+
+@dataclasses.dataclass
+class WebAuthnFactor:
+    id: str
+    created_at: datetime.datetime
+    modified_at: datetime.datetime
+    identity: LocalIdentity
+    email: str
+    verified_at: Optional[datetime.datetime]
+    user_handle: bytes
+    credential_id: bytes
+    public_key: bytes
+
+    def __init__(
+        self,
+        *,
+        id,
+        created_at,
+        modified_at,
+        identity,
+        email,
+        verified_at,
+        user_handle,
+        credential_id,
+        public_key,
+    ):
+        self.id = id
+        self.created_at = created_at
+        self.modified_at = modified_at
+        self.identity = (
+            LocalIdentity(**identity)
+            if isinstance(identity, dict)
+            else identity
+        )
+        self.email = email
+        self.verified_at = verified_at
+        self.user_handle = base64.b64decode(user_handle)
+        self.credential_id = base64.b64decode(credential_id)
+        self.public_key = base64.b64decode(public_key)

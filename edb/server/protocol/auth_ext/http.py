@@ -41,7 +41,17 @@ from edb.ir import statypes
 from edb.server import tenant as edbtenant
 from edb.server.config.types import CompositeConfigType
 
-from . import oauth, local, errors, util, pkce, ui, config, email as auth_emails
+from . import (
+    email_password,
+    oauth,
+    errors,
+    util,
+    pkce,
+    ui,
+    config,
+    email as auth_emails,
+    webauthn,
+)
 
 
 logger = logging.getLogger('edb.server')
@@ -97,6 +107,13 @@ class Router:
                 case ('reset-password',):
                     return await self.handle_reset_password(*handler_args)
 
+                # WebAuthn routes
+                case ('webauthn', 'register'):
+                    return await self.handle_webauthn_register(*handler_args)
+                case ('webauthn', 'register', 'options'):
+                    return await self.handle_webauthn_register_options(
+                        *handler_args
+                    )
                 # UI routes
                 case ('ui', 'signin'):
                     return await self.handle_ui_signin(*handler_args)
@@ -178,6 +195,13 @@ class Router:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
+                ex=ex,
+            )
+
+        except errors.WebAuthnAuthenticationFailed as ex:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.UNAUTHORIZED,
                 ex=ex,
             )
 
@@ -325,9 +349,11 @@ class Router:
                 refresh_token=refresh_token,
             )
         new_url = _join_url_params(
-            (redirect_to_on_signup or redirect_to)
-            if new_identity
-            else redirect_to,
+            (
+                (redirect_to_on_signup or redirect_to)
+                if new_identity
+                else redirect_to
+            ),
             {"code": pkce_code, "provider": provider_name},
         )
         session_token = self._make_session_token(identity.id)
@@ -394,14 +420,12 @@ class Router:
         if register_provider_name is None:
             raise errors.InvalidData('Missing "provider" in register request')
 
-        local_client = local.Client(
-            db=self.db, provider_name=register_provider_name
-        )
-        require_verification = local_client.provider.config.require_verification
+        email_password_client = email_password.Client(db=self.db)
+        require_verification = email_password_client.config.require_verification
         pkce_code: Optional[str] = None
 
         try:
-            identity = await local_client.register(data)
+            identity = await email_password_client.register(data)
             if not require_verification:
                 if maybe_challenge is None:
                     raise errors.InvalidData(
@@ -485,16 +509,16 @@ class Router:
                 "Redirect URL does not match any allowed URLs.",
             )
 
-        local_client = local.Client(
-            db=self.db, provider_name=authenticate_provider_name
-        )
+        email_password_client = email_password.Client(db=self.db)
         try:
-            local_identity = await local_client.authenticate(data)
-            verified_at = await local_client.get_verified_by_identity_id(
-                identity_id=local_identity.id
+            local_identity = await email_password_client.authenticate(data)
+            verified_at = (
+                await email_password_client.get_verified_by_identity_id(
+                    identity_id=local_identity.id
+                )
             )
             if (
-                local_client.provider.config.require_verification
+                email_password_client.config.require_verification
                 and verified_at is None
             ):
                 raise errors.VerificationRequired()
@@ -602,7 +626,7 @@ class Router:
         data = self._get_data_from_request(request)
 
         _check_keyset(data, {"provider"})
-        local_client = local.Client(db=self.db, provider_name=data["provider"])
+        email_password_client = email_password.Client(db=self.db)
         verify_url = data.get("verify_url", f"{self.base_path}/ui/verify")
         if "verification_token" in data:
             (
@@ -614,7 +638,9 @@ class Router:
             ) = self._get_data_from_verification_token(
                 data["verification_token"]
             )
-            email = await local_client.get_email_by_identity_id(identity_id)
+            email = await email_password_client.get_email_by_identity_id(
+                identity_id
+            )
         elif "email" in data:
             email = data["email"]
             maybe_challenge = None
@@ -627,8 +653,10 @@ class Router:
                 )
 
             try:
-                (identity, _) = await local_client.get_identity_and_secret(
-                    {"email": email}
+                (identity, _) = (
+                    await email_password_client.get_identity_and_secret(
+                        {"email": email}
+                    )
                 )
                 identity_id = identity.id
             except errors.NoIdentityFound:
@@ -654,7 +682,7 @@ class Router:
         data = self._get_data_from_request(request)
 
         _check_keyset(data, {"provider", "email", "reset_url", "challenge"})
-        local_client = local.Client(db=self.db, provider_name=data["provider"])
+        email_password_client = email_password.Client(db=self.db)
         if not self._is_url_allowed(data["reset_url"]):
             raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
@@ -670,7 +698,7 @@ class Router:
                 (
                     identity,
                     secret,
-                ) = await local_client.get_identity_and_secret(data)
+                ) = await email_password_client.get_identity_and_secret(data)
 
                 new_reset_token = self._make_secret_token(
                     identity.id, secret, {"challenge": data["challenge"]}
@@ -735,7 +763,7 @@ class Router:
         data = self._get_data_from_request(request)
 
         _check_keyset(data, {"provider", "reset_token"})
-        local_client = local.Client(db=self.db, provider_name=data["provider"])
+        email_password_client = email_password.Client(db=self.db)
 
         maybe_redirect_to = data.get("redirect_to")
         if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
@@ -750,7 +778,9 @@ class Router:
                 reset_token
             )
 
-            await local_client.update_password(identity_id, secret, data)
+            await email_password_client.update_password(
+                identity_id, secret, data
+            )
             await pkce.create(self.db, challenge)
             code = await pkce.link_identity_challenge(
                 self.db, identity_id, challenge
@@ -784,6 +814,106 @@ class Router:
                 )
             else:
                 raise ex
+
+    async def handle_webauthn_register_options(
+        self, request: Any, response: Any
+    ):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        email = _get_search_param(query, "email")
+        webauthn_client = webauthn.Client(self.db)
+
+        (user_handle, registration_options) = (
+            await webauthn_client.create_registration_options_for_email(
+                email=email,
+            )
+        )
+
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"application/json"
+        _set_cookie(
+            response,
+            "edgedb-webauthn-registration-user-handle",
+            user_handle,
+            path="/",
+        )
+        response.body = registration_options
+
+    async def handle_webauthn_register(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(
+            data,
+            {"provider", "challenge", "email", "credentials", "verify_url"},
+        )
+        webauthn_client = webauthn.Client(self.db)
+
+        provider_name: str = data["provider"]
+        email: str = data["email"]
+        verify_url: str = data["verify_url"]
+        credentials: str = data["credentials"]
+        pkce_challenge: str = data["challenge"]
+
+        user_handle_cookie = request.cookies.get(
+            "edgedb-webauthn-registration-user-handle"
+        ).value
+        if user_handle_cookie is None:
+            raise errors.InvalidData(
+                "Missing 'edgedb-webauthn-registration-user-handle' cookie"
+            )
+        try:
+            user_handle = base64.urlsafe_b64decode(user_handle_cookie)
+        except Exception as e:
+            raise errors.InvalidData(
+                "Failed to decode 'edgedb-webauthn-registration-user-handle'"
+                " cookie"
+            ) from e
+
+        require_verification = webauthn_client.provider.require_verification
+        pkce_code: Optional[str] = None
+
+        identity = await webauthn_client.register(
+            credentials=credentials,
+            email=email,
+            user_handle=user_handle,
+        )
+        if not require_verification:
+            await pkce.create(self.db, pkce_challenge)
+            pkce_code = await pkce.link_identity_challenge(
+                self.db, identity.id, pkce_challenge
+            )
+
+        await self._send_verification_email(
+            provider=provider_name,
+            identity_id=identity.id,
+            to_addr=data["email"],
+            verify_url=verify_url,
+            maybe_challenge=pkce_challenge,
+            maybe_redirect_to=None,
+        )
+
+        _set_cookie(
+            response,
+            "edgedb-webauthn-registration-user-handle",
+            "",
+            path="/",
+        )
+        response.status = http.HTTPStatus.CREATED
+        response.content_type = b"application/json"
+        if require_verification:
+            now_iso8601 = datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+            response.body = json.dumps(
+                {"verification_email_sent_at": (now_iso8601)}
+            ).encode()
+        else:
+            if pkce_code is None:
+                raise errors.PKCECreationFailed
+            response.body = json.dumps(
+                {"code": pkce_code, "provider": provider_name}
+            ).encode()
 
     async def handle_ui_signin(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
@@ -946,13 +1076,14 @@ class Router:
                         challenge,
                     ) = self._get_data_from_reset_token(reset_token)
 
-                    local_client = local.Client(
+                    email_password_client = email_password.Client(
                         db=self.db,
-                        provider_name=password_provider.name,
                     )
 
-                    is_valid = await local_client.validate_reset_secret(
-                        identity_id, secret
+                    is_valid = (
+                        await email_password_client.validate_reset_secret(
+                            identity_id, secret
+                        )
                     )
                 except Exception:
                     is_valid = False
@@ -984,85 +1115,92 @@ class Router:
             response.body = b'Auth UI not enabled'
             return
 
-        password_provider = (
-            self._get_password_provider() if ui_config is not None else None
-        )
         is_valid = True
         maybe_pkce_code: str | None = None
         redirect_to = ui_config.redirect_to_on_signup or ui_config.redirect_to
 
-        if password_provider is None:
-            response.status = http.HTTPStatus.NOT_FOUND
-            response.body = b'Password provider not configured'
-            return
-
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
+
+        maybe_provider_name = _maybe_get_search_param(query, "provider")
         maybe_verification_token = _maybe_get_search_param(
             query, "verification_token"
         )
-        if maybe_verification_token is None:
-            error_messages.append("Missing email verification token.")
-            is_valid = False
-        else:
-            try:
-                (
-                    identity_id,
-                    issued_at,
-                    _,
-                    maybe_challenge,
-                    maybe_redirect_to,
-                ) = self._get_data_from_verification_token(
-                    maybe_verification_token
+
+        match (maybe_provider_name, maybe_verification_token):
+            case (None, None):
+                error_messages.append(
+                    "Missing provider and email verification token."
                 )
+                is_valid = False
+            case (None, _):
+                error_messages.append("Missing provider.")
+                is_valid = False
+            case (_, None):
+                error_messages.append("Missing email verification token.")
+                is_valid = False
+            case (str(provider_name), str(verification_token)):
                 try:
+                    (
+                        identity_id,
+                        issued_at,
+                        _,
+                        maybe_challenge,
+                        maybe_redirect_to,
+                    ) = self._get_data_from_verification_token(
+                        verification_token
+                    )
                     await self._try_verify_email(
-                        provider=password_provider.name,
+                        provider=provider_name,
                         issued_at=issued_at,
                         identity_id=identity_id,
                     )
+
+                    match maybe_challenge:
+                        case str(ch):
+                            await pkce.create(self.db, ch)
+                            maybe_pkce_code = (
+                                await pkce.link_identity_challenge(
+                                    self.db,
+                                    identity_id,
+                                    ch,
+                                )
+                            )
+                        case _:
+                            maybe_pkce_code = None
+
+                    match maybe_redirect_to:
+                        case str(rt):
+                            redirect_to = (
+                                _with_appended_qs(
+                                    rt,
+                                    {
+                                        "code": [maybe_pkce_code],
+                                    },
+                                )
+                                if maybe_pkce_code
+                                else rt
+                            )
+                        case _:
+                            redirect_to = cast(str, ui_config.redirect_to)
+
                 except errors.VerificationTokenExpired:
+                    app_details_config = self._get_app_details_config()
                     response.status = http.HTTPStatus.OK
                     response.content_type = b"text/html"
                     response.body = ui.render_email_verification_expired_page(
-                        verification_token=maybe_verification_token,
-                        app_name=ui_config.app_name,
-                        logo_url=ui_config.logo_url,
-                        dark_logo_url=ui_config.dark_logo_url,
-                        brand_color=ui_config.brand_color,
+                        verification_token=verification_token,
+                        app_name=app_details_config.app_name,
+                        logo_url=app_details_config.logo_url,
+                        dark_logo_url=app_details_config.dark_logo_url,
+                        brand_color=app_details_config.brand_color,
                     )
                     return
 
-                match maybe_challenge:
-                    case str(ch):
-                        await pkce.create(self.db, ch)
-                        maybe_pkce_code = await pkce.link_identity_challenge(
-                            self.db,
-                            identity_id,
-                            ch,
-                        )
-                    case _:
-                        maybe_pkce_code = None
-
-                match maybe_redirect_to:
-                    case str(rt):
-                        redirect_to = (
-                            _with_appended_qs(
-                                rt,
-                                {
-                                    "code": [maybe_pkce_code],
-                                },
-                            )
-                            if maybe_pkce_code
-                            else rt
-                        )
-                    case _:
-                        redirect_to = cast(str, ui_config.redirect_to)
-
-            except Exception as ex:
-                error_messages.append(repr(ex))
-                is_valid = False
+                except Exception as ex:
+                    error_messages.append(repr(ex))
+                    is_valid = False
 
         # Only redirect back if verification succeeds
         if is_valid:
@@ -1107,8 +1245,8 @@ class Router:
                 maybe_challenge,
                 maybe_redirect_to,
             ) = self._get_data_from_verification_token(verification_token)
-            local_client = local.Client(self.db, password_provider.name)
-            email = await local_client.get_email_by_identity_id(
+            email_password_client = email_password.Client(self.db)
+            email = await email_password_client.get_email_by_identity_id(
                 identity_id=identity_id
             )
             if email is None:
@@ -1219,8 +1357,9 @@ class Router:
         self,
         identity_id: str,
         secret: str,
-        additional_claims: dict[str, str | int | float | bool | None]
-        | None = None,
+        additional_claims: (
+            dict[str, str | int | float | bool | None] | None
+        ) = None,
         expires_in: datetime.timedelta | None = None,
     ) -> str:
         signing_key = self._get_auth_signing_key()
@@ -1375,6 +1514,30 @@ class Router:
 
         return password_providers[0] if len(password_providers) == 1 else None
 
+    def _get_webauthn_provider(self) -> config.WebAuthnProvider | None:
+        providers = cast(
+            list[config.ProviderConfig],
+            util.get_config(
+                self.db,
+                "ext::auth::AuthConfig::providers",
+                frozenset,
+            ),
+        )
+        webauthn_providers = cast(
+            list[config.WebAuthnProviderConfig],
+            [p for p in providers if (p.name == 'builtin::local_webauthn')],
+        )
+
+        if len(webauthn_providers) == 1:
+            provider = webauthn_providers[0]
+            return config.WebAuthnProvider(
+                name=provider.name,
+                relying_party_origin=provider.relying_party_origin,
+                require_verification=provider.require_verification,
+            )
+        else:
+            return None
+
     async def _send_verification_email(
         self,
         *,
@@ -1424,8 +1587,18 @@ class Router:
         if token_age > datetime.timedelta(hours=24):
             raise errors.VerificationTokenExpired()
 
-        local_client = local.Client(db=self.db, provider_name=provider)
-        updated = await local_client.verify_email(identity_id, current_time)
+        client: email_password.Client | webauthn.Client
+        match provider:
+            case "builtin::local_emailpassword":
+                client = email_password.Client(db=self.db)
+            case "builtin::local_webauthn":
+                client = webauthn.Client(self.db)
+            case _:
+                raise errors.InvalidData(
+                    f"Unknown provider: {provider}",
+                )
+
+        updated = await client.verify_email(identity_id, current_time)
         if updated is None:
             raise errors.NoIdentityFound(
                 "Could not verify email for identity"
@@ -1518,14 +1691,18 @@ def _set_cookie(
     response: Any,
     name: str,
     value: str,
+    *,
     http_only: bool = True,
     secure: bool = True,
     same_site: str = "Strict",
+    path: Optional[str] = None,
 ):
     val: http.cookies.Morsel = http.cookies.SimpleCookie({name: value})[name]
     val["httponly"] = http_only
     val["secure"] = secure
     val["samesite"] = same_site
+    if path is not None:
+        val["path"] = path
     response.custom_headers["Set-Cookie"] = val.OutputString()
 
 
