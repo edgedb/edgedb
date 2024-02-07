@@ -272,7 +272,7 @@ class Block(typing.Generic[C]):
             # There can be a race between a waiter scheduled for to wake up
             # and a connection being stolen (due to quota being enforced,
             # for example).  In which case the waiter might get finally
-            # woken up with an empty queue -- hence try 'try'.
+            # woken up with an empty queue -- hence the 'try'.
             # acquire will put a while loop around this
 
             # Yield the most recently used connection from the top of the stack
