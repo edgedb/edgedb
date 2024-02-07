@@ -206,14 +206,14 @@ an existing city (i.e. the same location).
 
 .. code-block:: sdl-diff
 
-  type City {
-    required name: str;
-    required latitude: Latitude;
-    required longitude: Longitude;
-    multi conditions := (select .<city[is Conditions] order by .time);
-  + key := .name ++ <str><int64>.latitude ++ <str><int64>.longitude;
-  + constraint exclusive on (.key);
-  }
+    type City {
+      required name: str;
+      required latitude: Latitude;
+      required longitude: Longitude;
+      multi conditions := (select .<city[is Conditions] order by .time);
+  +   key := .name ++ <str><int64>.latitude ++ <str><int64>.longitude;
+  +   constraint exclusive on (.key);
+    }
 
 You could give this or another method a try if you are feeling ambitious.
 
@@ -1058,7 +1058,7 @@ into a ``LocalDatetime`` instead of a ``String``.
 .. lint-off
 
 Conversely, the unofficial
-`edgedb-query-derive <https://docs.rs/edgedb-query-derive/latest/edgedb_query_derive/attr.select_query.html>`
+`edgedb-query-derive <https://docs.rs/edgedb-query-derive/latest/edgedb_query_derive/attr.select_query.html>`_
 crate provides a way to turn Rust types into EdgeQL queries using its
 ``.to_edge_query()`` method.
 
