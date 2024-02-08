@@ -14,8 +14,18 @@ The UI's text view is similar to what is produced in the CLI through the
 ``describe schema as sdl`` command, but includes inherited properties and
 links.
 
-The schema viewer shows the user's defined schema by default under the
-name ``User``, and also includes ``Stdlib`` and ``System`` as a convenience.
+The schema viewer shows the user's defined schema by default under the name
+``User``. The user may instead select and view ``Stdlib`` or ``System`` by
+selecting them from the "Schema" dropdown menu.
+
+.. image:: images/schema_selection_dropdown.png
+    :alt: The schema selection dropdown menu highlighted in the context of the
+          overall schema viewer, showing the menu open. Three schemas are
+          available for selection: User, Stdlib, and System, with User
+          currently active (indicated by a check mark) and Stdlib currently
+          selected (highlighted in green).
+    :width: 100%
+
 Along with the schema viewer's built-in search function, this makes
 the schema viewer often even more convenient than searching through EdgeDB's
 online documentation.
