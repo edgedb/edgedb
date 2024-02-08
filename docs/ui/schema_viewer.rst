@@ -16,7 +16,7 @@ links.
 
 The schema viewer shows the user's defined schema by default under the name
 ``User``. The user may instead select and view ``Stdlib`` or ``System`` by
-selecting them from the "Schema" dropdown menu.
+selecting them from the Schema dropdown menu.
 
 .. image:: images/schema_selection_dropdown.png
     :alt: The schema selection dropdown menu highlighted in the context of the
