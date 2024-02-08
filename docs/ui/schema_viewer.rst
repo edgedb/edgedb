@@ -32,38 +32,12 @@ online documentation.
 
 For example, a search for 'max val' immediately shows the following output:
 
-.. code-block::
-
-    abstract constraint std::max_value(max: anytype) {
-    using ((__subject__ <= max));
-    }  errmessage := 
-        'Maximum allowed value for {__subject__} is {max}.';
-    annotation std::description := 
-        'Specifies the maximum value for the subject.';
-    ;
-
-    abstract constraint std::max_ex_value(max: anytype) {
-    using ((__subject__ < max));
-    }  errmessage := 
-        '{__subject__} must be less than {max}.';
-    annotation std::description := 
-        'Specifies the maximum value (as an open interval) for the subject.';
-    ;
-
-    abstract constraint std::max_len_value(max: std::int64) 
-        on (std::len(<std::str>__subject__)) {
-    using ((__subject__ <= max));
-    }  errmessage := 
-        '{__subject__} must be no longer than {max} characters.';
-    annotation std::description := 
-        'Specifies the maximum length of subject string representation.';
-    ;
-
 .. image:: images/stdlib_search.png
     :alt: A search result from the Schema Viewer page in the EdgeDB UI,
           in which a search for the keywords max and val has turned up
           three matching functions: max value, max ex value, and max
-          len value.
+          len value. The full code for each function as declared can be
+          seen, allowing for inspection of their behavior.
     :width: 100%
 
 Graph view
