@@ -32,6 +32,7 @@ from edb import errors
 from edb.common import context as pctx
 from edb.common import term
 from . import pathid
+from . import ast as irast
 
 
 class FenceInfo(NamedTuple):
@@ -438,8 +439,10 @@ class ScopeTreeNode:
             #       |-Foo.bar
             #   Foo
             #
-            # I forget why this is necessary for tuples, but it is permissable
-            # because their fields are always singletons.
+            # This is permissable because their fields are always singletons.
+            # FIXME: I think that it should not be *necessary* for tuples,
+            # but test_edgeql_volatility_select_tuples_* fail if it is changed,
+            # I think for incidental reasons.
             #
             # For link properties, this is necessary because referring
             # to a link property at the end of a path suppresses
@@ -673,8 +676,7 @@ class ScopeTreeNode:
         Check if all the pointers a path might be hoisted past are not links
 
         If the node is a path_id node, return true if the rptrs on
-        all of the chain of parent nodes with path_ids are not links
-        (that is, they are properties or type intersections).
+        all of the chain of parent nodes with path_ids are not links.
 
         This is in support of allowing queries like
           select Card.element filter Card.name = 'Imp'
@@ -685,9 +687,9 @@ class ScopeTreeNode:
 
         node: ScopeTreeNode | None = self
         while node and node.path_id:
-            if node.path_id.rptr() and (
-                node.path_id.is_objtype_path()
-                and not node.path_id.is_type_intersection_path()
+            if (
+                isinstance(node.path_id.rptr(), irast.PointerRef)
+                and node.path_id.is_objtype_path()
             ):
                 return False
             node = node.parent
