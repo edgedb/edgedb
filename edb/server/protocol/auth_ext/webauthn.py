@@ -96,12 +96,12 @@ class Client(local.Client):
             self.db,
             """
 with
-    challenge := <str>$challenge,
-    user_handle := <str>$user_handle,
+    challenge := <bytes>$challenge,
+    user_handle := <bytes>$user_handle,
     email := <str>$email,
 insert ext::auth::WebAuthnRegistrationChallenge {
-    challenge := enc::base64_decode(challenge),
-    user_handle := enc::base64_decode(user_handle),
+    challenge := challenge,
+    user_handle := user_handle,
     email := email,
 }""",
             variables={
@@ -140,18 +140,18 @@ insert ext::auth::WebAuthnRegistrationChallenge {
                 """
 with
     email := <str>$email,
-    user_handle := <str>$user_handle,
-    credential_id := <str>$credential_id,
-    public_key := <str>$public_key,
+    user_handle := <bytes>$user_handle,
+    credential_id := <bytes>$credential_id,
+    public_key := <bytes>$public_key,
     identity := (insert ext::auth::LocalIdentity {
         issuer := "local",
         subject := "",
     }),
     factor := (insert ext::auth::WebAuthnFactor {
-        email := <str>$email,
-        user_handle := enc::base64_decode(<str>$user_handle),
-        credential_id := enc::base64_decode(<str>$credential_id),
-        public_key := enc::base64_decode(<str>$public_key),
+        email := email,
+        user_handle := user_handle,
+        credential_id := credential_id,
+        public_key := public_key,
         identity := identity,
     }),
 select identity { * };""",
@@ -187,14 +187,16 @@ select identity { * };""",
         result = await execute.parse_execute_json(
             self.db,
             """
+with
+    email := <str>$email,
+    user_handle := <bytes>$user_handle,
 select ext::auth::WebAuthnRegistrationChallenge {
     id,
     challenge,
     user_handle,
     email,
 }
-filter .email = <str>$email
-and .user_handle = enc::base64_decode(<str>$user_handle);""",
+filter .email = email and .user_handle = user_handle;""",
             variables={
                 "email": email,
                 "user_handle": base64.b64encode(user_handle).decode(),
@@ -222,7 +224,7 @@ and .user_handle = enc::base64_decode(<str>$user_handle);""",
             """
 with
     email := <str>$email,
-    user_handle := enc::base64_decode(<str>$user_handle),
+    user_handle := <bytes>$user_handle,
 delete ext::auth::WebAuthnRegistrationChallenge
 filter .email = email and .user_handle = user_handle;""",
             variables={
