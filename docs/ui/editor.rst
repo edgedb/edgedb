@@ -4,8 +4,8 @@
 Query editor
 ============
 
-.. image:: images/editor.png
-    :alt: The editor page in the EdgeDB UI, inside which the query builder
+.. image:: images/query_builder.png
+    :alt: The editor tab in the EdgeDB UI, inside which the query builder
           is shown as the user puts together a query to see the name property
           for a user-defined type called Book. A filter on the object's id
           and a limit to the number of object types returned are being set.
@@ -16,7 +16,7 @@ Query editor
 Query Editor
 ------------
 
-.. image:: images/editor.png
+.. image:: images/query_editor.png
     :alt: The Editor tab in the EdgeDB UI editor page, showing a query
           appended with the analyze keyword to analyze performance. The
           performance results show up in a graph on the right, with separate

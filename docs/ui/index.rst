@@ -48,6 +48,13 @@ needing any EdgeQL, making it the recommended for:
   deletions, as as the data explorer will first collect and display all user
   changes in a double-confirm dialog before allowing an operation to proceed.
 
+.. image:: images/data_explorer.png
+    :alt: The data explorer page in the EdgeDB UI. The icon is three bars
+          stacked on top of each other: blue, purple, and orange. A sample
+          query via the Data Explorer shows information about a user-defined
+          object type called a Booking.
+    :width: 100%
+
 The Editor page's *query builder* is recommended for:
 
 - Users who are learning EdgeQL but still lacking the muscle memory to compose
@@ -57,15 +64,38 @@ The Editor page's *query builder* is recommended for:
   visualizing an object's structure easier compared to using a command like
   ``describe type <TypeName>`` to see its internals.
 
+.. image:: images/query_builder.png
+    :alt: The editor page in the EdgeDB UI, inside which the query builder
+          is shown as the user puts together a query to see the name property
+          for a user-defined type called Book. A filter on the object's id
+          and a limit to the number of object types returned are being set.
+          The Editor icon is a blue square resembling a pad, with an orange
+          line resembling a pencil on top.
+    :width: 100%
+
 The Editor page's *query editor* is recommended for:
 
 - Users experimenting with various raw queries who want quick visual
   point-and-click access to past queries in order to call them up again
   and refine them.
 
+.. image:: images/query_editor.png
+    :alt: The editor tab in the EdgeDB UI editor page, showing a query
+          appended with the analyze keyword to analyze performance. The
+          performance results show up in a graph on the right, with separate
+          colored rectangles for each link traversed by the query.
+    :width: 100%
+
 The UI's REPL is recommended for:
 
 - Users comfortable with EdgeQL.
+
+.. image:: images/ui_repl.png
+    :alt: The REPL page in the EdgeDB UI. The icon is a blue right-facing
+          angle bracket followed by an orange underscore, representing a
+          cursor awaiting user input. The output for a query on a
+          user-defined type called a Booking Log Entry is displayed.
+    :width: 100%
 
 Additionally, users who spend a lot of time comparing raw queries may
 wish to give the CLI's REPL a try. A general rule of thumb is that the
