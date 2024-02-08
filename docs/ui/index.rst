@@ -140,21 +140,19 @@ show more information on a scalar object's type name:
 
 One more example of CLI vs. UI output, showing a user-defined function:
 
-.. code-block:: edgeql-repl
+.. code-block::
     :caption: CLI REPL
 
-  # CLI REPL output
-  'function default::get_url() ->  std::str using
-  (<std::str>\'https://geohack.toolforge.org/geohack.php?params=\');'}
+    'function default::get_url() ->  std::str using
+    (<std::str>\'https://geohack.toolforge.org/geohack.php?params=\');'}
 
-.. code-block:: edgeql-repl
+.. code-block::
     :caption: UI REPL
 
-  # UI REPL output
-  function default::get_url() -> std::str {
-  volatility := 'Immutable';
-  using (<std::str>'https://geohack.toolforge.org/geohack.php?params=');
-  }
+    function default::get_url() -> std::str {
+    volatility := 'Immutable';
+    using (<std::str>'https://geohack.toolforge.org/geohack.php?params=');
+    }
 
 .. toctree::
   :maxdepth: 1
