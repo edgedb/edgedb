@@ -1,7 +1,7 @@
 .. _ref_ui_schema_viewer:
 
 =============
-Schema Viewer
+Schema viewer
 =============
 
 The UI schema viewer allows you to see your schema either as text, graph,

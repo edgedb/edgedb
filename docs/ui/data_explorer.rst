@@ -1,7 +1,7 @@
 .. _ref_ui_data_explorer:
 
 =============
-Data Explorer
+Data explorer
 =============
 
 .. image:: images/data_explorer.png
