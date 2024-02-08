@@ -611,6 +611,8 @@ class DecimalEncoder(json.JSONEncoder):
                 ) + '}'
         if isinstance(obj, list):
             return '[' + ', '.join(map(self.encode, obj)) + ']'
+        if isinstance(obj, bytes):
+            return self.encode(base64.b64encode(obj).decode())
         if isinstance(obj, decimal.Decimal):
             return f'{obj:f}'
         return super().encode(obj)

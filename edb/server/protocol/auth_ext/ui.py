@@ -19,8 +19,9 @@
 from typing import *
 
 import html
-import urllib
+import urllib.parse
 import re
+
 from email.mime import multipart
 from email.mime import text as mime_text
 
@@ -185,14 +186,15 @@ def render_signup_page(
     brand_color: Optional[str] = None,
 ):
     password_provider = None
+    webauthn_provider = None
+    oauth_providers = []
     for p in providers:
         if p.name == 'builtin::local_emailpassword':
             password_provider = p
-            break
-
-    oauth_providers = [
-        p for p in providers if p.name.startswith('builtin::oauth_')
-    ]
+        elif p.name == 'builtin::local_webauthn':
+            webauthn_provider = p
+        elif p.name.startswith('builtin::oauth_'):
+            oauth_providers.append(p)
 
     oauth_params = {
         'redirect_to': redirect_to,
@@ -219,6 +221,56 @@ def render_signup_page(
             for p in oauth_providers
         ]
     )
+
+    email_factor_form = f"""
+      <input type="hidden" name="redirect_on_failure" value="{
+        base_path}/ui/signup" />
+      <input type="hidden" name="redirect_to" value="{
+          redirect_to_on_signup or redirect_to}" />
+      <input type="hidden" name="challenge" value="{challenge}" />
+      <input type="hidden" name="verify_url" value="{base_path}/ui/verify" />
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{email or ''}" />
+    """
+
+    has_email_factor = (
+        password_provider is not None or webauthn_provider is not None
+    )
+
+    email_factor_form += (
+        f"""
+        <input type="hidden" name="provider" value="{password_provider.name}" />
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" />
+        """
+        if password_provider is not None
+        else ""
+    )
+    match (password_provider, webauthn_provider):
+        case (None, None):
+            email_factor_form += ""
+        case (None, _):
+            email_factor_form += f"""
+            {_render_button('Sign Up', id='webauthn-signup')}
+            """
+        case (_, None):
+            email_factor_form += f"""
+            {_render_button("Sign Up", id="password-signup")}
+            """
+        case (_, _):
+            email_factor_form += f"""
+            {_render_button('Sign Up', id='webauthn-signup')}
+            {_render_button("Sign up with password", id="password-signup")}
+            """
+
+    email_factor_form += f"""
+        <div class="bottom-note">
+          Already have an account?
+          <a href="signin">Sign in</a>
+        </div>
+        """
+
     return _render_base_page(
         title=f'Sign up{f" to {app_name}" if app_name else ""}',
         logo_url=logo_url,
@@ -226,7 +278,12 @@ def render_signup_page(
         brand_color=brand_color,
         cleanup_search_params=['error', 'email'],
         content=f'''
-    <form class="container" method="POST" action="../register" novalidate>
+    <form
+      class="container"
+      id="email-factor"
+      method="POST"
+      action="../register" novalidate
+    >
       <h1>{f'<span>Sign up to</span> {html.escape(app_name)}'
            if app_name else '<span>Sign up</span>'}</h1>
 
@@ -242,35 +299,18 @@ def render_signup_page(
       <div class="divider">
         <span>or</span>
       </div>"""
-      if password_provider is not None
+      if has_email_factor is not None
         and len(oauth_providers) > 0
       else ''
     }
+    {email_factor_form if has_email_factor else ''}
+    </form>
     {
-      f"""
-      <input type="hidden" name="provider" value="{password_provider.name}" />
-      <input type="hidden" name="redirect_on_failure" value="{
-        base_path}/ui/signup" />
-      <input type="hidden" name="redirect_to" value="{
-          redirect_to_on_signup or redirect_to}" />
-      <input type="hidden" name="challenge" value="{challenge}" />
-      <input type="hidden" name="verify_url" value="{base_path}/ui/verify" />
-
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" value="{email or ''}" />
-
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" />
-
-      {_render_button('Sign Up')}
-
-      <div class="bottom-note">
-        Already have an account?
-        <a href="signin">Sign in</a>
-      </div>
-      </div>""" if password_provider is not None else ''
+      """
+      <script type="module" src="_static/webauthn-register.js"></script>"""
+      if webauthn_provider is not None else ''
     }
-    </form>''',
+    ''',
     )
 
 
@@ -623,9 +663,16 @@ def _render_success_message(success_message: str):
         </div>'''
 
 
-def _render_button(text: str):
+def _render_button(
+    text: str,
+    *,
+    id: Optional[str] = None,
+):
     return f'''
-    <button type="submit">
+    <button
+        type="submit"
+        {f'id="{id}"' if id else ''}
+    >
         <span>{text}</span>
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -793,9 +840,7 @@ def rgb_to_hsl(r: float, g: float, b: float) -> tuple[float, float, float]:
         (
             ((g - b) / s)
             if l == r
-            else (2 + (b - r) / s)
-            if l == g
-            else (4 + (r - g) / s)
+            else (2 + (b - r) / s) if l == g else (4 + (r - g) / s)
         )
         if s != 0
         else 0

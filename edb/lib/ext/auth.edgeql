@@ -55,15 +55,41 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     };
 
     create type ext::auth::EmailFactor extending ext::auth::Factor {
-        create required property email: str {
-            create delegated constraint exclusive;
-        };
+        create required property email: str;
         create property verified_at: std::datetime;
     };
 
     create type ext::auth::EmailPasswordFactor
         extending ext::auth::EmailFactor {
+        alter property email {
+            create constraint exclusive;
+        };
         create required property password_hash: std::str;
+    };
+
+    create type ext::auth::WebAuthnFactor extending ext::auth::EmailFactor {
+        create required property user_handle: std::bytes {
+            create constraint exclusive;
+        };
+        create required property credential_id: std::bytes {
+            create constraint exclusive;
+        };
+        create required property public_key: std::bytes {
+            create constraint exclusive;
+        };
+
+        create constraint exclusive on ((.email, .credential_id));
+    };
+
+    create type ext::auth::WebAuthnRegistrationChallenge
+        extending ext::auth::Auditable {
+        create required property challenge: std::bytes {
+            create constraint exclusive;
+        };
+        create required property email: std::str;
+        create required property user_handle: std::bytes;
+
+        create constraint exclusive on ((.user_handle, .email, .challenge));
     };
 
     create type ext::auth::PKCEChallenge extending ext::auth::Auditable {
@@ -194,6 +220,25 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         alter property name {
             set default := 'builtin::local_emailpassword';
             set protected := true;
+        };
+
+        create required property require_verification: std::bool {
+            set default := true;
+        };
+    };
+
+    create type ext::auth::WebAuthnProviderConfig
+        extending ext::auth::ProviderConfig {
+        alter property name {
+            set default := 'builtin::local_webauthn';
+            set protected := true;
+        };
+
+        create required property relying_party_origin: std::str {
+            create annotation std::description :=
+                "The full origin of the sign-in page including protocol and \
+                port of the application. If using the built-in UI, this \
+                should be the origin of the EdgeDB server.";
         };
 
         create required property require_verification: std::bool {
