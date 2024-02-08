@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const redirectUrl = new URL(redirectTo);
-      redirectUrl.searchParams.append("isSignup", "true");
+      redirectUrl.searchParams.append("isSignUp", "true");
       if (maybeCode !== null) {
         redirectUrl.searchParams.append("code", maybeCode);
       }
