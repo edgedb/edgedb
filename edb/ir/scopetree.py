@@ -439,7 +439,8 @@ class ScopeTreeNode:
             #       |-Foo.bar
             #   Foo
             #
-            # This is permissable because their fields are always singletons.
+            # For tuples, this is permissable because their fields are always
+            # singletons.
             # FIXME: I think that it should not be *necessary* for tuples,
             # but test_edgeql_volatility_select_tuples_* fail if it is changed,
             # I think for incidental reasons.
@@ -452,8 +453,6 @@ class ScopeTreeNode:
             # for certain optimizations. (Foo.bar[is Typ] can be compiled
             # such that it joins directly on Typ (instead of on Bar first),
             # but *only* if Foo.bar isn't visible without the type intersection.
-            target = parent
-
             if prefix.is_linkprop_path():
                 assert lprop_base is None
                 # If we just saw a linkprop, track where, since we'll
@@ -471,13 +470,12 @@ class ScopeTreeNode:
                 # referencing a linkprop, pop back up to the level the
                 # linkprop was attached to.
                 if lprop_base is not None:
-                    target = parent = lprop_base
+                    parent = lprop_base
                     lprop_base = None
 
+            parent.attach_child(new_child)
             if not prefix.is_tuple_indirection_path():
                 parent = new_child
-
-            target.attach_child(new_child)
 
         self.attach_subtree(subtree, context=context)
 
