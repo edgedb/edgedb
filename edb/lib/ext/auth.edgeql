@@ -79,7 +79,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
 
         create constraint exclusive on ((.email, .credential_id));
-        create constraint exclusive on ((.email, .user_handle));
     };
 
     create type ext::auth::WebAuthnRegistrationChallenge
