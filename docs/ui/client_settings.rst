@@ -2,10 +2,14 @@
 Client settings
 ===============
 
-.. image:: images/client_settings.png
-    :alt: The EdgeDB client settings dropdown bar showing two sample settings
-          that can be set: apply access policies, and implicit limit. Apply
-          access policies is set to false, and implicit limit is set to 100.
+.. Note: id is written as I D in the alt text below as 'id' is pronounced
+.. by screen readers as id (rhymes with 'did').
+
+.. image:: images/client_settings.gif
+    :alt: The EdgeDB client settings dropdown bar showing a user changing
+          a client setting called implicit limit from 50 to 100. Two other
+          client settings that can be modified are displayed: allow bare
+          ddl, and allow user specified I D.
     :width: 100%
 
 The UI exposes a number of :ref:`configuration parameters <ref_std_cfg>`
