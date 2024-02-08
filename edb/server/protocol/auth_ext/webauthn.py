@@ -246,8 +246,8 @@ filter .email = email and .user_handle = user_handle;""",
             self.db,
             """
 select ext::auth::WebAuthnFactor {
-    user_handle_encoded := enc::base64_encode(.user_handle),
-    credential_id_encoded := enc::base64_encode(.credential_id),
+    user_handle,
+    credential_id,
 }
 filter .email = <str>$email;""",
             variables={
@@ -256,13 +256,13 @@ filter .email = <str>$email;""",
             cached_globally=True,
         )
         result_json = json.loads(result.decode())
-        user_handles: set[str] = {x["user_handle_encoded"] for x in result_json}
+        user_handles: set[str] = {x["user_handle"] for x in result_json}
         assert len(user_handles) == 1
-        user_handle = base64.b64decode(result_json[0]["user_handle_encoded"])
+        user_handle = base64.b64decode(result_json[0]["user_handle"])
 
         credential_ids = [
             webauthn_structs.PublicKeyCredentialDescriptor(
-                base64.b64decode(x["credential_id_encoded"])
+                base64.b64decode(x["credential_id"])
             )
             for x in result_json
         ]
@@ -276,32 +276,30 @@ filter .email = <str>$email;""",
             self.db,
             """
 with
-    challenge := <str>$challenge,
-    user_handle := <str>$user_handle,
+    challenge := <bytes>$challenge,
+    user_handle := <bytes>$user_handle,
     email := <str>$email,
     factor := (
         assert_exists(assert_single((
             select ext::auth::WebAuthnFactor
-            filter .user_handle = enc::base64_decode(user_handle)
+            filter .user_handle = user_handle
             and .email = email
         )))
     )
 insert ext::auth::WebAuthnAuthenticationChallenge {
-    challenge := enc::base64_decode(challenge),
+    challenge := challenge,
     factor := factor,
 }
 unless conflict on .factor
 else (
     update ext::auth::WebAuthnAuthenticationChallenge
     set {
-        challenge := enc::base64_decode(challenge)
+        challenge := challenge
     }
 );""",
             variables={
-                "challenge": base64.b64encode(
-                    registration_options.challenge
-                ).decode(),
-                "user_handle": base64.b64encode(user_handle).decode(),
+                "challenge": registration_options.challenge,
+                "user_handle": user_handle,
                 "email": email,
             },
         )
@@ -321,7 +319,7 @@ else (
             """
 with
     email := <str>$email,
-    user_handle := enc::base64_decode(<str>$user_handle),
+    user_handle := <bytes>$user_handle,
     factor := (
         select ext::auth::WebAuthnFactor
         filter .email = email and .user_handle = user_handle
@@ -329,7 +327,7 @@ with
 select (factor.verified_at <= std::datetime_current()) ?? false;""",
             variables={
                 "email": email,
-                "user_handle": base64.b64encode(user_handle).decode(),
+                "user_handle": user_handle,
             },
             cached_globally=True,
         )
@@ -346,7 +344,7 @@ select (factor.verified_at <= std::datetime_current()) ?? false;""",
             """
 with
     email := <str>$email,
-    user_handle := enc::base64_decode(<str>$user_handle),
+    user_handle := <bytes>$user_handle,
 select ext::auth::WebAuthnAuthenticationChallenge {
     id,
     created_at,
@@ -373,7 +371,7 @@ select ext::auth::WebAuthnAuthenticationChallenge {
 filter .factor.email = email and .factor.user_handle = user_handle;""",
             variables={
                 "email": email,
-                "user_handle": base64.b64encode(user_handle).decode(),
+                "user_handle": user_handle,
             },
             cached_globally=True,
         )
@@ -398,12 +396,12 @@ filter .factor.email = email and .factor.user_handle = user_handle;""",
             """
 with
     email := <str>$email,
-    user_handle := enc::base64_decode(<str>$user_handle),
+    user_handle := <bytes>$user_handle,
 delete ext::auth::WebAuthnAuthenticationChallenge
 filter .factor.email = email and .factor.user_handle = user_handle;""",
             variables={
                 "email": email,
-                "user_handle": base64.b64encode(user_handle).decode(),
+                "user_handle": user_handle,
             },
         )
 
