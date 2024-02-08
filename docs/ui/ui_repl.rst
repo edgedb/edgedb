@@ -8,7 +8,7 @@ REPL
     :alt: The REPL page in the EdgeDB UI. The icon is a blue right-facing
           angle bracket followed by an orange underscore, representing a
           cursor awaiting user input. The output for a query on a
-          user-defined type called a Booking Log Entry is displayed.
+          user-defined type called Person is displayed.
     :width: 100%
 
 The REPL available in the EdgeDB UI is largely the same as the CLI REPL,
