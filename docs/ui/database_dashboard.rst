@@ -1,8 +1,8 @@
-.. _ref_ui_dashboard:
+.. _ref_db_dashboard:
 
-=========
-Dashboard
-=========
+==================
+Database dashboard
+==================
 
 .. image:: images/database_dashboard.png
     :alt: The database dashboard page in the EdgeDB UI. Large green buttons
