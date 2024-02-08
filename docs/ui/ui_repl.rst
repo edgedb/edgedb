@@ -39,7 +39,7 @@ Backslash commands
 - ``\lm`` or ``\list modules``: List modules
 - ``\la`` or ``\list aliases``: List expression aliases
 - ``\lc`` or ``\list casts``: List casts
-- ``\li`` or ``\list indexes``: List indexes
+- ``\li`` or ``\list indexes``: List indexes 
 - ``\c DBNAME`` or ``\connect DBNAME``: Connect to database DBNAME
 - ``\?``, ``\h``, or ``\help``: Show help on backslash commands
 
