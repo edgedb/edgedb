@@ -49,6 +49,13 @@ For example, a search for 'max val' immediately shows the following output:
         'Specifies the maximum length of subject string representation.';
     ;
 
+.. image:: images/stdlib_search.png
+    :alt: A search result from the Schema Viewer page in the EdgeDB UI,
+          in which a search for the keywords max and val has turned up
+          three matching functions: max value, max ex value, and max
+          len value.
+    :width: 100%
+
 Graph view
 ----------
 
