@@ -28,12 +28,13 @@ Query builder
           line resembling a pencil on top.
     :width: 100%
 
-The visual query builder (not to be confused with our :ref:`TypeScript query
-builder <edgedb-js-qb>`) is by far the easiest way for new users to EdgeDB to
-put together a ``select`` query. It is an entirely point-and-click interface
-that walks you through the steps of a ``select`` query, including selecting
-properties and links inside an object, ``filter``, ``order by``, and setting an
-``offset`` and ``limit`` (the maximum number of items to return from a query).
+The visual query builder (not to be confused with our `TypeScript query builder
+</docs/clients/js/querybuilder>`_) is by far the easiest way for new users to
+EdgeDB to put together a ``select`` query. It is an entirely point-and-click
+interface that walks you through the steps of a ``select`` query, including
+selecting properties and links inside an object, ``filter``, ``order by``, and
+setting an ``offset`` and ``limit`` (the maximum number of items to return from
+a query).
 
 History
 -------
