@@ -4,6 +4,8 @@
 REPL
 ====
 
+:edb-alt-title: UI REPL
+
 .. image:: images/ui_repl.png
     :alt: The REPL page in the EdgeDB UI. The icon is a blue right-facing
           angle bracket followed by an orange underscore, representing a
