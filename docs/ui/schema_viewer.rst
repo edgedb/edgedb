@@ -4,14 +4,6 @@
 Schema Viewer
 =============
 
-.. image:: images/schema_viewer.png
-    :alt: The Schema Viewer page in the EdgeDB UI. The icon is two small
-          squares of blue and orange, connected by a purple line. A small
-          user-defined sample schema is shown with two concrete types
-          called Book and Library, along with an abstract type called
-          HasAddress that is extended by the Library type.
-    :width: 100%
-
 The UI schema viewer allows you to see your schema either as text, graph,
 or both.
 
@@ -59,6 +51,14 @@ For example, a search for 'max val' immediately shows the following output:
 
 Graph view
 ----------
+
+.. image:: images/schema_viewer.png
+    :alt: The Schema Viewer page in the EdgeDB UI. The icon is two small
+          squares of blue and orange, connected by a purple line. A small
+          user-defined sample schema is shown with two concrete types
+          called Book and Library, along with an abstract type called
+          HasAddress that is extended by the Library type.
+    :width: 100%
 
 - Object types are shown as either blue boxes for concrete types, or gray
   boxes for abstract types. Object types that extend another object type
