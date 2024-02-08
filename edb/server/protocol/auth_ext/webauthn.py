@@ -105,8 +105,8 @@ insert ext::auth::WebAuthnRegistrationChallenge {
     email := email,
 }""",
             variables={
-                "challenge": base64.b64encode(challenge).decode(),
-                "user_handle": base64.b64encode(user_handle).decode(),
+                "challenge": challenge,
+                "user_handle": user_handle,
                 "email": email,
             },
             cached_globally=True,
@@ -157,13 +157,11 @@ with
 select identity { * };""",
                 variables={
                     "email": email,
-                    "user_handle": base64.b64encode(user_handle).decode(),
-                    "credential_id": base64.b64encode(
-                        registration_verification.credential_id
-                    ).decode(),
-                    "public_key": base64.b64encode(
+                    "user_handle": user_handle,
+                    "credential_id": registration_verification.credential_id,
+                    "public_key": (
                         registration_verification.credential_public_key
-                    ).decode(),
+                    ),
                 },
                 cached_globally=True,
             )
@@ -199,7 +197,7 @@ select ext::auth::WebAuthnRegistrationChallenge {
 filter .email = email and .user_handle = user_handle;""",
             variables={
                 "email": email,
-                "user_handle": base64.b64encode(user_handle).decode(),
+                "user_handle": user_handle,
             },
             cached_globally=True,
         )
@@ -229,6 +227,6 @@ delete ext::auth::WebAuthnRegistrationChallenge
 filter .email = email and .user_handle = user_handle;""",
             variables={
                 "email": email,
-                "user_handle": base64.b64encode(user_handle).decode(),
+                "user_handle": user_handle,
             },
         )
