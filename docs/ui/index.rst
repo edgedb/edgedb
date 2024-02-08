@@ -155,11 +155,11 @@ One more example of CLI vs. UI output, showing a user-defined function:
 .. toctree::
   :maxdepth: 1
 
-  ui_home
+  instance_dashboard
   database_dashboard
   client_settings
   ui_repl
-  editor
+  query_editor
   schema_viewer
   data_explorer
   auth_admin
