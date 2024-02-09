@@ -122,6 +122,7 @@ properties.
      friends := friends,
    };
 
+.. _ref_eql_optional_params:
 
 Optional parameters
 -------------------
