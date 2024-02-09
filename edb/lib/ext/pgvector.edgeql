@@ -136,6 +136,20 @@ create extension package pgvector version '0.5.0' {
         $$;
     };
 
+    create function ext::pgvector::set_ef_search(num: std::int64) -> std::int64 {
+    using sql $$
+        select num from (
+            select set_config('hnsw.ef_search', num::text, true)
+        ) as dummy;
+    $$;
+    };
+
+    create function ext::pgvector::_get_ef_search() -> optional std::int64 {
+        using sql $$
+          select nullif(current_setting('hnsw.ef_search'), '')::int8
+        $$;
+    };
+
     create abstract index ext::pgvector::ivfflat_euclidean(
         named only lists: int64
     ) {
