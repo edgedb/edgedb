@@ -77,7 +77,7 @@ def _list(
     builder: Builder,
     mapper: Callable[[T], U] = _ident,
 ) -> List[U]:
-    return [mapper(builder(n, ctx)) for n in node[name]]
+    return [mapper(builder(n, ctx)) for n in node.get(name, [])]
 
 
 def _maybe_list(
