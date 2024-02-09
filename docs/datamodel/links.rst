@@ -698,7 +698,7 @@ property allows us to modify the link property of the existing link.
 
     .. code-block:: edgeql
 
-        # 🚫
+        # 🚫 Does not work
         insert Movie {
           title := 'The Incredible Hulk',
           characters := {(
@@ -720,7 +720,7 @@ property allows us to modify the link property of the existing link.
 
     .. code-block:: edgeql
 
-        # ✅
+        # ✅ Works!
         insert Movie {
           title := 'The Incredible Hulk',
           characters := assert_distinct((
