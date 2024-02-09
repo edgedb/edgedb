@@ -195,7 +195,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_AliasedExpr(self, node: qlast.AliasedExpr) -> None:
         self.write(ident_to_str(node.alias))
-        self.write(' := ')
+        if node.monadic:
+            self.write(' <- ')
+        else:
+            self.write(' := ')
         self._block_ws(1)
 
         self.visit(node.expr)

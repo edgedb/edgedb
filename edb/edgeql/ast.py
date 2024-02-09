@@ -155,6 +155,7 @@ class SortExpr(Base):
 class AliasedExpr(Base):
     alias: str
     expr: Expr
+    monadic: bool = False
 
 
 class ModuleAliasDecl(Base):

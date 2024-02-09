@@ -90,6 +90,12 @@ class AliasedExpr(Nonterm):
         self.val = qlast.AliasedExpr(alias=kids[0].val, expr=kids[2].val)
 
 
+class MonadicExpr(Nonterm):
+    def reduce_Identifier_LANGBRACKET_MINUS_Expr(self, *kids):
+        self.val = qlast.AliasedExpr(
+            alias=kids[0].val, expr=kids[3].val, monadic=True)
+
+
 class OptionallyAliasedExpr(Nonterm):
     def reduce_AliasedExpr(self, *kids):
         val = kids[0].val
@@ -387,6 +393,10 @@ class AliasDecl(Nonterm):
 
     @parsing.inline(0)
     def reduce_AliasedExpr(self, *kids):
+        pass
+
+    @parsing.inline(0)
+    def reduce_MonadicExpr(self, *kids):
         pass
 
 

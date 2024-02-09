@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import *
 
 from collections import defaultdict
+import functools
 import textwrap
 
 from edb import errors
@@ -72,17 +73,54 @@ from . import conflicts
 def try_desugar(
     expr: qlast.Query, *, ctx: context.ContextLevel
 ) -> Optional[irast.Set]:
+    with_desugar = try_with_monad_rewrite(expr, ctx=ctx)
+    if with_desugar:
+        return dispatch.compile(with_desugar, ctx=ctx)
+
     new_syntax = desugar_group.try_group_rewrite(expr, aliases=ctx.aliases)
     if new_syntax:
         return dispatch.compile(new_syntax, ctx=ctx)
     return None
 
 
-@dispatch.compile.register(qlast.SelectQuery)
-def compile_SelectQuery(
-        expr: qlast.SelectQuery, *, ctx: context.ContextLevel) -> irast.Set:
+def try_with_monad_rewrite(
+    expr: qlast.Query, *, ctx: context.ContextLevel
+) -> Optional[qlast.Query]:
+    if not expr.aliases:
+        return None
+    for i, alias in enumerate(expr.aliases):
+        # TODO: Should we make this less needlessly quadratic?
+        if isinstance(alias, qlast.AliasedExpr) and alias.monadic:
+            return qlast.ForQuery(
+                aliases=expr.aliases[:i],
+                from_desugaring=True,
+                iterator=alias.expr,
+                iterator_alias=alias.alias,
+                result=expr.replace(aliases=expr.aliases[i + 1:]),
+            )
+    return None
+
+
+@dispatch.compile.register
+def compile_Query(
+        expr: qlast.Query, *, ctx: context.ContextLevel) -> irast.Set:
     if rewritten := try_desugar(expr, ctx=ctx):
         return rewritten
+    return compile_query(expr, ctx=ctx)
+
+
+@functools.singledispatch
+def compile_query(
+    node: qlast.Query, *,
+    ctx: context.ContextLevel
+) -> irast.Set:
+    raise NotImplementedError(
+        f'no EdgeQL compiler handler for {node.__class__}')
+
+
+@compile_query.register
+def compile_SelectQuery(
+        expr: qlast.SelectQuery, *, ctx: context.ContextLevel) -> irast.Set:
 
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
@@ -149,11 +187,9 @@ def compile_SelectQuery(
     return result
 
 
-@dispatch.compile.register(qlast.ForQuery)
+@compile_query.register
 def compile_ForQuery(
         qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Set:
-    if rewritten := try_desugar(qlstmt, ctx=ctx):
-        return rewritten
 
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt(context=qlstmt.context)
@@ -284,7 +320,7 @@ def _make_group_binding(
     return binding_set
 
 
-@dispatch.compile.register(qlast.InternalGroupQuery)
+@compile_query.register(qlast.InternalGroupQuery)
 def compile_InternalGroupQuery(
     expr: qlast.InternalGroupQuery, *, ctx: context.ContextLevel
 ) -> irast.Set:
@@ -411,7 +447,7 @@ def compile_InternalGroupQuery(
     return result
 
 
-@dispatch.compile.register(qlast.GroupQuery)
+@compile_query.register(qlast.GroupQuery)
 def compile_GroupQuery(
         expr: qlast.GroupQuery, *, ctx: context.ContextLevel) -> irast.Set:
     return dispatch.compile(
@@ -420,7 +456,7 @@ def compile_GroupQuery(
     )
 
 
-@dispatch.compile.register(qlast.InsertQuery)
+@compile_query.register
 def compile_InsertQuery(
         expr: qlast.InsertQuery, *,
         ctx: context.ContextLevel) -> irast.Set:
@@ -574,7 +610,7 @@ def compile_InsertQuery(
     return result
 
 
-@dispatch.compile.register(qlast.UpdateQuery)
+@compile_query.register
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
 
@@ -681,7 +717,7 @@ def compile_UpdateQuery(
     return result
 
 
-@dispatch.compile.register(qlast.DeleteQuery)
+@compile_query.register
 def compile_DeleteQuery(
         expr: qlast.DeleteQuery, *, ctx: context.ContextLevel) -> irast.Set:
 
