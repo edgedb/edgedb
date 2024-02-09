@@ -503,6 +503,13 @@ class TestSQL(tb.SQLQueryTestCase):
 
         res = await self.scon.fetch(
             '''
+            SELECT unnest(ARRAY[]::int8[]) a
+            '''
+        )
+        self.assertEqual(len(res), 0)
+
+        res = await self.scon.fetch(
+            '''
             SELECT *, unnested_b + 1 computed
             FROM
                 (SELECT ARRAY[1, 2, 3] a, ARRAY[4, 5, 6] b) t,
