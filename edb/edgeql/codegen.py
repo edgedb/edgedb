@@ -303,7 +303,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(')')
 
     def visit_ForQuery(self, node: qlast.ForQuery) -> None:
-        # need to parenthesise when GROUP appears as an expression
+        # need to parenthesize when FOR appears as an expression
         parenthesise = self._needs_parentheses(node)
 
         if parenthesise:

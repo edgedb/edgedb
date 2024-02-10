@@ -168,14 +168,22 @@ class OptionalOptional(Nonterm):
 
 
 class SimpleFor(Nonterm):
-    def reduce_For(self, *kids):
-        r"%reduce FOR OptionalOptional Identifier IN AtomicExpr \
-                  UNION Expr"
+    def reduce_ForIn(self, *kids):
+        r"%reduce FOR OptionalOptional Identifier IN AtomicExpr UNION Expr"
         self.val = qlast.ForQuery(
             optional=kids[1].val,
             iterator_alias=kids[2].val,
             iterator=kids[4].val,
             result=kids[6].val,
+        )
+
+    def reduce_ForInStmt(self, *kids):
+        r"%reduce FOR OptionalOptional Identifier IN AtomicExpr ExprStmt"
+        self.val = qlast.ForQuery(
+            optional=kids[1].val,
+            iterator_alias=kids[2].val,
+            iterator=kids[4].val,
+            result=kids[5].val,
         )
 
 

@@ -3519,6 +3519,29 @@ aa';
         UNION (UPDATE Foo FILTER (Foo.id = x.0) SET {bar := x.1});
         """
 
+    def test_edgeql_syntax_shorterfor_01(self):
+        """
+        FOR x IN {1}
+        INSERT Foo { x := x };
+
+% OK %
+
+        FOR x IN {1}
+        UNION (INSERT Foo { x := x });
+        """
+
+    def test_edgeql_syntax_shorterfor_02(self):
+        """
+        FOR x IN {1}
+        WITH y := x
+        INSERT Foo { y := y };
+
+% OK %
+
+        FOR x IN {1}
+        UNION (WITH y := x INSERT Foo { y := y });
+        """
+
     def test_edgeql_syntax_coalesce_01(self):
         """
         SELECT (a ?? x);
