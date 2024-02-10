@@ -2975,12 +2975,12 @@ class ConvertPostgresConfigUnitsFunction(dbops.Function):
             )
 
             WHEN "unit" = ''
-            THEN trunc("value" * "multiplier")::text::jsonb
+            THEN ("value" * "multiplier")::text::jsonb
 
             ELSE edgedb.raise(
                 NULL::jsonb,
                 msg => (
-                    'unknown configutation unit "' ||
+                    'unknown configuration unit "' ||
                     COALESCE("unit", '<NULL>') ||
                     '"'
                 )
@@ -2998,6 +2998,54 @@ class ConvertPostgresConfigUnitsFunction(dbops.Function):
                 ('unit', ('text',))
             ],
             returns=('jsonb',),
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class TypeIDToConfigType(dbops.Function):
+    """Get a postgres config type from a type id.
+
+    (We typically try to read extension configs straight from the
+    config tables, but for extension configs those aren't present.)
+    """
+
+    config_types = {
+        'bool': ['std::bool'],
+        'string': ['std::str'],
+        'integer': ['std::int16', 'std::int32', 'std::int64'],
+        'real': ['std::float32', 'std::float64'],
+    }
+    cases = [
+        f'''
+        WHEN "typeid" = '{s_obj.get_known_type_id(t)}' THEN '{ct}'
+        '''
+        for ct, types in config_types.items()
+        for t in types
+    ]
+    scases = '\n'.join(cases)
+
+    text = f"""
+    SELECT (
+        CASE
+            {scases}
+            ELSE edgedb.raise(
+                NULL::text,
+                msg => (
+                    'unknown configuration type "' || "typeid" || '"'
+                )
+            )
+        END
+    )
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_type_id_to_config_type'),
+            args=[
+                ('typeid', ('uuid',)),
+            ],
+            returns=('text',),
             volatility='immutable',
             text=self.text,
         )
@@ -3082,7 +3130,7 @@ class InterpretConfigValueToJsonFunction(dbops.Function):
                 edgedb.raise(
                     NULL::jsonb,
                     msg => (
-                        'unknown configutation type "' ||
+                        'unknown configuration type "' ||
                         COALESCE("type", '<NULL>') ||
                         '"'
                     )
@@ -3154,17 +3202,6 @@ class PostgresConfigValueToJsonFunction(dbops.Function):
 
             END)
         FROM
-            (
-                SELECT
-                    epg_settings.vartype AS vartype,
-                    epg_settings.multiplier AS multiplier,
-                    epg_settings.unit AS unit
-                FROM
-                    edgedb._normalized_pg_settings AS epg_settings
-                WHERE
-                    epg_settings.name = "setting_name"
-            ) AS settings,
-
             LATERAL (
                 SELECT regexp_match(
                     "setting_value", '^(\d+)\s*([a-zA-Z]{0,3})$') AS v
@@ -3175,6 +3212,27 @@ class PostgresConfigValueToJsonFunction(dbops.Function):
                     COALESCE(_unit.v[1], "setting_value") AS val,
                     COALESCE(_unit.v[2], '') AS unit
             ) AS parsed_value
+        LEFT OUTER JOIN
+            (
+                SELECT
+                    epg_settings.vartype AS vartype,
+                    epg_settings.multiplier AS multiplier,
+                    epg_settings.unit AS unit
+                FROM
+                    edgedb._normalized_pg_settings AS epg_settings
+                WHERE
+                    epg_settings.name = "setting_name"
+            ) AS settings_in ON true
+        CROSS JOIN LATERAL
+            (
+                SELECT
+                    COALESCE(settings_in.vartype,
+                             edgedb._type_id_to_config_type("setting_typeid"))
+                    as vartype,
+                    COALESCE(settings_in.multiplier, '1') as multiplier,
+                    COALESCE(settings_in.unit, '') as unit
+            ) as settings
+
     """
 
     def __init__(self) -> None:
@@ -3182,6 +3240,7 @@ class PostgresConfigValueToJsonFunction(dbops.Function):
             name=('edgedb', '_postgres_config_value_to_json'),
             args=[
                 ('setting_name', ('text',)),
+                ('setting_typeid', ('uuid',)),
                 ('setting_value', ('text',)),
             ],
             returns=('jsonb',),
@@ -3226,6 +3285,9 @@ class SysConfigFullFunction(dbops.Function):
                 s.backend_setting IS NOT NULL AS is_backend
             FROM
                 config_spec s
+        ),
+        config_extension_defaults AS (
+            SELECT * FROM config_defaults WHERE name like '%::%'
         ),
 
         config_sys AS (
@@ -3274,7 +3336,7 @@ class SysConfigFullFunction(dbops.Function):
             SELECT
                 spec.name,
                 edgedb._postgres_config_value_to_json(
-                    spec.backend_setting, nameval.value
+                    spec.backend_setting, spec.typeid, nameval.value
                 ) AS value,
                 'database' AS source,
                 TRUE AS is_backend
@@ -3300,7 +3362,8 @@ class SysConfigFullFunction(dbops.Function):
                 LATERAL (
                     SELECT
                         config_spec.name,
-                        config_spec.backend_setting
+                        config_spec.backend_setting,
+                        config_spec.typeid
                     FROM
                         config_spec
                     WHERE
@@ -3315,7 +3378,7 @@ class SysConfigFullFunction(dbops.Function):
                 SELECT
                     spec.name,
                     edgedb._postgres_config_value_to_json(
-                        spec.backend_setting, setting
+                        spec.backend_setting, spec.typeid, setting
                     ) AS value,
                     'postgres configuration file' AS source,
                     TRUE AS is_backend
@@ -3324,7 +3387,8 @@ class SysConfigFullFunction(dbops.Function):
                     LATERAL (
                         SELECT
                             config_spec.name,
-                            config_spec.backend_setting
+                            config_spec.backend_setting,
+                            config_spec.typeid
                         FROM
                             config_spec
                         WHERE
@@ -3342,7 +3406,7 @@ class SysConfigFullFunction(dbops.Function):
                 SELECT
                     spec.name,
                     edgedb._postgres_config_value_to_json(
-                        spec.backend_setting, setting
+                        spec.backend_setting, spec.typeid, setting
                     ) AS value,
                     'system override' AS source,
                     TRUE AS is_backend
@@ -3351,7 +3415,8 @@ class SysConfigFullFunction(dbops.Function):
                     LATERAL (
                         SELECT
                             config_spec.name,
-                            config_spec.backend_setting
+                            config_spec.backend_setting,
+                            config_spec.typeid
                         FROM
                             config_spec
                         WHERE
@@ -3409,6 +3474,25 @@ class SysConfigFullFunction(dbops.Function):
                 ) AS spec
             ),
 
+        -- extension session configs don't show up in any system view, so we
+        -- check _edgecon_state to see when they are present.
+        pg_extension_config AS (
+            SELECT
+                config_spec.name,
+                -- XXX: Or would it be better to just use the json directly?
+                edgedb._postgres_config_value_to_json(
+                    config_spec.backend_setting,
+                    config_spec.typeid,
+                    current_setting(config_spec.backend_setting, true)
+                ) AS value,
+                'session' AS source,
+                TRUE AS is_backend
+            FROM _edgecon_state s
+            INNER JOIN config_spec
+            ON s.name = config_spec.name
+            WHERE s.type = 'B' AND s.name LIKE '%::%'
+        ),
+
         edge_all_settings AS MATERIALIZED (
             SELECT
                 q.*
@@ -3432,10 +3516,13 @@ class SysConfigFullFunction(dbops.Function):
                     q.*
                 FROM
                     (
+                        -- extension defaults aren't in any system views
+                        SELECT * FROM config_extension_defaults UNION ALL
                         SELECT * FROM pg_db_setting UNION ALL
                         SELECT * FROM pg_conf_settings UNION ALL
                         SELECT * FROM pg_auto_conf_settings UNION ALL
-                        SELECT * FROM pg_config
+                        SELECT * FROM pg_config UNION ALL
+                        SELECT * FROM pg_extension_config
                     ) AS q
                 WHERE
                     q.is_backend
@@ -3448,12 +3535,15 @@ class SysConfigFullFunction(dbops.Function):
                     q.*
                 FROM
                     (
+                        -- extension defaults aren't in any system views
+                        SELECT * FROM config_extension_defaults UNION ALL
                         -- config_sys is here, because there
                         -- is no other way to read instance-level
                         -- configuration overrides.
                         SELECT * FROM config_sys UNION ALL
                         SELECT * FROM pg_db_setting UNION ALL
-                        SELECT * FROM pg_config
+                        SELECT * FROM pg_config UNION ALL
+                        SELECT * FROM pg_extension_config
                     ) AS q
                 WHERE
                     q.is_backend
@@ -3689,10 +3779,6 @@ class ResetSessionConfigFunction(dbops.Function):
         )
 
 
-# TODO: Support extension-defined configs that affect the backend
-# Not needed for supporting auth, so can skip temporarily.
-# If perf seems to matter, can hardcode things for base config
-# and consult json for just extension stuff.
 class ApplySessionConfigFunction(dbops.Function):
     """Apply an EdgeDB config setting to the backend, if possible.
 
@@ -3738,6 +3824,18 @@ class ApplySessionConfigFunction(dbops.Function):
                     )
             ''')
 
+        ext_config = '''
+            SELECT pg_catalog.set_config(
+                (s.val->>'backend_setting')::text,
+                "value"->>0,
+                false
+            )
+            FROM
+                edgedbinstdata.instdata as id,
+            LATERAL jsonb_each(id.json) AS s(key, val)
+            WHERE id.key = 'configspec_ext' AND s.key = "name"
+        '''
+
         variants = "\n".join(variants_list)
         text = f'''
         SELECT (
@@ -3755,6 +3853,13 @@ class ApplySessionConfigFunction(dbops.Function):
                         ELSE "name"
                     END
                 )
+
+                WHEN "name" LIKE '%::%'
+                THEN
+                    CASE WHEN ({ext_config}) IS NULL
+                    THEN "name"
+                    ELSE "name"
+                END
 
                 ELSE "name"
             END
@@ -4526,6 +4631,7 @@ async def bootstrap(
         dbops.CreateEnum(SysConfigScopeType()),
         dbops.CreateCompositeType(SysConfigValueType()),
         dbops.CreateCompositeType(SysConfigEntryType()),
+        dbops.CreateFunction(TypeIDToConfigType()),
         dbops.CreateFunction(ConvertPostgresConfigUnitsFunction()),
         dbops.CreateFunction(InterpretConfigValueToJsonFunction()),
         dbops.CreateFunction(PostgresConfigValueToJsonFunction()),
