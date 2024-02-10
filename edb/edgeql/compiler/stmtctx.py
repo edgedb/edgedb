@@ -379,6 +379,7 @@ def _fixup_materialized_sets(
                 subctx.implicit_tname_in_shapes = False
                 subctx.path_scope = new_scope
                 subctx.path_scope = parent.attach_fence()
+                subctx.toplevel_result_view_name = None
                 viewgen.late_compile_view_shapes(ir_set, ctx=subctx)
 
             for use_set in mat_set.use_sets:

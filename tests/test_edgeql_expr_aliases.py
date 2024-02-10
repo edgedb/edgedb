@@ -246,6 +246,16 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_aliases_create_02(self):
+        await self.con.execute('''
+            CREATE ALIAS ContainsWith := User {
+                all_cards := (
+                    with x := (select Card)
+                    select x
+                )
+            };
+        ''')
+
     async def test_edgeql_aliases_filter_01(self):
         await self.assert_query_result(
             r'''
