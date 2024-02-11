@@ -778,6 +778,7 @@ class Pool(BasePool[C]):
             if min_demand > demand:
                 min_demand = demand
 
+        was_starving = self._is_starving
         self._is_starving = need_conns_at_least >= self._max_capacity
         if self._to_drop:
             for block in self._to_drop:
@@ -840,6 +841,27 @@ class Pool(BasePool[C]):
                 else:
                     self._log_to_snapshot(
                         dbname=block.dbname, event='reset-quota')
+
+            if not was_starving and self._new_blocks_waitlist:
+                # Mode D assumes all connections are already in use or to be
+                # used, depending on their `release()` to schedule transfers.
+                # When just entering Mode D, there can be a special case when
+                # no further `release()` will be called because all acquired
+                # connections were returned to the pool before `_tick()` got a
+                # chance to set `self._is_starving`, while some other blocks
+                # are literally starving to death (blocked forever).
+                #
+                # This branch handles this particular case, by stealing
+                # connections from the idle blocks and try to free them into
+                # the starving blocks.
+
+                for block in list(self._blocks.values()):
+                    nconns = block.count_conns()
+                    num_waiters = block.count_waiters()
+                    if nconns > num_waiters:
+                        if (conn := block.try_steal()) is not None:
+                            if not self._maybe_free_conn(block, conn):
+                                block.release(conn)
 
         else:
             # Mode C: distribute the total connections by calibrated demand
