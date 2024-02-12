@@ -272,14 +272,14 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
         tokens.push(PyToken::new(tok)?);
     }
 
-    return Ok(Entry {
+    Ok(Entry {
         key: join_tokens(&tokens),
         key_vars,
         variables,
         defaults,
         tokens,
         end_pos,
-    });
+    })
 }
 
 impl From<ParseError> for Error {
@@ -308,7 +308,7 @@ fn token_array(s: &str) -> Result<(Vec<(Token, Pos)>, Pos), Error> {
             Err(e) => panic!("Parse error at {}: {}", lexer.position(), e),
         }
     }
-    return Ok((tokens, lexer.position()));
+    Ok((tokens, lexer.position()))
 }
 
 fn find_operation<'a>(
@@ -322,7 +322,7 @@ fn find_operation<'a>(
         };
         return Some(res);
     }
-    return None;
+    None
 }
 
 fn insert_args(dest: &mut Vec<PyToken>, ins: &InsertVars, args: Vec<PyToken>) {
@@ -460,5 +460,5 @@ fn join_tokens<'a, I: IntoIterator<Item = &'a PyToken>>(tokens: I) -> String {
             PyTokenKind::Sof => unreachable!(),
         };
     }
-    return buf;
+    buf
 }

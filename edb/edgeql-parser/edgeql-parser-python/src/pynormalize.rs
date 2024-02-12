@@ -38,7 +38,7 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
             })
         }
         Err(Error::Tokenizer(msg, pos)) => {
-            return Err(SyntaxError::new_err((
+            Err(SyntaxError::new_err((
                 msg,
                 (pos, py.None()),
                 py.None(),
@@ -46,7 +46,7 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
             )))
         }
         Err(Error::Assertion(msg, pos)) => {
-            return Err(PyAssertionError::new_err(format!("{}: {}", pos, msg)));
+            Err(PyAssertionError::new_err(format!("{}: {}", pos, msg)))
         }
     }
 }

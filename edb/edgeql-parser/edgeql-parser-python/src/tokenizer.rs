@@ -92,5 +92,5 @@ pub fn unpickle_token(bytes: &PyBytes) -> PyResult<OpaqueToken> {
 
 fn get_unpickle_token_fn(py: Python) -> PyObject {
     let py_function = FN_UNPICKLE_TOKEN.get().expect("module uninitialized");
-    return py_function.clone_ref(py);
+    py_function.clone_ref(py)
 }

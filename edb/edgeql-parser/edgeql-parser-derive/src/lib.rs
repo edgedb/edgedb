@@ -190,7 +190,7 @@ fn find_attr<'a>(attrs: &'a [Attribute], name: &'static str) -> Option<&'a Attri
     })
 }
 
-fn is_option<'a>(ty: &Type) -> bool {
+fn is_option(ty: &Type) -> bool {
     let Type::Path(TypePath { path, .. }) = ty else {
         return false;
     };

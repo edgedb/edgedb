@@ -123,7 +123,7 @@ impl<'a> Validator<'a> {
             }
             _ => {}
         }
-        return None;
+        None
     }
 
     fn peek_keyword(&mut self, kw: &'static str) -> bool {
@@ -151,7 +151,7 @@ pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
         }
         DecimalConst => {
             return text[..text.len() - 1]
-                .replace("_", "")
+                .replace('_', "")
                 .parse()
                 .map(Value::Decimal)
                 .map(Some)
@@ -159,7 +159,7 @@ pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
         }
         FloatConst => {
             return text
-                .replace("_", "")
+                .replace('_', "")
                 .parse::<f64>()
                 .map_err(|e| format!("can't parse std::float64: {}", e))
                 .and_then(|num| {
@@ -185,13 +185,13 @@ pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
             // i64 as absolute (positive) value.
             // Python has no problem of representing such a positive
             // value, though.
-            return u64::from_str(&text.replace("_", ""))
+            return u64::from_str(&text.replace('_', ""))
                 .map(|x| Some(Value::Int(x as i64)))
                 .map_err(|e| format!("error reading int: {}", e));
         }
         BigIntConst => {
             return text[..text.len() - 1]
-                .replace("_", "")
+                .replace('_', "")
                 .parse::<BigDecimal>()
                 .map_err(|e| format!("error reading bigint: {}", e))
                 // this conversion to decimal and back to string

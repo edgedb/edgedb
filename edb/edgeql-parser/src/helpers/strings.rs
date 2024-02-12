@@ -32,7 +32,7 @@ pub fn quote_name(s: &str) -> Cow<str> {
     s.push('`');
     s.push_str(&escaped);
     s.push('`');
-    return s.into();
+    s.into()
 }
 
 pub fn quote_string(s: &str) -> String {
@@ -57,7 +57,7 @@ pub fn quote_string(s: &str) -> String {
         }
     }
     buf.push('"');
-    return buf;
+    buf
 }
 
 pub fn unquote_string(value: &str) -> Result<Cow<str>, UnquoteError> {

@@ -95,7 +95,7 @@ mod test {
             .map_err(|e| {
                 let s = e.to_string();
                 assert!(!s.is_empty());
-                return s
+                s
             })
             .unwrap_or_else(|e| e)
     }

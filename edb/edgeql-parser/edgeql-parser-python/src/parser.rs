@@ -70,7 +70,7 @@ pub struct Terminal {
 
 static PARSER_SPECS: OnceCell<(parser::Spec, PyObject)> = OnceCell::new();
 
-fn downcast_tokens<'a>(
+fn downcast_tokens(
     py: Python,
     start_token_name: &str,
     token_list: PyObject,
@@ -97,9 +97,9 @@ fn downcast_tokens<'a>(
 
 fn get_spec() -> PyResult<&'static (parser::Spec, PyObject)> {
     if let Some(x) = PARSER_SPECS.get() {
-        return Ok(x);
+        Ok(x)
     } else {
-        return Err(PyAssertionError::new_err(("grammar spec not loaded",)));
+        Err(PyAssertionError::new_err(("grammar spec not loaded",)))
     }
 }
 
