@@ -1,10 +1,7 @@
-#[macro_use] extern crate cpython;
-
-mod pytoken;
-mod pyentry;
-mod pyerrors;
 mod entry_point;
+mod python;
+mod pytoken;
 mod token_vec;
 
-pub use entry_point::{rewrite, Variable, Value};
+pub use entry_point::{rewrite, Value, Variable};
 pub use pytoken::{PyToken, PyTokenKind};
