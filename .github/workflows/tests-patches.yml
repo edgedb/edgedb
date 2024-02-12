@@ -16,20 +16,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11.3'
+        python-version: '3.12.2'
 
     # Build virtualenv
 
@@ -264,7 +264,7 @@ jobs:
       with:
         go-version: 1.16
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       if: steps.stolon-cache.outputs.cache-hit != 'true'
       with:
         repository: sorintlab/stolon
@@ -318,7 +318,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - id: set-matrix
       name: Compute versions to run on
       run: python3 .github/scripts/patches/compute-versions.py
@@ -331,20 +331,20 @@ jobs:
       matrix: ${{fromJSON(needs.compute-versions.outputs.matrix)}}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11.3'
+        python-version: '3.12.2'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1

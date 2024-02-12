@@ -9,7 +9,7 @@
 <% endfor %>
 <% endif %>
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Determine package version
       shell: bash
@@ -125,7 +125,7 @@
 <% endif %>
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -140,7 +140,7 @@
         default: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
       with:
         python-version: "3.x"
@@ -206,7 +206,7 @@
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -319,7 +319,7 @@
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -355,7 +355,7 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-docker
         ref: master
