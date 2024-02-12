@@ -1,19 +1,26 @@
-import { decodeBase64Url, encodeBase64Url } from "./utils.js";
+import {
+  decodeBase64Url,
+  encodeBase64Url,
+  parseResponseAsJSON,
+} from "./utils.js";
 
 document.addEventListener("DOMContentLoaded", () => {
-  const registerForm = document.getElementById("email-factor");
+  /** @type {HTMLFormElement | null} */
+  const authenticateForm = document.getElementById("email-factor");
 
-  if (registerForm === null) {
+  if (authenticateForm === null) {
     return;
   }
 
-  registerForm.addEventListener("submit", async (event) => {
+  authenticateForm.addEventListener("submit", async (event) => {
     if (event.submitter?.id !== "webauthn-signin") {
       return;
     }
     event.preventDefault();
 
-    const formData = new FormData(/** @type {HTMLFormElement} */ registerForm);
+    const formData = new FormData(
+      /** @type {HTMLFormElement} */ authenticateForm
+    );
     const email = formData.get("email");
     const provider = "builtin::local_webauthn";
     const challenge = formData.get("challenge");
@@ -151,9 +158,9 @@ async function authenticateAssertion(props) {
       signature: encodeBase64Url(
         new Uint8Array(props.assertion.response.signature)
       ),
-      userHandle: props.assertion.response.userHandle ? encodeBase64Url(
-        new Uint8Array(props.assertion.response.userHandle)
-      ) : null,
+      userHandle: props.assertion.response.userHandle
+        ? encodeBase64Url(new Uint8Array(props.assertion.response.userHandle))
+        : null,
     },
   };
 
@@ -170,19 +177,26 @@ async function authenticateAssertion(props) {
     }),
   });
 
-  if (!authenticateResponse.ok) {
-    console.error(
-      "Failed to authenticate WebAuthn credentials:",
-      authenticateResponse.statusText
-    );
-    console.error(await authenticateResponse.text());
-    throw new Error("Failed to authenticate WebAuthn credentials");
-  }
-
-  try {
-    return await authenticateResponse.json();
-  } catch (e) {
-    console.error("Failed to parse WebAuthn registration result:", e);
-    throw new Error("Failed to parse WebAuthn registration result");
-  }
+  return await parseResponseAsJSON(authenticateResponse, [
+    (response, error) => {
+      if (response.status === 401 && error?.type === "VerificationRequired") {
+        console.error(
+          "User's email is not verified",
+          response.statusText,
+          error
+        );
+        throw new Error(
+          "Please verify your email before attempting to sign in."
+        );
+      }
+    },
+    (response, error) => {
+      console.error(
+        "Failed to authenticate WebAuthn credentials:",
+        response.statusText,
+        error
+      );
+      throw new Error("Failed to authenticate WebAuthn credentials");
+    },
+  ]);
 }
