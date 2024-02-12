@@ -52,7 +52,6 @@ import typing
 import unittest
 import unittest.mock
 
-from edb.common import taskgroup
 from edb.server import connpool
 from edb.server.connpool import pool as pool_impl
 
@@ -510,7 +509,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         TICK_EVERY = 0.001
 
         started_at = time.monotonic()
-        async with taskgroup.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             elapsed = 0
             while elapsed < spec.duration:
                 elapsed = time.monotonic() - started_at
@@ -616,7 +615,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         getters = 0
         TICK_EVERY = 0.001
         started_at = time.monotonic()
-        async with taskgroup.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             elapsed = 0
             while elapsed < total_duration * TIME_SCALE:
                 elapsed = time.monotonic() - started_at
@@ -1355,7 +1354,7 @@ class TestServerConnectionPool(unittest.TestCase):
                 max_capacity=10,
             )
 
-            async with taskgroup.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 g.create_task(q0(pool, event))
                 await asyncio.sleep(delay)
                 g.create_task(q1(pool, event))
@@ -1390,7 +1389,7 @@ class TestServerConnectionPool(unittest.TestCase):
                 max_capacity=5,
             )
 
-            async with taskgroup.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for _ in range(4):
                     g.create_task(q('A', pool, wait_event=e1))
 

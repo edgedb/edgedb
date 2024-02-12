@@ -35,7 +35,6 @@ from edb import buildmeta
 from edb import errors
 from edb.common import retryloop
 from edb.common import signalctl
-from edb.common import taskgroup
 from edb.pgsql import params as pgparams
 from edb.server import compiler as edbcompiler
 
@@ -79,7 +78,7 @@ class MultiTenantServer(server.BaseServer):
     _tenants: dict[str, edbtenant.Tenant]
     _admin_tenant: edbtenant.Tenant | None
 
-    _task_group: taskgroup.TaskGroup | None
+    _task_group: asyncio.TaskGroup | None
     _task_serial: int
 
     def __init__(
@@ -106,7 +105,7 @@ class MultiTenantServer(server.BaseServer):
         self._tenants = {}
         self._admin_tenant = None
 
-        self._task_group = taskgroup.TaskGroup()
+        self._task_group = asyncio.TaskGroup()
         self._task_serial = 0
         self._sys_queries = sys_queries
         self._report_config_typedesc = report_config_typedesc
@@ -153,7 +152,8 @@ class MultiTenantServer(server.BaseServer):
 
     async def stop(self):
         await super().stop()
-        await self._task_group.__aexit__(*sys.exc_info())
+        if self._task_group is not None:
+            await self._task_group.__aexit__(*sys.exc_info())
         try:
             for tenant in self._tenants.values():
                 tenant.stop()

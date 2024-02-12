@@ -34,7 +34,6 @@ import immutables
 
 from edb import errors
 from edb.common import retryloop
-from edb.common import taskgroup
 
 from . import args as srvargs
 from . import config
@@ -75,7 +74,7 @@ class Tenant(ha_base.ClusterProtocol):
     _accepting_connections: bool
 
     __loop: asyncio.AbstractEventLoop
-    _task_group: taskgroup.TaskGroup | None
+    _task_group: asyncio.TaskGroup | None
     _tasks: Set[asyncio.Task]
     _accept_new_tasks: bool
     _file_watch_finalizers: list[Callable[[], None]]
@@ -388,7 +387,7 @@ class Tenant(ha_base.ClusterProtocol):
 
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
-        self._task_group = taskgroup.TaskGroup()
+        self._task_group = asyncio.TaskGroup()
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
         await self._cluster.start_watching(self.on_switch_over)
@@ -933,7 +932,7 @@ class Tenant(ha_base.ClusterProtocol):
         async with self.use_sys_pgcon() as syscon:
             dbnames = await self._server.get_dbnames(syscon)
 
-        async with taskgroup.TaskGroup(name="introspect DB extensions") as g:
+        async with asyncio.TaskGroup() as g:
             for dbname in dbnames:
                 # There's a risk of the DB being dropped by another server
                 # between us building the list of databases and loading
@@ -1316,7 +1315,7 @@ class Tenant(ha_base.ClusterProtocol):
             async with self.use_sys_pgcon() as syscon:
                 dbnames = set(await self._server.get_dbnames(syscon))
 
-            tg = taskgroup.TaskGroup(name="new database introspection")
+            tg = asyncio.TaskGroup()
             async with tg as g:
                 for dbname in dbnames:
                     if not self._dbindex.has_db(dbname):

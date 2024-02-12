@@ -354,7 +354,7 @@ class TestSignalctl(tb.TestCase):
                     self.notify_parent(3)
 
             async def _task():
-                async with taskgroup.TaskGroup() as tg:
+                async with asyncio.TaskGroup() as tg:
                     tg.create_task(_subtask1())
                     tg.create_task(_subtask2())
 
@@ -363,9 +363,7 @@ class TestSignalctl(tb.TestCase):
                     await sc.wait_for(_task())
         """
 
-        async with spawn(
-            test_prog, global_prog="from edb.common import taskgroup"
-        ) as p:
+        async with spawn(test_prog) as p:
             await self.wait_for_child(p, 1)
             await self.wait_for_child(p, 1)
             p.terminate()
