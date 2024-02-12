@@ -26,7 +26,6 @@ import unittest
 import edgedb
 
 from edb.common import devmode
-from edb.common import taskgroup as tg
 from edb.common import asyncutil
 from edb.testbase import server as tb
 from edb.server.compiler import enums
@@ -868,7 +867,7 @@ class TestServerProto(tb.QueryTestCase):
             'select sys::_advisory_lock(<int64>$0)', lock_key)
 
         try:
-            async with tg.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
 
                 async def exec_to_fail():
                     with self.assertRaises(edgedb.ClientConnectionClosedError):
@@ -3196,7 +3195,7 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
         typename_prefix = 'ConcurrentDDL'
         ntasks = 5
 
-        async with tg.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             cons_tasks = [
                 g.create_task(self.connect(database=self.con.dbname))
                 for _ in range(ntasks)
@@ -3205,7 +3204,7 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
         cons = [c.result() for c in cons_tasks]
 
         try:
-            async with tg.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for i, con in enumerate(cons):
                     # deferred_shield ensures that none of the
                     # operations get cancelled, which allows us to
@@ -3219,15 +3218,15 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
                             prop1 := {i}
                         }};
                     ''')))
-        except tg.TaskGroupError as e:
+        except ExceptionGroup as e:
             self.assertIn(
                 edgedb.TransactionSerializationError,
-                e.get_error_types(),
+                [type(e) for e in e.exceptions],
             )
         else:
             self.fail("TransactionSerializationError not raised")
         finally:
-            async with tg.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for con in cons:
                     g.create_task(con.aclose())
 
@@ -3242,7 +3241,7 @@ class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
 
         ntasks = 5
 
-        async with tg.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             cons_tasks = [
                 g.create_task(self.connect(database=self.con.dbname))
                 for _ in range(ntasks)
@@ -3251,7 +3250,7 @@ class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
         cons = [c.result() for c in cons_tasks]
 
         try:
-            async with tg.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for i, con in enumerate(cons):
                     # deferred_shield ensures that none of the
                     # operations get cancelled, which allows us to
@@ -3259,15 +3258,15 @@ class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
                     g.create_task(asyncutil.deferred_shield(con.execute(f'''
                         CREATE SUPERUSER ROLE concurrent_{i}
                     ''')))
-        except tg.TaskGroupError as e:
+        except ExceptionGroup as e:
             self.assertIn(
                 edgedb.TransactionSerializationError,
-                e.get_error_types(),
+                [type(e) for e in e.exceptions],
             )
         else:
             self.fail("TransactionSerializationError not raised")
         finally:
-            async with tg.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for con in cons:
                     g.create_task(con.aclose())
 

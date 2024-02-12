@@ -41,7 +41,6 @@ from edgedb import errors
 
 from edb import protocol
 from edb.common import devmode
-from edb.common import taskgroup
 from edb.protocol import protocol as edb_protocol  # type: ignore
 from edb.server import args, pgcluster, pgconnparams
 from edb.server import cluster as edbcluster
@@ -519,7 +518,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
             await cluster.start()
             try:
-                async with taskgroup.TaskGroup() as tg:
+                async with asyncio.TaskGroup() as tg:
                     tg.create_task(test(td, 'tenant1'))
                     tg.create_task(test(td, 'tenant2'))
             finally:

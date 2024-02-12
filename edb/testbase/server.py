@@ -62,7 +62,6 @@ from edb.common import devmode
 from edb.common import debug
 from edb.common import retryloop
 from edb.common import secretkey
-from edb.common import taskgroup
 
 from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
@@ -1852,7 +1851,7 @@ async def setup_test_cases(
             if verbose:
                 print(f' -> {dbname}: OK', flush=True)
     else:
-        async with taskgroup.TaskGroup(name='setup test cases') as g:
+        async with asyncio.TaskGroup() as g:
             # Use a semaphore to limit the concurrency of bootstrap
             # tasks to the number of jobs (bootstrap is heavy, having
             # more tasks than `--jobs` won't necessarily make

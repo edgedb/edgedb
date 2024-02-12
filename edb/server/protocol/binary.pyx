@@ -77,7 +77,7 @@ from edb.schema import objects as s_obj
 
 from edb import errors
 from edb.errors import base as base_errors, EdgeQLSyntaxError
-from edb.common import debug, taskgroup
+from edb.common import debug
 from edb.common import context as pctx
 
 from edb.protocol import messages
@@ -1367,7 +1367,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             blocks_queue = collections.deque(blocks)
             output_queue = asyncio.Queue(maxsize=2)
 
-            async with taskgroup.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 g.create_task(pgcon.dump(
                     blocks_queue,
                     output_queue,

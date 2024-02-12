@@ -44,7 +44,6 @@ from edb import errors
 from edb.common import devmode
 from edb.common import lru
 from edb.common import secretkey
-from edb.common import taskgroup
 from edb.common import windowedsum
 
 from edb.schema import reflection as s_refl
@@ -689,7 +688,7 @@ class BaseServer:
         else:
             start_tasks = {}
             try:
-                async with taskgroup.TaskGroup() as g:
+                async with asyncio.TaskGroup() as g:
                     if sockets:
                         for host, sock in zip(hosts, sockets):
                             start_tasks[host] = g.create_task(
@@ -712,9 +711,9 @@ class BaseServer:
                 raise
 
             servers.update({
-                host: fut.result()
+                host: srv
                 for host, fut in start_tasks.items()
-                if fut.result() is not None
+                if (srv := fut.result()) is not None
             })
 
         # Fail if none of the servers can be started, except when the admin
@@ -887,7 +886,7 @@ class BaseServer:
         return self._jws_key
 
     async def _stop_servers(self, servers):
-        async with taskgroup.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             for srv in servers:
                 srv.close()
                 g.create_task(srv.wait_closed())
@@ -1316,7 +1315,7 @@ class Server(BaseServer):
 
             dbnames = await self.get_dbnames(syscon)
 
-        async with taskgroup.TaskGroup(name='apply patches') as g:
+        async with asyncio.TaskGroup() as g:
             # Cap the parallelism used when applying patches, to avoid
             # having huge numbers of in flight patches that make
             # little visible progress in the logs.
@@ -1738,7 +1737,7 @@ async def _resolve_interfaces(
     hosts: Sequence[str]
 ) -> Tuple[Sequence[str], bool, bool]:
 
-    async with taskgroup.TaskGroup() as g:
+    async with asyncio.TaskGroup() as g:
         resolve_tasks = {
             host: g.create_task(_resolve_host(host))
             for host in hosts
