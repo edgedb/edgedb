@@ -70,7 +70,7 @@ class NormalizedSource(Source):
         self._text = text
         self._cache_key = normalized.key
         self._tokens = normalized.tokens
-        self._variables = normalized.variables()
+        self._variables = normalized.get_variables()
         self._first_extra = normalized.first_extra
         self._extra_counts = normalized.extra_counts
         self._extra_blobs = normalized.extra_blobs
