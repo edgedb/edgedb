@@ -28,14 +28,14 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
                 .collect();
 
             Ok(Entry {
-                _key: PyBytes::new(py, &entry.hash[..]).into(),
-                _processed_source: entry.processed_source,
-                _tokens: tokens_to_py(py, entry.tokens)?,
-                _extra_blobs: blobs.into(),
-                _extra_named: entry.named_args,
-                _first_extra: entry.first_arg,
-                _extra_counts: PyList::new(py, &counts[..]).into(),
-                _variables: entry.variables,
+                key: PyBytes::new(py, &entry.hash[..]).into(),
+                processed_source: entry.processed_source,
+                tokens: tokens_to_py(py, entry.tokens)?,
+                extra_blobs: blobs.into(),
+                extra_named: entry.named_args,
+                first_extra: entry.first_arg,
+                extra_counts: PyList::new(py, &counts[..]).into(),
+                variables: entry.variables,
             })
         }
         Err(Error::Tokenizer(msg, pos)) => {
@@ -55,37 +55,38 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
 #[pyclass]
 pub struct Entry {
     #[pyo3(get)]
-    _key: PyObject,
+    key: PyObject,
 
-    _processed_source: String,
-
-    #[pyo3(get)]
-    _tokens: PyObject,
+    #[allow(dead_code)]
+    processed_source: String,
 
     #[pyo3(get)]
-    _extra_blobs: PyObject,
-
-    _extra_named: bool,
+    tokens: PyObject,
 
     #[pyo3(get)]
-    _first_extra: Option<usize>,
+    extra_blobs: PyObject,
+
+    extra_named: bool,
 
     #[pyo3(get)]
-    _extra_counts: PyObject,
+    first_extra: Option<usize>,
 
-    _variables: Vec<Vec<Variable>>,
+    #[pyo3(get)]
+    extra_counts: PyObject,
+
+    variables: Vec<Vec<Variable>>,
 }
 
 #[pymethods]
 impl Entry {
-    fn variables(&self, py: Python) -> PyResult<PyObject> {
+    fn get_variables(&self, py: Python) -> PyResult<PyObject> {
         let vars = PyDict::new(py);
-        let first = match self._first_extra {
+        let first = match self.first_extra {
             Some(first) => first,
             None => return Ok(vars.to_object(py)),
         };
-        for (idx, var) in self._variables.iter().flatten().enumerate() {
-            let s = if self._extra_named {
+        for (idx, var) in self.variables.iter().flatten().enumerate() {
+            let s = if self.extra_named {
                 format!("__edb_arg_{}", first + idx)
             } else {
                 (first + idx).to_string()

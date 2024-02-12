@@ -68,12 +68,12 @@ class Source:
 class NormalizedSource(Source):
     def __init__(self, normalized: ql_parser.Entry, text: str) -> None:
         self._text = text
-        self._cache_key = normalized.key()
-        self._tokens = normalized.tokens()
+        self._cache_key = normalized.key
+        self._tokens = normalized.tokens
         self._variables = normalized.variables()
-        self._first_extra = normalized.first_extra()
-        self._extra_counts = normalized.extra_counts()
-        self._extra_blobs = normalized.extra_blobs()
+        self._first_extra = normalized.first_extra
+        self._extra_counts = normalized.extra_counts
+        self._extra_blobs = normalized.extra_blobs
 
     def text(self) -> str:
         return self._text
