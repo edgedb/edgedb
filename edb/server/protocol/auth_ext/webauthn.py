@@ -72,11 +72,15 @@ class Client(local.Client):
         return util.maybe_get_config(self.db, "ext::auth::AuthConfig::app_name")
 
     async def create_registration_options_for_email(self, email: str):
+        maybe_user_handle = await self._maybe_get_existing_user_handle(
+            email=email
+        )
         registration_options = webauthn.generate_registration_options(
             rp_id=self.provider.relying_party_id,
             rp_name=(self.app_name or self.provider.relying_party_origin),
             user_name=email,
             user_display_name=email,
+            user_id=maybe_user_handle,
         )
 
         await self._create_registration_challenge(
@@ -89,6 +93,29 @@ class Client(local.Client):
             base64.urlsafe_b64encode(registration_options.user.id).decode(),
             webauthn.options_to_json(registration_options).encode(),
         )
+
+    async def _maybe_get_existing_user_handle(self, email: str):
+        result = await execute.parse_execute_json(
+            self.db,
+            """
+with
+    email := <str>$email,
+    factors := (
+        select ext::auth::WebAuthnFactor
+        filter .email = email
+    ),
+select assert_single((select distinct factors.user_handle));""",
+            variables={
+                "email": email,
+            },
+            cached_globally=True,
+        )
+
+        result_json = json.loads(result.decode())
+        if len(result_json) == 0:
+            return None
+        else:
+            return base64.b64decode(result_json[0])
 
     async def _create_registration_challenge(
         self,

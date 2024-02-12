@@ -68,9 +68,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     };
 
     create type ext::auth::WebAuthnFactor extending ext::auth::EmailFactor {
-        create required property user_handle: std::bytes {
-            create constraint exclusive;
-        };
+        create required property user_handle: std::bytes;
         create required property credential_id: std::bytes {
             create constraint exclusive;
         };
