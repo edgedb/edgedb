@@ -36,7 +36,7 @@ fn test_raw_string() {
 #[test]
 fn test_raw_byte_string() {
     test_statement(br#"select rb"\"; some trailer"#, 13);
-    test_statement(br#"select br'hello\'; some trailer"#, 18);
+    test_statement(br"select br'hello\'; some trailer", 18);
 }
 
 #[test]

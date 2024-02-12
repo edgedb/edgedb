@@ -1,8 +1,3 @@
-#[macro_use]
-extern crate cpython;
-
-use cpython::{PyObject, PyString};
-
 mod errors;
 mod hash;
 mod keywords;
@@ -12,60 +7,38 @@ mod position;
 mod pynormalize;
 mod tokenizer;
 
-use errors::{SyntaxError, ParserResult};
-use parser::{parse, preload_spec, save_spec, CSTNode, Production};
-use position::{offset_of_line, SourcePoint};
-use pynormalize::normalize;
-use tokenizer::{get_fn_unpickle_token, tokenize, OpaqueToken};
+use pyo3::prelude::*;
 
-py_module_initializer!(
-    _edgeql_parser,
-    init_edgeql_parser,
-    PyInit__edgeql_parser,
-    |py, m| {
-        tokenizer::init_module(py);
-        let keywords = keywords::get_keywords(py)?;
-        m.add(
-            py,
-            "__doc__",
-            "Rust enhancements for edgeql language parser",
-        )?;
+/// Rust bindings to the edgeql-parser crate
+#[pymodule]
+fn _edgeql_parser(py: Python, m: &PyModule) -> PyResult<()> {
+    m.add("SyntaxError", py.get_type::<errors::SyntaxError>())?;
+    m.add("ParserResult", py.get_type::<errors::ParserResult>())?;
 
-        m.add(py, "tokenize", py_fn!(py, tokenize(data: &PyString)))?;
-        m.add(py, "_unpickle_token", get_fn_unpickle_token(py))?;
-        m.add(py, "Token", py.get_type::<OpaqueToken>())?;
-        m.add(py, "SyntaxError", py.get_type::<SyntaxError>())?;
-        m.add(py, "ParserResult", py.get_type::<ParserResult>())?;
-        m.add(py, "Entry", py.get_type::<pynormalize::Entry>())?;
-        m.add(py, "SourcePoint", py.get_type::<SourcePoint>())?;
-        m.add(py, "normalize", py_fn!(py, normalize(query: &PyString)))?;
-        m.add(
-            py,
-            "offset_of_line",
-            py_fn!(py, offset_of_line(text: &str, line: usize)),
-        )?;
-        m.add(py, "Hasher", py.get_type::<hash::Hasher>())?;
-        m.add(py, "unreserved_keywords", keywords.unreserved)?;
-        m.add(py, "partial_reserved_keywords", keywords.partial)?;
-        m.add(py, "future_reserved_keywords", keywords.future)?;
-        m.add(py, "current_reserved_keywords", keywords.current)?;
-        m.add(
-            py,
-            "parse",
-            py_fn!(py, parse(parser_name: &PyString, data: PyObject)),
-        )?;
-        m.add(
-            py,
-            "preload_spec",
-            py_fn!(py, preload_spec(spec_filepath: &PyString)),
-        )?;
-        m.add(
-            py,
-            "save_spec",
-            py_fn!(py, save_spec(py_spec: &PyString, dst: &PyString)),
-        )?;
-        m.add(py, "CSTNode", py.get_type::<CSTNode>())?;
-        m.add(py, "Production", py.get_type::<Production>())?;
-        Ok(())
-    }
-);
+    m.add_class::<hash::Hasher>()?;
+
+    let keywords = keywords::get_keywords(py)?;
+    m.add("unreserved_keywords", keywords.unreserved)?;
+    m.add("partial_reserved_keywords", keywords.partial)?;
+    m.add("future_reserved_keywords", keywords.future)?;
+    m.add("current_reserved_keywords", keywords.current)?;
+
+    m.add_class::<pynormalize::Entry>()?;
+    m.add_function(wrap_pyfunction!(pynormalize::normalize, m)?)?;
+
+    m.add_function(wrap_pyfunction!(parser::parse, m)?)?;
+    m.add_function(wrap_pyfunction!(parser::preload_spec, m)?)?;
+    m.add_function(wrap_pyfunction!(parser::save_spec, m)?)?;
+    m.add_class::<parser::CSTNode>()?;
+    m.add_class::<parser::Production>()?;
+
+    m.add_function(wrap_pyfunction!(position::offset_of_line, m)?)?;
+    m.add("SourcePoint", py.get_type::<position::SourcePoint>())?;
+
+    m.add_class::<tokenizer::OpaqueToken>()?;
+    m.add_function(wrap_pyfunction!(tokenizer::tokenize, m)?)?;
+    m.add_function(wrap_pyfunction!(tokenizer::unpickle_token, m)?)?;
+    tokenizer::fini_module(py, m);
+
+    Ok(())
+}

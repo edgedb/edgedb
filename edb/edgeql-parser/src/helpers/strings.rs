@@ -32,7 +32,7 @@ pub fn quote_name(s: &str) -> Cow<str> {
     s.push('`');
     s.push_str(&escaped);
     s.push('`');
-    return s.into();
+    s.into()
 }
 
 pub fn quote_string(s: &str) -> String {
@@ -57,7 +57,7 @@ pub fn quote_string(s: &str) -> String {
         }
     }
     buf.push('"');
-    return buf;
+    buf
 }
 
 pub fn unquote_string(value: &str) -> Result<Cow<str>, UnquoteError> {
@@ -169,21 +169,21 @@ fn _unquote_string(s: &str) -> Result<String, String> {
 
 #[test]
 fn unquote_unicode_string() {
-    assert_eq!(_unquote_string(r#"\x09"#).unwrap(), "\u{09}");
-    assert_eq!(_unquote_string(r#"\u000A"#).unwrap(), "\u{000A}");
-    assert_eq!(_unquote_string(r#"\u000D"#).unwrap(), "\u{000D}");
-    assert_eq!(_unquote_string(r#"\u0020"#).unwrap(), "\u{0020}");
-    assert_eq!(_unquote_string(r#"\uFFFF"#).unwrap(), "\u{FFFF}");
+    assert_eq!(_unquote_string(r"\x09").unwrap(), "\u{09}");
+    assert_eq!(_unquote_string(r"\u000A").unwrap(), "\u{000A}");
+    assert_eq!(_unquote_string(r"\u000D").unwrap(), "\u{000D}");
+    assert_eq!(_unquote_string(r"\u0020").unwrap(), "\u{0020}");
+    assert_eq!(_unquote_string(r"\uFFFF").unwrap(), "\u{FFFF}");
 }
 
 #[test]
 fn unquote_string_error() {
-    assert_eq!(_unquote_string(r#"\x00"#).unwrap_err(),
+    assert_eq!(_unquote_string(r"\x00").unwrap_err(),
             "invalid string literal: \
              invalid escape sequence '\\x0' (only non-null ascii allowed)");
-    assert_eq!(_unquote_string(r#"\u0000"#).unwrap_err(),
+    assert_eq!(_unquote_string(r"\u0000").unwrap_err(),
             "invalid string literal: invalid escape sequence '\\u0000'");
-    assert_eq!(_unquote_string(r#"\U00000000"#).unwrap_err(),
+    assert_eq!(_unquote_string(r"\U00000000").unwrap_err(),
             "invalid string literal: invalid escape sequence '\\U00000000'");
 }
 
@@ -213,10 +213,10 @@ fn test_quote_string() {
 
 #[test]
 fn complex_strings() {
-    assert_eq!(_unquote_string(r#"\u0009 hello \u000A there"#).unwrap(),
+    assert_eq!(_unquote_string(r"\u0009 hello \u000A there").unwrap(),
         "\u{0009} hello \u{000A} there");
 
-    assert_eq!(_unquote_string(r#"\x62:\u2665:\U000025C6"#).unwrap(),
+    assert_eq!(_unquote_string(r"\x62:\u2665:\U000025C6").unwrap(),
         "\u{62}:\u{2665}:\u{25C6}");
 }
 

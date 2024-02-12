@@ -1,13 +1,13 @@
-use cpython::{PyBytes, PyClone, PyResult, PyString, Python, PythonObject};
-use cpython::{PyList, PyObject, PyTuple, ToPyObject};
-
 use edgeql_parser::tokenizer::{Token, Tokenizer};
 use once_cell::sync::OnceCell;
+use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyList, PyString};
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
 
+#[pyfunction]
 pub fn tokenize(py: Python, s: &PyString) -> PyResult<ParserResult> {
-    let data = s.to_string(py)?;
+    let data = s.to_string();
 
     let mut token_stream = Tokenizer::new(&data[..]).validated_values().with_eof();
 
@@ -28,68 +28,69 @@ pub fn tokenize(py: Python, s: &PyString) -> PyResult<ParserResult> {
 
     let tokens = tokens_to_py(py, tokens)?;
 
-    let errors = PyList::new(py, errors.as_slice()).to_py_object(py);
+    let errors = PyList::new(py, errors.as_slice()).into_py(py);
 
-    ParserResult::create_instance(py, tokens.into_object(), errors)
+    Ok(ParserResult {
+        out: tokens.into_py(py),
+        errors,
+    })
 }
 
 // An opaque wrapper around [edgeql_parser::tokenizer::Token].
 // Supports Python pickle serialization.
-py_class!(pub class OpaqueToken |py| {
-    data _inner: Token<'static>;
+#[pyclass]
+pub struct OpaqueToken {
+    pub inner: Token<'static>,
+}
 
-    def __repr__(&self) -> PyResult<PyString> {
-        Ok(PyString::new(py, &self._inner(py).to_string()))
+#[pymethods]
+impl OpaqueToken {
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(self.inner.to_string())
     }
-    def __reduce__(&self) -> PyResult<PyTuple> {
-        let data = bitcode::serialize(self._inner(py)).unwrap();
+    fn __reduce__(&self, py: Python) -> PyResult<(PyObject, (PyObject,))> {
+        let data = bitcode::serialize(&self.inner).unwrap();
 
-        return Ok((
-            get_fn_unpickle_token(py),
-            (
-                PyBytes::new(py, &data),
-            ),
-        ).to_py_object(py))
+        let tok = get_unpickle_token_fn(py);
+        Ok((tok, (PyBytes::new(py, &data).to_object(py),)))
     }
-});
+}
 
-pub fn tokens_to_py(py: Python, rust_tokens: Vec<Token>) -> PyResult<PyList> {
+pub fn tokens_to_py(py: Python<'_>, rust_tokens: Vec<Token>) -> PyResult<PyObject> {
     let mut buf = Vec::with_capacity(rust_tokens.len());
     for tok in rust_tokens {
-        let py_tok = OpaqueToken::create_instance(py, tok.cloned())?.into_object();
+        let py_tok = OpaqueToken {
+            inner: tok.cloned(),
+        };
 
-        buf.push(py_tok);
+        buf.push(py_tok.into_py(py));
     }
-    Ok(PyList::new(py, &buf[..]))
+    Ok(PyList::new(py, &buf[..]).into_py(py))
 }
 
 /// To support pickle serialization of OpaqueTokens, we need to provide a
 /// deserialization function in __reduce__ methods.
 /// This function must not be inlined and must be globally accessible.
 /// To achieve this, we expose it a part of the module definition
-/// (`_unpickle_token`) and save reference to is in the `FN_UNPICKLE_TOKEN`.
+/// (`unpickle_token`) and save reference to is in the `FN_UNPICKLE_TOKEN`.
 ///
 /// A bit hackly, but it works.
 static FN_UNPICKLE_TOKEN: OnceCell<PyObject> = OnceCell::new();
 
-pub fn init_module(py: Python) {
+pub fn fini_module(py: Python, m: &PyModule) {
+    let _unpickle_token = m.getattr("unpickle_token").unwrap();
     FN_UNPICKLE_TOKEN
-        .set(py_fn!(py, _unpickle_token(bytes: &PyBytes)))
+        .set(_unpickle_token.to_object(py))
         .expect("module is already initialized");
 }
 
-pub fn _unpickle_token(py: Python, bytes: &PyBytes) -> PyResult<OpaqueToken> {
-    let token = bitcode::deserialize(bytes.data(py)).unwrap();
-    OpaqueToken::create_instance(py, token)
+#[pyfunction]
+pub fn unpickle_token(bytes: &PyBytes) -> PyResult<OpaqueToken> {
+    let token = bitcode::deserialize(bytes.as_bytes()).unwrap();
+    Ok(OpaqueToken { inner: token })
 }
 
-pub fn get_fn_unpickle_token(py: Python) -> PyObject {
-    let py_function = FN_UNPICKLE_TOKEN.get().expect("module initialized");
-    return py_function.clone_ref(py);
-}
-
-impl OpaqueToken {
-    pub(super) fn inner(&self, py: Python) -> Token {
-        self._inner(py).clone()
-    }
+fn get_unpickle_token_fn(py: Python) -> PyObject {
+    let py_function = FN_UNPICKLE_TOKEN.get().expect("module uninitialized");
+    py_function.clone_ref(py)
 }

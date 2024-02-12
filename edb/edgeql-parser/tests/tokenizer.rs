@@ -11,7 +11,7 @@ fn tok_str(s: &str) -> Vec<String> {
             Some(Err(e)) => panic!("Parse error at {}: {}", e.span.start, e.message),
         }
     }
-    return r;
+    r
 }
 
 fn tok_typ(s: &str) -> Vec<Kind> {
@@ -24,7 +24,7 @@ fn tok_typ(s: &str) -> Vec<Kind> {
             Some(Err(e)) => panic!("Parse error at {}: {}", e.span.start, e.message),
         }
     }
-    return r;
+    r
 }
 
 fn tok_err(s: &str) -> String {
@@ -631,22 +631,22 @@ fn strings() {
 
     assert_eq!(tok_str(r#" "h\"ello" "#), [r#""h\"ello""#]);
     assert_eq!(tok_typ(r#" "h\"ello" "#), [Str]);
-    assert_eq!(tok_str(r#" 'h\'ello' "#), [r#"'h\'ello'"#]);
-    assert_eq!(tok_typ(r#" 'h\'ello' "#), [Str]);
+    assert_eq!(tok_str(r" 'h\'ello' "), [r"'h\'ello'"]);
+    assert_eq!(tok_typ(r" 'h\'ello' "), [Str]);
     assert_eq!(tok_str(r#" r"hello\" "#), [r#"r"hello\""#]);
     assert_eq!(tok_typ(r#" r"hello\" "#), [Str]);
-    assert_eq!(tok_str(r#" r'hello\' "#), [r#"r'hello\'"#]);
-    assert_eq!(tok_typ(r#" r'hello\' "#), [Str]);
+    assert_eq!(tok_str(r" r'hello\' "), [r"r'hello\'"]);
+    assert_eq!(tok_typ(r" r'hello\' "), [Str]);
     assert_eq!(tok_str(r#" b"h\"ello" "#), [r#"b"h\"ello""#]);
     assert_eq!(tok_typ(r#" b"h\"ello" "#), [BinStr]);
-    assert_eq!(tok_str(r#" b'h\'ello' "#), [r#"b'h\'ello'"#]);
-    assert_eq!(tok_typ(r#" b'h\'ello' "#), [BinStr]);
+    assert_eq!(tok_str(r" b'h\'ello' "), [r"b'h\'ello'"]);
+    assert_eq!(tok_typ(r" b'h\'ello' "), [BinStr]);
     assert_eq!(tok_str(r#" rb"hello\" "#), [r#"rb"hello\""#]);
     assert_eq!(tok_typ(r#" rb"hello\" "#), [BinStr]);
-    assert_eq!(tok_str(r#" rb'hello\' "#), [r#"rb'hello\'"#]);
-    assert_eq!(tok_typ(r#" rb'hello\' "#), [BinStr]);
-    assert_eq!(tok_str(r#" `hello\` "#), [r#"`hello\`"#]);
-    assert_eq!(tok_typ(r#" `hello\` "#), [Ident]);
+    assert_eq!(tok_str(r" rb'hello\' "), [r"rb'hello\'"]);
+    assert_eq!(tok_typ(r" rb'hello\' "), [BinStr]);
+    assert_eq!(tok_str(r" `hello\` "), [r"`hello\`"]);
+    assert_eq!(tok_typ(r" `hello\` "), [Ident]);
     assert_eq!(tok_str(r#" `hel``lo` "#), [r#"`hel``lo`"#]);
     assert_eq!(tok_typ(r#" `hel``lo` "#), [Ident]);
 
