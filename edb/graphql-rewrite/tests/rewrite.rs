@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use edb_graphql_parser::{Pos};
+use edb_graphql_parser::Pos;
 
 use graphql_rewrite::{rewrite, Variable, Value};
 use graphql_rewrite::{PyToken, PyTokenKind};
