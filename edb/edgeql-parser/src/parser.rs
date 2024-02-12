@@ -246,7 +246,9 @@ pub struct Reduce {
 /// must manually drop. This is why Terminal has a special vec arena that does
 /// Drop.
 #[derive(Debug, Clone, Copy)]
+#[derive(Default)]
 pub enum CSTNode<'a> {
+    #[default]
     Empty,
     Terminal(&'a Terminal),
     Production(Production<'a>),
@@ -565,11 +567,7 @@ impl std::fmt::Display for Terminal {
     }
 }
 
-impl<'a> Default for CSTNode<'a> {
-    fn default() -> Self {
-        CSTNode::Empty
-    }
-}
+
 
 impl Terminal {
     pub fn from_token(token: Token) -> Self {

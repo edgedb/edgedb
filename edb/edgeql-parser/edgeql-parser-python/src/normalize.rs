@@ -253,12 +253,12 @@ mod test {
     use super::scan_vars;
     use edgeql_parser::tokenizer::{Token, Tokenizer};
 
-    fn tokenize<'x>(s: &'x str) -> Vec<Token> {
+    fn tokenize(s: &str) -> Vec<Token> {
         let mut r = Vec::new();
         let mut s = Tokenizer::new(s);
         loop {
             match s.next() {
-                Some(Ok(x)) => r.push(x.into()),
+                Some(Ok(x)) => r.push(x),
                 None => break,
                 Some(Err(e)) => panic!("Parse error at {}: {}", s.current_pos(), e.message),
             }

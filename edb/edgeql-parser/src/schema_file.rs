@@ -94,7 +94,7 @@ mod test {
             .map(|_| String::new())
             .map_err(|e| {
                 let s = e.to_string();
-                assert!(s != "");
+                assert!(!s.is_empty());
                 return s
             })
             .unwrap_or_else(|e| e)

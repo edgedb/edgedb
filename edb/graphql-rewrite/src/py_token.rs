@@ -73,8 +73,8 @@ impl PyToken {
     }
 }
 
-pub fn convert_tokens<'a>(
-    py: Python<'a>,
+pub fn convert_tokens(
+    py: Python,
     tokens: &[PyToken],
     end_pos: &Pos,
     kinds: PyObject,
@@ -144,9 +144,9 @@ pub fn convert_tokens<'a>(
             K::BraceL => (brace_l.clone_ref(py), brace_l_v.clone_ref(py)),
             K::Pipe => (pipe.clone_ref(py), pipe_v.clone_ref(py)),
             K::BraceR => (brace_r.clone_ref(py), brace_r_v.clone_ref(py)),
-            K::Name => (name.clone_ref(py), token.value.to_owned().into_py(py)),
-            K::Int => (int.clone_ref(py), token.value.to_owned().into_py(py)),
-            K::Float => (float.clone_ref(py), token.value.to_owned().into_py(py)),
+            K::Name => (name.clone_ref(py), token.value.clone().into_py(py)),
+            K::Int => (int.clone_ref(py), token.value.clone().into_py(py)),
+            K::Float => (float.clone_ref(py), token.value.clone().into_py(py)),
             K::String => {
                 // graphql-core 3 receives unescaped strings from the lexer
                 let v = unquote_string(&token.value)

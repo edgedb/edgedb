@@ -20,7 +20,7 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
     match _normalize(&text) {
         Ok(entry) => {
             let blobs =
-                serialize_all(py, &entry.variables).map_err(|e| PyAssertionError::new_err(e))?;
+                serialize_all(py, &entry.variables).map_err(PyAssertionError::new_err)?;
             let counts: Vec<_> = entry
                 .variables
                 .iter()

@@ -56,7 +56,7 @@ impl OpaqueToken {
     }
 }
 
-pub fn tokens_to_py<'a>(py: Python<'a>, rust_tokens: Vec<Token>) -> PyResult<PyObject> {
+pub fn tokens_to_py(py: Python<'_>, rust_tokens: Vec<Token>) -> PyResult<PyObject> {
     let mut buf = Vec::with_capacity(rust_tokens.len());
     for tok in rust_tokens {
         let py_tok = OpaqueToken {

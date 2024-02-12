@@ -36,7 +36,7 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
     for (idx, var) in entry.variables.iter().enumerate() {
         let s = format!("_edb_arg__{}", idx).to_object(py);
 
-        vars.set_item(s.clone_ref(py), value_to_py(py, &var.value, &decimal_cls)?)?;
+        vars.set_item(s.clone_ref(py), value_to_py(py, &var.value, decimal_cls)?)?;
 
         substitutions.set_item(
             s.clone_ref(py),
@@ -48,7 +48,7 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
         )?;
     }
     for (name, var) in &entry.defaults {
-        vars.set_item(name.into_py(py), value_to_py(py, &var.value, &decimal_cls)?)?
+        vars.set_item(name.into_py(py), value_to_py(py, &var.value, decimal_cls)?)?
     }
     let key_vars = PyList::new(
         py,

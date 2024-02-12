@@ -27,7 +27,7 @@ impl Hasher {
             .as_mut()
             .ok_or_else(|| PyRuntimeError::new_err(("cannot add source after finish",)))?;
 
-        hasher.add_source(&text).map_err(|e| match e {
+        hasher.add_source(text).map_err(|e| match e {
             hash::Error::Tokenizer(msg, pos) => {
                 SyntaxError::new_err((msg, (pos.offset, py.None()), py.None(), py.None()))
             }
