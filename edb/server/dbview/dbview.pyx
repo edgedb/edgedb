@@ -233,6 +233,7 @@ cdef class Database:
     cdef _cache_compiled_query(
         self, key, compiled: dbstate.QueryUnitGroup, int dbver
     ):
+        # `dbver` must be the schema version `compiled` was compiled upon
         assert compiled.cacheable
 
         existing, existing_dbver = self._eql_to_compiled.get(key, DICTDEFAULT)

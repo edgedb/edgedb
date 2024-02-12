@@ -2871,6 +2871,8 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 self.skipTest("The host is too slow for this test.")
                 # If this happens too much, consider increasing the sleep time
 
+            # ISE is NOT the right expected result - a proper EdgeDB error is.
+            # FIXME in https://github.com/edgedb/edgedb/issues/6820
             with self.assertRaisesRegex(
                 edgedb.errors.InternalServerError,
                 "column .* does not exist",
