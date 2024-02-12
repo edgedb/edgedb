@@ -132,9 +132,9 @@ def inflate_position(
 def _tokenize(eql: str) -> List[ql_parser.Token]:
     result = ql_parser.tokenize(eql)
 
-    if len(result.errors()) > 0:
+    if len(result.errors) > 0:
         # TODO: emit multiple errors
-        error = result.errors()[0]
+        error = result.errors[0]
 
         message, span, hint, details = error
         position = inflate_position(eql, span)
@@ -144,7 +144,7 @@ def _tokenize(eql: str) -> List[ql_parser.Token]:
             message, position=position, hint=hint, details=details
         )
 
-    return result.out()
+    return result.out
 
 
 def _normalize(eql: str) -> ql_parser.Entry:

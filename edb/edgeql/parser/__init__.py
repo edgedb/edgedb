@@ -135,7 +135,7 @@ def parse(
     start_name = start_token.__name__[2:]
     result, productions = rust_parser.parse(start_name, source.tokens())
 
-    if len(result.errors()) > 0:
+    if len(result.errors) > 0:
         # TODO: emit multiple errors
 
         # Heuristic to pick the error:
@@ -143,7 +143,7 @@ def parse(
         # - first encountered,
         # - Unexpected before Missing,
         # - original order.
-        errs: List[ParserError] = result.errors()
+        errs: List[ParserError] = result.errors
         unexpected = [e for e in errs if e[0].startswith('Unexpected')]
         if (
             len(unexpected) == 1
@@ -173,7 +173,7 @@ def parse(
         )
 
     return _cst_to_ast(
-        result.out(),
+        result.out,
         productions,
         source,
         filename,
@@ -206,26 +206,26 @@ def _cst_to_ast(
         if isinstance(node, rust_parser.CSTNode):
             # this would be the body of the original recursion function
 
-            if terminal := node.terminal():
+            if terminal := node.terminal:
                 # Terminal is simple: just convert to parsing.Token
                 context = parsing.ParserContext(
                     name=filename,
                     buffer=source.text(),
-                    start=terminal.start(),
-                    end=terminal.end(),
+                    start=terminal.start,
+                    end=terminal.end,
                 )
                 result.append(
                     parsing.Token(
-                        terminal.text(), terminal.value(), context
+                        terminal.text, terminal.value, context
                     )
                 )
 
-            elif production := node.production():
+            elif production := node.production:
                 # Production needs to first process all args, then
                 # call the appropriate method.
                 # (this is all in reverse, because stacks)
                 stack.append(production)
-                args = list(production.args())
+                args = list(production.args)
                 args.reverse()
                 stack.extend(args)
             else:
@@ -233,13 +233,13 @@ def _cst_to_ast(
 
         elif isinstance(node, rust_parser.Production):
             # production args are done, get them out of result stack
-            len_args = len(node.args())
+            len_args = len(node.args)
             split_at = len(result) - len_args
             args = result[split_at:]
             result = result[0:split_at]
 
             # find correct method to call
-            production_id = node.id()
+            production_id = node.id
             production = productions[production_id]
 
             non_term_type, method = production
