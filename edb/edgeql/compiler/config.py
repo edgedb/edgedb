@@ -372,14 +372,6 @@ def _validate_op(
     ptr = None
 
     if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
-        # TODO: Fix this. The problem is that it gets lost when serializing it
-        if is_ext_config and expr.scope == qltypes.ConfigScope.SESSION:
-            raise errors.UnsupportedFeatureError(
-                'SESSION configuration of extension-defined config variables '
-                'is not yet implemented'
-            )
-
-        # This error is legit, though
         if is_ext_config and expr.scope == qltypes.ConfigScope.INSTANCE:
             raise errors.ConfigurationError(
                 'INSTANCE configuration of extension-defined config variables '

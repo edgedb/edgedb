@@ -3879,7 +3879,12 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
 
         from edb.pgsql import metaschema
 
-        new_local_spec = config.load_spec_from_schema(schema, only_exts=True)
+        new_local_spec = config.load_spec_from_schema(
+            schema,
+            only_exts=True,
+            # suppress validation because we might be in an intermediate state
+            validate=False,
+        )
         spec_json = config.spec_to_json(new_local_spec)
         self.pgops.add(dbops.Query(textwrap.dedent(f'''\
             UPDATE

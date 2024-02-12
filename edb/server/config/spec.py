@@ -29,6 +29,7 @@ from typing import *
 from edb.edgeql import compiler as qlcompiler
 from edb.ir import staeval
 from edb.ir import statypes
+from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
@@ -39,7 +40,8 @@ from edb.common.typeutils import downcast
 from . import types
 
 
-SETTING_TYPES = {str, int, bool, statypes.Duration, statypes.ConfigMemory}
+SETTING_TYPES = {str, int, bool, float,
+                 statypes.Duration, statypes.ConfigMemory}
 
 
 @dataclasses.dataclass(frozen=True, eq=True)
@@ -66,7 +68,8 @@ class Setting:
                 not isinstance(self.type, types.ConfigTypeSpec)):
             raise ValueError(
                 f'invalid config setting {self.name!r}: '
-                f'type is expected to be either one of {{str, int, bool}} '
+                f'type is expected to be either one of '
+                f'{{str, int, bool, float}} '
                 f'or an edb.server.config.types.ConfigType subclass')
 
         if self.set_of:
@@ -195,7 +198,9 @@ class ChainedSpec(Spec):
 
 
 def load_spec_from_schema(
-    schema: s_schema.Schema, only_exts: bool=False
+    schema: s_schema.Schema,
+    only_exts: bool=False,
+    validate: bool=True,
 ) -> Spec:
     settings = []
     if not only_exts:
@@ -203,6 +208,18 @@ def load_spec_from_schema(
         settings.extend(_load_spec_from_type(schema, cfg))
 
     settings.extend(load_ext_settings_from_schema(schema))
+
+    # Make sure there aren't any dangling ConfigObject children
+    if validate:
+        cfg_object = schema.get('cfg::ConfigObject', type=s_objtypes.ObjectType)
+        for child in cfg_object.children(schema):
+            if not schema.get_referrers(
+                child, scls_type=s_links.Link, field_name='target'
+            ):
+                raise RuntimeError(
+                    f'cfg::ConfigObject child {child.get_name(schema)} has no '
+                    f'links pointing at it (did you mean cfg::ExtensionConfig?)'
+                )
 
     return FlatSpec(*settings)
 
@@ -255,11 +272,17 @@ def _load_spec_from_type(
         else:
             pytype = staeval.scalar_type_to_python_type(ptype, schema)
 
-        attributes = {
-            a: json.loads(v.get_value(schema))
-            for a, v in p.get_annotations(schema).items(schema)
-            if isinstance(a, sn.QualName) and a.module == 'cfg'
-        }
+        attributes = {}
+        for a, v in p.get_annotations(schema).items(schema):
+            if isinstance(a, sn.QualName) and a.module == 'cfg':
+                try:
+                    jv = json.loads(v.get_value(schema))
+                except json.JSONDecodeError:
+                    raise RuntimeError(
+                        f'Config annotation {a} on {p.get_name(schema)} '
+                        f'is not valid json'
+                    )
+                attributes[a] = jv
 
         ptr_card = p.get_cardinality(schema)
         set_of = ptr_card.is_multi()
