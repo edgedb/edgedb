@@ -162,6 +162,8 @@ class Tenant(ha_base.ClusterProtocol):
         # DB state will be initialized in init().
         self._dbindex = None
 
+        self._branch_sem = asyncio.Semaphore(value=1)
+
         self._roles = immutables.Map()
         self._sys_auth = tuple()
         self._jwt_sub_allowlist_file = None
@@ -1192,16 +1194,25 @@ class Tenant(ha_base.ClusterProtocol):
         real_src_dbname = common.get_database_backend_name(
             src_dbname, tenant_id=self._tenant_id)
 
-        async with self.direct_pgcon(tgt_dbname) as con:
-            await bootstrap.create_branch(
-                self._cluster,
-                self._server._refl_schema,
-                con,
-                real_src_dbname,
-                real_tgt_dbname,
-                mode,
-                self._server._sys_queries['backend_id_fixup'],
-            )
+        # HACK: Limit the maximum number of in-flight branch
+        # creations. This is because branches use up to 3 concurrent
+        # connections (one direct, two via pg_dump/pg_restore), and so
+        # it can substantially blow our budget if many are in flight.
+        # The right way to handle this issue would probably be to use
+        # the connection pool to reserve the connections, but we would
+        # need to carefully consider deadlock concerns if we want to
+        # allow tasks to acquire multiple pool connections.
+        async with self._branch_sem:
+            async with self.direct_pgcon(tgt_dbname) as con:
+                await bootstrap.create_branch(
+                    self._cluster,
+                    self._server._refl_schema,
+                    con,
+                    real_src_dbname,
+                    real_tgt_dbname,
+                    mode,
+                    self._server._sys_queries['backend_id_fixup'],
+                )
 
         logger.info('Finished copy from %s to %s', src_dbname, tgt_dbname)
 
