@@ -29,7 +29,6 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
 
             Ok(Entry {
                 key: PyBytes::new(py, &entry.hash[..]).into(),
-                processed_source: entry.processed_source,
                 tokens: tokens_to_py(py, entry.tokens)?,
                 extra_blobs: blobs.into(),
                 extra_named: entry.named_args,
@@ -56,9 +55,6 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
 pub struct Entry {
     #[pyo3(get)]
     key: PyObject,
-
-    #[allow(dead_code)]
-    processed_source: String,
 
     #[pyo3(get)]
     tokens: PyObject,
