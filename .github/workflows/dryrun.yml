@@ -9,6 +9,55 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       branch: ${{ steps.whichver.outputs.branch }}
+
+
+      if_debian_buster_x86_64: ${{ steps.scm.outputs.if_debian_buster_x86_64 }}
+
+      if_debian_buster_aarch64: ${{ steps.scm.outputs.if_debian_buster_aarch64 }}
+
+      if_debian_bullseye_x86_64: ${{ steps.scm.outputs.if_debian_bullseye_x86_64 }}
+
+      if_debian_bullseye_aarch64: ${{ steps.scm.outputs.if_debian_bullseye_aarch64 }}
+
+      if_debian_bookworm_x86_64: ${{ steps.scm.outputs.if_debian_bookworm_x86_64 }}
+
+      if_debian_bookworm_aarch64: ${{ steps.scm.outputs.if_debian_bookworm_aarch64 }}
+
+      if_ubuntu_bionic_x86_64: ${{ steps.scm.outputs.if_ubuntu_bionic_x86_64 }}
+
+      if_ubuntu_bionic_aarch64: ${{ steps.scm.outputs.if_ubuntu_bionic_aarch64 }}
+
+      if_ubuntu_focal_x86_64: ${{ steps.scm.outputs.if_ubuntu_focal_x86_64 }}
+
+      if_ubuntu_focal_aarch64: ${{ steps.scm.outputs.if_ubuntu_focal_aarch64 }}
+
+      if_ubuntu_jammy_x86_64: ${{ steps.scm.outputs.if_ubuntu_jammy_x86_64 }}
+
+      if_ubuntu_jammy_aarch64: ${{ steps.scm.outputs.if_ubuntu_jammy_aarch64 }}
+
+      if_centos_7_x86_64: ${{ steps.scm.outputs.if_centos_7_x86_64 }}
+
+      if_centos_8_x86_64: ${{ steps.scm.outputs.if_centos_8_x86_64 }}
+
+      if_centos_8_aarch64: ${{ steps.scm.outputs.if_centos_8_aarch64 }}
+
+      if_rockylinux_9_x86_64: ${{ steps.scm.outputs.if_rockylinux_9_x86_64 }}
+
+      if_rockylinux_9_aarch64: ${{ steps.scm.outputs.if_rockylinux_9_aarch64 }}
+
+      if_linux_x86_64: ${{ steps.scm.outputs.if_linux_x86_64 }}
+
+      if_linux_aarch64: ${{ steps.scm.outputs.if_linux_aarch64 }}
+
+      if_linuxmusl_x86_64: ${{ steps.scm.outputs.if_linuxmusl_x86_64 }}
+
+      if_linuxmusl_aarch64: ${{ steps.scm.outputs.if_linuxmusl_aarch64 }}
+
+      if_macos_x86_64: ${{ steps.scm.outputs.if_macos_x86_64 }}
+
+      if_macos_aarch64: ${{ steps.scm.outputs.if_macos_aarch64 }}
+
+
     steps:
     - uses: actions/checkout@v3
 
@@ -19,9 +68,321 @@ jobs:
         echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
+
+    - name: Determine SCM revision
+      id: scm
+      shell: bash
+      run: |
+        rev=$(git rev-parse HEAD)
+        jq_filter='.packages[] | select(.basename == "edgedb-server") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select(($rev != null) and ($REV | startswith($rev)))'
+
+        val=true
+
+        idx_file=buster.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-buster-x86_64'
+          val=false
+        fi
+
+        echo if_debian_buster_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=buster.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-buster-aarch64'
+          val=false
+        fi
+
+        echo if_debian_buster_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bullseye.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bullseye-x86_64'
+          val=false
+        fi
+
+        echo if_debian_bullseye_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bullseye.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bullseye-aarch64'
+          val=false
+        fi
+
+        echo if_debian_bullseye_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bookworm.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bookworm-x86_64'
+          val=false
+        fi
+
+        echo if_debian_bookworm_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bookworm.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bookworm-aarch64'
+          val=false
+        fi
+
+        echo if_debian_bookworm_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bionic.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-bionic-x86_64'
+          val=false
+        fi
+
+        echo if_ubuntu_bionic_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bionic.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-bionic-aarch64'
+          val=false
+        fi
+
+        echo if_ubuntu_bionic_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=focal.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-focal-x86_64'
+          val=false
+        fi
+
+        echo if_ubuntu_focal_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=focal.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-focal-aarch64'
+          val=false
+        fi
+
+        echo if_ubuntu_focal_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=jammy.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
+          val=false
+        fi
+
+        echo if_ubuntu_jammy_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=jammy.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-jammy-aarch64'
+          val=false
+        fi
+
+        echo if_ubuntu_jammy_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=el7.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing centos-7-x86_64'
+          val=false
+        fi
+
+        echo if_centos_7_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=el8.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing centos-8-x86_64'
+          val=false
+        fi
+
+        echo if_centos_8_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=el8.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing centos-8-aarch64'
+          val=false
+        fi
+
+        echo if_centos_8_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=el9.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing rockylinux-9-x86_64'
+          val=false
+        fi
+
+        echo if_rockylinux_9_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=el9.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing rockylinux-9-aarch64'
+          val=false
+        fi
+
+        echo if_rockylinux_9_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linux-x86_64'
+          val=false
+        fi
+
+        echo if_linux_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linux-aarch64'
+          val=false
+        fi
+
+        echo if_linux_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linuxmusl-x86_64'
+          val=false
+        fi
+
+        echo if_linuxmusl_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linuxmusl-aarch64'
+          val=false
+        fi
+
+        echo if_linuxmusl_aarch64="$val" >> $GITHUB_OUTPUT
+
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing macos-x86_64'
+          val=false
+        fi
+
+        echo if_macos_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing macos-aarch64'
+          val=false
+        fi
+
+        echo if_macos_aarch64="$val" >> $GITHUB_OUTPUT
+
+
+
   build-debian-buster-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_debian_buster_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -44,6 +405,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_debian_buster_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
@@ -64,6 +428,9 @@ jobs:
   build-debian-bullseye-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_debian_bullseye_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -86,6 +453,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_debian_bullseye_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
@@ -106,6 +476,9 @@ jobs:
   build-debian-bookworm-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_debian_bookworm_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -128,6 +501,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_debian_bookworm_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
@@ -148,6 +524,9 @@ jobs:
   build-ubuntu-bionic-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_ubuntu_bionic_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -170,6 +549,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_ubuntu_bionic_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
@@ -190,6 +572,9 @@ jobs:
   build-ubuntu-focal-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_ubuntu_focal_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -212,6 +597,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_ubuntu_focal_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
@@ -232,6 +620,9 @@ jobs:
   build-ubuntu-jammy-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_ubuntu_jammy_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -254,6 +645,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_ubuntu_jammy_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
@@ -274,6 +668,9 @@ jobs:
   build-centos-7-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_centos_7_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -296,6 +693,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+    if: needs.prep.outputs.if_centos_8_x86_64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
@@ -316,6 +716,9 @@ jobs:
   build-centos-8-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
+
+    if: needs.prep.outputs.if_centos_8_aarch64 == 'true'
+
 
     steps:
     - name: Build
@@ -338,6 +741,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+    if: needs.prep.outputs.if_rockylinux_9_x86_64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
@@ -359,6 +765,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_rockylinux_9_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
@@ -379,6 +788,9 @@ jobs:
   build-linux-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_linux_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -402,6 +814,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_linux_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-aarch64@master
@@ -423,6 +838,9 @@ jobs:
   build-linuxmusl-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_linuxmusl_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -447,6 +865,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_linuxmusl_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
@@ -469,6 +890,9 @@ jobs:
   build-macos-x86_64:
     runs-on: ['self-hosted', 'macOS', 'X64']
     needs: prep
+
+    if: needs.prep.outputs.if_macos_x86_64 == 'true'
+
 
     steps:
     - uses: actions/checkout@v3
@@ -513,6 +937,9 @@ jobs:
     runs-on: ['self-hosted', 'macOS', 'ARM64']
     needs: prep
 
+    if: needs.prep.outputs.if_macos_aarch64 == 'true'
+
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -541,7 +968,7 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "aarch64"
-        PKG_PLATFORM_ARCH: ""
+        PKG_PLATFORM_ARCH: "aarch64"
         METAPKG_GIT_CACHE: disabled
         BUILD_GENERIC: true
       run: |
