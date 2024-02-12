@@ -20,6 +20,7 @@ import asyncio
 import decimal
 import http
 import json
+import time
 import uuid
 import unittest
 
@@ -2826,6 +2827,65 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
         finally:
             await self.con.query('ROLLBACK')
+
+    async def test_server_proto_query_cache_invalidate_10(self):
+        typename = 'CacheInv_10'
+
+        con1 = self.con
+        con2 = await self.connect(database=con1.dbname)
+        try:
+            await con2.execute(f'''
+                CREATE TYPE {typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> std::str;
+                }};
+
+                INSERT {typename} {{
+                    prop1 := 'aaa'
+                }};
+            ''')
+
+            sleep = 3
+            query = (
+                f"# EDGEDB_TEST_COMPILER_SLEEP = {sleep}\n"
+                f"SELECT {typename}.prop1"
+            )
+            task = self.loop.create_task(con1.query(query))
+
+            start = time.monotonic()
+            await con2.execute(f'''
+                DELETE (SELECT {typename});
+
+                ALTER TYPE {typename} {{
+                    DROP PROPERTY prop1;
+                }};
+
+                ALTER TYPE {typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> std::int64;
+                }};
+
+                INSERT {typename} {{
+                    prop1 := 123
+                }};
+            ''')
+            if time.monotonic() - start > sleep:
+                self.skipTest("The host is too slow for this test.")
+                # If this happens too much, consider increasing the sleep time
+
+            # ISE is NOT the right expected result - a proper EdgeDB error is.
+            # FIXME in https://github.com/edgedb/edgedb/issues/6820
+            with self.assertRaisesRegex(
+                edgedb.errors.InternalServerError,
+                "column .* does not exist",
+            ):
+                await task
+
+            self.assertEqual(
+                await con1.query(query),
+                edgedb.Set([123]),
+            )
+
+        finally:
+            await con2.aclose()
 
     async def test_server_proto_backend_tid_propagation_01(self):
         async with self._run_and_rollback():

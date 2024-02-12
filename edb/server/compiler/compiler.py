@@ -26,6 +26,7 @@ import json
 import hashlib
 import pickle
 import textwrap
+import time
 import uuid
 
 import immutables
@@ -2335,6 +2336,14 @@ def _try_compile(
     ctx: CompileContext,
     source: edgeql.Source,
 ) -> dbstate.QueryUnitGroup:
+    if _get_config_val(ctx, '__internal_testmode'):
+        # This is a bad but simple way to emulate a slow compilation for tests.
+        # Ideally, we should have a testmode function that is hooked to sleep
+        # as `simple_special_case`, or wait for a notification from the test.
+        sentinel = "# EDGEDB_TEST_COMPILER_SLEEP = "
+        text = source.text()
+        if text.startswith(sentinel):
+            time.sleep(float(text[len(sentinel):text.index("\n")]))
 
     default_cardinality = enums.Cardinality.NO_RESULT
     statements = edgeql.parse_block(source)

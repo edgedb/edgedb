@@ -94,7 +94,7 @@ cdef class Database:
     cdef schedule_config_update(self)
 
     cdef _invalidate_caches(self)
-    cdef _cache_compiled_query(self, key, query_unit)
+    cdef _cache_compiled_query(self, key, compiled, int dbver)
     cdef _new_view(self, query_cache, protocol_version)
     cdef _remove_view(self, view)
     cdef _update_backend_ids(self, new_types)
@@ -171,7 +171,9 @@ cdef class DatabaseConnectionView:
     cpdef in_tx(self)
     cpdef in_tx_error(self)
 
-    cdef cache_compiled_query(self, object key, object query_unit)
+    cdef cache_compiled_query(
+        self, object key, object query_unit_group, int dbver
+    )
     cdef lookup_compiled_query(self, object key)
 
     cdef tx_error(self)

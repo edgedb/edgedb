@@ -230,15 +230,18 @@ cdef class Database:
         self._sql_to_compiled.clear()
         self._index.invalidate_caches()
 
-    cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
+    cdef _cache_compiled_query(
+        self, key, compiled: dbstate.QueryUnitGroup, int dbver
+    ):
+        # `dbver` must be the schema version `compiled` was compiled upon
         assert compiled.cacheable
 
-        existing, dbver = self._eql_to_compiled.get(key, DICTDEFAULT)
-        if existing is not None and dbver == self.dbver:
+        existing, existing_dbver = self._eql_to_compiled.get(key, DICTDEFAULT)
+        if existing is not None and existing_dbver == self.dbver:
             # We already have a cached query for a more recent DB version.
             return
 
-        self._eql_to_compiled[key] = compiled, self.dbver
+        self._eql_to_compiled[key] = compiled, dbver
 
     def cache_compiled_sql(self, key, compiled: list[str]):
         existing, dbver = self._sql_to_compiled.get(key, DICTDEFAULT)
@@ -714,12 +717,14 @@ cdef class DatabaseConnectionView:
     cpdef in_tx_error(self):
         return self._tx_error
 
-    cdef cache_compiled_query(self, object key, object query_unit_group):
+    cdef cache_compiled_query(
+        self, object key, object query_unit_group, int dbver
+    ):
         assert query_unit_group.cacheable
 
         if not self._in_tx_with_ddl:
             key = (key, self.get_modaliases(), self.get_session_config())
-            self._db._cache_compiled_query(key, query_unit_group)
+            self._db._cache_compiled_query(key, query_unit_group, dbver)
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
@@ -975,6 +980,7 @@ cdef class DatabaseConnectionView:
         if query_unit_group is None:
             # Cache miss; need to compile this query.
             cached = False
+            dbver = self._db.dbver
 
             try:
                 query_unit_group = await self._compile(query_req)
@@ -1016,7 +1022,7 @@ cdef class DatabaseConnectionView:
             if cached_globally:
                 self.server.system_compile_cache[query_req] = query_unit_group
             else:
-                self.cache_compiled_query(query_req, query_unit_group)
+                self.cache_compiled_query(query_req, query_unit_group, dbver)
 
         if use_metrics:
             metrics.edgeql_query_compilations.inc(
