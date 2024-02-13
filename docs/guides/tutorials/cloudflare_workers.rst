@@ -172,6 +172,12 @@ To interact with your **local EdgeDB instance**, use the following code:
 
         $ edgedb instance credentials --insecure-dsn
 
+.. note:: tlsSecurity
+
+    The :code:`tlsSecurity` option is set to :code:`insecure` to allow 
+    connections to a local EdgeDB instance. This lets you test your
+    Cloudflare Worker locally. **Don't use this option in production.**
+    
 **Client Setup with EdgeDB Cloud**
 
 If you're using EdgeDB Cloud, you can instead use the following code to 
