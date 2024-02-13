@@ -133,7 +133,7 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.execute('select syntax error')
 
             for _ in range(10):
-                await self.con.execute('select 1; select 2;'),
+                await self.con.execute('select 1; select 2;')
 
     async def test_server_proto_exec_error_recover_01(self):
         for _ in range(2):

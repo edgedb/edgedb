@@ -100,7 +100,8 @@ class SignalController:
             handler.cancel()
         if self._waiters:
             warnings.warn(
-                "SignalController exited before wait_for() completed."
+                "SignalController exited before wait_for() completed.",
+                stacklevel=1,
             )
         registry = self._registry[self._loop]
         for signal in self._signals:

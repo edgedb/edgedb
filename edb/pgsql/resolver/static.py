@@ -336,6 +336,8 @@ def to_regclass(reg_class_name: str, ctx: Context) -> pgast.BaseExpr:
         name = (ctx.options.search_path[0], name[0])
 
     namespace, rel_name = name
+    assert isinstance(namespace, str)
+    assert isinstance(rel_name, str)
 
     # A bit hacky to parse SQL here, but I don't want to construct pgast
     [stmt] = pgparser.parse(

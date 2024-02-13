@@ -1087,10 +1087,11 @@ async def get_remote_pg_cluster(
                 configfile_access = True
 
                 if cur_cluster_name:
+                    cn = pgcommon.quote_literal(
+                        cur_cluster_name.decode("utf-8"))
                     await conn.sql_execute(
                         f"""
-                        ALTER SYSTEM SET cluster_name =
-                            {pgcommon.quote_literal(cur_cluster_name)}
+                        ALTER SYSTEM SET cluster_name = {cn}
                         """.encode("utf-8"),
                     )
                 else:
