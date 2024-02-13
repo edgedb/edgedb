@@ -86,7 +86,8 @@ to create a new instance:
 It creates an :code:`edgedb.toml` config file, and a schema file 
 :code:`dbschema/default.esdl`.
 
-It also spuns up an EdgeDB instance and “links” it to the current directory. 
+It also spins up an EdgeDB instance and associates it with the current
+directory.
 As long as you’re inside the project directory, all CLI commands will 
 be executed against this instance.
 
