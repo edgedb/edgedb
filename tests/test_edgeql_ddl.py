@@ -16807,6 +16807,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                      'name': '2', 'value': 'bar', 'opt_value': 'opt.'},
                     {'_tname': 'ext::_conf::SubObj',
                      'name': '3', 'value': 'baz', 'extra': 42,
+                     'duration_config': 'PT10M',
                      'opt_value': None},
                     {'_tname': 'ext::_conf::SecretObj',
                      'name': '4', 'value': 'foo',
@@ -16852,6 +16853,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             value := 'quux',
         };
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
+            duration_config := <std::duration>'PT10M',
             extra := 42,
             name := '3',
             value := 'baz',
