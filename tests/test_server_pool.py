@@ -1594,7 +1594,7 @@ class TestServerConnectionPool(unittest.TestCase):
                 await event.wait()
                 pool.release(dbname, conn)
 
-            async with taskgroup.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for n in range(10):
                     g.create_task(job(f"block_{n}"))
 
