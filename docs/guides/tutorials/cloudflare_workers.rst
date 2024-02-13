@@ -190,8 +190,8 @@ set up the client:
 .. code-block:: typescript
 
    const client = edgedb.createHttpClient({
-   	instanceName: env.EDGEDB_INSTANCE,
-   	secretKey: env.EDGEDB_SECRET_KEY,
+     instanceName: env.EDGEDB_INSTANCE,
+     secretKey: env.EDGEDB_SECRET_KEY,
    });
 
 You will need to set the :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET` 
