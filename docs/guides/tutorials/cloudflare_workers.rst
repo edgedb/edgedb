@@ -55,9 +55,9 @@ template to get started.
    
 You'll be asked if you want to put your project on Cloudflare.
 If you say yes, you'll need to sign in (if you haven't already). 
-If you don't want to deploy up right away, just go to the project folder 
-you just made to start writing your code. When you're ready to put your 
-project on Cloudflare, you can run :code:`npx wrangler deploy` to push it.
+If you don't want to deploy right away, switch to the project folder 
+you just made to start writing your code. When you're ready to deploy your 
+project on Cloudflare, you can run ``npx wrangler deploy`` to push it.
 
 .. note:: Using Wrangler CLI
 
