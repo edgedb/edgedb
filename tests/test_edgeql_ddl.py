@@ -16564,22 +16564,19 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                         "session!";
                 ''')
 
-        # TODO: This should all work, instead!
-        async with self.assertRaisesRegexTx(
-                edgedb.UnsupportedFeatureError, ""):
-            await self.con.execute('''
-                configure session set ext::_conf::Config::config_name :=
-                    "session!";
-            ''')
+        await self.con.execute('''
+            configure session set ext::_conf::Config::config_name :=
+                "session!";
+        ''')
 
-            await _check(
-                config_name='session!',
-                objs=[],
-            )
+        await _check(
+            config_name='session!',
+            objs=[],
+        )
 
-            await self.con.execute('''
-                configure session reset ext::_conf::Config::config_name;
-            ''')
+        await self.con.execute('''
+            configure session reset ext::_conf::Config::config_name;
+        ''')
 
         await _check(
             config_name='test',

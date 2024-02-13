@@ -37,7 +37,6 @@ import time
 import immutables
 
 from edb.common import debug
-from edb.common import taskgroup
 
 from edb.pgsql import params as pgparams
 
@@ -943,7 +942,7 @@ class SimpleAdaptivePool(BaseLocalPool):
         self._max_num_workers = pool_size
 
     async def _start(self):
-        async with taskgroup.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             for _i in range(self._pool_size):
                 g.create_task(self._create_worker())
 

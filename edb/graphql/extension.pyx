@@ -271,10 +271,10 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
     try:
         rewritten = _graphql_rewrite.rewrite(operation_name, query)
 
-        vars = rewritten.variables().copy()
+        vars = rewritten.variables.copy()
         if variables:
             vars.update(variables)
-        key_var_names = rewritten.key_vars()
+        key_var_names = rewritten.key_vars
         # on bad queries the following line can trigger KeyError
         key_vars = tuple(vars[k] for k in key_var_names)
     except _graphql_rewrite.QueryError as e:
@@ -291,11 +291,11 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
         key_var_names = []
         key_vars = ()
     else:
-        prepared_query = rewritten.key()
+        prepared_query = rewritten.key
 
         if debug.flags.graphql_compile:
             debug.header('GraphQL optimized query')
-            print(rewritten.key())
+            print(rewritten)
             print(f'key_vars: {key_var_names}')
             print(f'variables: {vars}')
 
@@ -320,7 +320,7 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
                 tenant,
                 query,
                 rewritten.tokens(gql_lexer.TokenKind),
-                rewritten.substitutions(),
+                rewritten.substitutions,
                 operation_name,
                 vars,
             )

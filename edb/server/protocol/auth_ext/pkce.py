@@ -24,7 +24,6 @@ import json
 import logging
 import dataclasses
 
-from edb.common import taskgroup
 from edb.ir import statypes
 from edb.server.protocol import execute
 
@@ -154,7 +153,7 @@ async def delete(db, id: str) -> None:
 
 async def _gc(tenant: edbtenant.Tenant):
     try:
-        async with taskgroup.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             for db in tenant.iter_dbs():
                 if "auth" in db.extensions:
                     g.create_task(

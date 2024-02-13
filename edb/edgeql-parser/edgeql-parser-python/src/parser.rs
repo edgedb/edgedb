@@ -1,20 +1,23 @@
-use cpython::exc::AssertionError;
-use cpython::{
-    ObjectProtocol, PyClone, PyInt, PyList, PyNone, PyObject, PyResult, PyString, PyTuple, Python,
-    PythonObject, PythonObjectWithCheckedDowncast, ToPyObject,
-};
 use once_cell::sync::OnceCell;
 
 use edgeql_parser::parser;
+use pyo3::exceptions::PyAssertionError;
+use pyo3::prelude::*;
+use pyo3::types::{PyList, PyString, PyTuple};
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::pynormalize::value_to_py_object;
 use crate::tokenizer::OpaqueToken;
 
-pub fn parse(py: Python, start_token_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
-    let start_token_name = start_token_name.to_string(py).unwrap();
+#[pyfunction]
+pub fn parse(
+    py: Python,
+    start_token_name: &PyString,
+    tokens: PyObject,
+) -> PyResult<(ParserResult, PyObject)> {
+    let start_token_name = start_token_name.to_string();
 
-    let (spec, productions) = get_spec(py)?;
+    let (spec, productions) = get_spec()?;
 
     let tokens = downcast_tokens(py, &start_token_name, tokens)?;
 
@@ -29,69 +32,56 @@ pub fn parse(py: Python, start_token_name: &PyString, tokens: PyObject) -> PyRes
         .collect::<Vec<_>>();
     let errors = PyList::new(py, &errors);
 
-    let res = ParserResult::create_instance(py, cst.into_py_object(py), errors)?;
+    let res = ParserResult {
+        out: cst.into_py(py),
+        errors: errors.into(),
+    };
 
-    Ok((res, productions).into_py_object(py))
+    Ok((res, productions.clone()))
 }
 
-py_class!(pub class CSTNode |py| {
-    data _production: PyObject;
-    data _terminal: PyObject;
+#[pyclass]
+pub struct CSTNode {
+    #[pyo3(get)]
+    production: PyObject,
+    #[pyo3(get)]
+    terminal: PyObject,
+}
 
-    def production(&self) -> PyResult<PyObject> {
-        Ok(self._production(py).clone_ref(py))
-    }
-    def terminal(&self) -> PyResult<PyObject> {
-        Ok(self._terminal(py).clone_ref(py))
-    }
-});
+#[pyclass]
+pub struct Production {
+    #[pyo3(get)]
+    id: usize,
+    #[pyo3(get)]
+    args: PyObject,
+}
 
-py_class!(pub class Production |py| {
-    data _id: PyInt;
-    data _args: PyList;
-
-    def id(&self) -> PyResult<PyInt> {
-        Ok(self._id(py).clone_ref(py))
-    }
-    def args(&self) -> PyResult<PyList> {
-        Ok(self._args(py).clone_ref(py))
-    }
-});
-
-py_class!(pub class Terminal |py| {
-    data _text: PyString;
-    data _value: PyObject;
-    data _start: u64;
-    data _end: u64;
-
-    def text(&self) -> PyResult<PyString> {
-        Ok(self._text(py).clone_ref(py))
-    }
-    def value(&self) -> PyResult<PyObject> {
-        Ok(self._value(py).clone_ref(py))
-    }
-    def start(&self) -> PyResult<u64> {
-        Ok(*self._start(py))
-    }
-    def end(&self) -> PyResult<u64> {
-        Ok(*self._end(py))
-    }
-});
+#[pyclass]
+pub struct Terminal {
+    #[pyo3(get)]
+    text: String,
+    #[pyo3(get)]
+    value: PyObject,
+    #[pyo3(get)]
+    start: u64,
+    #[pyo3(get)]
+    end: u64,
+}
 
 static PARSER_SPECS: OnceCell<(parser::Spec, PyObject)> = OnceCell::new();
 
-fn downcast_tokens<'a>(
+fn downcast_tokens(
     py: Python,
     start_token_name: &str,
     token_list: PyObject,
 ) -> PyResult<Vec<parser::Terminal>> {
-    let tokens = PyList::downcast_from(py, token_list)?;
+    let tokens: &PyList = token_list.downcast(py)?;
 
-    let mut buf = Vec::with_capacity(tokens.len(py) + 1);
+    let mut buf = Vec::with_capacity(tokens.len() + 1);
     buf.push(parser::Terminal::from_start_name(start_token_name));
-    for token in tokens.iter(py) {
-        let token = OpaqueToken::downcast_from(py, token)?;
-        let token = token.inner(py);
+    for token in tokens.iter() {
+        let token: &PyCell<OpaqueToken> = token.downcast()?;
+        let token = token.borrow().inner.clone();
 
         buf.push(parser::Terminal::from_token(token));
     }
@@ -105,25 +95,23 @@ fn downcast_tokens<'a>(
     Ok(buf)
 }
 
-fn get_spec(py: Python) -> Result<&'static (parser::Spec, PyObject), cpython::PyErr> {
+fn get_spec() -> PyResult<&'static (parser::Spec, PyObject)> {
     if let Some(x) = PARSER_SPECS.get() {
-        return Ok(x);
+        Ok(x)
     } else {
-        return Err(cpython::PyErr::new::<AssertionError, _>(
-            py,
-            ("grammar spec not loaded",),
-        ));
+        Err(PyAssertionError::new_err(("grammar spec not loaded",)))
     }
 }
 
 /// Loads the grammar specification from file and caches it in memory.
-pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<PyNone> {
+#[pyfunction]
+pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<()> {
     if PARSER_SPECS.get().is_some() {
-        return Ok(PyNone);
+        return Ok(());
     }
 
-    let spec_filepath = spec_filepath.to_string(py)?;
-    let bytes = std::fs::read(spec_filepath.as_ref())
+    let spec_filepath = spec_filepath.to_string();
+    let bytes = std::fs::read(&spec_filepath)
         .unwrap_or_else(|e| panic!("Cannot read grammar spec from {spec_filepath} ({e})"));
 
     let spec: parser::Spec = bitcode::deserialize::<parser::SpecSerializable>(&bytes)
@@ -132,21 +120,22 @@ pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<PyNone> {
     let productions = load_productions(py, &spec)?;
 
     let _ = PARSER_SPECS.set((spec, productions));
-    Ok(PyNone)
+    Ok(())
 }
 
 /// Serialize the grammar specification and write it to a file.
 ///
 /// Called from setup.py.
-pub fn save_spec(py: Python, spec_json: &PyString, dst: &PyString) -> PyResult<PyNone> {
-    let spec_json = spec_json.to_string(py).unwrap();
+#[pyfunction]
+pub fn save_spec(spec_json: &PyString, dst: &PyString) -> PyResult<()> {
+    let spec_json = spec_json.to_string();
     let spec: parser::SpecSerializable = serde_json::from_str(&spec_json).unwrap();
     let spec_bitcode = bitcode::serialize(&spec).unwrap();
 
-    let dst = dst.to_string(py)?.to_string();
+    let dst = dst.to_string();
 
     std::fs::write(dst, spec_bitcode).ok().unwrap();
-    Ok(PyNone)
+    Ok(())
 }
 
 fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {
@@ -154,47 +143,53 @@ fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {
     let grammar_mod = py.import(grammar_name)?;
     let load_productions = py
         .import("edb.common.parsing")?
-        .get(py, "load_spec_productions")?;
+        .getattr("load_spec_productions")?;
 
-    let productions = load_productions.call(py, (&spec.production_names, grammar_mod), None)?;
-    Ok(productions)
+    let production_names: Vec<_> = spec
+        .production_names
+        .iter()
+        .map(|(a, b)| PyTuple::new(py, [a, b]))
+        .collect();
+
+    let productions = load_productions.call((production_names, grammar_mod), None)?;
+    Ok(productions.into())
 }
 
 fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> {
-    match cst {
-        parser::CSTNode::Empty => CSTNode::create_instance(py, py.None(), py.None()),
-        parser::CSTNode::Terminal(token) => CSTNode::create_instance(
-            py,
-            py.None(),
-            Terminal::create_instance(
-                py,
-                token.text.to_py_object(py),
-                if let Some(val) = &token.value {
+    Ok(match cst {
+        parser::CSTNode::Empty => CSTNode {
+            production: py.None(),
+            terminal: py.None(),
+        },
+        parser::CSTNode::Terminal(token) => CSTNode {
+            production: py.None(),
+            terminal: Terminal {
+                text: token.text.clone(),
+                value: if let Some(val) = &token.value {
                     value_to_py_object(py, val)?
                 } else {
                     py.None()
                 },
-                token.span.start,
-                token.span.end,
-            )?
-            .into_object(),
-        ),
-        parser::CSTNode::Production(prod) => CSTNode::create_instance(
-            py,
-            Production::create_instance(
-                py,
-                prod.id.into_py_object(py),
-                PyList::new(
+                start: token.span.start,
+                end: token.span.end,
+            }
+            .into_py(py),
+        },
+        parser::CSTNode::Production(prod) => CSTNode {
+            production: Production {
+                id: prod.id,
+                args: PyList::new(
                     py,
                     prod.args
                         .iter()
-                        .map(|a| to_py_cst(a, py).map(|x| x.into_object()))
+                        .map(|a| to_py_cst(a, py).map(|x| x.into_py(py)))
                         .collect::<PyResult<Vec<_>>>()?
                         .as_slice(),
-                ),
-            )?
-            .into_object(),
-            py.None(),
-        ),
-    }
+                )
+                .into(),
+            }
+            .into_py(py),
+            terminal: py.None(),
+        },
+    })
 }

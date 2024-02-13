@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       branch: ${{ steps.whichver.outputs.branch }}
+
     steps:
     - uses: actions/checkout@v3
 
@@ -19,9 +20,12 @@ jobs:
         echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
+
+
   build-debian-buster-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
 
     steps:
     - name: Build
@@ -44,6 +48,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
@@ -64,6 +69,7 @@ jobs:
   build-debian-bullseye-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
 
     steps:
     - name: Build
@@ -86,6 +92,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
@@ -106,6 +113,7 @@ jobs:
   build-debian-bookworm-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
 
     steps:
     - name: Build
@@ -128,6 +136,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
@@ -148,6 +157,7 @@ jobs:
   build-ubuntu-bionic-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
 
     steps:
     - name: Build
@@ -170,6 +180,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
@@ -190,6 +201,7 @@ jobs:
   build-ubuntu-focal-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
 
     steps:
     - name: Build
@@ -212,6 +224,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
@@ -232,6 +245,7 @@ jobs:
   build-ubuntu-jammy-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
 
     steps:
     - name: Build
@@ -254,6 +268,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
@@ -274,6 +289,7 @@ jobs:
   build-centos-7-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
 
     steps:
     - name: Build
@@ -296,6 +312,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
@@ -316,6 +333,7 @@ jobs:
   build-centos-8-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
+
 
     steps:
     - name: Build
@@ -338,6 +356,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
@@ -359,6 +378,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
@@ -379,6 +399,7 @@ jobs:
   build-linux-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
 
     steps:
     - name: Build
@@ -402,6 +423,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-aarch64@master
@@ -423,6 +445,7 @@ jobs:
   build-linuxmusl-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
 
     steps:
     - name: Build
@@ -447,6 +470,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
@@ -469,6 +493,7 @@ jobs:
   build-macos-x86_64:
     runs-on: ['self-hosted', 'macOS', 'X64']
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -513,6 +538,7 @@ jobs:
     runs-on: ['self-hosted', 'macOS', 'ARM64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -541,7 +567,7 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "aarch64"
-        PKG_PLATFORM_ARCH: ""
+        PKG_PLATFORM_ARCH: "aarch64"
         METAPKG_GIT_CACHE: disabled
         BUILD_GENERIC: true
       run: |

@@ -291,63 +291,63 @@ impl<'a> Tokenizer<'a> {
 
         match cur_char {
             ':' => match iter.next() {
-                Some((_, '=')) => return Ok((Assign, 2)),
-                Some((_, ':')) => return Ok((Namespace, 2)),
-                _ => return Ok((Colon, 1)),
+                Some((_, '=')) => Ok((Assign, 2)),
+                Some((_, ':')) => Ok((Namespace, 2)),
+                _ => Ok((Colon, 1)),
             },
             '-' => match iter.next() {
-                Some((_, '>')) => return Ok((Arrow, 2)),
-                Some((_, '=')) => return Ok((SubAssign, 2)),
-                _ => return Ok((Sub, 1)),
+                Some((_, '>')) => Ok((Arrow, 2)),
+                Some((_, '=')) => Ok((SubAssign, 2)),
+                _ => Ok((Sub, 1)),
             },
             '>' => match iter.next() {
-                Some((_, '=')) => return Ok((GreaterEq, 2)),
-                _ => return Ok((Greater, 1)),
+                Some((_, '=')) => Ok((GreaterEq, 2)),
+                _ => Ok((Greater, 1)),
             },
             '<' => match iter.next() {
-                Some((_, '=')) => return Ok((LessEq, 2)),
-                _ => return Ok((Less, 1)),
+                Some((_, '=')) => Ok((LessEq, 2)),
+                _ => Ok((Less, 1)),
             },
             '+' => match iter.next() {
-                Some((_, '=')) => return Ok((AddAssign, 2)),
-                Some((_, '+')) => return Ok((Concat, 2)),
-                _ => return Ok((Add, 1)),
+                Some((_, '=')) => Ok((AddAssign, 2)),
+                Some((_, '+')) => Ok((Concat, 2)),
+                _ => Ok((Add, 1)),
             },
             '/' => match iter.next() {
-                Some((_, '/')) => return Ok((FloorDiv, 2)),
-                _ => return Ok((Div, 1)),
+                Some((_, '/')) => Ok((FloorDiv, 2)),
+                _ => Ok((Div, 1)),
             },
             '.' => match iter.next() {
-                Some((_, '<')) => return Ok((BackwardLink, 2)),
-                _ => return Ok((Dot, 1)),
+                Some((_, '<')) => Ok((BackwardLink, 2)),
+                _ => Ok((Dot, 1)),
             },
             '?' => match iter.next() {
-                Some((_, '?')) => return Ok((Coalesce, 2)),
-                Some((_, '=')) => return Ok((NotDistinctFrom, 2)),
+                Some((_, '?')) => Ok((Coalesce, 2)),
+                Some((_, '=')) => Ok((NotDistinctFrom, 2)),
                 Some((_, '!')) => {
                     if let Some((_, '=')) = iter.next() {
-                        return Ok((DistinctFrom, 3));
+                        Ok((DistinctFrom, 3))
                     } else {
-                        return Err(Error::new(
+                        Err(Error::new(
                             "`?!` is not an operator, \
                                 did you mean `?!=` ?",
-                        ));
+                        ))
                     }
                 }
                 _ => {
-                    return Err(Error::new(
+                    Err(Error::new(
                         "Bare `?` is not an operator, \
                             did you mean `?=` or `??` ?",
                     ))
                 }
             },
             '!' => match iter.next() {
-                Some((_, '=')) => return Ok((NotEq, 2)),
+                Some((_, '=')) => Ok((NotEq, 2)),
                 _ => {
-                    return Err(Error::new(
+                    Err(Error::new(
                         "Bare `!` is not an operator, \
                             did you mean `!=`?",
-                    ));
+                    ))
                 }
             },
             '"' | '\'' => self.parse_string(0, false, false),
@@ -389,26 +389,26 @@ impl<'a> Tokenizer<'a> {
                     }
                     check_prohibited(c, false)?;
                 }
-                return Err(Error::new("unterminated backtick name"));
+                Err(Error::new("unterminated backtick name"))
             }
-            '=' => return Ok((Eq, 1)),
-            ',' => return Ok((Comma, 1)),
-            '(' => return Ok((OpenParen, 1)),
-            ')' => return Ok((CloseParen, 1)),
-            '[' => return Ok((OpenBracket, 1)),
-            ']' => return Ok((CloseBracket, 1)),
-            '{' => return Ok((OpenBrace, 1)),
-            '}' => return Ok((CloseBrace, 1)),
-            ';' => return Ok((Semicolon, 1)),
+            '=' => Ok((Eq, 1)),
+            ',' => Ok((Comma, 1)),
+            '(' => Ok((OpenParen, 1)),
+            ')' => Ok((CloseParen, 1)),
+            '[' => Ok((OpenBracket, 1)),
+            ']' => Ok((CloseBracket, 1)),
+            '{' => Ok((OpenBrace, 1)),
+            '}' => Ok((CloseBrace, 1)),
+            ';' => Ok((Semicolon, 1)),
             '*' => match iter.next() {
-                Some((_, '*')) => return Ok((DoubleSplat, 2)),
-                _ => return Ok((Mul, 1)),
+                Some((_, '*')) => Ok((DoubleSplat, 2)),
+                _ => Ok((Mul, 1)),
             },
-            '%' => return Ok((Modulo, 1)),
-            '^' => return Ok((Pow, 1)),
-            '&' => return Ok((Ampersand, 1)),
-            '|' => return Ok((Pipe, 1)),
-            '@' => return Ok((At, 1)),
+            '%' => Ok((Modulo, 1)),
+            '^' => Ok((Pow, 1)),
+            '&' => Ok((Ampersand, 1)),
+            '|' => Ok((Pipe, 1)),
+            '@' => Ok((At, 1)),
             c if c == '_' || c.is_alphabetic() => {
                 let end_idx = loop {
                     match iter.next() {
@@ -446,7 +446,7 @@ impl<'a> Tokenizer<'a> {
                 };
                 let val = &tail[..end_idx];
                 if let Some(keyword) = self.as_keyword(val) {
-                    return Ok((Keyword(keyword), end_idx));
+                    Ok((Keyword(keyword), end_idx))
                 } else if val.starts_with("__") && val.ends_with("__") {
                     return Err(Error::new(
                         "identifiers surrounded by double \
@@ -589,7 +589,7 @@ impl<'a> Tokenizer<'a> {
                         )));
                     }
                 }
-                return Ok((Parameter, end_idx));
+                Ok((Parameter, end_idx))
             }
             '\\' => match iter.next() {
                 Some((_, '(')) => {
@@ -815,9 +815,9 @@ impl<'a> Tokenizer<'a> {
         let suffix = &self.buf[self.off + soff..self.off + end];
         if suffix == "n" {
             if decimal {
-                return Ok((DecimalConst, end));
+                Ok((DecimalConst, end))
             } else {
-                return Ok((BigIntConst, end));
+                Ok((BigIntConst, end))
             }
         } else {
             let suffix = if suffix.len() > 8 {
@@ -919,7 +919,7 @@ impl<'a> Tokenizer<'a> {
         self.keyword_buf.clear();
         self.keyword_buf.push_str(s);
         self.keyword_buf.make_ascii_lowercase();
-        return keywords::lookup_all(&self.keyword_buf);
+        keywords::lookup_all(&self.keyword_buf)
     }
 }
 

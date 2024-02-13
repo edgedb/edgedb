@@ -30,6 +30,7 @@ from edb.tools.edb import edbcommands
 
 @edbcommands.command("parser-demo")
 def main():
+    qlparser.preload_spec()
 
     for q in QUERIES[-10:]:
         sdl = q.startswith('sdl')
@@ -37,8 +38,8 @@ def main():
             q = q[3:]
 
         try:
-            # s = tokenizer.NormalizedSource.from_string(q)
-            source = tokenizer.Source.from_string(q)
+            source = tokenizer.NormalizedSource.from_string(q)
+            # source = tokenizer.Source.from_string(q)
         except BaseException as e:
             print('Error during tokenization:')
             print(e)
@@ -52,11 +53,11 @@ def main():
         print('-' * 30)
         print()
 
-        for index, error in enumerate(result.errors()):
+        for index, error in enumerate(result.errors):
             message, span, hint, details = error
             (start, end) = tokenizer.inflate_span(source.text(), span)
 
-            print(f'Error [{index+1}/{len(result.errors())}]:')
+            print(f'Error [{index+1}/{len(result.errors)}]:')
             print(
                 '\n'.join(
                     source.text().splitlines()[(start.line - 1) : end.line]
@@ -74,9 +75,9 @@ def main():
                 print(f'  Hint: {hint}')
             print()
 
-        if result.out():
+        if result.out:
             try:
-                ast = qlparser._cst_to_ast(result.out(), productions).val
+                ast = qlparser._cst_to_ast(result.out, productions).val
             except BaseException:
                 ast = None
             if ast:

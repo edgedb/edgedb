@@ -230,15 +230,18 @@ cdef class Database:
         self._sql_to_compiled.clear()
         self._index.invalidate_caches()
 
-    cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
+    cdef _cache_compiled_query(
+        self, key, compiled: dbstate.QueryUnitGroup, int dbver
+    ):
+        # `dbver` must be the schema version `compiled` was compiled upon
         assert compiled.cacheable
 
-        existing, dbver = self._eql_to_compiled.get(key, DICTDEFAULT)
-        if existing is not None and dbver == self.dbver:
+        existing, existing_dbver = self._eql_to_compiled.get(key, DICTDEFAULT)
+        if existing is not None and existing_dbver == self.dbver:
             # We already have a cached query for a more recent DB version.
             return
 
-        self._eql_to_compiled[key] = compiled, self.dbver
+        self._eql_to_compiled[key] = compiled, dbver
 
     def cache_compiled_sql(self, key, compiled: list[str]):
         existing, dbver = self._sql_to_compiled.get(key, DICTDEFAULT)
@@ -294,8 +297,6 @@ cdef class Database:
 
 cdef class DatabaseConnectionView:
 
-    _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnitGroup]
-
     def __init__(self, db: Database, *, query_cache, protocol_version):
         self._db = db
 
@@ -325,15 +326,7 @@ cdef class DatabaseConnectionView:
         self._last_comp_state = None
         self._last_comp_state_id = 0
 
-        # Whenever we are in a transaction that had executed a
-        # DDL command, we use this cache for compiled queries.
-        self._eql_to_compiled = lru.LRUMapping(
-            maxsize=defines._MAX_QUERIES_CACHE)
-
         self._reset_tx_state()
-
-    cdef _invalidate_local_cache(self):
-        self._eql_to_compiled.clear()
 
     cdef _reset_tx_state(self):
         self._txid = None
@@ -354,7 +347,6 @@ cdef class DatabaseConnectionView:
         self._in_tx_state_serializer = None
         self._tx_error = False
         self._in_tx_dbver = 0
-        self._invalidate_local_cache()
 
     cdef clear_tx_error(self):
         self._tx_error = False
@@ -379,7 +371,6 @@ cdef class DatabaseConnectionView:
         self.set_session_config(config)
         self.set_globals(globals)
         self.set_state_serializer(state_serializer)
-        self._invalidate_local_cache()
 
     cdef declare_savepoint(self, name, spid):
         state = (
@@ -726,15 +717,14 @@ cdef class DatabaseConnectionView:
     cpdef in_tx_error(self):
         return self._tx_error
 
-    cdef cache_compiled_query(self, object key, object query_unit_group):
+    cdef cache_compiled_query(
+        self, object key, object query_unit_group, int dbver
+    ):
         assert query_unit_group.cacheable
 
-        key = (key, self.get_modaliases(), self.get_session_config())
-
-        if self._in_tx_with_ddl:
-            self._eql_to_compiled[key] = query_unit_group
-        else:
-            self._db._cache_compiled_query(key, query_unit_group)
+        if not self._in_tx_with_ddl:
+            key = (key, self.get_modaliases(), self.get_session_config())
+            self._db._cache_compiled_query(key, query_unit_group, dbver)
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
@@ -743,14 +733,10 @@ cdef class DatabaseConnectionView:
             return None
 
         key = (key, self.get_modaliases(), self.get_session_config())
-
-        if self._in_tx_with_ddl:
-            query_unit_group = self._eql_to_compiled.get(key)
-        else:
-            query_unit_group, qu_dbver = self._db._eql_to_compiled.get(
-                key, DICTDEFAULT)
-            if query_unit_group is not None and qu_dbver != self._db.dbver:
-                query_unit_group = None
+        query_unit_group, qu_dbver = self._db._eql_to_compiled.get(
+            key, DICTDEFAULT)
+        if query_unit_group is not None and qu_dbver != self._db.dbver:
+            query_unit_group = None
 
         return query_unit_group
 
@@ -816,11 +802,6 @@ cdef class DatabaseConnectionView:
 
     cdef on_success(self, query_unit, new_types):
         side_effects = 0
-
-        if query_unit.tx_savepoint_rollback:
-            # Need to invalidate the cache in case there were
-            # SET ALIAS or CONFIGURE or DDL commands.
-            self._invalidate_local_cache()
 
         if not self._in_tx:
             if new_types:
@@ -999,6 +980,7 @@ cdef class DatabaseConnectionView:
         if query_unit_group is None:
             # Cache miss; need to compile this query.
             cached = False
+            dbver = self._db.dbver
 
             try:
                 query_unit_group = await self._compile(query_req)
@@ -1040,7 +1022,7 @@ cdef class DatabaseConnectionView:
             if cached_globally:
                 self.server.system_compile_cache[query_req] = query_unit_group
             else:
-                self.cache_compiled_query(query_req, query_unit_group)
+                self.cache_compiled_query(query_req, query_unit_group, dbver)
 
         if use_metrics:
             metrics.edgeql_query_compilations.inc(

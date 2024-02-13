@@ -62,7 +62,6 @@ from edb.common import devmode
 from edb.common import debug
 from edb.common import retryloop
 from edb.common import secretkey
-from edb.common import taskgroup
 
 from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
@@ -1046,7 +1045,6 @@ class DatabaseTestCase(ConnectedTestCase):
     async def setup_and_connect(cls):
         dbname = cls.get_database_name()
 
-        cls.admin_conn = None
         cls.con = None
 
         class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
@@ -1054,16 +1052,17 @@ class DatabaseTestCase(ConnectedTestCase):
         # Only open an extra admin connection if necessary.
         if class_set_up == 'run':
             script = f'CREATE DATABASE {dbname};'
-            cls.admin_conn = await cls.connect()
-            await cls.admin_conn.execute(script)
+            admin_conn = await cls.connect()
+            await admin_conn.execute(script)
+            await admin_conn.aclose()
 
         elif class_set_up == 'inplace':
             dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
 
         elif cls.uses_database_copies():
-            cls.admin_conn = await cls.connect()
+            admin_conn = await cls.connect()
 
-            orig_testmode = await cls.admin_conn.query(
+            orig_testmode = await admin_conn.query(
                 'SELECT cfg::Config.__internal_testmode',
             )
             if not orig_testmode:
@@ -1073,7 +1072,7 @@ class DatabaseTestCase(ConnectedTestCase):
 
             # Enable testmode to unblock the template database syntax below.
             if not orig_testmode:
-                await cls.admin_conn.execute(
+                await admin_conn.execute(
                     'CONFIGURE SESSION SET __internal_testmode := true;',
                 )
 
@@ -1088,7 +1087,7 @@ class DatabaseTestCase(ConnectedTestCase):
                     timeout=30,
                 ):
                     async with tr:
-                        await cls.admin_conn.execute(
+                        await admin_conn.execute(
                             f'''
                                 CREATE DATABASE {qlquote.quote_ident(dbname)}
                                 FROM {qlquote.quote_ident(base_db_name)}
@@ -1097,9 +1096,11 @@ class DatabaseTestCase(ConnectedTestCase):
             await create_db()
 
             if not orig_testmode:
-                await cls.admin_conn.execute(
+                await admin_conn.execute(
                     'CONFIGURE SESSION SET __internal_testmode := false;',
                 )
+
+            await admin_conn.aclose()
 
         cls.con = await cls.connect(database=dbname)
 
@@ -1127,19 +1128,18 @@ class DatabaseTestCase(ConnectedTestCase):
             if class_set_up == 'inplace':
                 await cls.tearDownSingleDB()
         finally:
-            try:
-                await cls.con.aclose()
+            await cls.con.aclose()
 
-                if class_set_up == 'inplace':
-                    pass
+            if class_set_up == 'inplace':
+                pass
 
-                elif class_set_up == 'run' or cls.uses_database_copies():
-                    dbname = qlquote.quote_ident(cls.get_database_name())
-                    await drop_db(cls.admin_conn, dbname)
-
-            finally:
-                if cls.admin_conn is not None:
-                    await cls.admin_conn.aclose()
+            elif class_set_up == 'run' or cls.uses_database_copies():
+                dbname = qlquote.quote_ident(cls.get_database_name())
+                admin_conn = await cls.connect()
+                try:
+                    await drop_db(admin_conn, dbname)
+                finally:
+                    await admin_conn.aclose()
 
     @classmethod
     def get_database_name(cls):
@@ -1852,7 +1852,7 @@ async def setup_test_cases(
             if verbose:
                 print(f' -> {dbname}: OK', flush=True)
     else:
-        async with taskgroup.TaskGroup(name='setup test cases') as g:
+        async with asyncio.TaskGroup() as g:
             # Use a semaphore to limit the concurrency of bootstrap
             # tasks to the number of jobs (bootstrap is heavy, having
             # more tasks than `--jobs` won't necessarily make

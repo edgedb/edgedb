@@ -13,8 +13,8 @@ num-bigint = "0.4.3"
 num-traits = "0.2.11"
 edb-graphql-parser = { git="https://github.com/edgedb/graphql-parser" }
 
-[dependencies.cpython]
-version = "0.7.0"
+[dependencies.pyo3]
+version = "0.20.2"
 features = ["extension-module"]
 
 [dev-dependencies]
