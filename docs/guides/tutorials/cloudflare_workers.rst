@@ -83,7 +83,7 @@ to create a new instance:
 
     $ edgedb project init
 
-It creates an :code:`edgedb.toml` config file, and a schema file 
+It creates an :code:`edgedb.toml` config file and a schema file 
 :code:`dbschema/default.esdl`.
 
 It also spins up an EdgeDB instance and associates it with the current
