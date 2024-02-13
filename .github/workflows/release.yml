@@ -491,7 +491,7 @@ jobs:
         path: artifacts/linuxmusl-aarch64
 
   build-macos-x86_64:
-    runs-on: ['self-hosted', 'macOS', 'X64']
+    runs-on: ['macos-14']
     needs: prep
 
 
@@ -503,18 +503,29 @@ jobs:
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      if: false
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      if: true
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "x86_64-apple-darwin"
 
     - name: Set up Python
       uses: actions/setup-python@v5
-      if: false
+      if: true
       with:
         python-version: "3.x"
+
+    - name: Set up NodeJS
+      uses: actions/setup-node@v4
+      if: true
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      if: true
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -524,6 +535,7 @@ jobs:
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_ARCH: "x86_64"
+        EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
         BUILD_GENERIC: true
       run: |
@@ -535,7 +547,7 @@ jobs:
         path: artifacts/macos-x86_64
 
   build-macos-aarch64:
-    runs-on: ['self-hosted', 'macOS', 'ARM64']
+    runs-on: ['macos-14']
     needs: prep
 
 
@@ -547,18 +559,29 @@ jobs:
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      if: false
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      if: true
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "aarch64-apple-darwin"
 
     - name: Set up Python
       uses: actions/setup-python@v5
-      if: false
+      if: true
       with:
         python-version: "3.x"
+
+    - name: Set up NodeJS
+      uses: actions/setup-node@v4
+      if: true
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      if: true
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -568,6 +591,7 @@ jobs:
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_ARCH: "aarch64"
+        EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
         BUILD_GENERIC: true
       run: |
@@ -1000,7 +1024,7 @@ jobs:
 
   test-macos-x86_64:
     needs: [build-macos-x86_64]
-    runs-on: ['self-hosted', 'macOS', 'X64']
+    runs-on: ['macos-14']
 
     steps:
     - uses: actions/checkout@v4
@@ -1023,7 +1047,7 @@ jobs:
 
   test-macos-aarch64:
     needs: [build-macos-aarch64]
-    runs-on: ['self-hosted', 'macOS', 'ARM64']
+    runs-on: ['macos-14']
 
     steps:
     - uses: actions/checkout@v4
