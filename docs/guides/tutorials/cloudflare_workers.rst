@@ -192,6 +192,11 @@ set up the client:
      secretKey: env.EDGEDB_SECRET_KEY,
    });
 
+.. note:: Environment variables
+
+    You can obtain :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET_KEY` 
+    values from the EdgeDB Cloud dashboard.
+
 You will need to set the :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET` 
 environment variables in your Cloudflare Worker project.
 
@@ -205,8 +210,6 @@ Add the following to your :code:`wrangler.toml` file:
 
 Next, you can run :code:`wrangler types` to generate the types for your
 environment variables.
-
-You can obtain these values from the EdgeDB Cloud dashboard.
 
 **Running the Worker**
 
@@ -254,6 +257,6 @@ Check out the `Cloudflare Workers documentation`_ for more information and
 to learn about the various features and capabilities of Cloudflare Workers.
 
 .. _`EdgeDB Cloudflare Minimal Starter`:
-  https://github.com/beerose/edgedb-cloudflare-minimal-starter
+  https://github.com/edgedb/edgedb-examples/tree/main/cloudflare-workers
 .. _`Cloudflare Workers documentation`:
   https://developers.cloudflare.com/workers
