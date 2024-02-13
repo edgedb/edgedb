@@ -22,7 +22,6 @@ import os.path
 import unittest
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 try:
     import asyncpg
@@ -891,7 +890,6 @@ class TestSQL(tb.SQLQueryTestCase):
         finally:
             await con.aclose()
 
-    @test.xfail("https://github.com/MagicStack/py-pgproto/issues/19")
     async def test_sql_query_client_encoding_1(self):
         rv1 = await self.squery_values('select * from "Genre" order by id')
         await self.squery_values("set client_encoding to 'GBK'")
