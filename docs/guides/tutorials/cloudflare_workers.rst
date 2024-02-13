@@ -97,7 +97,7 @@ interactive REPL to your instance.
 
     $ edgedb
 
-**Install The EdgeDB NPM package**
+**Install The EdgeDB npm package**
 
 .. code-block:: bash
 
