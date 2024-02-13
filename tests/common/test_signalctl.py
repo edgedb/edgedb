@@ -311,9 +311,10 @@ class TestSignalctl(tb.TestCase):
                 try:
                     await self.wait_for_parent(2)  # cancelled by signal
                 except asyncio.CancelledError:
-                    # In case the task cancellation is hanging, ..
+                    # In case the task cancellation is hanging, we should still
+                    # be able to reliably cancel the task, see timeout below
                     fut.set_result(None)
-                    await self.wait_for_parent(2)
+                    await self.loop.create_future()
 
             with signalctl.SignalController(signal.SIGTERM) as sc:
                 task = self.loop.create_task(
@@ -321,7 +322,6 @@ class TestSignalctl(tb.TestCase):
                 )
                 await fut
 
-                # .. we should still be able to reliably cancel the task
                 with self.assertRaises(asyncio.TimeoutError):
                     await asyncio.wait_for(task, 0.2)
                 self.assertTrue(task.done())
