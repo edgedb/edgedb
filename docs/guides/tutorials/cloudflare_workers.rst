@@ -249,7 +249,7 @@ Cloudflare Workers.
 Here's a minimal starter project that you can use as a 
 reference: `EdgeDB Cloudflare Minimal Starter`_.
 
-Check out the `Cloudflare Workers documentation`_ for more information, and 
+Check out the `Cloudflare Workers documentation`_ for more information and 
 to learn about the various features and capabilities of Cloudflare Workers.
 
 .. _`EdgeDB Cloudflare Minimal Starter`:
