@@ -856,12 +856,16 @@ class Pool(BasePool[C]):
                 # the starving blocks.
 
                 for block in list(self._blocks.values()):
-                    nconns = block.count_conns()
-                    num_waiters = block.count_waiters()
-                    if nconns > num_waiters:
-                        if (conn := block.try_steal()) is not None:
-                            if not self._maybe_free_conn(block, conn):
-                                block.release(conn)
+                    while block.count_conns() > block.count_waiters():
+                        if (conn := block.try_steal()) is None:
+                            # no more from this block
+                            break
+
+                        elif not self._maybe_free_conn(block, conn):
+                            # put back the last stolen connection if we
+                            # don't need to steal anymore
+                            block.release(conn)
+                            return
 
         else:
             # Mode C: distribute the total connections by calibrated demand
