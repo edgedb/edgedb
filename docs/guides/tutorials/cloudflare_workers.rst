@@ -145,7 +145,11 @@ To interact with your **local EdgeDB instance**, use the following code:
     import * as edgedb from 'edgedb';
 
     export default {
-     async fetch(_request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+     async fetch(
+      _request: Request, 
+      env: Env, 
+      ctx: ExecutionContext
+     ): Promise<Response> {
       
       const client = edgedb.createHttpClient({
        tlsSecurity: 'insecure',
@@ -177,7 +181,7 @@ To interact with your **local EdgeDB instance**, use the following code:
     The :code:`tlsSecurity` option is set to :code:`insecure` to allow 
     connections to a local EdgeDB instance. This lets you test your
     Cloudflare Worker locally. **Don't use this option in production.**
-    
+
 **Client Setup with EdgeDB Cloud**
 
 If you're using EdgeDB Cloud, you can instead use the following code to 
@@ -242,12 +246,16 @@ to access your worker.
 Wrapping up
 ===========
 
-Congratulations! You have successfully integrated EdgeDB with Cloudflare Workers.
+Congratulations! You have successfully integrated EdgeDB with 
+Cloudflare Workers.
 
-Here's a minimal starter project that you can use as a reference: `EdgeDB Cloudflare Minimal Starter`_.
+Here's a minimal starter project that you can use as a 
+reference: `EdgeDB Cloudflare Minimal Starter`_.
 
 Check out the `Cloudflare Workers documentation`_ for more information, and 
 to learn about the various features and capabilities of Cloudflare Workers.
 
-.. _`EdgeDB Cloudflare Minimal Starter`: https://github.com/beerose/edgedb-cloudflare-minimal-starter
-.. _`Cloudflare Workers documentation`: https://developers.cloudflare.com/workers
+.. _`EdgeDB Cloudflare Minimal Starter`:
+  https://github.com/beerose/edgedb-cloudflare-minimal-starter
+.. _`Cloudflare Workers documentation`:
+  https://developers.cloudflare.com/workers
