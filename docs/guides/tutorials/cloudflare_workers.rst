@@ -33,7 +33,7 @@ Ensure you have the following installed:
 .. _Node.js: https://nodejs.org/en/
 .. _EdgeDB CLI: https://www.edgedb.com/docs/intro/cli
 
-Setup and Configuration
+Setup and configuration
 -----------------------
 
 Initialize a New Cloudflare Worker Project
