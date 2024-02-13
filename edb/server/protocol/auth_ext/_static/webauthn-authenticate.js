@@ -183,7 +183,7 @@ async function authenticateAssertion(props) {
         console.error(
           "User's email is not verified",
           response.statusText,
-          error
+          JSON.stringify(error)
         );
         throw new Error(
           "Please verify your email before attempting to sign in."
@@ -194,7 +194,7 @@ async function authenticateAssertion(props) {
       console.error(
         "Failed to authenticate WebAuthn credentials:",
         response.statusText,
-        error
+        JSON.stringify(error)
       );
       throw new Error("Failed to authenticate WebAuthn credentials");
     },

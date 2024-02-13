@@ -983,18 +983,19 @@ class Router:
                 " cookie"
             ) from e
 
-        require_verification = webauthn_client.provider.require_verification
-        if require_verification:
-            email_is_verified = await webauthn_client.is_email_verified(
-                email, user_handle
-            )
-            if not email_is_verified:
-                raise errors.VerificationRequired()
         identity = await webauthn_client.authenticate(
             assertion=assertion,
             email=email,
             user_handle=user_handle,
         )
+
+        require_verification = webauthn_client.provider.require_verification
+        if require_verification:
+            email_is_verified = await webauthn_client.is_email_verified(
+                email, assertion
+            )
+            if not email_is_verified:
+                raise errors.VerificationRequired()
 
         await pkce.create(self.db, pkce_challenge)
         code = await pkce.link_identity_challenge(

@@ -23,6 +23,7 @@ import webauthn
 
 from typing import Any, Optional, Tuple
 from webauthn.helpers import (
+    parse_authentication_credential_json,
     structs as webauthn_structs,
     exceptions as webauthn_exceptions,
 )
@@ -339,22 +340,25 @@ else (
     async def is_email_verified(
         self,
         email: str,
-        user_handle: bytes,
+        assertion: str,
     ) -> bool:
+        credential = parse_authentication_credential_json(assertion)
+
         result = await execute.parse_execute_json(
             self.db,
             """
 with
     email := <str>$email,
-    user_handle := <bytes>$user_handle,
-    factor := (
+    credential_id := <bytes>$credential_id,
+    factor := assert_single((
         select ext::auth::WebAuthnFactor
-        filter .email = email and .user_handle = user_handle
-    ),
+        filter .email = email
+        and credential_id = credential_id
+    )),
 select (factor.verified_at <= std::datetime_current()) ?? false;""",
             variables={
                 "email": email,
-                "user_handle": user_handle,
+                "credential_id": credential.raw_id,
             },
             cached_globally=True,
         )
