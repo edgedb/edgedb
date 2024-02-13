@@ -253,7 +253,7 @@ def compile_and_apply_ddl_stmt(
     create_db_mode = None
     if isinstance(stmt, qlast.DropDatabase):
         drop_db = stmt.name.name
-        drop_db_reset_connections = stmt.reset_connections
+        drop_db_reset_connections = stmt.force
     elif isinstance(stmt, qlast.CreateDatabase):
         create_db = stmt.name.name
         create_db_template = stmt.template.name if stmt.template else None
@@ -263,7 +263,7 @@ def compile_and_apply_ddl_stmt(
             if isinstance(cmd, qlast.Rename):
                 drop_db = stmt.name.name
                 create_db = cmd.new_name.name
-                drop_db_reset_connections = stmt.reset_connections
+                drop_db_reset_connections = stmt.force
 
     if debug.flags.delta_execute_ddl:
         debug.header('Delta Script (DDL Only)')

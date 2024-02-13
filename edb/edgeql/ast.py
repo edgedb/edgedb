@@ -883,11 +883,11 @@ class CreateDatabase(CreateObject, DatabaseCommand):
 
 
 class AlterDatabase(AlterObject, DatabaseCommand):
-    reset_connections: bool = False
+    force: bool = False
 
 
 class DropDatabase(DropObject, DatabaseCommand):
-    reset_connections: bool = False
+    force: bool = False
 
 
 class ExtensionPackageCommand(GlobalObjectCommand):

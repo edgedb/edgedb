@@ -266,7 +266,7 @@ class TestDatabase(tb.ConnectedTestCase):
 
             # Drop branch while the frontend connection is active
             await self.con.execute(
-                'DROP BRANCH RESET CONNECTIONS test_db_disconnect'
+                'DROP BRANCH test_db_disconnect WITH (FORCE)'
             )
 
             if with_query:
@@ -325,7 +325,7 @@ class TestDatabase(tb.ConnectedTestCase):
 
             # Drop branch while the frontend connection is active
             await self.con.execute('''
-                ALTER BRANCH RESET CONNECTIONS test_db_rename
+                ALTER BRANCH test_db_rename WITH (FORCE)
                 RENAME TO test_db_rename2
             ''')
 
