@@ -142,28 +142,25 @@ To interact with your **local EdgeDB instance**, use the following code:
 
 .. code-block:: typescript
 
-    import * as edgedb from 'edgedb';
+    import * as edgedb from "edgedb";
 
     export default {
-     async fetch(
-      _request: Request, 
-      env: Env, 
-      ctx: ExecutionContext
-     ): Promise<Response> {
-      
-      const client = edgedb.createHttpClient({
-       tlsSecurity: 'insecure',
-       dsn: '<your-edgedb-dsn>',
-      });
-
-      const movies = await client.query(`select Movie { title }`);
-
-      return new Response(JSON.stringify(movies, null, 2), {
-       headers: {
-        'content-type': 'application/json;charset=UTF-8',
-       },
-      });
-     },
+      async fetch(
+        _request: Request,
+        env: Env,
+        ctx: ExecutionContext,
+      ): Promise<Response> {
+        const client = edgedb.createHttpClient({
+          tlsSecurity: "insecure",
+          dsn: "<your-edgedb-dsn>",
+        });
+        const movies = await client.query(`select Movie { title }`);
+        return new Response(JSON.stringify(movies, null, 2), {
+          headers: {
+            "content-type": "application/json;charset=UTF-8",
+          },
+        });
+      },
     } satisfies ExportedHandler<Env>;
 
 
