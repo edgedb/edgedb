@@ -32,6 +32,7 @@ from edb import errors
 from edb.common import context as pctx
 from edb.common import term
 from . import pathid
+from . import ast as irast
 
 
 class FenceInfo(NamedTuple):
@@ -405,28 +406,21 @@ class ScopeTreeNode:
         self,
         path_id: pathid.PathId,
         *,
-        flatten_intersection: bool=False,
         optional: bool=False,
         context: Optional[pctx.ParserContext],
     ) -> None:
         """Attach a scope subtree representing *path_id*."""
 
         subtree = parent = ScopeTreeNode(fenced=True)
-        is_lprop = flatten_intersection
-
-        for prefix in reversed(list(path_id.iter_prefixes(include_ptr=True))):
-            if prefix.is_ptr_path():
-                is_lprop = True
-                continue
-
+        is_lprop = False
+        lprop_base = None
+        for prefix in reversed(list(path_id.iter_prefixes())):
             new_child = ScopeTreeNode(path_id=prefix,
                                       optional=optional and parent is subtree)
-            parent.attach_child(new_child)
 
-            # If the path is a link property, or a tuple
-            # indirection, then its prefix is added at
-            # the *same* scope level, otherwise, the prefix
-            # is nested.
+            # Normally the prefix is nested, except that tuple
+            # indirection prefixes and the *object* prefixes of link
+            # properties are are at the same level.
             #
             # For example, Foo.bar.baz, where Foo is an object type,
             # forms this scope shape:
@@ -439,24 +433,49 @@ class ScopeTreeNode:
             #   <tuple>.bar
             #   <tuple>.bar.baz
             #
-            # This is because both link properties and tuples are
-            # *always* singletons, and so there is no semantic ambiguity
-            # as to the cardinality of the path prefix in different
-            # contexts.
+            # And Foo.bar[is Typ]@baz results in:
+            #   Foo.bar[is Typ]@baz
+            #    |-Foo.bar[is Typ]
+            #       |-Foo.bar
+            #   Foo
             #
-            # We could include other cases with invariant cardinality here,
-            # like type intersection, but we want to preserve the prefix
-            # visibility information for the sake of possible optimizations.
-            if (
-                not (is_lprop or prefix.is_linkprop_path())
-                and not prefix.is_tuple_indirection_path()
-            ):
-                parent = new_child
+            # For tuples, this is permissable because their fields are always
+            # singletons.
+            # FIXME: I think that it should not be *necessary* for tuples,
+            # but test_edgeql_volatility_select_tuples_* fail if it is changed,
+            # I think for incidental reasons.
+            #
+            # For link properties, this is necessary because referring
+            # to a link property at the end of a path suppresses
+            # deduplication of the link, which is realized by forcing
+            # the link source to be visible. We avoid making the rest of
+            # the path visible, to preserve prefix visibility information
+            # for certain optimizations. (Foo.bar[is Typ] can be compiled
+            # such that it joins directly on Typ (instead of on Bar first),
+            # but *only* if Foo.bar isn't visible without the type intersection.
+            if prefix.is_linkprop_path():
+                assert lprop_base is None
+                # If we just saw a linkprop, track where, since we'll
+                # need to come back to this level in the tree once we
+                # reach the "object prefix" of it.
+                lprop_base = parent
+                is_lprop = True
+            elif is_lprop:
+                # Skip through type intersections (i.e [IS Foo]) until
+                # we actually get to the link.
+                if not prefix.is_type_intersection_path():
+                    is_lprop = False
+            else:
+                # If we've reached the "object prefix" of a path
+                # referencing a linkprop, pop back up to the level the
+                # linkprop was attached to.
+                if lprop_base is not None:
+                    parent = lprop_base
+                    lprop_base = None
 
-            # Skip through type intersections (i.e [IS Foo]) until
-            # we actually get to the link.
-            if not prefix.is_type_intersection_path():
-                is_lprop = False
+            parent.attach_child(new_child)
+            if not prefix.is_tuple_indirection_path():
+                parent = new_child
 
         self.attach_subtree(subtree, context=context)
 
@@ -620,14 +639,10 @@ class ScopeTreeNode:
                 ) is None
             )
             and (
-                not path_id.is_type_intersection_path()
-                or (
-                    (src_path := path_id.src_path())
-                    and src_path is not None
-                    and not self.is_visible(src_path)
-                )
+                not (src_path := path_id.src_path())
+                or not self.is_visible(src_path)
             )
-            and not existing._node_paths_are_props()
+            and not existing._node_paths_are_not_links()
         ):
             path_ancestor = descendant.path_ancestor
             if path_ancestor is not None:
@@ -654,13 +669,12 @@ class ScopeTreeNode:
                 context=context,
             )
 
-    def _node_paths_are_props(self) -> bool:
+    def _node_paths_are_not_links(self) -> bool:
         """
-        Check if all the pointers a path might be hoisted past are properties
+        Check if all the pointers a path might be hoisted past are not links
 
         If the node is a path_id node, return true if the rptrs on
-        all of the chain of parent nodes with path_ids are properties
-        (not links).
+        all of the chain of parent nodes with path_ids are not links.
 
         This is in support of allowing queries like
           select Card.element filter Card.name = 'Imp'
@@ -671,7 +685,10 @@ class ScopeTreeNode:
 
         node: ScopeTreeNode | None = self
         while node and node.path_id:
-            if node.path_id.rptr() and node.path_id.is_objtype_path():
+            if (
+                isinstance(node.path_id.rptr(), irast.PointerRef)
+                and node.path_id.is_objtype_path()
+            ):
                 return False
             node = node.parent
         return True

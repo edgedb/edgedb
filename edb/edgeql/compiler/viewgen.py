@@ -543,8 +543,6 @@ def _process_view(
                 ctx=ctx,
             )
 
-        _maybe_fixup_lprop(path_id, ptrcls, ctx=ctx)
-
         set_shape.append((ptr_set, shape_op))
 
     ir_set.shape = tuple(set_shape)
@@ -1236,23 +1234,6 @@ def prepare_rewrite_anchors(
         old_set = None
 
     return (subject_set, specified_set, old_set)
-
-
-def _maybe_fixup_lprop(
-    path_id: irast.PathId,
-    ptrcls: s_pointers.Pointer,
-    *,
-    ctx: context.ContextLevel,
-) -> None:
-    # HACK?: when we see linkprops being used on an intersection,
-    # attach the flattened source path to make linkprops on
-    # computed backlinks work
-    if (
-        isinstance(path_id.rptr(), irast.TypeIntersectionPointerRef)
-        and ptrcls.is_link_property(ctx.env.schema)
-    ):
-        ctx.path_scope.attach_path(
-            path_id, flatten_intersection=True, context=None)
 
 
 def _compile_qlexpr(
@@ -2427,8 +2408,6 @@ def _late_compile_view_shapes_in_set(
                 srcctx=srcctx,
                 ctx=ctx,
             )
-
-            _maybe_fixup_lprop(path_tip.path_id, ptr, ctx=ctx)
 
             element_scope = pathctx.get_set_scope(element, ctx=ctx)
 

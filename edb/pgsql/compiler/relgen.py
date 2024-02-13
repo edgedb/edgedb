@@ -838,7 +838,6 @@ def process_set_as_link_property_ref(
     with ctx.new() as newctx:
         link_path_id = ir_set.path_id.src_path()
         assert link_path_id is not None
-        orig_link_path_id = link_path_id
 
         rptr_specialization: Optional[Set[irast.PointerRef]] = None
 
@@ -848,14 +847,12 @@ def process_set_as_link_property_ref(
                 irutils.collapse_type_intersection(ir_source))
             for ind_ptr in ind_ptrs:
                 rptr_specialization.update(ind_ptr.ptrref.rptr_specialization)
-
-            link_path_id = link_prefix.path_id.ptr_path()
         else:
             link_prefix = ir_source
 
-        source_scope_stmt = relctx.get_scope_stmt(
-            ir_source.path_id, ctx=newctx)
-
+        source_scope_stmt = relctx.maybe_get_scope_stmt(
+            ir_source.path_id, ctx=ctx
+        ) or ctx.rel
         link_rvar = pathctx.maybe_get_path_rvar(
             source_scope_stmt, link_path_id, aspect='source'
         )
@@ -866,6 +863,13 @@ def process_set_as_link_property_ref(
             link_rvar = relctx.new_pointer_rvar(
                 link_prefix.rptr, src_rvar=src_rvar,
                 link_bias=True, ctx=newctx)
+            # Make sure the link rvar understands the path_id we are using.
+            # (FIXME: Would it be better to pass this in to new_pointer_rvar?)
+            pathctx.put_path_bond(link_rvar.query, link_path_id.tgt_path())
+            var = pathctx.get_rvar_path_identity_var(
+                link_rvar, link_prefix.rptr.target.path_id, env=ctx.env)
+            pathctx.put_rvar_path_output(
+                link_rvar, link_path_id.tgt_path(), 'identity', var)
 
         if astutils.is_set_op_query(link_rvar.query):
             # If we have an rptr_specialization, then this is a link
@@ -890,7 +894,7 @@ def process_set_as_link_property_ref(
                     assert isinstance(rvar, pgast.PathRangeVar)
                     if ptr_ids is None or rvar.schema_object_id in ptr_ids:
                         pathctx.put_path_source_rvar(
-                            subquery, orig_link_path_id, rvar
+                            subquery, link_path_id, rvar
                         )
                         continue
                 # Spare get_path_var() from attempting to rebalance
