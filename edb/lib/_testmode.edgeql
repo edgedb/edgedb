@@ -168,6 +168,9 @@ create extension package _conf VERSION '1.0' {
         create required property extra -> int64 {
             set readonly := true;
         };
+        create required property duration_config: std::duration {
+            set default := <std::duration>'10 minutes';
+        };
     };
     create type ext::_conf::SecretObj extending ext::_conf::Obj {
         create property secret -> std::str {
