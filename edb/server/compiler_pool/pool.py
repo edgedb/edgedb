@@ -1164,7 +1164,7 @@ class RemotePool(AbstractPool):
             if self._worker is not None:
                 self._worker.set_exception(ex)
                 self._worker = None
-        except BaseException as ex:
+        except BaseException as ex:  # noqa: B036
             transport.abort()
             if self._worker is not None:
                 if retry:

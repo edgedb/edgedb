@@ -1027,12 +1027,14 @@ def parse_args(**kwargs: Any):
             "The `--echo-runtime-info` option is deprecated, use "
             "`--emit-server-status` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
 
     if kwargs['bootstrap']:
         warnings.warn(
             "Option `--bootstrap` is deprecated, use `--bootstrap-only`",
             DeprecationWarning,
+            stacklevel=2,
         )
         kwargs['bootstrap_only'] = True
 
@@ -1045,12 +1047,14 @@ def parse_args(**kwargs: Any):
                 " Role `edgedb` is always created and"
                 " no role named after unix user is created any more.",
                 DeprecationWarning,
+                stacklevel=2,
             )
         else:
             warnings.warn(
                 "Option `--default-database-user` is deprecated."
                 " Please create the role explicitly.",
                 DeprecationWarning,
+                stacklevel=2,
             )
 
     if kwargs['default_database']:
@@ -1060,12 +1064,14 @@ def parse_args(**kwargs: Any):
                 " Database `edgedb` is always created and"
                 " no database named after unix user is created any more.",
                 DeprecationWarning,
+                stacklevel=2,
             )
         else:
             warnings.warn(
                 "Option `--default-database` is deprecated."
                 " Please create the database explicitly.",
                 DeprecationWarning,
+                stacklevel=2,
             )
 
     if kwargs['auto_shutdown']:
@@ -1073,6 +1079,7 @@ def parse_args(**kwargs: Any):
             "The `--auto-shutdown` option is deprecated, use "
             "`--auto-shutdown-after` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
         if kwargs['auto_shutdown_after'] < 0:
             kwargs['auto_shutdown_after'] = 0
@@ -1084,6 +1091,7 @@ def parse_args(**kwargs: Any):
             "The `--postgres-dsn` option is deprecated, use "
             "`--backend-dsn` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
         if not kwargs['backend_dsn']:
             kwargs['backend_dsn'] = kwargs['postgres_dsn']
@@ -1095,6 +1103,7 @@ def parse_args(**kwargs: Any):
             "The `--generate-self-signed-cert` option is deprecated, use "
             "`--tls-cert-mode=generate_self_signed` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
         if kwargs['tls_cert_mode'] == 'default':
             kwargs['tls_cert_mode'] = 'generate_self_signed'
@@ -1115,6 +1124,7 @@ def parse_args(**kwargs: Any):
                     "deprecated. Use EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY "
                     "instead.",
                     DeprecationWarning,
+                    stacklevel=2,
                 )
             kwargs['binary_endpoint_security'] = 'optional'
 
@@ -1132,6 +1142,7 @@ def parse_args(**kwargs: Any):
                     "deprecated. Use EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY "
                     "instead.",
                     DeprecationWarning,
+                    stacklevel=2,
                 )
             kwargs['http_endpoint_security'] = 'optional'
 
@@ -1324,6 +1335,7 @@ def parse_args(**kwargs: Any):
                 "The `--bootstrap-script` option is deprecated, use "
                 "`--bootstrap-command-file` instead.",
                 DeprecationWarning,
+                stacklevel=2,
             )
             kwargs['bootstrap_command_file'] = kwargs['bootstrap_script']
         else:
@@ -1332,6 +1344,7 @@ def parse_args(**kwargs: Any):
                 "were specified, but are mutually exclusive. "
                 "Ignoring the deprecated `--bootstrap-script` option.",
                 DeprecationWarning,
+                stacklevel=2,
             )
 
     del kwargs['bootstrap_script']

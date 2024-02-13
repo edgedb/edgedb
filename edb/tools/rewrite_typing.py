@@ -46,7 +46,7 @@ def shadowed_typing_names(path: Path) -> Iterable[str]:
     mod_name = mod_name.replace(os.sep, ".")
     try:
         mod = __import__(mod_name, fromlist=["__all__"])
-    except BaseException as be:
+    except Exception as be:
         yield f"(failed to import: {be})"
         return
     missing = object()

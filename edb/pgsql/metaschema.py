@@ -84,6 +84,11 @@ CONFIG_ID = {
 }
 
 
+def qtl(t: tuple[str, ...]) -> str:
+    """Quote type literal"""
+    return ql(f'{t[0]}.{t[1]}') if len(t) == 2 else ql(f'pg_catalog.{t[0]}')
+
+
 class PGConnection(Protocol):
 
     async def sql_execute(
@@ -2706,9 +2711,9 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             SELECT
             coalesce(string_agg(
                 CASE WHEN
-                    role.{qi(name_col)} = { ql(defines.EDGEDB_SUPERUSER) } THEN
+                    role.{qi(name_col)} = {ql(defines.EDGEDB_SUPERUSER)} THEN
                     NULLIF(concat(
-                        'ALTER ROLE { qi_superuser } {{',
+                        'ALTER ROLE {qi_superuser} {{',
                         NULLIF((SELECT
                             concat(
                                 ' EXTENDING ',
@@ -2729,7 +2734,7 @@ class DescribeRolesAsDDLFunction(dbops.Function):
                                    ';')
                         ELSE '' END,
                         '}};'
-                    ), 'ALTER ROLE { qi_superuser } {{}};')
+                    ), 'ALTER ROLE {qi_superuser} {{}};')
                 ELSE
                     concat(
                         'CREATE SUPERUSER ROLE ',
@@ -3802,7 +3807,7 @@ class ApplySessionConfigFunction(dbops.Function):
                 backend_settings[setting_name] = setting.backend_setting
 
         variants_list = []
-        for setting_name in backend_settings:
+        for setting_name, backend_setting_name in backend_settings.items():
             setting = config_spec[setting_name]
 
             valql = '"value"->>0'
@@ -3818,7 +3823,7 @@ class ApplySessionConfigFunction(dbops.Function):
                 WHEN "name" = {ql(setting_name)}
                 THEN
                     pg_catalog.set_config(
-                        {ql(setting.backend_setting)}::text,
+                        {ql(backend_setting_name)}::text,
                         {valql},
                         false
                     )
@@ -3938,18 +3943,10 @@ class GetCachedReflection(dbops.Function):
 class GetBaseScalarTypeMap(dbops.Function):
     """Return a map of base EdgeDB scalar type ids to Postgres type names."""
 
-    text = f'''
-        VALUES
-            {", ".join(
-                f"""(
-                    {ql(str(k))}::uuid,
-                    {
-                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
-                        else ql(f'pg_catalog.{v[0]}')
-                    }
-                )"""
-            for k, v in types.base_type_name_map.items())}
-    '''
+    text = "VALUES" + ", ".join(
+        f"({ql(str(k))}::uuid, {qtl(v)})"
+        for k, v in types.base_type_name_map.items()
+    )
 
     def __init__(self) -> None:
         super().__init__(
@@ -3965,21 +3962,10 @@ class GetBaseScalarTypeMap(dbops.Function):
 class GetTypeToRangeNameMap(dbops.Function):
     """Return a map of type names to the name of the associated range type"""
 
-    text = f'''
-        VALUES
-            {", ".join(
-                f"""(
-                    {
-                        ql(f'{k[0]}.{k[1]}') if len(k) == 2
-                        else ql(f'pg_catalog.{k[0]}')
-                    },
-                    {
-                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
-                        else ql(f'pg_catalog.{v[0]}')
-                    }
-                )"""
-            for k, v in types.type_to_range_name_map.items())}
-    '''
+    text = f"VALUES" + ", ".join(
+        f"({qtl(k)}, {qtl(v)})"
+        for k, v in types.type_to_range_name_map.items()
+    )
 
     def __init__(self) -> None:
         super().__init__(
@@ -3995,21 +3981,10 @@ class GetTypeToRangeNameMap(dbops.Function):
 class GetTypeToMultiRangeNameMap(dbops.Function):
     "Return a map of type names to the name of the associated multirange type"
 
-    text = f'''
-        VALUES
-            {", ".join(
-                f"""(
-                    {
-                        ql(f'{k[0]}.{k[1]}') if len(k) == 2
-                        else ql(f'pg_catalog.{k[0]}')
-                    },
-                    {
-                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
-                        else ql(f'pg_catalog.{v[0]}')
-                    }
-                )"""
-            for k, v in types.type_to_multirange_name_map.items())}
-    '''
+    text = f"VALUES" + ", ".join(
+        f"({qtl(k)}, {qtl(v)})"
+        for k, v in types.type_to_multirange_name_map.items()
+    )
 
     def __init__(self) -> None:
         super().__init__(
@@ -6937,7 +6912,7 @@ def _generate_config_type_view(
             source0 = f'''
                 (SELECT
                     (SELECT jsonb_object_agg(
-                      substr(name, {len(cfg_name)+3}), value) AS val
+                      substr(name, {len(cfg_name) + 3}), value) AS val
                     FROM edgedb._read_sys_config(
                       NULL, scope::edgedb._sys_config_source_t) cfg
                     WHERE name LIKE {ql(escaped_name + '%')}

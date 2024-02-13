@@ -96,16 +96,19 @@ def _read_password_file(passfile: pathlib.Path) -> List[Tuple[str, ...]]:
 
         if not passfile.is_file():
             warnings.warn(
-                'password file {!r} is not a plain file'.format(passfile))
+                'password file {!r} is not a plain file'.format(passfile),
+                stacklevel=4,
+            )
 
             return []
 
         if _system != 'Windows':
             if passfile.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
                 warnings.warn(
-                    'password file {!r} has group or world access; '
-                    'permissions should be u=rw (0600) or less'.format(
-                        passfile))
+                    f'password file {passfile!r} has group or world access; '
+                    'permissions should be u=rw (0600) or less',
+                    stacklevel=4,
+                )
 
                 return []
 

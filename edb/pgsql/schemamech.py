@@ -630,7 +630,7 @@ class SchemaTableConstraint:
                         "schema" => '{schemaname}',
                         detail => {detail}
                     )
-                FROM {common.qname(schemaname, tablename+"_t")} AS OLD
+                FROM {common.qname(schemaname, tablename + "_t")} AS OLD
                 CROSS JOIN {common.qname(*real_tablename)} AS NEW
                 WHERE {old_expr} = {new_expr} and OLD.{key} != NEW.{key}
                 {except_part}

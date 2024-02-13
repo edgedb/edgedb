@@ -362,7 +362,7 @@ class CreateTable(ddl.SchemaObjectOperation):
 
         if any(isinstance(e, base.PLExpression) for e in elems):
             # Dynamic declaration
-            elem_chunks = []
+            elem_chunks: list[base.PLExpression | str] = []
             for e in elems:
                 if isinstance(e, base.PLExpression):
                     elem_chunks.append(e)

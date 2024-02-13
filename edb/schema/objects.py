@@ -1361,7 +1361,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         if (
             our_value is not None
             and their_value is not None
-            and type(our_value) == type(their_value)
+            and type(our_value) is type(their_value)
         ):
             comparator = getattr(type(our_value), 'compare_values', None)
         else:
