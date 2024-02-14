@@ -65,9 +65,6 @@ async def execute(
     *,
     fe_conn: frontend.AbstractFrontendConnection = None,
     use_prep_stmt: bint = False,
-    # HACK: A hook from the notebook ext, telling us to skip dbview.start
-    # so that it can handle things differently.
-    skip_start: bint = False,
 ):
     cdef:
         bytes state = None, orig_state = None
@@ -89,8 +86,7 @@ async def execute(
             # the current status in be_conn is in sync with dbview, skip the
             # state restoring
             state = None
-        if not skip_start:
-            dbv.start(query_unit)
+        dbv.start(query_unit)
         if query_unit.create_db_template:
             await tenant.on_before_create_db_from_template(
                 query_unit.create_db_template,
