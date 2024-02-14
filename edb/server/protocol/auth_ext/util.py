@@ -20,6 +20,7 @@
 from typing import TypeVar, Type, overload, Any, cast
 
 from edb.server import config as edb_config
+from edb.server.config.types import CompositeConfigType
 
 from . import errors, config
 
@@ -94,7 +95,7 @@ def get_config_typename(config_value: edb_config.SettingValue) -> str:
 def get_app_details_config(db: Any) -> config.AppDetailsConfig:
     ui_config = cast(
         config.UIConfig,
-        maybe_get_config(db, "ext::auth::AuthConfig::ui"),
+        maybe_get_config(db, "ext::auth::AuthConfig::ui", CompositeConfigType),
     )
 
     return config.AppDetailsConfig(
