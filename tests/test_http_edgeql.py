@@ -25,6 +25,7 @@ import decimal
 import edgedb
 
 from edb.testbase import http as tb
+from edb.tools import test
 
 
 class TestHttpEdgeQL(tb.EdgeQLTestCase):
@@ -409,6 +410,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
             ]
         })
 
+    @test.skip('FIXME: uses configure instance unsafely')
     async def test_http_edgeql_cors(self):
         req = urllib.request.Request(self.http_addr, method='OPTIONS')
         req.add_header('Origin', 'https://example.edgedb.com')
