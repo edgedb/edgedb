@@ -599,8 +599,6 @@ def _interpret_constraint_errors(
     # no need for else clause since it would have been handled by
     # the static version
 
-    print(error_type)
-
     if error_type == 'constraint' or error_type == 'idconstraint':
         assert err_details.constraint_name
 
