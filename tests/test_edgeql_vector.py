@@ -798,3 +798,59 @@ class TestEdgeQLVector(tb.QueryTestCase):
     async def test_edgeql_vector_index_06(self):
         await self._check_index(
             'HNSW_IP', 'neg_inner_product', 'hnsw', 'ip')
+
+    async def test_edgeql_vector_config(self):
+        # We can't test the effects of config parameters easily, but we can
+        # at least verify that they are updated as expected.
+
+        # probes
+        await self.assert_query_result(
+            'select _current_settings("ivfflat.probes")',
+            [1],
+        )
+
+        await self.con.execute('''
+            configure session
+            set ext::pgvector::Config::probes := 23
+        ''')
+
+        await self.assert_query_result(
+            'select _current_settings("ivfflat.probes")',
+            [23],
+        )
+
+        await self.con.execute('''
+            configure session
+            reset ext::pgvector::Config::probes
+        ''')
+
+        await self.assert_query_result(
+            'select _current_settings("ivfflat.probes")',
+            [1],
+        )
+
+        # ef_search
+        await self.assert_query_result(
+            'select _current_settings("hnsw.ef_search")',
+            [40],
+        )
+
+        await self.con.execute('''
+            configure session
+            set ext::pgvector::Config::ef_search := 23
+        ''')
+
+        await self.assert_query_result(
+            'select _current_settings("hnsw.ef_search")',
+            [23],
+        )
+
+        await self.con.execute('''
+            configure session
+            reset ext::pgvector::Config::ef_search
+        ''')
+
+        await self.assert_query_result(
+            'select _current_settings("hnsw.ef_search")',
+            [40],
+        )

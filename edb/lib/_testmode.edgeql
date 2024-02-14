@@ -359,6 +359,15 @@ std::_datetime_range_buckets(
     $$;
 };
 
+
+CREATE FUNCTION
+std::_current_settings(sqlname: str) -> OPTIONAL std::int64 {
+    USING SQL $$
+      SELECT nullif(current_setting(sqlname, true), '')::int8
+    $$;
+};
+
+
 CREATE MODULE std::_test;
 
 
