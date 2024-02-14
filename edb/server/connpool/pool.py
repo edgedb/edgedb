@@ -856,15 +856,17 @@ class Pool(BasePool[C]):
                 # the starving blocks.
 
                 for block in list(self._blocks.values()):
-                    while block.count_conns() > block.count_waiters():
+                    while self._should_free_conn(block):
                         if (conn := block.try_steal()) is None:
                             # no more from this block
                             break
 
-                        elif not self._maybe_free_conn(block, conn):
+                        elif not self._maybe_free_into_starving_blocks(
+                            block, conn
+                        ):
                             # put back the last stolen connection if we
                             # don't need to steal anymore
-                            block.release(conn)
+                            self._release_unused(block, conn)
                             return
 
         else:
@@ -983,14 +985,11 @@ class Pool(BasePool[C]):
 
         return True
 
-    def _maybe_free_conn(
+    def _maybe_free_into_starving_blocks(
         self,
         from_block: Block[C],
         conn: C,
     ) -> bool:
-        if not self._should_free_conn(from_block):
-            return False
-
         label, to_block = self._find_most_starving_block()
         if to_block is None or to_block is from_block:
             return False
@@ -1204,23 +1203,28 @@ class Pool(BasePool[C]):
 
         self._maybe_schedule_tick()
 
-        if not self._maybe_free_conn(block, conn):
+        if not (
+            self._should_free_conn(block)
+            and self._maybe_free_into_starving_blocks(block, conn)
+        ):
             if discard:
                 # Concurrent `acquire()` may be waiting to reuse the released
                 # connection here - as we should discard this one, let's just
                 # schedule a new one in the same block.
                 self._schedule_discard(block, conn)
                 self._schedule_new_conn(block)
-                return
+            else:
+                self._release_unused(block, conn)
 
-            block.release(conn)
+    def _release_unused(self, block: Block[C], conn: C) -> None:
+        block.release(conn)
 
-            # Only request for GC if the connection is released unused
-            self._gc_requests += 1
-            if self._gc_requests == 1:
-                # Only schedule GC for the very first request - following
-                # requests will be grouped into the next GC
-                self._get_loop().call_later(self._gc_interval, self._run_gc)
+        # Only request for GC if the connection is released unused
+        self._gc_requests += 1
+        if self._gc_requests == 1:
+            # Only schedule GC for the very first request - following
+            # requests will be grouped into the next GC
+            self._get_loop().call_later(self._gc_interval, self._run_gc)
 
     async def prune_inactive_connections(self, dbname: str) -> None:
         try:
