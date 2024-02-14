@@ -17,7 +17,7 @@
 #
 
 
-from typing import TypeVar, Type, overload, Any, cast
+from typing import TypeVar, Type, overload, Any, cast, Optional
 
 from edb.server import config as edb_config
 from edb.server.config.types import CompositeConfigType
@@ -94,25 +94,25 @@ def get_config_typename(config_value: edb_config.SettingValue) -> str:
 
 def get_app_details_config(db: Any) -> config.AppDetailsConfig:
     ui_config = cast(
-        config.UIConfig,
+        Optional[config.UIConfig],
         maybe_get_config(db, "ext::auth::AuthConfig::ui", CompositeConfigType),
     )
 
     return config.AppDetailsConfig(
         app_name=(
             maybe_get_config(db, "ext::auth::AuthConfig::app_name")
-            or ui_config.app_name
+            or (ui_config.app_name if ui_config else None)
         ),
         logo_url=(
             maybe_get_config(db, "ext::auth::AuthConfig::logo_url")
-            or ui_config.logo_url
+            or (ui_config.logo_url if ui_config else None)
         ),
         dark_logo_url=(
             maybe_get_config(db, "ext::auth::AuthConfig::dark_logo_url")
-            or ui_config.dark_logo_url
+            or (ui_config.dark_logo_url if ui_config else None)
         ),
         brand_color=(
             maybe_get_config(db, "ext::auth::AuthConfig::brand_color")
-            or ui_config.brand_color
+            or (ui_config.brand_color if ui_config else None)
         ),
     )
