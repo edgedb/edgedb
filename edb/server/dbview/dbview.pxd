@@ -179,7 +179,7 @@ cdef class DatabaseConnectionView:
     cdef tx_error(self)
 
     cdef start(self, query_unit)
-    cdef _start_tx(self)
+    cdef start_tx(self)
     cdef _apply_in_tx(self, query_unit)
     cdef start_implicit(self, query_unit)
     cdef on_error(self)

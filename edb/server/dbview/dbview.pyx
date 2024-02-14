@@ -750,15 +750,12 @@ cdef class DatabaseConnectionView:
 
         if query_unit.tx_id is not None:
             self._txid = query_unit.tx_id
-            self._start_tx()
-
-        if self._in_tx and not self._txid:
-            raise errors.InternalServerError('unset txid in transaction')
+            self.start_tx()
 
         if self._in_tx:
             self._apply_in_tx(query_unit)
 
-    cdef _start_tx(self):
+    cdef start_tx(self):
         state_serializer = self.get_state_serializer()
         self._in_tx = True
         self._in_tx_config = self._config
@@ -793,7 +790,7 @@ cdef class DatabaseConnectionView:
             self.raise_in_tx_error()
 
         if not self._in_tx:
-            self._start_tx()
+            self.start_tx()
 
         self._apply_in_tx(query_unit)
 
