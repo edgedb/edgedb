@@ -185,7 +185,8 @@ async def execute(
         # If we made schema changes, include the new schema in the
         # exception so that it can be used when interpreting.
         if query_unit.user_schema:
-            ex._user_schema = query_unit.user_schema
+            if isinstance(ex, pgerror.BackendError):
+                ex._user_schema = query_unit.user_schema
 
         dbv.on_error()
 
@@ -366,7 +367,8 @@ async def execute_script(
 
         # Include the new schema in the exception so that it can be
         # used when interpreting.
-        e._user_schema = dbv.get_user_schema_pickle()
+        if isinstance(e, pgerror.BackendError):
+            e._user_schema = dbv.get_user_schema_pickle()
 
         if not in_tx and dbv.in_tx():
             # Abort the implicit transaction
