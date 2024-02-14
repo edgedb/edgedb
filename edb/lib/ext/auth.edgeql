@@ -270,22 +270,32 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create annotation std::description :=
                 "The name of your application to be shown on the login \
                 screen.";
+            create annotation std::deprecated :=
+                "Use the app_name property in ext::auth::AuthConfig instead.";
         };
 
         create property logo_url: std::str {
             create annotation std::description :=
                 "A url to an image of your application's logo.";
+            create annotation std::deprecated :=
+                "Use the logo_url property in ext::auth::AuthConfig instead.";
         };
 
         create property dark_logo_url: std::str {
             create annotation std::description :=
                 "A url to an image of your application's logo to be used \
                 with the dark theme.";
+            create annotation std::deprecated :=
+                "Use the dark_logo_url property in ext::auth::AuthConfig \
+                instead.";
         };
 
         create property brand_color: std::str {
             create annotation std::description :=
                 "The brand color of your application as a hex string.";
+            create annotation std::deprecated :=
+                "Use the brand_color property in ext::auth::AuthConfig \
+                instead.";
         };
     };
 
