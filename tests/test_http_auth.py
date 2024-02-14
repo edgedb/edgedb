@@ -203,7 +203,7 @@ class TestHttpAuth(BaseTestHttpAuth):
     def test_http_auth_scram_no_user(self):
         self._scram_auth_expect_failure("scram_no_user", "bad-password")
 
-    @test.xfail('FIXME: scotttrinh, jaclarke')
+    @test.skip('FIXME: uses configure instance unsafely')
     async def test_http_auth_scram_cors(self):
         conn_args = self.get_connect_args()
         url = f'https://{conn_args["host"]}:{conn_args["port"]}/auth/token'
