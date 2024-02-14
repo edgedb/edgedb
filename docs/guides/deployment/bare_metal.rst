@@ -42,7 +42,7 @@ Install the EdgeDB package.
 
 .. code-block:: bash
 
-   $ sudo apt-get update && sudo apt-get install edgedb-3
+   $ sudo apt-get update && sudo apt-get install edgedb-4
 
 
 CentOS/RHEL 7/8
@@ -59,7 +59,7 @@ Install the EdgeDB package.
 
 .. code-block:: bash
 
-   $ sudo yum install edgedb-3
+   $ sudo yum install edgedb-4
 
 
 .. _ref_guide_deployment_bare_metal_enable_unit:
@@ -191,7 +191,7 @@ Debian/Ubuntu LTS
 
 .. code-block:: bash
 
-   $ sudo apt-get update && sudo apt-get install --only-upgrade edgedb-3
+   $ sudo apt-get update && sudo apt-get install --only-upgrade edgedb-4
    $ sudo systemctl restart edgedb-server-4
 
 
@@ -200,7 +200,7 @@ CentOS/RHEL 7/8
 
 .. code-block:: bash
 
-   $ sudo yum update edgedb-3
+   $ sudo yum update edgedb-4
    $ sudo systemctl restart edgedb-server-4
 
 Health Checks
