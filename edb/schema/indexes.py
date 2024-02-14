@@ -203,7 +203,7 @@ class Index(
         s_expr.Expression,
         default=None,
         coerce=True,
-        compcoef=0.909,
+        compcoef=0.0,
         ddl_identity=True,
     )
 
@@ -211,7 +211,7 @@ class Index(
         s_expr.Expression,
         default=None,
         coerce=True,
-        compcoef=0.909,
+        compcoef=0.0,
         ddl_identity=True,
     )
 
