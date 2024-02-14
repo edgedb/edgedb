@@ -56,6 +56,34 @@ class BaseHttpExtensionTest(server.QueryTestCase):
             )
         super().tearDownClass()
 
+    @classmethod
+    async def _wait_for_db_config(cls, config_key, *, instance_config=False):
+        dbname = cls.get_database_name()
+        # Wait for the database config changes to propagate to the
+        # server by watching a debug endpoint
+        async for tr in cls.try_until_succeeds(ignore=AssertionError):
+            async with tr:
+                with cls.http_con() as http_con:
+                    (
+                        rdata,
+                        _headers,
+                        status,
+                    ) = cls.http_con_request(
+                        http_con,
+                        prefix="",
+                        path="server-info",
+                    )
+                    data = json.loads(rdata)
+                    if instance_config:
+                        config = data['instance_config']
+                    else:
+                        if 'databases' not in data:
+                            # multi-tenant instance - use the first tenant
+                            data = next(iter(data['tenants'].values()))
+                        config = data['databases'][dbname]['config']
+                    if config_key not in config:
+                        raise AssertionError('database config not ready')
+
 
 class ExtAuthTestCase(BaseHttpExtensionTest):
 
@@ -75,7 +103,14 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
         return 'edgeql'
 
     def edgeql_query(
-            self, query, *, use_http_post=True, variables=None, globals=None):
+            self,
+            query,
+            *,
+            use_http_post=True,
+            variables=None,
+            globals=None,
+            origin=None,
+    ):
         req_data = {
             'query': query
         }
@@ -88,6 +123,8 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
             req.add_header('Authorization', self.make_auth_header())
+            if origin:
+                req.add_header('Origin', origin)
             response = urllib.request.urlopen(
                 req, json.dumps(req_data).encode(), context=self.tls_context
             )
@@ -108,7 +145,7 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
             resp_data = json.loads(response.read())
 
         if 'data' in resp_data:
-            return resp_data['data']
+            return (resp_data['data'], response)
 
         err = resp_data['error']
 
@@ -122,7 +159,7 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
                                    use_http_post=True,
                                    variables=None,
                                    globals=None):
-        res = self.edgeql_query(
+        res, _ = self.edgeql_query(
             query,
             use_http_post=use_http_post,
             variables=variables,

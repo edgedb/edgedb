@@ -32,12 +32,12 @@ edgedb = "edb.cli:rustcli"
 
 [project.optional-dependencies]
 test = [
-    'black~=23.11.0',
-    'coverage~=5.5',
-    'flake8~=6.0.0',
-    'flake8-bugbear~=23.1.20',
-    'pycodestyle~=2.10.0',
-    'pyflakes~=3.0.1',
+    'black~=24.2.0',
+    'coverage~=7.4',
+    'flake8~=7.0.0',
+    'flake8-bugbear~=24.2.6',
+    'pycodestyle~=2.11.0',
+    'pyflakes~=3.2.0',
     'asyncpg~=0.29.0',
 
     # Needed for test_docs_sphinx_ext

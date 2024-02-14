@@ -14,4 +14,5 @@ Using EdgeDB with...
     phoenix_github_oauth
     graphql_apis_with_strawberry
     chatgpt_bot
+    cloudflare_workers
     Bun <https://bun.sh/guides/ecosystem/edgedb>

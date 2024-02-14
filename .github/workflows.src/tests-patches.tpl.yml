@@ -29,7 +29,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - id: set-matrix
       name: Compute versions to run on
       run: python3 .github/scripts/patches/compute-versions.py

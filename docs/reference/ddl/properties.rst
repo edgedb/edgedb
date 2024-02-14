@@ -162,7 +162,7 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
       extending ...
       set required
       set optional
-      reset optionalily
+      reset optionality
       set single
       set multi
       reset cardinality
@@ -237,7 +237,7 @@ The following subcommands are allowed in the ``alter link`` block:
 :eql:synopsis:`set optional`
     Make the property no longer *required* (i.e. make it *optional*).
 
-:eql:synopsis:`reset optionalily`
+:eql:synopsis:`reset optionality`
     Reset the optionality of the property to the default value (``optional``),
     or, if the property is inherited, to the value inherited from properties in
     supertypes.

@@ -39,6 +39,9 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'issues.esdl')
 
+    SCHEMA_cards = os.path.join(os.path.dirname(__file__), 'schemas',
+                                'cards.esdl')
+
     def _compile_to_tree(self, source):
         qltree = qlparser.parse_query(source)
         ir = compiler.compile_ast_to_ir(
@@ -319,4 +322,18 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             "uuid_generate",
             sql,
             "unnecessary uuid_generate for FOR loop without volatility",
+        )
+
+    def test_codegen_linkprop_intersection_01(self):
+        # Should have no conflict check because it has no subtypes
+        sql = self._compile('''
+            with module cards
+            select User { deck[is SpecialCard]: { name, @count } }
+        ''')
+
+        card_obj = self.schema.get("cards::Card")
+        self.assertNotIn(
+            str(card_obj.id),
+            sql,
+            "Card being selected when SpecialCard should suffice"
         )

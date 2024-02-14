@@ -81,8 +81,10 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_bytes_04(self):
         async with self.assertRaisesRegexTx(
-                edgedb.InvalidValueError, r'expected JSON string or null'):
-            await self.con.query_single("""SELECT <bytes>to_json('1');"""),
+            edgedb.InvalidValueError,
+            r'expected JSON string or null',
+        ):
+            await self.con.query_single("SELECT <bytes>to_json('1');")
 
         self.assertEqual(
             await self.con.query_single(r'''
@@ -3105,12 +3107,13 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         }
         # Populate a type that has an optional field for each cast source type
         sep = '\n                '
+        props = sep.join(
+            f'CREATE PROPERTY {n} -> {_t(t)};'
+            for t, n in type_keys.items()
+        )
         setup = f'''
             CREATE TYPE Null {{
-                {sep.join(
-                    f'CREATE PROPERTY {n} -> {_t(t)};'
-                    for t, n in type_keys.items()
-                 )}
+                {props}
             }};
             INSERT Null;
         '''

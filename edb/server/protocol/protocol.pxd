@@ -31,6 +31,7 @@ cdef class HttpRequest:
         public bytes accept
         public bytes body
         public bytes host
+        public bytes origin
         public bytes authorization
         public object params
         public object forwarded

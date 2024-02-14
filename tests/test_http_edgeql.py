@@ -408,3 +408,89 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 [decimal.Decimal('1234567890123456789.01234567890123456789')]
             ]
         })
+
+    async def test_http_edgeql_cors(self):
+        req = urllib.request.Request(self.http_addr, method='OPTIONS')
+        req.add_header('Origin', 'https://example.edgedb.com')
+        response = urllib.request.urlopen(
+            req, context=self.tls_context
+        )
+        self.assertNotIn('Access-Control-Allow-Origin', response.headers)
+
+        _, response = self.edgeql_query(
+            r"""
+                SELECT User {
+                    name,
+                    age,
+                    groups: { name }
+                }
+                FILTER .name = <str>$name AND .age = <int64>$age;
+            """,
+            variables=dict(name='Bob', age=21),
+            origin='https://example.edgedb.com'
+        )
+        self.assertNotIn('Access-Control-Allow-Origin', response.headers)
+
+        await self.con.execute(
+            'configure instance '
+            'set cors_allow_origins := {"https://example.edgedb.com"}')
+        await self._wait_for_db_config(
+            'cors_allow_origins', instance_config=True)
+
+        req = urllib.request.Request(self.http_addr, method='OPTIONS')
+        req.add_header('Origin', 'https://other.edgedb.com')
+        response = urllib.request.urlopen(
+            req, context=self.tls_context
+        )
+        self.assertNotIn('Access-Control-Allow-Origin', response.headers)
+
+        req = urllib.request.Request(self.http_addr, method='OPTIONS')
+        req.add_header('Origin', 'https://example.edgedb.com')
+        response = urllib.request.urlopen(
+            req, context=self.tls_context
+        )
+        headers = response.headers
+        self.assertIn('Access-Control-Allow-Origin', headers)
+        self.assertEqual(
+            headers['Access-Control-Allow-Origin'],
+            'https://example.edgedb.com'
+        )
+        self.assertIn('POST', headers['Access-Control-Allow-Methods'])
+        self.assertIn('GET', headers['Access-Control-Allow-Methods'])
+        self.assertIn('Authorization', headers['Access-Control-Allow-Headers'])
+        self.assertIn('X-EdgeDB-User', headers['Access-Control-Allow-Headers'])
+        self.assertEqual(headers['Access-Control-Allow-Credentials'], 'true')
+
+        await self.con.execute(
+            'configure current database '
+            'set cors_allow_origins := {"https://other.edgedb.com"}')
+        await self._wait_for_db_config(
+            'cors_allow_origins')
+
+        req = urllib.request.Request(self.http_addr, method='OPTIONS')
+        req.add_header('Origin', 'https://example.edgedb.com')
+        response = urllib.request.urlopen(
+            req, context=self.tls_context
+        )
+        self.assertNotIn('Access-Control-Allow-Origin', response.headers)
+
+        req = urllib.request.Request(self.http_addr, method='OPTIONS')
+        req.add_header('Origin', 'https://other.edgedb.com')
+        response = urllib.request.urlopen(
+            req, context=self.tls_context
+        )
+        self.assertIn('Access-Control-Allow-Origin', response.headers)
+
+        _, response = self.edgeql_query(
+            r"""
+                SELECT User {
+                    name,
+                    age,
+                    groups: { name }
+                }
+                FILTER .name = <str>$name AND .age = <int64>$age;
+            """,
+            variables=dict(name='Bob', age=21),
+            origin='https://other.edgedb.com'
+        )
+        self.assertIn('Access-Control-Allow-Origin', response.headers)

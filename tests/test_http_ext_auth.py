@@ -467,34 +467,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     ]
 
     @classmethod
-    async def _wait_for_db_config(cls):
-        dbname = cls.get_database_name()
-        # Wait for the database config changes to propagate to the
-        # server by watching a debug endpoint
-        async for tr in cls.try_until_succeeds(ignore=AssertionError):
-            async with tr:
-                with cls.http_con() as http_con:
-                    (
-                        rdata,
-                        _headers,
-                        status,
-                    ) = tb.ExtAuthTestCase.http_con_request(
-                        http_con,
-                        prefix="",
-                        path="server-info",
-                    )
-                    data = json.loads(rdata)
-                    if 'databases' not in data:
-                        # multi-tenant instance - use the first tenant
-                        data = next(iter(data['tenants'].values()))
-                    config = data['databases'][dbname]['config']
-                    if 'ext::auth::AuthConfig::providers' not in config:
-                        raise AssertionError('database config not ready')
-
-    @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.loop.run_until_complete(cls._wait_for_db_config())
+        cls.loop.run_until_complete(
+            cls._wait_for_db_config('ext::auth::AuthConfig::providers')
+        )
 
     @classmethod
     def get_setup_script(cls):

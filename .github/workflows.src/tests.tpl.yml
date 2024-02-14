@@ -38,15 +38,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11.3'
+        python-version: '3.12.2'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.2
@@ -154,9 +154,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11.3'
+          python-version: '3.12.2'
 
       - name: Install Python deps
         run: |

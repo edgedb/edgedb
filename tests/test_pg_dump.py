@@ -335,12 +335,13 @@ class TestPGDump03(tb.StablePGDumpTestCase):
                 },
             }
         ''')
+        subquery = self.single_link_subquery(
+            "Łukasz", "Ł💯", "A", ["🙀🚀🚀🚀🙀", "🙀مرحبا🙀"])
         sql = f'''
             SELECT
                 id,
                 "Ł🤞",
-                {self.single_link_subquery(
-                    "Łukasz", "Ł💯", "A", ["🙀🚀🚀🚀🙀", "🙀مرحبا🙀"])}
+                {subquery}
             FROM "Łukasz"
         '''
         sqlres = await self.scon.fetch(sql)
@@ -410,10 +411,8 @@ class TestPGDump05(tb.StablePGDumpTestCase):
             SELECT
                 id,
                 name,
-                {self.single_link_subquery(
-                    "SourceA", "link1", "TargetA")},
-                {self.single_link_subquery(
-                    "SourceA", "link2", "TargetA")}
+                {self.single_link_subquery("SourceA", "link1", "TargetA")},
+                {self.single_link_subquery("SourceA", "link2", "TargetA")}
             FROM "SourceA"
 
         '''

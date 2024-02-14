@@ -219,6 +219,8 @@ cdef class HttpProtocol:
             self.current_request.content_type = value
         elif name == b'host':
             self.current_request.host = value
+        elif name == b'origin':
+            self.current_request.origin = value
         elif name == b'accept':
             if self.current_request.accept:
                 self.current_request.accept += b',' + value
@@ -327,15 +329,6 @@ cdef class HttpProtocol:
 
         for key, value in custom_headers.items():
             data.append(f'{key}: {value}\r\n'.encode())
-
-        if debug.flags.http_inject_cors:
-            data.append(b'Access-Control-Allow-Origin: *\r\n')
-            data.append(b'Access-Control-Allow-Headers: Content-Type, ' + \
-                b'Authorization, X-EdgeDB-User\r\n')
-            if custom_headers:
-                data.append(b'Access-Control-Expose-Headers: ' + \
-                    ', '.join(custom_headers.keys()).encode() + b'\r\n')
-            data.append(b'Access-Control-Max-Age: 86400\r\n')
 
         if close_connection:
             data.append(b'Connection: close\r\n')
@@ -526,13 +519,12 @@ cdef class HttpProtocol:
 
             # Binary proto tunnelled through HTTP
             if extname is None:
-                if (
-                    debug.flags.http_inject_cors
-                    and request.method == b'OPTIONS'
+                if await self._handle_cors(
+                    request, response,
+                    dbname=dbname,
+                    allow_methods=['POST'],
+                    allow_headers=['Authorization', 'X-EdgeDB-User'],
                 ):
-                    response.status = http.HTTPStatus.NO_CONTENT
-                    response.custom_headers['Access-Control-Allow-Methods'] = \
-                        'POST, OPTIONS'
                     return
 
                 if request.method == b'POST':
@@ -582,19 +574,26 @@ cdef class HttpProtocol:
                     response.close_connection = True
 
             else:
-                if (
-                    debug.flags.http_inject_cors
-                    and request.method == b'OPTIONS'
+                if await self._handle_cors(
+                    request, response,
+                    dbname=dbname,
+                    allow_methods=['GET', 'POST'],
+                    allow_headers=['Authorization', 'X-EdgeDB-User'],
+                    expose_headers=(
+                        ['EdgeDB-Protocol-Version'] if extname == 'notebook'
+                        else ['WWW-Authenticate'] if extname != 'auth'
+                        else None
+                    ),
+                    allow_credentials=True
                 ):
-                    response.status = http.HTTPStatus.NO_CONTENT
-                    response.custom_headers['Access-Control-Allow-Methods'] = \
-                        'GET, POST, OPTIONS'
                     return
 
                 # Check if this is a request to a registered extension
                 if extname == 'edgeql':
                     extname = 'edgeql_http'
                 if extname == 'ext':
+                    if path_parts_len < 4:
+                        return self._not_found(request, response)
                     extname = path_parts[3]
                     args = path_parts[4:]
                 else:
@@ -641,14 +640,13 @@ cdef class HttpProtocol:
                     await handler.handle_request(request, response, args)
 
         elif route == 'auth':
-            if (
-                    debug.flags.http_inject_cors
-                    and request.method == b'OPTIONS'
-                ):
-                    response.status = http.HTTPStatus.NO_CONTENT
-                    response.custom_headers['Access-Control-Allow-Methods'] = \
-                        'GET, OPTIONS'
-                    return
+            if await self._handle_cors(
+                request, response,
+                allow_methods=['GET'],
+                allow_headers=['Authorization'],
+                expose_headers=['WWW-Authenticate', 'Authentication-Info']
+            ):
+                return
 
             # Authentication request
             await auth.handle_request(
@@ -723,6 +721,59 @@ cdef class HttpProtocol:
         response.body = message.encode("utf-8")
         response.status = http.HTTPStatus.BAD_REQUEST
         response.close_connection = True
+
+    async def _handle_cors(
+        self,
+        HttpRequest request,
+        HttpResponse response,
+        *,
+        str dbname = None,
+        list allow_methods = None,
+        list allow_headers = [],
+        list expose_headers = None,
+        bint allow_credentials = False
+    ):
+        db = self.tenant.maybe_get_db(dbname=dbname) if dbname else None
+        
+        config = None
+        if db is not None:
+            if db.db_config is None:
+                await db.introspection()
+
+            config = db.db_config.get('cors_allow_origins')
+        if config is None:
+            config = self.tenant.get_sys_config().get('cors_allow_origins')
+
+        allowed_origins = config.value if config else None
+
+        if allowed_origins is None:
+            return False
+
+        origin = request.origin.decode() if request.origin else None
+        origin_allowed = origin is not None and (
+            origin in allowed_origins or '*' in allowed_origins)
+
+        if origin_allowed:
+            response.custom_headers['Access-Control-Allow-Origin'] = origin
+            if expose_headers is not None:
+                response.custom_headers['Access-Control-Expose-Headers'] = (
+                    ', '.join(expose_headers))
+
+        if request.method == b'OPTIONS':
+            response.status = http.HTTPStatus.NO_CONTENT
+            if origin_allowed:
+                if allow_methods is not None:
+                    response.custom_headers['Access-Control-Allow-Methods'] = (
+                        ', '.join(allow_methods))
+                response.custom_headers['Access-Control-Allow-Headers'] = (
+                    ', '.join(['Content-Type'] + allow_headers))
+                if allow_credentials:
+                    response.custom_headers['Access-Control-Allow-Credentials'] = (
+                        'true')
+                
+            return True
+
+        return False
 
     async def _check_http_auth(
         self,

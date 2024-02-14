@@ -712,6 +712,13 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
+                SELECT User.deck@count FILTER User.deck.element = 'Fire'
+            ''',
+            tb.bag([1, 2, 2]),
+        )
+
+        await self.assert_query_result(
+            r'''
                 SELECT DISTINCT (
                     SELECT User.deck@count FILTER User.deck.element = 'Fire'
                 );

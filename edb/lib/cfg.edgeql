@@ -172,6 +172,12 @@ ALTER TYPE cfg::AbstractConfig {
             'Whether inserts are allowed to set the \'id\' property.';
     };
 
+    CREATE MULTI PROPERTY cors_allow_origins -> std::str {
+        CREATE ANNOTATION std::description :=
+            'List of origins that can be returned in the \
+            Access-Control-Allow-Origin HTTP header';
+    };
+
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
