@@ -97,7 +97,6 @@ def get_app_details_config(db: Any) -> config.AppDetailsConfig:
         maybe_get_config(db, "ext::auth::AuthConfig::ui"),
     )
 
-
     return config.AppDetailsConfig(
         app_name=(
             maybe_get_config(db, "ext::auth::AuthConfig::app_name")
@@ -116,4 +115,3 @@ def get_app_details_config(db: Any) -> config.AppDetailsConfig:
             or ui_config.brand_color
         ),
     )
-
