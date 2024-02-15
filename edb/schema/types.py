@@ -479,12 +479,13 @@ class Type(
         ):
             assert isinstance(self, so.QualifiedObject)
             return UnionTypeShell(
+                module=name.module,
                 components=[
                     o.as_shell(schema) for o in union_of.objects(schema)
                 ],
-                module=name.module,
                 opaque=self.get_is_opaque_union(schema),
                 schemaclass=type(self),
+                schema=schema,
             )
         elif (
             (intersection_of := self.get_intersection_of(schema))
@@ -492,11 +493,12 @@ class Type(
         ):
             assert isinstance(self, so.QualifiedObject)
             return IntersectionTypeShell(
+                module=name.module,
                 components=[
                     o.as_shell(schema) for o in intersection_of.objects(schema)
                 ],
-                module=name.module,
                 schemaclass=type(self),
+                schema=schema,
             )
         else:
             return TypeShell(
@@ -626,23 +628,21 @@ class TypeShell(so.ObjectShell[TypeT_co]):
 class TypeExprShell(TypeShell[TypeT_co]):
 
     components: typing.Tuple[TypeShell[TypeT_co], ...]
-    module: str
 
     def __init__(
         self,
         *,
+        name: s_name.Name,
         components: Iterable[TypeShell[TypeT_co]],
-        module: str,
         schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         super().__init__(
-            name=s_name.UnqualName('__unresolved__'),
+            name=name,
             schemaclass=schemaclass,
             sourcectx=sourcectx,
         )
         self.components = tuple(components)
-        self.module = module
 
     def resolve_components(
         self,
@@ -662,29 +662,25 @@ class UnionTypeShell(TypeExprShell[TypeT_co]):
     def __init__(
         self,
         *,
-        components: Iterable[TypeShell[TypeT_co]],
         module: str,
+        components: Iterable[TypeShell[TypeT_co]],
         opaque: bool = False,
         schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
+        schema: s_schema.Schema,
     ) -> None:
-        super().__init__(
-            components=components,
+        name = get_union_type_name(
+            (c.get_name(schema) for c in components),
+            opaque=opaque,
             module=module,
+        )
+        super().__init__(
+            name=name,
+            components=components,
             schemaclass=schemaclass,
             sourcectx=sourcectx,
         )
         self.opaque = opaque
-
-    def get_name(
-        self,
-        schema: s_schema.Schema,
-    ) -> s_name.Name:
-        return get_union_type_name(
-            (c.get_name(schema) for c in self.components),
-            opaque=self.opaque,
-            module=self.module,
-        )
 
     def as_create_delta(
         self,
@@ -693,15 +689,9 @@ class UnionTypeShell(TypeExprShell[TypeT_co]):
         view_name: Optional[s_name.QualName] = None,
         attrs: Optional[Dict[str, Any]] = None,
     ) -> sd.Command:
-
-        name = get_union_type_name(
-            (c.get_name(schema) for c in self.components),
-            opaque=self.opaque,
-            module=self.module,
-        )
-
-        cmd = CreateUnionType(classname=name)
-        cmd.set_attribute_value('name', name)
+        assert isinstance(self.name, s_name.QualName)
+        cmd = CreateUnionType(classname=self.name)
+        cmd.set_attribute_value('name', self.name)
         cmd.set_attribute_value('components', tuple(self.components))
         cmd.set_attribute_value('is_opaque_union', self.opaque)
         return cmd
@@ -892,14 +882,25 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
 
 
 class IntersectionTypeShell(TypeExprShell[TypeT_co]):
-
-    def get_name(
+    def __init__(
         self,
+        *,
+        module: str,
+        components: Iterable[TypeShell[TypeT_co]],
+        schemaclass: type[TypeT_co],
+        sourcectx: parsing.ParserContext | None = None,
         schema: s_schema.Schema,
-    ) -> s_name.Name:
-        return get_intersection_type_name(
-            (c.get_name(schema) for c in self.components),
-            module=self.module,
+    ) -> None:
+        name = get_intersection_type_name(
+            (c.get_name(schema) for c in components),
+            module=module,
+        )
+
+        super().__init__(
+            name=name,
+            components=components,
+            schemaclass=schemaclass,
+            sourcectx=sourcectx
         )
 
 
@@ -1428,15 +1429,13 @@ class Array(
 
         st = next(iter(subtypes))
 
-        if name is None:
-            name = s_name.UnqualName('__unresolved__')
-
         return ArrayTypeShell(
             subtype=st,
             typemods=typemods,
             name=name,
             expr=expr,
             schemaclass=cls,
+            schema=schema,
         )
 
     def as_shell(
@@ -1478,23 +1477,19 @@ class ArrayTypeShell(CollectionTypeShell[Array_T_co]):
     def __init__(
         self,
         *,
-        name: s_name.Name,
+        name: Optional[s_name.Name],
         expr: Optional[str] = None,
         subtype: TypeShell[Type],
         typemods: typing.Tuple[typing.Any, ...],
         schemaclass: typing.Type[Array_T_co],
+        schema: s_schema.Schema,
     ) -> None:
+        if name is None:
+            name = schemaclass.generate_name(subtype.get_name(schema))
+
         super().__init__(name=name, schemaclass=schemaclass, expr=expr)
         self.subtype = subtype
         self.typemods = typemods
-
-    def get_name(self, schema: s_schema.Schema) -> s_name.Name:
-        if str(self.name) == '__unresolved__':
-            self.name = self.schemaclass.generate_name(
-                self.subtype.get_name(schema),
-            )
-
-        return self.name
 
     def get_subtypes(
         self,
@@ -1764,14 +1759,12 @@ class Tuple(
         typemods: Any = None,
         name: Optional[s_name.Name] = None,
     ) -> TupleTypeShell[Tuple_T]:
-        if name is None:
-            name = s_name.UnqualName(name='__unresolved__')
-
         return TupleTypeShell(
             subtypes=subtypes,
             typemods=typemods,
             name=name,
             schemaclass=cls,
+            schema=schema,
         )
 
     def as_shell(
@@ -2023,25 +2016,22 @@ class TupleTypeShell(CollectionTypeShell[Tuple_T_co]):
     def __init__(
         self,
         *,
-        name: s_name.Name,
+        name: Optional[s_name.Name],
         subtypes: Mapping[str, TypeShell[Type]],
         typemods: Any = None,
         schemaclass: typing.Type[Tuple_T_co],
+        schema: s_schema.Schema,
     ) -> None:
-        super().__init__(name=name, schemaclass=schemaclass)
-        self.subtypes = subtypes
-        self.typemods = typemods
-
-    def get_name(self, schema: s_schema.Schema) -> s_name.Name:
-        if str(self.name) == '__unresolved__':
-            typemods = self.typemods
-            subtypes = self.subtypes
+        if name is None:
             named = typemods is not None and typemods.get('named', False)
-            self.name = self.schemaclass.generate_name(
+            name = schemaclass.generate_name(
                 {n: st.get_name(schema) for n, st in subtypes.items()},
                 named,
             )
-        return self.name
+
+        super().__init__(name=name, schemaclass=schemaclass)
+        self.subtypes = subtypes
+        self.typemods = typemods
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
         st_names = ', '.join(st.get_displayname(schema)
@@ -2380,14 +2370,12 @@ class Range(
     ) -> RangeTypeShell[Range_T]:
         st = next(iter(subtypes))
 
-        if name is None:
-            name = s_name.UnqualName('__unresolved__')
-
         return RangeTypeShell(
             subtype=st,
             typemods=typemods,
             name=name,
             schemaclass=cls,
+            schema=schema,
         )
 
     def as_shell(
@@ -2426,22 +2414,18 @@ class RangeTypeShell(CollectionTypeShell[Range_T_co]):
     def __init__(
         self,
         *,
-        name: s_name.Name,
+        name: Optional[s_name.Name],
         subtype: TypeShell[Type],
         typemods: typing.Tuple[typing.Any, ...],
         schemaclass: typing.Type[Range_T_co],
+        schema: s_schema.Schema,
     ) -> None:
+        if name is None:
+            name = schemaclass.generate_name(subtype.get_name(schema))
+
         super().__init__(name=name, schemaclass=schemaclass)
         self.subtype = subtype
         self.typemods = typemods
-
-    def get_name(self, schema: s_schema.Schema) -> s_name.Name:
-        if str(self.name) == '__unresolved__':
-            self.name = self.schemaclass.generate_name(
-                self.subtype.get_name(schema),
-            )
-
-        return self.name
 
     def get_subtypes(
         self,
@@ -2721,7 +2705,9 @@ class MultiRange(
         st = next(iter(subtypes))
 
         if name is None:
-            name = s_name.UnqualName('__unresolved__')
+            name = cls.generate_name(
+                st.get_name(schema),
+            )
 
         return MultiRangeTypeShell(
             subtype=st,
@@ -2774,14 +2760,6 @@ class MultiRangeTypeShell(CollectionTypeShell[MultiRange_T_co]):
         super().__init__(name=name, schemaclass=schemaclass)
         self.subtype = subtype
         self.typemods = typemods
-
-    def get_name(self, schema: s_schema.Schema) -> s_name.Name:
-        if str(self.name) == '__unresolved__':
-            self.name = self.schemaclass.generate_name(
-                self.subtype.get_name(schema),
-            )
-
-        return self.name
 
     def get_subtypes(
         self,
