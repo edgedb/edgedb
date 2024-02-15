@@ -16121,7 +16121,6 @@ DDLStatement);
 
 class TestDDLNonIsolated(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
-    PARALLELISM_GRANULARITY = 'suite'
 
     async def test_edgeql_ddl_consecutive_create_migration_01(self):
         # A regression test for https://github.com/edgedb/edgedb/issues/2085.
@@ -16139,6 +16138,51 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             CREATE TYPE default::B;
         };
         ''')
+
+    async def test_edgeql_ddl_no_tx_mig_error_01(self):
+        await self.con.execute('''
+            create type Mig01;
+            insert Mig01;
+        ''')
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r"missing value for required property 'n'"):
+            # Test it standalone
+            await self.con.query('''
+                alter type Mig01 create required property n -> int64;
+            ''')
+
+    async def test_edgeql_ddl_no_tx_mig_error_02(self):
+        await self.con.execute('''
+            create type Mig02;
+            insert Mig02;
+        ''')
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r"missing value for required property 'n'"):
+            # Test it in a script
+            await self.con.query('''
+                alter type Mig02 create required property n -> int64;
+                create type Mig02b;
+            ''')
+
+    async def test_edgeql_ddl_no_tx_mig_error_03(self):
+        await self.con.execute('''
+            create type Mig03;
+        ''')
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r"missing value for required property 'n'"):
+            # Test a non-DDL failure in the script where prop was created
+            await self.con.query('''
+                alter type Mig03 create required property n -> int64;
+                insert Mig03 { n := <int64>{} };
+            ''')
+
+
+class TestDDLExtensions(tb.DDLTestCase):
+    TRANSACTION_ISOLATION = False
+    PARALLELISM_GRANULARITY = 'suite'
 
     async def _extension_test_01(self):
         await self.con.execute('''

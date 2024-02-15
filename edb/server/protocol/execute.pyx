@@ -168,6 +168,12 @@ async def execute(
                 await dbv.apply_config_ops(be_conn, config_ops)
 
     except Exception as ex:
+        # If we made schema changes, include the new schema in the
+        # exception so that it can be used when interpreting.
+        if query_unit.user_schema:
+            if isinstance(ex, pgerror.BackendError):
+                ex._user_schema = query_unit.user_schema
+
         dbv.on_error()
 
         if query_unit.tx_commit and not be_conn.in_tx() and dbv.in_tx():
@@ -348,6 +354,11 @@ async def execute_script(
 
     except Exception as e:
         dbv.on_error()
+
+        # Include the new schema in the exception so that it can be
+        # used when interpreting.
+        if isinstance(e, pgerror.BackendError):
+            e._user_schema = dbv.get_user_schema_pickle()
 
         if not in_tx and dbv.in_tx():
             # Abort the implicit transaction
@@ -672,8 +683,12 @@ async def interpret_error(
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:
+                # Grab the schema from the exception first, if it is present.
                 user_schema_pickle = (
-                    user_schema_pickle or db.user_schema_pickle)
+                    getattr(exc, '_user_schema', None)
+                    or user_schema_pickle
+                    or db.user_schema_pickle
+                )
                 global_schema_pickle = (
                     global_schema_pickle or db._index._global_schema_pickle
                 )
