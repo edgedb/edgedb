@@ -5,11 +5,11 @@ on:
     inputs: {}
   pull_request:
     branches:
-      - releases/*
+      - release/*
   push:
     branches:
       - patch-test*
-      - releases/*
+      - release/*
 
 jobs:
   build:
