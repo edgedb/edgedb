@@ -63,6 +63,8 @@ def map_query(f: Callable[[Expr, QueryLevel],
         match expr:
             case FreeVarExpr(_):
                 return expr
+            case e.QualifiedName(_):
+                return expr
             case BoundVarExpr(_):
                 return expr
             case e.ScalarVal(_):

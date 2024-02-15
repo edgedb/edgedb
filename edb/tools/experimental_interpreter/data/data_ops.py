@@ -169,6 +169,10 @@ class IntersectTp:
 class NamedNominalLinkTp:
     name: RawName
     linkprop: ObjectTp
+
+    def __post_init__(self):
+        if not isinstance(self.linkprop, ObjectTp):
+            raise ValueError("linkprop must be an object type")
     
 @dataclass(frozen=True)
 class UncheckedTypeName:
@@ -184,6 +188,10 @@ class NominalLinkTp:
     subject: ObjectTp
     name : QualifiedName
     linkprop: ObjectTp
+
+    def __post_init__(self):
+        if not isinstance(self.linkprop, ObjectTp):
+            raise ValueError("linkprop must be an object type")
 
 
 @dataclass(frozen=True)

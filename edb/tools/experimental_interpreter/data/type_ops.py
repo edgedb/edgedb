@@ -500,7 +500,7 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                             e.UuidTp(), tp.mode
                         )
                     elif lbl == "__type__":
-                        return post_process_result_base_tp(e.NamedNominalLinkTp(name=e.QualifiedName(["schema", "ObjectType"]), linkprop={}), 
+                        return post_process_result_base_tp(e.NamedNominalLinkTp(name=e.QualifiedName(["schema", "ObjectType"]), linkprop=e.ObjectTp({})), 
                                                            tp.mode)
                     else:
                         raise ValueError("Label not found", lbl, tp_obj.keys())
@@ -586,7 +586,10 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
 
 
 def combine_object_tp(o1: e.ObjectTp, o2: e.ObjectTp) -> e.ObjectTp:
-    return e.ObjectTp({**o1.val, **o2.val})
+    if isinstance(o1, e.ObjectTp) and isinstance(o2, e.ObjectTp):
+        return e.ObjectTp({**o1.val, **o2.val})
+    else: 
+        raise ValueError("not implemented combine object tp", pp.show(o1), pp.show(o2))
 
 def combine_tp_with_subject_tp(ctx: e.TcCtx, o1: e.Tp, o2: e.ObjectTp) -> e.Tp:
     match o1:

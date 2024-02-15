@@ -6535,6 +6535,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Type Intersection on labeled computables")
+    async def test_edgeql_union_target_01(self):
         await self.assert_query_result(
             r'''
             SELECT Issue {

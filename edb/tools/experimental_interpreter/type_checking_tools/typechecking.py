@@ -169,21 +169,24 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             else:
                 possible_resolved_name = mops.try_resolve_simple_name(ctx, e.UnqualifiedName(var))
                 if possible_resolved_name is not None:
-                    module_entity = mops.try_resolve_module_entity(ctx, possible_resolved_name)
-                    match module_entity:
-                        case e.ModuleEntityTypeDef(typedef=typedef):
-                            assert isinstance(typedef, e.ObjectTp), "Cannot select Scalar type"
-                            result_tp = e.NominalLinkTp(subject=typedef,
-                                                        name=possible_resolved_name, 
-                                                        linkprop=e.ObjectTp({}))
-                            result_expr = e.MultiSetExpr(expr=subtp_resol.find_all_subtypes_of_tp_in_schema(ctx.schema, possible_resolved_name))
-                            result_card = e.CardAny
-                        case _:
-                            raise ValueError("Unsupported Module Entity", module_entity)
+                    return synthesize_type(ctx, possible_resolved_name)
                 else:
                     raise ValueError("Unknown variable", var,
                                     "list of known vars",
                                     list(ctx.varctx.keys()))
+        case e.QualifiedName(_):
+            module_entity = mops.try_resolve_module_entity(ctx, expr)
+            match module_entity:
+                case e.ModuleEntityTypeDef(typedef=typedef):
+                    assert isinstance(typedef, e.ObjectTp), "Cannot select Scalar type"
+                    result_tp = e.NominalLinkTp(subject=typedef,
+                                                name=expr, 
+                                                linkprop=e.ObjectTp({}))
+                    result_expr = e.MultiSetExpr(expr=subtp_resol.find_all_subtypes_of_tp_in_schema(ctx.schema, expr))
+                    result_card = e.CardAny
+                case _:
+                    raise ValueError("Unsupported Module Entity", module_entity)
+
         case e.TypeCastExpr(tp=tp, arg=arg):
             tp_ck = check_type_valid(ctx, tp)
             if expr_tp_is_not_synthesizable(arg):

@@ -96,7 +96,10 @@ def elab_Path(p: qlast.Path) -> Expr:
         match step:
             case qlast.ObjectRef(name=name):
                 if result is None:
-                    result = FreeVarExpr(var=name)
+                    if step.module:
+                        result = e.QualifiedName([*step.module.split("::"), name])
+                    else:
+                        result = FreeVarExpr(var=name)
                 else:
                     raise ValueError("Unexpected ObjectRef in Path")
             case qlast.Ptr(name=path_name,
