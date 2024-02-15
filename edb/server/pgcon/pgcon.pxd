@@ -153,7 +153,7 @@ cdef class PGConnection:
     cdef fallthrough_idle(self)
 
     cdef bint before_prepare(
-        self, bytes stmt_name, schema_version, WriteBuffer outbuf)
+        self, bytes stmt_name, int dbver, WriteBuffer outbuf)
     cdef write_sync(self, WriteBuffer outbuf)
 
     cdef make_clean_stmt_message(self, bytes stmt_name)
@@ -161,7 +161,7 @@ cdef class PGConnection:
     cdef send_query_unit_group(
         self, object query_unit_group, bint sync,
         object bind_datas, bytes state,
-        ssize_t start, ssize_t end, schema_version, object parse_array
+        ssize_t start, ssize_t end, int dbver, object parse_array
     )
 
     cdef _rewrite_copy_data(
