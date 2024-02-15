@@ -2900,7 +2900,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
             pass
 
         with self.assertRaises(Rollback):
-            async with self.con.transaction() as tx:
+            async with self.con.transaction():
                 # make sure the transaction is started
                 await self.con.query('SELECT 123')
 
