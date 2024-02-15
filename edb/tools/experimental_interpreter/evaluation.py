@@ -118,7 +118,7 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
             elif isinstance(label, StrLabel):
                 label_str = label.label
                 if label_str == "id":
-                    return e.e.ResultMultiSetVal([e.UuidVal(id)])
+                    return e.ResultMultiSetVal([e.UuidVal(id)])
                 else:
                     return db.project(id, label_str)
             else:

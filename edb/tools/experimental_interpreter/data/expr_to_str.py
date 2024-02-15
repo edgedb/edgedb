@@ -39,12 +39,15 @@ def show_tp(tp: e.Tp) -> str:
             return show_qname(name)
         case e.UncheckedTypeName(name):
             return "unchecked_name(" + show_raw_name(name) + ")"
-        case e.CompositeTp(kind=kind, tps=tps):
-            return f'{kind.value}<{",".join(show_tp(tp) for tp in tps)}>'
-        case e.NamedTupleTp(val=tp_val):
-            return ('prod(' + ', '.join(
-                f'{lbl}: {show_tp(md_tp)}'
-                for lbl, md_tp in tp_val.items()) + ')')
+        case e.CompositeTp(kind=kind, tps=tps, labels=labels):
+            if labels:
+                return f'{kind.value}<{",".join(label + ":" + show_tp(tp) for (label,tp) in zip(labels,tps, strict=True))}>'
+            else:
+                return f'{kind.value}<{",".join(show_tp(tp) for tp in tps)}>'
+        # case e.NamedTupleTp(val=tp_val):
+        #     return ('prod(' + ', '.join(
+        #         f'{lbl}: {show_tp(md_tp)}'
+        #         for lbl, md_tp in tp_val.items()) + ')')
         # case e.UnnamedTupleTp(val=tp_val):
         #     return ('prod(' + ', '.join(
         #         f'{show_tp(md_tp)}'
@@ -228,11 +231,22 @@ def show_func_defs(funcdefs: List[e.FuncDef]) -> str:
 
 
 
+def show_constraint(constraint: e.Constraint) -> str:
+    match constraint:
+        case e.ExclusiveConstraint(name=name, delegated=delegated):
+            return "exclusive(" + name + ")" + (", delegated" if delegated else "")
+        case _:
+            raise ValueError('Unimplemented', constraint)
 
 def show_me(me: e.ModuleEntity) -> str:
     match me:
-        case e.ModuleEntityTypeDef(typedef=typedef):
-            return show_tp(typedef)
+        case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract, constraints=constraints):
+            auxiliary = ""
+            auxiliary += "abstract, " if  is_abstract else ""
+            auxiliary += "constraints = [" + ", ".join(show_constraint(c) for c in constraints) + "], " if constraints else ""
+            auxiliary = "\n    " + auxiliary if auxiliary else ""
+            base = show_tp(typedef)
+            return base + auxiliary
         case e.ModuleEntityFuncDef(funcdefs=funcdefs):
             return show_func_defs(funcdefs)
         case _:

@@ -332,6 +332,36 @@ def appears_in_expr_pred(search_pred: Callable[[Expr], bool],
         return True
     return False
 
+def count_appearances_in_expr(search: Expr, subject: Expr):
+
+    expr_is_var: Optional[str]
+    match search:
+        case FreeVarExpr(vname):
+            expr_is_var = vname
+        case BoundVarExpr(vname):
+            expr_is_var = vname
+        case _:
+            expr_is_var = None
+    
+    appearances = 0
+
+    def map_func(candidate: Expr) -> Optional[Expr]:
+        nonlocal appearances
+        if (expr_is_var is not None
+                and isinstance(candidate, BindingExpr)
+                and candidate.var == expr_is_var):
+
+            # terminate search here
+            return candidate
+        if candidate == search:
+            appearances += 1
+            return None
+        else:
+            return None
+
+    map_expr(map_func, subject)
+
+    return appearances
 
 def appears_in_expr(search: Expr, subject: Expr):
     class ReturnTrue(Exception):

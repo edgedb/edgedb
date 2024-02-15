@@ -43,6 +43,17 @@ def try_resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> O
     else:
         return None
 
+def resolve_type_def(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.ModuleEntityTypeDef:
+    me = try_resolve_module_entity(ctx, name)
+    if me is not None:
+        if isinstance(me, e.ModuleEntityTypeDef):
+            return me
+        else:
+            raise ValueError(f"{name} is not a type")
+    else:
+        raise ValueError(f"Type {name} not found")
+    
+
 def resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.ObjectTp | e.ScalarTp:
     resolved = try_resolve_type_name(ctx, name)
     if resolved is None:

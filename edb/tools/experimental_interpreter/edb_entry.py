@@ -26,6 +26,7 @@ import os
 Will also load the corresponding ql file. Will turn on trace-to-file to a default html file. Will populate next ql file if it exists. 
               """
               )
+@click.option("--no-setup", is_flag=True, default=False, required=False, help="""--test only, do not include a setup file. """)
 @click.option("-y", "--skip-test-confirm", default=False, required=False, is_flag=True)
 @click.option("-v", "--verbose", default=False, required=False, is_flag=True)
 def interperter_entry(
@@ -33,7 +34,8 @@ def interperter_entry(
         trace_to_file=None, sqlite_file=None,
         library_ddl_files=None,
         skip_type_checking=False,
-        test=None, skip_test_confirm=False) -> None:
+        test=None, no_setup=False, 
+        skip_test_confirm=False) -> None:
     
     if test:
         schemas_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'tests', 'schemas')
@@ -67,6 +69,10 @@ def interperter_entry(
         
         if next_ql_file is None and os.path.exists("temp_current_testing.edgeql"):
             next_ql_file = "temp_current_testing.edgeql"
+
+        if no_setup:
+            init_ql_file = None
+            next_ql_file = None
         
         if trace_to_file is None:
             trace_to_file = "temp_debug.html"
@@ -77,7 +83,10 @@ def interperter_entry(
         # print all options
         print(f'Running test {test} with options:')
         print(f'init_sdl_file: {init_sdl_file if not init_sdl_file.startswith(schemas_dir) else "<s_dir>" + init_sdl_file[len(schemas_dir):]}')
-        print(f'init_ql_file: {init_ql_file if not init_ql_file.startswith(schemas_dir) else "<s_dir>" + init_ql_file[len(schemas_dir):]}')
+        if init_ql_file:
+            print(f'init_ql_file: {init_ql_file if not init_ql_file.startswith(schemas_dir) else "<s_dir>" + init_ql_file[len(schemas_dir):]}')
+        else:
+            print(f'init_ql_file: None')
         print(f'next_ql_file: {next_ql_file}')
         print(f'trace_to_file: {trace_to_file}')
         print(f'verbose: {verbose}')

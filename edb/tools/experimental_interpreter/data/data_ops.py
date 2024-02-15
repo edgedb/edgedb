@@ -816,13 +816,14 @@ FuncDef = BuiltinFuncDef | DefinedFuncDef
 
 @dataclass(frozen=True)
 class ExclusiveConstraint:
+    name: str
     delegated: bool
 
 @dataclass(frozen=True)
 class ExpressionConstraint:
     expr: Expr
 
-Constraint = ExclusiveConstraint
+Constraint = ExclusiveConstraint | ExpressionConstraint
 
 
 @dataclass(frozen=True)

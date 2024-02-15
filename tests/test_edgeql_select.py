@@ -645,6 +645,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables")
     async def test_edgeql_select_computable_28(self):
         await self.assert_query_result(
             r"""
@@ -702,6 +703,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("cardinality markers on shapes")
     async def test_edgeql_select_computable_31(self):
         await self.assert_query_result(
             r"""
@@ -5308,6 +5310,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature(""" <path factoring details>
+        So the idea of this query is that it should return a singleton (due to exclusive constraint)
+        WITH U2 := User SELECT U2 { foo := U2.name ++ '!' } FILTER U2.name = 'Yury';
+        7:23
+        But it doesn’t, because U2 is factored
+        7:24
+        Essentially the preprocessed query looks like
+        with U2 := User for X in U2 union select X { foo := X.name ++ !} filter X.name = 'Yury';
+        7:24
+        This extra optional for distroys the exclusive filter (edited) 
+        7:25
+        The fix? If there is a single path that is just a free variable (after dropping the paths that occur only once), do not factor it. Please advise whether this makes sense.
+    """)
     async def test_edgeql_select_alias_indirection_08(self):
         await self.assert_query_result(
             r"""
@@ -6428,6 +6443,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("inference doesn't override the declared cardinality of watchers")
     async def test_edgeql_partial_03(self):
         await self.assert_query_result(
             '''

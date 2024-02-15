@@ -132,9 +132,9 @@ def process_ddl(
                     abstract=abstract):
             assert module_name is not None, "Object types cannot be created in top level"
             assert "::" not in module_name, "TODO"
-            obj_tp = elab_schema.elab_create_object_tp(commands)
+            obj_tp, constraints = elab_schema.elab_create_object_tp(commands)
             elab_schema.add_bases_for_name(schema, (module_name, ), name, bases)
-            schema.modules[(module_name, )].defs[name] = e.ModuleEntityTypeDef(obj_tp,  is_abstract=abstract, constraints={})
+            schema.modules[(module_name, )].defs[name] = e.ModuleEntityTypeDef(obj_tp,  is_abstract=abstract, constraints=constraints)
         case qlast.AlterObjectType():
             print_warning("WARNING: not supported yet", ddl)
         case _:

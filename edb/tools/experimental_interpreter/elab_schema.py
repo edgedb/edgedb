@@ -55,8 +55,9 @@ def construct_final_schema_target_tp(base : Tp, linkprops: Dict[str, ResultTp]) 
     else:
         return base
             
-def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> ObjectTp:
+def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> [ObjectTp, Sequence[e.Constraint]]:
     object_tp_content: Dict[str, ResultTp] = {}
+    constrants : List[e.Constraint] = []
     for cmd in commands:
         match cmd:
             case qlast.CreateConcretePointer(
@@ -154,9 +155,20 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> ObjectTp:
                                             pl_is_required,
                                             pl_cardinality
                                             ))}
-                        case qlast.CreateConcreteConstraint():
-                            print_warning("WARNING: not implemented pcmd"
-                                    " (constraint)", pcmd)
+                        case qlast.CreateConcreteConstraint(
+                            name=name,
+                            args=args,
+                            delegated=delegated,
+                        ):
+                            if args:
+                                print_warning("WARNING: not implemented args", args)
+                            else:
+                                match name:
+                                    case qlast.ObjectRef(name='exclusive', module=('std' | None)):
+                                        constrants.append(e.ExclusiveConstraint(name=pname, delegated=delegated))
+                                    case _:
+                                        print_warning("WARNING: not implemented pcmd"
+                                                " (constraint)", pcmd)
                         case qlast.SetField(
                                 name=set_field_name,
                                 value=set_field_value):
@@ -201,7 +213,7 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> ObjectTp:
             case _:
                 print_warning("WARNING: not implemented cmd", cmd)
                 # debug.dump(cmd)
-    return ObjectTp(val=object_tp_content)
+    return ObjectTp(val=object_tp_content), constrants
 
 
 def add_bases_for_name(schema: e.DBSchema, 
@@ -239,10 +251,10 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
                                         commands=commands,
                                         name=qlast.ObjectRef(name=name),
                                         abstract=abstract):
-                obj_tp = elab_create_object_tp(commands)
+                obj_tp, constraints = elab_create_object_tp(commands)
                 add_bases_for_name(existing, ("default",), name, bases)
                 assert name not in type_defs
-                type_defs[name] = e.ModuleEntityTypeDef(obj_tp, is_abstract=abstract, constraints={})
+                type_defs[name] = e.ModuleEntityTypeDef(obj_tp, is_abstract=abstract, constraints=constraints)
             case qlast.CreateScalarType(
                 name=qlast.ObjectRef(name=name, module=None),
                 bases=bases,

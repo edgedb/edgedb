@@ -189,7 +189,10 @@ def typed_multi_set_val_to_json_like(
             if top_level:
                 result = [result]
         else:
-            result = []
+            if top_level:
+                result = []
+            else:
+                result = None
     else:
         # do not dedup when converting to json (see test_edgeql_shape_for_01)
         result = [typed_val_to_json_like(v, tp.tp, dbschema) for v in m.getRawVals()]

@@ -5,10 +5,12 @@ from .data_ops import (BackLinkExpr, BindingExpr, BoolVal, DBSchema,
                        LinkPropProjExpr, ObjectProjExpr, TpIntersectExpr,
                        OptionalForExpr, next_name, StrLabel)
 from . import data_ops as e
+from . import expr_ops as eops
 from .expr_ops import (
     abstract_over_expr, appears_in_expr, instantiate_expr, is_path,
     iterative_subst_expr_for_expr, map_expr, operate_under_binding)
 from .query_ops import QueryLevel, map_query, map_sub_and_semisub_queries
+from . import path_optimize as popt
 
 
 def all_prefixes_of_a_path(expr: Expr) -> List[Expr]:
@@ -194,8 +196,14 @@ def toppath_for_factoring(expr: Expr, dbschema: e.TcCtx) -> List[Expr]:
                         pass
             case _:
                 pass
+    all_factoring_paths = c_all + clpp_a + d
+    
+    # remove from all_factoring_paths those paths that only occurred once
+    excluding_paths = [p for p in top_level_paths if eops.count_appearances_in_expr(p, expr) == 1]
+    all_factoring_paths = [p for p in all_factoring_paths if p not in excluding_paths]
+    
     return sorted(
-        list(set(c_all + clpp_a + d)),
+        list(set(all_factoring_paths)),
         key=path_lexicographic_key)
 
 def insert_conditional_dedup(path):
@@ -274,7 +282,8 @@ def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
     inner_e: Expr
     post_process_transform: Callable[[Expr], Expr]
     match expr:
-        case FilterOrderExpr(subject=subject, filter=filter, order=order):
+        # only perform special factoring if there is an order
+        case FilterOrderExpr(subject=subject, filter=filter, order=order) if order:
             bindname = next_name()
             inner_e = OptionalForExpr(
                 FilterOrderExpr(
@@ -341,4 +350,6 @@ def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
         result = OptionalForExpr(
             insert_conditional_dedup(for_paths[i]), abstract_over_expr(result, fresh_names[i]))
 
-    return post_process_transform(result)
+    result = post_process_transform(result)
+    # result = popt.path_optimize(result)
+    return result

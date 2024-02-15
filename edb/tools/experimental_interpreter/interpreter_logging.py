@@ -1,5 +1,5 @@
 
-SHOW_WARNINGS = False
+SHOW_WARNINGS = True
 
 
 def print_warning(*args, **kwargs):

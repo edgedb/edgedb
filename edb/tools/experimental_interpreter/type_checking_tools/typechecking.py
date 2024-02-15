@@ -119,6 +119,40 @@ def type_cast_tp(ctx: e.TcCtx, from_tp: e.ResultTp, to_tp: e.Tp) -> e.ResultTp:
         else:
             raise ValueError("Not Implemented", from_tp, to_tp)
 
+def check_filter_body_is_exclusive(ctx: e.TcCtx, filter_ck: e.Expr) -> bool:
+    match filter_ck:
+        case e.FunAppExpr(fun=e.QualifiedName(["std", "="]), args=args):
+            if len(args) != 2:
+                return False
+
+            if ((isinstance(args[0], e.ObjectProjExpr) and isinstance(args[1], e.ScalarVal))
+                 or (isinstance(args[1], e.ObjectProjExpr) and isinstance(args[0], e.ScalarVal))):
+                proj = args[0] if isinstance(args[0], e.ObjectProjExpr) else args[1]
+                match proj:
+                    case e.ObjectProjExpr(subject=e.FreeVarExpr(varname), label=label):
+                        result_tp, _ = ctx.varctx[varname]
+                        match result_tp:
+                            case e.NominalLinkTp(subject=tp, name=name, linkprop=linkprop):
+                                type_def = mops.resolve_type_def(ctx.schema, name)
+                            case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
+                                type_def = mops.resolve_type_def(ctx.schema, name)
+                            case _:
+                                return False
+                        if label in type_def.typedef.val:
+                            if [c for c in type_def.constraints if isinstance(c, e.ExclusiveConstraint) and c.name == label]:
+                                return True
+                            else:
+                                return False
+                        else:
+                            return False
+                    case _:
+                        return False
+
+            else:
+                return False
+        
+        case _:
+            return False
 
 def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
     result_tp: e.Tp
@@ -328,6 +362,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             # pass cardinality if filter body can be determined to be true
             if filter_body == e.BoolVal(True):
                 result_card = subject_tp.mode
+            elif check_filter_body_is_exclusive(filter_ctx, filter_ck):
+                result_card = e.CardAtMostOne
             else:
                 result_card = e.CMMode(
                     e.CardNumZero,

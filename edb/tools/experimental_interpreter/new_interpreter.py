@@ -59,6 +59,7 @@ def default_dbschema() -> DBSchema:
     )
     sck.re_populate_module_inheritance(initial_db, ("std",))
     sck.re_populate_module_inheritance(initial_db, ("schema",))
+    print("=== Standard library loaded ====")
     return initial_db
 
     # return DBSchema({("std",): DBModule({k: e.ModuleEntityFuncDef(v) for (k,v) in all_builtin_funcs.items()})},{})
@@ -157,6 +158,13 @@ def run_stmts(db: EdgeDatabaseInterface, stmts: Sequence[qlast.Expr],
             return [cur_val, *rest_val]
     raise ValueError("Not Possible")
 
+def run_meta_cmd(db: EdgeDatabaseInterface, dbschema: DBSchema, cmd: str) -> MultiSetVal:
+    if cmd == "\ps":
+        print(pp.show_module(dbschema.modules[("default",)]) + "\n")
+    elif cmd == "\ps --all":
+        print(pp.show_schema(dbschema) + "\n")
+    else:
+        raise ValueError("Unknown meta command: " + cmd)
 
 def run_str(
     db: EdgeDatabaseInterface,
@@ -166,6 +174,7 @@ def run_str(
     logs: Optional[List[str]] = None,
     skip_type_checking: bool = False,
 ) -> Sequence[MultiSetVal]:
+
     q = parse_ql(s)
     # if print_asts:
     #     debug.dump(q)
@@ -244,6 +253,10 @@ def repl(*, init_sdl_file=None,
             dbschema = dbschema
         db = empty_db(dbschema)
 
+    if debug_print:
+        print("=== ALL Schema Loaded ===")
+        print(pp.show_module(dbschema.modules[("default",)]))
+
     if init_ql_file is not None:
         initial_queries = open(init_ql_file).read()
         run_str(db, dbschema, initial_queries,
@@ -273,7 +286,7 @@ def repl(*, init_sdl_file=None,
             print("\nKeyboard Interrupt")
             s = ""
         # signal.signal( signal.SIGINT, lambda s, f : reset_s())
-        while ';' not in s:
+        while ';' not in s and not s.startswith("\\"):
             # s += sys.stdin.readline()
             if s:
                 try:
@@ -291,10 +304,13 @@ def repl(*, init_sdl_file=None,
                 return
         try:
             readline.write_history_file(history_file)
-            res = run_str(db, dbschema, s, print_asts=debug_print,
-                                logs=logs, skip_type_checking=skip_type_checking)
-            print("\n".join(json.dumps(multi_set_val_to_json_like(v))
-                            for v in res))
+            if s.startswith("\\"):
+                run_meta_cmd(db, dbschema, s)
+            else:
+                res = run_str(db, dbschema, s, print_asts=debug_print,
+                                    logs=logs, skip_type_checking=skip_type_checking)
+                # print("\n".join(json.dumps(multi_set_val_to_json_like(v))
+                #                 for v in res))
         except Exception:
             traceback.print_exception(*sys.exc_info())
         
