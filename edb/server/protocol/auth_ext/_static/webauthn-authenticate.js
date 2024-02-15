@@ -4,6 +4,8 @@ import {
   parseResponseAsJSON,
 } from "./utils.js";
 
+let authenticating = false;
+
 /**
  * Handle the form submission for WebAuthn authentication
  * @param {SubmitEvent} event
@@ -11,10 +13,14 @@ import {
  * @returns void
  */
 export async function onAuthenticateSubmit(event, form) {
-  if (event.submitter?.id !== "webauthn-signin") {
+  if (event.submitter?.id !== "webauthn-signin" || authenticating) {
     return;
   }
   event.preventDefault();
+
+  authenticating = true;
+  const signinButton = document.getElementById("webauthn-signin");
+  signinButton.disabled = true;
 
   const formData = new FormData(form);
   const email = formData.get("email");
@@ -41,10 +47,13 @@ export async function onAuthenticateSubmit(event, form) {
 
     window.location.href = redirectUrl.href;
   } catch (error) {
-    console.error("Failed to register WebAuthn credentials:", error);
+    console.error("Failed to authenticate WebAuthn credentials:", error);
     const url = new URL(redirectOnFailure ?? redirectTo);
     url.searchParams.append("error", error.message);
     window.location.href = url.href;
+  } finally {
+    authenticating = false;
+    signinButton.disabled = false;
   }
 }
 
@@ -110,21 +119,21 @@ async function getAuthenticateOptions(email) {
     method: "GET",
   });
 
-  if (!optionsResponse.ok) {
-    console.error(
-      "Failed to fetch WebAuthn options:",
-      optionsResponse.statusText
-    );
-    console.error(await optionsResponse.text());
-    throw new Error("Failed to fetch WebAuthn options");
-  }
-
-  try {
-    return await optionsResponse.json();
-  } catch (e) {
-    console.error("Failed to parse WebAuthn options:", e);
-    throw new Error("Failed to parse WebAuthn options");
-  }
+  return parseResponseAsJSON(optionsResponse, [
+    (response, error) => {
+      if (response.status === 400 && error?.type === "InvalidData") {
+        throw new Error(error?.message ?? "Email is invalid");
+      }
+      if (!response.ok) {
+        console.error(
+          "Failed to fetch WebAuthn options:",
+          optionsResponse.statusText
+        );
+        console.error(error);
+        throw new Error("Failed to fetch WebAuthn options");
+      }
+    },
+  ]);
 }
 
 /**

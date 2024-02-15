@@ -35,7 +35,7 @@ export async function parseResponseAsJSON(response, handlers = []) {
   if (!response.ok) {
     let error;
     try {
-      error = JSON.parse(bodyText);
+      error = JSON.parse(bodyText)?.error;
     } catch (e) {
       throw new Error(
         `Failed to parse body as JSON. Status: ${response.status} ${response.statusText}. Body: ${bodyText}`
