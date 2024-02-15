@@ -160,12 +160,12 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
       reset readonly
       rename to <newname>
       extending ...
-      set required
+      set required [using (<conversion-expr)]
       set optional
       reset optionality
-      set single
+      set single [using (<conversion-expr)]
       set multi
-      reset cardinality
+      reset cardinality [using (<conversion-expr)]
       set type <typename> [using (<conversion-expr)]
       reset type
       using (<computed-expr>)
@@ -231,7 +231,7 @@ The following subcommands are allowed in the ``alter link`` block:
     * ``after <parent>`` -- insert parent(s) after an existing
       *parent*.
 
-:eql:synopsis:`set required`
+:eql:synopsis:`set required [using (<conversion-expr)]`
     Make the property *required*.
 
 :eql:synopsis:`set optional`
@@ -242,7 +242,7 @@ The following subcommands are allowed in the ``alter link`` block:
     or, if the property is inherited, to the value inherited from properties in
     supertypes.
 
-:eql:synopsis:`set single`
+:eql:synopsis:`set single [using (<conversion-expr)]`
     Change the maximum cardinality of the property set to *one*.  Only
     valid for concrete properties.
 
@@ -250,7 +250,7 @@ The following subcommands are allowed in the ``alter link`` block:
     Change the maximum cardinality of the property set to
     *greater than one*.  Only valid for concrete properties.
 
-:eql:synopsis:`reset cardinality`
+:eql:synopsis:`reset cardinality [using (<conversion-expr)]`
     Reset the maximum cardinality of the property to the default value
     (``single``), or, if the property is inherited, to the value inherited
     from properties in supertypes.
