@@ -539,7 +539,6 @@ async def init_cluster(
 
     await cluster.start(port=0)
     await cluster.set_test_config()
-    # await cluster.trust_http_connections()
     await cluster.set_superuser_password('test')
 
     if cleanup_atexit:
