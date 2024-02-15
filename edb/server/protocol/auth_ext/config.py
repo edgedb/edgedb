@@ -23,6 +23,10 @@ import urllib.parse
 
 
 class UIConfig:
+    app_name: Optional[str]
+    logo_url: Optional[str]
+    dark_logo_url: Optional[str]
+    brand_color: Optional[str]
     redirect_to: str
     redirect_to_on_signup: Optional[str]
 
