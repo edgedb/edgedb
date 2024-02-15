@@ -2886,6 +2886,54 @@ class TestServerProtoDDL(tb.DDLTestCase):
         finally:
             await con2.aclose()
 
+    async def test_server_proto_query_cache_invalidate_11(self):
+        typename = 'CacheInv_11'
+
+        await self.con.execute(f"""
+            CREATE TYPE {typename} {{
+                CREATE PROPERTY prop1 -> std::int64;
+            }};
+            INSERT {typename} {{ prop1 := 42 }};
+        """)
+
+        class Rollback(Exception):
+            pass
+
+        with self.assertRaises(Rollback):
+            async with self.con.transaction():
+                # make sure the transaction is started
+                await self.con.query('SELECT 123')
+
+                # DDL in another connection
+                con2 = await self.connect(database=self.con.dbname)
+                try:
+                    await con2.execute(f"""
+                        ALTER TYPE {typename} {{
+                            DROP PROPERTY prop1;
+                        }};
+                    """)
+                finally:
+                    await con2.aclose()
+
+                # This compiles fine with the schema in the transaction, and
+                # the compile result is cached with an outdated version.
+                # However, the execution fails because the column is already
+                # dropped outside the transaction.
+                # FIXME: ISE is not an ideal error as for user experience here
+                with self.assertRaisesRegex(
+                    edgedb.InternalServerError, "column.*does not exist"
+                ):
+                    await self.con.query(f'SELECT {typename}.prop1')
+
+                raise Rollback
+
+        # Should recompile with latest schema, instead of reusing a wrong cache
+        with self.assertRaisesRegex(
+            edgedb.InvalidReferenceError,
+            "has no link or property 'prop1'"
+        ):
+            await self.con.query(f'SELECT {typename}.prop1')
+
     async def test_server_proto_backend_tid_propagation_01(self):
         async with self._run_and_rollback():
             await self.con.execute('''

@@ -767,6 +767,7 @@ cdef class DatabaseConnectionView:
             self._db._index._global_schema_pickle
         self._in_tx_user_config_spec = self._db.user_config_spec
         self._in_tx_state_serializer = state_serializer
+        self._in_tx_dbver = self._db.dbver
 
     cdef _apply_in_tx(self, query_unit):
         if query_unit.has_ddl:
@@ -778,6 +779,7 @@ cdef class DatabaseConnectionView:
         if query_unit.has_set:
             self._in_tx_with_set = True
         if query_unit.user_schema is not None:
+            self._in_tx_dbver = next_dbver()
             self._in_tx_user_schema_pickle = query_unit.user_schema
             self._in_tx_user_config_spec = config.FlatSpec(
                 *query_unit.ext_config_settings
@@ -804,7 +806,6 @@ cdef class DatabaseConnectionView:
             if new_types:
                 self._db._update_backend_ids(new_types)
             if query_unit.user_schema is not None:
-                self._in_tx_dbver = next_dbver()
                 self._db._set_and_signal_new_user_schema(
                     query_unit.user_schema,
                     query_unit.extensions,
@@ -977,7 +978,7 @@ cdef class DatabaseConnectionView:
         if query_unit_group is None:
             # Cache miss; need to compile this query.
             cached = False
-            dbver = self._db.dbver
+            dbver = self.dbver
 
             try:
                 query_unit_group = await self._compile(query_req)
