@@ -1,6 +1,9 @@
 use edgeql_parser::tokenizer::Error;
 use pyo3::prelude::*;
 use pyo3::{create_exception, exceptions};
+use pyo3::types::{PyBytes, PyList};
+
+use crate::tokenizer::OpaqueToken;
 
 create_exception!(_edgeql_parser, SyntaxError, exceptions::PyException);
 
@@ -11,6 +14,21 @@ pub struct ParserResult {
 
     #[pyo3(get)]
     pub errors: PyObject,
+}
+
+#[pymethods]
+impl ParserResult {
+    fn pack(&self, py: Python) -> PyResult<PyObject> {
+        let tokens: &PyList = self.out.downcast(py)?;
+        let mut rv = Vec::with_capacity(tokens.len());
+        for token in tokens {
+            let token: &PyCell<OpaqueToken> = token.downcast()?;
+            rv.push(token.borrow().inner.clone());
+        }
+        let mut buf = vec![0u8];  // type and version
+        bincode::serialize_into(&mut buf, &rv).expect("serialize");
+        Ok(PyBytes::new(py, buf.as_slice()).into())
+    }
 }
 
 pub fn parser_error_into_tuple(py: Python, error: Error) -> PyObject {

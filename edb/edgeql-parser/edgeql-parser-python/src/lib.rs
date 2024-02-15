@@ -6,6 +6,7 @@ mod parser;
 mod position;
 mod pynormalize;
 mod tokenizer;
+mod unpack;
 
 use pyo3::prelude::*;
 
@@ -38,6 +39,9 @@ fn _edgeql_parser(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<tokenizer::OpaqueToken>()?;
     m.add_function(wrap_pyfunction!(tokenizer::tokenize, m)?)?;
     m.add_function(wrap_pyfunction!(tokenizer::unpickle_token, m)?)?;
+
+    m.add_function(wrap_pyfunction!(unpack::unpack, m)?)?;
+
     tokenizer::fini_module(py, m);
 
     Ok(())
