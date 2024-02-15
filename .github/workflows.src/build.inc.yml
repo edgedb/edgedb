@@ -108,7 +108,7 @@
         <%- endif %>
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -177,7 +177,7 @@
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -191,7 +191,7 @@
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -224,7 +224,7 @@
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -260,7 +260,7 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -284,7 +284,7 @@
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -326,7 +326,7 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
