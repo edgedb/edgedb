@@ -2459,6 +2459,7 @@ def _try_compile(
             unit.sql = comp.sql
             unit.create_db = comp.create_db
             unit.drop_db = comp.drop_db
+            unit.drop_db_reset_connections = comp.drop_db_reset_connections
             unit.create_db_template = comp.create_db_template
             unit.create_db_mode = comp.create_db_mode
             unit.ddl_stmt_id = comp.ddl_stmt_id

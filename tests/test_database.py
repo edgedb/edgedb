@@ -17,6 +17,7 @@
 #
 
 
+import asyncio
 import edgedb
 
 from edb.schema import defines as s_def
@@ -237,6 +238,112 @@ class TestDatabase(tb.ConnectedTestCase):
 
         finally:
             await tb.drop_db(self.con, 'test_db_drop')
+
+    async def _test_branch_drop_disconnect(
+        self, *, with_transaction, with_query
+    ):
+        if not self.has_create_database:
+            self.skipTest("create branch is not supported by the backend")
+
+        await self.con.execute('CREATE EMPTY BRANCH test_db_disconnect;')
+        conn = await self.connect(database='test_db_disconnect')
+        sleeping = None
+
+        try:
+            if with_transaction:
+                await conn.query('START TRANSACTION')
+
+            dbname = await conn.query(
+                'SELECT sys::get_current_database();')
+            self.assertEqual(dbname, ['test_db_disconnect'])
+
+            if with_query:
+                await conn.query('select sys::_sleep(0)')
+                sleeping = asyncio.create_task(
+                    conn.query('select sys::_sleep(3)')
+                )
+                await asyncio.sleep(1)
+
+            # Drop branch while the frontend connection is active
+            await self.con.execute(
+                'DROP BRANCH test_db_disconnect WITH (FORCE)'
+            )
+
+            if with_query:
+                try:
+                    await sleeping
+                except edgedb.EdgeDBError:
+                    pass
+                sleeping = None
+
+            # The frontend connection should be closed by the server now
+            self.assertTrue(conn.is_closed())
+        finally:
+            if sleeping:
+                try:
+                    await sleeping
+                except Exception:
+                    pass
+
+            await conn.aclose()
+            try:
+                await tb.drop_db(self.con, 'test_db_disconnect')
+            except edgedb.UnknownDatabaseError:
+                pass
+
+    async def test_branch_drop_disconnect_01(self):
+        await self._test_branch_drop_disconnect(
+            with_transaction=False, with_query=False,
+        )
+
+    async def test_branch_drop_disconnect_02(self):
+        await self._test_branch_drop_disconnect(
+            with_transaction=True, with_query=False,
+        )
+
+    async def test_branch_drop_disconnect_03(self):
+        await self._test_branch_drop_disconnect(
+            with_transaction=False, with_query=True,
+        )
+
+    async def test_branch_drop_disconnect_04(self):
+        await self._test_branch_drop_disconnect(
+            with_transaction=True, with_query=True,
+        )
+
+    async def test_branch_rename_disconnect(self):
+        if not self.has_create_database:
+            self.skipTest("create branch is not supported by the backend")
+
+        await self.con.execute('CREATE EMPTY BRANCH test_db_rename;')
+        conn = await self.connect(database='test_db_rename')
+
+        try:
+            dbname = await conn.query(
+                'SELECT sys::get_current_database();')
+            self.assertEqual(dbname, ['test_db_rename'])
+
+            # Drop branch while the frontend connection is active
+            await self.con.execute('''
+                ALTER BRANCH test_db_rename WITH (FORCE)
+                RENAME TO test_db_rename2
+            ''')
+
+            # The frontend connection should be closed by the server now
+            self.assertTrue(conn.is_closed())
+
+            conn2 = await self.connect(database='test_db_rename2')
+            dbname = await conn2.query(
+                'SELECT sys::get_current_database();')
+            self.assertEqual(dbname, ['test_db_rename2'])
+
+        finally:
+            await conn.aclose()
+            await conn2.aclose()
+            try:
+                await tb.drop_db(self.con, 'test_db_rename')
+            except edgedb.UnknownDatabaseError:
+                await tb.drop_db(self.con, 'test_db_rename2')
 
     async def test_branch_non_exist_template(self):
         if not self.has_create_database:

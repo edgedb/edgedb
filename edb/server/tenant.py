@@ -730,34 +730,40 @@ class Tenant(ha_base.ClusterProtocol):
             and dbname not in self._block_new_connections
         )
 
-    async def ensure_database_not_connected(self, dbname: str) -> None:
+    async def ensure_database_not_connected(
+        self, dbname: str, close_frontend_conns: bool = False
+    ) -> None:
         if self._dbindex and self._dbindex.count_connections(dbname):
-            # If there are open EdgeDB connections to the `dbname` DB
-            # just raise the error Postgres would have raised itself.
-            raise errors.ExecutionError(
-                f"database branch {dbname!r} is being accessed by other users"
-            )
-        else:
-            self._block_new_connections.add(dbname)
+            if close_frontend_conns:
+                self._server.request_stop_fe_conns(dbname)
+            else:
+                # If there are open EdgeDB connections to the `dbname` DB
+                # just raise the error Postgres would have raised itself.
+                raise errors.ExecutionError(
+                    f"database branch {dbname!r} is being accessed by "
+                    f"other users"
+                )
 
-            # Prune our inactive connections.
-            await self._pg_pool.prune_inactive_connections(dbname)
+        self._block_new_connections.add(dbname)
 
-            # Signal adjacent servers to prune their connections to this
-            # database.
-            await self.signal_sysevent(
-                "ensure-database-not-used", dbname=dbname
-            )
+        # Signal adjacent servers to prune their connections to this
+        # database.
+        await self.signal_sysevent(
+            "ensure-database-not-used", dbname=dbname
+        )
 
-            rloop = retryloop.RetryLoop(
-                timeout=10.0,
-                ignore=errors.ExecutionError,
-            )
+        rloop = retryloop.RetryLoop(
+            timeout=10.0,
+            ignore=errors.ExecutionError,
+        )
 
-            async for iteration in rloop:
-                async with iteration:
-                    # Verify we are disconnected
-                    await self._pg_ensure_database_not_connected(dbname)
+        async for iteration in rloop:
+            async with iteration:
+                # Prune our inactive connections.  (Do it in the loop
+                # to help in the close_frontend_conns situation.)
+                await self._pg_pool.prune_inactive_connections(dbname)
+
+                await self._pg_ensure_database_not_connected(dbname)
 
     async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
         async with self.use_sys_pgcon() as pgcon:
@@ -1167,14 +1173,19 @@ class Tenant(ha_base.ClusterProtocol):
         self._start_watching_files()
 
     async def on_before_drop_db(
-        self, dbname: str, current_dbname: str
+        self,
+        dbname: str,
+        current_dbname: str,
+        close_frontend_conns: bool = False,
     ) -> None:
         if current_dbname == dbname:
             raise errors.ExecutionError(
                 f"cannot drop the currently open database branch {dbname!r}"
             )
 
-        await self.ensure_database_not_connected(dbname)
+        await self.ensure_database_not_connected(
+            dbname, close_frontend_conns=close_frontend_conns
+        )
 
     async def on_before_create_db_from_template(
         self, dbname: str, current_dbname: str

@@ -883,11 +883,11 @@ class CreateDatabase(CreateObject, DatabaseCommand):
 
 
 class AlterDatabase(AlterObject, DatabaseCommand):
-    pass
+    force: bool = False
 
 
 class DropDatabase(DropObject, DatabaseCommand):
-    pass
+    force: bool = False
 
 
 class ExtensionPackageCommand(GlobalObjectCommand):

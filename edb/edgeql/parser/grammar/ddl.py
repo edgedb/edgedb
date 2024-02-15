@@ -849,13 +849,37 @@ class CreateBranchStmt(Nonterm):
 #
 # DROP BRANCH
 #
+
+BranchOptionsSpec = collections.namedtuple(
+    'BranchOptionsSpec', ['force'])
+
+
+class BranchOptions(Nonterm):
+    # This is generalizable, but we don't bother generalizing it yet.
+    def reduce_empty(self, *kids):
+        self.val = BranchOptionsSpec(force=False)
+
+    def reduce_WITH_LPAREN_RPAREN(self, *kids):
+        self.val = BranchOptionsSpec(force=False)
+
+    def reduce_WITH_LPAREN_FORCE_RPAREN(self, *kids):
+        self.val = BranchOptionsSpec(force=True)
+
+    def reduce_WITH_LPAREN_FORCE_COMMA_RPAREN(self, *kids):
+        self.val = BranchOptionsSpec(force=True)
+
+
 class DropBranchStmt(Nonterm):
-    def reduce_DROP_BRANCH_DatabaseName(self, *kids):
-        self.val = qlast.DropDatabase(name=kids[2].val)
+    def reduce_DROP_BRANCH_DatabaseName_BranchOptions(self, *kids):
+        _, _, name, options = kids
+        self.val = qlast.DropDatabase(
+            name=name.val,
+            force=options.val.force,
+        )
 
 
 #
-# ALTER BRANCH/DATABASE
+# ALTER BRANCH
 #
 
 
@@ -867,13 +891,15 @@ commands_block(
 
 
 class AlterBranchStmt(Nonterm):
-    def reduce_ALTER_BRANCH_DatabaseName_AlterBranchCommandsBlock(
-        self, *kids
-    ):
-        _, _, name, commands = kids
+    def reduce_alter_branch(self, *kids):
+        """%reduce
+            ALTER BRANCH DatabaseName BranchOptions AlterBranchCommandsBlock
+        """
+        _, _, name, options, commands = kids
         self.val = qlast.AlterDatabase(
             name=name.val,
             commands=commands.val,
+            force=options.val.force,
         )
 
 

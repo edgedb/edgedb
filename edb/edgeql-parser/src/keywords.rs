@@ -39,6 +39,7 @@ pub const UNRESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "extension",
     "final",
     "first",
+    "force",
     "from",
     "function",
     "future",
