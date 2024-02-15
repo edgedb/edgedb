@@ -245,15 +245,17 @@ cdef class Database:
             # We already have a cached query for a more recent DB version.
             return
 
+        # Store the matching schema version, see also the comments at origin
         self._eql_to_compiled[key] = compiled, schema_version
 
-    def cache_compiled_sql(self, key, compiled: list[str]):
+    def cache_compiled_sql(self, key, compiled: list[str], schema_version):
         existing, ver = self._sql_to_compiled.get(key, DICTDEFAULT)
         if existing is not None and ver == self.schema_version:
             # We already have a cached query for a more recent DB version.
             return
 
-        self._sql_to_compiled[key] = compiled, self.schema_version
+        # Store the matching schema version, see also the comments at origin
+        self._sql_to_compiled[key] = compiled, schema_version
 
     def lookup_compiled_sql(self, key):
         rv, cached_ver = self._sql_to_compiled.get(key, DICTDEFAULT)
@@ -1008,7 +1010,11 @@ cdef class DatabaseConnectionView:
         if query_unit_group is None:
             # Cache miss; need to compile this query.
             cached = False
-            schema_version = self._db.schema_version
+            # Remember the schema version we are compiling on, so that we can
+            # cache the result with the matching version. In case of concurrent
+            # schema update, we're only storing an outdated cache entry, and
+            # the next identical query could get recompiled on the new schema.
+            schema_version = self.schema_version
 
             try:
                 query_unit_group = await self._compile(query_req)
