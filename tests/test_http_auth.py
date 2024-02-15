@@ -128,8 +128,6 @@ class BaseTestHttpAuth(
 
 
 class TestHttpAuth(BaseTestHttpAuth):
-    PARALLELISM_GRANULARITY = 'system'
-
     def test_http_auth_scram_valid(self):
         args = self.get_connect_args()
         (token, headers, status, sid, expected_server_sig) = self._scram_auth(
@@ -205,8 +203,10 @@ class TestHttpAuth(BaseTestHttpAuth):
         self._scram_auth_expect_failure("scram_no_user", "bad-password")
 
     async def test_http_auth_scram_cors(self):
-        try:
-            conn_args = self.get_connect_args()
+        # spin up a new server because we are doing instance configs
+        async with tb_server.start_edgedb_server() as sd:
+            conn_args = sd.get_connect_args()
+
             url = f'https://{conn_args["host"]}:{conn_args["port"]}/auth/token'
 
             req = urllib.request.Request(url, method='OPTIONS')
@@ -216,11 +216,15 @@ class TestHttpAuth(BaseTestHttpAuth):
             )
             self.assertNotIn('Access-Control-Allow-Origin', response.headers)
 
-            await self.con.execute(
-                'configure instance '
-                'set cors_allow_origins := {"https://example.edgedb.com"}')
+            con = await sd.connect()
+            try:
+                await con.execute(
+                    'configure instance '
+                    'set cors_allow_origins := {"https://example.edgedb.com"}')
+            finally:
+                await con.aclose()
             await self._wait_for_db_config(
-                'cors_allow_origins', instance_config=True)
+                'cors_allow_origins', instance_config=True, server=sd)
 
             req = urllib.request.Request(url, method='OPTIONS')
             req.add_header('Origin', 'https://example.edgedb.com')
@@ -248,7 +252,7 @@ class TestHttpAuth(BaseTestHttpAuth):
                 headers['Access-Control-Expose-Headers']
             )
 
-            with self.http_con() as con:
+            with self.http_con(sd) as con:
                 _, headers, status = self.http_con_request(
                     con, {}, path="token",
                     headers={'Origin': 'https://example.edgedb.com'}
@@ -264,9 +268,6 @@ class TestHttpAuth(BaseTestHttpAuth):
                     'Authentication-Info',
                     headers['access-control-expose-headers']
                 )
-        finally:
-            await self.con.execute(
-                'configure instance reset cors_allow_origins')
 
 
 class TestHttpAuthSystem(BaseTestHttpAuth):

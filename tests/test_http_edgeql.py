@@ -43,7 +43,6 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
 
     # EdgeQL/HTTP queries cannot run in a transaction
     TRANSACTION_ISOLATION = False
-    PARALLELISM_GRANULARITY = 'system'
 
     def test_http_edgeql_proto_errors_01(self):
         with self.http_con() as con:
@@ -434,10 +433,9 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
             self.assertNotIn('Access-Control-Allow-Origin', response.headers)
 
             await self.con.execute(
-                'configure instance '
+                'configure current database '
                 'set cors_allow_origins := {"https://example.edgedb.com"}')
-            await self._wait_for_db_config(
-                'cors_allow_origins', instance_config=True)
+            await self._wait_for_db_config('cors_allow_origins')
 
             req = urllib.request.Request(self.http_addr, method='OPTIONS')
             req.add_header('Origin', 'https://other.edgedb.com')
@@ -473,7 +471,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 'configure current database '
                 'set cors_allow_origins := {"https://other.edgedb.com"}')
             await self._wait_for_db_config(
-                'cors_allow_origins')
+                'cors_allow_origins', value=["https://other.edgedb.com"])
 
             req = urllib.request.Request(self.http_addr, method='OPTIONS')
             req.add_header('Origin', 'https://example.edgedb.com')
@@ -504,4 +502,4 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
             self.assertIn('Access-Control-Allow-Origin', response.headers)
         finally:
             await self.con.execute(
-                'configure instance reset cors_allow_origins')
+                'configure current database reset cors_allow_origins')

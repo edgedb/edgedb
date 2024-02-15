@@ -57,13 +57,15 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         super().tearDownClass()
 
     @classmethod
-    async def _wait_for_db_config(cls, config_key, *, instance_config=False):
+    async def _wait_for_db_config(
+        cls, config_key, *, server=None, instance_config=False, value=None
+    ):
         dbname = cls.get_database_name()
         # Wait for the database config changes to propagate to the
         # server by watching a debug endpoint
         async for tr in cls.try_until_succeeds(ignore=AssertionError):
             async with tr:
-                with cls.http_con() as http_con:
+                with cls.http_con(server) as http_con:
                     (
                         rdata,
                         _headers,
@@ -83,6 +85,8 @@ class BaseHttpExtensionTest(server.QueryTestCase):
                         config = data['databases'][dbname]['config']
                     if config_key not in config:
                         raise AssertionError('database config not ready')
+                    if value and config[config_key] != value:
+                        raise AssertionError(f'database config not ready')
 
 
 class ExtAuthTestCase(BaseHttpExtensionTest):
