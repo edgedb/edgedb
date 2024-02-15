@@ -142,10 +142,10 @@ targets:
           platform: macos
           platform_version: x86_64
           family: generic
-          runs_on: [self-hosted, macOS, X64]
+          runs_on: [macos-14]
         - name: macos-aarch64
           arch: aarch64
           platform: macos
           platform_version: aarch64
           family: generic
-          runs_on: [self-hosted, macOS, ARM64]
+          runs_on: [macos-14]
