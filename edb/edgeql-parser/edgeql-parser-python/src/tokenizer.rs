@@ -49,7 +49,7 @@ impl OpaqueToken {
         Ok(self.inner.to_string())
     }
     fn __reduce__(&self, py: Python) -> PyResult<(PyObject, (PyObject,))> {
-        let data = bitcode::serialize(&self.inner).unwrap();
+        let data = bincode::serialize(&self.inner).unwrap();
 
         let tok = get_unpickle_token_fn(py);
         Ok((tok, (PyBytes::new(py, &data).to_object(py),)))
@@ -86,7 +86,7 @@ pub fn fini_module(py: Python, m: &PyModule) {
 
 #[pyfunction]
 pub fn unpickle_token(bytes: &PyBytes) -> PyResult<OpaqueToken> {
-    let token = bitcode::deserialize(bytes.as_bytes()).unwrap();
+    let token = bincode::deserialize(bytes.as_bytes()).unwrap();
     Ok(OpaqueToken { inner: token })
 }
 
