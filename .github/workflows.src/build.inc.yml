@@ -132,18 +132,29 @@
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "<< tgt.arch >>-apple-darwin"
 
     - name: Set up Python
       uses: actions/setup-python@v5
       if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
       with:
         python-version: "3.x"
+
+    - name: Set up NodeJS
+      uses: actions/setup-node@v4
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -158,6 +169,7 @@
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_PLATFORM_ARCH: "<< tgt.arch if tgt.arch else '' >>"
+        EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
         <%- if tgt.family == "generic" %>
         BUILD_GENERIC: true

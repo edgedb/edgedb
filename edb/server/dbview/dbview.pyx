@@ -775,15 +775,12 @@ cdef class DatabaseConnectionView:
 
         if query_unit.tx_id is not None:
             self._txid = query_unit.tx_id
-            self._start_tx()
-
-        if self._in_tx and not self._txid:
-            raise errors.InternalServerError('unset txid in transaction')
+            self.start_tx()
 
         if self._in_tx:
             self._apply_in_tx(query_unit)
 
-    cdef _start_tx(self):
+    cdef start_tx(self):
         state_serializer = self.get_state_serializer()
         self._in_tx = True
         self._in_tx_config = self._config
@@ -796,6 +793,7 @@ cdef class DatabaseConnectionView:
             self._db._index._global_schema_pickle
         self._in_tx_user_config_spec = self._db.user_config_spec
         self._in_tx_state_serializer = state_serializer
+        self._in_tx_dbver = self._db.dbver
 
     cdef _apply_in_tx(self, query_unit):
         if query_unit.has_ddl:
@@ -807,6 +805,7 @@ cdef class DatabaseConnectionView:
         if query_unit.has_set:
             self._in_tx_with_set = True
         if query_unit.user_schema is not None:
+            self._in_tx_dbver = next_dbver()
             self._in_tx_user_schema_pickle = query_unit.user_schema
             self._in_tx_user_schema_version = query_unit.user_schema_version
             self._in_tx_user_config_spec = config.FlatSpec(
@@ -820,7 +819,7 @@ cdef class DatabaseConnectionView:
             self.raise_in_tx_error()
 
         if not self._in_tx:
-            self._start_tx()
+            self.start_tx()
 
         self._apply_in_tx(query_unit)
 
@@ -834,7 +833,6 @@ cdef class DatabaseConnectionView:
             if new_types:
                 self._db._update_backend_ids(new_types)
             if query_unit.user_schema is not None:
-                self._in_tx_dbver = next_dbver()
                 self._db._set_and_signal_new_user_schema(
                     query_unit.user_schema,
                     query_unit.user_schema_version,

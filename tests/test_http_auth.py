@@ -28,6 +28,7 @@ from edb import protocol
 from edb.server import defines as edbdef
 from edb.testbase import server as tb_server
 from edb.testbase import http as tb_http
+from edb.tools import test
 
 
 class BaseTestHttpAuth(
@@ -202,6 +203,7 @@ class TestHttpAuth(BaseTestHttpAuth):
     def test_http_auth_scram_no_user(self):
         self._scram_auth_expect_failure("scram_no_user", "bad-password")
 
+    @test.skip('FIXME: uses configure instance unsafely')
     async def test_http_auth_scram_cors(self):
         conn_args = self.get_connect_args()
         url = f'https://{conn_args["host"]}:{conn_args["port"]}/auth/token'

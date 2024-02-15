@@ -1570,6 +1570,39 @@ class TestServerConnectionPool(unittest.TestCase):
 
         asyncio.run(main())
 
+    def test_connpool_eternal_starvation(self):
+        async def fake_connect(dbname):
+            # very fast connect
+            return FakeConnection(dbname)
+
+        async def test():
+            pool = connpool.Pool(
+                connect=fake_connect,
+                disconnect=self.make_fake_disconnect(),
+                max_capacity=5,
+            )
+            counter = 0
+            event = asyncio.Event()
+
+            async def job(dbname):
+                nonlocal counter
+
+                conn = await pool.acquire(dbname)
+                counter += 1
+                if counter >= 5:
+                    event.set()
+                await event.wait()
+                pool.release(dbname, conn)
+
+            async with asyncio.TaskGroup() as g:
+                for n in range(10):
+                    g.create_task(job(f"block_{n}"))
+
+        async def main():
+            await asyncio.wait_for(test(), timeout=3)
+
+        asyncio.run(main())
+
 
 HTML_TPL = R'''<!DOCTYPE html>
 <html>
