@@ -1427,6 +1427,11 @@ cdef class PgConnection(frontend.FrontendConnection):
             result = self.database.lookup_compiled_sql(key)
             if result is not None:
                 return result
+        # Remember the schema version we are compiling on, so that we can
+        # cache the result with the matching version. In case of concurrent
+        # schema update, we're only storing an outdated cache entry, and
+        # the next identical query could get recompiled on the new schema.
+        schema_version = self.database.schema_version
         compiler_pool = self.server.get_compiler_pool()
         result = await compiler_pool.compile_sql(
             self.dbname,
@@ -1442,7 +1447,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.username,
             client_id=self.tenant.client_id,
         )
-        self.database.cache_compiled_sql(key, result)
+        self.database.cache_compiled_sql(key, result, schema_version)
         if self.debug:
             self.debug_print("Compile result", result)
         return result

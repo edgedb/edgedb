@@ -889,6 +889,7 @@ class Tenant(ha_base.ClusterProtocol):
         db = self._dbindex.register_db(
             dbname,
             user_schema_pickle=parsed_db.user_schema_pickle,
+            schema_version=parsed_db.schema_version,
             db_config=parsed_db.database_config,
             reflection_cache=reflection_cache,
             backend_ids=backend_ids,
@@ -921,6 +922,7 @@ class Tenant(ha_base.ClusterProtocol):
                     self._dbindex.register_db(
                         dbname,
                         user_schema_pickle=None,
+                        schema_version=None,
                         db_config=None,
                         reflection_cache=None,
                         backend_ids=None,
