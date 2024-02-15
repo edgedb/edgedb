@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/releases/')
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release/')
     runs-on: ubuntu-latest
 
     steps:
