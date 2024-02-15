@@ -235,29 +235,29 @@ cdef class Database:
         self._index.invalidate_caches()
 
     cdef _cache_compiled_query(
-        self, key, compiled: dbstate.QueryUnitGroup, int dbver
+        self, key, compiled: dbstate.QueryUnitGroup, schema_version
     ):
         # `dbver` must be the schema version `compiled` was compiled upon
         assert compiled.cacheable
 
-        existing, existing_dbver = self._eql_to_compiled.get(key, DICTDEFAULT)
-        if existing is not None and existing_dbver == self.dbver:
+        existing, existing_ver = self._eql_to_compiled.get(key, DICTDEFAULT)
+        if existing is not None and existing_ver == self.schema_version:
             # We already have a cached query for a more recent DB version.
             return
 
-        self._eql_to_compiled[key] = compiled, dbver
+        self._eql_to_compiled[key] = compiled, schema_version
 
     def cache_compiled_sql(self, key, compiled: list[str]):
-        existing, dbver = self._sql_to_compiled.get(key, DICTDEFAULT)
-        if existing is not None and dbver == self.dbver:
+        existing, ver = self._sql_to_compiled.get(key, DICTDEFAULT)
+        if existing is not None and ver == self.schema_version:
             # We already have a cached query for a more recent DB version.
             return
 
-        self._sql_to_compiled[key] = compiled, self.dbver
+        self._sql_to_compiled[key] = compiled, self.schema_version
 
     def lookup_compiled_sql(self, key):
-        rv, cached_dbver = self._sql_to_compiled.get(key, DICTDEFAULT)
-        if rv is not None and cached_dbver != self.dbver:
+        rv, cached_ver = self._sql_to_compiled.get(key, DICTDEFAULT)
+        if rv is not None and cached_ver != self.schema_version:
             rv = None
         return rv
 
@@ -708,6 +708,12 @@ cdef class DatabaseConnectionView:
                 return self._in_tx_dbver
             return self._db.dbver
 
+    property schema_version:
+        def __get__(self):
+            if self._in_tx and self._in_tx_user_schema_version:
+                return self._in_tx_user_schema_version
+            return self._db.schema_version
+
     @property
     def server(self):
         return self._db._index._server
@@ -723,13 +729,20 @@ cdef class DatabaseConnectionView:
         return self._tx_error
 
     cdef cache_compiled_query(
-        self, object key, object query_unit_group, int dbver
+        self, object key, object query_unit_group, schema_version
     ):
         assert query_unit_group.cacheable
 
         if not self._in_tx_with_ddl:
-            key = (key, self.get_modaliases(), self.get_session_config())
-            self._db._cache_compiled_query(key, query_unit_group, dbver)
+            key = (
+                key,
+                self.get_modaliases(),
+                self.get_session_config(),
+                self.get_compilation_system_config(),
+            )
+            self._db._cache_compiled_query(
+                key, query_unit_group, schema_version
+            )
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
@@ -737,10 +750,15 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_ddl):
             return None
 
-        key = (key, self.get_modaliases(), self.get_session_config())
-        query_unit_group, qu_dbver = self._db._eql_to_compiled.get(
+        key = (
+            key,
+            self.get_modaliases(),
+            self.get_session_config(),
+            self.get_compilation_system_config(),
+        )
+        query_unit_group, qu_ver = self._db._eql_to_compiled.get(
             key, DICTDEFAULT)
-        if query_unit_group is not None and qu_dbver != self._db.dbver:
+        if query_unit_group is not None and qu_ver != self._db.schema_version:
             query_unit_group = None
 
         return query_unit_group
@@ -990,7 +1008,7 @@ cdef class DatabaseConnectionView:
         if query_unit_group is None:
             # Cache miss; need to compile this query.
             cached = False
-            dbver = self._db.dbver
+            schema_version = self._db.schema_version
 
             try:
                 query_unit_group = await self._compile(query_req)
@@ -1032,7 +1050,9 @@ cdef class DatabaseConnectionView:
             if cached_globally:
                 self.server.system_compile_cache[query_req] = query_unit_group
             else:
-                self.cache_compiled_query(query_req, query_unit_group, dbver)
+                self.cache_compiled_query(
+                    query_req, query_unit_group, schema_version
+                )
 
         if use_metrics:
             metrics.edgeql_query_compilations.inc(
