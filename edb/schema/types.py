@@ -485,7 +485,6 @@ class Type(
                 ],
                 opaque=self.get_is_opaque_union(schema),
                 schemaclass=type(self),
-                schema=schema,
             )
         elif (
             (intersection_of := self.get_intersection_of(schema))
@@ -498,7 +497,6 @@ class Type(
                     o.as_shell(schema) for o in intersection_of.objects(schema)
                 ],
                 schemaclass=type(self),
-                schema=schema,
             )
         else:
             return TypeShell(
@@ -667,10 +665,9 @@ class UnionTypeShell(TypeExprShell[TypeT_co]):
         opaque: bool = False,
         schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
-        schema: s_schema.Schema,
     ) -> None:
         name = get_union_type_name(
-            (c.get_name(schema) for c in components),
+            (c.name for c in components),
             opaque=opaque,
             module=module,
         )
@@ -889,10 +886,9 @@ class IntersectionTypeShell(TypeExprShell[TypeT_co]):
         components: Iterable[TypeShell[TypeT_co]],
         schemaclass: type[TypeT_co],
         sourcectx: parsing.ParserContext | None = None,
-        schema: s_schema.Schema,
     ) -> None:
         name = get_intersection_type_name(
-            (c.get_name(schema) for c in components),
+            (c.name for c in components),
             module=module,
         )
 
@@ -1435,7 +1431,6 @@ class Array(
             name=name,
             expr=expr,
             schemaclass=cls,
-            schema=schema,
         )
 
     def as_shell(
@@ -1482,10 +1477,9 @@ class ArrayTypeShell(CollectionTypeShell[Array_T_co]):
         subtype: TypeShell[Type],
         typemods: typing.Tuple[typing.Any, ...],
         schemaclass: typing.Type[Array_T_co],
-        schema: s_schema.Schema,
     ) -> None:
         if name is None:
-            name = schemaclass.generate_name(subtype.get_name(schema))
+            name = schemaclass.generate_name(subtype.name)
 
         super().__init__(name=name, schemaclass=schemaclass, expr=expr)
         self.subtype = subtype
@@ -1764,7 +1758,6 @@ class Tuple(
             typemods=typemods,
             name=name,
             schemaclass=cls,
-            schema=schema,
         )
 
     def as_shell(
@@ -2020,12 +2013,11 @@ class TupleTypeShell(CollectionTypeShell[Tuple_T_co]):
         subtypes: Mapping[str, TypeShell[Type]],
         typemods: Any = None,
         schemaclass: typing.Type[Tuple_T_co],
-        schema: s_schema.Schema,
     ) -> None:
         if name is None:
             named = typemods is not None and typemods.get('named', False)
             name = schemaclass.generate_name(
-                {n: st.get_name(schema) for n, st in subtypes.items()},
+                {n: st.name for n, st in subtypes.items()},
                 named,
             )
 
@@ -2375,7 +2367,6 @@ class Range(
             typemods=typemods,
             name=name,
             schemaclass=cls,
-            schema=schema,
         )
 
     def as_shell(
@@ -2418,10 +2409,9 @@ class RangeTypeShell(CollectionTypeShell[Range_T_co]):
         subtype: TypeShell[Type],
         typemods: typing.Tuple[typing.Any, ...],
         schemaclass: typing.Type[Range_T_co],
-        schema: s_schema.Schema,
     ) -> None:
         if name is None:
-            name = schemaclass.generate_name(subtype.get_name(schema))
+            name = schemaclass.generate_name(subtype.name)
 
         super().__init__(name=name, schemaclass=schemaclass)
         self.subtype = subtype

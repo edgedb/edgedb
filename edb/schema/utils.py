@@ -411,14 +411,12 @@ def type_op_ast_to_type_shell(
                 components=left.components + right.components,
                 module=module,
                 schemaclass=metaclass,
-                schema=schema
             )
         else:
             return s_types.UnionTypeShell(
                 components=left.components + (right,),
                 module=module,
                 schemaclass=metaclass,
-                schema=schema,
             )
     else:
         if isinstance(right, s_types.UnionTypeShell):
@@ -426,14 +424,12 @@ def type_op_ast_to_type_shell(
                 components=(left,) + right.components,
                 schemaclass=metaclass,
                 module=module,
-                schema=schema,
             )
         else:
             return s_types.UnionTypeShell(
                 components=(left, right),
                 module=module,
                 schemaclass=metaclass,
-                schema=schema,
             )
 
 
@@ -1324,7 +1320,6 @@ def type_shell_substitute(
                 type_shell_substitute(name, new, c, schema)
                 for c in typ.components
             ],
-            schema=schema,
         )
     elif isinstance(typ, s_types.IntersectionTypeShell):
         assert isinstance(typ.name, sn.QualName)
@@ -1335,7 +1330,6 @@ def type_shell_substitute(
                 type_shell_substitute(name, new, c, schema)
                 for c in typ.components
             ],
-            schema=schema,
         )
     elif isinstance(typ, s_types.ArrayTypeShell):
         return s_types.ArrayTypeShell(
@@ -1344,7 +1338,6 @@ def type_shell_substitute(
             typemods=typ.typemods,
             schemaclass=typ.schemaclass,
             subtype=type_shell_substitute(name, new, typ.subtype, schema),
-            schema=schema,
         )
     elif isinstance(typ, s_types.TupleTypeShell):
         return s_types.TupleTypeShell(
@@ -1355,7 +1348,6 @@ def type_shell_substitute(
                 k: type_shell_substitute(name, new, v, schema)
                 for k, v in typ.subtypes.items()
             },
-            schema=schema,
         )
     elif isinstance(typ, s_types.RangeTypeShell):
         return s_types.RangeTypeShell(
@@ -1363,7 +1355,6 @@ def type_shell_substitute(
             typemods=typ.typemods,
             schemaclass=typ.schemaclass,
             subtype=type_shell_substitute(name, new, typ.subtype, schema),
-            schema=schema,
         )
     else:
         return typ
