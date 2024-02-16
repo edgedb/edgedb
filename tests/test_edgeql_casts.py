@@ -81,8 +81,10 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_bytes_04(self):
         async with self.assertRaisesRegexTx(
-                edgedb.InvalidValueError, r'expected JSON string or null'):
-            await self.con.query_single("""SELECT <bytes>to_json('1');"""),
+            edgedb.InvalidValueError,
+            r'expected JSON string or null',
+        ):
+            await self.con.query_single("SELECT <bytes>to_json('1');")
 
         self.assertEqual(
             await self.con.query_single(r'''
@@ -1496,14 +1498,14 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_illegal_07(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r"cannot cast into generic.*anytype'"):
+                edgedb.QueryError, r"cannot cast into generic.*anytype"):
             await self.con.execute("""
                 SELECT <array<anytype>>[123];
             """)
 
     async def test_edgeql_casts_illegal_08(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r"cannot cast into generic.*'anytype'"):
+                edgedb.QueryError, r"cannot cast into generic.*anytype"):
             await self.con.execute("""
                 SELECT <tuple<int64, anytype>>(123, 123);
             """)
@@ -1515,6 +1517,131 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             await self.con.execute("""
                 SELECT <schema::Object>std::Object;
             """)
+
+    async def test_edgeql_casts_illegal_10(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r"cannot cast into generic.*anyenum"):
+            await self.con.execute("""
+                SELECT <array<anyenum>>{};
+            """)
+
+    async def test_edgeql_casts_illegal_11(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r"cannot cast into generic.*anyenum"):
+            await self.con.execute("""
+                SELECT <tuple<int64, anyenum>>{};
+            """)
+
+    async def test_edgeql_casts_illegal_12(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r"cannot cast into generic.*anypoint"):
+            await self.con.execute("""
+                SELECT <range<anypoint>>{};
+            """)
+
+    async def test_edgeql_casts_illegal_13(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r"cannot cast into generic.*anypoint"):
+            await self.con.execute("""
+                SELECT <multirange<anypoint>>{};
+            """)
+
+    # abstract scalar params should be illegal
+    async def test_edgeql_casts_illegal_param_01(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*'anytype'"):
+            await self.con.execute("""
+                SELECT <anytype>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_02(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyscalar'"):
+            await self.con.execute("""
+                SELECT <anyscalar>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_03(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyreal'"):
+            await self.con.execute("""
+                SELECT <anyreal>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_04(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyint'"):
+            await self.con.execute("""
+                SELECT <anyint>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_05(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyfloat'"):
+            await self.con.execute("""
+                SELECT <anyfloat>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_06(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*sequence'"):
+            await self.con.execute("""
+                SELECT <sequence>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_07(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anytype"):
+            await self.con.execute("""
+                SELECT <array<anytype>>$0;
+            """, [123])
+
+    async def test_edgeql_casts_illegal_param_08(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anytype"):
+            await self.con.execute("""
+                SELECT <tuple<int64, anytype>>$0;
+            """, (123, 123))
+
+    async def test_edgeql_casts_illegal_param_10(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyenum"):
+            await self.con.execute("""
+                SELECT <array<anyenum>>$0;
+            """, [])
+
+    async def test_edgeql_casts_illegal_param_11(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyenum"):
+            await self.con.execute("""
+                SELECT <optional tuple<int64, anyenum>>$0;
+            """, None)
+
+    async def test_edgeql_casts_illegal_param_12(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anypoint"):
+            await self.con.execute("""
+                SELECT <optional range<anypoint>>$0;
+            """, None)
+
+    async def test_edgeql_casts_illegal_param_13(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anypoint"):
+            await self.con.execute("""
+                SELECT <optional multirange<anypoint>>$0;
+            """, None)
 
     # NOTE: json is a special type as it has its own type system. A
     # json value can be JSON array, object, boolean, number, string or
@@ -2439,6 +2566,17 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [[]],
         )
 
+    async def test_edgeql_casts_json_15(self):
+        # At one point, a cast from an object inside a binary
+        # operation triggered an infinite loop in staeval if the
+        # object had a self link.
+        await self.con.execute('''
+            create type Z { create link z -> Z; };
+        ''')
+        await self.con.query('''
+            select <json>Z union <json>Z;
+        ''')
+
     async def test_edgeql_casts_assignment_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
@@ -2883,6 +3021,43 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             variables=(None, 11111),
         )
 
+    async def test_edgeql_casts_tuple_params_09(self):
+        await self.con.query('''
+            WITH
+              p := <tuple<test: str>>$0
+            insert Test { p_tup := p };
+        ''', ('foo',))
+
+        await self.assert_query_result(
+            '''
+            select Test { p_tup } filter exists .p_tup
+            ''',
+            [{'p_tup': {'test': 'foo'}}],
+        )
+        await self.assert_query_result(
+            '''
+            WITH
+              p := <tuple<test: str>>$0
+            select p
+            ''',
+            [{'test': 'foo'}],
+            variables=(('foo',),),
+        )
+        await self.assert_query_result(
+            '''
+            select <tuple<test: str>>$0
+            ''',
+            [{'test': 'foo'}],
+            variables=(('foo',),),
+        )
+        await self.assert_query_result(
+            '''
+            select <array<tuple<test: str>>>$0
+            ''',
+            [[{'test': 'foo'}, {'test': 'bar'}]],
+            variables=([('foo',), ('bar',)],),
+        )
+
     async def test_edgeql_cast_empty_set_to_array_01(self):
         await self.assert_query_result(
             r'''
@@ -2909,28 +3084,36 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         )
 
     async def test_edgeql_casts_all_null(self):
-        # For *every* concrete cast, try casting a value we know
+        # For *every* cast, try casting a value we know
         # will be represented as NULL.
-
-        # Grab all concrete casts
         casts = await self.con.query('''
             select schema::Cast { from_type: {name}, to_type: {name} }
-            filter .from_type.name not like '%any%'
-            and .to_type.name not like '%any%'
-            and not .from_type IS schema::ObjectType
+            filter not .from_type is schema::ObjectType
         ''')
-        from_types = {cast.from_type.name for cast in casts}
+
+        def _t(s):
+            # Instantiate polymorphic types
+            return (
+                s
+                .replace('anytype', 'str')
+                .replace('anytuple', 'tuple<str, int64>')
+                .replace('std::anyenum', 'schema::Cardinality')
+                .replace('std::anypoint', 'int64')
+            )
+
+        from_types = {_t(cast.from_type.name) for cast in casts}
         type_keys = {
             name: f'x{i}' for i, name in enumerate(sorted(from_types))
         }
         # Populate a type that has an optional field for each cast source type
         sep = '\n                '
+        props = sep.join(
+            f'CREATE PROPERTY {n} -> {_t(t)};'
+            for t, n in type_keys.items()
+        )
         setup = f'''
             CREATE TYPE Null {{
-                {sep.join(
-                    f'CREATE PROPERTY {n} -> {t};'
-                    for t, n in type_keys.items()
-                 )}
+                {props}
             }};
             INSERT Null;
         '''
@@ -2938,20 +3121,29 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         # Do each cast
         for cast in casts:
-            prop = type_keys[cast.from_type.name]
-            # FIXME: date_duration not supported yet in the bindings
-            json_only = cast.to_type.name == 'cal::date_duration'
+            prop = type_keys[_t(cast.from_type.name)]
 
             await self.assert_query_result(
                 f'''
                 SELECT Null {{
-                    res := <{cast.to_type.name}>.{prop}
+                    res := <{_t(cast.to_type.name)}>.{prop}
                 }}
                 ''',
                 [{"res": None}],
                 msg=f'{cast.from_type.name} to {cast.to_type.name}',
-                json_only=json_only,
             )
+
+            # For casts from JSON, also do the related operation of
+            # casting from a JSON null, which should produce an empty
+            # set.
+            if cast.from_type.name == 'std::json':
+                await self.assert_query_result(
+                    f'''
+                    SELECT <{_t(cast.to_type.name)}>to_json('null')
+                    ''',
+                    [],
+                    msg=f'json null cast to {cast.to_type.name}',
+                )
 
     async def test_edgeql_casts_uuid_to_object(self):
         persons = await self.con.query('select Person { id }')

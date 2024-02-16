@@ -52,6 +52,13 @@ class PidFile:
             raise DaemonError('pid file is already acquired')
 
         path = self._path
+        pidfile_dir = os.path.dirname(path)
+        if not os.path.isdir(pidfile_dir):
+            raise DaemonError(
+                f"cannot create pid file: {pidfile_dir} "
+                f"does not exist or is not a directory"
+            )
+
         if os.path.exists(path):
             if self.is_locked(path):
                 raise DaemonError(

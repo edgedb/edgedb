@@ -46,7 +46,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             {(n1, n2) for n1 in ns for n2 in ns},
         )
 
-    def test_loop(self, n=None, *, single=False):
+    def _test_loop(self, n=None, *, single=False):
         async def json_query(*args, **kwargs):
             q = self.con.query_single_json if single else self.con.query_json
             res = await q(*args, **kwargs)
@@ -569,7 +569,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
         )
 
     async def test_edgeql_volatility_select_with_objects_01(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 WITH W := (SELECT Obj FILTER random() > 0.5),
                 SELECT ((SELECT W {n}), (SELECT W {n}))
@@ -579,7 +579,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 [(row[0]['n'], row[1]['n']) for row in res])
 
     async def test_edgeql_volatility_select_with_objects_02(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 SELECT Obj {n, m := random()}
                 FILTER .m > 0.3 ORDER BY .m;
@@ -591,7 +591,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(nums, sorted(nums))
 
     async def test_edgeql_volatility_select_with_objects_03(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 SELECT {
                     o := (
@@ -609,7 +609,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(nums, sorted(nums))
 
     async def test_edgeql_volatility_select_with_objects_04(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 SELECT {
                     o := (SELECT (
@@ -627,7 +627,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(nums, sorted(nums))
 
     async def test_edgeql_volatility_select_with_objects_05(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 SELECT {
                     o := (SELECT (
@@ -645,7 +645,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(nums, sorted(nums))
 
     async def test_edgeql_volatility_select_with_objects_06(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 SELECT (
                     SELECT Obj {n, m := random()}
@@ -658,7 +658,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(nums, sorted(nums))
 
     async def test_edgeql_volatility_select_with_objects_07(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 SELECT (
                     SELECT Obj {n, m := {random(), random()}}
@@ -669,7 +669,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(nums, sorted(nums, key=max))
 
     async def test_edgeql_volatility_select_with_objects_08(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 SELECT (
                     SELECT Obj {n, m := (random(), random())}
@@ -680,7 +680,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(nums, sorted(nums))
 
     async def test_edgeql_volatility_select_with_objects_09(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 SELECT (
                     SELECT Obj {n, m := [random(), random()]}
@@ -691,7 +691,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(nums, sorted(nums))
 
     async def test_edgeql_volatility_select_with_objects_10(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH X := (Obj { m := random()},)
                 SELECT X.0;
@@ -711,7 +711,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             )
 
     async def test_edgeql_volatility_select_objects_optional_02(self):
-        for query in self.test_loop(10, single=True):
+        for query in self._test_loop(10, single=True):
             res = await query("""
                 WITH X := (SELECT Obj {
                     m := (SELECT .n FILTER random() > 0.5) }),
@@ -725,7 +725,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(set(foos), set(res['baz']))
 
     async def test_edgeql_volatility_select_hard_objects_01a(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT Obj {m := next()}),
                 SELECT (O.m, O.m);
@@ -739,7 +739,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertNotEqual(res[0][0], res[1][0])
 
     async def test_edgeql_volatility_select_hard_objects_01b(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             # one side in a subquery, one not
             res = await query("""
                 WITH O := (SELECT Obj {m := next()}),
@@ -751,7 +751,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertEqual(row[0], row[1])
 
     async def test_edgeql_volatility_select_hard_objects_02a(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT Obj {m := next()}),
                 SELECT ((SELECT O.m), (SELECT O.m));
@@ -761,7 +761,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self._check_crossproduct(res)
 
     async def test_edgeql_volatility_select_hard_objects_02b(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 WITH O := (SELECT Obj {m := random()} FILTER .m > 0.3),
                 SELECT ((SELECT O.m), (SELECT O.m));
@@ -772,7 +772,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self._check_crossproduct(res)
 
     async def test_edgeql_volatility_select_hard_objects_03(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT Obj {m := next()}),
                 SELECT (O {m}, O {m});
@@ -785,7 +785,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_select_hard_objects_04a(self):
         # TODO: this, but wrapped in DISTINCT
         # (which breaks the serialization, ugh!)
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT Obj {m := next()}),
                 SELECT ((SELECT O {m}), (SELECT O {m}));
@@ -797,7 +797,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_select_hard_objects_04b(self):
         # TODO: this, but wrapped in DISTINCT
         # (which breaks the serialization, ugh!)
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 WITH O := (SELECT Obj {m := random()} FILTER .m > 0.3),
                 SELECT ((SELECT O {m}), (SELECT O {m}));
@@ -809,7 +809,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 [(row[0]['m'], row[1]['m']) for row in res])
 
     async def test_edgeql_volatility_select_hard_objects_05a(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT {m := next()} LIMIT 1),
                 SELECT (O {m}, O {m});
@@ -820,7 +820,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertEqual(row[0]['m'], row[1]['m'])
 
     async def test_edgeql_volatility_select_hard_objects_05b(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT {m := next()} LIMIT 1),
                 SELECT assert_exists((O {m}, O {m}));
@@ -842,7 +842,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_select_hard_objects_07(self):
         # now let's try it with a multi prop
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT Obj {m := {next(), next()} })
                 SELECT ((O {m}), (O {m}));
@@ -853,7 +853,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertEqual(row[0]['m'], row[1]['m'])
 
     async def test_edgeql_volatility_select_hard_objects_08a(self):
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH O := (SELECT Obj {m := next()}),
                 SELECT {
@@ -869,7 +869,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(len(res['foo']), 3)
 
     async def test_edgeql_volatility_select_hard_objects_08b(self):
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH O := (SELECT Obj {m := next()} LIMIT 1),
                 SELECT {
@@ -896,7 +896,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
         ])
 
     async def test_edgeql_volatility_select_nested_01a(self):
-        for query in self.test_loop(10, single=True):
+        for query in self._test_loop(10, single=True):
             res = await query("""
                 WITH O := (SELECT Obj {
                          m := next(),
@@ -920,7 +920,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_select_nested_1b(self):
         # same as 1b but without a shape on friends
-        for query in self.test_loop(10, single=True):
+        for query in self._test_loop(10, single=True):
             res = await query("""
                 WITH O := (SELECT Obj {
                          m := next(),
@@ -944,7 +944,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertLessEqual(len(ra['friends']), 4)
 
     async def test_edgeql_volatility_select_nested_02(self):
-        for query in self.test_loop(10, single=True):
+        for query in self._test_loop(10, single=True):
             res = await query("""
                 WITH O := (SELECT Obj {
                          m := next(),
@@ -967,7 +967,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 )
 
     async def test_edgeql_volatility_select_nested_03a(self):
-        for query in self.test_loop(10, single=True):
+        for query in self._test_loop(10, single=True):
             res = await query("""
                 WITH O := (SELECT Obj {
                          m := next(),
@@ -990,7 +990,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 )
 
     async def test_edgeql_volatility_select_nested_03b(self):
-        for query in self.test_loop(10, single=True):
+        for query in self._test_loop(10, single=True):
             res = await query("""
                 WITH O := (SELECT Obj {
                          m := next(),
@@ -1013,7 +1013,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 )
 
     async def test_edgeql_volatility_select_nested_04a(self):
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH O := (SELECT Obj {
                          friends := (SELECT Tgt { x := next() } )
@@ -1033,7 +1033,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 )
 
     async def test_edgeql_volatility_select_nested_04b(self):
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH O := (SELECT Obj {
                          tgt: { x := next() }
@@ -1053,7 +1053,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 )
 
     async def test_edgeql_volatility_select_nested_05(self):
-        for query in self.test_loop(10, single=True):
+        for query in self._test_loop(10, single=True):
             res = await query("""
                 WITH O := (SELECT Obj {
                          m := rand_int(100),
@@ -1099,7 +1099,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_select_nested_06a(self):
         # here we want some deduplicating to happen
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH O := (SELECT Obj {
                          friends := (SELECT Tgt { x := next() })
@@ -1116,7 +1116,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_select_nested_06b(self):
         # here we want some deduplicating to happen
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH O := (SELECT Obj {
                          friends := (SELECT Tgt { x := next() })
@@ -1134,7 +1134,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_select_nested_06c(self):
         # here we want some deduplicating to happen
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT Obj {
                          friends := (SELECT Tgt { x := next() })
@@ -1146,7 +1146,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_select_nested_06d(self):
         # here we want some deduplicating to happen
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT Obj {
                          friends := (SELECT Tgt { x := next() })
@@ -1159,7 +1159,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_select_nested_06e(self):
         # here we want some deduplicating to happen
         # same as above but with an extra select
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT (SELECT Obj {
                          friends := (SELECT Tgt { x := next() })
@@ -1170,7 +1170,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(len(res), 4)
 
     async def test_edgeql_volatility_select_nested_07a(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 SELECT Obj {
                     n,
@@ -1185,7 +1185,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertGreater(len(row['tgt']), 0)
 
     async def test_edgeql_volatility_select_nested_07b(self):
-        for query in self.test_loop(10):
+        for query in self._test_loop(10):
             res = await query("""
                 SELECT Obj {
                     n,
@@ -1201,7 +1201,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     @test.xerror("Arrays containing objects are hard; TODO: fail?")
     async def test_edgeql_volatility_select_arrays_01(self):
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH O := [(SELECT Obj {m := next()})],
                 SELECT {
@@ -1214,7 +1214,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(len(res['foo']), 3)
 
     async def test_edgeql_volatility_select_tuples_01(self):
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH O := ((SELECT Obj {m := next()}),),
                 SELECT {
@@ -1227,7 +1227,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(len(res['foo']), 3)
 
     async def test_edgeql_volatility_select_tuples_02(self):
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH O := (z := ((SELECT Obj {m := next()}),)),
                 SELECT {
@@ -1271,7 +1271,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
         ])
 
     async def test_edgeql_volatility_insert_01(self):
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH
                     Foo := (SELECT (
@@ -1288,7 +1288,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_nested_link_01(self):
         # next() should get called once for each Obj/Tgt pair
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query(
                 r"""
                     SELECT Obj {
@@ -1433,7 +1433,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
         ])
 
     async def test_edgeql_volatility_for_like_hard_01(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH
                     O := (SELECT Obj { x := next() }),
@@ -1452,7 +1452,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
         # 1. Putting basically anything other than O as the 1st tuple el works
         # 2. If we reorder the arguments it works
         # 3. If we add a real shape to the nested O, it works
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH
                     O := (SELECT Obj { x := next() }),
@@ -1465,7 +1465,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     @test.xerror("column definition list is only allowed ...")
     async def test_edgeql_volatility_for_like_hard_03(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH
                     O := (SELECT Obj { x := next() }),
@@ -1478,7 +1478,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertNotEqual(res[0]['o']['x'], res[1]['o']['x'])
 
     async def test_edgeql_volatility_for_hard_01(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH Z := (FOR O IN {(
                     SELECT Obj { x := next() }
@@ -1494,7 +1494,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertEqual(obj['x'], -obj['y'])
 
     async def test_edgeql_volatility_for_hard_02(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH Z := (FOR O IN {(
                     SELECT Obj { x := next() }
@@ -1510,7 +1510,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertEqual(obj['a']['x'], -obj['a']['y'])
 
     async def test_edgeql_volatility_for_hard_03(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH Z := (FOR O IN {(
                     SELECT Obj {
@@ -1528,7 +1528,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     self.assertEqual(tgt['x'], -tgt['y'])
 
     async def test_edgeql_volatility_for_hard_04(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH Z := (FOR O IN {(
                     SELECT Obj {
@@ -1546,7 +1546,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     self.assertEqual(tgt['x'], -tgt['y'])
 
     async def test_edgeql_volatility_for_hard_05(self):
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH Z := Obj { m := next() },
                      Y := (FOR k in {Z} UNION (k.m)),
@@ -1556,7 +1556,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(set(res['z']), set(res['y']))
 
     async def test_edgeql_volatility_rebind_flat_01(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT Obj { x := next() }),
                      Z := (SELECT O {y := -.x}),
@@ -1568,7 +1568,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertEqual(obj['x'], -obj['y'])
 
     async def test_edgeql_volatility_rebind_flat_02(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT Obj { x := next() }),
                      Z := (SELECT O {x, y := -.x}),
@@ -1580,7 +1580,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertEqual(obj['x'], -obj['y'])
 
     async def test_edgeql_volatility_rebind_flat_03(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (SELECT Obj { x := next() }),
                      Z := (SELECT O {x := .x}),
@@ -1592,7 +1592,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertEqual(x1, x2)
 
     async def test_edgeql_volatility_rebind_nested_01(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (
                     SELECT Obj {
@@ -1609,7 +1609,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     self.assertEqual(tgt['x'], -tgt['y'])
 
     async def test_edgeql_volatility_rebind_nested_02(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH O := (
                     SELECT Obj {
@@ -1626,7 +1626,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     self.assertEqual(tgt['x'], -tgt['y'])
 
     async def test_edgeql_volatility_rebind_nested_03(self):
-        for query in self.test_loop(single=True):
+        for query in self._test_loop(single=True):
             res = await query("""
                 WITH O := (
                     SELECT Obj {
@@ -1642,7 +1642,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     self.assertEqual(tgt['x'], -tgt['y'])
 
     async def test_edgeql_volatility_shape_array_01(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH X := { multi x := [next()] },
                 SELECT ((SELECT X.x), (SELECT X.x));
@@ -1653,7 +1653,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 self.assertEqual(obj[0], obj[1])
 
     async def test_edgeql_volatility_shape_array_02(self):
-        for query in self.test_loop():
+        for query in self._test_loop():
             res = await query("""
                 WITH X := { x := [next()] },
                 SELECT ((SELECT X.x), (SELECT X.x));
@@ -1662,6 +1662,15 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(len(res), 1)
             for obj in res:
                 self.assertEqual(obj[0], obj[1])
+
+    async def test_edgeql_volatility_in_func_01(self):
+        await self.con.execute('''
+            create function foo() -> float64 using (
+              with Z := Obj { v := random() },
+              select sum(Z.v)
+            );
+        ''')
+        await self.con.query('select foo()')
 
     async def test_edgeql_volatility_errors_01(self):
         async with self._run_and_rollback():
@@ -1711,7 +1720,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.QueryError,
                     "can not take cross product of volatile operation",
-                    _position=36):
+                    _position=37):
                 await self.con.execute(
                     r"""
                     SELECT {1,2} + (FOR x in {1,2,3} UNION (x*random()))
@@ -1722,7 +1731,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.QueryError,
                     "can not take cross product of volatile operation",
-                    _position=36):
+                    _position=37):
                 await self.con.execute(
                     r"""
                     SELECT ({1,2}, (INSERT Obj { n := 100 }))
@@ -1733,7 +1742,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.QueryError,
                     "can not take cross product of volatile operation",
-                    _position=64):
+                    _position=65):
                 await self.con.execute(
                     r"""
                     SELECT ({1,2},

@@ -160,6 +160,7 @@ def array_as_json_object(
     if (
         is_tuple
         or irtyputils.is_range(el_type)
+        or irtyputils.is_multirange(el_type)
         or el_type.real_base_type.needs_custom_json_cast
     ):
         coldeflist = []
@@ -525,6 +526,19 @@ def output_as_value(
     return val
 
 
+def add_null_test(expr: pgast.BaseExpr, query: pgast.SelectStmt) -> None:
+    if not expr.nullable:
+        return
+
+    while isinstance(expr, pgast.TupleVar) and expr.elements:
+        expr = expr.elements[0].val
+
+    query.where_clause = astutils.extend_binop(
+        query.where_clause,
+        pgast.NullTest(arg=expr, negated=True)
+    )
+
+
 def serialize_expr_if_needed(
         expr: pgast.BaseExpr, *,
         path_id: irast.PathId,
@@ -561,6 +575,18 @@ def serialize_expr_to_json(
         val = pgast.FuncCall(
             # Use the actual generic helper for converting anyrange to jsonb
             name=('edgedb', 'range_to_jsonb'),
+            args=[expr], null_safe=True, ser_safe=True)
+        if env.output_format in _JSON_FORMATS:
+            val = pgast.TypeCast(
+                arg=val,
+                type_name=pgast.TypeName(name=('json',))
+            )
+
+    elif irtyputils.is_multirange(styperef) and not expr.ser_safe:
+        val = pgast.FuncCall(
+            # Use the actual generic helper for converting anymultirange to
+            # jsonb
+            name=('edgedb', 'multirange_to_jsonb'),
             args=[expr], null_safe=True, ser_safe=True)
         if env.output_format in _JSON_FORMATS:
             val = pgast.TypeCast(

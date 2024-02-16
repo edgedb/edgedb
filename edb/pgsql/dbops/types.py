@@ -35,7 +35,9 @@ from . import tables
 
 
 class CompositeType(composites.CompositeDBObject):
-    def __init__(self, name, columns: Collection[tables.Column] = ()):
+    def __init__(
+        self, name: Sequence[str], columns: Collection[tables.Column] = ()
+    ):
         super().__init__(name)
         self._columns = ordered.OrderedSet(columns)
 
@@ -44,7 +46,7 @@ class CompositeType(composites.CompositeDBObject):
 
 
 class TypeExists(base.Condition):
-    def __init__(self, name):
+    def __init__(self, name: Tuple[str, str]):
         self.name = name
 
     def code(self, block: base.PLBlock) -> str:
@@ -105,9 +107,12 @@ class CompositeTypeAttributeExists(base.Condition):
 
 
 class CreateCompositeType(ddl.SchemaObjectOperation):
-    def __init__(self, type, *, conditions=None, neg_conditions=None):
+    def __init__(
+        self, type: CompositeType, *, conditions=None, neg_conditions=None
+    ):
         super().__init__(
-            type.name, conditions=conditions, neg_conditions=neg_conditions)
+            type.name, conditions=conditions, neg_conditions=neg_conditions
+        )
         self.type = type
 
     def code(self, block: base.PLBlock) -> str:

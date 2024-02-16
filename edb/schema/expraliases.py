@@ -68,6 +68,24 @@ class AliasCommandContext(
     pass
 
 
+def _is_view_from_alias(
+    our_name: sn.QualName,
+    obj: s_types.Type,
+    schema: s_schema.Schema,
+) -> bool:
+    name = obj.get_name(schema)
+    if our_name == name:
+        return True
+    name_prefix = f'__{our_name.name}__'
+
+    name = obj.get_name(schema)
+    return (
+        isinstance(name, sn.QualName)
+        and name.module == our_name.module
+        and name.name.startswith(name_prefix)
+    )
+
+
 class AliasLikeCommand(
     sd.QualifiedObjectCommand[so.QualifiedObject_T],
 ):
@@ -118,20 +136,17 @@ class AliasLikeCommand(
         typ = cls.get_type(scls, schema)
         our_name = typ.get_name(schema)
         assert isinstance(our_name, sn.QualName)
-        name_prefix = f'__{our_name.name}__'
 
         # XXX: This is pretty unfortunate from a performance
         # perspective, and not technically correct either.
-        # For 3.x we should track this information in the objects
+        # For 4.x we should track this information in the objects
         # (or possibly instead ensure we do not put any types in the schema
         # that are not directly part of the output type.)
         for obj in schema.get_objects(exclude_stdlib=True, type=s_types.Type):
-            name = obj.get_name(schema)
             if (
                 obj.get_alias_is_persistent(schema)
-                and isinstance(name, sn.QualName)
-                and name.module == our_name.module
-                and name.name.startswith(name_prefix)
+                and obj != typ
+                and _is_view_from_alias(our_name, obj, schema)
             ):
                 objs.add(obj)
 
@@ -371,7 +386,12 @@ class AlterAliasLike(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if not context.canonical and not self.metadata_only:
+        if (
+            not context.canonical
+            # FIXME: This is not really correct, but alias altering is
+            # currently too broken to accept expr propagations.
+            and not self.from_expr_propagation
+        ):
             expr = self.get_attribute_value('expr')
             is_alias = self._is_alias(self.scls, schema)
             if expr:
@@ -401,6 +421,12 @@ class AlterAliasLike(
                     self.scls, self.TYPE_FIELD_NAME)
             elif not expr and is_alias and self.has_attribute_value('expr'):
                 self.add(self._delete_alias_type(self.scls, schema, context))
+
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=self.get_friendly_description(schema=schema),
+            )
 
         return super()._alter_begin(schema, context)
 
@@ -470,7 +496,7 @@ def compile_alias_expr(
 
     context.cache_value((expr, classname), ir)
 
-    return ir  # type: ignore
+    return ir
 
 
 def define_alias(
@@ -496,6 +522,8 @@ def define_alias(
     old_schema: Optional[s_schema.Schema] = None
 
     for vt in ir.views.values():
+        if not _is_view_from_alias(classname, vt, new_schema):
+            continue
         if isinstance(vt, s_types.Collection):
             coll_expr_aliases.append(vt)
         elif prev_expr is not None or not schema.has_object(vt.id):
@@ -510,6 +538,8 @@ def define_alias(
         prev_ir = prev_expr.irast
         old_schema = prev_ir.schema
         for vt in prev_ir.views.values():
+            if not _is_view_from_alias(classname, vt, old_schema):
+                continue
             if isinstance(vt, s_types.Collection):
                 prev_coll_expr_aliases.append(vt)
             else:
@@ -547,10 +577,10 @@ def define_alias(
     if prev_ir is not None:
         assert old_schema
         for vt in prev_coll_expr_aliases:
-            dt = vt.as_type_delete_if_dead(old_schema)
+            dt = vt.as_type_delete_if_unused(old_schema)
             derived_delta.prepend(dt)
         for vt in prev_ir.new_coll_types:
-            dt = vt.as_type_delete_if_dead(old_schema)
+            dt = vt.as_type_delete_if_unused(old_schema)
             derived_delta.prepend(dt)
 
     for vt in coll_expr_aliases:

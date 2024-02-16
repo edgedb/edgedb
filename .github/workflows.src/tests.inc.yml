@@ -1,18 +1,18 @@
 <% macro _init() -%>
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.12.2'
 <%- endmacro %>
 
 <% macro _init_venv() -%>
@@ -241,7 +241,7 @@
       with:
         go-version: 1.16
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       if: steps.stolon-cache.outputs.cache-hit != 'true'
       with:
         repository: sorintlab/stolon
@@ -315,10 +315,12 @@
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v3
+      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
-        name: shared-artifacts
-        path: .tmp
+        action: actions/download-artifact@v3
+        with: |
+          name: shared-artifacts
+          path: .tmp
 
     - name: Set environment variables
       run: |
@@ -404,7 +406,7 @@
 <%- endmacro %>
 
 <% macro setup_terraform() -%>
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false

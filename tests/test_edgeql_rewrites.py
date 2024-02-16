@@ -953,3 +953,124 @@ class TestRewrites(tb.QueryTestCase):
             'select Person { first_name }',
             [{'first_name': 'updated'}],
         )
+
+    async def test_edgeql_rewrites_24(self):
+        await self.con.execute(
+            '''
+            create type X {
+                create property tup -> tuple<int64, str> {
+                    create rewrite insert, update using ((1, '2'));
+                };
+            };
+            insert X;
+            '''
+        )
+        await self.assert_query_result(
+            'select X { tup }',
+            [{'tup': (1, '2')}],
+        )
+        await self.con.execute(
+            '''
+            update X set {};
+            '''
+        )
+        await self.assert_query_result(
+            'select X { tup }',
+            [{'tup': (1, '2')}],
+        )
+
+    async def test_edgeql_rewrites_25(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"rewrite expression is of invalid type",
+        ):
+            await self.con.execute(
+                '''
+                create type X {
+                    create property foo -> str {
+                        create rewrite insert using (10);
+                    };
+                };
+                '''
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"rewrite expression may not include a shape",
+        ):
+            await self.con.execute(
+                '''
+                create type X {
+                    create link foo -> std::Object {
+                        create rewrite insert using (
+                            (select std::Object { __type__: {name} })
+                        );
+                    };
+                };
+                '''
+            )
+
+    async def test_edgeql_rewrites_26(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"rewrites on link properties are not supported",
+        ):
+            await self.con.execute(
+                '''
+                create type X {
+                    create link foo -> std::Object {
+                        create property bar: int32 {
+                            create rewrite insert using ('hello');
+                        };
+                    };
+                };
+                '''
+            )
+
+    async def test_edgeql_rewrites_27(self):
+        await self.con.execute(
+            '''
+            create type Foo {
+                create property will_be_true: bool {
+                    create rewrite update using (__subject__ = __old__);
+                };
+            };
+            insert Foo { will_be_true := false };
+            '''
+        )
+        await self.assert_query_result(
+            'select Foo { will_be_true }',
+            [{'will_be_true': False}]
+        )
+        await self.con.execute('update Foo set { };')
+        await self.assert_query_result(
+            'select Foo { will_be_true }',
+            [{'will_be_true': True}]
+        )
+
+    async def test_edgeql_rewrites_28(self):
+        await self.con.execute(
+            '''
+            create type Address {
+                create property coordinates: tuple<lat: float32, lng: float32>;
+                create property updated_at: str {
+                    create rewrite insert using ('now')
+                };
+            };
+            insert Address {
+                coordinates := (
+                    lat := <std::float32>40.07987,
+                    lng := <std::float32>20.56509
+                )
+            };
+            '''
+        )
+        await self.assert_query_result(
+            'select Address { coordinates, updated_at }',
+            [
+                {
+                    'coordinates': {'lat': 40.07987, 'lng': 20.56509},
+                    'updated_at': 'now'
+                }
+            ]
+        )

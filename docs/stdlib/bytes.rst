@@ -35,9 +35,20 @@ Bytes
     * - :eql:func:`find`
       - Finds the index of the first occurrence of a subsequence.
 
+    * - :eql:func:`to_bytes`
+      - :eql:func-desc:`to_bytes`
+
+    * - :eql:func:`to_str`
+      - :eql:func-desc:`to_str`
+
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`
 
+    * - :eql:func:`enc::base64_encode`
+      - :eql:func-desc:`enc::base64_encode`
+
+    * - :eql:func:`enc::base64_decode`
+      - :eql:func-desc:`enc::base64_decode`
 
 ----------
 
@@ -124,10 +135,26 @@ Bytes
 
 ---------
 
+.. eql:function:: std::to_bytes(s: str) -> bytes
+
+    :index: encode stringencoder
+
+    .. versionadded:: 4.0
+
+    Converts a :eql:type:`str` value to :eql:type:`bytes` using
+    UTF-8 encoding.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_bytes('テキスト');
+        {b'\xe3\x83\x86\xe3\x82\xad\xe3\x82\xb9\xe3\x83\x88'}
+
+
+---------
 
 .. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
 
-    Returns the specified bit of the bytes value.
+    Returns the specified bit of the :eql:type:`bytes` value.
 
     When looking for the *nth* bit, this function will enumerate bits from
     least to most significant in each byte.
@@ -138,3 +165,34 @@ Bytes
         ...           8, 9, 10, 11, 12, 13 ,14, 15}
         ... union bytes_get_bit(b'ab', n);
         {1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0}
+
+
+---------
+
+.. eql:function:: enc::base64_encode(b: bytes) -> str
+
+    .. versionadded:: 4.0
+
+    Returns a Base64-encoded :eql:type:`str` of the :eql:type:`bytes` value.
+
+    .. code-block:: edgeql-repl
+
+        db> select enc::base64_encode(b'hello');
+        {'aGVsbG8='}
+
+---------
+
+.. eql:function:: enc::base64_decode(s: str) -> bytes
+
+    .. versionadded:: 4.0
+
+    Returns the :eql:type:`bytes` of a Base64-encoded :eql:type:`str`.
+    
+    Returns an InvalidValueError if input is not valid Base64.
+
+    .. code-block:: edgeql-repl
+
+        db> select enc::base64_decode('aGVsbG8=');
+        {b'hello'}
+        db> select enc::base64_decode('aGVsbG8');
+        edgedb error: InvalidValueError: invalid base64 end sequence

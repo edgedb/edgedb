@@ -1,3 +1,5 @@
+# mypy: allow-untyped-defs, allow-incomplete-defs
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -65,7 +67,7 @@ class ErrorDetails(NamedTuple):
     table_name: Optional[str] = None
     column_name: Optional[str] = None
     constraint_name: Optional[str] = None
-    errcls: Optional[errors.EdgeDBError] = None
+    errcls: Optional[Type[errors.EdgeDBError]] = None
 
 
 constraint_errors = frozenset({
@@ -78,15 +80,18 @@ constraint_errors = frozenset({
     pgerrors.ERROR_EXCLUSION_VIOLATION,
 })
 
+branch_errors = {
+    pgerrors.ERROR_INVALID_CATALOG_NAME: errors.UnknownDatabaseError,
+    pgerrors.ERROR_DUPLICATE_DATABASE: errors.DuplicateDatabaseDefinitionError,
+}
+
 directly_mappable = {
     pgerrors.ERROR_DIVISION_BY_ZERO: errors.DivisionByZeroError,
     pgerrors.ERROR_INTERVAL_FIELD_OVERFLOW: errors.NumericOutOfRangeError,
     pgerrors.ERROR_READ_ONLY_SQL_TRANSACTION: errors.TransactionError,
     pgerrors.ERROR_SERIALIZATION_FAILURE: errors.TransactionSerializationError,
     pgerrors.ERROR_DEADLOCK_DETECTED: errors.TransactionDeadlockError,
-    pgerrors.ERROR_INVALID_CATALOG_NAME: errors.UnknownDatabaseError,
     pgerrors.ERROR_OBJECT_IN_USE: errors.ExecutionError,
-    pgerrors.ERROR_DUPLICATE_DATABASE: errors.DuplicateDatabaseDefinitionError,
     pgerrors.ERROR_IDLE_IN_TRANSACTION_TIMEOUT:
         errors.IdleTransactionTimeoutError,
     pgerrors.ERROR_QUERY_CANCELLED: errors.QueryTimeoutError,
@@ -99,6 +104,7 @@ directly_mappable = {
     pgerrors.ERROR_INSUFFICIENT_PRIVILEGE: errors.AccessPolicyError,
     pgerrors.ERROR_PROGRAM_LIMIT_EXCEEDED: errors.InvalidValueError,
     pgerrors.ERROR_DATA_EXCEPTION: errors.InvalidValueError,
+    pgerrors.ERROR_CHARACTER_NOT_IN_REPERTOIRE: errors.InvalidValueError,
 }
 
 
@@ -136,7 +142,7 @@ def gql_translate_pgtype_inner(schema, msg):
     """Try to replace any internal pg type name with a GraphQL type name"""
 
     # Mapping base types
-    def base_type_map(name):
+    def base_type_map(name: str) -> str:
         result = gql_types.EDB_TO_GQL_SCALARS_MAP.get(
             str(types.base_type_name_map_r.get(name))
         )
@@ -289,6 +295,20 @@ def static_interpret_by_code(
     from_graphql: bool = False,
 ):
     return errors.InternalServerError(err_details.message)
+
+
+@static_interpret_by_code.register_for_all(
+    branch_errors.keys())
+def _static_interpret_branch_errors(
+    code: str,
+    err_details: ErrorDetails,
+    from_graphql: bool = False,
+):
+    errcls = branch_errors[code]
+
+    msg = err_details.message.replace('database', 'branch', 1)
+
+    return errcls(msg)
 
 
 @static_interpret_by_code.register_for_all(

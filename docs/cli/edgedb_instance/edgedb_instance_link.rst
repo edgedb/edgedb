@@ -22,6 +22,14 @@ Usually there's no need to do this for local instances as
 :ref:`ref_cli_edgedb_project_init` will already set up a named
 instance.
 
+.. note::
+
+    Unlike other ``edgedb instance`` sub-commands, ``edgedb instance link`` is
+    recommended to link self-hosted instances. This can make other operations
+    like migrations, dumps, and restores more convenient.
+
+    Linking is not required for EdgeDB Cloud instances. They can always be
+    accessed via CLI using ``<org-name>/<instance-name>``.
 
 Options
 =======

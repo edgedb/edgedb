@@ -28,6 +28,9 @@ There are several ways to uniquely identify an EdgeDB instance.
   * - Instance name
     - ``--instance/-I <name>``
     - ``EDGEDB_INSTANCE``
+  * - Secret key (required in some EdgeDB Cloud scenarios; see description)
+    - ``--secret-key``
+    - ``EDGEDB_SECRET_KEY``
   * - DSN
     - ``--dsn <dsn>``
     - ``EDGEDB_DSN``
@@ -51,7 +54,7 @@ Let's dig into each of these a bit more.
 
 **Instance name**
   All local instances (instances created on your local machine using the CLI)
-  are associated with a name. This name is that's needed to connect; under the
+  are associated with a name. This name is what's needed to connect; under the
   hood, the CLI stores the instance credentials (username, password, etc) on
   your file system in the EdgeDB :ref:`config directory
   <ref_cli_edgedb_paths>`. The CLI and client libraries look up these
@@ -61,6 +64,26 @@ Let's dig into each of these a bit more.
   link <ref_cli_edgedb_instance_link>`. The CLI will save the credentials
   locally, so you can connect to a remote instance using just its name, just
   like a local instance.
+
+  If you have authenticated with EdgeDB Cloud in the CLI using the
+  :ref:`ref_cli_edgedb_cloud_login` command, you can address your own EdgeDB
+  Cloud instances using the instance name format
+  ``<org-name>/<instance-name>``. If you are not authenticated,
+
+.. _ref_reference_connection_secret_key:
+
+**Secret key**
+  If you want to connect to an EdgeDB Cloud instance in either of these
+  scenarios:
+
+  - from a client binding
+  - from the CLI to an instance not belonging to the currently authenticated
+    EdgeDB Cloud user
+
+  you will need to provide a secret key in addition to the instance name.
+  Generate a dedicated secret key for the instance via the CLI with
+  :ref:`ref_cli_edgedb_cloud_secretkey_create` or via the web UI's "Secret
+  Keys" pane in your instance dashboard.
 
 **DSN**
   DSNs (data source names, also referred to as "connection strings") are a
@@ -224,7 +247,7 @@ connection fails.
 
 .. warning::
 
-   Within a given priority level, you cannot specify multiple instances
+   Within a given priority level, you cannot specify multiple instances of
    "instance selection parameters" simultaneously. For instance, specifying
    both ``EDGEDB_INSTANCE`` and ``EDGEDB_DSN`` environment variables will
    result in an error.
@@ -262,7 +285,7 @@ instance-level configuration object.
     - N/A
 
 **EDGEDB_DATABASE**
-  Each EdgeDB *instance* can contain multiple *databases*. When in instance is
+  Each EdgeDB *instance* can contain multiple *databases*. When an instance is
   created, a default database named ``edgedb`` is created. Unless otherwise
   specified, all incoming connections connect to the ``edgedb`` database.
 
@@ -335,16 +358,15 @@ instance:
 
 - ``EDGEDB_PASSWORD`` **will** override the password specified in
   ``EDGEDB_DSN``
-- ``EDGEDB_PASSWORD`` **will be ignored** if a DSN is passed explicitly using
-  the ``--dsn`` flag. Explicit parameters take precedence over environment
-  variables. To override the password of an explicit DSN, you need to pass it
-  explicitly as well:
+- ``EDGEDB_PASSWORD`` **will be ignored** if a DSN is passed
+  explicitly using the ``--dsn`` flag. Explicit parameters take
+  precedence over environment variables. To override the password of
+  an explicit DSN, you need to pass it explicitly as well:
 
   .. code-block:: bash
 
      $ edgedb --dsn edgedb://username:oldpass@hostname.com --password qwerty
      # connects to edgedb://username:qwerty@hostname.com
 
-- ``EDGEDB_PASSWORD`` **will** override the stored password associated with a
-  project-linked instance. (This is unlikely to be desirable.)
-
+- ``EDGEDB_PASSWORD`` **will** override the stored password associated
+  with a project-linked instance. (This is unlikely to be desirable.)

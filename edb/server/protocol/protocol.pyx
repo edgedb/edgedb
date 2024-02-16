@@ -23,6 +23,7 @@ include "./consts.pxi"
 import asyncio
 import collections
 import http
+import http.cookies
 import re
 import ssl
 import urllib.parse
@@ -36,21 +37,25 @@ from edb.common import markup
 from edb.graphql import extension as graphql_ext
 
 from edb.server import args as srvargs
+from edb.server import config
 from edb.server.protocol cimport binary
 from edb.server.protocol import binary
 from edb.server.protocol import pg_ext
 from edb.server import defines as edbdef
+from edb.server.dbview cimport dbview
 # Without an explicit cimport of `pgproto.debug`, we
 # can't cimport `protocol.binary` for some reason.
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 from . import auth
+from . cimport auth_helpers
 from . import edgeql_ext
 from . import metrics
 from . import server_info
 from . import notebook_ext
 from . import system_api
 from . import ui_ext
+from . import auth_ext
 
 
 HTTPStatus = http.HTTPStatus
@@ -70,6 +75,8 @@ cdef class HttpRequest:
         self.body = b''
         self.authorization = b''
         self.content_type = b''
+        self.forwarded = {}
+        self.cookies = http.cookies.SimpleCookie()
 
 
 cdef class HttpResponse:
@@ -96,6 +103,7 @@ cdef class HttpProtocol:
     ):
         self.loop = server.get_loop()
         self.server = server
+        self.tenant = None
         self.transport = None
         self.external_auth = external_auth
         self.sslctx = sslctx
@@ -157,10 +165,8 @@ cdef class HttpProtocol:
             if is_tls:
                 # Most clients should arrive here to continue with TLS
                 self.transport.pause_reading()
-                self.server.create_task(
-                    self._forward_first_data(data), interruptable=True
-                )
-                self.server.create_task(self._start_tls(), interruptable=True)
+                self.loop.create_task(self._forward_first_data(data))
+                self.loop.create_task(self._start_tls())
                 return
 
             # In case when we're talking to a non-TLS client, keep using the
@@ -202,7 +208,7 @@ cdef class HttpProtocol:
         try:
             self.parser.feed_data(data)
         except Exception as ex:
-            self.unhandled_exception(ex)
+            self.unhandled_exception(b'400 Bad Request', ex)
 
     def on_url(self, url: bytes):
         self.current_request.url = httptools.parse_url(url)
@@ -213,6 +219,8 @@ cdef class HttpProtocol:
             self.current_request.content_type = value
         elif name == b'host':
             self.current_request.host = value
+        elif name == b'origin':
+            self.current_request.origin = value
         elif name == b'accept':
             if self.current_request.accept:
                 self.current_request.accept += b',' + value
@@ -225,6 +233,13 @@ cdef class HttpProtocol:
                 self.current_request.params = {}
             param = name[len(b'x-edgedb-'):]
             self.current_request.params[param] = value
+        elif name.startswith(b'x-forwarded-'):
+            if self.current_request.forwarded is None:
+                self.current_request.forwarded = {}
+            forwarded_key = name[len(b'x-forwarded-'):]
+            self.current_request.forwarded[forwarded_key] = value
+        elif name == b'cookie':
+            self.current_request.cookies.load(value.decode('ascii'))
 
     def on_body(self, body: bytes):
         self.current_request.body += body
@@ -248,11 +263,22 @@ cdef class HttpProtocol:
             self.unprocessed.append(req)
         else:
             self.in_response = True
-            self.server.create_task(
-                self._handle_request(req), interruptable=False
-            )
+            self._schedule_handle_request(req)
 
         self.server._http_last_minute_requests += 1
+
+    cdef inline _schedule_handle_request(self, request):
+        if self.tenant is None:
+            self.loop.create_task(self._handle_request(request))
+        elif self.tenant.is_accepting_connections():
+            self.tenant.create_task(
+                self._handle_request(request), interruptable=False
+            )
+        else:
+            self._close_with_error(
+                b'503 Service Unavailable',
+                b'The server is closing.',
+            )
 
     cdef close(self):
         if self.transport is not None:
@@ -260,16 +286,22 @@ cdef class HttpProtocol:
             self.transport = None
         self.unprocessed = None
 
-    cdef unhandled_exception(self, ex):
+    cdef unhandled_exception(self, bytes status, ex):
         if debug.flags.server:
             markup.dump(ex)
 
+        self._close_with_error(
+            status,
+            f'{type(ex).__name__}: {ex}'.encode(),
+        )
+
+    cdef inline _close_with_error(self, bytes status, bytes message):
         self._write(
             b'1.0',
-            b'400 Bad Request',
+            status,
             b'text/plain',
             {},
-            f'{type(ex).__name__}: {ex}'.encode(),
+            message,
             True)
 
         self.close()
@@ -280,9 +312,7 @@ cdef class HttpProtocol:
 
         if self.unprocessed:
             req = self.unprocessed.popleft()
-            self.server.create_task(
-                self._handle_request(req), interruptable=False
-            )
+            self._schedule_handle_request(req)
         else:
             self.transport.resume_reading()
 
@@ -299,15 +329,6 @@ cdef class HttpProtocol:
 
         for key, value in custom_headers.items():
             data.append(f'{key}: {value}\r\n'.encode())
-
-        if debug.flags.http_inject_cors:
-            data.append(b'Access-Control-Allow-Origin: *\r\n')
-            data.append(b'Access-Control-Allow-Headers: Content-Type, ' + \
-                b'Authorization, X-EdgeDB-User\r\n')
-            if custom_headers:
-                data.append(b'Access-Control-Expose-Headers: ' + \
-                    ', '.join(custom_headers.keys()).encode() + b'\r\n')
-            data.append(b'Access-Control-Max-Age: 86400\r\n')
 
         if close_connection:
             data.append(b'Connection: close\r\n')
@@ -329,6 +350,7 @@ cdef class HttpProtocol:
     def _switch_to_binary_protocol(self, data=None):
         binproto = binary.new_edge_connection(
             self.server,
+            self.tenant,
             external_auth=self.external_auth,
         )
         self.transport.set_protocol(binproto)
@@ -367,6 +389,7 @@ cdef class HttpProtocol:
             self.transport, self, self.sslctx, server_side=True
         )
         sslobj = self.transport.get_extra_info('ssl_object')
+        self.tenant = self.server.retrieve_tenant(sslobj)
         if sslobj.selected_alpn_protocol() == 'edgedb-binary':
             self._switch_to_binary_protocol()
         else:
@@ -433,8 +456,14 @@ cdef class HttpProtocol:
 
         try:
             await self.handle_request(request, response)
+        except errors.AvailabilityError as ex:
+            self._close_with_error(
+                b"503 Service Unavailable",
+                f'{type(ex).__name__}: {ex}'.encode(),
+            )
+            return
         except Exception as ex:
-            self.unhandled_exception(ex)
+            self.unhandled_exception(b"500 Internal Server Error", ex)
             return
 
         self.write(request, response)
@@ -445,33 +474,57 @@ cdef class HttpProtocol:
         else:
             self.resume()
 
+    def check_readiness(self):
+        if self.tenant.is_blocked():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is not accepting requests"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerBlockedError(msg)
+        elif not self.tenant.is_online():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is going offline"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerOfflineError(msg)
+
     async def handle_request(self, HttpRequest request, HttpResponse response):
-        path = urllib.parse.unquote(request.url.path.decode('ascii'))
+        request_url = get_request_url(request, self.is_tls)
+        path = urllib.parse.unquote(request_url.path.decode('ascii'))
         path = path.strip('/')
         path_parts = path.split('/')
         path_parts_len = len(path_parts)
         route = path_parts[0]
+
+        if self.tenant is None and route in ['db', 'auth']:
+            self.tenant = self.server.get_default_tenant()
+            self.check_readiness()
+            if self.tenant.is_accepting_connections():
+                return await self.tenant.create_task(
+                    self.handle_request(request, response),
+                    interruptable=False,
+                )
+            else:
+                return self._close_with_error(
+                    b'503 Service Unavailable',
+                    b'The server is closing.',
+                )
 
         if route == 'db':
             if path_parts_len < 2:
                 return self._not_found(request, response)
 
             dbname = path_parts[1]
-            db = self.server.maybe_get_db(dbname=dbname)
-            if db is None:
-                return self._not_found(request, response)
-
             extname = path_parts[2] if path_parts_len > 2 else None
 
             # Binary proto tunnelled through HTTP
             if extname is None:
-                if (
-                    debug.flags.http_inject_cors
-                    and request.method == b'OPTIONS'
+                if await self._handle_cors(
+                    request, response,
+                    dbname=dbname,
+                    allow_methods=['POST'],
+                    allow_headers=['Authorization', 'X-EdgeDB-User'],
                 ):
-                    response.status = http.HTTPStatus.NO_CONTENT
-                    response.custom_headers['Access-Control-Allow-Methods'] = \
-                        'POST, OPTIONS'
                     return
 
                 if request.method == b'POST':
@@ -508,6 +561,7 @@ cdef class HttpProtocol:
 
                     response.body = await binary.eval_buffer(
                         self.server,
+                        self.tenant,
                         database=dbname,
                         data=self.current_request.body,
                         conn_params=conn_params,
@@ -520,44 +574,86 @@ cdef class HttpProtocol:
                     response.close_connection = True
 
             else:
+                if await self._handle_cors(
+                    request, response,
+                    dbname=dbname,
+                    allow_methods=['GET', 'POST'],
+                    allow_headers=['Authorization', 'X-EdgeDB-User'],
+                    expose_headers=(
+                        ['EdgeDB-Protocol-Version'] if extname == 'notebook'
+                        else ['WWW-Authenticate'] if extname != 'auth'
+                        else None
+                    ),
+                    allow_credentials=True
+                ):
+                    return
+
                 # Check if this is a request to a registered extension
                 if extname == 'edgeql':
                     extname = 'edgeql_http'
+                if extname == 'ext':
+                    if path_parts_len < 4:
+                        return self._not_found(request, response)
+                    extname = path_parts[3]
+                    args = path_parts[4:]
+                else:
+                    args = path_parts[3:]
+
+                if extname != 'auth':
+                    if not await self._check_http_auth(
+                        request, response, dbname
+                    ):
+                        return
+
+                db = self.tenant.maybe_get_db(dbname=dbname)
+                if db is None:
+                    return self._not_found(request, response)
 
                 if extname not in db.extensions:
                     return self._not_found(request, response)
 
-                args = path_parts[3:]
-
                 if extname == 'graphql':
                     await graphql_ext.handle_request(
-                        request, response, db, args, self.server
+                        request, response, db, args, self.tenant
                     )
                 elif extname == 'notebook':
                     await notebook_ext.handle_request(
-                        request, response, db, args, self.server
+                        request, response, db, args, self.tenant
                     )
                 elif extname == 'edgeql_http':
                     await edgeql_ext.handle_request(
-                        request, response, db, args, self.server
+                        request, response, db, args, self.tenant
                     )
+                elif extname == 'auth':
+                    netloc = (
+                        f"{request_url.host.decode()}:{request_url.port}"
+                            if request_url.port
+                            else request_url.host.decode()
+                    )
+                    extension_base_path = f"{request_url.schema.decode()}://" \
+                                          f"{netloc}/db/{dbname}/ext/auth"
+                    handler = auth_ext.http.Router(
+                        db=db,
+                        base_path=extension_base_path,
+                        tenant=self.tenant,
+                    )
+                    await handler.handle_request(request, response, args)
 
         elif route == 'auth':
-            if (
-                    debug.flags.http_inject_cors
-                    and request.method == b'OPTIONS'
-                ):
-                    response.status = http.HTTPStatus.NO_CONTENT
-                    response.custom_headers['Access-Control-Allow-Methods'] = \
-                        'GET, OPTIONS'
-                    return
+            if await self._handle_cors(
+                request, response,
+                allow_methods=['GET'],
+                allow_headers=['Authorization'],
+                expose_headers=['WWW-Authenticate', 'Authentication-Info']
+            ):
+                return
 
             # Authentication request
             await auth.handle_request(
                 request,
                 response,
                 path_parts[1:],
-                self.server,
+                self.tenant,
             )
         elif route == 'server':
             # System API request
@@ -566,6 +662,7 @@ cdef class HttpProtocol:
                 response,
                 path_parts[1:],
                 self.server,
+                self.tenant,
             )
         elif path_parts == ['metrics'] and request.method == b'GET':
             # Quoting the Open Metrics spec:
@@ -624,3 +721,142 @@ cdef class HttpProtocol:
         response.body = message.encode("utf-8")
         response.status = http.HTTPStatus.BAD_REQUEST
         response.close_connection = True
+
+    async def _handle_cors(
+        self,
+        HttpRequest request,
+        HttpResponse response,
+        *,
+        str dbname = None,
+        list allow_methods = None,
+        list allow_headers = [],
+        list expose_headers = None,
+        bint allow_credentials = False
+    ):
+        db = self.tenant.maybe_get_db(dbname=dbname) if dbname else None
+        
+        config = None
+        if db is not None:
+            if db.db_config is None:
+                await db.introspection()
+
+            config = db.db_config.get('cors_allow_origins')
+        if config is None:
+            config = self.tenant.get_sys_config().get('cors_allow_origins')
+
+        allowed_origins = config.value if config else None
+
+        if allowed_origins is None:
+            return False
+
+        origin = request.origin.decode() if request.origin else None
+        origin_allowed = origin is not None and (
+            origin in allowed_origins or '*' in allowed_origins)
+
+        if origin_allowed:
+            response.custom_headers['Access-Control-Allow-Origin'] = origin
+            if expose_headers is not None:
+                response.custom_headers['Access-Control-Expose-Headers'] = (
+                    ', '.join(expose_headers))
+
+        if request.method == b'OPTIONS':
+            response.status = http.HTTPStatus.NO_CONTENT
+            if origin_allowed:
+                if allow_methods is not None:
+                    response.custom_headers['Access-Control-Allow-Methods'] = (
+                        ', '.join(allow_methods))
+                response.custom_headers['Access-Control-Allow-Headers'] = (
+                    ', '.join(['Content-Type'] + allow_headers))
+                if allow_credentials:
+                    response.custom_headers['Access-Control-Allow-Credentials'] = (
+                        'true')
+                
+            return True
+
+        return False
+
+    async def _check_http_auth(
+        self,
+        HttpRequest request,
+        HttpResponse response,
+        str dbname,
+    ):
+        dbindex: dbview.DatabaseIndex = self.tenant._dbindex
+
+        scheme = None
+        try:
+            # Extract the username from the relevant request headers
+            scheme, auth_payload = auth_helpers.extract_token_from_auth_data(
+                request.authorization)
+            username, opt_password = auth_helpers.extract_http_user(
+                scheme, auth_payload, request.params)
+
+            # Fetch the configured auth method
+            authmethod = await self.tenant.get_auth_method(
+                username, srvargs.ServerConnTransport.SIMPLE_HTTP)
+            authmethod_name = authmethod._tspec.name.split('::')[1]
+
+            # If the auth method and the provided auth information match,
+            # try to resolve the authentication.
+            if authmethod_name == 'JWT' and scheme == 'bearer':
+                if not self.is_tls:
+                    raise errors.AuthenticationError(
+                        'JWT HTTP auth must use HTTPS')
+
+                auth_helpers.auth_jwt(
+                    self.tenant, auth_payload, username, dbname)
+            elif authmethod_name == 'Password' and scheme == 'basic':
+                if not self.is_tls:
+                    raise errors.AuthenticationError(
+                        'Basic HTTP auth must use HTTPS')
+
+                auth_helpers.auth_basic(self.tenant, username, opt_password)
+            elif authmethod_name == 'Trust':
+                pass
+            elif authmethod_name == 'SCRAM':
+                raise errors.AuthenticationError(
+                    'authentication failed: '
+                    'SCRAM authentication required but not supported for HTTP'
+                )
+            else:
+                raise errors.AuthenticationError(
+                    'authentication failed: wrong method used')
+
+        except Exception as ex:
+            if debug.flags.server:
+                markup.dump(ex)
+
+            response.body = str(ex).encode()
+            response.status = http.HTTPStatus.UNAUTHORIZED
+            response.close_connection = True
+
+            # If no scheme was specified, add a WWW-Authenticate header
+            if scheme == '':
+                response.custom_headers['WWW-Authenticate'] = (
+                    'Basic realm="edgedb", Bearer'
+                )
+
+            return False
+
+        return True
+
+
+def get_request_url(request, is_tls):
+    request_url = request.url
+    default_schema = b"https" if is_tls else b"http"
+    if all(
+        getattr(request_url, attr) is None
+        for attr in ('schema', 'host', 'port')
+    ):
+        forwarded = request.forwarded if hasattr(request, 'forwarded') else {}
+        schema = forwarded.get(b'proto', default_schema).decode()
+        host_header = forwarded.get(b'host', request.host).decode()
+
+        host, _, port = host_header.partition(':')
+        path = request_url.path.decode()
+        new_url = f"{schema}://"\
+                  f"{host}{port and ':' + port}"\
+                  f"{path}"
+        request_url = httptools.parse_url(new_url.encode())
+
+    return request_url

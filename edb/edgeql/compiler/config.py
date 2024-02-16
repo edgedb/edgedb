@@ -34,6 +34,7 @@ from edb.ir import staeval as ireval
 from edb.ir import statypes as statypes
 from edb.ir import typeutils as irtyputils
 
+from edb.schema import constraints as s_constr
 from edb.schema import globals as s_globals
 from edb.schema import links as s_links
 from edb.schema import name as sn
@@ -47,10 +48,8 @@ from edb.edgeql import ast as qlast
 from . import casts
 from . import context
 from . import dispatch
-from . import inference
 from . import setgen
-from . import compile_ast_to_ir
-from . import options
+from . import typegen
 
 
 class SettingInfo(NamedTuple):
@@ -62,6 +61,7 @@ class SettingInfo(NamedTuple):
     backend_setting: str | None
     affects_compilation: bool
     is_system_config: bool
+    ptr: Optional[s_pointers.Pointer]
 
 
 @dispatch.compile.register
@@ -73,7 +73,7 @@ def compile_ConfigSet(
     info = _validate_op(expr, ctx=ctx)
     param_val = dispatch.compile(expr.expr, ctx=ctx)
     param_type = info.param_type
-    val_type = inference.infer_type(param_val, ctx.env)
+    val_type = setgen.get_set_type(param_val, ctx=ctx)
     compatible = s_types.is_type_compatible(
         val_type, param_type, schema=ctx.env.schema)
     if not compatible:
@@ -106,6 +106,10 @@ def compile_ConfigSet(
             )
         else:
             backend_expr = None
+
+    if info.ptr:
+        _enforce_pointer_constraints(
+            info.ptr, param_val, ctx=ctx, for_obj=False)
 
     config_set = irast.ConfigSet(
         name=info.param_name,
@@ -145,18 +149,30 @@ def compile_ConfigReset(
             name=param_type_name.name,
             module=param_type_name.module,
         )
-        select = qlast.SelectQuery(
-            result=qlast.Shape(
-                expr=qlast.Path(steps=[param_type_ref]),
-                elements=s_utils.get_config_type_shape(
-                    ctx.env.schema, info.param_type, path=[param_type_ref]),
-            ),
-            where=filter_expr,
+        body = qlast.Shape(
+            expr=qlast.Path(steps=[param_type_ref]),
+            elements=s_utils.get_config_type_shape(
+                ctx.env.schema, info.param_type, path=[param_type_ref]),
         )
+        # The body needs to have access to secrets, since they get put
+        # into the shape and are necessary for compiling the deletion
+        # code, so compile the body in a way that we allow it.
+        # The filter should *not* be able to access secret pointers, though.
+        with ctx.new() as sctx:
+            sctx.current_schema_views += (info.param_type,)
+            body_ir = dispatch.compile(body, ctx=sctx)
 
-        ctx.modaliases[None] = 'cfg'
-        select_ir = setgen.ensure_set(
-            dispatch.compile(select, ctx=ctx), ctx=ctx)
+        with ctx.new() as sctx:
+            sctx.anchors = sctx.anchors.copy()
+            select = qlast.SelectQuery(
+                result=sctx.create_anchor(body_ir, 'a'),
+                where=filter_expr,
+            )
+
+            sctx.modaliases = ctx.modaliases.copy()
+            sctx.modaliases[None] = 'cfg'
+            select_ir = setgen.ensure_set(
+                dispatch.compile(select, ctx=sctx), ctx=sctx)
 
     config_reset = irast.ConfigReset(
         name=info.param_name,
@@ -177,27 +193,20 @@ def compile_ConfigInsert(
 
     info = _validate_op(expr, ctx=ctx)
 
-    if expr.scope is not qltypes.ConfigScope.INSTANCE:
+    if expr.scope not in (
+        qltypes.ConfigScope.INSTANCE, qltypes.ConfigScope.DATABASE
+    ):
         raise errors.UnsupportedFeatureError(
             f'CONFIGURE {expr.scope} INSERT is not supported'
         )
 
-    subject = ctx.env.get_schema_object_and_track(
-        sn.QualName('cfg', expr.name.name), expr.name, default=None)
-    if subject is None:
-        raise errors.ConfigurationError(
-            f'{expr.name.name!r} is not a valid configuration item',
-            context=expr.context,
-        )
-
+    subject = info.param_type
     insert_stmt = qlast.InsertQuery(
-        subject=qlast.ObjectRef(name=expr.name.name, module='cfg'),
+        subject=s_utils.name_to_ast_ref(subject.get_name(ctx.env.schema)),
         shape=expr.shape,
     )
 
-    for el in expr.shape:
-        if isinstance(el.compexpr, qlast.InsertQuery):
-            _inject_tname(el.compexpr, ctx=ctx)
+    _inject_tname(insert_stmt, ctx=ctx)
 
     with ctx.newscope(fenced=False) as subctx:
         subctx.expr_exposed = context.Exposure.EXPOSED
@@ -238,7 +247,7 @@ def _inject_tname(
     insert_stmt.shape.append(
         qlast.ShapeElement(
             expr=qlast.Path(
-                steps=[qlast.Ptr(ptr=qlast.ObjectRef(name='_tname'))],
+                steps=[qlast.Ptr(name='_tname')],
             ),
             compexpr=qlast.Path(
                 steps=[
@@ -247,7 +256,7 @@ def _inject_tname(
                             maintype=insert_stmt.subject,
                         ),
                     ),
-                    qlast.Ptr(ptr=qlast.ObjectRef(name='name')),
+                    qlast.Ptr(name='name'),
                 ],
             ),
         ),
@@ -263,6 +272,14 @@ def _validate_config_object(
         assert element.rptr is not None
         if element.rptr.ptrref.shortname.name == 'id':
             continue
+
+        ptr = typegen.ptrcls_from_ptrref(
+            element.rptr.ptrref.real_material_ptr,
+            ctx=ctx,
+        )
+        if isinstance(ptr, s_pointers.Pointer):
+            _enforce_pointer_constraints(
+                ptr, element, ctx=ctx, for_obj=True)
 
         if (irtyputils.is_object(element.typeref)
                 and isinstance(element.expr, irast.InsertStmt)):
@@ -286,7 +303,41 @@ def _validate_global_op(
                        requires_restart=False,
                        backend_setting=None,
                        is_system_config=False,
-                       affects_compilation=False)
+                       affects_compilation=False,
+                       ptr=None)
+
+
+def _enforce_pointer_constraints(
+        ptr: s_pointers.Pointer, expr: irast.Set, *,
+        ctx: context.ContextLevel,
+        for_obj: bool) -> None:
+    constraints = ptr.get_constraints(ctx.env.schema)
+    for constraint in constraints.objects(ctx.env.schema):
+        if constraint.issubclass(
+            ctx.env.schema,
+            ctx.env.schema.get('std::exclusive', type=s_constr.Constraint),
+        ):
+            continue
+
+        with ctx.detached() as sctx:
+            sctx.partial_path_prefix = expr
+            sctx.anchors = ctx.anchors.copy()
+            sctx.anchors[qlast.Subject().name] = expr
+
+            final_expr = constraint.get_finalexpr(ctx.env.schema)
+            assert final_expr is not None and final_expr.qlast is not None
+            ir = dispatch.compile(final_expr.qlast, ctx=sctx)
+
+        result = ireval.evaluate(ir, schema=ctx.env.schema)
+        assert isinstance(result, irast.BooleanConstant)
+        if result.value != 'true':
+            if for_obj:
+                name = ptr.get_verbosename(ctx.env.schema, with_parent=True)
+            else:
+                name = repr(ptr.get_shortname(ctx.env.schema).name)
+            raise errors.ConfigurationError(
+                f'invalid setting value for {name}'
+            )
 
 
 def _validate_op(
@@ -296,19 +347,37 @@ def _validate_op(
     if expr.scope == qltypes.ConfigScope.GLOBAL:
         return _validate_global_op(expr, ctx=ctx)
 
-    if expr.name.module and expr.name.module != 'cfg':
-        raise errors.QueryError(
-            'invalid configuration parameter name: module must be either '
-            '\'cfg\' or empty', context=expr.name.context,
-        )
+    cfg_host_type = None
+    is_ext_config = False
+    if expr.name.module:
+        cfg_host_name = sn.name_from_string(expr.name.module)
+        cfg_host_type = ctx.env.get_schema_type_and_track(
+            cfg_host_name, default=None)
+        is_ext_config = bool(cfg_host_type)
 
-    name = expr.name.name
-    cfg_host_type = ctx.env.get_schema_type_and_track(
+    abstract_config = ctx.env.get_schema_type_and_track(
         sn.QualName('cfg', 'AbstractConfig'))
+    ext_config = ctx.env.get_schema_type_and_track(
+        sn.QualName('cfg', 'ExtensionConfig'))
+
+    if not cfg_host_type:
+        cfg_host_type = abstract_config
+
+    name = fullname = expr.name.name
+    if is_ext_config:
+        fullname = f'{cfg_host_type.get_name(ctx.env.schema)}::{name}'
+
     assert isinstance(cfg_host_type, s_objtypes.ObjectType)
     cfg_type = None
+    ptr = None
 
     if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
+        if is_ext_config and expr.scope == qltypes.ConfigScope.INSTANCE:
+            raise errors.ConfigurationError(
+                'INSTANCE configuration of extension-defined config variables '
+                'is not allowed'
+            )
+
         # expr.name is the actual name of the property.
         ptr = cfg_host_type.maybe_get_ptr(ctx.env.schema, sn.UnqualName(name))
         if ptr is not None:
@@ -321,10 +390,13 @@ def _validate_op(
                 context=expr.context
             )
 
-        # expr.name is the name of the configuration type
         cfg_type = ctx.env.get_schema_type_and_track(
-            sn.QualName('cfg', name), default=None)
-        if cfg_type is None:
+            s_utils.ast_ref_to_name(expr.name), default=None)
+        if not cfg_type and not expr.name.module:
+            # expr.name is the name of the configuration type
+            cfg_type = ctx.env.get_schema_type_and_track(
+                sn.QualName('cfg', name), default=None)
+        if not cfg_type:
             raise errors.ConfigurationError(
                 f'unrecognized configuration object {name!r}',
                 context=expr.context
@@ -348,7 +420,8 @@ def _validate_op(
         if (
             ptr_candidate is None
             or (ptr_source := ptr_candidate.get_source(ctx.env.schema)) is None
-            or not ptr_source.issubclass(ctx.env.schema, cfg_host_type)
+            or not ptr_source.issubclass(
+                ctx.env.schema, (abstract_config, ext_config))
         ):
             raise errors.ConfigurationError(
                 f'{name!r} cannot be configured directly'
@@ -356,7 +429,9 @@ def _validate_op(
 
         ptr = ptr_candidate
 
-        name = ptr.get_shortname(ctx.env.schema).name
+        fullname = ptr.get_shortname(ctx.env.schema).name
+        if ptr_source.issubclass(ctx.env.schema, ext_config):
+            fullname = f'{ptr_source.get_name(ctx.env.schema)}::{fullname}'
 
     assert isinstance(ptr, s_pointers.Pointer)
 
@@ -404,38 +479,17 @@ def _validate_op(
     else:
         affects_compilation = False
 
-    if isinstance(expr, qlast.ConfigSet):
-        constraints = ptr.get_constraints(ctx.env.schema)
-        for constraint in constraints.objects(ctx.env.schema):
-            subject = expr.expr
-            opts = options.CompilerOptions(
-                anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=qlast.Subject().name,
-                apply_query_rewrites=False,
-                schema_object_context=type(constraint),
-            )
-            final_expr = constraint.get_finalexpr(ctx.env.schema)
-            assert final_expr is not None and final_expr.qlast is not None
-            ir = compile_ast_to_ir(
-                final_expr.qlast, ctx.env.schema, options=opts
-            )
-            result = ireval.evaluate(ir.expr, schema=ctx.env.schema)
-            assert isinstance(result, irast.BooleanConstant)
-            if result.value != 'true':
-                raise errors.ConfigurationError(
-                    f'invalid setting value for {name!r}'
-                )
-
     if system and expr.scope is not qltypes.ConfigScope.INSTANCE:
         raise errors.ConfigurationError(
             f'{name!r} is a system-level configuration parameter; '
             f'use "CONFIGURE INSTANCE"')
 
-    return SettingInfo(param_name=name,
+    return SettingInfo(param_name=fullname,
                        param_type=cfg_type,
                        cardinality=cardinality,
                        required=False,
                        requires_restart=requires_restart,
                        backend_setting=backend_setting,
                        is_system_config=is_system_config,
-                       affects_compilation=affects_compilation)
+                       affects_compilation=affects_compilation,
+                       ptr=ptr)

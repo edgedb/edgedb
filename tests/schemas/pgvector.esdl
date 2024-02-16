@@ -30,19 +30,34 @@ type Basic {
     p_json: json {rewrite insert using (to_json(__subject__.p_str))};
 }
 
-type L2 {
+type IVFFlat_L2 {
     required vec: v3;
     index ext::pgvector::ivfflat_euclidean(lists := 100) on (.vec);
 }
 
-type IP {
+type IVFFlat_IP {
     required vec: v3;
     index ext::pgvector::ivfflat_ip(lists := 100) on (.vec);
 }
 
-type Cosine {
+type IVFFlat_Cosine {
     required vec: v3;
     index ext::pgvector::ivfflat_cosine(lists := 100) on (.vec);
+}
+
+type HNSW_L2 {
+    required vec: v3;
+    index ext::pgvector::hnsw_euclidean() on (.vec);
+}
+
+type HNSW_IP {
+    required vec: v3;
+    index ext::pgvector::hnsw_ip(m := 4) on (.vec);
+}
+
+type HNSW_Cosine {
+    required vec: v3;
+    index ext::pgvector::hnsw_cosine(m := 2, ef_construction := 4) on (.vec);
 }
 
 type Con {

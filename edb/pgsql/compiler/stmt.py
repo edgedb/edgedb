@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import *
 
+from edb import errors
+
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
 
@@ -32,6 +34,7 @@ from . import context
 from . import dispatch
 from . import group
 from . import dml
+from . import output
 from . import pathctx
 
 
@@ -41,6 +44,10 @@ def compile_SelectStmt(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if ctx.singleton_mode:
+        if not irutils.is_trivial_select(stmt):
+            raise errors.UnsupportedFeatureError(
+                'Clause on SELECT statement in simple expression')
+
         return dispatch.compile(stmt.result, ctx=ctx)
 
     parent_ctx = ctx
@@ -72,7 +79,7 @@ def compile_SelectStmt(
                 with ctx.new() as ictx:
                     clauses.setup_iterator_volatility(last_iterator, ctx=ictx)
                     iterator_rvar = clauses.compile_iterator_expr(
-                        query, iterator_set, ctx=ictx)
+                        query, iterator_set, is_dml=False, ctx=ictx)
                 for aspect in {'identity', 'value'}:
                     pathctx.put_path_rvar(
                         query,
@@ -105,19 +112,20 @@ def compile_SelectStmt(
                     query.sort_clause = clauses.compile_orderby_clause(
                         stmt.orderby, ctx=octx)
 
-        if outvar.nullable and query is ctx.toplevel_stmt:
-            # A nullable var has bubbled up to the top,
-            # filter out NULLs.
-            valvar: pgast.BaseExpr = pathctx.get_path_value_var(
+        # Need to filter out NULLs in certain cases:
+        if outvar.nullable and (
+            # A nullable var has bubbled up to the top
+            query is ctx.toplevel_stmt
+            # The cardinality is being overridden, so we need to make
+            # sure there aren't extra NULLs in single set
+            or stmt.card_inference_override
+            # There is a LIMIT or OFFSET clause and NULLs would interfere
+            or stmt.limit
+            or stmt.offset
+        ):
+            valvar = pathctx.get_path_value_var(
                 query, stmt.result.path_id, env=ctx.env)
-            if isinstance(valvar, pgast.TupleVar):
-                valvar = pgast.ImplicitRowExpr(
-                    args=[e.val for e in valvar.elements])
-
-            query.where_clause = astutils.extend_binop(
-                query.where_clause,
-                pgast.NullTest(arg=valvar, negated=True)
-            )
+            output.add_null_test(valvar, query)
 
         # The OFFSET clause
         query.limit_offset = clauses.compile_limit_offset_clause(

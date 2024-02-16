@@ -227,7 +227,7 @@ def fini_expression(
         return ir.expr
 
     volatility = inference.infer_volatility(ir, env=ctx.env)
-    expr_type = inference.infer_type(ir, ctx.env)
+    expr_type = setgen.get_set_type(ir, ctx=ctx)
 
     in_polymorphic_func = (
         ctx.env.options.func_params is not None and
@@ -237,7 +237,7 @@ def fini_expression(
         not in_polymorphic_func
         and not ctx.env.options.allow_generic_type_output
     ):
-        anytype = expr_type.find_any(ctx.env.schema)
+        anytype = expr_type.find_generic(ctx.env.schema)
         if anytype is not None:
             raise errors.QueryError(
                 'expression returns value of indeterminate type',
@@ -294,8 +294,9 @@ def collect_params(ctx: context.ContextLevel) -> List[irast.Param]:
     lparams = [
         p for p in ctx.env.query_parameters.values() if not p.is_sub_param
     ]
-    if lparams and lparams[0].name.isdecimal():
-        lparams.sort(key=lambda x: int(x.name))
+    if ctx.env.script_params:
+        script_ordering = {k: i for i, k in enumerate(ctx.env.script_params)}
+        lparams.sort(key=lambda x: script_ordering[x.name])
 
     params = []
     # Now flatten it out, including all sub_params, making sure subparams
@@ -727,8 +728,7 @@ def declare_view(
             view_set.path_id = view_set.path_id.replace_namespace(
                 path_id_namespace)
 
-        view_type = setgen.get_set_type(view_set, ctx=ctx)
-        ctx.aliased_views[alias] = view_type
+        ctx.aliased_views[alias] = view_set
         ctx.env.expr_view_cache[expr, alias] = view_set
 
     return view_set
@@ -745,6 +745,7 @@ def _declare_view_from_schema(
     # subcontext to compile in, but it should avoid depending on the
     # context, because of the cache.
     with ctx.detached() as subctx:
+        subctx.current_schema_views += (viewcls,)
         subctx.expr_exposed = context.Exposure.UNEXPOSED
         view_expr = viewcls.get_expr(ctx.env.schema)
         assert view_expr is not None
@@ -756,9 +757,11 @@ def _declare_view_from_schema(
                                 fully_detached=True, ctx=subctx)
         # The view path id _itself_ should not be in the nested namespace.
         view_set.path_id = view_set.path_id.replace_namespace(frozenset())
+        view_set.is_schema_alias = True
 
-        vc = subctx.aliased_views[viewcls_name]
-        assert vc is not None
+        vs = subctx.aliased_views[viewcls_name]
+        assert vs is not None
+        vc = setgen.get_set_type(vs, ctx=ctx)
         ctx.env.schema_view_cache[viewcls] = vc, view_set
 
     return vc, view_set
@@ -771,7 +774,7 @@ def declare_view_from_schema(
 
     viewcls_name = viewcls.get_name(ctx.env.schema)
 
-    ctx.aliased_views[viewcls_name] = vc
+    ctx.aliased_views[viewcls_name] = view_set
     ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc
     ctx.view_sets[vc] = view_set
 
@@ -881,13 +884,20 @@ def preprocess_script(
     if params:
         check_params(params)
 
-        # Put them in order if they are positional
-        lparams = list(params.items())
-        if lparams[0][0].isdecimal():
-            lparams.sort(key=lambda x: int(x[0]))
-        # Otherwise make sure injected args come after
-        else:
-            lparams.sort(key=lambda x: x[0].startswith('__edb_arg_'))
-        params = dict(lparams)
+        def _arg_key(k: tuple[str, object]) -> int:
+            name = k[0]
+            arg_prefix = '__edb_arg_'
+            # Positional arguments should just be sorted numerically,
+            # while for named arguments, injected args should be sorted and
+            # need to come after normal ones. Normal named arguments can have
+            # any order.
+            if name.isdecimal():
+                return int(name)
+            elif name.startswith(arg_prefix):
+                return int(k[0][len(arg_prefix):])
+            else:
+                return -1
+
+        params = dict(sorted(params.items(), key=_arg_key))
 
     return irast.ScriptInfo(params=params, schema=ctx.env.schema)

@@ -31,6 +31,7 @@ samples on this page assume the following schema:
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     module default {
       abstract type Person {
@@ -40,6 +41,29 @@ samples on this page assume the following schema:
       type Hero extending Person {
         secret_identity: str;
         multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        nemesis: Hero;
+      }
+
+      type Movie {
+        required title: str { constraint exclusive };
+        required release_year: int64;
+        multi characters: Person;
+      }
+    }
+
+.. code-block:: sdl
+
+    module default {
+      abstract type Person {
+        required name: str { constraint exclusive };
+      }
+
+      type Hero extending Person {
+        secret_identity: str;
+        multi villains := .<nemesis[is Villain];
       }
 
       type Villain extending Person {
@@ -106,6 +130,7 @@ EdgeQL's composable syntax makes link insertion painless. Below, we insert
 
   db> insert Movie {
   ...   title := "Spider-Man: No Way Home",
+  ...   release_year := 2021,
   ...   characters := (
   ...     select Person
   ...     filter .name in {
@@ -119,10 +144,9 @@ EdgeQL's composable syntax makes link insertion painless. Below, we insert
   {default::Movie {id: 9b1cf9e6-3e95-11ec-95a2-138eeb32759c}}
 
 To assign to the ``Movie.characters`` link, we're using a *subquery*. This
-subquery is executed and resolves to a singleton set of type ``Person``, which
-is assignable to ``characters``.  Note that the inner ``select Person``
-statement is wrapped in parentheses; this is required for all subqueries in
-EdgeQL.
+subquery is executed and resolves to a set of type ``Person``, which is
+assignable to ``characters``.  Note that the inner ``select Person`` statement
+is wrapped in parentheses; this is required for all subqueries in EdgeQL.
 
 Now let's assign to a *single link*.
 
@@ -177,6 +201,7 @@ Now let's write a nested insert for a ``multi`` link.
 
   db> insert Movie {
   ...   title := "Black Widow",
+  ...   release_year := 2021,
   ...   characters := {
   ...     (select Hero filter .name = "Black Widow"),
   ...     (insert Hero { name := "Yelena Belova"}),
@@ -221,6 +246,7 @@ duplication.
   db> with black_widow := (select Hero filter .name = "Black Widow")
   ... insert Movie {
   ...   title := "Black Widow",
+  ...   release_year := 2021,
   ...   characters := {
   ...     black_widow,
   ...     (insert Hero { name := "Yelena Belova"}),
@@ -244,6 +270,7 @@ can reference earlier ones.
   ...  dreykov := (insert Villain {name := "Dreykov", nemesis := black_widow})
   ... insert Movie {
   ...   title := "Black Widow",
+  ...   release_year := 2021,
   ...   characters := { black_widow, yelena, dreykov }
   ... };
   {default::Movie {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
@@ -262,7 +289,8 @@ in the database.
 .. code-block:: edgeql-repl
 
   db> insert Movie {
-  ...   title := "Eternals"
+  ...   title := "Eternals",
+  ...   release_year := 2021
   ... }
   ... unless conflict on .title
   ... else (select Movie);
@@ -315,6 +343,78 @@ to the ``update`` statement in the ``else`` clause. This updates the
 
 To learn to use upserts by trying them yourself, see `our interactive upserts
 tutorial </tutorial/data-mutations/upsert>`_.
+
+.. note::
+
+    It can be useful to know the outcome of an upsert. Here's an example
+    showing how you can return that:
+
+    .. code-block:: edgeql-repl
+
+      db> with
+      ...   title := "Eternals",
+      ...   release_year := 2021,
+      ...   movie := (
+      ...     insert Movie {
+      ...       title := title,
+      ...       release_year := release_year
+      ...     }
+      ...     unless conflict on .title
+      ...     else (
+      ...       update Movie set { release_year := release_year }
+      ...     )
+      ...   )
+      ... select movie {
+      ...   is_new := (movie not in Movie)
+      ... };
+      {default::Movie {is_new: true}}
+
+    This technique exploits the fact that a ``select`` will not return an
+    object inserted in the same query. We know that, if the record exists, we
+    updated it. If it does not, we inserted it.
+
+    By wrapping your upsert in a ``select`` and putting a shape on it that
+    queries for the object and returns whether or not it exists (as ``is_new``,
+    in this example), you can easily see whether the object was inserted or
+    updated.
+
+    If you want to also return some of the ``Movie`` object's data, drop
+    additional property names into the shape alongside ``is_new``. If you're on
+    3.0+, you can add ``Movie.*`` to the shape alongside ``is_new`` to get back
+    all of the ``Movie`` object's properties. You could even silo the data off,
+    keeping it separate from the ``is_new`` computed value like this:
+
+    .. code-block:: edgeql-repl
+
+      db> with
+      ...   title := "Eternals",
+      ...   release_year := 2021,
+      ...   movie := (
+      ...     insert Movie {
+      ...       title := title,
+      ...       release_year := release_year
+      ...     }
+      ...     unless conflict on .title
+      ...     else (
+      ...       update Movie set { release_year := release_year }
+      ...     )
+      ...   )
+      ... select {
+      ...   data := (select movie {*}),
+      ...   is_new := (movie not in Movie)
+      ... };
+      {
+        {
+          data: {
+            default::Movie {
+              id: 6880d0ba-62ca-11ee-9608-635818746433,
+              release_year: 2021,
+              title: 'Eternals'
+            }
+          },
+          is_new: false
+        }
+      }
 
 
 Suppressing failures

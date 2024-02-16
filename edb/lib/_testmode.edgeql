@@ -73,14 +73,22 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := 0;
     };
 
-
-    CREATE PROPERTY __internal_no_const_folding -> std::bool {
+    CREATE PROPERTY __internal_testmode -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
-        CREATE ANNOTATION cfg::affects_compilation := 'true';
         SET default := false;
     };
 
-    CREATE PROPERTY __internal_testmode -> std::bool {
+    # Fully suppress apply_query_rewrites, like is done for internal
+    # reflection queries.
+    CREATE PROPERTY __internal_no_apply_query_rewrites -> std::bool {
+        CREATE ANNOTATION cfg::internal := 'true';
+        SET default := false;
+    };
+
+    # Use the "reflection schema" as the base schema instead of the
+    # normal std schema. This allows looking at all the schema fields
+    # that are hidden in the public introspection schema.
+    CREATE PROPERTY __internal_query_reflschema -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
         SET default := false;
     };
@@ -122,6 +130,84 @@ ALTER TYPE cfg::AbstractConfig {
     };
 };
 
+
+# For testing configs defined in extensions
+create extension package _conf VERSION '1.0' {
+    set ext_module := "ext::_conf";
+    set sql_extensions := [];
+    create module ext::_conf;
+
+    create type ext::_conf::SingleObj extending cfg::ConfigObject {
+        create required property name -> std::str {
+            set readonly := true;
+        };
+        create required property value -> std::str {
+            set readonly := true;
+        };
+        create required property fixed -> std::str {
+            set default := "fixed!";
+            set readonly := true;
+            set protected := true;
+        };
+    };
+    create type ext::_conf::Obj extending cfg::ConfigObject {
+        create required property name -> std::str {
+            set readonly := true;
+            create constraint std::exclusive;
+        };
+        create required property value -> std::str {
+            set readonly := true;
+            create delegated constraint std::exclusive;
+            create constraint expression on (__subject__[:5] != 'asdf_');
+        };
+        create property opt_value -> std::str {
+            set readonly := true;
+        };
+    };
+    create type ext::_conf::SubObj extending ext::_conf::Obj {
+        create required property extra -> int64 {
+            set readonly := true;
+        };
+        create required property duration_config: std::duration {
+            set default := <std::duration>'10 minutes';
+        };
+    };
+    create type ext::_conf::SecretObj extending ext::_conf::Obj {
+        create property secret -> std::str {
+            set readonly := true;
+            set secret := true;
+        };
+    };
+
+    create type ext::_conf::Obj2 extending cfg::ConfigObject {
+        create required property name -> std::str {
+            set readonly := true;
+            create constraint std::exclusive;
+        };
+    };
+
+    create type ext::_conf::Config extending cfg::ExtensionConfig {
+        create multi link objs -> ext::_conf::Obj;
+        create link obj -> ext::_conf::SingleObj;
+        create multi link objs2 -> ext::_conf::Obj2;
+
+        create property config_name -> std::str {
+            set default := "";
+        };
+        create property opt_value -> std::str;
+        create property secret -> std::str {
+            set secret := true;
+        };
+    };
+
+    create function ext::_conf::get_secret(c: ext::_conf::SecretObj)
+        -> optional std::str using (c.secret);
+    create function ext::_conf::get_top_secret()
+        -> set of std::str using (
+          cfg::Config.extensions[is ext::_conf::Config].secret);
+    create alias ext::_conf::OK := (
+        cfg::Config.extensions[is ext::_conf::Config].secret ?= 'foobaz');
+};
 
 # std::_gen_series
 

@@ -30,8 +30,11 @@ Standard Library
     objects
     abstract
     constraints
+    fts
     sys
     cfg
+    pgcrypto
+    pg_trgm
     pgvector
     deprecated
 
@@ -77,6 +80,7 @@ Range Types
 -----------
 
 - :ref:`Range <ref_std_range>`
+- :ref:`Multirange <ref_std_multirange>`
 
 Object Types
 ------------
@@ -96,6 +100,7 @@ Utilities
 - :ref:`Math <ref_std_math>`
 - :ref:`Comparison <ref_std_generic>`
 - :ref:`Constraints <ref_std_constraints>`
+- :ref:`Full-text Search <ref_std_fts>`
 - :ref:`System <ref_std_sys>`
 
 Extensions

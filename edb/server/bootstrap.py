@@ -45,9 +45,12 @@ from edb.common import uuidgen
 
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
+from edb.schema import extensions as s_exts
+from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
+from edb.schema import properties as s_props
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
@@ -76,6 +79,7 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger('edb.server')
+STDLIB_CACHE_FILE_NAME = 'backend-stdlib.pickle'
 
 
 class ClusterMode(enum.IntEnum):
@@ -530,8 +534,7 @@ def _process_delta_params(delta, schema, params):
         debug.header('Delta Plan')
         debug.dump(delta, schema=schema)
 
-    context = sd.CommandContext()
-    context.stdmode = True
+    context = sd.CommandContext(stdmode=True)
 
     if not delta.canonical:
         # Canonicalize
@@ -618,6 +621,14 @@ def _get_schema_object_ids(delta: sd.Command) -> Mapping[
         id = cmd.get_attribute_value('id')
         schema_object_ids[cmd.classname, qlclass] = id
 
+        # backend_name in callables is a lot *like* an id, in that it gets
+        # randomly generated and needs to match between things.
+        if isinstance(cmd, s_func.CreateCallableObject):
+            backend_name = cmd.get_attribute_value('backend_name')
+            if backend_name:
+                schema_object_ids[
+                    cmd.classname, f'{qlclass}-backend_name'] = backend_name
+
     return schema_object_ids
 
 
@@ -649,6 +660,65 @@ def prepare_repair_patch(
     return sql
 
 
+PatchEntry = tuple[tuple[str, ...], tuple[str, ...], dict[str, Any], bool]
+
+
+async def gather_patch_info(
+    num: int,
+    kind: str,
+    patch: str,
+    conn: pgcon.PGConnection,
+) -> Optional[dict[str, list[str]]]:
+    """Fetch info for a patch that needs to use the connection.
+
+    Currently, the only thing we need is, for config updates, the
+    order that columns appear in the config views in SQL. We need this
+    because we need to preserve that order when we update the
+    view.
+    """
+
+    if '+config' in kind:
+        # Find all the config views (they are pg_classes where
+        # there is also a table with the same name but "_dummy"
+        # at the end) and collect all their columns in order.
+        return json.loads(await conn.sql_fetch_val('''\
+            select json_object_agg(v.relname, (
+                select json_agg(a.attname order by a.attnum)
+                from pg_catalog.pg_attribute as a
+                where v.oid = a.attrelid
+            ))
+            from pg_catalog.pg_class as v
+            inner join pg_catalog.pg_tables as t
+            on v.relname || '_dummy' = t.tablename
+
+        '''.encode('utf-8')))
+    else:
+        return None
+
+
+def _generate_drop_views(
+    group: dbops.CommandGroup,
+    preblock: dbops.PLBlock,
+) -> None:
+    for cv in reversed(list(group)):
+        dv: Any
+        if isinstance(cv, dbops.CreateView):
+            dv = dbops.DropView(
+                cv.view.name,
+                conditions=[dbops.ViewExists(cv.view.name)],
+            )
+        elif isinstance(cv, dbops.CreateFunction):
+            dv = dbops.DropFunction(
+                cv.function.name,
+                args=cv.function.args or (),
+                has_variadic=bool(cv.function.has_variadic),
+                if_exists=True,
+            )
+        else:
+            raise AssertionError(f'unsupported support view command {cv}')
+        dv.generate(preblock)
+
+
 def prepare_patch(
     num: int,
     kind: str,
@@ -657,7 +727,10 @@ def prepare_patch(
     reflschema: s_schema.Schema,
     schema_class_layout: s_refl.SchemaClassLayout,
     backend_params: params.BackendRuntimeParams,
-) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any], bool]:
+    patch_info: Optional[dict[str, list[str]]],
+    user_schema: Optional[s_schema.Schema]=None,
+    global_schema: Optional[s_schema.Schema]=None,
+) -> PatchEntry:
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
     # TODO: This is an INSERT because 2.0 shipped without num_patches.
     # We can just make this an UPDATE for 3.0
@@ -667,6 +740,8 @@ def prepare_patch(
         ON CONFLICT (key)
         DO UPDATE SET json = {val};
     """
+
+    existing_view_columns = patch_info
 
     # Pure SQL patches are simple
     if kind == 'sql':
@@ -694,8 +769,13 @@ def prepare_patch(
     updates: dict[str, Any] = {}
 
     global_schema_update = kind == 'ext-pkg'
+    sys_update_only = global_schema_update or kind.endswith('+globalonly')
 
     if kind == 'ext-pkg':
+        # N.B: We process this without actually having the global
+        # schema present, so we don't do any check for if it already
+        # exists. The backend code will overwrite an older version's
+        # JSON in the global metadata if it was already present.
         patch = s_std.get_std_module_text(sn.UnqualName(f'ext/{patch}'))
 
     if (
@@ -703,6 +783,8 @@ def prepare_patch(
         or kind == 'ext-pkg'
         or kind.startswith('edgeql+schema')
     ):
+        assert '+user_ext' not in kind
+
         for ddl_cmd in edgeql.parse_block(patch):
             assert isinstance(ddl_cmd, qlast.DDLCommand)
             # First apply it to the regular schema, just so we can update
@@ -726,6 +808,62 @@ def prepare_patch(
                 delta_command, reflschema, backend_params)
             std_plans.append(delta_command)
             plan.generate(subblock)
+
+        metadata_user_schema = reflschema
+
+    elif kind.startswith('edgeql+user_ext'):
+        assert '+schema' not in kind
+
+        # There isn't anything to do on the system database for
+        # userext updates.
+        if user_schema is None:
+            return (update,), (), dict(is_user_ext_update=True), False
+
+        # Only run a userext update if the extension we are trying to
+        # update is installed.
+        extension_name = kind.split('|')[-1]
+        extension = user_schema.get_global(
+            s_exts.Extension, extension_name, default=None)
+
+        if not extension:
+            return (update,), (), {}, False
+
+        assert global_schema
+        cschema = s_schema.ChainedSchema(
+            schema,
+            user_schema,
+            global_schema,
+        )
+
+        for ddl_cmd in edgeql.parse_block(patch):
+            assert isinstance(ddl_cmd, qlast.DDLCommand)
+
+            delta_command = s_ddl.delta_from_ddl(
+                ddl_cmd, modaliases={}, schema=cschema,
+                stdmode=False,
+                testmode=True,
+            )
+            cschema, plan = _process_delta_params(
+                delta_command, cschema, backend_params)
+            std_plans.append(delta_command)
+            plan.generate(subblock)
+
+        if '+config' in kind:
+            views = metaschema.get_config_views(cschema, existing_view_columns)
+            views.generate(subblock)
+
+        metadata_user_schema = cschema.get_top_schema()
+
+    elif kind == 'sql-introspection':
+        support_view_commands = dbops.CommandGroup()
+        support_view_commands.add_commands(
+            metaschema._generate_sql_information_schema())
+        support_view_commands.generate(subblock)
+
+        _generate_drop_views(support_view_commands, preblock)
+
+        metadata_user_schema = reflschema
+
     else:
         raise AssertionError(f'unknown patch type {kind}')
 
@@ -748,7 +886,7 @@ def prepare_patch(
             schema_class_layout=schema_class_layout
         )
 
-        local_intro_sql, global_intro_sql = _compile_intro_queries_stdlib(
+        local_intro_sql, global_intro_sql = compile_intro_queries_stdlib(
             compiler=compiler,
             user_schema=reflschema,
             reflection=reflection,
@@ -774,23 +912,7 @@ def prepare_patch(
         support_view_commands.add_commands(
             metaschema._generate_sql_information_schema())
 
-        for cv in reversed(list(support_view_commands)):
-            dv: Any
-            if isinstance(cv, dbops.CreateView):
-                dv = dbops.DropView(
-                    cv.view.name,
-                    conditions=[dbops.ViewExists(cv.view.name)],
-                )
-            elif isinstance(cv, dbops.CreateFunction):
-                dv = dbops.DropFunction(
-                    cv.function.name,
-                    args=cv.function.args or (),
-                    has_variadic=bool(cv.function.has_variadic),
-                    if_exists=True,
-                )
-            else:
-                raise AssertionError(f'unsupported support view command {cv}')
-            dv.generate(preblock)
+        _generate_drop_views(support_view_commands, preblock)
 
         # We want to limit how much unconditional work we do, so only recreate
         # extension views if requested.
@@ -801,26 +923,28 @@ def prepare_patch(
 
         # Similarly, only do config system updates if requested.
         if '+config' in kind:
-            config_spec = config.load_spec_from_schema(schema)
-            (
-                sysqueries,
-                report_configs_typedesc_1_0,
-                report_configs_typedesc_2_0,
-            ) = _compile_sys_queries(
-                reflschema,
-                compiler,
-                config_spec,
-            )
-
-            updates.update(dict(
-                sysqueries=sysqueries.encode('utf-8'),
-                report_configs_typedesc_1_0=report_configs_typedesc_1_0,
-                report_configs_typedesc_2_0=report_configs_typedesc_2_0,
-                configspec=config.spec_to_json(config_spec).encode('utf-8'),
-            ))
-
             support_view_commands.add_command(
-                metaschema.get_config_views(schema))
+                metaschema.get_config_views(schema, existing_view_columns))
+
+        # Though we always update the instdata for the config system,
+        # because it is currently the most convenient way to make sure
+        # all the versioned fields get updated.
+        config_spec = config.load_spec_from_schema(schema)
+        (
+            sysqueries,
+            report_configs_typedesc_1_0,
+            report_configs_typedesc_2_0,
+        ) = compile_sys_queries(
+            reflschema,
+            compiler,
+            config_spec,
+        )
+        updates.update(dict(
+            sysqueries=json.dumps(sysqueries).encode('utf-8'),
+            report_configs_typedesc_1_0=report_configs_typedesc_1_0,
+            report_configs_typedesc_2_0=report_configs_typedesc_2_0,
+            configspec=config.spec_to_json(config_spec).encode('utf-8'),
+        ))
 
         support_view_commands.generate(subblock)
 
@@ -832,8 +956,8 @@ def prepare_patch(
 
     compilerctx = edbcompiler.new_compiler_context(
         compiler_state=compiler.state,
-        user_schema=reflschema,
-        bootstrap_mode=True,
+        user_schema=metadata_user_schema,
+        bootstrap_mode=user_schema is None,
     )
 
     for std_plan in std_plans:
@@ -851,16 +975,15 @@ def prepare_patch(
 
     if not global_schema_update:
         updates.update(dict(
-            stdschema=schema,
-            reflschema=reflschema,
+            std_and_reflection_schema=(schema, reflschema),
         ))
 
     bins = (
-        'stdschema', 'reflschema', 'global_schema', 'classlayout',
-        'report_configs_typedesc',
+        'std_and_reflection_schema', 'global_schema', 'classlayout',
+        'report_configs_typedesc_1_0', 'report_configs_typedesc_2_0',
     )
     rawbin = (
-        'report_configs_typedesc',
+        'report_configs_typedesc_1_0', 'report_configs_typedesc_2_0',
     )
     jsons = (
         'sysqueries', 'configspec',
@@ -904,13 +1027,130 @@ def prepare_patch(
     # perhaps), only run the script once, on the system connection.
     # Since the state is global, we only should update it once.
     regular_updates: tuple[str, ...]
-    if global_schema_update:
+    if sys_update_only:
         regular_updates = (update,)
         sys_updates = (patch,) + sys_updates
     else:
         regular_updates = spatches + (update,)
 
     return regular_updates, sys_updates, updates, False
+
+
+async def create_branch(
+    cluster: pgcluster.BaseCluster,
+    schema: s_schema.Schema,
+    conn: metaschema.PGConnection,
+    src_dbname: str,
+    tgt_dbname: str,
+    mode: str,
+    backend_id_fixup_sql: bytes,
+) -> None:
+    """Create a new database (branch) based on an existing one."""
+
+    # Dump the edgedbpub schema that holds user data and any extensions.
+    schema_dump = await cluster.dump_database(
+        src_dbname,
+        include_schemas=('edgedbpub',),
+        include_extensions=('*',),
+        schema_only=True,
+    )
+
+    # Tuples types are always kept in edgedbpub, but some already
+    # exist from the std schema, so we need to skip those. We also
+    # need to skip recreating the schema. This requires doing some
+    # annoying postprocessing.
+    to_skip = [
+        str(obj.id) for obj in schema.get_objects(type=s_types.Tuple)
+    ]
+    old_lines = schema_dump.decode('utf-8').split('\n')
+    new_lines = []
+    skipping = False
+    for line in old_lines:
+        if line == ');' and skipping:
+            skipping = False
+            continue
+        elif line.startswith('CREATE SCHEMA'):
+            continue
+        elif line.startswith('CREATE TYPE'):
+            if any(skip in line for skip in to_skip):
+                skipping = True
+        if skipping:
+            continue
+        new_lines.append(line)
+    s_schema_dump = '\n'.join(new_lines)
+
+    await conn.sql_execute(s_schema_dump.encode('utf-8'))
+
+    # Copy database config variables over directly
+    copy_cfg_query = f'''
+        select edgedb._copy_database_configs(
+            {pg_common.quote_literal(src_dbname)})
+    '''.encode('utf-8')
+    await conn.sql_execute(copy_cfg_query)
+
+    # std::Object and std::BaseObject depend on user tables, so we
+    # need to dump those and patch them to OR REPLACE, now that we
+    # have created the user tables.
+    std_views = [
+        pg_common.get_backend_name(
+            schema, schema.get(name), catenate=True, aspect='inhview'
+        )
+        for name in ('std::Object', 'std::BaseObject', 'cfg::ExtensionConfig')
+    ]
+    views_dump = await cluster.dump_database(
+        src_dbname,
+        include_tables=std_views,
+        schema_only=True,
+    )
+    views_dump = views_dump.replace(b'CREATE VIEW', b'CREATE OR REPLACE VIEW')
+    await conn.sql_execute(views_dump)
+
+    # HACK: Empty out all schema multi property tables. This is
+    # because the original template has the stdschema in it, and so we
+    # use --on-conflict-do-nothing to avoid conflicts since the dump
+    # will have that in it too. That works, except for multi properties
+    # where it won't conflict.
+    multi_properties = {
+        prop for prop in schema.get_objects(type=s_props.Property)
+        if prop.get_cardinality(schema).is_multi()
+        and prop.get_name(schema).module not in delta_cmds.VIEW_MODULES
+    }
+
+    for mprop in multi_properties:
+        name = pg_common.get_backend_name(schema, mprop, catenate=True)
+        await conn.sql_execute(f'delete from {name}'.encode('utf-8'))
+
+    await conn.sql_execute(f'''
+        delete from edgedbinstdata.instdata where key = 'configspec_ext'
+    '''.encode('utf-8'))
+
+    # Do the dump/restore for the data. We always need to copy over
+    # edgedbstd, since it has the reflected schema. We copy over
+    # edgedbpub when it is a data branch.
+    data_arg = ['--table=edgedbpub.*'] if mode == qlast.BranchType.DATA else []
+    dump_args = [
+        '--data-only',
+        '--table=edgedbstd.*',
+        '--table=edgedb._db_config',
+        '--table=edgedbinstdata.instdata',
+        *data_arg,
+        '--disable-triggers',
+        # We need to use --inserts so that we can use --on-conflict-do-nothing.
+        # (See above, in discussion of the HACK.)
+        '--inserts',
+        '--rows-per-insert=100',
+        '--on-conflict-do-nothing',
+    ]
+    await cluster._copy_database(
+        src_dbname, tgt_dbname, dump_args, [],
+    )
+
+    # Restore the search_path as the dump might have altered it.
+    await conn.sql_execute(
+        b"SELECT pg_catalog.set_config('search_path', 'edgedb', false)")
+
+    # Fixup the backend ids in the schema to match what is actually in pg.
+    await conn.sql_execute(backend_id_fixup_sql)
 
 
 class StdlibBits(NamedTuple):
@@ -931,6 +1171,11 @@ class StdlibBits(NamedTuple):
     local_intro_query: str
     #: Global object introspection SQL query.
     global_intro_query: str
+    #: Number of patches already baked into the stdlib.
+    num_patches: int
+    # TODO: All of sysqueries ought to go here, right?
+    # It would speed up instance creation a bit at little cost.
+    # (Oh, maybe testmode screws this idea up?)
 
 
 async def _make_stdlib(
@@ -939,13 +1184,14 @@ async def _make_stdlib(
     global_ids: Mapping[str, uuid.UUID],
 ) -> StdlibBits:
     schema: s_schema.Schema = s_schema.ChainedSchema(
-        s_schema.FlatSchema(),
-        s_schema.FlatSchema(),
-        s_schema.FlatSchema(),
+        s_schema.EMPTY_SCHEMA,
+        s_schema.EMPTY_SCHEMA,
+        s_schema.EMPTY_SCHEMA,
     )
     schema, _ = s_mod.Module.create_in_schema(
         schema,
         name=sn.UnqualName('__derived__'),
+        stable_ids=True,
     )
 
     current_block = dbops.PLTopBlock()
@@ -1004,7 +1250,7 @@ async def _make_stdlib(
         if not schema.has_object(obj.id):
             delta = sd.DeltaRoot()
             delta.add(obj.as_shell(reflschema).as_create_delta(reflschema))
-            schema = delta.apply(schema, sd.CommandContext())
+            schema = delta.apply(schema, sd.CommandContext(stdmode=True))
     assert isinstance(schema, s_schema.ChainedSchema)
 
     assert current_block is not None
@@ -1049,7 +1295,7 @@ async def _make_stdlib(
 
     sqltext = current_block.to_string()
 
-    local_intro_sql, global_intro_sql = _compile_intro_queries_stdlib(
+    local_intro_sql, global_intro_sql = compile_intro_queries_stdlib(
         compiler=compiler,
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
@@ -1065,6 +1311,7 @@ async def _make_stdlib(
         classlayout=reflection.class_layout,
         local_intro_query=local_intro_sql,
         global_intro_query=global_intro_sql,
+        num_patches=len(patches.PATCHES),
     )
 
 
@@ -1073,14 +1320,17 @@ async def _amend_stdlib(
     ddl_text: str,
     stdlib: StdlibBits,
 ) -> Tuple[StdlibBits, str]:
-    schema = stdlib.stdschema
+    schema = s_schema.ChainedSchema(
+        s_schema.EMPTY_SCHEMA,
+        stdlib.stdschema,
+        stdlib.global_schema,
+    )
     reflschema = stdlib.reflschema
 
     topblock = dbops.PLTopBlock()
     plans = []
 
-    context = sd.CommandContext()
-    context.stdmode = True
+    context = sd.CommandContext(stdmode=True)
 
     for ddl_cmd in edgeql.parse_block(ddl_text):
         assert isinstance(ddl_cmd, qlast.DDLCommand)
@@ -1095,14 +1345,15 @@ async def _amend_stdlib(
         plans.append(plan)
 
     compiler = edbcompiler.new_compiler(
-        std_schema=schema,
+        std_schema=schema.get_top_schema(),
         reflection_schema=reflschema,
         schema_class_layout=stdlib.classlayout,  # type: ignore
     )
 
     compilerctx = edbcompiler.new_compiler_context(
         compiler_state=compiler.state,
-        user_schema=schema
+        user_schema=schema.get_top_schema(),
+        global_schema=schema.get_global_schema(),
     )
     for plan in plans:
         edbcompiler.compile_schema_storage_in_delta(
@@ -1113,14 +1364,18 @@ async def _amend_stdlib(
 
     sqltext = topblock.to_string()
 
-    return stdlib._replace(stdschema=schema, reflschema=reflschema), sqltext
+    return stdlib._replace(
+        stdschema=schema.get_top_schema(),
+        global_schema=schema.get_global_schema(),
+        reflschema=reflschema,
+    ), sqltext
 
 
-def _compile_intro_queries_stdlib(
+def compile_intro_queries_stdlib(
     *,
     compiler: edbcompiler.Compiler,
     user_schema: s_schema.Schema,
-    global_schema: s_schema.Schema=s_schema.FlatSchema(),
+    global_schema: s_schema.Schema=s_schema.EMPTY_SCHEMA,
     reflection: s_refl.SchemaReflectionParts,
 ) -> Tuple[str, str]:
     compilerctx = edbcompiler.new_compiler_context(
@@ -1153,19 +1408,49 @@ def _compile_intro_queries_stdlib(
             ),
         )
 
-    local_intro_sql = ' UNION ALL '.join(sql_intro_local_parts)
+    local_intro_sql = ' UNION ALL '.join(
+        f'({x})' for x in sql_intro_local_parts)
     local_intro_sql = f'''
         WITH intro(c) AS ({local_intro_sql})
         SELECT json_agg(intro.c) FROM intro
     '''
 
-    global_intro_sql = ' UNION ALL '.join(sql_intro_global_parts)
+    global_intro_sql = ' UNION ALL '.join(
+        f'({x})' for x in sql_intro_global_parts)
     global_intro_sql = f'''
         WITH intro(c) AS ({global_intro_sql})
         SELECT json_agg(intro.c) FROM intro
     '''
 
     return local_intro_sql, global_intro_sql
+
+
+def _calculate_src_hash() -> bytes:
+    return buildmeta.hash_dirs(
+        buildmeta.get_cache_src_dirs(), extra_files=[__file__],
+    )
+
+
+def _get_cache_dir() -> pathlib.Path | None:
+    if specified_cache_dir := os.environ.get('_EDGEDB_WRITE_DATA_CACHE_TO'):
+        return pathlib.Path(specified_cache_dir)
+    else:
+        return None
+
+
+def read_data_cache(
+    file_name: str,
+    pickled: bool,
+    *,
+    src_hash: bytes | None = None,
+    cache_dir: pathlib.Path | None = None,
+) -> Any:
+    if src_hash is None:
+        src_hash = _calculate_src_hash()
+    if cache_dir is None:
+        cache_dir = _get_cache_dir()
+    return buildmeta.read_data_cache(
+        src_hash, file_name, source_dir=cache_dir, pickled=pickled)
 
 
 async def _init_stdlib(
@@ -1177,23 +1462,22 @@ async def _init_stdlib(
     conn = ctx.conn
     cluster = ctx.cluster
 
-    specified_cache_dir = os.environ.get('_EDGEDB_WRITE_DATA_CACHE_TO')
-    if not specified_cache_dir:
-        cache_dir = None
-    else:
-        cache_dir = pathlib.Path(specified_cache_dir)
+    tpldbdump_cache = 'backend-tpldbdump.sql'
+    src_hash = _calculate_src_hash()
+    cache_dir = _get_cache_dir()
 
-    stdlib_cache = f'backend-stdlib.pickle'
-    tpldbdump_cache = f'backend-tpldbdump.sql'
-
-    src_hash = buildmeta.hash_dirs(
-        buildmeta.get_cache_src_dirs(), extra_files=[__file__],
+    stdlib = read_data_cache(
+        STDLIB_CACHE_FILE_NAME,
+        pickled=True,
+        src_hash=src_hash,
+        cache_dir=cache_dir,
     )
-
-    stdlib = buildmeta.read_data_cache(
-        src_hash, stdlib_cache, source_dir=cache_dir)
-    tpldbdump = buildmeta.read_data_cache(
-        src_hash, tpldbdump_cache, source_dir=cache_dir, pickled=False)
+    tpldbdump = read_data_cache(
+        tpldbdump_cache,
+        pickled=False,
+        src_hash=src_hash,
+        cache_dir=cache_dir,
+    )
 
     if stdlib is None:
         logger.info('Compiling the standard library...')
@@ -1204,7 +1488,6 @@ async def _init_stdlib(
     await metaschema.create_pg_extensions(conn, backend_params)
 
     config_spec = config.load_spec_from_schema(stdlib.stdschema)
-    config.set_settings(config_spec)
 
     if tpldbdump is None:
         logger.info('Populating internal SQL structures...')
@@ -1212,7 +1495,7 @@ async def _init_stdlib(
         logger.info('Executing the standard library...')
         await _execute(conn, stdlib.sqltext)
 
-        if in_dev_mode or specified_cache_dir:
+        if in_dev_mode or cache_dir:
             tpl_db_name = edbdef.EDGEDB_TEMPLATE_DB
             tpl_pg_db_name = cluster.get_db_name(tpl_db_name)
             tpl_pg_db_name_dyn = (
@@ -1293,7 +1576,7 @@ async def _init_stdlib(
             buildmeta.write_data_cache(
                 stdlib,
                 src_hash,
-                stdlib_cache,
+                STDLIB_CACHE_FILE_NAME,
                 target_dir=cache_dir,
             )
     else:
@@ -1315,15 +1598,17 @@ async def _init_stdlib(
         # _testmode includes extra config settings, so make sure
         # those are picked up.
         config_spec = config.load_spec_from_schema(stdlib.stdschema)
-        config.set_settings(config_spec)
 
     # Make sure that schema backend_id properties are in sync with
     # the database.
+    # XXX: is ScalarType sufficient here?
 
     compiler = edbcompiler.new_compiler(
         std_schema=stdlib.stdschema,
         reflection_schema=stdlib.reflschema,
         schema_class_layout=stdlib.classlayout,
+        global_intro_query=stdlib.global_intro_query,
+        local_intro_query=stdlib.local_intro_query,
     )
     _, sql = compile_bootstrap_script(
         compiler,
@@ -1343,25 +1628,22 @@ async def _init_stdlib(
         schema = t.set_field_value(
             schema, 'backend_id', entry['backend_id'])
 
-    if backend_params.instance_params.ext_schema != "edgedbext":
-        # Patch functions referring to extensions, because
-        # some backends require extensions to be hosted in
-        # hardcoded schemas (e.g. Heroku)
-        await metaschema.patch_pg_extensions(conn, backend_params)
+    # Patch functions referring to extensions, because
+    # some backends require extensions to be hosted in
+    # hardcoded schemas (e.g. Heroku)
+    await metaschema.patch_pg_extensions(conn, backend_params)
 
     stdlib = stdlib._replace(stdschema=schema)
-    version_key = patches.get_version_key(len(patches.PATCHES))
+    version_key = patches.get_version_key(stdlib.num_patches)
 
+    # stdschema and reflschema are combined in one pickle to preserve sharing
     await _store_static_bin_cache(
         ctx,
-        f'stdschema{version_key}',
-        pickle.dumps(schema, protocol=pickle.HIGHEST_PROTOCOL),
-    )
-
-    await _store_static_bin_cache(
-        ctx,
-        f'reflschema{version_key}',
-        pickle.dumps(stdlib.reflschema, protocol=pickle.HIGHEST_PROTOCOL),
+        f'std_and_reflection_schema{version_key}',
+        pickle.dumps(
+            (schema, stdlib.reflschema),
+            protocol=pickle.HIGHEST_PROTOCOL,
+        ),
     )
 
     await _store_static_bin_cache(
@@ -1397,74 +1679,22 @@ async def _init_stdlib(
         std_schema=schema,
         reflection_schema=stdlib.reflschema,
         schema_class_layout=stdlib.classlayout,
+        global_intro_query=stdlib.global_intro_query,
+        local_intro_query=stdlib.local_intro_query,
     )
 
     await metaschema.generate_more_support_functions(
         conn, compiler, stdlib.reflschema, testmode)
 
-    if tpldbdump is not None:
-        # When we restore a database from a dump, OIDs for non-system
-        # Postgres types might get skewed as they are not part of the dump.
-        # A good example of that is `std::bigint` which is implemented as
-        # a custom domain type. The OIDs are stored under
-        # `schema::Object.backend_id` property and are injected into
-        # array query arguments.
-        #
-        # The code below re-syncs backend_id properties of EdgeDB builtin
-        # types with the actual OIDs in the DB.
-
-        compiler = edbcompiler.new_compiler(
-            std_schema=stdlib.stdschema,
-            reflection_schema=stdlib.reflschema,
-            schema_class_layout=stdlib.classlayout,
-        )
-        _, sql = compile_bootstrap_script(
-            compiler,
-            stdlib.reflschema,
-            '''
-            UPDATE schema::Type
-            FILTER
-                .builtin
-                AND NOT (.abstract ?? False)
-                AND schema::Type IS schema::ScalarType | schema::Tuple
-            SET {
-                backend_id := sys::_get_pg_type_for_edgedb_type(
-                    .id,
-                    .__type__.name,
-                    <uuid>{},
-                    <str>{},
-                )
-            }
-            ''',
-            expected_cardinality_one=False,
-        )
-        await conn.sql_execute(sql.encode("utf-8"))
-
-        _, sql = compile_bootstrap_script(
-            compiler,
-            stdlib.reflschema,
-            '''
-            UPDATE (schema::Array UNION schema::Range)
-            FILTER
-                .builtin
-                AND NOT (.abstract ?? False)
-            SET {
-                backend_id := sys::_get_pg_type_for_edgedb_type(
-                    .id,
-                    .__type__.name,
-                    .element_type.id,
-                    <str>{},
-                )
-            }
-            ''',
-            expected_cardinality_one=False,
-        )
-        await conn.sql_execute(sql.encode("utf-8"))
-
     await _store_static_json_cache(
         ctx,
         'configspec',
         config.spec_to_json(config_spec),
+    )
+    await _store_static_json_cache(
+        ctx,
+        'configspec_ext',
+        json.dumps({}),
     )
 
     return stdlib, config_spec, compiler
@@ -1530,17 +1760,17 @@ async def _configure(
             await _execute(ctx.conn, sql)
 
 
-def _compile_sys_queries(
+def compile_sys_queries(
     schema: s_schema.Schema,
     compiler: edbcompiler.Compiler,
     config_spec: config.Spec,
-) -> tuple[str, bytes, bytes]:
+) -> tuple[dict[str, str], bytes, bytes]:
     queries = {}
 
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        'SELECT cfg::get_config_json()',
+        'SELECT cfg::_get_config_json_internal()',
         expected_cardinality_one=True,
     )
 
@@ -1549,7 +1779,7 @@ def _compile_sys_queries(
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        "SELECT cfg::get_config_json(sources := ['database'])",
+        "SELECT cfg::_get_config_json_internal(sources := ['database'])",
         expected_cardinality_one=True,
     )
 
@@ -1558,7 +1788,9 @@ def _compile_sys_queries(
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        "SELECT cfg::get_config_json(max_source := 'system override')",
+        """
+        SELECT cfg::_get_config_json_internal(max_source := 'system override')
+        """,
         expected_cardinality_one=True,
     )
 
@@ -1567,7 +1799,9 @@ def _compile_sys_queries(
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        "SELECT cfg::get_config_json(max_source := 'postgres client')",
+        """
+        SELECT cfg::_get_config_json_internal(max_source := 'postgres client')
+        """,
         expected_cardinality_one=True,
     )
 
@@ -1615,6 +1849,58 @@ def _compile_sys_queries(
 
     queries['backend_tids'] = sql
 
+    # When we restore a database from a dump, OIDs for non-system
+    # Postgres types might get skewed as they are not part of the dump.
+    # A good example of that is `std::bigint` which is implemented as
+    # a custom domain type. The OIDs are stored under
+    # `schema::Object.backend_id` property and are injected into
+    # array query arguments.
+    #
+    # The code below re-syncs backend_id properties of EdgeDB builtin
+    # types with the actual OIDs in the DB.
+    backend_id_fixup_edgeql = '''
+        WITH
+          _ := (
+            UPDATE {schema::ScalarType, schema::Tuple}
+            FILTER
+                NOT (.abstract ?? False)
+                AND NOT (.transient ?? False)
+            SET {
+                backend_id := sys::_get_pg_type_for_edgedb_type(
+                    .id,
+                    .__type__.name,
+                    <uuid>{},
+                    [is schema::ScalarType].sql_type ?? (
+                      select [is schema::ScalarType]
+                      .bases[is schema::ScalarType] limit 1
+                    ).sql_type,
+                )
+            }
+          ),
+          _ := (
+            UPDATE {schema::Array, schema::Range, schema::MultiRange}
+            FILTER
+                NOT (.abstract ?? False)
+                AND NOT (.transient ?? False)
+            SET {
+                backend_id := sys::_get_pg_type_for_edgedb_type(
+                    .id,
+                    .__type__.name,
+                    .element_type.id,
+                    <str>{},
+                )
+            }
+          ),
+        SELECT 1;
+    '''
+    _, sql = compile_bootstrap_script(
+        compiler,
+        schema,
+        backend_id_fixup_edgeql,
+        expected_cardinality_one=True,
+    )
+    queries['backend_id_fixup'] = sql
+
     report_settings: list[str] = []
     for setname in config_spec:
         setting = config_spec[setname]
@@ -1659,7 +1945,7 @@ def _compile_sys_queries(
     report_configs_typedesc_1_0 = units[0].out_type_id + units[0].out_type_data
 
     return (
-        json.dumps(queries),
+        queries,
         report_configs_typedesc_1_0,
         report_configs_typedesc_2_0,
     )
@@ -1716,12 +2002,6 @@ async def _populate_misc_instance_data(
         ctx,
         'instancedata',
         json.dumps(json_instance_data),
-    )
-
-    await _store_static_json_cache(
-        ctx,
-        'num_patches',
-        json.dumps(len(patches.PATCHES)),
     )
 
     backend_params = ctx.cluster.get_runtime_params()
@@ -1991,7 +2271,7 @@ async def _pg_ensure_database_not_connected(
             f'database {dbname!r} is being accessed by other users')
 
 
-async def _start(ctx: BootstrapContext) -> None:
+async def _start(ctx: BootstrapContext) -> edbcompiler.CompilerState:
     conn = await _check_catalog_compatibility(ctx)
 
     try:
@@ -2000,7 +2280,7 @@ async def _start(ctx: BootstrapContext) -> None:
         ctx.cluster.overwrite_capabilities(struct.Struct('!Q').unpack(caps)[0])
         _check_capabilities(ctx)
 
-        await edbcompiler.new_compiler_from_pg(conn)
+        return (await edbcompiler.new_compiler_from_pg(conn)).state
 
     finally:
         conn.terminate()
@@ -2025,7 +2305,7 @@ async def _bootstrap_edgedb_super_roles(ctx: BootstrapContext) -> uuid.UUID:
     return superuser_uid
 
 
-async def _bootstrap(ctx: BootstrapContext) -> None:
+async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
     args = ctx.args
     cluster = ctx.cluster
     backend_params = cluster.get_runtime_params()
@@ -2041,17 +2321,6 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
             )
         )
 
-    if args.backend_capability_sets.must_be_absent:
-        caps = backend_params.instance_params.capabilities
-        disabled = []
-        for cap in args.backend_capability_sets.must_be_absent:
-            if caps & cap:
-                caps &= ~cap
-                disabled.append(cap)
-        if disabled:
-            logger.info(f"the following backend capabilities are disabled: "
-                        f"{', '.join(str(cap.name) for cap in disabled)}")
-            cluster.overwrite_capabilities(caps)
     _check_capabilities(ctx)
 
     if backend_params.has_create_role:
@@ -2098,16 +2367,22 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
             sysqueries,
             report_configs_typedesc_1_0,
             report_configs_typedesc_2_0,
-        ) = _compile_sys_queries(
+        ) = compile_sys_queries(
             stdlib.reflschema,
             compiler,
             config_spec,
         )
-        version_key = patches.get_version_key(len(patches.PATCHES))
+
+        # Update schema backend_ids to match the reality after
+        await tpl_ctx.conn.sql_execute(
+            sysqueries['backend_id_fixup'].encode('utf-8')
+        )
+
+        version_key = patches.get_version_key(stdlib.num_patches)
         await _store_static_json_cache(
             tpl_ctx,
             f'sysqueries{version_key}',
-            sysqueries,
+            json.dumps(sysqueries),
         )
 
         await _store_static_bin_cache(
@@ -2122,7 +2397,13 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
             report_configs_typedesc_2_0,
         )
 
-        schema = s_schema.FlatSchema()
+        await _store_static_json_cache(
+            tpl_ctx,
+            'num_patches',
+            json.dumps(stdlib.num_patches),
+        )
+
+        schema = s_schema.EMPTY_SCHEMA
         schema = await _init_defaults(schema, compiler, tpl_ctx.conn)
 
         # Run analyze on the template database, so that new dbs start
@@ -2222,15 +2503,17 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
             args.default_database_user or edbdef.EDGEDB_SUPERUSER,
         )
 
+    return compiler.state
+
 
 async def ensure_bootstrapped(
     cluster: pgcluster.BaseCluster,
     args: edbargs.ServerConfig,
-) -> bool:
+) -> tuple[bool, edbcompiler.CompilerState]:
     """Bootstraps EdgeDB instance if it hasn't been bootstrapped already.
 
     Returns True if bootstrap happened and False if the instance was already
-    bootstrapped.
+    bootstrapped, along with the bootstrap compiler state.
     """
     pgconn = PGConnectionProxy(cluster)
     ctx = BootstrapContext(cluster=cluster, conn=pgconn, args=args)
@@ -2239,10 +2522,10 @@ async def ensure_bootstrapped(
         mode = await _get_cluster_mode(ctx)
         ctx = dataclasses.replace(ctx, mode=mode)
         if mode == ClusterMode.pristine:
-            await _bootstrap(ctx)
-            return True
+            state = await _bootstrap(ctx)
+            return True, state
         else:
-            await _start(ctx)
-            return False
+            state = await _start(ctx)
+            return False, state
     finally:
         pgconn.terminate()

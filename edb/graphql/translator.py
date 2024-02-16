@@ -287,7 +287,7 @@ class GraphQLTranslator:
                     else:
                         raise err
 
-                name = el.expr.steps[0].ptr.name
+                name = el.expr.steps[0].name
                 el.compexpr.args[0] = qlast.StringConstant.from_python(
                     json.dumps(result.data[name]))
                 for var in vars.touched:
@@ -514,11 +514,7 @@ class GraphQLTranslator:
                     maintype=base.edb_base_name_ast
                 )
             ))
-        steps.append(qlast.Ptr(
-            ptr=qlast.ObjectRef(
-                name=node.name.value
-            )
-        ))
+        steps.append(qlast.Ptr(name=node.name.value))
 
         return is_top, path, prevt, target, steps
 
@@ -542,9 +538,7 @@ class GraphQLTranslator:
             spec = qlast.ShapeElement(
                 expr=qlast.Path(
                     steps=[qlast.Ptr(
-                        ptr=qlast.ObjectRef(
-                            name=(node.alias or node.name).value
-                        )
+                        name=(node.alias or node.name).value,
                     )]
                 ),
                 compexpr=eql,
@@ -568,10 +562,8 @@ class GraphQLTranslator:
             spec = qlast.ShapeElement(
                 expr=qlast.Path(
                     steps=[qlast.Ptr(
-                        ptr=qlast.ObjectRef(
-                            # this is already a sub-query
-                            name=(node.alias or node.name).value
-                        )
+                        # this is already a sub-query
+                        name=(node.alias or node.name).value
                     )]
                 ),
                 compexpr=eql,
@@ -586,10 +578,8 @@ class GraphQLTranslator:
             spec = qlast.ShapeElement(
                 expr=qlast.Path(
                     steps=[qlast.Ptr(
-                        ptr=qlast.ObjectRef(
-                            # this is already a sub-query
-                            name=(node.alias or node.name).value
-                        )
+                        # this is already a sub-query
+                        name=(node.alias or node.name).value
                     )]
                 ),
                 compexpr=eql,
@@ -609,6 +599,10 @@ class GraphQLTranslator:
                 self._context.fields.append({})
                 shape.elements = self.visit(node.selection_set)
                 insert_shapes = self._visit_insert_arguments(node.arguments)
+                if not insert_shapes:
+                    # No insert arguments, nmeaning that a single object must
+                    # be inserted without any shape.
+                    insert_shapes = [None]
                 self._context.fields.pop()
 
             filterable.aliases = [
@@ -985,8 +979,7 @@ class GraphQLTranslator:
                     fname = field.name.value
                     # capture the full path to the field being updated
                     eqlpath = self.get_path_prefix()
-                    eqlpath.append(
-                        qlast.Ptr(ptr=qlast.ObjectRef(name=fname)))
+                    eqlpath.append(qlast.Ptr(name=fname))
                     eqlpath = qlast.Path(steps=eqlpath)
 
                     # set-up the current path to point to the thing
@@ -999,13 +992,7 @@ class GraphQLTranslator:
                         result.append(
                             qlast.ShapeElement(
                                 expr=qlast.Path(
-                                    steps=[
-                                        qlast.Ptr(
-                                            ptr=qlast.ObjectRef(
-                                                name=field.name.value
-                                            )
-                                        )
-                                    ]
+                                    steps=[qlast.Ptr(name=field.name.value)]
                                 ),
                                 operation=qlast.ShapeOperation(op=shapeop),
                                 compexpr=value,
@@ -1033,11 +1020,11 @@ class GraphQLTranslator:
         fname = field.name.value
         # by default we expect an assign
         shapeop = qlast.ShapeOp.ASSIGN
-        ptrname = eqlpath.steps[-1].ptr.name
+        ptrname = eqlpath.steps[-1].name
 
         # NOTE: there will be more operations in the future
         if fname == 'set':
-            value = self._get_input_expr_for_pointer_mutaiton(field, ptrname)
+            value = self._get_input_expr_for_pointer_mutation(field, ptrname)
             return shapeop, value
 
         elif fname == 'clear':
@@ -1118,13 +1105,13 @@ class GraphQLTranslator:
 
         elif fname == 'add':
             # This is a set, so no reason to validate cardinality.
-            value = self._get_input_expr_for_pointer_mutaiton(
+            value = self._get_input_expr_for_pointer_mutation(
                 field, ptrname, validate_cardinality=False)
             shapeop = qlast.ShapeOp.APPEND
             return shapeop, value
         elif fname == 'remove':
             # This is a set, so no reason to validate cardinality.
-            value = self._get_input_expr_for_pointer_mutaiton(
+            value = self._get_input_expr_for_pointer_mutation(
                 field, ptrname, validate_cardinality=False)
             shapeop = qlast.ShapeOp.SUBTRACT
             return shapeop, value
@@ -1148,16 +1135,12 @@ class GraphQLTranslator:
         for field in node.fields:
             # set-up the current path to point to the thing being inserted
             with self._update_path_for_insert_field(field):
-                compexpr = self._get_input_expr_for_pointer_mutaiton(
+                compexpr = self._get_input_expr_for_pointer_mutation(
                     field, field.name.value)
                 result.append(
                     qlast.ShapeElement(
                         expr=qlast.Path(
-                            steps=[
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name=field.name.value)
-                                )
-                            ]
+                            steps=[qlast.Ptr(name=field.name.value)]
                         ),
                         compexpr=compexpr,
                     )
@@ -1165,7 +1148,7 @@ class GraphQLTranslator:
 
         return result
 
-    def _get_input_expr_for_pointer_mutaiton(
+    def _get_input_expr_for_pointer_mutation(
         self,
         field,
         fname,
@@ -1224,10 +1207,47 @@ class GraphQLTranslator:
         yield
         self._context.path.pop()
 
+    def _visit_range_spec(self, node, target):
+        assert isinstance(node, gql_ast.ObjectValueNode)
+        assert target.is_range or target.is_multirange
+
+        # This is a range spec
+        subtype = target.edb_base.get_subtypes(target.edb_schema)[0]
+        st_name = subtype.get_name(target.edb_schema)
+        kwargs = {
+            rf.name.value: self.visit(rf.value) for rf in node.fields
+            if not isinstance(rf.value, gql_ast.NullValueNode)
+        }
+        # move some kwargs into args
+        args = [
+            qlast.TypeCast(
+                expr=kwargs.pop('lower', qlast.Set(elements=[])),
+                type=qlast.TypeName(
+                    maintype=qlast.ObjectRef(name=str(st_name)),
+                ),
+            ),
+            qlast.TypeCast(
+                expr=kwargs.pop('upper', qlast.Set(elements=[])),
+                type=qlast.TypeName(
+                    maintype=qlast.ObjectRef(name=str(st_name)),
+                ),
+            ),
+        ]
+
+        return qlast.FunctionCall(
+            func='range',
+            args=args,
+            kwargs=kwargs,
+        )
+
     def _visit_insert_value(self, node):
         # get the type of the value being inserted
         _, target = self._get_parent_and_current_type()
         if isinstance(node, gql_ast.ObjectValueNode):
+            if target.is_range or target.is_multirange:
+                # This is a range spec
+                return self._visit_range_spec(node, target)
+
             # get a template AST
             eql, shape, filterable = target.get_template()
 
@@ -1251,8 +1271,23 @@ class GraphQLTranslator:
 
                 return eql
 
+        elif isinstance(node, gql_ast.ListValueNode) and target.is_multirange:
+            # Multiranges are composed of a list of ranges. So we just need to
+            # wrap the literal array into a range function call.
+            return qlast.FunctionCall(
+                func='multirange',
+                args=[
+                    qlast.Array(
+                        elements=[
+                            self._visit_insert_value(el) for el in node.values
+                        ]
+                    ),
+                ],
+            )
+
         elif isinstance(node, gql_ast.ListValueNode) and not target.is_array:
-            # not an actual array, but a set represented as a list
+            # not an actual array or multirange, but a set represented as a
+            # list
             return qlast.Set(elements=[
                 self._visit_insert_value(el) for el in node.values])
 
@@ -1290,6 +1325,41 @@ class GraphQLTranslator:
                             maintype=qlast.ObjectRef(name='array'),
                             subtypes=[res.type],
                         )
+                    )
+
+                elif target.is_range:
+                    # Range inputs come in two varieties: as a variable or as
+                    # a literal. Variables are already in JSON format and only
+                    # need to be cast into the appropriate range. Literals are
+                    # processed earlier as ObjectValueNode.
+                    res = qlast.TypeCast(
+                        expr=val,
+                        type=qlast.TypeName(
+                            maintype=qlast.ObjectRef(name='range'),
+                            subtypes=[res.type],
+                        )
+                    )
+
+                elif target.is_multirange:
+                    # Multiranges are composed of a list of ranges. List
+                    # literal is processed earlier, so we just need to cast
+                    # JSON into an array of ranges if it came from a
+                    # varaible.
+                    rtype = qlast.TypeName(
+                        maintype=qlast.ObjectRef(name='range'),
+                        subtypes=[res.type],
+                    )
+                    res = qlast.FunctionCall(
+                        func='multirange',
+                        args=[
+                            qlast.TypeCast(
+                                expr=val,
+                                type=qlast.TypeName(
+                                    maintype=qlast.ObjectRef(name='array'),
+                                    subtypes=[rtype],
+                                )
+                            )
+                        ],
                     )
 
                 return res
@@ -1368,9 +1438,7 @@ class GraphQLTranslator:
                     )
                 )
             else:
-                prefix.append(
-                    qlast.Ptr(ptr=qlast.ObjectRef(name=step.name))
-                )
+                prefix.append(qlast.Ptr(name=step.name))
 
         return prefix
 
@@ -1440,7 +1508,7 @@ class GraphQLTranslator:
         _, target = self._get_parent_and_current_type()
 
         name = self.get_path_prefix()
-        name.append(qlast.Ptr(ptr=qlast.ObjectRef(name=fname)))
+        name.append(qlast.Ptr(name=fname))
         name = qlast.Path(
             steps=name,
             # paths that start with a Ptr are partial
@@ -1508,7 +1576,7 @@ class GraphQLTranslator:
         if not node.fields:
             return [qlast.SortExpr(
                 path=qlast.Path(
-                    steps=[qlast.Ptr(ptr=qlast.ObjectRef(name='id'))],
+                    steps=[qlast.Ptr(name='id')],
                     partial=True,
                 ),
                 direction=qlast.SortAsc,
@@ -1521,8 +1589,7 @@ class GraphQLTranslator:
             orderby.append(qlast.SortExpr(
                 path=qlast.Path(
                     steps=[
-                        qlast.Ptr(ptr=qlast.ObjectRef(name=name))
-                        for name in ordering.names
+                        qlast.Ptr(name=name) for name in ordering.names
                     ],
                     partial=True,
                 ),
@@ -1592,16 +1659,28 @@ class GraphQLTranslator:
 
         vartype = var.defn.type
         optional = True
+        # get the type of the value being inserted
+        _, target = self._get_parent_and_current_type()
+
         if isinstance(vartype, gql_ast.NonNullTypeNode):
             vartype = vartype.type
             optional = False
 
         if self.is_list_type(vartype):
-            raise errors.QueryError(err_msg)
+            if target.is_array:
+                raise errors.QueryError(err_msg)
+            elif target.is_multirange:
+                subtype = target.edb_base.get_subtypes(target.edb_schema)[0]
+                st_name = subtype.get_name(target.edb_schema)
+                castname = qlast.ObjectRef(name=str(st_name))
 
-        if vartype.name.value in gt.GQL_TO_EDB_SCALARS_MAP:
+        elif vartype.name.value in gt.GQL_TO_EDB_SCALARS_MAP:
             castname = qlast.ObjectRef(
                 name=gt.GQL_TO_EDB_SCALARS_MAP[vartype.name.value])
+        elif (
+            name := gt.GQL_TO_EDB_RANGES_MAP.get(vartype.name.value)
+        ) is not None:
+            castname = qlast.ObjectRef(name=name)
         else:
             try:
                 vtype = self.get_type(
@@ -1615,8 +1694,17 @@ class GraphQLTranslator:
                 raise errors.QueryError(err_msg)
 
         casttype = qlast.TypeName(maintype=castname)
+
         # potentially this is an array
         if self.is_list_type(vartype):
+            if target.is_multirange:
+                # Wrap the base type into range, the next step will wrap it into
+                # an array.
+                casttype = qlast.TypeName(
+                    maintype=qlast.ObjectRef(name='range'),
+                    subtypes=[casttype],
+                )
+
             casttype = qlast.TypeName(
                 maintype=qlast.ObjectRef(name='array'),
                 subtypes=[casttype]

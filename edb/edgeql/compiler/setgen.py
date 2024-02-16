@@ -130,6 +130,12 @@ def get_set_type(
     return ctx.env.set_types[ir_set]
 
 
+def get_expr_type(
+        ir: irast.Set | irast.Expr, *,
+        ctx: context.ContextLevel) -> s_types.Type:
+    return typegen.type_from_typeref(ir.typeref, env=ctx.env)
+
+
 class KeepCurrentT(enum.Enum):
     KeepCurrent = 0
 
@@ -147,6 +153,7 @@ def new_set_from_set(
         expr: Optional[irast.Expr | KeepCurrentT]=KeepCurrent,
         context: Optional[parsing.ParserContext]=None,
         is_binding: Optional[irast.BindingKind]=None,
+        is_schema_alias: Optional[bool]=None,
         is_materialized_ref: Optional[bool]=None,
         is_visible_binding_ref: Optional[bool]=None,
         skip_subtypes: Optional[bool]=None,
@@ -176,6 +183,8 @@ def new_set_from_set(
         context = ir_set.context
     if is_binding is None:
         is_binding = ir_set.is_binding
+    if is_schema_alias is None:
+        is_schema_alias = ir_set.is_schema_alias
     if is_materialized_ref is None:
         is_materialized_ref = ir_set.is_materialized_ref
     if is_visible_binding_ref is None:
@@ -192,6 +201,7 @@ def new_set_from_set(
         rptr=rptr,
         context=context,
         is_binding=is_binding,
+        is_schema_alias=is_schema_alias,
         is_materialized_ref=is_materialized_ref,
         is_visible_binding_ref=is_visible_binding_ref,
         skip_subtypes=skip_subtypes,
@@ -206,9 +216,9 @@ def new_tuple_set(
         named: bool,
         ctx: context.ContextLevel) -> irast.Set:
 
-    dummy_typeref = cast(irast.TypeRef, None)
-    tup = irast.Tuple(elements=elements, named=named, typeref=dummy_typeref)
-    stype = inference.infer_type(tup, env=ctx.env)
+    element_types = {el.name: get_set_type(el.val, ctx=ctx) for el in elements}
+    ctx.env.schema, stype = s_types.Tuple.create(
+        ctx.env.schema, element_types=element_types, named=named)
     result_path_id = pathctx.get_expression_path_id(stype, ctx=ctx)
 
     final_elems = []
@@ -223,27 +233,36 @@ def new_tuple_set(
         ))
 
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
-    final_tup = irast.Tuple(elements=final_elems, named=named, typeref=typeref)
-    return ensure_set(final_tup, path_id=result_path_id,
+    tup = irast.Tuple(elements=final_elems, named=named, typeref=typeref)
+    return ensure_set(tup, path_id=result_path_id,
                       type_override=stype, ctx=ctx)
 
 
 def new_array_set(
         elements: Sequence[irast.Set], *,
+        stype: Optional[s_types.Type]=None,
         ctx: context.ContextLevel,
         srcctx: Optional[parsing.ParserContext]=None) -> irast.Set:
 
-    dummy_typeref = cast(irast.TypeRef, None)
-    arr = irast.Array(elements=elements, typeref=dummy_typeref)
     if elements:
-        stype = inference.infer_type(arr, env=ctx.env)
+        element_type = typegen.infer_common_type(elements, ctx.env)
+        if element_type is None:
+            raise errors.QueryError('could not determine array type',
+                                    context=srcctx)
+    elif stype is not None:
+        # When constructing an empty array, we should skip explicit cast any
+        # time that we would skip it for an empty set because we can infer it
+        # from the context.
+        assert stype.is_array()
     else:
-        anytype = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
-        ctx.env.schema, stype = s_types.Array.from_subtypes(
-            ctx.env.schema, [anytype])
+        element_type = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
         if srcctx is not None:
-            ctx.env.type_origins[anytype] = srcctx
+            ctx.env.type_origins[element_type] = srcctx
 
+    if stype is None:
+        assert element_type
+        ctx.env.schema, stype = s_types.Array.from_subtypes(
+            ctx.env.schema, [element_type])
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
     arr = irast.Array(elements=elements, typeref=typeref)
     return ensure_set(arr, type_override=stype, ctx=ctx)
@@ -286,6 +305,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if isinstance(step, qlast.SpecialAnchor):
             path_tip = resolve_special_anchor(step, ctx=ctx)
 
+        elif isinstance(step, qlast.IRAnchor):
+            # Check if the starting path label is a known anchor
+            refnode = anchors.get(step.name)
+            if not refnode:
+                raise AssertionError(f'anchor {step.name} is missing')
+            path_tip = new_set_from_set(refnode, ctx=ctx)
+
         elif isinstance(step, qlast.ObjectRef):
             if i > 0:  # pragma: no cover
                 raise RuntimeError(
@@ -303,21 +329,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if refnode is not None:
                 path_tip = new_set_from_set(refnode, ctx=ctx)
             else:
-                stype = schemactx.get_schema_type(
-                    step,
-                    condition=lambda o: (
-                        isinstance(o, s_types.Type)
-                        and (
-                            o.is_object_type() or
-                            o.is_view(ctx.env.schema) or
-                            o.is_enum(ctx.env.schema)
-                        )
-                    ),
-                    label='object type or alias',
-                    item_type=s_types.QualifiedType,
-                    srcctx=step.context,
-                    ctx=ctx,
-                )
+                (view_set, stype) = resolve_name(step, ctx=ctx)
 
                 if (stype.is_enum(ctx.env.schema) and
                         not stype.is_view(ctx.env.schema)):
@@ -336,7 +348,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     # a WITH-block or inline alias view.
                     stype = stmtctx.declare_view_from_schema(stype, ctx=ctx)
 
-                view_set = ctx.view_sets.get(stype)
+                if not view_set:
+                    view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
                     view_scope_info = ctx.env.path_scope_map[view_set]
                     path_tip = new_set_from_set(
@@ -368,7 +381,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             else:
                 direction = s_pointers.PointerDirection.Outbound
 
-            ptr_name = ptr_expr.ptr.name
+            ptr_name = ptr_expr.name
 
             source: s_obj.Object
             ptr: s_pointers.PointerLike
@@ -380,8 +393,22 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     raise errors.EdgeQLSyntaxError(
                         f"unexpected reference to link property {ptr_name!r} "
                         "outside of a path expression",
-                        context=ptr_expr.ptr.context,
+                        context=ptr_expr.context,
                     )
+
+                # The backend can't really handle @source/@target
+                # outside of the singleton mode compiler, and they
+                # aren't really particularly useful outside that
+                # anyway, so disallow them.
+                if (
+                    ptr_expr.name in ('source', 'target')
+                    and ctx.env.options.schema_object_context
+                    not in (s_constr.Constraint, s_indexes.Index)
+                ):
+                    raise errors.QueryError(
+                        f'@{ptr_expr.name} may only be used in index and '
+                        'constraint definitions',
+                        context=step.context)
 
                 if isinstance(path_tip.rptr.ptrref,
                               irast.TypeIntersectionPointerRef):
@@ -405,7 +432,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                             f"property '{ptr_name}' does not exist because"
                             f" there are no '{pn}' links between"
                             f" {s_vn} and {t_vn}",
-                            context=ptr_expr.ptr.context,
+                            context=ptr_expr.context,
                         )
 
                     prefix_ptr_name = (
@@ -466,7 +493,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     is_computable = True
 
         elif isinstance(step, qlast.TypeIntersection):
-            arg_type = inference.infer_type(path_tip, ctx.env)
+            arg_type = get_set_type(path_tip, ctx=ctx)
             if not isinstance(arg_type, s_objtypes.ObjectType):
                 raise errors.QueryError(
                     f'cannot apply type intersection operator to '
@@ -583,6 +610,36 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             path_sets[i] = comp_ir_set
 
     return path_tip
+
+
+def resolve_name(
+    name: qlast.ObjectRef, *, ctx: context.ContextLevel
+) -> Tuple[Optional[irast.Set], s_types.Type]:
+
+    view_set = None
+    stype = None
+    if not name.module:
+        view_set = ctx.aliased_views.get(s_name.UnqualName(name.name))
+        if view_set:
+            stype = get_set_type(view_set, ctx=ctx)
+            return (view_set, stype)
+
+    stype = schemactx.get_schema_type(
+        name,
+        condition=lambda o: (
+            isinstance(o, s_types.Type)
+            and (
+                o.is_object_type() or
+                o.is_view(ctx.env.schema) or
+                o.is_enum(ctx.env.schema)
+            )
+        ),
+        label='object type or alias',
+        item_type=s_types.QualifiedType,
+        srcctx=name.context,
+        ctx=ctx,
+    )
+    return (None, stype)
 
 
 def resolve_special_anchor(
@@ -703,14 +760,15 @@ def resolve_ptr_with_intersections(
             s_name.UnqualName(pointer_name),
         )
 
-        # If we couldn't anything, but the source is a computed backlink,
-        # look for a link property on the reverse side of it. This allows
-        # us to access link properties in both directions on links, including
-        # when the backlink has been stuck in a computed.
+        # If we couldn't anything, but the source is a computed link
+        # that aliases some other link, look for a link property on
+        # it. This allows us to access link properties in both
+        # directions on links, including when the backlink has been
+        # stuck in a computed.
         if (
             ptr is None
-            and isinstance(near_endpoint, s_pointers.Pointer)
-            and (back := near_endpoint.get_computed_backlink(ctx.env.schema))
+            and isinstance(near_endpoint, s_links.Link)
+            and (back := near_endpoint.get_computed_link_alias(ctx.env.schema))
             and isinstance(back, s_links.Link)
             and (nptr := back.maybe_get_ptr(
                 ctx.env.schema,
@@ -720,8 +778,24 @@ def resolve_ptr_with_intersections(
             # around a bunch of stuff inside them.
             and not nptr.is_pure_computable(ctx.env.schema)
         ):
-            ptr = schemactx.derive_ptr(nptr, near_endpoint, ctx=ctx)
-            path_id_ptr = ptr
+            src_type = downcast(
+                s_types.Type, near_endpoint.get_source(ctx.env.schema)
+            )
+            if not src_type.is_view(ctx.env.schema):
+                # HACK: If the source is in the standard library, and
+                # not a view, we can't add a derived pointer.  For
+                # consistency, just always require it be a view.
+                new_source = downcast(
+                    s_objtypes.ObjectType,
+                    schemactx.derive_view(src_type, ctx=ctx),
+                )
+                new_endpoint = downcast(s_links.Link, schemactx.derive_ptr(
+                    near_endpoint, new_source, ctx=ctx))
+            else:
+                new_endpoint = near_endpoint
+
+            ptr = schemactx.derive_ptr(nptr, new_endpoint, ctx=ctx)
+            path_id_ptr = nptr
 
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
@@ -850,6 +924,34 @@ def resolve_ptr_with_intersections(
     raise err
 
 
+def _check_secret_ptr(
+    ptrcls: s_pointers.Pointer,
+    *,
+    srcctx: Optional[parsing.ParserContext]=None,
+    ctx: context.ContextLevel,
+) -> None:
+    module = ptrcls.get_name(ctx.env.schema).module
+
+    func_name = ctx.env.options.func_name
+    if func_name and func_name.module == module:
+        return
+
+    view_name = ctx.env.options.result_view_name  # type: ignore
+    if view_name and view_name.module == module:
+        return
+
+    if ctx.current_schema_views:
+        view_name = ctx.current_schema_views[-1].get_name(ctx.env.schema)
+        if view_name.module == module:
+            return
+
+    vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
+    raise errors.QueryError(
+        f"cannot access {vn} because it is secret",
+        context=srcctx,
+    )
+
+
 def extend_path(
     source_set: irast.Set,
     ptrcls: s_pointers.Pointer,
@@ -900,6 +1002,9 @@ def extend_path(
         ns=ctx.path_id_namespace,
         ctx=ctx,
     )
+
+    if ptrcls.get_secret(ctx.env.schema):
+        _check_secret_ptr(ptrcls, srcctx=srcctx, ctx=ctx)
 
     target = orig_ptrcls.get_far_endpoint(ctx.env.schema, direction)
     assert isinstance(target, s_types.Type)
@@ -1012,7 +1117,7 @@ def compile_enum_path(
             context=step2.context,
         )
 
-    ptr_name = step2.ptr.name
+    ptr_name = step2.name
 
     step2_direction = s_pointers.PointerDirection.Outbound
     if step2.direction is not None:
@@ -1049,7 +1154,7 @@ def compile_enum_path(
 
     return enum_indirection_set(
         source=source,
-        ptr_name=step2.ptr.name,
+        ptr_name=step2.name,
         source_context=expr.context,
         ctx=ctx,
     )
@@ -1222,7 +1327,7 @@ def expression_set(
     if type_override is not None:
         stype = type_override
     else:
-        stype = inference.infer_type(expr, ctx.env)
+        stype = get_expr_type(expr, ctx=ctx)
 
     if path_id is None:
         path_id = getattr(expr, 'path_id', None)
@@ -1302,7 +1407,7 @@ def ensure_set(
     if (isinstance(ir_set, irast.EmptySet)
             and (stype is None or stype.is_any(ctx.env.schema))
             and typehint is not None):
-        inference.amend_empty_set_type(ir_set, typehint, env=ctx.env)
+        typegen.amend_empty_set_type(ir_set, typehint, env=ctx.env)
         stype = get_set_type(ir_set, ctx=ctx)
 
     if (
@@ -1392,7 +1497,7 @@ def computable_ptr_set(
                 steps=[
                     qlast.Source(),
                     qlast.Ptr(
-                        ptr=qlast.ObjectRef(name=ptrcls_n),
+                        name=ptrcls_n,
                         direction=s_pointers.PointerDirection.Outbound,
                         type=(
                             'property'
@@ -1567,10 +1672,11 @@ def _get_schema_computed_ctx(
             # path derived from the pointer source.
             if not (
                 isinstance(src, s_pointers.Pointer)
-                and src.generic(ctx.env.schema)
+                and src.is_non_concrete(ctx.env.schema)
             ):
                 inner_path_id = not_none(irast.PathId.from_pointer(
                     ctx.env.schema, ptr, namespace=subctx.path_id_namespace,
+                    env=ctx.env,
                 ).src_path())
                 remapped_source = new_set_from_set(
                     rptr.source, rptr=rptr.source.rptr, ctx=ctx
@@ -1965,8 +2071,15 @@ def get_globals_as_json(
     """
     # TODO: arrange to compute this once per query, in a CTE or some such?
 
+    # If globals are empty, arrange to still pass in the argument but
+    # don't put anything in it.
+    if ctx.env.options.make_globals_empty:
+        globs = ()
+
     objctx = ctx.env.options.schema_object_context
-    if globs and objctx in (s_constr.Constraint, s_indexes.Index):
+    is_constraint_like = objctx in (s_constr.Constraint, s_indexes.Index)
+    if globs and is_constraint_like:
+        assert objctx
         typname = objctx.get_schema_class_displayname()
         # XXX: or should we pass in empty globals, in this situation?
         raise errors.SchemaDefinitionError(
@@ -1996,7 +2109,7 @@ def get_globals_as_json(
 
             main_param = subctx.create_anchor(param, 'a')
             tuple_el = qlast.TupleElement(
-                name=qlast.ObjectRef(name=name),
+                name=qlast.Ptr(name=name),
                 val=qlast.BinOp(
                     op='??',
                     left=qlast.TypeCast(expr=main_param, type=json_type),
@@ -2034,7 +2147,7 @@ def get_globals_as_json(
         if (
             not ctx.env.options.apply_user_access_policies
             or not ctx.env.options.apply_query_rewrites
-        ):
+        ) and not is_constraint_like:
             full_objs.append(qlast.FunctionCall(
                 func=('__std__', 'to_json'),
                 args=[qlast.StringConstant(

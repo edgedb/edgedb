@@ -13,7 +13,7 @@ The ``delete`` command is used to delete objects from the database.
 Clauses
 -------
 
-Deletion statements support ``filter``, ``order by``, and ``offset/limit``
+Deletion statements support ``filter``, ``order by``, ``offset``, and ``limit``
 clauses. See :ref:`EdgeQL > Select <ref_eql_select>` for full documentation
 on these clauses.
 

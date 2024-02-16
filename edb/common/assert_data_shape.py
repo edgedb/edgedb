@@ -33,7 +33,8 @@ import edgedb
 
 class bag(list):
     """Wrapper for list that tells assert_query_result to ignore order"""
-    pass
+    def __repr__(self):
+        return f'bag({list.__repr__(self)})'
 
 
 def sort_results(results, sort):
@@ -68,6 +69,11 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
         if from_sql:
             raise unittest.SkipTest(
                 'SQL tests skipped: asyncpg not installed')
+
+    base_fail = fail
+
+    def fail(msg):
+        base_fail(f'{msg}\nshape: {shape!r}\ndata: {data!r}')
 
     _void = object()
 
@@ -128,12 +134,12 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
     def _assert_list_shape(path, data, shape):
         if not isinstance(data, (list, tuple)):
             fail(
-                f'{message}: expected list '
+                f'{message}: expected list got {type(data)} '
                 f'{_format_path(path)}')
 
         if not data and shape:
             fail(
-                f'{message}: expected non-empty list '
+                f'{message}: expected non-empty list got {type(data)} '
                 f'{_format_path(path)}')
 
         shape_iter = _list_shape_iter(shape)
@@ -264,7 +270,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                         f'{message}: not isclose({data}, {shape}) '
                         f'{_format_path(path)}')
             elif isinstance(shape, uuid.UUID):
-                # If data comde from SQL, we expect UUID.
+                # If data comes from SQL, we expect UUID.
                 if data != shape:
                     fail(
                         f'{message}: {data!r} != {shape!r} '

@@ -52,7 +52,6 @@ import typing
 import unittest
 import unittest.mock
 
-from edb.common import taskgroup
 from edb.server import connpool
 from edb.server.connpool import pool as pool_impl
 
@@ -510,7 +509,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         TICK_EVERY = 0.001
 
         started_at = time.monotonic()
-        async with taskgroup.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             elapsed = 0
             while elapsed < spec.duration:
                 elapsed = time.monotonic() - started_at
@@ -616,7 +615,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         getters = 0
         TICK_EVERY = 0.001
         started_at = time.monotonic()
-        async with taskgroup.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             elapsed = 0
             while elapsed < total_duration * TIME_SCALE:
                 elapsed = time.monotonic() - started_at
@@ -1355,7 +1354,7 @@ class TestServerConnectionPool(unittest.TestCase):
                 max_capacity=10,
             )
 
-            async with taskgroup.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 g.create_task(q0(pool, event))
                 await asyncio.sleep(delay)
                 g.create_task(q1(pool, event))
@@ -1390,7 +1389,7 @@ class TestServerConnectionPool(unittest.TestCase):
                 max_capacity=5,
             )
 
-            async with taskgroup.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for _ in range(4):
                     g.create_task(q('A', pool, wait_event=e1))
 
@@ -1568,6 +1567,39 @@ class TestServerConnectionPool(unittest.TestCase):
         async def main():
             logger.logs = asyncio.Queue()
             await asyncio.wait_for(test(), timeout=5)
+
+        asyncio.run(main())
+
+    def test_connpool_eternal_starvation(self):
+        async def fake_connect(dbname):
+            # very fast connect
+            return FakeConnection(dbname)
+
+        async def test():
+            pool = connpool.Pool(
+                connect=fake_connect,
+                disconnect=self.make_fake_disconnect(),
+                max_capacity=5,
+            )
+            counter = 0
+            event = asyncio.Event()
+
+            async def job(dbname):
+                nonlocal counter
+
+                conn = await pool.acquire(dbname)
+                counter += 1
+                if counter >= 5:
+                    event.set()
+                await event.wait()
+                pool.release(dbname, conn)
+
+            async with asyncio.TaskGroup() as g:
+                for n in range(10):
+                    g.create_task(job(f"block_{n}"))
+
+        async def main():
+            await asyncio.wait_for(test(), timeout=3)
 
         asyncio.run(main())
 

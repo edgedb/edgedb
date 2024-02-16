@@ -189,9 +189,9 @@ def reconstruct_tree(
             parent_offset = offsets[new_parent] + (offset_within_parent,)
         else:
             parent_offset = (offset_within_parent,)
-        new_parent.add(parent)
         old_parent = parents[parent]
         old_parent.discard(parent)
+        new_parent.add_caused(parent)
         parents[parent] = new_parent
 
         for i in range(slice_start, len(opbranch)):
@@ -376,7 +376,7 @@ def reconstruct_tree(
 
             allowed_ops = []
             create_cmd_t = ancestor_op.get_other_command_class(sd.CreateObject)
-            if type(ancestor_op) != create_cmd_t:
+            if type(ancestor_op) is not create_cmd_t:
                 allowed_ops.append(create_cmd_t)
             allowed_ops.append(type(ancestor_op))
 
@@ -700,7 +700,7 @@ def _trace_op(
                 # new one is created)
                 if not isinstance(ref, s_expraliases.Alias):
                     deps.add(('alter', ref_name_str))
-                if type(ref) == type(obj):
+                if type(ref) is type(obj):
                     deps.add(('rebase', ref_name_str))
 
                 # The deletion of any implicit ancestors needs to come after
@@ -812,12 +812,12 @@ def _trace_op(
         for ref in refs:
             write_ref_deps(ref, obj, this_name_str)
 
-        if tag in ('create', 'alter'):
+        if tag == 'create':
             # In a delete/create cycle, deletion must obviously
             # happen first.
-            deps.add(('delete', str(op.classname)))
+            deps.add(('delete', this_name_str))
             # Renaming also
-            deps.add(('rename', str(op.classname)))
+            deps.add(('rename', this_name_str))
 
             if isinstance(obj, s_func.Function) and old_schema is not None:
                 old_funcs = old_schema.get_functions(

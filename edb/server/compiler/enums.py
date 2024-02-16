@@ -24,7 +24,7 @@ import enum
 
 from edb.common import enum as strenum
 from edb.edgeql import qltypes as ir
-from edb.protocol.enums import Cardinality
+from edb.protocol.enums import Cardinality as Cardinality
 
 
 if TYPE_CHECKING:

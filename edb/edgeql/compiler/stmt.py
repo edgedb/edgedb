@@ -57,8 +57,8 @@ from edb.edgeql import desugar_group
 from . import astutils
 from . import clauses
 from . import context
+from . import config_desc
 from . import dispatch
-from . import inference
 from . import pathctx
 from . import policies
 from . import setgen
@@ -192,9 +192,20 @@ def compile_ForQuery(
 
         view_scope_info = sctx.env.path_scope_map[iterator_view]
 
+        if (
+            qlstmt.optional
+            and not qlstmt.from_desugaring
+            and not ctx.env.options.testmode
+        ):
+            raise errors.UnsupportedFeatureError(
+                "'FOR OPTIONAL' is an internal testing feature",
+                context=qlstmt.context,
+            )
+
         pathctx.register_set_in_scope(
             iterator_stmt,
             path_scope=sctx.path_scope,
+            optional=qlstmt.optional,
             ctx=sctx,
         )
 
@@ -262,7 +273,7 @@ def _make_group_binding(
     binding_set.is_visible_binding_ref = True
 
     name = s_name.UnqualName(alias)
-    ctx.aliased_views[name] = binding_type
+    ctx.aliased_views[name] = binding_set
     ctx.view_sets[binding_type] = binding_set
     ctx.env.path_scope_map[binding_set] = context.ScopeInfo(
         path_scope=ctx.path_scope,
@@ -277,8 +288,8 @@ def _make_group_binding(
 def compile_InternalGroupQuery(
     expr: qlast.InternalGroupQuery, *, ctx: context.ContextLevel
 ) -> irast.Set:
-    # We disallow use of FOR GROUP except for when running on a dev build.
-    if not expr.from_desugaring and not ctx.env.options.devmode:
+    # We disallow use of FOR GROUP except for when running in test mode.
+    if not expr.from_desugaring and not ctx.env.options.testmode:
         raise errors.UnsupportedFeatureError(
             "'FOR GROUP' is an internal testing feature",
             context=expr.context,
@@ -527,6 +538,16 @@ def compile_InsertQuery(
         ):
             stmt.write_policies[mat_stype.id] = pol_condition
 
+        # Compute the unioned output type if needed
+        if stmt.on_conflict and stmt.on_conflict.else_ir:
+            final_typ = typegen.infer_common_type(
+                [stmt.result, stmt.on_conflict.else_ir], ctx.env)
+            if final_typ is None:
+                raise errors.QueryError('could not determine INSERT type',
+                                        context=stmt.context)
+            stmt.final_typeref = typegen.type_to_typeref(final_typ, env=ctx.env)
+
+        # Wrap the statement.
         result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
         # If we have an ELSE clause, and this is a toplevel statement,
@@ -553,16 +574,6 @@ def compile_InsertQuery(
     return result
 
 
-def _get_dunder_type_ptrref(ctx: context.ContextLevel) -> irast.PointerRef:
-    return typeutils.lookup_obj_ptrref(
-        ctx.env.schema,
-        s_name.QualName('std', 'BaseObject'),
-        s_name.UnqualName('__type__'),
-        cache=ctx.env.ptr_ref_cache,
-        typeref_cache=ctx.env.type_ref_cache,
-    )
-
-
 @dispatch.compile.register(qlast.UpdateQuery)
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
@@ -581,10 +592,7 @@ def compile_UpdateQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.UpdateStmt(
-            context=expr.context,
-            dunder_type_ptrref=_get_dunder_type_ptrref(ctx),
-        )
+        stmt = irast.UpdateStmt(context=expr.context)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         with ictx.new() as ectx:
@@ -592,7 +600,7 @@ def compile_UpdateQuery(
             subject = dispatch.compile(expr.subject, ctx=ectx)
         assert isinstance(subject, irast.Set)
 
-        subj_type = inference.infer_type(subject, ictx.env)
+        subj_type = setgen.get_set_type(subject, ctx=ictx)
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f'cannot update non-ObjectType objects',
@@ -733,7 +741,7 @@ def compile_DeleteQuery(
             subject = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=scopectx), ctx=scopectx)
 
-        subj_type = inference.infer_type(subject, ictx.env)
+        subj_type = setgen.get_set_type(subject, ctx=ictx)
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f'cannot delete non-ObjectType objects',
@@ -854,26 +862,16 @@ def compile_DescribeStmt(
 
         elif ql.object is qlast.DescribeGlobal.DatabaseConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
-                function_call = dispatch.compile(
-                    qlast.FunctionCall(
-                        func=('cfg', '_describe_database_config_as_ddl'),
-                    ),
-                    ctx=ictx)
-                assert isinstance(function_call, irast.Set), function_call
-                stmt.result = function_call
+                stmt.result = config_desc.compile_describe_config(
+                    qltypes.ConfigScope.DATABASE, ctx=ictx)
             else:
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
 
         elif ql.object is qlast.DescribeGlobal.InstanceConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
-                function_call = dispatch.compile(
-                    qlast.FunctionCall(
-                        func=('cfg', '_describe_system_config_as_ddl'),
-                    ),
-                    ctx=ictx)
-                assert isinstance(function_call, irast.Set), function_call
-                stmt.result = function_call
+                stmt.result = config_desc.compile_describe_config(
+                    qltypes.ConfigScope.INSTANCE, ctx=ictx)
             else:
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
@@ -885,7 +883,6 @@ def compile_DescribeStmt(
                         func=('sys', '_describe_roles_as_ddl'),
                     ),
                     ctx=ictx)
-                assert isinstance(function_call, irast.Set), function_call
                 stmt.result = function_call
             else:
                 raise errors.QueryError(
@@ -1192,7 +1189,7 @@ def fini_stmt(
 ) -> irast.Set:
 
     view_name = parent_ctx.toplevel_result_view_name
-    t = inference.infer_type(irstmt, ctx.env)
+    t = setgen.get_expr_type(irstmt, ctx=ctx)
 
     view: Optional[s_types.Type]
     path_id: Optional[irast.PathId]
@@ -1350,6 +1347,13 @@ def compile_result_clause(
             expr = setgen.new_empty_set(
                 stype=sctx.empty_result_type_hint,
                 alias=ctx.aliases.get('e'),
+                ctx=sctx,
+                srcctx=result_expr.context,
+            )
+        elif astutils.is_ql_empty_array(result_expr):
+            expr = setgen.new_array_set(
+                [],
+                stype=sctx.empty_result_type_hint,
                 ctx=sctx,
                 srcctx=result_expr.context,
             )

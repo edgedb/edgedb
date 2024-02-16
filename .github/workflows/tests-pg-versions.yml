@@ -14,20 +14,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.12.2'
 
     # Build virtualenv
 
@@ -262,7 +262,7 @@ jobs:
       with:
         go-version: 1.16
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       if: steps.stolon-cache.outputs.cache-hit != 'true'
       with:
         repository: sorintlab/stolon
@@ -317,25 +317,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        postgres-version: [ 14 ]
+        postgres-version: [ 16 ]
         single-mode:
          - ''
          - 'NOCREATEDB NOCREATEROLE'
          - 'CREATEDB NOCREATEROLE'
-        remote-compiler: [ '' ]
+        multi-tenant-mode: [ '' ]
         include:
-          - postgres-version: 13
-            single-mode: ''
-            remote-compiler: ''
           - postgres-version: 14
             single-mode: ''
-            remote-compiler: 'remote-compiler'
+            multi-tenant-mode: ''
           - postgres-version: 15
             single-mode: ''
-            remote-compiler: ''
+            multi-tenant-mode: ''
+          - postgres-version: 16
+            single-mode: ''
+            multi-tenant-mode: 'remote-compiler'
+          - postgres-version: 16
+            single-mode: ''
+            multi-tenant-mode: 'multi-tenant'
     services:
       postgres:
-        image: postgres:${{ matrix.postgres-version }}-alpine
+        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
         env:
           POSTGRES_PASSWORD: postgres
         options: >-
@@ -347,20 +350,20 @@ jobs:
           - 5432:5432
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.12.2'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1
@@ -374,10 +377,12 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v3
+      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
-        name: shared-artifacts
-        path: .tmp
+        action: actions/download-artifact@v3
+        with: |
+          name: shared-artifacts
+          path: .tmp
 
     - name: Set environment variables
       run: |
@@ -504,9 +509,38 @@ jobs:
         else
           export EDGEDB_TEST_BACKEND_DSN=postgres://postgres:postgres@localhost/postgres
         fi
+        if [[ "${{ matrix.multi-tenant-mode }}" == "remote-compiler" ]]; then
+          export EDGEDB_TEST_REMOTE_COMPILER=localhost:5660
+          export _EDGEDB_SERVER_COMPILER_POOL_SECRET=secret
+          __EDGEDB_DEVMODE=1 edgedb-server compiler --pool-size 2 &
+        fi
         edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
+        if [[ "${{ matrix.multi-tenant-mode }}" == "multi-tenant" ]]; then
+          export EDGEDB_SERVER_MULTITENANT_CONFIG_FILE=/tmp/edb.mt.json
+          echo "{\"localhost\":{\"instance-name\":\"localtest\",\"backend-dsn\":\"$EDGEDB_TEST_BACKEND_DSN\",\"admin\":true,\"max-backend-connections\":10}}" > /tmp/edb.mt.json
+        fi
         if [[ "${{ matrix.single-mode }}" == *"NOCREATEDB"* ]]; then
           edb test -j1 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
         else
           edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
         fi
+
+
+  workflow-notifications:
+    if: failure() && github.event_name != 'pull_request'
+    name: Notify in Slack on failures
+    needs:
+      - build
+      - test
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@26a36836c887f260477432e4314ec3490a84f309
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

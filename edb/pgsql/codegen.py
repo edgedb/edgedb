@@ -56,7 +56,11 @@ def generate(
 
     try:
         generator.visit(node)
-
+    except RecursionError:
+        # Don't try to wrap and add context to a recursion error,
+        # since the context might easily be too deeply recursive to
+        # process further down the pipe.
+        raise
     except GeneratorError as error:
         ctx = GeneratorContext(node, generator.result)
         exceptions.add_context(error, ctx)
@@ -208,7 +212,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             if cte.aliascolnames:
                 self.write('(')
                 for (index, col_name) in enumerate(cte.aliascolnames):
-                    self.write(common.qname(col_name))
+                    self.write(common.qname(col_name, column=True))
                     if index + 1 < len(cte.aliascolnames):
                         self.write(',')
                 self.write(')')
@@ -574,18 +578,18 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.indirection:
             self._visit_indirection_ops(node.indirection)
         if node.name:
-            self.write(' AS ' + common.quote_ident(node.name))
+            self.write(' AS ' + common.quote_col(node.name))
 
     def visit_InsertTarget(self, node: pgast.InsertTarget) -> None:
-        self.write(common.quote_ident(node.name))
+        self.write(common.quote_col(node.name))
 
     def visit_UpdateTarget(self, node: pgast.UpdateTarget) -> None:
         if isinstance(node.name, list):
             self.write('(')
-            self.write(', '.join(common.quote_ident(n) for n in node.name))
+            self.write(', '.join(common.quote_col(n) for n in node.name))
             self.write(')')
         else:
-            self.write(common.quote_ident(node.name))
+            self.write(common.quote_col(node.name))
         if node.indirection:
             self._visit_indirection_ops(node.indirection)
         self.write(' = ')
@@ -595,7 +599,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(common.quote_ident(node.aliasname))
         if node.colnames:
             self.write('(')
-            self.write(', '.join(common.quote_ident(n) for n in node.colnames))
+            self.write(', '.join(common.quote_col(n) for n in node.colnames))
             self.write(')')
 
     def visit_Keyword(self, node: pgast.Keyword) -> None:
@@ -664,15 +668,15 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write(names[0])
                 if len(names) > 1:
                     self.write('.')
-                    self.write(common.qname(*names[1:]))
+                    self.write(common.qname(*names[1:], column=True))
             else:
-                self.write(common.qname(*names))
+                self.write(common.qname(*names, column=True))
 
     def visit_ExprOutputVar(self, node: pgast.ExprOutputVar) -> None:
         self.visit(node.expr)
 
     def visit_ColumnDef(self, node: pgast.ColumnDef) -> None:
-        self.write(common.quote_ident(node.name))
+        self.write(common.quote_col(node.name))
         if node.typename:
             self.write(' ')
             self.visit(node.typename)
@@ -693,42 +697,42 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_JoinExpr(self, node: pgast.JoinExpr) -> None:
         self.visit(node.larg)
-        if node.rarg is not None:
+        for join in node.joins:
             self.new_lines = 1
-            if not node.quals and not node.using_clause:
+            if not join.quals and not join.using_clause:
                 join_type = 'CROSS'
             else:
-                join_type = node.type.upper()
+                join_type = join.type.upper()
             if join_type == 'INNER':
                 self.write('JOIN ')
             else:
                 self.write(join_type + ' JOIN ')
             nested_join = (
-                isinstance(node.rarg, pgast.JoinExpr)
-                and node.rarg.rarg is not None
+                isinstance(join.rarg, pgast.JoinExpr)
+                and join.rarg.joins
             )
             if nested_join:
                 self.write('(')
                 self.new_lines = 1
                 self.indentation += 1
-            self.visit(node.rarg)
+            self.visit(join.rarg)
             if nested_join:
                 self.indentation -= 1
                 self.new_lines = 1
                 self.write(')')
-            if node.quals is not None:
+            if join.quals is not None:
                 if not nested_join:
                     self.indentation += 1
                     self.new_lines = 1
                     self.write('ON ')
                 else:
                     self.write(' ON ')
-                self.visit(node.quals)
+                self.visit(join.quals)
                 if not nested_join:
                     self.indentation -= 1
-            elif node.using_clause:
+            elif join.using_clause:
                 self.write(" USING (")
-                self.visit_list(node.using_clause)
+                self.visit_list(join.using_clause)
                 self.write(")")
 
     def visit_Expr(self, node: pgast.Expr) -> None:

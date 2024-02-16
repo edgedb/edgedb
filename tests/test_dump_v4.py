@@ -24,15 +24,16 @@ from edb.testbase import server as tb
 
 class DumpTestCaseMixin:
 
-    async def ensure_schema_data_integrity(self):
+    async def ensure_schema_data_integrity(self, include_secrets=False):
         tx = self.con.transaction()
         await tx.start()
         try:
-            await self._ensure_schema_data_integrity()
+            await self._ensure_schema_data_integrity(
+                include_secrets=include_secrets)
         finally:
             await tx.rollback()
 
-    async def _ensure_schema_data_integrity(self):
+    async def _ensure_schema_data_integrity(self, include_secrets):
         await self.assert_query_result(
             r'''
                 select count(L2)
@@ -54,9 +55,81 @@ class DumpTestCaseMixin:
             ]
         )
 
+        # We put pgvector dump tests in v4 dump even though they
+        # shipped in 3.0-rc3 (shipping pgvector was a wild ride). It
+        # doesn't seem worth adding a second v4 dump test for (both
+        # ergonomically and because it would be slower), so just quit
+        # early in that case.
+        if (
+            self._testMethodName
+            == 'test_dumpv4_restore_compatibility_3_0'
+        ):
+            return
+
+        if include_secrets:
+            secrets = [
+                dict(name='4', value='spam', extra=None,
+                     tname='ext::_conf::SecretObj')
+            ]
+        else:
+            secrets = []
+
+        await self.assert_query_result(
+            '''
+                select cfg::Config {
+                    conf := assert_single(.extensions[is ext::_conf::Config] {
+                        config_name,
+                        objs: { name, value, [is ext::_conf::SubObj].extra,
+                                tname := .__type__.name }
+                              order by .name,
+                    })
+                };
+            ''',
+            [dict(conf=dict(
+                config_name='ready',
+                objs=[
+                    dict(name='1', value='foo', tname='ext::_conf::Obj'),
+                    dict(name='2', value='bar', tname='ext::_conf::Obj'),
+                    dict(name='3', value='baz', extra=42,
+                         tname='ext::_conf::SubObj'),
+                    *secrets,
+                ],
+            ))]
+        )
+
+        await self.assert_query_result(
+            '''
+            select ext::_conf::get_top_secret()
+            ''',
+            ['secret'] if include_secrets else [] ,
+        )
+
+        # We took a version snapshot for 4.0, but then needed to
+        # add more stuff to the 4.0 dump tests. It didn't seem worth
+        # adding a new dump test for it (both ergonomically and
+        # because it would be slower), so just quit early in that case.
+        if (
+            self._testMethodName
+            == 'test_dumpv4_restore_compatibility_4_0'
+        ):
+            return
+
+        # __fts_document__ should be repopulated
+        await self.assert_query_result(
+            r'''
+            SELECT fts::search(L3, 'satisfying').object { x }
+            ''',
+            [
+                {
+                    'x': 'satisfied customer',
+                },
+            ],
+        )
+
 
 class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
-    EXTENSIONS = ["pgvector"]
+    EXTENSIONS = ["pgvector", "_conf", "pgcrypto", "auth"]
+    BACKEND_SUPERUSER = True
 
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
                                   'dump_v4_default.esdl')
@@ -64,9 +137,15 @@ class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'dump_v4_setup.edgeql')
 
-    async def test_dumpv4_dump_restore(self):
+    async def test_dump_v4_dump_restore(self):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)
+
+    async def test_dump_v4_branch_data(self):
+        await self.check_branching(
+            include_data=True,
+            check_method=lambda self: self.ensure_schema_data_integrity(
+                include_secrets=True))
 
 
 class TestDumpV4Compat(
@@ -75,4 +154,4 @@ class TestDumpV4Compat(
     dump_subdir='dumpv4',
     check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
 ):
-    pass
+    BACKEND_SUPERUSER = True

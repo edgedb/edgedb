@@ -25,7 +25,7 @@ from edb.schema import schema
 from edb.server import config
 
 
-ReflectionCache = typing.Mapping[str, typing.Tuple[str, ...]]
+ReflectionCache = immutables.Map[str, typing.Tuple[str, ...]]
 
 
 class DatabaseState(typing.NamedTuple):
@@ -36,6 +36,12 @@ class DatabaseState(typing.NamedTuple):
 
 
 DatabasesState = immutables.Map[str, DatabaseState]
+
+
+class PickledDatabaseState(typing.NamedTuple):
+    user_schema_pickle: bytes
+    reflection_cache: ReflectionCache
+    database_config: immutables.Map[str, config.SettingValue]
 
 
 class FailedStateSync(Exception):

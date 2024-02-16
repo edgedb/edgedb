@@ -88,6 +88,17 @@ class AccessPolicy(
         str, default=None, compcoef=0.971, allow_ddl_set=True
     )
 
+    # We don't support SET/DROP OWNED owned on policies so we set its
+    # compcoef to 0.0
+    owned = so.SchemaField(
+        bool,
+        default=False,
+        inheritable=False,
+        compcoef=0.0,
+        reflection_method=so.ReflectionMethod.AS_LINK,
+        special_ddl_syntax=True,
+    )
+
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'access policy'
@@ -176,7 +187,7 @@ class AccessPolicyCommand(
 
             target = schema.get(sn.QualName('std', 'bool'), type=s_types.Type)
             expr_type = expression.irast.stype
-            if not expr_type.issubclass(schema, target):
+            if not expr_type.issubclass(expression.irast.schema, target):
                 srcctx = self.get_attribute_source_context(field)
                 raise errors.SchemaDefinitionError(
                     f'{vname} expression for {pol_name} is of invalid type: '

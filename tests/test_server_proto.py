@@ -20,13 +20,14 @@ import asyncio
 import decimal
 import http
 import json
+import time
 import uuid
 import unittest
 
 import edgedb
 
 from edb.common import devmode
-from edb.common import taskgroup as tg
+from edb.common import asyncutil
 from edb.testbase import server as tb
 from edb.server.compiler import enums
 from edb.tools import test
@@ -109,11 +110,11 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.query('select syntax error')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        'Unexpected end of line'):
+                                        r"Missing '\)'"):
                 await self.con.query('select (')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        'Unexpected end of line'):
+                                        r"Missing '\)'"):
                 await self.con.query_json('select (')
 
             for _ in range(10):
@@ -132,7 +133,7 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.execute('select syntax error')
 
             for _ in range(10):
-                await self.con.execute('select 1; select 2;'),
+                await self.con.execute('select 1; select 2;')
 
     async def test_server_proto_exec_error_recover_01(self):
         for _ in range(2):
@@ -867,7 +868,7 @@ class TestServerProto(tb.QueryTestCase):
             'select sys::_advisory_lock(<int64>$0)', lock_key)
 
         try:
-            async with tg.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
 
                 async def exec_to_fail():
                     with self.assertRaises(edgedb.ClientConnectionClosedError):
@@ -2276,6 +2277,10 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
         else:
             server_args['adjacent_to'] = self.con
 
+        headers = {
+            'Authorization': self.make_auth_header(),
+        }
+
         async with tb.start_edgedb_server(**server_args) as sd:
 
             await self.con.execute("CREATE EXTENSION notebook;")
@@ -2290,9 +2295,11 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                             http_con,
                             path="notebook",
                             body={"queries": ["SELECT 1"]},
+                            headers=headers,
                         )
 
-                        self.assertEqual(status, http.HTTPStatus.OK)
+                        self.assertEqual(
+                            status, http.HTTPStatus.OK, f"fuck: {response} {_}")
                         self.assert_data_shape(
                             response,
                             {
@@ -2315,6 +2322,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                             http_con,
                             path="notebook",
                             body={"queries": ["SELECT 1"]},
+                            headers=headers,
                         )
 
                         self.assertEqual(status, http.HTTPStatus.OK)
@@ -2343,6 +2351,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                             http_con,
                             path="notebook",
                             body={"queries": ["SELECT 1"]},
+                            headers=headers,
                         )
 
                         self.assertEqual(status, http.HTTPStatus.NOT_FOUND)
@@ -2357,6 +2366,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                             http_con,
                             path="notebook",
                             body={"queries": ["SELECT 1"]},
+                            headers=headers,
                         )
 
                         self.assertEqual(status, http.HTTPStatus.NOT_FOUND)
@@ -2817,6 +2827,113 @@ class TestServerProtoDDL(tb.DDLTestCase):
         finally:
             await self.con.query('ROLLBACK')
 
+    async def test_server_proto_query_cache_invalidate_10(self):
+        typename = 'CacheInv_10'
+
+        con1 = self.con
+        con2 = await self.connect(database=con1.dbname)
+        try:
+            await con2.execute(f'''
+                CREATE TYPE {typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> std::str;
+                }};
+
+                INSERT {typename} {{
+                    prop1 := 'aaa'
+                }};
+            ''')
+
+            sleep = 3
+            query = (
+                f"# EDGEDB_TEST_COMPILER_SLEEP = {sleep}\n"
+                f"SELECT {typename}.prop1"
+            )
+            task = self.loop.create_task(con1.query(query))
+
+            start = time.monotonic()
+            await con2.execute(f'''
+                DELETE (SELECT {typename});
+
+                ALTER TYPE {typename} {{
+                    DROP PROPERTY prop1;
+                }};
+
+                ALTER TYPE {typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> std::int64;
+                }};
+
+                INSERT {typename} {{
+                    prop1 := 123
+                }};
+            ''')
+            if time.monotonic() - start > sleep:
+                self.skipTest("The host is too slow for this test.")
+                # If this happens too much, consider increasing the sleep time
+
+            # ISE is NOT the right expected result - a proper EdgeDB error is.
+            # FIXME in https://github.com/edgedb/edgedb/issues/6820
+            with self.assertRaisesRegex(
+                edgedb.errors.InternalServerError,
+                "column .* does not exist",
+            ):
+                await task
+
+            self.assertEqual(
+                await con1.query(query),
+                edgedb.Set([123]),
+            )
+
+        finally:
+            await con2.aclose()
+
+    async def test_server_proto_query_cache_invalidate_11(self):
+        typename = 'CacheInv_11'
+
+        await self.con.execute(f"""
+            CREATE TYPE {typename} {{
+                CREATE PROPERTY prop1 -> std::int64;
+            }};
+            INSERT {typename} {{ prop1 := 42 }};
+        """)
+
+        class Rollback(Exception):
+            pass
+
+        with self.assertRaises(Rollback):
+            async with self.con.transaction():
+                # make sure the transaction is started
+                await self.con.query('SELECT 123')
+
+                # DDL in another connection
+                con2 = await self.connect(database=self.con.dbname)
+                try:
+                    await con2.execute(f"""
+                        ALTER TYPE {typename} {{
+                            DROP PROPERTY prop1;
+                        }};
+                    """)
+                finally:
+                    await con2.aclose()
+
+                # This compiles fine with the schema in the transaction, and
+                # the compile result is cached with an outdated version.
+                # However, the execution fails because the column is already
+                # dropped outside the transaction.
+                # FIXME: ISE is not an ideal error as for user experience here
+                with self.assertRaisesRegex(
+                    edgedb.InternalServerError, "column.*does not exist"
+                ):
+                    await self.con.query(f'SELECT {typename}.prop1')
+
+                raise Rollback
+
+        # Should recompile with latest schema, instead of reusing a wrong cache
+        with self.assertRaisesRegex(
+            edgedb.InvalidReferenceError,
+            "has no link or property 'prop1'"
+        ):
+            await self.con.query(f'SELECT {typename}.prop1')
+
     async def test_server_proto_backend_tid_propagation_01(self):
         async with self._run_and_rollback():
             await self.con.execute('''
@@ -3186,7 +3303,7 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
         typename_prefix = 'ConcurrentDDL'
         ntasks = 5
 
-        async with tg.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             cons_tasks = [
                 g.create_task(self.connect(database=self.con.dbname))
                 for _ in range(ntasks)
@@ -3195,9 +3312,12 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
         cons = [c.result() for c in cons_tasks]
 
         try:
-            async with tg.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for i, con in enumerate(cons):
-                    g.create_task(con.execute(f'''
+                    # deferred_shield ensures that none of the
+                    # operations get cancelled, which allows us to
+                    # aclose them all cleanly.
+                    g.create_task(asyncutil.deferred_shield(con.execute(f'''
                         CREATE TYPE {typename_prefix}{i} {{
                             CREATE REQUIRED PROPERTY prop1 -> std::int64;
                         }};
@@ -3205,16 +3325,16 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
                         INSERT {typename_prefix}{i} {{
                             prop1 := {i}
                         }};
-                    '''))
-        except tg.TaskGroupError as e:
+                    ''')))
+        except ExceptionGroup as e:
             self.assertIn(
                 edgedb.TransactionSerializationError,
-                e.get_error_types(),
+                [type(e) for e in e.exceptions],
             )
         else:
             self.fail("TransactionSerializationError not raised")
         finally:
-            async with tg.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for con in cons:
                     g.create_task(con.aclose())
 
@@ -3229,7 +3349,7 @@ class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
 
         ntasks = 5
 
-        async with tg.TaskGroup() as g:
+        async with asyncio.TaskGroup() as g:
             cons_tasks = [
                 g.create_task(self.connect(database=self.con.dbname))
                 for _ in range(ntasks)
@@ -3238,20 +3358,23 @@ class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
         cons = [c.result() for c in cons_tasks]
 
         try:
-            async with tg.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for i, con in enumerate(cons):
-                    g.create_task(con.execute(f'''
+                    # deferred_shield ensures that none of the
+                    # operations get cancelled, which allows us to
+                    # aclose them all cleanly.
+                    g.create_task(asyncutil.deferred_shield(con.execute(f'''
                         CREATE SUPERUSER ROLE concurrent_{i}
-                    '''))
-        except tg.TaskGroupError as e:
+                    ''')))
+        except ExceptionGroup as e:
             self.assertIn(
                 edgedb.TransactionSerializationError,
-                e.get_error_types(),
+                [type(e) for e in e.exceptions],
             )
         else:
             self.fail("TransactionSerializationError not raised")
         finally:
-            async with tg.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 for con in cons:
                     g.create_task(con.aclose())
 

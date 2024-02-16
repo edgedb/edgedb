@@ -23,3 +23,9 @@ type L2 {
     required vec: v3;
     index ext::pgvector::ivfflat_euclidean(lists := 100) on (.vec);
 }
+
+type L3 {
+    property x: str;
+
+    index fts::index on (fts::with_options(.x, language := fts::Language.eng));
+}

@@ -78,7 +78,7 @@ async def handle_request(
     object response,
     object db,
     list args,
-    object server,
+    object tenant,
 ):
     if args == ['explore'] and request.method == b'GET':
         response.body = explore.EXPLORE_HTML
@@ -94,6 +94,7 @@ async def handle_request(
     operation_name = None
     variables = None
     globals = None
+    deprecated_globals = None
     query = None
 
     try:
@@ -106,7 +107,7 @@ async def handle_request(
                 query = body.get('query')
                 operation_name = body.get('operationName')
                 variables = body.get('variables')
-                globals = body.get('globals')
+                deprecated_globals = body.get('globals')
             elif request.content_type == 'application/graphql':
                 query = request.body.decode('utf-8')
             else:
@@ -134,10 +135,10 @@ async def handle_request(
                         raise TypeError(
                             '"variables" must be a JSON object')
 
-                globals = qs.get('globals')
-                if globals is not None:
+                deprecated_globals = qs.get('globals')
+                if deprecated_globals is not None:
                     try:
-                        globals = json.loads(globals[0])
+                        deprecated_globals = json.loads(deprecated_globals[0])
                     except Exception:
                         raise TypeError(
                             '"globals" must be a JSON object')
@@ -155,8 +156,31 @@ async def handle_request(
         if variables is not None and not isinstance(variables, dict):
             raise TypeError('"variables" must be a JSON object')
 
+        # There are 2 ways of sending globals:
+        # 1) as 'globals' field (deprecated)
+        # 2) as part of 'variables' in the '__globals__' element
+        #
+        # If both ways are present they must match.
+        if variables is not None:
+            globals = variables.get('__globals__')
+
         if globals is not None and not isinstance(globals, dict):
+            raise TypeError('"__globals__" must be a JSON object')
+        if (
+            deprecated_globals is not None and
+            not isinstance(deprecated_globals, dict)
+        ):
             raise TypeError('"globals" must be a JSON object')
+
+        # Globals are dicts if they are present, make sure they are the same.
+        if (
+            globals is not None and deprecated_globals is not None and
+            globals != deprecated_globals
+        ):
+            raise ValueError('invalid "__globals__" and "globals": '
+                             'values must match when both are present')
+
+        globals = globals or deprecated_globals
 
     except Exception as ex:
         if debug.flags.server:
@@ -171,33 +195,18 @@ async def handle_request(
     response.content_type = b'application/json'
     try:
         result = await _execute(
-            db, server, query, operation_name, variables, globals)
+            db, tenant, query, operation_name, variables, globals)
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)
 
-        ex_type = type(ex)
-        if issubclass(ex_type, gql_errors.GraphQLError):
+        if isinstance(ex, gql_errors.GraphQLError):
             # XXX Fix this when LSP "location" objects are implemented
             ex_type = errors.QueryError
-        elif issubclass(ex_type, pgerrors.BackendError):
-            static_exc = errormech.static_interpret_backend_error(
-                ex.fields, from_graphql=True)
-
-            # only use the backend if schema is required
-            if static_exc is errormech.SchemaRequired:
-                ex = errormech.interpret_backend_error(
-                    s_schema.ChainedSchema(
-                        server._std_schema,
-                        db.user_schema,
-                        server.get_global_schema(),
-                    ),
-                    ex.fields,
-                    from_graphql=True,
-                )
-            else:
-                ex = static_exc
-
+        else:
+            ex = await execute.interpret_error(
+                ex, db, from_graphql=True
+            )
             ex_type = type(ex)
 
         err_dct = {
@@ -215,33 +224,35 @@ async def handle_request(
 
 
 async def compile(
-    db,
-    server,
+    dbview.Database db,
+    tenant,
     query: str,
     tokens: Optional[List[Tuple[int, int, int, str]]],
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
     operation_name: Optional[str],
     variables: Dict[str, Any],
 ):
+    server = tenant.server
     compiler_pool = server.get_compiler_pool()
     return await compiler_pool.compile_graphql(
         db.name,
-        db.user_schema,
-        server.get_global_schema(),
+        db.user_schema_pickle,
+        tenant.get_global_schema_pickle(),
         db.reflection_cache,
         db.db_config,
-        server.get_compilation_system_config(),
+        db._index.get_compilation_system_config(),
         query,
         tokens,
         substitutions,
         operation_name,
         variables,
+        client_id=tenant.client_id,
     )
 
 
-async def _execute(db, server, query, operation_name, variables, globals):
+async def _execute(db, tenant, query, operation_name, variables, globals):
     dbver = db.dbver
-    query_cache = server._http_query_cache
+    query_cache = tenant.server._http_query_cache
 
     if variables:
         for var_name in variables:
@@ -260,10 +271,10 @@ async def _execute(db, server, query, operation_name, variables, globals):
     try:
         rewritten = _graphql_rewrite.rewrite(operation_name, query)
 
-        vars = rewritten.variables().copy()
+        vars = rewritten.variables.copy()
         if variables:
             vars.update(variables)
-        key_var_names = rewritten.key_vars()
+        key_var_names = rewritten.key_vars
         # on bad queries the following line can trigger KeyError
         key_vars = tuple(vars[k] for k in key_var_names)
     except _graphql_rewrite.QueryError as e:
@@ -280,11 +291,11 @@ async def _execute(db, server, query, operation_name, variables, globals):
         key_var_names = []
         key_vars = ()
     else:
-        prepared_query = rewritten.key()
+        prepared_query = rewritten.key
 
         if debug.flags.graphql_compile:
             debug.header('GraphQL optimized query')
-            print(rewritten.key())
+            print(rewritten)
             print(f'key_vars: {key_var_names}')
             print(f'variables: {vars}')
 
@@ -306,17 +317,17 @@ async def _execute(db, server, query, operation_name, variables, globals):
         if rewritten is not None:
             qug, gql_op = await compile(
                 db,
-                server,
+                tenant,
                 query,
                 rewritten.tokens(gql_lexer.TokenKind),
-                rewritten.substitutions(),
+                rewritten.substitutions,
                 operation_name,
                 vars,
             )
         else:
             qug, gql_op = await compile(
                 db,
-                server,
+                tenant,
                 query,
                 None,
                 None,
@@ -345,13 +356,13 @@ async def _execute(db, server, query, operation_name, variables, globals):
 
     compiled = dbview.CompiledQuery(query_unit_group=qug)
 
-    dbv = await server.new_dbview(
+    dbv = await tenant.new_dbview(
         dbname=db.name,
         query_cache=False,
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
 
-    pgcon = await server.acquire_pgcon(db.name)
+    pgcon = await tenant.acquire_pgcon(db.name)
     try:
         return await execute.execute_json(
             pgcon,
@@ -363,4 +374,4 @@ async def _execute(db, server, query, operation_name, variables, globals):
             use_prep_stmt=use_prep_stmt,
         )
     finally:
-        server.release_pgcon(db.name, pgcon)
+        tenant.release_pgcon(db.name, pgcon)

@@ -18,7 +18,7 @@
 
 
 import asyncio
-import hashlib
+import contextlib
 import logging
 import time
 
@@ -28,6 +28,9 @@ from edb import errors
 from edb.common import debug
 from edb.server import args as srvargs
 from edb.server.pgcon import errors as pgerror
+
+from . cimport auth_helpers
+
 
 DEF FLUSH_BUFFER_AFTER = 100_000
 cdef object logger = logging.getLogger('edb.server')
@@ -47,6 +50,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     def __init__(
         self,
         server,
+        tenant,
         *,
         passive: bool,
         transport: srvargs.ServerConnTransport,
@@ -54,6 +58,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     ):
         self._id = server.on_binary_client_created()
         self.server = server
+        self.tenant = tenant
         self.loop = server.get_loop()
         self.dbname = None
 
@@ -120,7 +125,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 return self._pinned_pgcon
             if self._pinned_pgcon is not None:
                 raise RuntimeError('there is already a pinned pgcon')
-            conn = await self.server.acquire_pgcon(self.dbname)
+            conn = await self.tenant.acquire_pgcon(self.dbname)
             self._pinned_pgcon = conn
             conn.pinned_by = self
             return conn
@@ -145,7 +150,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 conn.pinned_by = None
                 self._pinned_pgcon = None
                 if not self._pgcon_released_in_connection_lost:
-                    self.server.release_pgcon(
+                    self.tenant.release_pgcon(
                         self.dbname,
                         conn,
                         discard=debug.flags.server_clobber_pg_conns,
@@ -157,18 +162,26 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             self._pinned_pgcon_in_tx = False
             self._pinned_pgcon = None
             if not self._pgcon_released_in_connection_lost:
-                self.server.release_pgcon(
+                self.tenant.release_pgcon(
                     self.dbname,
                     conn,
                     discard=debug.flags.server_clobber_pg_conns,
                 )
+
+    @contextlib.asynccontextmanager
+    async def with_pgcon(self):
+        con = await self.get_pgcon()
+        try:
+            yield con
+        finally:
+            self.maybe_release_pgcon(con)
 
     def on_aborted_pgcon(self, pgcon.PGConnection conn):
         try:
             self._pinned_pgcon = None
 
             if not self._pgcon_released_in_connection_lost:
-                self.server.release_pgcon(self.dbname, conn, discard=True)
+                self.tenant.release_pgcon(self.dbname, conn, discard=True)
 
             if conn.aborted_with_error is not None:
                 self.write_error(conn.aborted_with_error)
@@ -179,7 +192,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         if self._pinned_pgcon is not None:
             self._pinned_pgcon.pinned_by = None
             self._pinned_pgcon.abort()
-            self.server.release_pgcon(
+            self.tenant.release_pgcon(
                 self.dbname, self._pinned_pgcon, discard=True)
             self._pinned_pgcon = None
 
@@ -264,20 +277,60 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     cdef _main_task_stopped_normally(self):
         pass
 
+    def get_tenant_label(self):
+        if self.tenant is None:
+            return "unknown"
+        else:
+            return self.tenant.get_instance_name()
+
     def connection_made(self, transport):
-        if not self.server._accepting_connections:
-            transport.abort()
-            return
-
-        self._transport = transport
-
-        if self.server._accept_new_tasks:
-            self._main_task = self.server.create_task(
+        if self.tenant is None:
+            self._transport = transport
+            self._main_task = self.loop.create_task(self.handshake())
+            self._main_task_created()
+        elif self.tenant.is_accepting_connections():
+            self._transport = transport
+            self._main_task = self.tenant.create_task(
                 self.main(), interruptable=False
             )
             self._main_task_created()
         else:
             transport.abort()
+
+    async def handshake(self):
+        try:
+            await self._handshake()
+        except Exception as ex:
+            if self._transport is not None:
+                # If there's no transport it means that the connection
+                # was aborted, in which case we don't really care about
+                # reporting the exception.
+                self.write_error(ex)
+                self.close()
+
+            if not isinstance(ex, (errors.ProtocolError,
+                                   errors.AuthenticationError)):
+                self.loop.call_exception_handler({
+                    'message': (
+                        f'unhandled error in {self.__class__.__name__} while '
+                        'accepting new connection'
+                    ),
+                    'exception': ex,
+                    'protocol': self,
+                    'transport': self._transport,
+                    'task': self._main_task,
+                })
+
+    async def _handshake(self):
+        if self.tenant is None:
+            self.tenant = self.server.get_default_tenant()
+        if self.tenant.is_accepting_connections():
+            self._main_task = self.tenant.create_task(
+                self.main(), interruptable=False
+            )
+        else:
+            if self._transport is not None:
+                self._transport.abort()
 
     # main skeleton
 
@@ -304,7 +357,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                                    errors.AuthenticationError)):
                 self.loop.call_exception_handler({
                     'message': (
-                        'unhandled error in edgedb protocol while '
+                        f'unhandled error in {self.__class__.__name__} while '
                         'accepting new connection'
                     ),
                     'exception': ex,
@@ -401,7 +454,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             self._transport.abort()
             self._transport = None
 
-    def stop(self):
+    def request_stop(self):
         # Actively stop a frontend connection - this is used by the server
         # when it's stopping.
         self._stop_requested = True
@@ -478,9 +531,9 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                     # _next_ query that is unlucky enough to pick up this
                     # Postgres backend from the connection pool.
                     # TODO(fantix): hold server shutdown to complete this task
-                    if self.server._accept_new_tasks:
-                        self.server.create_task(
-                            self.server._cancel_and_discard_pgcon(
+                    if self.tenant.accept_new_tasks:
+                        self.tenant.create_task(
+                            self.tenant.cancel_and_discard_pgcon(
                                 self._pinned_pgcon, self.dbname
                             ),
                             interruptable=False,
@@ -508,30 +561,36 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     async def authenticate(self):
         raise NotImplementedError
 
-    def _auth_jwt(self, user, params):
+    def _auth_jwt(self, user, database, params):
         raise NotImplementedError
 
     def _auth_trust(self, user):
-        roles = self.server.get_roles()
+        roles = self.tenant.get_roles()
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
-    async def _authenticate(self, user, params):
+    async def _authenticate(self, user, database, params):
         # The user has already been authenticated by other means
         # (such as the ability to write to a protected socket).
         if self._external_auth:
             authmethod_name = 'Trust'
         else:
-            authmethod = await self.server.get_auth_method(
+            authmethod = await self.tenant.get_auth_method(
                 user, self._transport_proto)
-            authmethod_name = type(authmethod).__name__
+            authmethod_name = authmethod._tspec.name.split('::')[1]
 
         if authmethod_name == 'SCRAM':
             await self._auth_scram(user)
         elif authmethod_name == 'JWT':
-            self._auth_jwt(user, params)
+            self._auth_jwt(user, database, params)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)
+        elif authmethod_name == 'Password':
+            raise errors.AuthenticationError(
+                'authentication failed: '
+                'Simple password authentication required but it is only '
+                'supported for HTTP endpoints'
+            )
         else:
             raise errors.InternalServerError(
                 f'unimplemented auth method: {authmethod_name}')
@@ -579,7 +638,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                     raise errors.BinaryProtocolError(
                         f'client selected an invalid SASL authentication '
                         f'mechanism')
-                verifier, mock_auth = self._get_scram_verifier(user)
+                verifier, mock_auth = auth_helpers.scram_get_verifier(
+                    self.tenant, user)
 
                 try:
                     bare_offset, cb_flag, authzid, username, client_nonce = (
@@ -657,36 +717,3 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 self.flush()
 
                 done = True
-
-    def _get_scram_verifier(self, user):
-        server = self.server
-        roles = server.get_roles()
-
-        rolerec = roles.get(user)
-        if rolerec is not None:
-            verifier_string = rolerec['password']
-            if verifier_string is not None:
-                try:
-                    verifier = scram.parse_verifier(verifier_string)
-                except ValueError:
-                    raise errors.AuthenticationError(
-                        f'invalid SCRAM verifier for user {user!r}') from None
-                is_mock = False
-                return verifier, is_mock
-
-        # To avoid revealing the validity of the submitted user name,
-        # generate a mock verifier using a salt derived from the
-        # received user name and the cluster mock auth nonce.
-        # The same approach is taken by Postgres.
-        nonce = server.get_instance_data('mock_auth_nonce')
-        salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
-
-        verifier = scram.SCRAMVerifier(
-            mechanism='SCRAM-SHA-256',
-            iterations=scram.DEFAULT_ITERATIONS,
-            salt=salt[:scram.DEFAULT_SALT_LENGTH],
-            stored_key=b'',
-            server_key=b'',
-        )
-        is_mock = True
-        return verifier, is_mock

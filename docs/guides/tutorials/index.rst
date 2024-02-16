@@ -1,9 +1,9 @@
 .. _ref_guide_tutorials:
 
 
-=========
-Tutorials
-=========
+====================
+Using EdgeDB with...
+====================
 
 .. toctree::
     :maxdepth: 1
@@ -13,3 +13,6 @@ Tutorials
     rest_apis_with_flask
     phoenix_github_oauth
     graphql_apis_with_strawberry
+    chatgpt_bot
+    cloudflare_workers
+    Bun <https://bun.sh/guides/ecosystem/edgedb>

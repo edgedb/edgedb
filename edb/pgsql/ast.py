@@ -105,7 +105,7 @@ class BaseExpr(Base):
         for v in kwargs.values():
             if typeutils.is_container(v):
                 items = typing.cast(typing.Iterable, v)
-                nullable = all(getattr(vv, 'nullable', False) for vv in items)
+                nullable = any(getattr(vv, 'nullable', False) for vv in items)
 
             elif getattr(v, 'nullable', None):
                 nullable = True
@@ -148,7 +148,7 @@ class EdgeQLPathInfo(Base):
 
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {
-        'path_id', 'path_scope', 'path_outputs', 'is_distinct',
+        'path_id', 'path_bonds', 'path_outputs', 'is_distinct',
         'path_id_mask', 'path_namespace',
         'packed_path_outputs', 'packed_path_namespace',
     }
@@ -160,7 +160,7 @@ class EdgeQLPathInfo(Base):
     is_distinct: bool = True
 
     # A subset of paths necessary to perform joining.
-    path_scope: typing.Set[irast.PathId] = ast.field(factory=set)
+    path_bonds: typing.Set[tuple[irast.PathId, bool]] = ast.field(factory=set)
 
     # Map of res target names corresponding to paths.
     path_outputs: typing.Dict[
@@ -654,6 +654,9 @@ class SelectStmt(Query):
     # Right operand of set op,
     rarg: typing.Optional[Query] = None
 
+    # When used as a sub-query, it is generally nullable.
+    nullable: bool = True
+
 
 class Expr(ImmutableBaseExpr):
     """Infix, prefix, and postfix expressions."""
@@ -877,7 +880,7 @@ class RangeSubselect(PathRangeVar):
     subquery: Query
 
     @property
-    def query(self):
+    def query(self) -> Query:
         return self.subquery
 
 
@@ -891,13 +894,9 @@ class RangeFunction(BaseRangeVar):
     functions: typing.List[FuncCall]
 
 
-class JoinExpr(BaseRangeVar):
-
+class JoinClause(BaseRangeVar):
     # Type of join
     type: str
-
-    # Left subtree
-    larg: BaseRangeVar
     # Right subtree
     rarg: BaseRangeVar
     # USING clause, if any
@@ -905,16 +904,31 @@ class JoinExpr(BaseRangeVar):
     # Qualifiers on join, if any
     quals: typing.Optional[BaseExpr] = None
 
-    def copy(self):
-        result = self.__class__()
-        result.copyfrom(self)
-        return result
 
-    def copyfrom(self, other):
-        self.larg = other.larg
-        self.rarg = other.rarg
-        self.quals = other.quals
-        self.type = other.type
+class JoinExpr(BaseRangeVar):
+    # Left subtree
+    larg: BaseRangeVar
+    # Join clauses
+    # We represent joins as being N-ary to avoid recursing too deeply
+    joins: list[JoinClause]
+
+    @classmethod
+    def make_inplace(
+        cls, *,
+        larg: BaseRangeVar,
+        type: str,
+        rarg: BaseRangeVar,
+        using_clause: typing.Optional[typing.List[ColumnRef]] = None,
+        quals: typing.Optional[BaseExpr] = None,
+    ) -> JoinExpr:
+        clause = JoinClause(
+            type=type, rarg=rarg, using_clause=using_clause, quals=quals
+        )
+        if isinstance(larg, JoinExpr):
+            larg.joins.append(clause)
+            return larg
+        else:
+            return JoinExpr(larg=larg, joins=[clause])
 
 
 class SubLink(ImmutableBaseExpr):
@@ -953,6 +967,13 @@ class CoalesceExpr(ImmutableBaseExpr):
 
     # The arguments.
     args: typing.List[Base]
+
+    def _infer_nullability(self, kwargs: typing.Dict[str, typing.Any]) -> bool:
+        # nullability of COALESCE is the nullability of the RHS
+        if 'args' in kwargs:
+            return kwargs['args'][1].nullable
+        else:
+            return True
 
 
 class NullTest(ImmutableBaseExpr):
@@ -1035,6 +1056,11 @@ class IteratorCTE(ImmutableBase):
     # A list of other paths to *also* register the iterator rvar as
     # providing when it is merged into a statement.
     other_paths: tuple[tuple[irast.PathId, str], ...] = ()
+    iterator_bond: bool = False
+
+    @property
+    def aspect(self) -> str:
+        return 'iterator' if self.iterator_bond else 'identity'
 
 
 class Statement(Base):
@@ -1225,3 +1251,18 @@ class CopyStmt(Statement):
     options: CopyOptions
 
     where_clause: typing.Optional[BaseExpr] = None
+
+
+class FTSDocument(BaseExpr):
+    """
+    Text and information on how to search through it.
+
+    Constructed with `fts::with_options`.
+    """
+
+    text: BaseExpr
+
+    language: BaseExpr
+    language_domain: typing.Set[str]
+
+    weight: typing.Optional[str]

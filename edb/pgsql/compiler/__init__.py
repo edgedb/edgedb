@@ -57,7 +57,7 @@ def compile_ir_to_sql_tree(
     ignore_shapes: bool = False,
     explicit_top_cast: Optional[irast.TypeRef] = None,
     singleton_mode: bool = False,
-    use_named_params: bool = False,
+    named_param_prefix: Optional[tuple[str, ...]] = None,
     expected_cardinality_one: bool = False,
     expand_inhviews: bool = False,
     external_rvars: Optional[
@@ -107,7 +107,7 @@ def compile_ir_to_sql_tree(
         env = context.Environment(
             output_format=output_format,
             expected_cardinality_one=expected_cardinality_one,
-            use_named_params=use_named_params,
+            named_param_prefix=named_param_prefix,
             query_params=list(tuple(query_params) + tuple(query_globals)),
             type_rewrites=type_rewrites,
             ignore_object_shapes=ignore_shapes,

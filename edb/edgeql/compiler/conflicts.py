@@ -198,7 +198,7 @@ def _compile_conflict_select_for_obj_type(
         anchor = qlutils.subject_paths_substitute(
             ptr_anchors[ptrname], ptr_anchors)
         ptr_val = qlast.Path(partial=True, steps=[
-            qlast.Ptr(ptr=qlast.ObjectRef(name=ptrname))
+            qlast.Ptr(name=ptrname)
         ])
         ptr, ptr_cnstrs = constrs[ptrname]
         ptr_card = ptr.get_cardinality(ctx.env.schema)
@@ -274,9 +274,7 @@ def _compile_conflict_select_for_obj_type(
     if fake_dml_set:
         anchor = qlutils.subject_paths_substitute(
             ptr_anchors['id'], ptr_anchors)
-        ptr_val = qlast.Path(partial=True, steps=[
-            qlast.Ptr(ptr=qlast.ObjectRef(name='id'))
-        ])
+        ptr_val = qlast.Path(partial=True, steps=[qlast.Ptr(name='id')])
         cond = qlast.BinOp(
             op='AND',
             left=cond,
@@ -306,7 +304,7 @@ def _constr_matters(
 ) -> bool:
     schema = ctx.env.schema
     return (
-        not constr.generic(schema)
+        not constr.is_non_concrete(schema)
         and not constr.get_delegated(schema)
         and (
             # In some use sites we always process ancestor constraints
@@ -315,8 +313,10 @@ def _constr_matters(
             # applying.
             not only_local
             or constr.get_owned(schema)
-            or all(anc.get_delegated(schema) or anc.generic(schema) for anc
-                   in constr.get_ancestors(schema).objects(schema))
+            or all(
+                anc.get_delegated(schema) or anc.is_non_concrete(schema)
+                for anc in constr.get_ancestors(schema).objects(schema)
+            )
         )
     )
 
@@ -802,6 +802,11 @@ def compile_inheritance_conflict_checks(
 
     conflicters = []
     for subject_stype, anc_type, ir in modified_ancestors:
+
+        # don't enforce any constraints for abstract object type
+        if subject_stype.get_abstract(schema=ctx.env.schema):
+            continue
+
         conflicters.extend(
             _compile_inheritance_conflict_selects(
                 stmt, ir, anc_type, subject_stype, ctx=ctx

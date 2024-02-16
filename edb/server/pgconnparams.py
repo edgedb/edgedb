@@ -56,6 +56,7 @@ class ConnectionParameters:
     ssl: Optional[ssl_module.SSLContext] = None
     sslmode: Optional[SSLMode] = None
     server_settings: Dict[str, str] = dataclasses.field(default_factory=dict)
+    connect_timeout: Optional[int] = None
 
 
 _system = platform.uname().system
@@ -95,16 +96,19 @@ def _read_password_file(passfile: pathlib.Path) -> List[Tuple[str, ...]]:
 
         if not passfile.is_file():
             warnings.warn(
-                'password file {!r} is not a plain file'.format(passfile))
+                'password file {!r} is not a plain file'.format(passfile),
+                stacklevel=4,
+            )
 
             return []
 
         if _system != 'Windows':
             if passfile.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
                 warnings.warn(
-                    'password file {!r} has group or world access; '
-                    'permissions should be u=rw (0600) or less'.format(
-                        passfile))
+                    f'password file {passfile!r} has group or world access; '
+                    'permissions should be u=rw (0600) or less',
+                    stacklevel=4,
+                )
 
                 return []
 
@@ -294,6 +298,7 @@ def parse_dsn(
     ssl_min_protocol_version = None
     ssl_max_protocol_version = None
     server_settings: Dict[str, str] = {}
+    connect_timeout: Optional[int] = None
 
     parsed = urllib.parse.urlparse(dsn)
 
@@ -397,6 +402,9 @@ def parse_dsn(
         if 'ssl_max_protocol_version' in query:
             ssl_max_protocol_version = query.pop('ssl_max_protocol_version')
 
+        if 'connect_timeout' in query:
+            connect_timeout = int(query.pop('connect_timeout'))
+
         if query:
             server_settings = query
 
@@ -475,6 +483,19 @@ def parse_dsn(
                 hosts=auth_hosts, ports=port,
                 database=database, user=user,
                 passfile=passfile_path)
+
+    if connect_timeout is None:
+        env_val = os.getenv('PGCONNECT_TIMEOUT')
+        if env_val:
+            connect_timeout = int(env_val)
+
+    if connect_timeout is not None:
+        # Match the same behavior of libpq
+        # https://www.postgresql.org/docs/current/libpq-connect.html
+        if connect_timeout <= 0:
+            connect_timeout = None
+        elif connect_timeout < 2:
+            connect_timeout = 2
 
     addrs: List[Tuple[str, int]] = []
     have_tcp_addrs = False
@@ -617,6 +638,7 @@ def parse_dsn(
         ssl=ssl,
         sslmode=sslmode,
         server_settings=server_settings,
+        connect_timeout=connect_timeout,
     )
 
     return tuple(addrs), params

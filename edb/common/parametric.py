@@ -254,7 +254,7 @@ class ParametricType:
 
         if not all(isinstance(param, type) for param in type_params):
             if all(
-                type(param) == TypeVar  # type: ignore[comparison-overlap]
+                type(param) is TypeVar  # type: ignore[comparison-overlap]
                 for param in type_params
             ):
                 # All parameters are type variables: return the regular generic

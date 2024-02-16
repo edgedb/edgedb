@@ -77,7 +77,7 @@ def _list(
     builder: Builder,
     mapper: Callable[[T], U] = _ident,
 ) -> List[U]:
-    return [mapper(builder(n, ctx)) for n in node[name]]
+    return [mapper(builder(n, ctx)) for n in node.get(name, [])]
 
 
 def _maybe_list(
@@ -843,13 +843,15 @@ def _build_range_function(n: Node, c: Context) -> pgast.RangeFunction:
 def _build_join_expr(n: Node, c: Context) -> pgast.JoinExpr:
     return pgast.JoinExpr(
         alias=_maybe(n, c, "alias", _build_alias) or pgast.Alias(aliasname=""),
-        type=n["jointype"][5:],
         larg=_build_base_range_var(n["larg"], c),
-        rarg=_build_base_range_var(n["rarg"], c),
-        using_clause=_maybe_list(
-            n, c, "usingClause", _build_str, _as_column_ref
-        ),
-        quals=_maybe(n, c, "quals", _build_base_expr),
+        joins=[pgast.JoinClause(
+            type=n["jointype"][5:],
+            rarg=_build_base_range_var(n["rarg"], c),
+            using_clause=_maybe_list(
+                n, c, "usingClause", _build_str, _as_column_ref
+            ),
+            quals=_maybe(n, c, "quals", _build_base_expr),
+        )],
     )
 
 

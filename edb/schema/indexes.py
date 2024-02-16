@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 from edb import edgeql
 from edb import errors
@@ -64,12 +65,18 @@ def is_index_valid_for_type(
         case 'pg::btree':
             return True
         case 'pg::gin':
-            return expr_type.is_array()
-        case 'fts::textsearch':
-            return expr_type.issubclass(
-                schema, schema.get('std::str', type=s_scalars.ScalarType))
+            return (
+                expr_type.is_array()
+                or
+                expr_type.issubclass(
+                    schema,
+                    schema.get('std::json', type=s_scalars.ScalarType),
+                )
+            )
+        case 'fts::index':
+            return is_subclass_or_tuple(expr_type, 'fts::document', schema)
         case 'pg::gist':
-            return expr_type.is_range()
+            return expr_type.is_range() or expr_type.is_multirange()
         case 'pg::spgist':
             return (
                 expr_type.is_range()
@@ -115,13 +122,38 @@ def is_index_valid_for_type(
             'ext::pgvector::ivfflat_euclidean'
             | 'ext::pgvector::ivfflat_ip'
             | 'ext::pgvector::ivfflat_cosine'
+            | 'ext::pgvector::hnsw_euclidean'
+            | 'ext::pgvector::hnsw_ip'
+            | 'ext::pgvector::hnsw_cosine'
         ):
             return expr_type.issubclass(
                 schema,
                 schema.get('ext::pgvector::vector', type=s_scalars.ScalarType),
             )
+        case (
+            'ext::pg_trgm::gin'
+            | 'ext::pg_trgm::gist'
+        ):
+            return expr_type.issubclass(
+                schema,
+                schema.get('std::str', type=s_scalars.ScalarType),
+            )
 
     return False
+
+
+def is_subclass_or_tuple(
+    ty: s_types.Type, parent_name: str | sn.Name, schema: s_schema.Schema
+) -> bool:
+    parent = schema.get(parent_name, type=s_types.Type)
+
+    if isinstance(ty, s_types.Tuple):
+        for (_, st) in ty.iter_subtypes(schema):
+            if not st.issubclass(schema, parent):
+                return False
+        return True
+    else:
+        return ty.issubclass(schema, parent)
 
 
 class Index(
@@ -131,6 +163,15 @@ class Index(
     qlkind=qltypes.SchemaObjectClass.INDEX,
     data_safe=True,
 ):
+    # redefine, so we can change compcoef
+    bases = so.SchemaField(
+        so.ObjectList['Index'],  # type: ignore
+        type_is_generic_self=True,
+        default=so.DEFAULT_CONSTRUCTOR,
+        coerce=True,
+        inheritable=False,
+        compcoef=0.0,  # can't rebase
+    )
 
     subject = so.SchemaField(
         so.Object,
@@ -174,7 +215,7 @@ class Index(
         s_expr.Expression,
         default=None,
         coerce=True,
-        compcoef=0.909,
+        compcoef=0.0,
         ddl_identity=True,
     )
 
@@ -182,7 +223,7 @@ class Index(
         s_expr.Expression,
         default=None,
         coerce=True,
-        compcoef=0.909,
+        compcoef=0.0,
         ddl_identity=True,
     )
 
@@ -246,7 +287,7 @@ class Index(
 
         return super().add_parent_name(base_name, schema)
 
-    def generic(self, schema: s_schema.Schema) -> bool:
+    def is_non_concrete(self, schema: s_schema.Schema) -> bool:
         return self.get_subject(schema) is None
 
     @classmethod
@@ -305,6 +346,19 @@ class Index(
                 kwargs[kwname] = val
 
         return kwargs
+
+    def is_defined_here(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        """
+        Returns True iff the index has not been inherited from a parent subject,
+        and was originally defined on the subject.
+        """
+        return all(
+            base.get_abstract(schema)
+            for base in self.get_bases(schema).objects(schema)
+        )
 
 
 IndexableSubject_T = TypeVar('IndexableSubject_T', bound='IndexableSubject')
@@ -453,7 +507,7 @@ class IndexCommand(
         ...
 
     @overload
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -464,7 +518,7 @@ class IndexCommand(
     ) -> Optional[Index]:
         ...
 
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -904,6 +958,15 @@ class CreateIndex(
         subject = referrer_ctx.scls
         assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
 
+        # FTS
+        if self.scls.has_base_with_name(schema, sn.QualName('fts', 'index')):
+
+            if isinstance(subject, s_pointers.Pointer):
+                raise errors.SchemaDefinitionError(
+                    "fts::index cannot be declared on links",
+                    context=self.source_context
+                )
+
         # Ensure that the name of the index (if given) matches an existing
         # abstract index.
         name = sn.shortname_from_fullname(
@@ -976,12 +1039,20 @@ class CreateIndex(
             )
             expr_type = comp_expr.irast.stype
 
-            if not is_index_valid_for_type(root, expr_type, schema):
+            if not is_index_valid_for_type(root, expr_type, comp_expr.schema):
+                hint = None
+                if str(name) == 'fts::index':
+                    hint = (
+                        'fts::document can be constructed with '
+                        'fts::with_options(str, ...)'
+                    )
+
                 raise errors.SchemaDefinitionError(
                     f'index expression ({expr.text}) '
                     f'is not of a valid type for the '
-                    f'{self.scls.get_verbosename(schema)}',
-                    context=self.source_context
+                    f'{self.scls.get_verbosename(comp_expr.schema)}',
+                    context=self.source_context,
+                    details=hint,
                 )
 
     def get_resolved_attributes(
@@ -1124,3 +1195,52 @@ class RebaseIndex(
     referencing.RebaseReferencedInheritingObject[Index],
 ):
     pass
+
+
+def get_effective_fts_index(
+    subject: IndexableSubject, schema: s_schema.Schema
+) -> Tuple[Optional[Index], bool]:
+    """
+    Returns the effective index of a subject and a boolean indicating
+    if the effective index has overriden any other fts indexes on this subject.
+    """
+    indexes: so.ObjectIndexByFullname[Index] = subject.get_indexes(schema)
+
+    fts_name = sn.QualName('fts', 'index')
+    fts_indexes = [
+        ind
+        for ind in indexes.objects(schema)
+        if ind.has_base_with_name(schema, fts_name)
+    ]
+    if len(fts_indexes) == 0:
+        return (None, False)
+
+    fts_indexes_defined_here = [
+        ind for ind in fts_indexes if ind.is_defined_here(schema)
+    ]
+
+    if len(fts_indexes_defined_here) > 0:
+        # indexes defined here have priority
+
+        if len(fts_indexes_defined_here) > 1:
+            subject_name = subject.get_displayname(schema)
+            raise errors.SchemaDefinitionError(
+                f'multiple {fts_name} indexes defined for {subject_name}'
+            )
+        effective = fts_indexes_defined_here[0]
+        has_overridden = len(fts_indexes) >= 2
+
+    else:
+        # there are no fts indexes defined on the subject
+        # the inherited indexes take effect
+
+        if len(fts_indexes) > 1:
+            subject_name = subject.get_displayname(schema)
+            raise errors.SchemaDefinitionError(
+                f'multiple {fts_name} indexes inherited for {subject_name}'
+            )
+
+        effective = fts_indexes[0]
+        has_overridden = False
+
+    return (effective, has_overridden)

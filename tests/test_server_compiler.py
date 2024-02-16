@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unittest.mock
 
 import immutables
 
@@ -33,6 +34,7 @@ from edb.testbase import lang as tb
 from edb.testbase import server as tbs
 from edb.server import args as edbargs
 from edb.server import compiler as edbcompiler
+from edb.server import config
 from edb.server.compiler_pool import amsg
 from edb.server.compiler_pool import pool
 from edb.server.dbview import dbview
@@ -287,10 +289,11 @@ class TestServerCompilerPool(tbs.TestCase):
                 f"in {timeout} second(s)"
             )
 
-    def _get_worker_pids(self, sd, least_num=2, timeout=5):
+    async def _get_worker_pids(self, sd, least_num=2, timeout=5):
         rv = []
         start = time.monotonic()
         while time.monotonic() - start < timeout and len(rv) < least_num:
+            await asyncio.sleep(timeout / 50)
             pool_info = sd.fetch_server_info()['compiler_pool']
             rv = pool_info['worker_pids']
         if len(rv) < least_num:
@@ -310,14 +313,14 @@ class TestServerCompilerPool(tbs.TestCase):
                 edbargs.ServerEndpointSecurityMode.Optional),
         ) as sd:
             self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
-            pid1, pid2 = self._get_worker_pids(sd)
+            pid1, pid2 = await self._get_worker_pids(sd)
 
             # Terminate one worker, the server is still OK
             self._kill_and_wait(pid1)
             self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
 
             # Confirm that another worker is started
-            pids = set(self._get_worker_pids(sd))
+            pids = set(await self._get_worker_pids(sd))
             self.assertIn(pid2, pids)
             pids.remove(pid2)
             self.assertEqual(len(pids), 1)
@@ -337,7 +340,7 @@ class TestServerCompilerPool(tbs.TestCase):
                     time.sleep(0.1)
                 else:
                     break
-            pids = set(self._get_worker_pids(sd))
+            pids = set(await self._get_worker_pids(sd))
             self.assertNotIn(pid1, pids)
             self.assertNotIn(pid2, pids)
             self.assertNotIn(pid3, pids)
@@ -347,7 +350,7 @@ class TestServerCompilerPool(tbs.TestCase):
             time.sleep(1)
             self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
             self.assertSetEqual(
-                set(self._get_worker_pids(sd, least_num=1)), pids
+                set(await self._get_worker_pids(sd, least_num=1)), pids
             )
             pid4 = pids.pop()
 
@@ -368,7 +371,7 @@ class TestServerCompilerPool(tbs.TestCase):
             # Make sure everything works again
             start = time.monotonic()
             while time.monotonic() - start < 10:
-                pids = self._get_worker_pids(sd, timeout=10)
+                pids = await self._get_worker_pids(sd, timeout=10)
                 if pid4 not in pids:
                     break
             self.assertNotIn(pid4, pids)
@@ -389,25 +392,21 @@ class TestCompilerPool(tbs.TestCase):
             pool_ = await pool.create_compiler_pool(
                 runstate_dir=td,
                 pool_size=2,
-                dbindex=dbview.DatabaseIndex(
-                    None,
-                    std_schema=self._std_schema,
-                    global_schema=None,
-                    sys_config={},
-                    default_sysconfig=immutables.Map(),
-                ),
                 backend_runtime_params=None,
                 std_schema=self._std_schema,
                 refl_schema=self._refl_schema,
                 schema_class_layout=self._schema_class_layout,
                 pool_class=pool_class,
+                dbindex=dbview.DatabaseIndex(
+                    unittest.mock.MagicMock(),
+                    std_schema=self._std_schema,
+                    global_schema_pickle=pickle.dumps(None, -1),
+                    sys_config={},
+                    default_sysconfig=immutables.Map(),
+                    sys_config_spec=config.load_spec_from_schema(
+                        self._std_schema),
+                ),
             )
-            # HACK: For adaptive pool, force the creation of a second
-            # worker. This is needed to work around issue #4680, where
-            # we won't scale up from a single connection.
-            if issubclass(pool_class, pool.SimpleAdaptivePool):
-                await pool_._create_worker()
-
             try:
                 w1 = await pool_._acquire_worker()
                 w2 = await pool_._acquire_worker()
@@ -434,7 +433,7 @@ class TestCompilerPool(tbs.TestCase):
                     0,
                     edgeql.Source.from_string('SELECT 123'),
                     edbcompiler.OutputFormat.BINARY,
-                    False, 101, False, True, False, (1, 0), True
+                    False, 101, False, True, (1, 0), True
                 ) for _ in range(4)))
             finally:
                 await pool_.stop()

@@ -19,10 +19,9 @@
 
 from __future__ import annotations
 
-from .compiler import Compiler
+from .compiler import Compiler, CompilerState
 from .compiler import CompileContext, CompilerDatabaseState
 from .compiler import compile_edgeql_script
-from .compiler import load_std_schema
 from .compiler import new_compiler, new_compiler_from_pg, new_compiler_context
 from .compiler import compile, compile_schema_storage_in_delta
 from .dbstate import QueryUnit, QueryUnitGroup
@@ -34,6 +33,7 @@ from .ddl import repair_schema
 __all__ = (
     'Cardinality',
     'Compiler',
+    'CompilerState',
     'CompileContext',
     'CompilerDatabaseState',
     'QueryUnit',
@@ -43,7 +43,6 @@ __all__ = (
     'OutputFormat',
     'analyze_explain_output',
     'compile_edgeql_script',
-    'load_std_schema',
     'new_compiler',
     'new_compiler_from_pg',
     'new_compiler_context',

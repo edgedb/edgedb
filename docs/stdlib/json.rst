@@ -128,9 +128,7 @@ conditions for casting:
 
 A named :eql:type:`tuple` is converted into a JSON object when cast as a
 :eql:type:`json` while a standard :eql:type:`tuple` is converted into a
-JSON array. Unlike other casts to JSON, tuple casts to JSON are *not*
-reversible (i.e., it is not possible to cast a JSON value directly into a
-:eql:type:`tuple`).
+JSON array.
 
 ----------
 

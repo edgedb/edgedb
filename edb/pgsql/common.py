@@ -25,17 +25,17 @@ import hashlib
 import base64
 import re
 from typing import *
+from typing import overload
 import uuid
 
 from edb.common import uuidgen
-from edb.schema import abc as s_abc
 from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
 from edb.schema import defines as s_def
 from edb.schema import functions as s_func
 from edb.schema import indexes as s_indexes
-from edb.schema import modules as s_mod
 from edb.schema import name as s_name
+from edb.schema import objects as so
 from edb.schema import objtypes as s_objtypes
 from edb.schema import operators as s_opers
 from edb.schema import pointers as s_pointers
@@ -61,7 +61,7 @@ def quote_e_literal(string: str) -> str:
     return "E'" + escape_sq(string) + "'"
 
 
-def quote_literal(string):
+def quote_literal(string: str) -> str:
     return "'" + string.replace("'", "''") + "'"
 
 
@@ -69,10 +69,17 @@ def _quote_ident(string: str) -> str:
     return '"' + string.replace('"', '""') + '"'
 
 
-def quote_ident(ident: str | pgast.Star, *, force=False) -> str:
+def quote_ident(ident: str | pgast.Star, *, force=False, column=False) -> str:
     if isinstance(ident, pgast.Star):
         return "*"
-    return _quote_ident(ident) if needs_quoting(ident) or force else ident
+    return (
+        _quote_ident(ident)
+        if needs_quoting(ident, column=column) or force else ident
+    )
+
+
+def quote_col(ident: str | pgast.Star) -> str:
+    return quote_ident(ident, column=True)
 
 
 def quote_bytea_literal(data: bytes) -> str:
@@ -85,7 +92,7 @@ def quote_bytea_literal(data: bytes) -> str:
         return "''::bytea"
 
 
-def needs_quoting(string: str) -> bool:
+def needs_quoting(string: str, column: bool=False) -> bool:
     isalnum = (string and not string[0].isdecimal() and
                string.replace('_', 'a').isalnum())
     return (
@@ -94,16 +101,18 @@ def needs_quoting(string: str) -> bool:
             pg_keywords.RESERVED_KEYWORD] or
         string.lower() in pg_keywords.by_type[
             pg_keywords.TYPE_FUNC_NAME_KEYWORD] or
+        (column and string.lower() in pg_keywords.by_type[
+            pg_keywords.COL_NAME_KEYWORD]) or
         string.lower() != string
     )
 
 
-def qname(*parts: str | pgast.Star) -> str:
+def qname(*parts: str | pgast.Star, column: bool=False) -> str:
     assert len(parts) <= 3, parts
-    return '.'.join([quote_ident(q) for q in parts])
+    return '.'.join([quote_ident(q, column=column) for q in parts])
 
 
-def quote_type(type_: Tuple[str, ...] | str):
+def quote_type(type_: Tuple[str, ...] | str) -> str:
     if isinstance(type_, tuple):
         first = qname(*type_[:-1]) + '.' if len(type_) > 1 else ''
         last = type_[-1]
@@ -156,7 +165,7 @@ def _edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     # md5 (and it doesn't matter which function is better cryptographically
     # in this case.)
     hashed = base64.b64encode(
-        hashlib.md5(name.encode()).digest()
+        hashlib.md5(name.encode(), usedforsecurity=False).digest()
     ).decode().rstrip('=')
 
     return (
@@ -389,19 +398,48 @@ def get_index_backend_name(id, module_name, catenate=True, *, aspect=None):
 
 def get_tuple_backend_name(
     id, catenate=True, *, aspect=None
-) -> Tuple[str, ...]:
+) -> Union[str, tuple[str, str]]:
 
     name = s_name.QualName(module='edgedb', name=f'{id}_t')
     return convert_name(name, aspect, catenate)
 
 
-def get_backend_name(schema, obj, catenate=True, *, aspect=None):
+@overload
+def get_backend_name(
+    schema: s_schema.Schema,
+    obj: so.Object,
+    catenate: Literal[True]=True,
+    *,
+    aspect: Optional[str]=None
+) -> str:
+    ...
+
+
+@overload
+def get_backend_name(
+    schema: s_schema.Schema,
+    obj: so.Object,
+    catenate: Literal[False],
+    *,
+    aspect: Optional[str]=None
+) -> tuple[str, str]:
+    ...
+
+
+def get_backend_name(
+    schema: s_schema.Schema,
+    obj: so.Object,
+    catenate: bool=True,
+    *,
+    aspect: Optional[str]=None
+) -> Union[str, tuple[str, str]]:
+    name: Union[s_name.QualName, s_name.Name]
     if isinstance(obj, s_objtypes.ObjectType):
         name = obj.get_name(schema)
         return get_objtype_backend_name(
             obj.id, name.module, catenate=catenate, aspect=aspect)
 
-    elif isinstance(obj, s_abc.Pointer):
+    elif isinstance(obj, s_pointers.Pointer):
         name = obj.get_name(schema)
         return get_pointer_backend_name(obj.id, name.module, catenate=catenate,
                                         aspect=aspect)
@@ -426,10 +464,6 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
         backend_name = obj.get_backend_name(schema)
         return get_function_backend_name(
             name, backend_name, catenate)
-
-    elif isinstance(obj, s_mod.Module):
-        name = obj.get_name(schema)
-        return get_module_backend_name(name.get_module_name())
 
     elif isinstance(obj, s_constr.Constraint):
         name = obj.get_name(schema)

@@ -29,11 +29,12 @@ bag = assert_data_shape.bag
 class TestModelGroupTests(unittest.TestCase):
     """Tests for GROUP BY in the toy evaluator model."""
 
-    DB1 = model.DB1
-
     def assert_test_query(
-        self, query, expected, *, db=DB1, sort=None, singleton_cheating=True
+        self, query, expected, *, db=None, sort=None, singleton_cheating=True
     ):
+        if not db:
+            db = model.mk_DB1()
+
         qltree = model.parse(query)
         result = model.go(qltree, db, singleton_cheating)
         if sort:

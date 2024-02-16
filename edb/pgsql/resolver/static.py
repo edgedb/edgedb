@@ -171,19 +171,32 @@ def eval_FuncCall(
 
     if fn_name == "set_config":
         # HACK: allow set_config('search_path', '', false) to support pg_dump
+        # HACK: allow set_config('bytea_output','hex',false) to support pgadmin
+        # HACK: allow set_config('jit', ...) to support asyncpg
         if args := eval_list(expr.args, ctx=ctx):
             name, value, is_local = args
-            if (
-                isinstance(name, pgast.StringConstant)
-                and isinstance(value, pgast.StringConstant)
-                and isinstance(is_local, pgast.BooleanConstant)
-            ):
+            if isinstance(name, pgast.StringConstant):
                 if (
-                    name.val == "search_path"
-                    and value.val == ""
-                    and not is_local.val
+                    isinstance(value, pgast.StringConstant)
+                    and isinstance(is_local, pgast.BooleanConstant)
                 ):
+                    if (
+                        name.val == "search_path"
+                        and value.val == ""
+                        and not is_local.val
+                    ):
+                        return value
+
+                    if (
+                        name.val == "bytea_output"
+                        and value.val == "hex"
+                        and not is_local.val
+                    ):
+                        return value
+
+                if name.val == "jit":
                     return value
+
         raise errors.QueryError(
             "function set_config is not supported", context=expr.context
         )
@@ -246,6 +259,22 @@ def eval_FuncCall(
 
         return pgast.FuncCall(name=('pg_catalog', fn_name), args=fn_args)
 
+    if fn_name == 'pg_table_is_visible':
+        arg_0 = dispatch.resolve(expr.args[0], ctx=ctx)
+
+        # our *_is_visible functions need search_path, passed in as an array
+        arg_1 = pgast.ArrayExpr(
+            elements=[
+                pgast.StringConstant(val=v)
+                for v in ctx.options.search_path
+            ]
+        )
+
+        return pgast.FuncCall(
+            name=('edgedbsql', fn_name),
+            args=[arg_0, arg_1]
+        )
+
     return None
 
 
@@ -307,6 +336,8 @@ def to_regclass(reg_class_name: str, ctx: Context) -> pgast.BaseExpr:
         name = (ctx.options.search_path[0], name[0])
 
     namespace, rel_name = name
+    assert isinstance(namespace, str)
+    assert isinstance(rel_name, str)
 
     # A bit hacky to parse SQL here, but I don't want to construct pgast
     [stmt] = pgparser.parse(

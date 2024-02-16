@@ -1,33 +1,44 @@
 [project]
 name = "edgedb-server"
 description = "EdgeDB Server"
-requires-python = '>=3.10.0'
-dynamic = ["entry-points", "version"]
+requires-python = '>=3.11.0'
+dynamic = ["version"]
 dependencies = [
-    'edgedb==1.3.0',
+    'edgedb==1.6.0',
 
     'httptools>=0.6.0',
     'immutables>=0.18',
     'parsing~=2.0',
-    'uvloop~=0.17.0',
+    'uvloop~=0.19.0',
 
-    'click~=7.1',
-    'cryptography~=35.0',
+    'click~=8.0',
+    'cryptography~=42.0',
     'graphql-core~=3.1.5',
     'jwcrypto~=1.3.1',
     'psutil~=5.8',
     'setproctitle~=1.2',
+
+    'httpx~=0.24.1',
+    'hishel==0.0.21',
+    'webauthn~=2.0.0',
+    'argon2-cffi~=23.1.0',
+    'aiosmtplib~=2.0',
 ]
+
+[project.scripts]
+edgedb-server = "edb.server.main:main"
+edb = "edb.tools.edb:edbcommands"
+edgedb = "edb.cli:rustcli"
 
 [project.optional-dependencies]
 test = [
-    'black~=21.7b0',
-    'coverage~=5.5',
-    'flake8~=6.0.0',
-    'flake8-bugbear~=23.1.20',
-    'pycodestyle~=2.10.0',
-    'pyflakes~=3.0.1',
-    'asyncpg~=0.26.0',
+    'black~=24.2.0',
+    'coverage~=7.4',
+    'flake8~=7.0.0',
+    'flake8-bugbear~=24.2.6',
+    'pycodestyle~=2.11.0',
+    'pyflakes~=3.2.0',
+    'asyncpg~=0.29.0',
 
     # Needed for test_docs_sphinx_ext
     'requests-xml~=0.2.3',
@@ -35,18 +46,18 @@ test = [
     # For rebuilding GHA workflows
     'Jinja2~=2.11',
     'MarkupSafe~=1.1',
-    'PyYAML~=5.4',
+    'PyYAML~=6.0',
 
-    'mypy==1.0.0',
+    'mypy~=1.7.1',
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
-    'types-click~=7.1',
     'types-docutils~=0.17.0,<0.17.6',  # incomplete nodes.document.__init__
     'types-Jinja2~=2.11',
     'types-MarkupSafe~=1.1',
     'types-pkg-resources~=0.1.3',
     'types-typed-ast~=1.4.2',
     'types-requests~=2.25.6',
+    'types-PyYAML~=6.0',
 
     'prometheus_client~=0.11.0',
 
@@ -55,6 +66,11 @@ test = [
     'Pygments~=2.10.0',
     'Sphinx~=4.2.0',
     'sphinxcontrib-asyncio~=0.3.0',
+    'sphinxcontrib-applehelp<1.0.8',
+    'sphinxcontrib-devhelp<1.0.6',
+    'sphinxcontrib-htmlhelp<2.0.5',
+    'sphinxcontrib-serializinghtml<1.1.10',
+    'sphinxcontrib-qthelp<1.0.7',
     'sphinx_code_tabs~=0.5.3',
 ]
 
@@ -72,11 +88,11 @@ requires = [
     "Cython (>=0.29.32, <0.30.0)",
     "packaging >= 21.0",
     "setuptools >= 67",
-    "setuptools-rust ~= 0.12.1",
+    "setuptools-rust ~= 1.8",
     "wheel",
 
     "parsing ~= 2.0",
-    'edgedb == 1.3.0',
+    'edgedb == 1.6.0',
 ]
 # Custom backend needed to set up build-time sys.path because
 # setup.py needs to import `edb.buildmeta`.
@@ -102,7 +118,7 @@ skip-string-normalization = true
 # ========================
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 plugins = "edb/tools/mypy/plugin.py"
 follow_imports = "normal"
 ignore_missing_imports = true
@@ -132,8 +148,7 @@ module = [
     "edb.server.connpool.*",
     "edb.server.pgcluster",
     "edb.server.pgconnparams",
-    "edb.server.compiler.explain",
-    "edb.server.compiler.sertypes",
+    "edb.server.compiler.*",
 ]
 # Equivalent of --strict on the command line,
 # but without disallow_untyped_calls:

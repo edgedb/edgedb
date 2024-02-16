@@ -11,9 +11,12 @@ with EdgeDB. These libraries provide a common set of functionality.
   internally manages a pool of physical connections to your EdgeDB instance.
 - *Resolving connections.* All client libraries implement a standard protocol
   for determining how to connect to your database. In most cases, this will
-  involve checking for special environment variables like ``EDGEDB_DSN``.
-  (More on this in the Connection section below.)
-- *Executing queries.* A  ``Client`` will provide some methods for executing
+  involve checking for special environment variables like ``EDGEDB_DSN`` or, in
+  the case of EdgeDB Cloud instances, ``EDGEDB_INSTANCE`` and
+  ``EDGEDB_SECRET_KEY``.
+  (More on this in :ref:`the Connection section below
+  <ref_intro_clients_connection>`.)
+- *Executing queries.* A ``Client`` will provide some methods for executing
   queries against your database. Under the hood, this query is executed using
   EdgeDB's efficient binary protocol.
 
@@ -26,7 +29,7 @@ with EdgeDB. These libraries provide a common set of functionality.
   choice.
 
 Available libraries
--------------------
+===================
 
 To execute queries from your application code, use one of EdgeDB's *client
 libraries* for the following languages.
@@ -38,14 +41,10 @@ libraries* for the following languages.
 - `Rust <https://github.com/edgedb/edgedb-rust>`_
 - `.NET <https://github.com/edgedb/edgedb-net>`_
 - `Java <https://github.com/edgedb/edgedb-java>`_
-
-Unofficial (community-maintained) libraries are available for the following
-languages.
-
-- `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
+- `Elixir <https://github.com/edgedb/edgedb-elixir>`_
 
 Usage
------
+=====
 
 To follow along with the guide below, first create a new directory and
 initialize a project.
@@ -105,6 +104,11 @@ Configure the environment as needed for your preferred language.
 
     $ touch Main.java
 
+  .. code-tab:: bash
+    :caption: Elixir
+
+    $ mix new edgedb_quickstart
+
 Install the EdgeDB client library.
 
 .. tabs::
@@ -131,10 +135,9 @@ Install the EdgeDB client library.
     # Cargo.toml
 
     [dependencies]
-    edgedb-tokio = "0.3.0"
-    # additional dependencies
-    tokio = { version = "1", features = ["full"] }
-    anyhow = "1.0.63"
+    edgedb-tokio = "0.5.0"
+    # Additional dependency
+    tokio = { version = "1.28.1", features = ["macros", "rt-multi-thread"] }
 
   .. code-tab:: bash
     :caption: Go
@@ -160,6 +163,12 @@ Install the EdgeDB client library.
 
     // build.gradle
     implementation 'com.edgedb:driver'
+
+  .. code-tab:: elixir
+    :caption: Elixir
+
+    # mix.exs
+    {:edgedb, "~> 0.6.0"}
 
 Copy and paste the following simple script. This script initializes a
 ``Client`` instance. Clients manage an internal pool of connections to your
@@ -192,7 +201,7 @@ database and provide a set of methods for executing queries.
   .. code-tab:: typescript
     :caption: Deno
 
-    import {createClient} from 'https://deno.land/x/edgedb';
+    import {createClient} from 'https://deno.land/x/edgedb/mod.ts';
 
     const client = createClient();
 
@@ -212,13 +221,15 @@ database and provide a set of methods for executing queries.
 
     // src/main.rs
     #[tokio::main]
-    async fn main() -> anyhow::Result<()> {
-        let conn = edgedb_tokio::create_client().await?;
+    async fn main() {
+        let conn = edgedb_tokio::create_client()
+            .await
+            .expect("Client initiation");
         let val = conn
             .query_required_single::<f64, _>("select random()", &())
-            .await?;
+            .await
+            .expect("Returning value");
         println!("Result: {}", val);
-        Ok(())
     }
 
   .. code-tab:: go
@@ -293,6 +304,18 @@ database and provide a set of methods for executing queries.
         }
     }
 
+  .. code-tab:: elixir
+    :caption: Elixir
+
+    # lib/edgedb_quickstart.ex
+    defmodule EdgeDBQuickstart do
+      def run do
+        {:ok, client} = EdgeDB.start_link()
+        result = EdgeDB.query_single!(client, "select random()")
+        IO.inspect(result)
+      end
+    end
+
 .. lint-on
 
 
@@ -336,6 +359,11 @@ Finally, execute the file.
     $ javac Main.java
     $ java Main
 
+  .. code-tab:: bash
+    :caption: Elixir
+
+    $ mix run -e EdgeDBQuickstart.run
+
 You should see a random number get printed to the console. This number was
 generated inside your EdgeDB instance using EdgeQL's built-in
 :eql:func:`random` function.
@@ -343,13 +371,13 @@ generated inside your EdgeDB instance using EdgeQL's built-in
 .. _ref_intro_clients_connection:
 
 Connection
-----------
+==========
 
 All client libraries implement a standard protocol for determining how to
 connect to your database.
 
 Using projects
-^^^^^^^^^^^^^^
+--------------
 
 In development, we recommend :ref:`initializing a
 project <ref_intro_projects>` in the root of your codebase.
@@ -363,12 +391,28 @@ will automatically connect to the project-linked instance—no need for
 environment variables or hard-coded credentials. Follow the :ref:`Using
 projects <ref_guide_using_projects>` guide to get started.
 
-Using ``EDGEDB_DSN``
-^^^^^^^^^^^^^^^^^^^^
+Using environment variables
+---------------------------
+
+For EdgeDB Cloud
+^^^^^^^^^^^^^^^^
 
 In production, connection information can be securely passed to the client
-library via environment variables. Most commonly, you set a value for
-``EDGEDB_DSN``.
+library via environment variables. For EdgeDB Cloud instances, the recommended
+variables to set are ``EDGEDB_INSTANCE`` and ``EDGEDB_SECRET_KEY``.
+
+Set ``EDGEDB_INSTANCE`` to ``<org-name>/<instance-name>`` where
+``<instance-name>`` is the name you set when you created the EdgeDB Cloud
+instance.
+
+If you have not yet created a secret key, you can do so in the EdgeDB Cloud UI
+or by running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.
+
+For self-hosted instances
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Most commonly for self-hosted remote instances, you set a value for the
+``EDGEDB_DSN`` environment variable.
 
 .. note::
 
@@ -451,7 +495,7 @@ specified independently.
   If a value for ``EDGEDB_DSN`` is defined, it will override these variables!
 
 Other mechanisms
-^^^^^^^^^^^^^^^^
+----------------
 
 ``EDGEDB_CREDENTIALS_FILE``
   A path to a ``.json`` file containing connection information. In some
@@ -473,7 +517,7 @@ Other mechanisms
   The name of a local instance. Only useful in development.
 
 Reference
-^^^^^^^^^
+---------
 
 These are the most common ways to connect to an instance, however EdgeDB
 supports several other options for advanced use cases. For a complete reference

@@ -87,7 +87,7 @@ def merge_cardinality(
 
     for base in bases:
         # ignore abstract pointers
-        if base.generic(schema):
+        if base.is_non_concrete(schema):
             continue
 
         nextval: Optional[qltypes.SchemaCardinality] = (
@@ -147,7 +147,7 @@ def merge_readonly(
 
     for source in list(sources):
         # ignore abstract pointers
-        if source.generic(schema):
+        if source.is_non_concrete(schema):
             continue
 
         # We want the field value including the default, not just
@@ -448,6 +448,18 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         merge_fn=merge_readonly,
     )
 
+    secret = so.SchemaField(
+        bool,
+        default=False,
+        compcoef=0.909,
+    )
+
+    protected = so.SchemaField(
+        bool,
+        default=False,
+        compcoef=0.909,
+    )
+
     # For non-derived pointers this is strongly correlated with
     # "expr" below.  Derived pointers might have "computable" set,
     # but expr=None.
@@ -523,7 +535,12 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         type_is_generic_self=True,
     )
 
-    computed_backlink = so.SchemaField(
+    computed_link_alias_is_backward = so.SchemaField(
+        bool,
+        default=None,
+        compcoef=0.99,
+    )
+    computed_link_alias = so.SchemaField(
         so.Object,
         default=None,
         compcoef=0.99,
@@ -554,6 +571,10 @@ class Pointer(referencing.NamedReferencedInheritingObject,
     def is_generated(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_from_alias(schema))
 
+    def get_subject(self, schema: s_schema.Schema) -> Optional[so.Object]:
+        # Required by ReferencedObject
+        return self.get_source(schema)
+
     @classmethod
     def get_displayname_static(cls, name: sn.Name) -> str:
         sn = cls.get_shortname_static(name)
@@ -569,7 +590,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         with_parent: bool=False,
     ) -> str:
         vn = super().get_verbosename(schema)
-        if self.generic(schema):
+        if self.is_non_concrete(schema):
             return f'abstract {vn}'
         else:
             if with_parent:
@@ -744,17 +765,13 @@ class Pointer(referencing.NamedReferencedInheritingObject,
     def is_link_property(self, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
 
-    def is_protected_pointer(self, schema: s_schema.Schema) -> bool:
-        sn = self.get_shortname(schema).name
-        return sn == '__type__'
-
     def is_dumpable(self, schema: s_schema.Schema) -> bool:
         return (
             not self.is_pure_computable(schema)
             and not self.get_shortname(schema).name == '__type__'
         )
 
-    def generic(self, schema: s_schema.Schema) -> bool:
+    def is_non_concrete(self, schema: s_schema.Schema) -> bool:
         return self.get_source(schema) is None
 
     def get_referrer(self, schema: s_schema.Schema) -> Optional[so.Object]:
@@ -762,8 +779,8 @@ class Pointer(referencing.NamedReferencedInheritingObject,
 
     def get_exclusive_constraints(
             self, schema: s_schema.Schema) -> Sequence[constraints.Constraint]:
-        if self.generic(schema):
-            raise ValueError(f'{self!r} is generic')
+        if self.is_non_concrete(schema):
+            raise ValueError(f'{self!r} is not a concrete pointer')
 
         exclusive = schema.get('std::exclusive', type=constraints.Constraint)
 
@@ -774,6 +791,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
             if (
                 constr.issubclass(schema, exclusive)
                 and not constr.get_subjectexpr(schema)
+                and not constr.get_delegated(schema)
             ):
                 assert not constr.get_except_expr(schema)
                 constrs.append(constr)
@@ -1065,7 +1083,7 @@ class PseudoPointer(s_abc.Pointer):
     def is_link_property(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def generic(self, schema: s_schema.Schema) -> bool:
+    def is_non_concrete(self, schema: s_schema.Schema) -> bool:
         return False
 
     def singular(
@@ -1159,30 +1177,15 @@ class PointerCommandOrFragment(
             )
 
         if isinstance(target_ref, ComputableRef):
-            schema, inf_target_ref, base = self._parse_computable(
+            schema, inf_target_ref = self._parse_computable(
                 target_ref.expr, schema, context)
         elif (expr := self.get_local_attribute_value('expr')) is not None:
             schema = s_types.materialize_type_in_attribute(
                 schema, context, self, 'target')
-            schema, inf_target_ref, base = self._parse_computable(
+            schema, inf_target_ref = self._parse_computable(
                 expr.qlast, schema, context)
         else:
             inf_target_ref = None
-            base = None
-
-        if base is not None:
-            self.set_attribute_value(
-                'bases', so.ObjectList.create(schema, [base]),
-            )
-
-            self.set_attribute_value(
-                'is_derived', True
-            )
-
-            if context.declarative:
-                self.set_attribute_value(
-                    'declared_overloaded', True
-                )
 
         if inf_target_ref is not None:
             srcctx = self.get_attribute_source_context('target')
@@ -1201,19 +1204,6 @@ class PointerCommandOrFragment(
             # There is an expression, therefore it is a computable.
             self.set_attribute_value('computable', True)
 
-        # If a change to the computable definition might be changing
-        # the bases, we need to create a rebase.
-        if base is not None and isinstance(self, sd.AlterObject):
-            assert isinstance(self, inheriting.InheritingObjectCommand)
-            assert isinstance(base, Pointer)
-            _, cmd = self._rebase_ref_cmd(
-                schema, context, self.scls,
-                self.scls.get_bases(schema).objects(schema),
-                [base],
-            )
-            if cmd:
-                self.add(cmd)
-
         return schema
 
     def _parse_computable(
@@ -1224,7 +1214,6 @@ class PointerCommandOrFragment(
     ) -> Tuple[
         s_schema.Schema,
         s_types.TypeShell[s_types.Type],
-        Optional[PointerLike],
     ]:
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
@@ -1245,7 +1234,6 @@ class PointerCommandOrFragment(
             value=s_expr.Expression.from_ast(expr, schema, context.modaliases),
         )
 
-        base = None
         target = expression.irast.stype
         target_shell = target.as_shell(expression.irast.schema)
         if (
@@ -1266,39 +1254,42 @@ class PointerCommandOrFragment(
 
         # Process a computable pointer which potentially could be an
         # aliased link that should inherit link properties.
-        if isinstance(result_expr, irast.Set) and result_expr.rptr is not None:
-            expr_rptr = result_expr.rptr
+        computed_link_alias = None
+        computed_link_alias_is_backward = None
+        if (
+            isinstance(result_expr, irast.Set)
+            and (expr_rptr := result_expr.rptr) is not None
+            and expr_rptr.direction is PointerDirection.Outbound
+            and expr_rptr.source.rptr is None
+            and isinstance(expr_rptr.ptrref, irast.PointerRef)
+            and schema.has_object(expr_rptr.ptrref.id)
+        ):
+            new_schema, aliased_ptr = irtyputils.ptrcls_from_ptrref(
+                expr_rptr.ptrref, schema=schema
+            )
+            # Only pointers coming from the same source as the
+            # alias should be "inherited" (in order to preserve
+            # link props). Random paths coming from other sources
+            # get treated same as any other arbitrary expression
+            # in a computable.
             if (
-                expr_rptr.direction is PointerDirection.Outbound
-                and expr_rptr.source.rptr is None
-                and isinstance(expr_rptr.ptrref, irast.PointerRef)
-                and schema.has_object(expr_rptr.ptrref.id)
+                aliased_ptr.get_source(new_schema) == source
+                and isinstance(aliased_ptr, self.get_schema_metaclass())
             ):
-                new_schema, aliased_ptr = irtyputils.ptrcls_from_ptrref(
-                    expr_rptr.ptrref, schema=schema
-                )
-                # Only pointers coming from the same source as the
-                # alias should be "inherited" (in order to preserve
-                # link props). Random paths coming from other sources
-                # get treated same as any other arbitrary expression
-                # in a computable.
-                if (
-                    aliased_ptr.get_source(new_schema) == source
-                    and isinstance(aliased_ptr, self.get_schema_metaclass())
-                ):
-                    base = aliased_ptr
-                    schema = new_schema
+                schema = new_schema
+                computed_link_alias = aliased_ptr
+                computed_link_alias_is_backward = False
 
         # Do similar logic, but in reverse, to see if the computed pointer
         # is a computed backlink that we need to keep track of.
-        computed_backlink = None
         if (
-            base is None
+            computed_link_alias is None
             and isinstance(orig_expr, irast.Set)
             and orig_expr.rptr
             and isinstance(
                 orig_expr.rptr.ptrref, irast.TypeIntersectionPointerRef)
             and len(orig_expr.rptr.ptrref.rptr_specialization) == 1
+            and expr_rptr
             and expr_rptr.direction is not PointerDirection.Outbound
         ):
             ptrref = list(orig_expr.rptr.ptrref.rptr_specialization)[0]
@@ -1310,10 +1301,13 @@ class PointerCommandOrFragment(
                 and not ptrref.out_source.is_opaque_union
                 and isinstance(aliased_ptr, self.get_schema_metaclass())
             ):
-                computed_backlink = aliased_ptr
+                computed_link_alias_is_backward = True
+                computed_link_alias = aliased_ptr
                 schema = new_schema
 
-        self.set_attribute_value('computed_backlink', computed_backlink)
+        self.set_attribute_value('computed_link_alias', computed_link_alias)
+        self.set_attribute_value(
+            'computed_link_alias_is_backward', computed_link_alias_is_backward)
 
         self.set_attribute_value('expr', expression)
         required, card = expression.irast.cardinality.to_schema_value()
@@ -1423,7 +1417,7 @@ class PointerCommandOrFragment(
 
         self.set_attribute_value('computable', True)
 
-        return schema, target_shell, base
+        return schema, target_shell
 
     def _compile_expr(
         self,
@@ -1611,7 +1605,7 @@ class PointerCommand(
 
         if is_computable:
             if any(
-                b.generic(schema)
+                b.is_non_concrete(schema)
                 and not str(b.get_name(schema)) in (
                     'std::link', 'std::property')
                 for b in scls.get_bases(schema).objects(schema)
@@ -1636,7 +1630,7 @@ class PointerCommand(
         for iid in scls.get_ancestors(schema)._ids:
             try:
                 p = cast(Pointer_T, schema.get_by_id(iid))
-                if not p.generic(schema) and p.get_owned(schema):
+                if not p.is_non_concrete(schema) and p.get_owned(schema):
                     lineage.append(p)
             except errors.InvalidReferenceError:
                 pass
@@ -1760,13 +1754,23 @@ class PointerCommand(
                     schema, context, default_expr.irast.expr)
 
             source_context = self.get_attribute_source_context('default')
-            default_schema = default_expr.irast.schema
-            default_type = default_expr.irast.stype
+            ir = default_expr.irast
+            default_schema = ir.schema
+            default_type = ir.stype
             assert default_type is not None
             ptr_target = scls.get_target(schema)
             assert ptr_target is not None
 
-            if default_type.is_view(default_schema):
+            if (
+                default_type.is_view(default_schema)
+                # Using an alias/global always creates a new subtype view,
+                # but we want to allow those here, so check whether there
+                # is a shape more directly.
+                and not (
+                    len(shape := ir.view_shapes.get(default_type, [])) == 1
+                    and shape[0].is_id_pointer(default_schema)
+                )
+            ):
                 raise errors.SchemaDefinitionError(
                     f'default expression may not include a shape',
                     context=source_context,
@@ -2078,14 +2082,25 @@ class AlterPointer(
     ) -> s_schema.Schema:
         schema = super()._alter_begin(schema, context)
 
-        if (
+        if not context.canonical and (
             self.get_attribute_value('expr') is not None
+            or self.get_orig_attribute_value('expr') is not None
             or bool(self.get_subcommands(type=constraints.ConstraintCommand))
             or (
                 self.get_attribute_value('default') is not None
                 and self.scls.is_link_property(schema)
             )
         ):
+            extras: dict[so.Object, list[str]] = {}
+            if (
+                self.get_attribute_value('expr') is not None
+                or self.get_orig_attribute_value('expr') is not None
+            ):
+                for constr in (
+                    self.scls.get_constraints(schema).objects(schema)
+                ):
+                    extras[constr] = ['finalexpr']
+
             # If the expression gets changed, we need to propagate
             # this change to other expressions referring to this one,
             # in case there are any cycles caused by this change.
@@ -2096,10 +2111,15 @@ class AlterPointer(
             # Also when setting a default on a link property, since
             # access policies need to be prevented from accessing them.
             # (Ugh.)
+            #
+            # FIXME: sometimes this can cause a constraint to get
+            # altered because we've created another constraint, which
+            # could change inference
             schema = self._propagate_if_expr_refs(
                 schema,
                 context,
                 action=self.get_friendly_description(schema=schema),
+                extra_refs=extras,
             )
 
         return schema
@@ -2156,7 +2176,7 @@ class AlterPointer(
                 # that means that `RESET EXPRESSION` was executed
                 # and this is no longer a computable.
 
-                self.set_attribute_value('computable', False)
+                self.set_attribute_value('computable', None)
                 computed_fields = pointer.get_computed_fields(schema)
                 if (
                     'required' in computed_fields
@@ -2168,7 +2188,9 @@ class AlterPointer(
                     and not self.has_attribute_value('cardinality')
                 ):
                     self.set_attribute_value('cardinality', None)
-                self.set_attribute_value('computed_backlink', None)
+                self.set_attribute_value(
+                    'computed_link_alias_is_backward', None)
+                self.set_attribute_value('computed_link_alias', None)
 
             # Clear the placeholder value for 'expr'.
             self.set_attribute_value('expr', None)
@@ -2235,7 +2257,7 @@ class DeletePointer(
             not context.canonical
             and (target := self.scls.get_target(schema)) is not None
             and not self.scls.is_endpoint_pointer(schema)
-            and (del_cmd := target.as_type_delete_if_dead(schema)) is not None
+            and (del_cmd := target.as_type_delete_if_unused(schema)) is not None
         ):
             self.add_caused(del_cmd)
 
@@ -2440,10 +2462,7 @@ class SetPointerType(
                 context=self.source_context,
             )
 
-        if orig_target == new_target:
-            return schema
-
-        if not context.canonical:
+        if not context.canonical and orig_target != new_target:
             assert orig_target is not None
             assert new_target is not None
             ptr_op = self.get_parent_op(context)
@@ -2519,10 +2538,11 @@ class SetPointerType(
             )
 
             if orig_target is not None and scls.is_property(schema):
-                if cleanup_op := orig_target.as_type_delete_if_dead(schema):
+                if cleanup_op := orig_target.as_type_delete_if_unused(schema):
                     parent_op = self.get_parent_op(context)
                     parent_op.add_caused(cleanup_op)
 
+        if not context.canonical:
             if context.enable_recursion:
                 self._propagate_ref_field_alter_in_inheritance(
                     schema,

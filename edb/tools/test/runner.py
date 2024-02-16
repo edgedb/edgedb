@@ -21,7 +21,6 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
-import binascii
 import collections
 import collections.abc
 import csv
@@ -37,6 +36,7 @@ import os
 import pathlib
 import random
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -54,13 +54,15 @@ import click
 import edgedb
 
 from edb.common import devmode
-from edb.testbase import lang as tb_lang
 from edb.testbase import server as tb
 
 from . import cpython_state
 from . import mproc_fixes
 from . import styles
+from . import results
 
+if TYPE_CHECKING:
+    import edb.server.cluster as edb_cluster
 
 result: Optional[unittest.result.TestResult] = None
 coverage_run: Optional[Any] = None
@@ -79,13 +81,19 @@ def teardown_suite() -> None:
     suite._handleModuleTearDown(result)  # type: ignore[attr-defined]
 
 
-def init_worker(status_queue: multiprocessing.SimpleQueue,
-                param_queue: multiprocessing.SimpleQueue,
-                result_queue: multiprocessing.SimpleQueue) -> None:
+def init_worker(
+    status_queue: multiprocessing.SimpleQueue,
+    param_queue: multiprocessing.SimpleQueue,
+    result_queue: multiprocessing.SimpleQueue,
+    additional_init: Optional[Callable]
+) -> None:
     global result
     global coverage_run
     global py_hash_secret
     global py_random_seed
+
+    if additional_init:
+        additional_init()
 
     # Make sure the generator is re-seeded, as we have inherited
     # the seed from the parent process.
@@ -278,12 +286,15 @@ def monitor_thread(queue, result):
 
 
 class ParallelTestSuite(unittest.TestSuite):
-    def __init__(self, tests, server_conn, num_workers, backend_dsn):
+    def __init__(
+        self, tests, server_conn, num_workers, backend_dsn, init_worker
+    ):
         self.tests = tests
         self.server_conn = server_conn
         self.num_workers = num_workers
         self.stop_requested = False
         self.backend_dsn = backend_dsn
+        self.init_worker = init_worker
 
     def run(self, result):
         # We use SimpleQueues because they are more predictable.
@@ -303,7 +314,9 @@ class ParallelTestSuite(unittest.TestSuite):
             args=(result_queue, result), daemon=True)
         result_thread.start()
 
-        initargs = (status_queue, worker_param_queue, result_queue)
+        initargs = (
+            status_queue, worker_param_queue, result_queue, self.init_worker
+        )
 
         pool = multiprocessing.Pool(
             self.num_workers,
@@ -328,29 +341,30 @@ class ParallelTestSuite(unittest.TestSuite):
                 else:
                     break
 
-            # Post the terminal message to the queue so that
-            # test-monitor can stop.
-            result_queue.put((None, None, None))
-
-            # Give the test-monitor thread some time to
-            # process the queue messages.  If something
-            # goes wrong, the thread will be forcibly
-            # joined by a timeout.
-            result_thread.join(timeout=3)
-
         # Wait for pool to shutdown, this includes test teardowns.
         pool.join()
+
+        # Post the terminal message to the queue so that
+        # test-monitor can stop.
+        result_queue.put((None, None, None))
+
+        # Give the test-monitor thread some time to
+        # process the queue messages.  If something
+        # goes wrong, the thread will be forcibly
+        # joined by a timeout.
+        result_thread.join(timeout=3)
 
         return result
 
 
 class SequentialTestSuite(unittest.TestSuite):
 
-    def __init__(self, tests, server_conn, backend_dsn):
+    def __init__(self, tests, server_conn, backend_dsn, worker_init):
         self.tests = tests
         self.server_conn = server_conn
         self.stop_requested = False
         self.backend_dsn = backend_dsn
+        self.worker_init = worker_init
 
     def run(self, result_):
         global result
@@ -361,6 +375,9 @@ class SequentialTestSuite(unittest.TestSuite):
                 json.dumps(self.server_conn)
         if self.backend_dsn:
             os.environ['EDGEDB_TEST_BACKEND_DSN'] = self.backend_dsn
+
+        if self.worker_init:
+            self.worker_init()
 
         random.seed(py_random_seed)
 
@@ -387,7 +404,7 @@ class Markers(enum.Enum):
     upassed = 'U'  # unexpected success
 
 
-class OutputFormat(enum.Enum):
+class OutputFormat(str, enum.Enum):
     auto = 'auto'
     simple = 'simple'
     stacked = 'stacked'
@@ -505,7 +522,7 @@ class MultiLineRenderer(BaseRenderer):
             print_line(' ')
 
         last_render = self.completed_tests == self.total_tests
-        cols, rows = click.get_terminal_size()
+        cols, rows = shutil.get_terminal_size()
         second_col_width = cols - self.first_col_width
 
         def _render_test_list(label, max_lines, tests, style):
@@ -675,7 +692,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
             self.ren = VerboseRenderer(tests=tests, stream=stream)
         elif (output_format is OutputFormat.stacked or
                 (output_format is OutputFormat.auto and stream.isatty() and
-                 click.get_terminal_size()[0] > 60 and
+                 shutil.get_terminal_size()[0] > 60 and
                  os.name != 'nt')):
             self.ren = MultiLineRenderer(tests=tests, stream=stream)
         else:
@@ -809,7 +826,13 @@ class ParallelTextTestRunner:
         self.data_dir = data_dir
         self.try_cached_db = try_cached_db
 
-    def run(self, test, selected_shard, total_shards, running_times_log_file):
+    def run(
+        self,
+        test: Any,
+        selected_shard: int,
+        total_shards: int,
+        running_times_log_file: Optional[Any],
+    ) -> results.TestResult:
         session_start = time.monotonic()
         cases = tb.get_test_cases([test])
         stats = {}
@@ -824,11 +847,11 @@ class ParallelTextTestRunner:
         )
         setup = tb.get_test_cases_setup(cases)
         server_used = tb.test_cases_use_server(cases)
-        lang_setup = tb_lang.get_test_cases_setup(cases)
-        bootstrap_time_taken = 0
-        tests_time_taken = 0
-        result = None
-        cluster = None
+        worker_init = None
+        bootstrap_time_taken = 0.0
+        tests_time_taken = 0.0
+        result: Optional[ParallelTextTestResult] = None
+        cluster: Optional[edb_cluster.BaseCluster] = None
         conn = None
         tempdir = None
         setup_stats = []
@@ -862,9 +885,6 @@ class ParallelTextTestRunner:
                 tb.generate_jwk(jwk_file)
 
                 os.environ["EDGEDB_SERVER_JWS_KEY_FILE"] = str(jwk_file)
-
-        if lang_setup:
-            tb_lang.run_test_cases_setup(lang_setup, jobs=self.num_workers)
 
         try:
             if setup:
@@ -924,6 +944,10 @@ class ParallelTextTestRunner:
                     if not cluster.has_create_database():
                         return []
 
+                    if not cluster.has_create_role():
+                        for case in cases:
+                            case.is_superuser = False
+
                     stats = await tb.setup_test_cases(
                         cases,
                         conn,
@@ -958,6 +982,7 @@ class ParallelTextTestRunner:
 
                 setup_stats = asyncio.run(_setup())
 
+                assert cluster
                 if cluster.has_create_database():
                     os.environ.update({
                         'EDGEDB_TEST_CASES_SET_UP': "skip"
@@ -982,18 +1007,21 @@ class ParallelTextTestRunner:
             all_tests = list(itertools.chain.from_iterable(
                 tests for tests in cases.values()))
 
+            suite: unittest.TestSuite
             if self.num_workers > 1:
                 suite = ParallelTestSuite(
                     self._sort_tests(cases),
                     conn,
                     self.num_workers,
                     self.backend_dsn,
+                    worker_init,
                 )
             else:
                 suite = SequentialTestSuite(
                     self._sort_tests(cases),
                     conn,
                     self.backend_dsn,
+                    worker_init,
                 )
 
             result = ParallelTextTestResult(
@@ -1036,121 +1064,15 @@ class ParallelTextTestRunner:
                 self._echo('OK.')
 
         if result is not None:
-            self._render_result(
-                result, bootstrap_time_taken, tests_time_taken)
+            return results.collect_result_data(
+                result, bootstrap_time_taken, tests_time_taken
+            )
+        else:
+            return None
 
-        return result
-
-    def _get_term_width(self):
-        return click.get_terminal_size()[0] or 70
-
-    def _echo(self, s='', **kwargs):
+    def _echo(self, s: str = '', **kwargs):
         if self.verbosity > 0:
             click.secho(s, file=self.stream, **kwargs)
-
-    def _fill(self, char, **kwargs):
-        self._echo(char * self._get_term_width(), **kwargs)
-
-    def _format_time(self, seconds):
-        hours = int(seconds // 3600)
-        seconds %= 3600
-        minutes = int(seconds // 60)
-        seconds %= 60
-
-        return f'{hours:02d}:{minutes:02d}:{seconds:04.1f}'
-
-    def _print_errors(self, result):
-        uxsuccesses = ((s, '') for s in result.unexpectedSuccesses)
-        data = zip(
-            ('WARNING', 'ERROR', 'FAIL', 'UNEXPECTED SUCCESS'),
-            ('yellow', 'red', 'red', 'red'),
-            (result.warnings, result.errors, result.failures, uxsuccesses)
-        )
-
-        for kind, fg, errors in data:
-            for test, err in errors:
-                self._fill('=', fg=fg)
-                self._echo(f'{kind}: {result.getDescription(test)}',
-                           fg=fg, bold=True)
-                self._fill('-', fg=fg)
-
-                if annos := result.get_test_annotations(test):
-                    if phs := annos.get('py-hash-secret'):
-                        phs_hex = binascii.hexlify(phs).decode()
-                        self._echo(f'Py_HashSecret: {phs_hex}')
-                    if prs := annos.get('py-random-seed'):
-                        prs_hex = binascii.hexlify(prs).decode()
-                        self._echo(f'random.seed(): {prs_hex}')
-                    self._fill('-', fg=fg)
-
-                srv_tb = None
-                if _is_exc_info(err):
-                    if isinstance(err[1], edgedb.EdgeDBError):
-                        srv_tb = err[1].get_server_context()
-                    err = unittest.result.TestResult._exc_info_to_string(
-                        result, err, test)
-                elif isinstance(err, SerializedServerError):
-                    err, srv_tb = err.test_error, err.server_error
-                if srv_tb:
-                    self._echo('Server Traceback:',
-                               fg='red', bold=True)
-                    self._echo(srv_tb)
-                    self._echo('Test Traceback:',
-                               fg='red', bold=True)
-                self._echo(err)
-
-    def _render_result(self, result, boot_time_taken, tests_time_taken):
-        self._echo()
-
-        if self.verbosity > 0:
-            self._print_errors(result)
-
-        if result.wasSuccessful():
-            fg = 'green'
-            outcome = 'SUCCESS'
-        else:
-            fg = 'red'
-            outcome = 'FAILURE'
-
-        if self.verbosity > 1:
-            self._fill('=', fg=fg)
-        self._echo(outcome, fg=fg, bold=True)
-
-        counts = [('tests ran', result.testsRun)]
-
-        display = {
-            'expectedFailures': 'expected failures',
-            'notImplemented': 'not implemented',
-            'unexpectedSuccesses': 'unexpected successes',
-        }
-
-        for bit in ['failures', 'errors', 'expectedFailures',
-                    'notImplemented', 'unexpectedSuccesses', 'skipped']:
-            count = len(getattr(result, bit))
-            if count:
-                counts.append((display.get(bit, bit), count))
-
-        for bit, count in counts:
-            self._echo(f'  {bit}: ', nl=False)
-            self._echo(f'{count}', bold=True)
-
-        self._echo()
-        self._echo(f'Running times: ')
-        if boot_time_taken:
-            self._echo('  bootstrap: ', nl=False)
-            self._echo(self._format_time(boot_time_taken), bold=True)
-
-        self._echo('  tests: ', nl=False)
-        self._echo(self._format_time(tests_time_taken), bold=True)
-
-        if boot_time_taken:
-            self._echo('  total: ', nl=False)
-            self._echo(self._format_time(boot_time_taken + tests_time_taken),
-                       bold=True)
-
-        self._echo()
-
-        return result
 
     def _sort_tests(self, cases):
         serialized_suites = {}

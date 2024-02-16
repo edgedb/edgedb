@@ -70,18 +70,18 @@ fn unquote_bytes_inner(s: &str) -> Result<Vec<u8>, String> {
 
 #[test]
 fn simple_bytes() {
-    assert_eq!(unquote_bytes_inner(r#"\x09"#).unwrap(), b"\x09");
-    assert_eq!(unquote_bytes_inner(r#"\x0A"#).unwrap(), b"\x0A");
-    assert_eq!(unquote_bytes_inner(r#"\x0D"#).unwrap(), b"\x0D");
-    assert_eq!(unquote_bytes_inner(r#"\x20"#).unwrap(), b"\x20");
-    assert_eq!(unquote_bytes(r#"b'\x09'"#).unwrap(), b"\x09");
-    assert_eq!(unquote_bytes(r#"b'\x0A'"#).unwrap(), b"\x0A");
-    assert_eq!(unquote_bytes(r#"b'\x0D'"#).unwrap(), b"\x0D");
-    assert_eq!(unquote_bytes(r#"b'\x20'"#).unwrap(), b"\x20");
-    assert_eq!(unquote_bytes(r#"br'\x09'"#).unwrap(), b"\\x09");
-    assert_eq!(unquote_bytes(r#"br'\x0A'"#).unwrap(), b"\\x0A");
-    assert_eq!(unquote_bytes(r#"br'\x0D'"#).unwrap(), b"\\x0D");
-    assert_eq!(unquote_bytes(r#"br'\x20'"#).unwrap(), b"\\x20");
+    assert_eq!(unquote_bytes_inner(r"\x09").unwrap(), b"\x09");
+    assert_eq!(unquote_bytes_inner(r"\x0A").unwrap(), b"\x0A");
+    assert_eq!(unquote_bytes_inner(r"\x0D").unwrap(), b"\x0D");
+    assert_eq!(unquote_bytes_inner(r"\x20").unwrap(), b"\x20");
+    assert_eq!(unquote_bytes(r"b'\x09'").unwrap(), b"\x09");
+    assert_eq!(unquote_bytes(r"b'\x0A'").unwrap(), b"\x0A");
+    assert_eq!(unquote_bytes(r"b'\x0D'").unwrap(), b"\x0D");
+    assert_eq!(unquote_bytes(r"b'\x20'").unwrap(), b"\x20");
+    assert_eq!(unquote_bytes(r"br'\x09'").unwrap(), b"\\x09");
+    assert_eq!(unquote_bytes(r"br'\x0A'").unwrap(), b"\\x0A");
+    assert_eq!(unquote_bytes(r"br'\x0D'").unwrap(), b"\\x0D");
+    assert_eq!(unquote_bytes(r"br'\x20'").unwrap(), b"\\x20");
 }
 
 #[test]
@@ -118,8 +118,8 @@ aa \
 
 #[test]
 fn complex_bytes() {
-    assert_eq!(unquote_bytes_inner(r#"\x09 hello \x0A there"#).unwrap(),
+    assert_eq!(unquote_bytes_inner(r"\x09 hello \x0A there").unwrap(),
         b"\x09 hello \x0A there");
-    assert_eq!(unquote_bytes(r#"br'\x09 hello \x0A there'"#).unwrap(),
+    assert_eq!(unquote_bytes(r"br'\x09 hello \x0A there'").unwrap(),
         b"\\x09 hello \\x0A there");
 }

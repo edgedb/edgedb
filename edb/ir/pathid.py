@@ -22,6 +22,8 @@ from typing import *
 
 from . import typeutils
 
+from edb.common import uuidgen
+
 from edb.schema import name as s_name
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
@@ -142,7 +144,7 @@ class PathId:
         schema: s_schema.Schema,
         t: s_types.Type,
         *,
-        env: Optional[qlcompiler_ctx.Environment] = None,
+        env: Optional[qlcompiler_ctx.Environment],
         namespace: AbstractSet[Namespace] = frozenset(),
         typename: Optional[s_name.QualName] = None,
     ) -> PathId:
@@ -186,6 +188,7 @@ class PathId:
         pointer: s_pointers.Pointer,
         *,
         namespace: AbstractSet[Namespace] = frozenset(),
+        env: Optional[qlcompiler_ctx.Environment],
     ) -> PathId:
         """Return a ``PathId`` instance for a given link or property.
 
@@ -205,19 +208,27 @@ class PathId:
         Returns:
             A ``PathId`` instance.
         """
-        if pointer.generic(schema):
+        if pointer.is_non_concrete(schema):
             raise ValueError(f'invalid PathId: {pointer} is not concrete')
 
         source = pointer.get_source(schema)
         if isinstance(source, s_pointers.Pointer):
-            prefix = cls.from_pointer(schema, source, namespace=namespace)
+            prefix = cls.from_pointer(
+                schema, source, namespace=namespace, env=env
+            )
             prefix = prefix.ptr_path()
         elif isinstance(source, s_types.Type):
-            prefix = cls.from_type(schema, source, namespace=namespace)
+            prefix = cls.from_type(schema, source, namespace=namespace, env=env)
         else:
             raise AssertionError(f'unexpected pointer source: {source!r}')
 
-        ptrref = typeutils.ptrref_from_ptrcls(schema=schema, ptrcls=pointer)
+        typeref_cache = env.type_ref_cache if env is not None else None
+        ptrref_cache = env.ptr_ref_cache if env is not None else None
+
+        ptrref = typeutils.ptrref_from_ptrcls(
+            schema=schema, ptrcls=pointer,
+            cache=ptrref_cache, typeref_cache=typeref_cache,
+        )
         return prefix.extend(ptrref=ptrref)
 
     @classmethod
@@ -256,6 +267,12 @@ class PathId:
         pid._norm_path = (typename,)
         pid._namespace = frozenset(namespace)
         return pid
+
+    @classmethod
+    def new_dummy(cls, name: str) -> PathId:
+        name_hint = s_name.QualName(module='__derived__', name=name)
+        typeref = irast.TypeRef(id=uuidgen.uuid1mc(), name_hint=name_hint)
+        return irast.PathId.from_typeref(typeref=typeref)
 
     def __hash__(self) -> int:
         if self._hash == -1:

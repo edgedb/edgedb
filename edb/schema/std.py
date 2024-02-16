@@ -90,25 +90,31 @@ def load_std_module(
     )
 
 
+BASE_VERSION = uuidgen.UUID('013d1e23-51ce-11ee-a29d-e1f01853d332')
+GLOBAL_BASE_VERSION = uuidgen.UUID('013d235b-51ce-11ee-be76-bf15d10edfe5')
+
+
 def make_schema_version(
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_ver.CreateSchemaVersion]:
+    context = sd.CommandContext(stdmode=True)
     sv = sn.UnqualName('__schema_version__')
     schema_version = s_ver.CreateSchemaVersion(classname=sv)
     schema_version.set_attribute_value('name', sv)
-    schema_version.set_attribute_value('version', uuidgen.uuid1mc())
+    schema_version.set_attribute_value('version', BASE_VERSION)
     schema_version.set_attribute_value('internal', True)
-    schema = sd.apply(schema_version, schema=schema)
+    schema = sd.apply(schema_version, schema=schema, context=context)
     return schema, schema_version
 
 
 def make_global_schema_version(
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_ver.CreateGlobalSchemaVersion]:
+    context = sd.CommandContext(stdmode=True)
     sv = sn.UnqualName('__global_schema_version__')
     schema_version = s_ver.CreateGlobalSchemaVersion(classname=sv)
     schema_version.set_attribute_value('name', sv)
-    schema_version.set_attribute_value('version', uuidgen.uuid1mc())
+    schema_version.set_attribute_value('version', GLOBAL_BASE_VERSION)
     schema_version.set_attribute_value('internal', True)
-    schema = sd.apply(schema_version, schema=schema)
+    schema = sd.apply(schema_version, schema=schema, context=context)
     return schema, schema_version

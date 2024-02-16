@@ -272,6 +272,15 @@ GQL_TO_EDB_SCALARS_MAP = {
 }
 
 
+GQL_TO_EDB_RANGES_MAP = {
+    'RangeOfString': 'json',
+    'RangeOfInt': 'json',
+    'RangeOfInt64': 'json',
+    'RangeOfFloat': 'json',
+    'RangeOfDecimal': 'json',
+}
+
+
 GQL_TO_OPS_MAP = {
     'exists': 'EXISTS',
     'in': 'IN',
@@ -420,11 +429,11 @@ class GQLCoreSchema:
             return shortname
         else:
             assert module != '', f'get_gl_name {name=}'
-            return f'{module}__{shortname}'
+            return str(name).replace("::", "__")
 
     def get_input_name(self, inputtype: str, name: str) -> str:
         if '__' in name:
-            module, shortname = name.split('__', 1)
+            module, shortname = name.rsplit('__', 1)
             assert module != '', f'get_input_name {name=}'
             return f'{module}__{inputtype}{shortname}'
         else:
@@ -433,7 +442,7 @@ class GQLCoreSchema:
     def gql_to_edb_name(self, name: str) -> str:
         '''Convert the GraphQL field name into an EdgeDB type/view name.'''
         if '__' in name:
-            return name.replace('__', '::', 1)
+            return name.replace('__', '::')
         else:
             return name
 
@@ -459,6 +468,13 @@ class GQLCoreSchema:
                 return el_type
             else:
                 target = GraphQLList(GraphQLNonNull(el_type))
+
+        elif isinstance(edb_target, (s_types.Range, s_types.MultiRange)):
+            # Represent ranges and multiranges as JSON. Same as reason as for
+            # tuples: the values are atomic and cannot be fragmented via
+            # GraphQL specification, so we cannot use objects with fields to
+            # represent them.
+            target = EDB_TO_GQL_SCALARS_MAP['std::json']
 
         elif edb_target.is_view(self.edb_schema):
             tname = edb_target.get_name(self.edb_schema)
@@ -629,6 +645,9 @@ class GQLCoreSchema:
                     args=self._get_query_args(name),
                 )
         elif str(typename) == '__graphql__::Mutation':
+            # Get a list of alias names, so that we don't generate inserts for
+            # them.
+            aliases = {t.name for t in self._gql_objtypes_from_alias.values()}
             for name, gqltype in sorted(self._gql_objtypes.items(),
                                         key=lambda x: x[1].name):
                 # '_edb' prefix indicates an internally generated type
@@ -641,12 +660,15 @@ class GQLCoreSchema:
                     GraphQLList(GraphQLNonNull(gqltype)),
                     args=self._get_query_args(name),
                 )
+                if gname in aliases:
+                    # Aliases can only have delete mutations
+                    continue
+
                 args = self._get_insert_args(name)
-                if args:
-                    fields[f'insert_{gname}'] = GraphQLField(
-                        GraphQLList(GraphQLNonNull(gqltype)),
-                        args=args,
-                    )
+                fields[f'insert_{gname}'] = GraphQLField(
+                    GraphQLList(GraphQLNonNull(gqltype)),
+                    args=args,
+                )
 
             for name, gqliface in sorted(self._gql_interfaces.items(),
                                          key=lambda x: x[1].name):
@@ -657,6 +679,7 @@ class GQLCoreSchema:
                 gname = self.get_gql_name(name)
                 args = self._get_update_args(name)
                 if args:
+                    # If there are no args, there's nothing to update.
                     fields[f'update_{gname}'] = GraphQLField(
                         GraphQLList(GraphQLNonNull(gqliface)),
                         args=args,
@@ -672,6 +695,7 @@ class GQLCoreSchema:
                 pn = str(unqual_pn)
                 if pn == '__type__':
                     continue
+                assert isinstance(ptr, s_pointers.Pointer)
 
                 tgt = ptr.get_target(self.edb_schema)
                 assert tgt is not None
@@ -689,6 +713,7 @@ class GQLCoreSchema:
                     # We want to look at the pointer lineage because that
                     # will be reflected into GraphQL interface that is
                     # being extended and the type cannot be changed.
+                    ancestors: Tuple[s_pointers.Pointer, ...]
                     ancestors = ptr.get_ancestors(
                         self.edb_schema).objects(self.edb_schema)
 
@@ -700,7 +725,7 @@ class GQLCoreSchema:
                     # since we're inspecting the lineage of a pointer
                     # belonging to an actual type.
                     for ancestor in reversed((ptr,) + ancestors):
-                        if not ancestor.generic(self.edb_schema):
+                        if not ancestor.is_non_concrete(self.edb_schema):
                             ptr = ancestor
                             break
 
@@ -868,6 +893,19 @@ class GQLCoreSchema:
                 if intype:
                     fields[name] = GraphQLInputField(intype)
 
+            elif isinstance(edb_target, s_types.Range):
+                subtype = edb_target.get_subtypes(self.edb_schema)[0]
+                intype = self.get_input_range_type(subtype)
+                intype = self._wrap_input_type(ptr, intype)
+                fields[name] = GraphQLInputField(intype)
+
+            elif isinstance(edb_target, s_types.MultiRange):
+                subtype = edb_target.get_subtypes(self.edb_schema)[0]
+                intype = GraphQLList(GraphQLNonNull(
+                    self.get_input_range_type(subtype)))
+                intype = self._wrap_input_type(ptr, intype)
+                fields[name] = GraphQLInputField(intype)
+
             else:
                 continue
 
@@ -882,6 +920,8 @@ class GQLCoreSchema:
         edb_type = self.edb_schema.get(typename, type=s_objtypes.ObjectType)
         pointers = edb_type.get_pointers(self.edb_schema)
         names = sorted(pointers.keys(self.edb_schema))
+        # This is just a heavily re-used type variable
+        target: Union[GraphQLInputType, Optional[GraphQLOutputType]]
         for unqual_name in names:
             name = str(unqual_name)
             if name == '__type__':
@@ -928,9 +968,12 @@ class GQLCoreSchema:
                 # Can't update array<tuple<...>>
                 continue
 
-            elif (
-                isinstance(edb_target, s_scalars.ScalarType)
-                or isinstance(edb_target, s_types.Array)
+            elif isinstance(
+                edb_target,
+                (
+                    s_scalars.ScalarType,
+                    s_types.Array,
+                )
             ):
                 target = self._convert_edb_type(edb_target)
                 if target is None or ptr.get_readonly(self.edb_schema):
@@ -950,6 +993,36 @@ class GQLCoreSchema:
                             GraphQLWrappingType,
                         ),
                     ), f'got {target!r}, expected GraphQLInputType'
+                    intype = self._make_generic_update_op_type(
+                        ptr,
+                        fname=name,
+                        edb_base=edb_type,
+                        target=self._wrap_input_type(
+                            ptr,
+                            target,
+                            ignore_required=True,
+                        ),
+                    )
+
+                if intype:
+                    fields[name] = GraphQLInputField(intype)
+
+            elif isinstance(
+                edb_target,
+                (
+                    s_types.Range,
+                    s_types.MultiRange,
+                )
+            ):
+                subtype = edb_target.get_subtypes(self.edb_schema)[0]
+                target = self.get_input_range_type(subtype)
+                if isinstance(edb_target, s_types.MultiRange):
+                    target = GraphQLList(GraphQLNonNull(target))
+
+                intype = self._gql_inobjtypes.get(
+                    f'UpdateOp{typename}__{name}')
+                if intype is None:
+                    # construct a nested insert type
                     intype = self._make_generic_update_op_type(
                         ptr,
                         fname=name,
@@ -1244,6 +1317,33 @@ class GQLCoreSchema:
 
         return fields
 
+    def get_input_range_type(
+        self,
+        subtype: s_types.Type
+    ) -> GraphQLInputObjectType:
+        sub_gqltype = self._convert_edb_type(subtype)
+        assert isinstance(sub_gqltype, GraphQLScalarType)
+        r_name = f'RangeOf{sub_gqltype.name}'
+        # Check the type cache...
+        if (res := self._gql_inobjtypes.get(r_name)) is not None:
+            assert isinstance(res, GraphQLInputObjectType)
+            return res
+
+        gqltype = GraphQLInputObjectType(
+            name=r_name,
+            fields=dict(
+                lower=GraphQLInputField(sub_gqltype),
+                inc_lower=GraphQLInputField(GraphQLBoolean),
+                upper=GraphQLInputField(sub_gqltype),
+                inc_upper=GraphQLInputField(GraphQLBoolean),
+                empty=GraphQLInputField(GraphQLBoolean),
+            ),
+            description=f'Range of {sub_gqltype.name} values',
+        )
+        self._gql_inobjtypes[r_name] = gqltype
+
+        return gqltype
+
     def _define_types(self) -> None:
         interface_types = []
         obj_types = []
@@ -1339,7 +1439,8 @@ class GQLCoreSchema:
                 # only objects that have at least one non-readonly
                 # link/property are eligible
                 pointers = t.get_pointers(self.edb_schema)
-                if any(not p.get_readonly(self.edb_schema)
+                if any(not p.get_readonly(self.edb_schema) and
+                       not p.is_pure_computable(self.edb_schema)
                        for _, p in pointers.items(self.edb_schema)):
                     gqlupdatetype = GraphQLInputObjectType(
                         name=self.get_input_name('Update', gql_name),
@@ -1387,13 +1488,20 @@ class GQLCoreSchema:
             )
             self._gql_objtypes[t_name] = gqltype
 
-            # input object types corresponding to this object (only
-            # real objects can appear as input objects)
-            gqlinserttype = GraphQLInputObjectType(
-                name=self.get_input_name('Insert', gql_name),
-                fields=partial(self.get_insert_fields, t_name),
-            )
-            self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
+            # only objects that have at least one non-computed
+            # link/property are eligible to be input objects
+            pointers = t.get_pointers(self.edb_schema)
+            if any(not p.is_pure_computable(self.edb_schema)
+                   for pname, p in pointers.items(self.edb_schema)
+                   if str(pname) not in {'__type__', 'id'}):
+
+                # input object types corresponding to this object (only
+                # real objects can appear as input objects)
+                gqlinserttype = GraphQLInputObjectType(
+                    name=self.get_input_name('Insert', gql_name),
+                    fields=partial(self.get_insert_fields, t_name),
+                )
+                self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
 
     def get(self, name: str, *, dummy: bool = False) -> GQLBaseType:
         '''Get a special GQL type either by name or based on EdgeDB type.'''
@@ -1413,9 +1521,17 @@ class GQLCoreSchema:
 
             for tname in names:
                 if edb_base is None:
+                    module: Union[s_name.Name, str]
+
                     if '::' in tname:
                         edb_base = self.edb_schema.get(
                             tname,
+                            type=s_types.Type,
+                        )
+                    elif '__' in tname:
+                        # Looks like it's coming from a specific module
+                        edb_base = self.edb_schema.get(
+                            f"{tname.replace('__', '::')}",
                             type=s_types.Type,
                         )
                     else:
@@ -1429,19 +1545,18 @@ class GQLCoreSchema:
                                 break
 
                         # XXX: find a better way to do this
-                        if edb_base is None:
-                            edb_base = self.edb_schema.get_global(
-                                s_types.Array, tname, default=None
-                            )
+                        for stype in [s_types.Array, s_types.Tuple,
+                                      s_types.Range, s_types.MultiRange]:
+                            if edb_base is None:
+                                edb_base = self.edb_schema.get_global(
+                                    stype, tname, default=None
+                                )
+                            else:
+                                break
 
-                        if edb_base is None:
-                            edb_base = self.edb_schema.get_global(
-                                s_types.Tuple, tname, default=None
-                            )
-
-                if edb_base is None:
-                    raise AssertionError(
-                        f'unresolved type: {module}::{name}')
+            if edb_base is None:
+                raise AssertionError(
+                    f'unresolved type: {name}')
 
             kwargs['edb_base'] = edb_base
 
@@ -1519,7 +1634,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
         # determine module from name if not already specified
         if '::' in self._name:
-            self._module = self._name.split('::', 1)[0]
+            self._module = self._name.rsplit('::', 1)[0]
         else:
             self._module = None
 
@@ -1574,6 +1689,20 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return self.edb_base.is_array()
 
     @property
+    def is_range(self) -> bool:
+        if self.edb_base is None:
+            return False
+        else:
+            return self.edb_base.is_range()
+
+    @property
+    def is_multirange(self) -> bool:
+        if self.edb_base is None:
+            return False
+        else:
+            return self.edb_base.is_multirange()
+
+    @property
     def is_object_type(self) -> bool:
         if self.edb_base is None:
             return False
@@ -1600,7 +1729,9 @@ class GQLBaseType(metaclass=GQLTypeMeta):
     def edb_base_name_ast(self) -> Optional[qlast.ObjectRef]:
         if self.edb_base is None:
             return None
-        if isinstance(self.edb_base, s_types.Array):
+        if isinstance(self.edb_base, (s_types.Array,
+                                      s_types.Range,
+                                      s_types.MultiRange)):
             el = self.edb_base.get_element_type(self.edb_schema)
             base_name = el.get_name(self.edb_schema)
             assert isinstance(base_name, s_name.QualName)
@@ -1627,7 +1758,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
     @property
     def gql_typename(self) -> str:
         name = self.name
-        module, shortname = name.split('::', 1)
+        module, shortname = name.rsplit('::', 1)
 
         if self.edb_base is None:
             # We expect that this is one of the fake objects, that
@@ -1643,7 +1774,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return f'{shortname}{suffix}'
         else:
             assert module != '', 'gql_typename ' + module
-            return f'{module}__{shortname}{suffix}'
+            return f'{name.replace("::", "__")}{suffix}'
 
     @property
     def schema(self) -> GQLCoreSchema:
@@ -1776,13 +1907,13 @@ class GQLBaseType(metaclass=GQLTypeMeta):
                 eql = parse_fragment(f'{self.gql_typename!r}')
             else:
                 # Construct the GraphQL type name from the actual type name.
-                eql = parse_fragment(f'''
+                eql = parse_fragment(fr'''
                     WITH name := {codegen.generate_source(parent)}
                         .__type__.name
                     SELECT (
                         name[5:] IF name LIKE 'std::%' ELSE
                         name[9:] IF name LIKE 'default::%' ELSE
-                        re_replace(r'(.+?)::(.+$)', r'\1__\2', name)
+                        str_replace(name, '::', '__')
                     ) ++ '_Type'
                 ''')
 
@@ -1870,7 +2001,8 @@ class GQLBaseQuery(GQLBaseType):
         if name in self._std_obj_names:
             return ('std', name)
         elif '__' in name:
-            return tuple(name.split('__', 1))
+            module, name = name.rsplit('__', 1)
+            return (module.replace('__', '::'), name)
         else:
             return ('default', name)
 
@@ -1915,20 +2047,24 @@ class GQLMutation(GQLBaseQuery):
         fkey = (name, self.dummy)
         target = None
 
-        op, name = name.split('_', 1)
-        if op in {'delete', 'insert', 'update'}:
+        if name == '__typename':
+            # It's a valid field that doesn't start with a command
             target = super().get_field_type(name)
+        else:
+            op, name = name.split('_', 1)
+            if op in {'delete', 'insert', 'update'}:
+                target = super().get_field_type(name)
 
-            if target is None:
-                module, edb_name = self.get_module_and_name(name)
-                edb_qname = s_name.QualName(module=module, name=edb_name)
-                edb_type = self.edb_schema.get(
-                    edb_qname,
-                    default=None,
-                    type=s_types.Type,
-                )
-                if edb_type is not None:
-                    target = self.convert_edb_to_gql_type(edb_type)
+                if target is None:
+                    module, edb_name = self.get_module_and_name(name)
+                    edb_qname = s_name.QualName(module=module, name=edb_name)
+                    edb_type = self.edb_schema.get(
+                        edb_qname,
+                        default=None,
+                        type=s_types.Type,
+                    )
+                    if edb_type is not None:
+                        target = self.convert_edb_to_gql_type(edb_type)
 
         if target is not None:
             self._fields[fkey] = target

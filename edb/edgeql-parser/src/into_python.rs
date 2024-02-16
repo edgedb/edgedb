@@ -1,3 +1,4 @@
+#![cfg(never)] // TODO: migrate cpython-rust to pyo3
 use indexmap::IndexMap;
 
 use cpython::{

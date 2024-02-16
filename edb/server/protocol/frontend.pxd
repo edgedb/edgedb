@@ -33,8 +33,9 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     cdef:
         str _id
         object server
+        readonly object tenant
         object loop
-        str dbname
+        readonly str dbname
         str username
         dbview.Database database
 

@@ -1,5 +1,6 @@
 use edgeql_rust::normalize::{normalize, Variable};
-use edgeql_parser::tokenizer::{Value as Value};
+use edgeql_parser::tokenizer::Value;
+use num_bigint::BigInt;
 
 
 #[test]
@@ -26,7 +27,7 @@ fn test_int() {
         SELECT 1 + 2
     "###).unwrap();
     assert_eq!(entry.processed_source,
-        "SELECT(<__std__::int64>$0)+(<__std__::int64>$1)");
+        "SELECT <lit int64>$0+<lit int64>$1");
     assert_eq!(entry.variables, vec![vec![
         Variable {
             value: Value::Int(1),
@@ -39,11 +40,11 @@ fn test_int() {
 
 #[test]
 fn test_str() {
-    let entry = normalize(r###"
+    let entry = normalize(r#"
         SELECT "x" + "yy"
-    "###).unwrap();
+    "#).unwrap();
     assert_eq!(entry.processed_source,
-        "SELECT(<__std__::str>$0)+(<__std__::str>$1)");
+        "SELECT <lit str>$0+<lit str>$1");
     assert_eq!(entry.variables, vec![vec![
         Variable {
             value: Value::String("x".into()),
@@ -60,7 +61,7 @@ fn test_float() {
         SELECT 1.5 + 23.25
     "###).unwrap();
     assert_eq!(entry.processed_source,
-        "SELECT(<__std__::float64>$0)+(<__std__::float64>$1)");
+        "SELECT <lit float64>$0+<lit float64>$1");
     assert_eq!(entry.variables, vec![vec![
         Variable {
             value: Value::Float(1.5),
@@ -77,13 +78,13 @@ fn test_bigint() {
         SELECT 1n + 23n
     "###).unwrap();
     assert_eq!(entry.processed_source,
-        "SELECT(<__std__::bigint>$0)+(<__std__::bigint>$1)");
+        "SELECT <lit bigint>$0+<lit bigint>$1");
     assert_eq!(entry.variables, vec![vec![
         Variable {
-            value: Value::BigInt(1.into()),
+            value: Value::BigInt("1".into()),
         },
         Variable {
-            value: Value::BigInt(23.into()),
+            value: Value::BigInt(BigInt::from(23).to_str_radix(16)),
         }
     ]]);
 }
@@ -94,13 +95,13 @@ fn test_bigint_exponent() {
         SELECT 1e10n + 23e13n
     "###).unwrap();
     assert_eq!(entry.processed_source,
-        "SELECT(<__std__::bigint>$0)+(<__std__::bigint>$1)");
+        "SELECT <lit bigint>$0+<lit bigint>$1");
     assert_eq!(entry.variables, vec![vec![
         Variable {
-            value: Value::BigInt(10000000000u64.into()),
+            value: Value::BigInt(BigInt::from(10000000000u64).to_str_radix(16)),
         },
         Variable {
-            value: Value::BigInt(230000000000000u64.into()),
+            value: Value::BigInt(BigInt::from(230000000000000u64).to_str_radix(16)),
         }
     ]]);
 }
@@ -111,7 +112,7 @@ fn test_decimal() {
         SELECT 1.33n + 23.77n
     "###).unwrap();
     assert_eq!(entry.processed_source,
-        "SELECT(<__std__::decimal>$0)+(<__std__::decimal>$1)");
+        "SELECT <lit decimal>$0+<lit decimal>$1");
     assert_eq!(entry.variables, vec![vec![
         Variable {
             value: Value::Decimal("1.33".parse().unwrap()),
@@ -127,7 +128,7 @@ fn test_positional() {
     let entry = normalize(r###"
         SELECT <int64>$0 + 2
     "###).unwrap();
-    assert_eq!(entry.processed_source, "SELECT<int64>$0+(<__std__::int64>$1)");
+    assert_eq!(entry.processed_source, "SELECT<int64>$0+<lit int64>$1");
     assert_eq!(entry.variables, vec![vec![
         Variable {
             value: Value::Int(2),
@@ -141,7 +142,7 @@ fn test_named() {
         SELECT <int64>$test_var + 2
     "###).unwrap();
     assert_eq!(entry.processed_source,
-        "SELECT<int64>$test_var+(<__std__::int64>$__edb_arg_1)");
+        "SELECT<int64>$test_var+<lit int64>$__edb_arg_1");
     assert_eq!(entry.variables, vec![vec![
         Variable {
             value: Value::Int(2),
@@ -155,7 +156,7 @@ fn test_limit_1() {
         SELECT User { one := 1 } LIMIT 1
     "###).unwrap();
     assert_eq!(entry.processed_source,
-        "SELECT User{one:=(<__std__::int64>$0)}LIMIT 1");
+        "SELECT User{one:=<lit int64>$0}LIMIT 1");
     assert_eq!(entry.variables, vec![vec![
         Variable {
             value: Value::Int(1),
@@ -169,7 +170,7 @@ fn test_tuple_access() {
         SELECT User { one := 2, two := .field.2, three := .field  . 3 }
     "###).unwrap();
     assert_eq!(entry.processed_source,
-        "SELECT User{one:=(<__std__::int64>$0),\
+        "SELECT User{one:=<lit int64>$0,\
                      two:=.field.2,three:=.field.3}");
     assert_eq!(entry.variables, vec![vec![
         Variable {
@@ -186,8 +187,8 @@ fn test_script() {
     "###).unwrap();
     assert_eq!(
         entry.processed_source,
-        "SELECT(<__std__::int64>$0)+(<__std__::int64>$1);\
-        SELECT(<__std__::int64>$2);",
+        "SELECT <lit int64>$0+<lit int64>$1;\
+        SELECT <lit int64>$2;",
     );
     assert_eq!(entry.variables, vec![
         vec![
@@ -203,6 +204,7 @@ fn test_script() {
                 value: Value::Int(2),
             }
         ],
+        vec![]
     ]);
 }
 
@@ -214,7 +216,7 @@ fn test_script_with_args() {
     "###).unwrap();
     assert_eq!(
         entry.processed_source,
-        "SELECT(<__std__::int64>$2)+$1;SELECT$1+(<__std__::int64>$3);",
+        "SELECT <lit int64>$2+$1;SELECT$1+<lit int64>$3;",
     );
     assert_eq!(entry.variables, vec![
         vec![
@@ -227,5 +229,6 @@ fn test_script_with_args() {
                 value: Value::Int(2),
             }
         ],
+        vec![]
     ]);
 }

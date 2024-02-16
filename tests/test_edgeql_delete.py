@@ -480,32 +480,6 @@ class TestDelete(tb.QueryTestCase):
             }],
         )
 
-    async def test_edgeql_delete_in_conditional_bad_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'DELETE statements cannot be used'):
-            await self.con.execute(r'''
-                SELECT
-                    (SELECT DeleteTest2)
-                    ??
-                    (DELETE DeleteTest2);
-            ''')
-
-    async def test_edgeql_delete_in_conditional_bad_02(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'DELETE statements cannot be used'):
-            await self.con.execute(r'''
-                SELECT
-                    (SELECT DeleteTest FILTER .name = 'foo')
-                    IF EXISTS DeleteTest
-                    ELSE (
-                        (SELECT DeleteTest)
-                        UNION
-                        (DELETE DeleteTest)
-                    );
-            ''')
-
     async def test_edgeql_delete_abstract_01(self):
         await self.con.execute(r"""
 
@@ -529,6 +503,18 @@ class TestDelete(tb.QueryTestCase):
             }, {
                 'name': 'child of abstract 2'
             }],
+        )
+
+    async def test_edgeql_delete_assert_exists(self):
+        await self.con.execute(r"""
+            INSERT DeleteTest2 { name := 'x' };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            select assert_exists((delete DeleteTest2 filter .name = 'x'));
+            """,
+            [{}],
         )
 
     async def test_edgeql_delete_then_union(self):

@@ -2160,32 +2160,6 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_update_in_conditional_bad_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'UPDATE statements cannot be used'):
-            await self.con.execute(r'''
-                SELECT
-                    (SELECT UpdateTest)
-                    ??
-                    (UPDATE UpdateTest SET { name := 'no way' });
-            ''')
-
-    async def test_edgeql_update_in_conditional_bad_02(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'UPDATE statements cannot be used'):
-            await self.con.execute(r'''
-                SELECT
-                    (SELECT UpdateTest FILTER .name = 'foo')
-                    IF EXISTS UpdateTest
-                    ELSE (
-                        (SELECT UpdateTest)
-                        UNION
-                        (UPDATE UpdateTest SET { name := 'no way' })
-                    );
-            ''')
-
     async def test_edgeql_update_correlated_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -2228,7 +2202,7 @@ class TestUpdate(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot update link 'readonly_tag': "
             "it is declared as read-only",
-            _position=147,
+            _position=148,
         ):
             await self.con.execute(r'''
                 UPDATE UpdateTest
@@ -2479,7 +2453,8 @@ class TestUpdate(tb.QueryTestCase):
                         @note
                     } ORDER BY .name
                 } FILTER
-                    .name LIKE 'update-test-subtract-%';
+                    .name LIKE 'update-test-subtract-%'
+                  ORDER BY .name;
             """,
             [
                 {
@@ -2528,7 +2503,8 @@ class TestUpdate(tb.QueryTestCase):
                         @note
                     } ORDER BY .name
                 } FILTER
-                    .name LIKE 'update-test-subtract-%';
+                    .name LIKE 'update-test-subtract-%'
+                  ORDER BY .name;
             """,
             [
                 {
@@ -3271,16 +3247,18 @@ class TestUpdate(tb.QueryTestCase):
                 SELECT _ {
                     name,
                     str_tags ORDER BY _.str_tags
-                };
+                }
+                 ORDER BY .name;
+
             """,
             [
                 {
-                    'name': 'add-dupes-scalar-foo',
-                    'str_tags': ['baz', 'baz', 'foo', 'foo', 'foo', 'foo'],
-                },
-                {
                     'name': 'add-dupes-scalar-bar',
                     'str_tags': ['bar', 'bar', 'bar', 'bar', 'baz'],
+                },
+                {
+                    'name': 'add-dupes-scalar-foo',
+                    'str_tags': ['baz', 'baz', 'foo', 'foo', 'foo', 'foo'],
                 },
             ]
         )
@@ -3780,3 +3758,40 @@ class TestUpdate(tb.QueryTestCase):
                     filter (DELETE UpdateTest filter .name = 't1')
                     set { name := '!' }
             ''')
+
+    async def test_edgeql_update_union_overlay_01(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                 A := (UPDATE UpdateTest FILTER .name = 'update-test1'
+                       SET { comment := "!!!!!1!!!" }),
+                 B := (UPDATE UpdateTest FILTER .name = 'update-test2'
+                       SET { comment  := "foo" }),
+            SELECT assert_exists((SELECT {A, B} {name, comment}))
+            ORDER BY .name;
+            """,
+            [
+                {"name": "update-test1", "comment": "!!!!!1!!!"},
+                {"name": "update-test2", "comment": "foo"},
+            ]
+        )
+
+    @test.xfail("""
+        We incorrectly return 'foo' as the comment twice.
+        See #6222.
+    """)
+    async def test_edgeql_update_union_overlay_02(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                 A := (SELECT UpdateTest FILTER .name = 'update-test2'),
+                 B := (UPDATE UpdateTest FILTER .name = 'update-test2'
+                       SET { comment  := "foo" }),
+            SELECT assert_exists((SELECT {A, B} {name, comment}))
+            ORDER BY .comment;
+            """,
+            [
+                {"name": "update-test2", "comment": "foo"},
+                {"name": "update-test2", "comment": "second"},
+            ]
+        )

@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 import collections.abc
 import dataclasses
@@ -63,6 +64,7 @@ _uint32_packer = cast(Callable[[int], bytes], struct.Struct('!L').pack)
 _uint16_packer = cast(Callable[[int], bytes], struct.Struct('!H').pack)
 _uint8_packer = cast(Callable[[int], bytes], struct.Struct('!B').pack)
 _int64_struct = struct.Struct('!q')
+_float32_struct = struct.Struct('!f')
 
 
 EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple')
@@ -88,6 +90,7 @@ class DescriptorTag(bytes, enum.Enum):
     RANGE = b'\x09'
     OBJECT = b'\x0a'
     COMPOUND = b'\x0b'
+    MULTIRANGE = b'\x0c'
 
     ANNO_TYPENAME = b'\xff'
 
@@ -128,6 +131,14 @@ def _encode_int64(data: int) -> bytes:
 
 def _decode_int64(data: bytes) -> int:
     return _int64_struct.unpack(data)[0]  # type: ignore [no-any-return]
+
+
+def _encode_float32(data: float) -> bytes:
+    return _float32_struct.pack(data)
+
+
+def _decode_float32(data: bytes) -> float:
+    return _float32_struct.unpack(data)[0]  # type: ignore [no-any-return]
 
 
 def _string_packer(s: str) -> bytes:
@@ -211,7 +222,7 @@ def _get_collection_type_id(
     string_id = f'{coll_type}\x00{":".join(map(str, subtypes))}'
     if element_names:
         string_id += f'\x00{":".join(element_names)}'
-    return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
+    return uuidgen.uuid5(s_obj.TYPE_ID_NAMESPACE, string_id)
 
 
 def _get_object_shape_id(
@@ -232,12 +243,12 @@ def _get_object_shape_id(
         parts.append(":".join(chr(c._value_) for c in cardinalities))
     string_id = "\x00".join(parts)
     string_id += f'{has_implicit_fields!r};{links_props!r};{links!r}'
-    return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
+    return uuidgen.uuid5(s_obj.TYPE_ID_NAMESPACE, string_id)
 
 
 def _get_set_type_id(basetype_id: uuid.UUID) -> uuid.UUID:
     return uuidgen.uuid5(
-        s_types.TYPE_ID_NAMESPACE, 'set-of::' + str(basetype_id))
+        s_obj.TYPE_ID_NAMESPACE, 'set-of::' + str(basetype_id))
 
 
 def _register_type_id(
@@ -429,6 +440,41 @@ def _describe_range(t: s_types.Range, *, ctx: Context) -> uuid.UUID:
 
     # .tag
     buf.append(DescriptorTag.RANGE._value_)
+    # .id
+    buf.append(type_id.bytes)
+
+    if ctx.protocol_version >= (2, 0):
+        # .name
+        buf.append(_name_packer(t.get_name(ctx.schema)))
+        # .schema_defined
+        buf.append(_bool_packer(True))
+        # .ancestors
+        buf.append(_type_ref_seq_packer([], ctx=ctx))
+
+    # .type
+    buf.append(_type_ref_id_packer(subtypes[0], ctx=ctx))
+
+    return _finish_typedesc(type_id, buf, ctx=ctx)
+
+
+# MultiRange -> MultiRangeTypeDescriptor
+@_describe_type.register
+def _describe_multirange(t: s_types.MultiRange, *, ctx: Context) -> uuid.UUID:
+    subtypes = [
+        _describe_type(st, ctx=ctx)
+        for st in t.get_subtypes(ctx.schema)
+    ]
+
+    assert len(subtypes) == 1
+    type_id = _get_collection_type_id(t.get_schema_name(), subtypes)
+
+    if type_id in ctx.uuid_to_pos:
+        return type_id
+
+    buf = []
+
+    # .tag
+    buf.append(DescriptorTag.MULTIRANGE._value_)
     # .id
     buf.append(type_id.bytes)
 
@@ -807,7 +853,7 @@ def describe_input_shape(
 
 
 @overload
-def describe_input_shape(  # noqa: F811
+def describe_input_shape(
     t: s_types.Type,
     input_shapes: InputShapeMap,
     *,
@@ -817,7 +863,7 @@ def describe_input_shape(  # noqa: F811
 
 
 @overload
-def describe_input_shape(  # noqa: F811
+def describe_input_shape(
     t: s_types.Type,
     input_shapes: InputShapeMap,
     *,
@@ -827,7 +873,7 @@ def describe_input_shape(  # noqa: F811
     ...
 
 
-def describe_input_shape(  # noqa: F811
+def describe_input_shape(
     t: s_types.Type,
     input_shapes: InputShapeMap,
     *,
@@ -1514,6 +1560,39 @@ def _parse_range_descriptor(
     )
 
 
+@_parse_descriptor.register(DescriptorTag.MULTIRANGE)
+def _parse_multirange_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> MultiRangeDesc:
+    # .id
+    tid = _parse_type_id(desc)
+
+    if ctx.protocol_version >= (2, 0):
+        # .name
+        name = _parse_string(desc)
+        # .schema_defined
+        schema_defined = _parse_bool(desc)
+        # .ancestors
+        ancestors = _parse_type_refs(desc, ctx=ctx)
+    else:
+        name = None
+        schema_defined = None
+        ancestors = None
+
+    # .type
+    subtype = _parse_type_ref(desc, ctx=ctx)
+
+    return MultiRangeDesc(
+        tid=tid,
+        name=name,
+        schema_defined=schema_defined,
+        ancestors=ancestors,
+        inner=subtype,
+    )
+
+
 def _make_global_rep(typ: s_types.Type, ctx: Context) -> object:
     if isinstance(typ, s_types.Tuple):
         subtyps = typ.get_subtypes(ctx.schema)
@@ -1531,7 +1610,7 @@ def _make_global_rep(typ: s_types.Type, ctx: Context) -> object:
 
 
 class StateSerializerFactory:
-    def __init__(self, std_schema: s_schema.Schema):
+    def __init__(self, std_schema: s_schema.Schema, config_spec: config.Spec):
         """
         {
             module := 'default',
@@ -1565,8 +1644,31 @@ class StateSerializerFactory:
         schema, config_type = derive_alias(
             schema, free_obj, 'state_config'
         )
+        config_shape = self._make_config_shape(config_spec, schema)
+
+        self._input_shapes: immutables.Map[
+            s_types.Type,
+            tuple[InputShapeElement, ...],
+        ] = immutables.Map([
+            (config_type, config_shape),
+            (self._state_type, (
+                ("module", str_type, enums.Cardinality.AT_MOST_ONE),
+                ("aliases", aliases_array, enums.Cardinality.AT_MOST_ONE),
+                ("config", config_type, enums.Cardinality.AT_MOST_ONE),
+            ))
+        ])
+        self.config_type = config_type
+        self._schema = schema
+        self._contexts: dict[edbdef.ProtocolVersion, Context] = {}
+
+    @staticmethod
+    def _make_config_shape(
+        config_spec: config.Spec,
+        schema: s_schema.Schema,
+    ) -> tuple[tuple[str, s_types.Type, enums.Cardinality], ...]:
         config_shape: list[tuple[str, s_types.Type, enums.Cardinality]] = []
-        for setting in config.get_settings().values():
+
+        for setting in config_spec.values():
             if not setting.system:
                 setting_type_name = setting.schema_type_name
                 setting_type = schema.get(setting_type_name, type=s_types.Type)
@@ -1578,20 +1680,7 @@ class StateSerializerFactory:
                         enums.Cardinality.AT_MOST_ONE,
                     )
                 )
-
-        self._input_shapes: immutables.Map[
-            s_types.Type,
-            tuple[InputShapeElement, ...],
-        ] = immutables.Map([
-            (config_type, tuple(sorted(config_shape))),
-            (self._state_type, (
-                ("module", str_type, enums.Cardinality.AT_MOST_ONE),
-                ("aliases", aliases_array, enums.Cardinality.AT_MOST_ONE),
-                ("config", config_type, enums.Cardinality.AT_MOST_ONE),
-            ))
-        ])
-        self._schema = schema
-        self._contexts: dict[edbdef.ProtocolVersion, Context] = {}
+        return tuple(sorted(config_shape))
 
     def make(
         self,
@@ -1617,6 +1706,12 @@ class StateSerializerFactory:
         ctx.schema = s_schema.ChainedSchema(
             self._schema, user_schema, global_schema)
 
+        # Update the config shape with any extension configs
+        ext_config_spec = config.load_ext_spec_from_schema(
+            user_schema, self._schema)
+        new_config = self._make_config_shape(ext_config_spec, ctx.schema)
+        full_config = self._input_shapes[self.config_type] + new_config
+
         globals_shape = []
         global_reps = {}
         for g in ctx.schema.get_objects(type=s_globals.Global):
@@ -1633,6 +1728,7 @@ class StateSerializerFactory:
             self._state_type,
             self._input_shapes.update({
                 self.globals_type: tuple(sorted(globals_shape)),
+                self.config_type: full_config,
                 self._state_type: self._input_shapes[self._state_type] + (
                     (
                         "globals",
@@ -1645,11 +1741,9 @@ class StateSerializerFactory:
         )
 
         type_data = b''.join(ctx.buffer)
-        codec = parse(type_data, protocol_version)
-        assert isinstance(codec, InputShapeDesc)
-        codec.fields['globals'][1].__dict__['data_raw'] = True
-
-        return StateSerializer(type_id, type_data, codec, global_reps)
+        return StateSerializer(
+            type_id, type_data, global_reps, protocol_version
+        )
 
 
 class StateSerializer:
@@ -1657,13 +1751,20 @@ class StateSerializer:
         self,
         type_id: uuid.UUID,
         type_data: bytes,
-        codec: TypeDesc,
         global_reps: dict[str, object],
+        protocol_version: edbdef.ProtocolVersion,
     ) -> None:
         self._type_id = type_id
         self._type_data = type_data
-        self._codec = codec
         self._global_reps = global_reps
+        self._protocol_version = protocol_version
+
+    @functools.cached_property
+    def _codec(self) -> TypeDesc:
+        codec = parse(self._type_data, self._protocol_version)
+        assert isinstance(codec, InputShapeDesc)
+        codec.fields['globals'][1].__dict__['data_raw'] = True
+        return codec
 
     @property
     def type_id(self) -> uuid.UUID:
@@ -1813,6 +1914,10 @@ class BaseScalarDesc(SchemaTypeDesc):
             _encode_int64,
             _decode_int64,
         ),
+        s_obj.get_known_type_id('std::float32'): (
+            _encode_float32,
+            _decode_float32,
+        ),
     }
 
     def encode(self, data: Any) -> bytes:
@@ -1884,6 +1989,12 @@ class ArrayDesc(SequenceDesc, SchemaTypeDesc):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class RangeDesc(SchemaTypeDesc):
+    ancestors: Optional[list[TypeDesc]]
+    inner: TypeDesc
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class MultiRangeDesc(SchemaTypeDesc):
     ancestors: Optional[list[TypeDesc]]
     inner: TypeDesc
 

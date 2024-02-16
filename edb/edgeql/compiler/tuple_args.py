@@ -95,6 +95,7 @@ import dataclasses
 from typing import *
 
 from edb import errors
+from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtypeutils
@@ -121,7 +122,7 @@ MAX_NESTING = 20
 
 def _lmost_is_array(typ: irast.ParamTransType) -> bool:
     while isinstance(typ, irast.ParamTuple):
-        typ = typ.typs[0]
+        _, typ = typ.typs[0]
     return isinstance(typ, irast.ParamArray)
 
 
@@ -157,7 +158,8 @@ def translate_type(
                     sn.QualName('std', 'int32'), type=s_types.Type)
                 nschema, array_styp = s_types.Array.from_subtypes(
                     schema, [int_typeref])
-                typs.append(irtypeutils.type_to_typeref(nschema, array_styp))
+                typs.append(irtypeutils.type_to_typeref(
+                    nschema, array_styp, cache=None))
 
             return irast.ParamArray(
                 typeref=typ,
@@ -166,13 +168,14 @@ def translate_type(
             )
 
         elif irtypeutils.is_tuple(typ):
-            # HACK: We don't bother dealing with named tuples. We just
-            # generate anonymous tuples and it all still works out.
             return irast.ParamTuple(
                 typeref=typ,
                 idx=start,
                 typs=tuple(
-                    trans(t, in_array=in_array, depth=depth + 1)
+                    (
+                        t.element_name,
+                        trans(t, in_array=in_array, depth=depth + 1),
+                    )
                     for t in typ.subtypes
                 ),
             )
@@ -183,7 +186,7 @@ def translate_type(
             if in_array:
                 nschema, styp = irtypeutils.ir_typeref_to_type(schema, typ)
                 nschema, styp = s_types.Array.from_subtypes(nschema, [styp])
-                nt = irtypeutils.type_to_typeref(nschema, styp)
+                nt = irtypeutils.type_to_typeref(nschema, styp, cache=None)
             typs.append(nt)
             return irast.ParamScalar(typeref=typ, idx=start)
 
@@ -222,6 +225,21 @@ def _index(expr: qlast.Expr, idx: qlast.Expr) -> qlast.Indirection:
     return qlast.Indirection(arg=expr, indirection=[qlast.Index(index=idx)])
 
 
+def _make_tuple(
+    fields: Sequence[tuple[Optional[str], qlast.Expr]]
+) -> qlast.NamedTuple | qlast.Tuple:
+    is_named = fields and fields[0][0]
+    if is_named:
+        return qlast.NamedTuple(elements=[
+            qlast.TupleElement(name=qlast.Ptr(name=not_none(f)), val=e)
+            for f, e in fields
+        ])
+    else:
+        return qlast.Tuple(
+            elements=[e for _, e in fields]
+        )
+
+
 def make_decoder(
     ptyp: irast.ParamTransType,
     qparams: tuple[irast.Param, ...],
@@ -252,7 +270,7 @@ def make_decoder(
             return expr
 
         elif isinstance(typ, irast.ParamTuple):
-            return qlast.Tuple(elements=[mk(t, idx=idx) for t in typ.typs])
+            return _make_tuple([(f, mk(t, idx=idx)) for f, t in typ.typs])
 
         elif isinstance(typ, irast.ParamArray):
             inner_idx_alias, inner_idx = _get_alias('idx', ctx=ctx)

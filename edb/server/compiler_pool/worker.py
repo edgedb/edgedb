@@ -64,15 +64,32 @@ def __init_worker__(
         std_schema,
         refl_schema,
         schema_class_layout,
-        global_schema,
+        global_schema_pickle,
         system_config,
     ) = pickle.loads(init_args_pickled)
 
     INITED = True
-    DBS = dbs
+    DBS = immutables.Map(
+        [
+            (
+                dbname,
+                state.DatabaseState(
+                    name=dbname,
+                    user_schema=(
+                        None  # type: ignore
+                        if db.user_schema_pickle is None
+                        else pickle.loads(db.user_schema_pickle)
+                    ),
+                    reflection_cache=db.reflection_cache,
+                    database_config=db.database_config,
+                ),
+            )
+            for dbname, db in dbs.items()
+        ]
+    )
     BACKEND_RUNTIME_PARAMS = backend_runtime_params
     STD_SCHEMA = std_schema
-    GLOBAL_SCHEMA = global_schema
+    GLOBAL_SCHEMA = pickle.loads(global_schema_pickle)
     INSTANCE_CONFIG = system_config
 
     COMPILER = compiler.new_compiler(
@@ -80,7 +97,7 @@ def __init_worker__(
         refl_schema,
         schema_class_layout,
         backend_runtime_params=BACKEND_RUNTIME_PARAMS,
-        load_config=True,
+        config_spec=None,
     )
 
 
@@ -218,13 +235,6 @@ def compile_notebook(
     )
 
 
-def try_compile_rollback(
-    *compile_args: Any,
-    **compile_kwargs: Any,
-):
-    return COMPILER.try_compile_rollback(*compile_args, **compile_kwargs)
-
-
 def compile_graphql(
     dbname: str,
     user_schema: Optional[bytes],
@@ -274,7 +284,6 @@ def compile_graphql(
         inline_typenames=False,
         inline_objectids=False,
         json_parameters=True,
-        skip_first=False,
         protocol_version=defines.CURRENT_PROTOCOL,
     )
 
@@ -327,8 +336,6 @@ def get_handler(methname):
             meth = compile_notebook
         elif methname == "compile_graphql":
             meth = compile_graphql
-        elif methname == "try_compile_rollback":
-            meth = try_compile_rollback
         elif methname == "compile_sql":
             meth = compile_sql
         else:

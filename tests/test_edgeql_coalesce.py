@@ -1822,6 +1822,60 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ]),
         )
 
+    async def test_edgeql_coalesce_single_links_01(self):
+        await self.con.execute(
+            '''
+            CREATE TYPE default::Content;
+            CREATE TYPE default::Noob {
+                CREATE LINK primary: default::Content;
+                CREATE LINK secondary: default::Content;
+            };
+            insert Noob {
+              primary := (insert Content)
+            };
+            insert Noob {
+              secondary := (insert Content)
+            };
+            '''
+        )
+
+        await self.assert_query_result(
+            r'''
+            select Noob {
+              coalesce := (.primary ?? .secondary),
+            };
+            ''',
+            [
+                {'coalesce': {'id': str}},
+                {'coalesce': {'id': str}},
+            ],
+            implicit_limit=100,
+        )
+
+        await self.assert_query_result(
+            r'''
+            select Noob {
+              coalesce := (select (.primary ?? .secondary) limit 100),
+            };
+            ''',
+            [
+                {'coalesce': {'id': str}},
+                {'coalesce': {'id': str}},
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select Noob {
+              coalesce := {.primary ?? .secondary},
+            };
+            ''',
+            [
+                {'coalesce': {'id': str}},
+                {'coalesce': {'id': str}},
+            ],
+        )
+
     async def test_edgeql_optional_leakage_01(self):
         await self.con.execute(
             r'''
@@ -1857,4 +1911,52 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 ) filter .1;
             ''',
             [],
+        )
+
+    async def test_edgeql_optional_ensure_source_01(self):
+        await self.assert_query_result(
+            r'''
+                with x := array_unpack(<array<Issue>>[])
+                select (x.name ?= x.body);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                with user := array_unpack(<array<Object>>[])
+                select
+                    (<str>user.id ?? "") ++ <str>(exists user);
+            ''',
+            ["false"],
+        )
+
+    async def test_edgeql_optional_ensure_source_02(self):
+        await self.con.execute('''
+            create function test(x: optional Issue) -> bool using (
+                (x.name ?= x.body)
+            )
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select test(<Issue>{})
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_optional_array_cast_01(self):
+        await self.assert_query_result(
+            '''
+            select <array<str>>to_json('null') ?? [];
+            ''',
+            [[]],
+        )
+
+    async def test_edgeql_optional_array_cast_02(self):
+        await self.assert_query_result(
+            '''
+            select {<array<str>>to_json('null')} ?? [];
+            ''',
+            [[]],
         )

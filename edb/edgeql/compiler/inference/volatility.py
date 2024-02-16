@@ -145,7 +145,16 @@ def __infer_set(
     if ir.path_id in env.singletons:
         vol = IMMUTABLE
     elif ir.rptr is not None:
-        src_vol = _infer_volatility(ir.rptr.source, env)
+        vol = _infer_volatility(ir.rptr.source, env)
+        # If there's an expression on an rptr, and it comes from
+        # the schema, we need to actually infer it, since it won't
+        # have been processed at a shape declaration.
+        if ir.expr is not None and not ir.rptr.ptrref.defined_here:
+            vol = _max_volatility((
+                vol,
+                _infer_volatility(ir.expr, env),
+            ))
+
         # If source is an object, then a pointer reference implies
         # a table scan, and so we can assume STABLE at the minimum.
         #
@@ -156,9 +165,7 @@ def __infer_set(
             irtyputils.is_object(ir.rptr.source.typeref)
             and ir.rptr.source.path_id not in env.singletons
         ):
-            vol = _max_volatility((src_vol, STABLE))
-        else:
-            vol = src_vol
+            vol = _max_volatility((vol, STABLE))
     elif ir.expr is not None:
         vol = _infer_volatility(ir.expr, env)
     else:
@@ -295,6 +302,14 @@ def __infer_trigger_anchor(
     env: context.Environment,
 ) -> InferredVolatility:
     return STABLE, STABLE
+
+
+@_infer_volatility_inner.register
+def __infer_searchable_string(
+    ir: irast.FTSDocument,
+    env: context.Environment,
+) -> InferredVolatility:
+    return _common_volatility([ir.text, ir.language], env)
 
 
 @_infer_volatility_inner.register

@@ -127,6 +127,7 @@ dispatch.py
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 # WARNING: this package is in a tight import loop with various modules
 # in edb.schema, so no direct imports from either this package or
@@ -134,8 +135,6 @@ from typing import *
 # use the lazy-loading mechanism.
 
 import functools
-
-from edb import errors
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
@@ -148,7 +147,6 @@ from .options import CompilerOptions as CompilerOptions  # "as" for reexport
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-    from edb.schema import types as s_types
 
     from edb.ir import ast as irast
     from edb.ir import staeval as ireval
@@ -170,15 +168,50 @@ else:
 #: Compiler modules lazy-load guard.
 _LOADED = False
 
+Tf = TypeVar('Tf', bound=Callable[..., Any])
 
-def compiler_entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
+
+def compiler_entrypoint(func: Tf) -> Tf:
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         if not _LOADED:
             _load()
         return func(*args, **kwargs)
 
-    return wrapper
+    return cast(Tf, wrapper)
+
+
+@overload
+def compile_ast_to_ir(
+    tree: qlast.Expr | qlast.Command,
+    schema: s_schema.Schema,
+    *,
+    script_info: Optional[irast.ScriptInfo] = None,
+    options: Optional[CompilerOptions] = None,
+) -> irast.Statement:
+    pass
+
+
+@overload
+def compile_ast_to_ir(
+    tree: qlast.ConfigOp,
+    schema: s_schema.Schema,
+    *,
+    script_info: Optional[irast.ScriptInfo] = None,
+    options: Optional[CompilerOptions] = None,
+) -> irast.ConfigCommand:
+    pass
+
+
+@overload
+def compile_ast_to_ir(
+    tree: qlast.Base,
+    schema: s_schema.Schema,
+    *,
+    script_info: Optional[irast.ScriptInfo] = None,
+    options: Optional[CompilerOptions] = None,
+) -> irast.Statement | irast.ConfigCommand:
+    pass
 
 
 @compiler_entrypoint
@@ -295,14 +328,7 @@ def compile_ast_fragment_to_ir(
     ctx = stmtctx_mod.init_context(schema=schema, options=options)
     ir_set = dispatch_mod.compile(tree, ctx=ctx)
 
-    result_type: s_types.Type
-    try:
-        result_type = inference_mod.infer_type(ir_set, ctx.env)
-    except errors.QueryError:
-        # Not all fragments can be resolved into a concrete type,
-        # that's OK.
-        # XXX: Is it really? This doesn't come up in the tests at all.
-        result_type = cast(s_types.Type, None)
+    result_type = ctx.env.set_types[ir_set]
 
     return irast.Statement(
         expr=ir_set,
@@ -514,12 +540,12 @@ def normalize(
 
 @compiler_entrypoint
 def renormalize_compat(
-    tree: qlast.Base,
+    tree: qlast.Base_T,
     orig_text: str,
     *,
     schema: s_schema.Schema,
     localnames: AbstractSet[str] = frozenset(),
-) -> qlast.Base:
+) -> qlast.Base_T:
     """Renormalize an expression normalized with imprint_expr_context().
 
     This helper takes the original, unmangled expression, an EdgeQL AST

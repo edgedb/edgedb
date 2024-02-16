@@ -22,9 +22,14 @@ from typing import (
     Optional,
 )
 
+from edgedb import scram
+
 import asyncio
+import base64
 import decimal
+import hashlib
 import json
+import logging
 
 import immutables
 
@@ -37,12 +42,16 @@ from edb.edgeql import qltypes
 from edb.server import compiler
 from edb.server import config
 from edb.server import defines as edbdef
+from edb.server.compiler import errormech
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport frontend
 from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.pgcon cimport pgcon
+from edb.server.pgcon import errors as pgerror
 
+
+cdef object logger = logging.getLogger('edb.server')
 
 cdef object FMT_NONE = compiler.OutputFormat.NONE
 
@@ -56,9 +65,6 @@ async def execute(
     *,
     fe_conn: frontend.AbstractFrontendConnection = None,
     use_prep_stmt: bint = False,
-    # HACK: A hook from the notebook ext, telling us to skip dbview.start
-    # so that it can handle things differently.
-    skip_start: bint = False,
 ):
     cdef:
         bytes state = None, orig_state = None
@@ -71,6 +77,7 @@ async def execute(
 
     new_types = None
     server = dbv.server
+    tenant = dbv.tenant
 
     data = None
 
@@ -79,17 +86,20 @@ async def execute(
             # the current status in be_conn is in sync with dbview, skip the
             # state restoring
             state = None
-        if not skip_start:
-            dbv.start(query_unit)
+        dbv.start(query_unit)
         if query_unit.create_db_template:
-            await server._on_before_create_db_from_template(
+            await tenant.on_before_create_db_from_template(
                 query_unit.create_db_template,
                 dbv.dbname,
             )
         if query_unit.drop_db:
-            await server._on_before_drop_db(query_unit.drop_db, dbv.dbname)
+            await tenant.on_before_drop_db(
+                query_unit.drop_db,
+                dbv.dbname,
+                close_frontend_conns=query_unit.drop_db_reset_connections,
+            )
         if query_unit.system_config:
-            await execute_system_config(be_conn, dbv, query_unit)
+            await execute_system_config(be_conn, dbv, query_unit, state)
         else:
             config_ops = query_unit.config_ops
 
@@ -102,7 +112,12 @@ async def execute(
                     bound_args_buf = args_ser.recode_bind_args(
                         dbv, compiled, bind_args)
 
-                    read_data = query_unit.set_global or query_unit.is_explain
+                    assert not (query_unit.database_config
+                                and query_unit.needs_readback), (
+                        "needs_readback+database_config must use execute_script"
+                    )
+                    read_data = (
+                        query_unit.needs_readback or query_unit.is_explain)
 
                     data = await be_conn.parse_execute(
                         query=query_unit,
@@ -113,7 +128,7 @@ async def execute(
                         dbver=dbv.dbver,
                     )
 
-                    if query_unit.set_global and data:
+                    if query_unit.needs_readback and data:
                         config_ops = [
                             config.Operation.from_json(r[0][1:])
                             for r in data
@@ -143,16 +158,40 @@ async def execute(
                 dbv.declare_savepoint(
                     query_unit.sp_name, query_unit.sp_id)
 
+            if query_unit.create_db_template:
+                try:
+                    await tenant.on_after_create_db_from_template(
+                        query_unit.create_db,
+                        query_unit.create_db_template,
+                        query_unit.create_db_mode,
+                    )
+                except Exception:
+                    # Clean up the database if we failed to restore into it.
+                    # TODO: Is it worth having 'ready' flag that we set after
+                    # the database is fully set up, and use that to clean up
+                    # databases where a crash prevented doing this cleanup?
+                    db_name = f'{tenant.tenant_id}_{query_unit.create_db}'
+                    await be_conn.sql_execute(
+                        b'drop database "%s"' % db_name.encode('utf-8')
+                    )
+                    raise
+
             if query_unit.create_db:
-                await server.introspect_db(query_unit.create_db)
+                await tenant.introspect_db(query_unit.create_db)
 
             if query_unit.drop_db:
-                server._on_after_drop_db(query_unit.drop_db)
+                tenant.on_after_drop_db(query_unit.drop_db)
 
             if config_ops:
                 await dbv.apply_config_ops(be_conn, config_ops)
 
     except Exception as ex:
+        # If we made schema changes, include the new schema in the
+        # exception so that it can be used when interpreting.
+        if query_unit.user_schema:
+            if isinstance(ex, pgerror.BackendError):
+                ex._user_schema = query_unit.user_schema
+
         dbv.on_error()
 
         if query_unit.tx_commit and not be_conn.in_tx() and dbv.in_tx():
@@ -163,25 +202,25 @@ async def execute(
         raise
     else:
         side_effects = dbv.on_success(query_unit, new_types)
+        state_serializer = compiled.query_unit_group.state_serializer
+        if state_serializer is not None:
+            dbv.set_state_serializer(state_serializer)
         if side_effects:
             signal_side_effects(dbv, side_effects)
-        if not dbv.in_tx() and not query_unit.tx_rollback:
+        if not dbv.in_tx() and not query_unit.tx_rollback and query_unit.sql:
             state = dbv.serialize_state()
             if state is not orig_state:
                 # In 3 cases the state is changed:
                 #   1. The non-tx query changed the state
                 #   2. The state is synced with dbview (orig_state is None)
                 #   3. We came out from a transaction (orig_state is None)
-                # Excluding one special case when the state is NOT changed:
+                # Excluding two special case when the state is NOT changed:
                 #   1. An orphan ROLLBACK command without a paring start tx
+                #   2. There was no SQL, so the state can't have been synced.
                 be_conn.last_state = state
     finally:
         if query_unit.drop_db:
-            server._allow_database_connections(query_unit.drop_db)
-        if query_unit.create_db_template:
-            server._allow_database_connections(
-                query_unit.create_db_template,
-            )
+            tenant.allow_database_connections(query_unit.drop_db)
 
     return data
 
@@ -197,15 +236,19 @@ async def execute_script(
     cdef:
         bytes state = None, orig_state = None
         ssize_t sent = 0
-        bint in_tx
-        object user_schema, cached_reflection, global_schema
+        bint in_tx, sync, no_sync
+        object user_schema, extensions, ext_config_settings, cached_reflection
+        object global_schema, roles
         WriteBuffer bind_data
         int dbver = dbv.dbver
         bint parse
 
-    user_schema = cached_reflection = global_schema = None
+    user_schema = extensions = ext_config_settings = cached_reflection = None
+    global_schema = roles = None
     unit_group = compiled.query_unit_group
 
+    sync = False
+    no_sync = False
     in_tx = dbv.in_tx()
     if not in_tx:
         orig_state = state = dbv.serialize_state()
@@ -236,19 +279,24 @@ async def execute_script(
                 # execute everything up to that point at once,
                 # finished by a FLUSH.
                 if idx >= sent:
+                    no_sync = False
                     for n in range(idx, len(unit_group)):
                         ng = unit_group[n]
-                        if ng.ddl_stmt_id or ng.set_global:
+                        if ng.ddl_stmt_id or ng.needs_readback:
                             sent = n + 1
+                            if ng.needs_readback:
+                                no_sync = True
                             break
                     else:
                         sent = len(unit_group)
 
+                    sync = sent == len(unit_group) and not no_sync
                     bind_array = args_ser.recode_bind_args_for_script(
                         dbv, compiled, bind_args, idx, sent)
                     dbver = dbv.dbver
                     conn.send_query_unit_group(
                         unit_group,
+                        sync,
                         bind_array,
                         state,
                         idx,
@@ -269,10 +317,13 @@ async def execute_script(
 
                 if query_unit.user_schema:
                     user_schema = query_unit.user_schema
+                    extensions = query_unit.extensions
+                    ext_config_settings = query_unit.ext_config_settings
                     cached_reflection = query_unit.cached_reflection
 
                 if query_unit.global_schema:
                     global_schema = query_unit.global_schema
+                    roles = query_unit.roles
 
                 if query_unit.sql:
                     parse = parse_array[idx]
@@ -282,16 +333,16 @@ async def execute_script(
                         )
                         if ddl_ret and ddl_ret['new_types']:
                             new_types = ddl_ret['new_types']
-                    elif query_unit.set_global:
-                        globals_data = []
+                    elif query_unit.needs_readback:
+                        config_data = []
                         for sql in query_unit.sql:
-                            globals_data = await conn.wait_for_command(
+                            config_data = await conn.wait_for_command(
                                 query_unit, parse, dbver, ignore_data=False
                             )
-                        if globals_data:
+                        if config_data:
                             config_ops = [
                                 config.Operation.from_json(r[0][1:])
-                                for r in globals_data
+                                for r in config_data
                             ]
                     elif query_unit.output_format == FMT_NONE:
                         for sql in query_unit.sql:
@@ -318,25 +369,42 @@ async def execute_script(
     except Exception as e:
         dbv.on_error()
 
+        # Include the new schema in the exception so that it can be
+        # used when interpreting.
+        if isinstance(e, pgerror.BackendError):
+            e._user_schema = dbv.get_user_schema_pickle()
+
         if not in_tx and dbv.in_tx():
             # Abort the implicit transaction
             dbv.abort_tx()
+
+        # If something went wrong that is *not* on the backend side, force
+        # an error to occur on the SQL side.
+        if not isinstance(e, pgerror.BackendError):
+            await conn.force_error()
 
         raise
 
     else:
         if not in_tx:
             side_effects = dbv.commit_implicit_tx(
-                user_schema, global_schema, cached_reflection
+                user_schema,
+                extensions,
+                ext_config_settings,
+                global_schema,
+                roles,
+                cached_reflection,
             )
             if side_effects:
                 signal_side_effects(dbv, side_effects)
             state = dbv.serialize_state()
             if state is not orig_state:
                 conn.last_state = state
+        if unit_group.state_serializer is not None:
+            dbv.set_state_serializer(unit_group.state_serializer)
 
     finally:
-        if sent and sent < len(unit_group):
+        if sent and not sync:
             await conn.sync()
 
     return data
@@ -346,9 +414,14 @@ async def execute_system_config(
     conn: pgcon.PGConnection,
     dbv: dbview.DatabaseConnectionView,
     query_unit: compiler.QueryUnit,
+    state: bytes,
 ):
     if query_unit.is_system_config:
         dbv.server.before_alter_system_config()
+
+    # Sync state
+    await conn.sql_fetch(b'select 1', state=state)
+
     if query_unit.sql:
         if len(query_unit.sql) > 1:
             raise errors.InternalServerError(
@@ -372,6 +445,8 @@ async def execute_system_config(
         config_ops = query_unit.config_ops
     await dbv.apply_config_ops(conn, config_ops)
 
+    await conn.sql_execute(b'delete from _config_cache')
+
     # If this is a backend configuration setting we also
     # need to make sure it has been loaded.
     if query_unit.backend_config:
@@ -379,13 +454,13 @@ async def execute_system_config(
 
 
 def signal_side_effects(dbv, side_effects):
-    server = dbv.server
-    if not server._accept_new_tasks:
+    tenant = dbv.tenant
+    if not tenant.accept_new_tasks:
         return
 
     if side_effects & dbview.SideEffects.SchemaChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'schema-changes',
                 dbname=dbv.dbname,
             ),
@@ -393,16 +468,16 @@ def signal_side_effects(dbv, side_effects):
         )
 
     if side_effects & dbview.SideEffects.GlobalSchemaChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'global-schema-changes',
             ),
             interruptable=False,
         )
 
     if side_effects & dbview.SideEffects.DatabaseConfigChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'database-config-changes',
                 dbname=dbv.dbname,
             ),
@@ -410,25 +485,17 @@ def signal_side_effects(dbv, side_effects):
         )
 
     if side_effects & dbview.SideEffects.DatabaseChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'database-changes',
             ),
             interruptable=False,
         )
 
     if side_effects & dbview.SideEffects.InstanceConfigChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'system-config-changes',
-            ),
-            interruptable=False,
-        )
-
-    if side_effects & dbview.SideEffects.ExtensionChanges:
-        server.create_task(
-            server._signal_sysevent(
-                'extension-changes',
             ),
             interruptable=False,
         )
@@ -442,13 +509,21 @@ async def parse_execute_json(
     globals_: Optional[Mapping[str, Any]] = None,
     output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
     query_cache_enabled: Optional[bool] = None,
+    cached_globally: bool = False,
+    use_metrics: bool = True,
 ) -> bytes:
+    # WARNING: only set cached_globally to True when the query is
+    # strictly referring to only shared stable objects in user schema
+    # or anything from std schema, for example:
+    #     YES:  select ext::auth::UIConfig { ... }
+    #     NO:   select default::User { ... }
+
     if query_cache_enabled is None:
         query_cache_enabled = not (
             debug.flags.disable_qcache or debug.flags.edgeql_compile)
 
-    server = db.server
-    dbv = await server.new_dbview(
+    tenant = db.tenant
+    dbv = await tenant.new_dbview(
         dbname=db.name,
         query_cache=query_cache_enabled,
         protocol_version=edbdef.CURRENT_PROTOCOL,
@@ -462,9 +537,13 @@ async def parse_execute_json(
         allow_capabilities=compiler.Capability.MODIFICATIONS,
     )
 
-    compiled = await dbv.parse(query_req)
+    compiled = await dbv.parse(
+        query_req,
+        cached_globally=cached_globally,
+        use_metrics=use_metrics,
+    )
 
-    pgcon = await server.acquire_pgcon(db.name)
+    pgcon = await tenant.acquire_pgcon(db.name)
     try:
         return await execute_json(
             pgcon,
@@ -474,7 +553,7 @@ async def parse_execute_json(
             globals_=globals_,
         )
     finally:
-        server.release_pgcon(db.name, pgcon)
+        tenant.release_pgcon(db.name, pgcon)
 
 
 async def execute_json(
@@ -506,7 +585,8 @@ async def execute_json(
 
     bind_args = _encode_args(args)
 
-    if len(qug) > 1:
+    force_script = any(x.needs_readback for x in qug)
+    if len(qug) > 1 or force_script:
         data = await execute_script(
             be_conn,
             dbv,
@@ -533,11 +613,24 @@ async def execute_json(
         return None
 
 
+class DecimalEncoder(json.JSONEncoder):
+    def encode(self, obj):
+        if isinstance(obj, dict):
+            return '{' + ', '.join(
+                    f'{self.encode(k)}: {self.encode(v)}'
+                    for (k, v) in obj.items()
+                ) + '}'
+        if isinstance(obj, list):
+            return '[' + ', '.join(map(self.encode, obj)) + ']'
+        if isinstance(obj, bytes):
+            return self.encode(base64.b64encode(obj).decode())
+        if isinstance(obj, decimal.Decimal):
+            return f'{obj:f}'
+        return super().encode(obj)
+
+
 cdef bytes _encode_json_value(object val):
-    if isinstance(val, decimal.Decimal):
-        jarg = str(val)
-    else:
-        jarg = json.dumps(val)
+    jarg = json.dumps(val, cls=DecimalEncoder)
 
     return b'\x01' + jarg.encode('utf-8')
 
@@ -558,3 +651,100 @@ cdef bytes _encode_args(list args):
                 out_buf.write_bytes(jval)
 
     return bytes(out_buf)
+
+
+cdef _check_for_ise(exc):
+    if not isinstance(exc, errors.EdgeDBError):
+        nexc = errors.InternalServerError(
+            f'{type(exc).__name__}: {exc}',
+            hint=(
+                f'This is most likely a bug in EdgeDB. '
+                f'Please consider opening an issue ticket '
+                f'at https://github.com/edgedb/edgedb/issues/new'
+                f'?template=bug_report.md'
+            ),
+        ).with_traceback(exc.__traceback__)
+        formatted = getattr(exc, '__formatted_error__', None)
+        if formatted:
+            nexc.__formatted_error__ = formatted
+        exc = nexc
+
+    return exc
+
+
+async def interpret_error(
+    exc: Exception,
+    db: dbview.Database,
+    *,
+    global_schema_pickle: object=None,
+    user_schema_pickle: object=None,
+    from_graphql: bool=False,
+) -> Exception:
+
+    if isinstance(exc, RecursionError):
+        exc = errors.UnsupportedFeatureError(
+            "The query caused the compiler "
+            "stack to overflow. It is likely too deeply nested.",
+            hint=(
+                "If the query does not contain deep nesting, "
+                "this may be a bug."
+            ),
+        )
+
+    elif isinstance(exc, pgerror.BackendError):
+        try:
+            static_exc = errormech.static_interpret_backend_error(
+                exc.fields, from_graphql=from_graphql
+            )
+
+            # only use the backend if schema is required
+            if static_exc is errormech.SchemaRequired:
+                # Grab the schema from the exception first, if it is present.
+                user_schema_pickle = (
+                    getattr(exc, '_user_schema', None)
+                    or user_schema_pickle
+                    or db.user_schema_pickle
+                )
+                global_schema_pickle = (
+                    global_schema_pickle or db._index._global_schema_pickle
+                )
+                compiler_pool = db._index._server.get_compiler_pool()
+                exc = await compiler_pool.interpret_backend_error(
+                    user_schema_pickle,
+                    global_schema_pickle,
+                    exc.fields,
+                    from_graphql,
+                )
+
+            elif isinstance(static_exc, (
+                    errors.DuplicateDatabaseDefinitionError,
+                    errors.UnknownDatabaseError)):
+                tenant_id = db.tenant.tenant_id
+                message = static_exc.args[0].replace(f'{tenant_id}_', '')
+                exc = type(static_exc)(message)
+            else:
+                exc = static_exc
+
+        except Exception as e:
+            from edb.common import debug
+            if debug.flags.server:
+                debug.dump(e)
+
+            exc = RuntimeError(
+                'unhandled error while calling interpret_backend_error(); '
+                'run with EDGEDB_DEBUG_SERVER to debug.')
+
+    return _check_for_ise(exc)
+
+
+def interpret_simple_error(
+    exc: Exception,
+) -> Exception:
+    """Intepret a protocol error not associated with a query or schema"""
+
+    if isinstance(exc, pgerror.BackendError):
+        static_exc = errormech.static_interpret_backend_error(exc.fields)
+        if static_exc is not errormech.SchemaRequired:
+            exc = static_exc
+
+    return _check_for_ise(exc)

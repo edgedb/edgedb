@@ -34,11 +34,12 @@ class TestModelSmokeTests(unittest.TestCase):
     goal should be that we could run the real tests against the model.
     """
 
-    DB1 = model.DB1
-
     def assert_test_query(
-        self, query, expected, *, db=DB1, sort=None, singleton_cheating=False
+        self, query, expected, *, db=None, sort=None, singleton_cheating=False
     ):
+        if not db:
+            db = model.mk_DB1()
+
         qltree = model.parse(query)
         result = model.go(qltree, db, singleton_cheating)
         if sort:
@@ -607,4 +608,14 @@ class TestModelSmokeTests(unittest.TestCase):
                 [{"n": [3], "m": [1]}, 1],
                 [{"n": [3], "m": [2]}, 2],
             ]),
+        )
+
+    def test_model_for_optional_01(self):
+        self.assert_test_query(
+            r'''
+                for optional x in
+                    (select User filter .name = 'George')
+                union x.deck_cost ?? 0;
+            ''',
+            [0],
         )

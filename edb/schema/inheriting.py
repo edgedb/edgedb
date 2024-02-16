@@ -80,6 +80,15 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
     ) -> s_schema.Schema:
         from . import referencing as s_referencing
 
+        # HACK: Don't inherit fields if the command comes from
+        # expression change propagation. It shouldn't be necessary,
+        # and can cause a knock-on bug: when aliases directly refer to
+        # another alias, they *incorrectly* have 'expr' marked as an
+        # inherited_field, which causes trouble here.
+        # Fixing this in 3.x/4.x would require a schema repair, though.
+        if self.from_expr_propagation:
+            return schema
+
         mcls = self.get_schema_metaclass()
         scls = self.scls
 
@@ -946,7 +955,7 @@ class AlterInheritingObjectOrFragment(
                 schema = d_alter_cmd.inherit_fields(
                     schema, context, d_bases, fields=props)
 
-            self.add(d_root_cmd)
+            self.add_caused(d_root_cmd)
 
     def _update_inherited_fields(
         self,
@@ -975,6 +984,45 @@ class AlterInheritingObjectOrFragment(
                     None,
                     orig_value=cur_inh_fields,
                 )
+
+    # HACK: Recursively propagate the value of is_derived. Use to deal
+    # with altering computed pointers that are aliases. We should
+    # instead not have those be marked is_derived.
+    def _propagate_is_derived_flat(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        val: Optional[bool],
+    ) -> None:
+        self.set_attribute_value('is_derived', val)
+        self._propagate_field_alter(schema, context, self.scls, ('is_derived',))
+
+        mcls = self.get_schema_metaclass()
+        for refdict in mcls.get_refdicts():
+            attr = refdict.attr
+            if not issubclass(refdict.ref_cls, so.InheritingObject):
+                continue
+            for obj in self.scls.get_field_value(schema, attr).objects(schema):
+                cmd = obj.init_delta_command(schema, sd.AlterObject)
+                cmd._propagate_is_derived_flat(schema, context, val)
+                self.add(cmd)
+
+    def _propagate_is_derived(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        val: Optional[bool],
+    ) -> None:
+        self._propagate_is_derived_flat(schema, context, val)
+        for descendant in self.scls.ordered_descendants(schema):
+            d_root_cmd, d_alter_cmd, ctx_stack = descendant.init_delta_branch(
+                schema, context, sd.AlterObject)
+
+            with ctx_stack():
+                assert isinstance(d_alter_cmd, AlterInheritingObject)
+                d_alter_cmd._propagate_is_derived_flat(schema, context, val)
+
+            self.add(d_root_cmd)
 
 
 class AlterInheritingObject(
@@ -1084,6 +1132,8 @@ class RebaseInheritingObject(
     removed_bases = struct.Field(tuple)  # type: ignore
     added_bases = struct.Field(tuple)  # type: ignore
 
+    EXTRA_INHERITED_FIELDS: set[str] = set()
+
     def __repr__(self) -> str:
         return '<%s.%s "%s">' % (self.__class__.__module__,
                                  self.__class__.__name__,
@@ -1121,6 +1171,39 @@ class RebaseInheritingObject(
                     self.add_caused(d_root_cmd)
 
         return schema
+
+    def compute_inherited_fields(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Dict[str, bool]:
+        result = super().compute_inherited_fields(schema, context)
+
+        # When things like indexes and constraints that use
+        # ddl_identity to define their identity are inherited, the
+        # child should inherit all of those fields, even if the object
+        # is owned in the child.
+        # Make this happen when rebasing.
+        mcls = self.get_schema_metaclass()
+        new_bases = self.get_attribute_value('bases').objects(schema)
+
+        inherit = new_bases and not new_bases[0].get_abstract(schema)
+
+        fields = {
+            field.name for field in mcls.get_fields().values()
+            if field.ddl_identity and field.inheritable
+        }
+        fields.update(self.EXTRA_INHERITED_FIELDS)
+
+        for field in fields:
+            if field not in result:
+                result[field] = (
+                    inherit
+                    and bool(new_bases[0].get_explicit_field_value(
+                        schema, field, None))
+                )
+
+        return result
 
     def canonicalize_attributes(
         self,

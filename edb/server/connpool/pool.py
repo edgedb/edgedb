@@ -133,6 +133,7 @@ class Block(typing.Generic[C]):
 
     querytime_avg: rolavg.RollingAverage
     nwaiters_avg: rolavg.RollingAverage
+    suppressed: bool
 
     _cached_calibrated_demand: float
 
@@ -161,6 +162,7 @@ class Block(typing.Generic[C]):
 
         self.querytime_avg = rolavg.RollingAverage(history_size=20)
         self.nwaiters_avg = rolavg.RollingAverage(history_size=3)
+        self.suppressed = False
 
         self._is_log_batching = False
         self._last_log_timestamp = 0
@@ -226,24 +228,17 @@ class Block(typing.Generic[C]):
 
         return self.conn_stack.popleft()
 
-    async def acquire(self) -> C:
-        # There can be a race between a waiter scheduled for to wake up
-        # and a connection being stolen (due to quota being enforced,
-        # for example).  In which case the waiter might get finally
-        # woken up with an empty queue -- hence we use a `while` loop here.
+    async def try_acquire(self, *, attempts: int = 1) -> typing.Optional[C]:
         self.conn_waiters_num += 1
         try:
-            attempts = 0
-
             # Skip the waiters' queue if we can grab a connection from the
             # stack immediately - this is not completely fair, but it's
             # extremely hard to always take the shortcut and starve the queue
             # without blocking the main loop, so we are fine here. (This is
             # also how asyncio.Queue is implemented.)
-            while not self.conn_stack:
+            if not self.conn_stack:
                 waiter = self.loop.create_future()
 
-                attempts += 1
                 if attempts > 1:
                     # If the waiter was woken up only to discover that
                     # it needs to wait again, we don't want it to lose
@@ -271,10 +266,25 @@ class Block(typing.Generic[C]):
                         self._wakeup_next_waiter()
                     raise
 
+            # There can be a race between a waiter scheduled for to wake up
+            # and a connection being stolen (due to quota being enforced,
+            # for example).  In which case the waiter might get finally
+            # woken up with an empty queue -- hence the 'try'.
+            # acquire will put a while loop around this
+
             # Yield the most recently used connection from the top of the stack
-            return self.conn_stack.pop()
+            if self.conn_stack:
+                return self.conn_stack.pop()
+            else:
+                return None
         finally:
             self.conn_waiters_num -= 1
+
+    async def acquire(self) -> C:
+        attempts = 1
+        while (c := await self.try_acquire(attempts=attempts)) is None:
+            attempts += 1
+        return c
 
     def release(self, conn: C) -> None:
         # Put the connection (back) to the top of the stack,
@@ -749,7 +759,7 @@ class Pool(BasePool[C]):
             total_nwaiters += nwaiters
             block.nwaiters_avg.add(nwaiters)
             nwaiters_avg = block.nwaiters_avg.avg()
-            if nwaiters_avg:
+            if nwaiters_avg and not block.suppressed:
                 # GOTCHA: this is a counter of blocks that need at least 1
                 # connection. If this number is greater than _max_capacity,
                 # some block will be starving with zero connection.
@@ -768,6 +778,7 @@ class Pool(BasePool[C]):
             if min_demand > demand:
                 min_demand = demand
 
+        was_starving = self._is_starving
         self._is_starving = need_conns_at_least >= self._max_capacity
         if self._to_drop:
             for block in self._to_drop:
@@ -830,6 +841,33 @@ class Pool(BasePool[C]):
                 else:
                     self._log_to_snapshot(
                         dbname=block.dbname, event='reset-quota')
+
+            if not was_starving and self._new_blocks_waitlist:
+                # Mode D assumes all connections are already in use or to be
+                # used, depending on their `release()` to schedule transfers.
+                # When just entering Mode D, there can be a special case when
+                # no further `release()` will be called because all acquired
+                # connections were returned to the pool before `_tick()` got a
+                # chance to set `self._is_starving`, while some other blocks
+                # are literally starving to death (blocked forever).
+                #
+                # This branch handles this particular case, by stealing
+                # connections from the idle blocks and try to free them into
+                # the starving blocks.
+
+                for block in list(self._blocks.values()):
+                    while self._should_free_conn(block):
+                        if (conn := block.try_steal()) is None:
+                            # no more from this block
+                            break
+
+                        elif not self._maybe_free_into_starving_blocks(
+                            block, conn
+                        ):
+                            # put back the last stolen connection if we
+                            # don't need to steal anymore
+                            self._release_unused(block, conn)
+                            return
 
         else:
             # Mode C: distribute the total connections by calibrated demand
@@ -947,14 +985,11 @@ class Pool(BasePool[C]):
 
         return True
 
-    def _maybe_free_conn(
+    def _maybe_free_into_starving_blocks(
         self,
         from_block: Block[C],
         conn: C,
     ) -> bool:
-        if not self._should_free_conn(from_block):
-            return False
-
         label, to_block = self._find_most_starving_block()
         if to_block is None or to_block is from_block:
             return False
@@ -1023,7 +1058,7 @@ class Pool(BasePool[C]):
             block_size = block.count_conns()
             block_demand = block.count_waiters()
 
-            if block_size or not block_demand:
+            if block_size or not block_demand or block.suppressed:
                 continue
 
             if block_demand > max_need:
@@ -1039,7 +1074,7 @@ class Pool(BasePool[C]):
         for block in self._blocks.values():
             block_size = block.count_conns()
             block_quota = block.quota
-            if block_quota > block_size:
+            if block_quota > block_size and not block.suppressed:
                 need = block_quota - block_size
                 if need > max_need:
                     max_need = need
@@ -1052,6 +1087,7 @@ class Pool(BasePool[C]):
 
     async def _acquire(self, dbname: str) -> C:
         block = self._get_block(dbname)
+        block.suppressed = False
 
         room_for_new_conns = self._cur_capacity < self._max_capacity
         block_nconns = block.count_conns()
@@ -1167,23 +1203,28 @@ class Pool(BasePool[C]):
 
         self._maybe_schedule_tick()
 
-        if not self._maybe_free_conn(block, conn):
+        if not (
+            self._should_free_conn(block)
+            and self._maybe_free_into_starving_blocks(block, conn)
+        ):
             if discard:
                 # Concurrent `acquire()` may be waiting to reuse the released
                 # connection here - as we should discard this one, let's just
                 # schedule a new one in the same block.
                 self._schedule_discard(block, conn)
                 self._schedule_new_conn(block)
-                return
+            else:
+                self._release_unused(block, conn)
 
-            block.release(conn)
+    def _release_unused(self, block: Block[C], conn: C) -> None:
+        block.release(conn)
 
-            # Only request for GC if the connection is released unused
-            self._gc_requests += 1
-            if self._gc_requests == 1:
-                # Only schedule GC for the very first request - following
-                # requests will be grouped into the next GC
-                self._get_loop().call_later(self._gc_interval, self._run_gc)
+        # Only request for GC if the connection is released unused
+        self._gc_requests += 1
+        if self._gc_requests == 1:
+            # Only schedule GC for the very first request - following
+            # requests will be grouped into the next GC
+            self._get_loop().call_later(self._gc_interval, self._run_gc)
 
     async def prune_inactive_connections(self, dbname: str) -> None:
         try:
@@ -1191,9 +1232,20 @@ class Pool(BasePool[C]):
         except KeyError:
             return None
 
+        # Mark the block as suppressed, so that nothing will be
+        # transferred to it. It will be unsuppressed if anything
+        # actually tries to connect.
+        # TODO: Is it possible to safely drop the block?
+        block.suppressed = True
+
         conns = []
         while (conn := block.try_steal()) is not None:
             conns.append(conn)
+
+        while not block.count_waiters() and block.pending_conns:
+            # try_acquire, because it can get stolen
+            if c := await block.try_acquire():
+                conns.append(c)
 
         if conns:
             await asyncio.gather(
@@ -1213,7 +1265,7 @@ class Pool(BasePool[C]):
                 dbname=block.dbname, event='disconnect', value=0)
         await asyncio.gather(*coros, return_exceptions=True)
         # We don't have to worry about pending_conns here -
-        # Server._pg_connect() will honor the failover and raise an error.
+        # Tenant._pg_connect() will honor the failover and raise an error.
 
     def iterate_connections(self) -> typing.Iterator[C]:
         for block in self._blocks.values():

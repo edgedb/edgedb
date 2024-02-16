@@ -62,10 +62,8 @@ def get_schema_object(
             srcctx = ref.context
         module = ref.module
         lname = ref.name
-    elif isinstance(ref, qlast.AnyType):
-        return s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
-    elif isinstance(ref, qlast.AnyTuple):
-        return s_pseudo.PseudoType.get(ctx.env.schema, 'anytuple')
+    elif isinstance(ref, qlast.PseudoObjectRef):
+        return s_pseudo.PseudoType.get(ctx.env.schema, ref.name)
     else:
         raise AssertionError(f"Unhandled BaseObjectRef subclass: {ref!r}")
 
@@ -74,10 +72,6 @@ def get_schema_object(
         name = sn.QualName(module=module, name=lname)
     else:
         name = sn.UnqualName(name=lname)
-
-    view = _get_type_variant(name, ctx)
-    if view is not None:
-        return view
 
     try:
         stype = ctx.env.get_schema_object_and_track(
@@ -102,17 +96,14 @@ def get_schema_object(
         )
         raise
 
-    view = _get_type_variant(stype.get_name(ctx.env.schema), ctx)
-    if view is not None:
-        return view
-    elif stype == ctx.defining_view:
+    if stype == ctx.defining_view:
         # stype is the view in process of being defined and as such is
         # not yet a valid schema object
         raise errors.SchemaDefinitionError(
             f'illegal self-reference in definition of {str(name)!r}',
             context=srcctx)
-    else:
-        return stype
+
+    return stype
 
 
 def _get_partial_path_prefix_type(
@@ -126,17 +117,6 @@ def _get_partial_path_prefix_type(
 
     _, type = typeutils.ir_typeref_to_type(ctx.env.schema, ppp.typeref)
     return type
-
-
-def _get_type_variant(
-    name: sn.Name,
-    ctx: context.ContextLevel,
-) -> Optional[s_obj.Object]:
-    type_variant = ctx.aliased_views.get(name)
-    if type_variant is not None:
-        return type_variant
-    else:
-        return None
 
 
 def get_schema_type(
@@ -256,7 +236,7 @@ def derive_view(
         if (
             stype.is_view(ctx.env.schema)
             # XXX: Previously, the main check here was just for
-            # (not stype.generic(...)). generic isn't really the
+            # (not stype.is_non_concrete(...)). is_non_concrete isn't really the
             # right way to figure out if something is a view, since
             # some aliases will be generic. On changing it to is_view
             # instead, though, two GROUP BY tests that grouped
@@ -268,7 +248,7 @@ def derive_view(
             # a way that they count as being generic, but for now
             # preserve that behavior.
             and not (
-                stype.generic(ctx.env.schema)
+                stype.is_non_concrete(ctx.env.schema)
                 and (view_ir := ctx.view_sets.get(stype))
                 and (scope_info := ctx.env.path_scope_map.get(view_ir))
                 and scope_info.binding_kind
@@ -329,10 +309,8 @@ def derive_ptr(
     # actually deriving from it.
     if derive_backlink:
         attrs = attrs.copy() if attrs else {}
-        attrs['computed_backlink'] = ptr
-        ntarget = ptr.get_source(ctx.env.schema)
-        assert isinstance(ntarget, s_types.Type)
-        target = ntarget
+        attrs['computed_link_alias'] = ptr
+        attrs['computed_link_alias_is_backward'] = True
         ptr = ctx.env.schema.get('std::link', type=s_pointers.Pointer)
 
     ctx.env.schema, derived = ptr.derive_ref(
@@ -347,7 +325,7 @@ def derive_ptr(
         transient=True,
         attrs=attrs)
 
-    if not ptr.generic(ctx.env.schema):
+    if not ptr.is_non_concrete(ctx.env.schema):
         if isinstance(derived, s_sources.Source):
             ptr = cast(s_links.Link, ptr)
             scls_pointers = ptr.get_pointers(ctx.env.schema)

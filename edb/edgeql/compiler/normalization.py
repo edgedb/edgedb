@@ -47,12 +47,12 @@ def normalize(
 
 
 def renormalize_compat(
-    norm_qltree: qlast.Base,
+    norm_qltree: qlast.Base_T,
     orig_text: str,
     *,
     schema: s_schema.Schema,
     localnames: AbstractSet[str] = frozenset(),
-) -> qlast.Base:
+) -> qlast.Base_T:
     """Renormalize an expression normalized with imprint_expr_context().
 
     This helper takes the original, unmangled expression, an EdgeQL AST
@@ -90,12 +90,12 @@ def renormalize_compat(
         localnames=localnames,
     )
 
-    return orig_qltree
+    assert isinstance(orig_qltree, type(norm_qltree))
+    return cast(qlast.Base_T, orig_qltree)
 
 
 def _normalize_recursively(
     node: qlast.Base,
-    field: str,
     value: Any,
     *,
     schema: s_schema.Schema,
@@ -124,22 +124,52 @@ def _normalize_recursively(
 
 
 @normalize.register
-def normalize_Base(
+def normalize_generic(
     node: qlast.Base,
     *,
     schema: s_schema.Schema,
     modaliases: Mapping[Optional[str], str],
     localnames: AbstractSet[str] = frozenset(),
+    skip: Collection[str] = frozenset(),
 ) -> None:
     for field, value in base.iter_fields(node):
-        _normalize_recursively(
-            node,
-            field,
-            value,
-            schema=schema,
-            modaliases=modaliases,
-            localnames=localnames,
+        if field not in skip:
+            _normalize_recursively(
+                node,
+                value,
+                schema=schema,
+                modaliases=modaliases,
+                localnames=localnames,
+            )
+
+
+# This is the heart of the whole thing.
+@normalize.register
+def normalize_ObjectRef(
+    ref: qlast.ObjectRef,
+    *,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    localnames: AbstractSet[str] = frozenset(),
+) -> None:
+    if ref.name not in localnames:
+        obj = schema.get(
+            s_utils.ast_ref_to_name(ref),
+            default=None,
+            module_aliases=modaliases,
         )
+        if obj is not None:
+            name = obj.get_name(schema)
+            assert isinstance(name, sn.QualName)
+            ref.module = name.module
+        elif ref.module in modaliases:
+            # Even if the name was not resolved in the
+            # schema it may be the name of the object
+            # being defined, as such the default module
+            # should be used. Names that must be ignored
+            # (like aliases and parameters) have already
+            # been filtered by the localnames.
+            ref.module = modaliases[ref.module]
 
 
 @normalize.register
@@ -240,21 +270,20 @@ def normalize_SelectQuery(
         localnames=localnames,
     )
 
-    for field in ('where', 'orderby', 'offset', 'limit'):
-        value = getattr(node, field, None)
-        _normalize_recursively(
-            node,
-            field,
-            value,
-            schema=schema,
-            modaliases=modaliases,
-            localnames=localnames,
-        )
+    normalize_generic(
+        node,
+        schema=schema,
+        modaliases=modaliases,
+        localnames=localnames,
+        skip=('aliases', 'result'),
+    )
 
 
-@normalize.register
-def normalize_InsertQuery(
-    node: qlast.InsertQuery,
+@normalize.register(qlast.InsertQuery)
+@normalize.register(qlast.UpdateQuery)
+@normalize.register(qlast.DeleteQuery)
+def normalize_DML(
+    node: qlast.InsertQuery | qlast.UpdateQuery | qlast.DeleteQuery,
     *,
     schema: s_schema.Schema,
     modaliases: Mapping[Optional[str], str],
@@ -269,100 +298,13 @@ def normalize_InsertQuery(
         localnames=localnames,
     )
 
-    # Process the subject expression
-    _normalize_objref(
-        node.subject,
-        schema=schema,
-        modaliases=modaliases,
-        localnames=localnames,
-    )
-
-    for field in ('shape',):
-        value = getattr(node, field, None)
-        _normalize_recursively(
-            node,
-            field,
-            value,
-            schema=schema,
-            modaliases=modaliases,
-            localnames=localnames,
-        )
-
-
-@normalize.register
-def normalize_UpdateQuery(
-    node: qlast.UpdateQuery,
-    *,
-    schema: s_schema.Schema,
-    modaliases: Mapping[Optional[str], str],
-    localnames: AbstractSet[str] = frozenset(),
-) -> None:
-
-    # Process WITH block
-    modaliases, localnames = _normalize_with_block(
+    normalize_generic(
         node,
         schema=schema,
         modaliases=modaliases,
         localnames=localnames,
+        skip=('aliases',),
     )
-
-    # Process the subject expression
-    localnames = _normalize_aliased_field(
-        node,
-        'subject',
-        schema=schema,
-        modaliases=modaliases,
-        localnames=localnames,
-    )
-
-    for field in ('where', 'shape',):
-        value = getattr(node, field, None)
-        _normalize_recursively(
-            node,
-            field,
-            value,
-            schema=schema,
-            modaliases=modaliases,
-            localnames=localnames,
-        )
-
-
-@normalize.register
-def normalize_DeleteQuery(
-    node: qlast.DeleteQuery,
-    *,
-    schema: s_schema.Schema,
-    modaliases: Mapping[Optional[str], str],
-    localnames: AbstractSet[str] = frozenset(),
-) -> None:
-
-    # Process WITH block
-    modaliases, localnames = _normalize_with_block(
-        node,
-        schema=schema,
-        modaliases=modaliases,
-        localnames=localnames,
-    )
-
-    # Process the subject expression
-    localnames = _normalize_aliased_field(
-        node,
-        'subject',
-        schema=schema,
-        modaliases=modaliases,
-        localnames=localnames,
-    )
-
-    for field in ('where', 'orderby', 'offset', 'limit'):
-        value = getattr(node, field, None)
-        _normalize_recursively(
-            node,
-            field,
-            value,
-            schema=schema,
-            modaliases=modaliases,
-            localnames=localnames,
-        )
 
 
 @normalize.register
@@ -391,13 +333,13 @@ def normalize_ForQuery(
         localnames=localnames,
     )
 
-    # Process the result expression
-    localnames = _normalize_aliased_field(
+    # Process the rest
+    normalize_generic(
         node,
-        'result',
         schema=schema,
         modaliases=modaliases,
         localnames=localnames,
+        skip=('aliases', 'iterator'),
     )
 
 
@@ -434,72 +376,17 @@ def normalize_GroupQuery(
         localnames=localnames,
     )
 
-    _normalize_recursively(
+    normalize_generic(
         node,
-        'by',
-        node.by,
         schema=schema,
         modaliases=modaliases,
         localnames=localnames,
+        skip=('aliases', 'subject', 'using'),
     )
 
 
-def _normalize_objref(
-    ref: qlast.ObjectRef,
-    *,
-    schema: s_schema.Schema,
-    modaliases: Mapping[Optional[str], str],
-    localnames: AbstractSet[str] = frozenset(),
-) -> None:
-    if ref.name not in localnames:
-        obj = schema.get(
-            s_utils.ast_ref_to_name(ref),
-            default=None,
-            module_aliases=modaliases,
-        )
-        if obj is not None:
-            name = obj.get_name(schema)
-            assert isinstance(name, sn.QualName)
-            ref.module = name.module
-        elif ref.module in modaliases:
-            # Even if the name was not resolved in the
-            # schema it may be the name of the object
-            # being defined, as such the default module
-            # should be used. Names that must be ignored
-            # (like aliases and parameters) have already
-            # been filtered by the localnames.
-            ref.module = modaliases[ref.module]
-
-
 @normalize.register
-def normalize_Path(
-    node: qlast.Path,
-    *,
-    schema: s_schema.Schema,
-    modaliases: Mapping[Optional[str], str],
-    localnames: AbstractSet[str] = frozenset(),
-) -> None:
-
-    for step in node.steps:
-        if isinstance(step, (qlast.Expr, qlast.TypeIntersection)):
-            normalize(
-                step,
-                schema=schema,
-                modaliases=modaliases,
-                localnames=localnames,
-            )
-        elif isinstance(step, qlast.ObjectRef):
-            # This is a specific path root, resolve it.
-            _normalize_objref(
-                step,
-                schema=schema,
-                modaliases=modaliases,
-                localnames=localnames,
-            )
-
-
-@normalize.register
-def compile_FunctionCall(
+def normalize_FunctionCall(
     node: qlast.FunctionCall,
     *,
     schema: s_schema.Schema,
@@ -554,49 +441,23 @@ def compile_TypeName(
     if isinstance(node.maintype, qlast.ObjectRef):
         # This is a specific path root, resolve it.
         if (
-                # maintype names 'array', 'tuple', and 'range' specifically
-                # should also be ignored
-                node.maintype.name not in {'array', 'tuple', 'range',
-                                           *localnames}):
-            maintype = schema.get(
-                s_utils.ast_ref_to_name(node.maintype),
-                default=None,
-                module_aliases=modaliases,
-            )
-
-            if maintype is not None:
-                name = maintype.get_name(schema)
-                assert isinstance(name, sn.QualName)
-                node.maintype.module = name.module
-            elif node.maintype.module in modaliases:
-                # Even if the name was not resolved in the schema it
-                # may be the name of the object being defined, as such
-                # the default module should be used. Names that must
-                # be ignored (like aliases and parameters) have
-                # already been filtered by the localnames.
-                node.maintype.module = modaliases[node.maintype.module]
-
-    if node.subtypes is not None:
-        for st in node.subtypes:
+            # maintype names 'array', 'tuple', 'range', and 'multirange'
+            # specifically should also be ignored
+            node.maintype.name not in {
+                'array', 'tuple', 'range', 'multirange',
+            }
+        ):
             normalize(
-                st,
+                node.maintype,
                 schema=schema,
                 modaliases=modaliases,
                 localnames=localnames,
             )
 
-
-@normalize.register
-def normalize_GlobalExpr(
-    node: qlast.GlobalExpr,
-    *,
-    schema: s_schema.Schema,
-    modaliases: Mapping[Optional[str], str],
-    localnames: AbstractSet[str] = frozenset(),
-) -> None:
-    _normalize_objref(
-        node.name,
+    normalize_generic(
+        node,
         schema=schema,
         modaliases=modaliases,
         localnames=localnames,
+        skip=('maintype',),
     )

@@ -341,7 +341,7 @@ cdef class ConnectionView:
 
 cdef class PgConnection(frontend.FrontendConnection):
     def __init__(self, server, sslctx, endpoint_security, **kwargs):
-        super().__init__(server, **kwargs)
+        super().__init__(server, None, **kwargs)
         self._dbview = ConnectionView()
         self._id = str(<int32_t><uint32_t>(int(self._id) % (2 ** 32)))
         self.prepared_stmts = {}  # via extended query Parse
@@ -437,7 +437,7 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         self.write(buf.end_message())
 
-    async def authenticate(self):
+    async def _handshake(self):
         cdef int16_t proto_ver_major, proto_ver_minor
 
         for first in (True, False):
@@ -455,7 +455,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                     if self.debug:
                         self.debug_print("CancelRequest", pid, secret)
                     self.server.cancel_pgext_connection(pid, secret)
-                    self.stop()
+                    self.request_stop()
                     break
 
                 elif proto_ver_minor == 5679:  # SSLRequest
@@ -480,6 +480,9 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self.sslctx,
                         server_side=True,
                     )
+                    self.tenant = self.server.retrieve_tenant(
+                        self._transport.get_extra_info("ssl_object")
+                    )
                     self.is_tls = True
 
                 elif proto_ver_minor == 5680:  # GSSENCRequest
@@ -503,7 +506,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                         severity="FATAL",
                     )
 
-                await self._handle_startup_message()
+                await super()._handshake()
                 break
 
             else:
@@ -516,10 +519,10 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.secret == secret and
             self._pinned_pgcon is not None and
             not self._pinned_pgcon.idle and
-            self.server._accept_new_tasks
+            self.tenant.accept_new_tasks
         ):
-            self.server.create_task(
-                self.server._cancel_pgcon_operation(self._pinned_pgcon),
+            self.tenant.create_task(
+                self.tenant.cancel_pgcon_operation(self._pinned_pgcon),
                 interruptable=False,
             )
 
@@ -592,10 +595,26 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.debug_print("SASLResponse", len(client_final))
         return client_final
 
-    async def _handle_startup_message(self):
+    def check_readiness(self):
+        if self.tenant.is_blocked():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is not accepting requests"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise pgerror.CannotConnectNowError(msg)
+        elif not self.tenant.is_online():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is going offline"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise pgerror.CannotConnectNowError(msg)
+
+    async def authenticate(self):
         cdef:
             WriteBuffer msg_buf
             WriteBuffer buf
+
+        self.check_readiness()
 
         params = {}
         while True:
@@ -633,18 +652,18 @@ cdef class PgConnection(frontend.FrontendConnection):
         logger.debug('received pg connection request by %s to database %s',
                      user, database)
 
-        await self._authenticate(user, params)
+        await self._authenticate(user, database, params)
 
         logger.debug('successfully authenticated %s in database %s',
                      user, database)
 
-        if not self.server.is_database_connectable(database):
+        if not self.tenant.is_database_connectable(database):
             raise pgerror.InvalidAuthSpec(
                 f'database {database!r} does not accept connections',
                 severity="FATAL",
             )
 
-        self.database = self.server.get_db(dbname=database)
+        self.database = self.tenant.get_db(dbname=database)
         await self.database.introspection()
 
         self.dbname = database
@@ -680,7 +699,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 elif name == "session_authorization":
                     value = user
                 elif name == "application_name":
-                    value = self.server.get_instance_name()
+                    value = self.tenant.get_instance_name()
                 msg_buf.write_str(value, "utf-8")
                 msg_buf.end_message()
                 buf.write_buffer(msg_buf)
@@ -735,11 +754,22 @@ cdef class PgConnection(frontend.FrontendConnection):
                     action.invalidate()
 
     async def main_step(self, char mtype):
+        try:
+            await self._main_step(mtype)
+        except pgerror.BackendError as ex:
+            self.write_error(ex)
+            self.write(self.ready_for_query())
+            self.flush()
+            self.request_stop()
+
+    async def _main_step(self, char mtype):
         cdef:
             WriteBuffer buf
             ConnectionView dbv
 
         dbv = self._dbview
+
+        self.check_readiness()
 
         if self.debug:
             self.debug_print("main_step", repr(chr(mtype)))
@@ -1397,11 +1427,16 @@ cdef class PgConnection(frontend.FrontendConnection):
             result = self.database.lookup_compiled_sql(key)
             if result is not None:
                 return result
+        # Remember the schema version we are compiling on, so that we can
+        # cache the result with the matching version. In case of concurrent
+        # schema update, we're only storing an outdated cache entry, and
+        # the next identical query could get recompiled on the new schema.
+        schema_version = self.database.schema_version
         compiler_pool = self.server.get_compiler_pool()
         result = await compiler_pool.compile_sql(
             self.dbname,
-            self.database.user_schema,
-            self.database._index._global_schema,
+            self.database.user_schema_pickle,
+            self.database._index._global_schema_pickle,
             self.database.reflection_cache,
             self.database.db_config,
             self.database._index.get_compilation_system_config(),
@@ -1410,8 +1445,9 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.sql_prepared_stmts_map,
             self.dbname,
             self.username,
+            client_id=self.tenant.client_id,
         )
-        self.database.cache_compiled_sql(key, result)
+        self.database.cache_compiled_sql(key, result, schema_version)
         if self.debug:
             self.debug_print("Compile result", result)
         return result

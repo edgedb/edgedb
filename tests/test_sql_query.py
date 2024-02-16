@@ -19,9 +19,9 @@
 import csv
 import io
 import os.path
+import unittest
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 try:
     import asyncpg
@@ -65,7 +65,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM "Content"
             '''
         )
-        self.assert_shape(res, 5, 3, ['id', 'genre_id', 'title'])
+        self.assert_shape(res, 5, ['id', '__type__', 'genre_id', 'title'])
 
     async def test_sql_query_03(self):
         # SELECT FROM parent type only
@@ -74,7 +74,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM ONLY "Content" -- should have only one result
             '''
         )
-        self.assert_shape(res, 1, 3, ['id', 'genre_id', 'title'])
+        self.assert_shape(res, 1, ['id', '__type__', 'genre_id', 'title'])
 
     async def test_sql_query_04(self):
         # multiple FROMs
@@ -84,7 +84,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" mve, "Person" WHERE mve.director_id = "Person".id
             '''
         )
-        self.assert_shape(res, 1, 2, ['title', 'first_name'])
+        self.assert_shape(res, 1, ['title', 'first_name'])
 
     async def test_sql_query_05(self):
         res = await self.scon.fetch(
@@ -93,7 +93,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" mve, "Person" person
             '''
         )
-        self.assert_shape(res, 6, 2, ['tit', 'first_name'])
+        self.assert_shape(res, 6, ['tit', 'first_name'])
 
     async def test_sql_query_06(self):
         # sub relations
@@ -103,7 +103,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" mve, (SELECT first_name FROM "Person") prs
             '''
         )
-        self.assert_shape(res, 6, 3, ['id', 'title', 'first_name'])
+        self.assert_shape(res, 6, ['id', 'title', 'first_name'])
 
     async def test_sql_query_07(self):
         # quoted case sensitive
@@ -112,7 +112,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT tItLe, release_year "RL year" FROM "Movie" ORDER BY titLe;
             '''
         )
-        self.assert_shape(res, 2, 2, ['title', 'RL year'])
+        self.assert_shape(res, 2, ['title', 'RL year'])
 
     async def test_sql_query_08(self):
         # JOIN
@@ -122,7 +122,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" JOIN "Genre" ON "Movie".genre_id = "Genre".id
             '''
         )
-        self.assert_shape(res, 2, 2, ['id', 'id'])
+        self.assert_shape(res, 2, ['id', 'id'])
 
     async def test_sql_query_09(self):
         # resolve columns without table names
@@ -132,7 +132,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" JOIN "Genre" ON "Movie".genre_id = "Genre".id
             '''
         )
-        self.assert_shape(res, 2, 3, ['id', 'title', 'name'])
+        self.assert_shape(res, 2, ['id', 'title', 'name'])
 
     async def test_sql_query_10(self):
         # wildcard SELECT
@@ -144,8 +144,14 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assert_shape(
             res,
             2,
-            5,
-            ['id', 'director_id', 'genre_id', 'release_year', 'title'],
+            [
+                'id',
+                '__type__',
+                'director_id',
+                'genre_id',
+                'release_year',
+                'title',
+            ],
         )
 
     async def test_sql_query_11(self):
@@ -153,10 +159,20 @@ class TestSQL(tb.SQLQueryTestCase):
         res = await self.scon.fetch(
             '''
             SELECT * FROM "Movie"
-            JOIN "Genre" g ON "Movie".genre_id = "Genre".id
+            JOIN "Genre" g ON "Movie".genre_id = g.id
             '''
         )
-        self.assert_shape(res, 2, 7)
+        self.assert_shape(res, 2, [
+            'id',
+            '__type__',
+            'director_id',
+            'genre_id',
+            'release_year',
+            'title',
+            'id',
+            '__type__',
+            'name'
+        ])
 
     async def test_sql_query_12(self):
         # JOIN USING
@@ -166,7 +182,7 @@ class TestSQL(tb.SQLQueryTestCase):
             JOIN (SELECT id as genre_id, name FROM "Genre") g USING (genre_id)
             '''
         )
-        self.assert_shape(res, 2, 7)
+        self.assert_shape(res, 2, 8)
 
     async def test_sql_query_13(self):
         # CTE
@@ -176,7 +192,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM "Movie" JOIN g USING (genre_id)
             '''
         )
-        self.assert_shape(res, 2, 7)
+        self.assert_shape(res, 2, 8)
 
     async def test_sql_query_14(self):
         # CASE
@@ -383,18 +399,18 @@ class TestSQL(tb.SQLQueryTestCase):
             ORDER BY title
         '''
         )
-        self.assert_shape(res, 2, 2, ['name', 'title'])
+        self.assert_shape(res, 2, ['name', 'title'])
 
     async def test_sql_query_29(self):
         # link tables
 
         # multi
         res = await self.scon.fetch('SELECT * FROM "Movie.actors"')
-        self.assert_shape(res, 3, 3, ['role', 'source', 'target'])
+        self.assert_shape(res, 3, ['source', 'target', 'role'])
 
         # single with properties
         res = await self.scon.fetch('SELECT * FROM "Movie.director"')
-        self.assert_shape(res, 1, 3, ['bar', 'source', 'target'])
+        self.assert_shape(res, 1, ['source', 'target', 'bar'])
 
         # single without properties
         with self.assertRaisesRegex(
@@ -410,7 +426,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM (VALUES (1, 2), (3, 4)) AS vals(c, d)
             '''
         )
-        self.assert_shape(res, 2, 2, ['c', 'd'])
+        self.assert_shape(res, 2, ['c', 'd'])
 
         with self.assertRaisesRegex(
             asyncpg.InvalidColumnReferenceError, "query resolves to 2"
@@ -429,7 +445,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM common
             '''
         )
-        self.assert_shape(res, 1, 2, ['a', 'b'])
+        self.assert_shape(res, 1, ['a', 'b'])
 
         res = await self.scon.fetch(
             '''
@@ -437,7 +453,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM common
             '''
         )
-        self.assert_shape(res, 1, 2, ['c', 'd'])
+        self.assert_shape(res, 1, ['c', 'd'])
 
         res = await self.scon.fetch(
             '''
@@ -445,7 +461,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM common as cmn(e, f)
             '''
         )
-        self.assert_shape(res, 1, 2, ['e', 'f'])
+        self.assert_shape(res, 1, ['e', 'f'])
 
         with self.assertRaisesRegex(
             asyncpg.InvalidColumnReferenceError, "query resolves to 2"
@@ -475,14 +491,21 @@ class TestSQL(tb.SQLQueryTestCase):
                 LATERAL unnest(a, b)
             '''
         )
-        self.assert_shape(res, 3, 4, ['a', 'b', 'unnest', 'unnest'])
+        self.assert_shape(res, 3, ['a', 'b', 'unnest', 'unnest'])
 
         res = await self.scon.fetch(
             '''
             SELECT unnest(ARRAY[1, 2, 3]) a
             '''
         )
-        self.assert_shape(res, 3, 1, ['a'])
+        self.assert_shape(res, 3, ['a'])
+
+        res = await self.scon.fetch(
+            '''
+            SELECT unnest(ARRAY[]::int8[]) a
+            '''
+        )
+        self.assertEqual(len(res), 0)
 
         res = await self.scon.fetch(
             '''
@@ -493,7 +516,7 @@ class TestSQL(tb.SQLQueryTestCase):
             '''
         )
         self.assert_shape(
-            res, 3, 5, ['a', 'b', 'unnested_a', 'unnested_b', 'computed']
+            res, 3, ['a', 'b', 'unnested_a', 'unnested_b', 'computed']
         )
 
     async def test_sql_query_33(self):
@@ -543,9 +566,7 @@ class TestSQL(tb.SQLQueryTestCase):
             ORDER BY title
             """
         )
-        self.assertEqual(
-            res, [['Forrest Gump', 1], ['Saving Private Ryan', 1]]
-        )
+        self.assertEqual(res, [['Forrest Gump', 1], ['Saving Private Ryan', 1]])
 
     async def test_sql_query_36(self):
         # ColumnRef to relation
@@ -564,6 +585,58 @@ class TestSQL(tb.SQLQueryTestCase):
             """
         )
         self.assertEqual(res, [['24']])
+
+    async def test_sql_query_38(self):
+        res = await self.squery_values(
+            '''
+            WITH users AS (
+              SELECT 1 as id, NULL as managed_by
+              UNION ALL
+              SELECT 2 as id, 1 as managed_by
+            )
+            SELECT id, (
+              SELECT id FROM users e WHERE id = users.managed_by
+            ) as managed_by
+            FROM users
+            ORDER BY id
+            '''
+        )
+        self.assertEqual(
+            res,
+            [
+                [1, None],
+                [2, 1],
+            ],
+        )
+
+    async def test_sql_query_39(self):
+        res = await self.squery_values(
+            '''
+            SELECT pages, __type__ FROM "Book" ORDER BY pages;
+            '''
+        )
+        self.assert_data_shape(
+            res,
+            [
+                [206, str],
+                [374, str],
+            ],
+        )
+        # there should be one `Book` and one `novel`
+        self.assertNotEqual(res[0][1], res[1][1])
+
+        res2 = await self.squery_values(
+            '''
+            SELECT pages, __type__ FROM ONLY "Book" ORDER BY pages;
+            '''
+        )
+        self.assert_data_shape(
+            res2,
+            [
+                [206, str],
+            ],
+        )
+        self.assertEqual(res[0][1], res2[0][1])
 
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
@@ -607,35 +680,41 @@ class TestSQL(tb.SQLQueryTestCase):
             res,
             [
                 ['Book', 'id', 'NO', 1],
-                ['Book', 'genre_id', 'YES', 2],
-                ['Book', 'pages', 'NO', 3],
-                ['Book', 'title', 'NO', 4],
+                ['Book', '__type__', 'NO', 2],
+                ['Book', 'genre_id', 'YES', 3],
+                ['Book', 'pages', 'NO', 4],
+                ['Book', 'title', 'NO', 5],
                 ['Book.chapters', 'source', 'NO', 1],
                 ['Book.chapters', 'target', 'NO', 2],
                 ['Content', 'id', 'NO', 1],
-                ['Content', 'genre_id', 'YES', 2],
-                ['Content', 'title', 'NO', 3],
+                ['Content', '__type__', 'NO', 2],
+                ['Content', 'genre_id', 'YES', 3],
+                ['Content', 'title', 'NO', 4],
                 ['Genre', 'id', 'NO', 1],
-                ['Genre', 'name', 'NO', 2],
+                ['Genre', '__type__', 'NO', 2],
+                ['Genre', 'name', 'NO', 3],
                 ['Movie', 'id', 'NO', 1],
-                ['Movie', 'director_id', 'YES', 2],
-                ['Movie', 'genre_id', 'YES', 3],
-                ['Movie', 'release_year', 'YES', 4],
-                ['Movie', 'title', 'NO', 5],
-                ['Movie.actors', 'role', 'YES', 1],
-                ['Movie.actors', 'source', 'NO', 2],
-                ['Movie.actors', 'target', 'NO', 3],
-                ['Movie.director', 'bar', 'YES', 1],
-                ['Movie.director', 'source', 'NO', 2],
-                ['Movie.director', 'target', 'NO', 3],
+                ['Movie', '__type__', 'NO', 2],
+                ['Movie', 'director_id', 'YES', 3],
+                ['Movie', 'genre_id', 'YES', 4],
+                ['Movie', 'release_year', 'YES', 5],
+                ['Movie', 'title', 'NO', 6],
+                ['Movie.actors', 'source', 'NO', 1],
+                ['Movie.actors', 'target', 'NO', 2],
+                ['Movie.actors', 'role', 'YES', 3],
+                ['Movie.director', 'source', 'NO', 1],
+                ['Movie.director', 'target', 'NO', 2],
+                ['Movie.director', 'bar', 'YES', 3],
                 ['Person', 'id', 'NO', 1],
-                ['Person', 'first_name', 'NO', 2],
-                ['Person', 'last_name', 'YES', 3],
+                ['Person', '__type__', 'NO', 2],
+                ['Person', 'first_name', 'NO', 3],
+                ['Person', 'last_name', 'YES', 4],
                 ['novel', 'id', 'NO', 1],
-                ['novel', 'foo', 'YES', 2],
-                ['novel', 'genre_id', 'YES', 3],
-                ['novel', 'pages', 'NO', 4],
-                ['novel', 'title', 'NO', 5],
+                ['novel', '__type__', 'NO', 2],
+                ['novel', 'foo', 'YES', 3],
+                ['novel', 'genre_id', 'YES', 4],
+                ['novel', 'pages', 'NO', 5],
+                ['novel', 'title', 'NO', 6],
                 ['novel.chapters', 'source', 'NO', 1],
                 ['novel.chapters', 'target', 'NO', 2],
             ],
@@ -806,14 +885,11 @@ class TestSQL(tb.SQLQueryTestCase):
                 ),
                 1,
             )
-            res = await self.squery_values(
-                'show default_transaction_isolation'
-            )
+            res = await self.squery_values('show default_transaction_isolation')
             self.assertEqual(res, [['read committed']])
         finally:
             await con.aclose()
 
-    @test.xfail("https://github.com/MagicStack/py-pgproto/issues/19")
     async def test_sql_query_client_encoding_1(self):
         rv1 = await self.squery_values('select * from "Genre" order by id')
         await self.squery_values("set client_encoding to 'GBK'")
@@ -879,18 +955,25 @@ class TestSQL(tb.SQLQueryTestCase):
             "Movie", output=out, format="csv", delimiter="\t"
         )
         out = io.StringIO(out.getvalue().decode("utf-8"))
-        # FIXME(#5716): Once COPY and information_schema are
-        # harmonized to agree on the order of columns, we should query
-        # information_schema to get the column number instead of
-        # hardcoding it.
-        names = set(row[7] for row in csv.reader(out, delimiter="\t"))
-        self.assertEqual(names, {"Forrest Gump", "Saving Private Ryan"})
+        # Get the columns order from the information_schema.
+        res = await self.squery_values(
+            r'''
+            SELECT column_name, ordinal_position
+            FROM information_schema.columns cols
+            WHERE cols.table_name = 'Movie'
+            '''
+        )
+        name_to_pos = {name: num - 1 for name, num in res}
+        titles = set(
+            row[name_to_pos['title']] for row in csv.reader(out, delimiter="\t")
+        )
+        self.assertEqual(titles, {"Forrest Gump", "Saving Private Ryan"})
 
     async def test_sql_query_error_01(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="12"
+            position="12",
         ):
             await self.scon.execute("SELECT 1 + 'foo'")
 
@@ -898,7 +981,7 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="10"
+            position="10",
         ):
             await self.scon.execute("SELECT 1+'foo'")
 
@@ -906,34 +989,39 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="28"
+            position="28",
         ):
-            await self.scon.execute("""SELECT 1 +
-                'foo'""")
+            await self.scon.execute(
+                """SELECT 1 +
+                'foo'"""
+            )
 
     async def test_sql_query_error_04(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="12"
+            position="12",
         ):
             await self.scon.execute(
-                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id''')
+                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id'''
+            )
 
     async def test_sql_query_error_05(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="28"
+            position="28",
         ):
-            await self.scon.execute('''SELECT 1 +
-                'foo' FROM "Movie" ORDER BY id''')
+            await self.scon.execute(
+                '''SELECT 1 +
+                'foo' FROM "Movie" ORDER BY id'''
+            )
 
     async def test_sql_query_error_06(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="12"
+            position="12",
         ):
             await self.scon.fetch("SELECT 1 + 'foo'")
 
@@ -941,7 +1029,7 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="10"
+            position="10",
         ):
             await self.scon.fetch("SELECT 1+'foo'")
 
@@ -949,29 +1037,35 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="28"
+            position="28",
         ):
-            await self.scon.fetch("""SELECT 1 +
-                'foo'""")
+            await self.scon.fetch(
+                """SELECT 1 +
+                'foo'"""
+            )
 
     async def test_sql_query_error_09(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="12"
+            position="12",
         ):
             await self.scon.fetch(
-                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id''')
+                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id'''
+            )
 
     async def test_sql_query_error_10(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="28"
+            position="28",
         ):
-            await self.scon.fetch('''SELECT 1 +
-                'foo' FROM "Movie" ORDER BY id''')
+            await self.scon.fetch(
+                '''SELECT 1 +
+                'foo' FROM "Movie" ORDER BY id'''
+            )
 
+    @unittest.skip("this test flakes: #5783")
     async def test_sql_query_prepare_01(self):
         await self.scon.execute(
             """
@@ -1043,3 +1137,15 @@ class TestSQL(tb.SQLQueryTestCase):
             position=str(len(query) - 3),
         ):
             await self.scon.execute(query)
+
+    async def test_sql_query_empty(self):
+        await self.scon.executemany('', args=[])
+
+    async def test_sql_query_pgadmin_hack(self):
+        await self.scon.execute("SET DateStyle=ISO;")
+        await self.scon.execute("SET client_min_messages=notice;")
+        await self.scon.execute(
+            "SELECT set_config('bytea_output','hex',false) FROM pg_settings"
+            " WHERE name = 'bytea_output'; "
+        )
+        await self.scon.execute("SET client_encoding='WIN874';")

@@ -97,14 +97,16 @@ class Property(
             other, our_schema=our_schema,
             their_schema=their_schema, context=context)
 
-        if (not self.generic(our_schema) and
-                not other.generic(their_schema) and
-                self.issubclass(
-                    our_schema,
-                    our_schema.get('std::source', type=Property)) and
-                other.issubclass(
-                    their_schema,
-                    their_schema.get('std::source', type=Property))):
+        if (
+            not self.is_non_concrete(our_schema)
+            and not other.is_non_concrete(their_schema)
+            and self.issubclass(
+                our_schema, our_schema.get('std::source', type=Property)
+            )
+            and other.issubclass(
+                their_schema, their_schema.get('std::source', type=Property)
+            )
+        ):
             # Make std::source link property ignore differences in its target.
             # This is consistent with skipping the comparison on Pointer.source
             # in general.
@@ -148,7 +150,7 @@ class Property(
     ) -> bool:
         source = self.get_source(schema)
         if isinstance(source, pointers.Pointer):
-            if source.generic(schema):
+            if source.is_non_concrete(schema):
                 return True
             else:
                 source = source.get_source(schema)
@@ -274,6 +276,17 @@ class PropertyCommand(
                 context=srcctx,
             )
 
+    def _check_linkprop_errors(self, node: qlast.DDLOperation) -> None:
+        for sub in node.commands:
+            # do not allow link property on properties
+            if isinstance(sub, qlast.CreateConcretePointer):
+                raise errors.InvalidDefinitionError(
+                    f'cannot create a link property on a property',
+                    context=node.context,
+                    hint='Link properties can only be created on links, whose '
+                         'target types are object types.',
+                )
+
 
 class CreateProperty(
     PropertyCommand,
@@ -294,8 +307,9 @@ class CreateProperty(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateConcreteProperty):
-            assert isinstance(cmd, pointers.PointerCommand)
+            assert isinstance(cmd, PropertyCommand)
             cmd._process_create_or_alter_ast(schema, astnode, context)
+            cmd._check_linkprop_errors(astnode)
 
         return cmd
 
@@ -416,6 +430,7 @@ class AlterProperty(
             cmd._process_create_or_alter_ast(schema, astnode, context)
         else:
             cmd._process_alter_ast(schema, astnode, context)
+        cmd._check_linkprop_errors(astnode)
         return cmd
 
     def _apply_field_ast(

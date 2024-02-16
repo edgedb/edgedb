@@ -83,6 +83,15 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             '_irast': None,
         }
 
+    def __eq__(self, rhs: object) -> bool:
+        if not isinstance(rhs, Expression):
+            return NotImplemented
+        return (
+            self.text == rhs.text
+            and self.refs == rhs.refs
+            and self.origin == rhs.origin
+        )
+
     @property
     def qlast(self) -> qlast_.Expr:
         if self._qlast is None:
@@ -368,7 +377,7 @@ class ExpressionShell(so.Shell):
             text=self.text,
             refs=so.ObjectSet.create(
                 schema,
-                (s.resolve(schema) for s in self.refs),
+                [s.resolve(schema) for s in self.refs],
             ) if self.refs is not None else None,
             _qlast=self._qlast,
             _irast=self._irast,  # type: ignore[arg-type]

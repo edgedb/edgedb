@@ -18,9 +18,9 @@
 
 
 import asyncio
-import contextlib
 import pickle
 import signal
+import socket
 import subprocess
 import sys
 import textwrap
@@ -31,58 +31,74 @@ from edb.testbase import server as tb
 TIMEOUT = 30
 
 
-@contextlib.asynccontextmanager
-async def spawn(test_prog, global_prog=""):
-    p = await asyncio.create_subprocess_exec(
-        sys.executable,
-        "-m",
-        "edb.testbase.proc",
-        textwrap.dedent(global_prog)
-        + "\n"
-        + textwrap.dedent(
-            """\
-            import signal
-            from edb.common import signalctl
-            """
-        ),
-        textwrap.dedent(test_prog),
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    try:
-        yield p
-    except Exception:
-        stdout, stderr = await asyncio.wait_for(p.communicate(), TIMEOUT)
-        if p.returncode <= 0:
-            raise
-        else:
-            raise ChildProcessError("\n\n" + stderr.decode())
-    else:
-        stdout, stderr = await asyncio.wait_for(p.communicate(), TIMEOUT)
-        if p.returncode > 0:
-            raise ChildProcessError("\n\n" + stderr.decode())
+class ChildProcess:
+    def __init__(self, test_prog, global_prog=""):
+        self._args = (
+            sys.executable,
+            "-m",
+            "edb.testbase.proc",
+            textwrap.dedent(global_prog)
+            + "\n"
+            + textwrap.dedent(
+                """\
+                import signal
+                from edb.common import signalctl
+                """
+            ),
+            textwrap.dedent(test_prog),
+        )
 
-    finally:
+    async def __aenter__(self):
+        sock, child_sock = socket.socketpair(socket.AF_UNIX)
+        fd = child_sock.detach()
+        self.child_reader, self.child_writer = await asyncio.open_connection(
+            sock=sock
+        )
+        self.proc = await asyncio.create_subprocess_exec(
+            *self._args,
+            str(fd),
+            stderr=subprocess.PIPE,
+            pass_fds=[fd],
+        )
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         try:
-            p.kill()
-            await asyncio.wait_for(p.wait(), TIMEOUT)
-        except OSError:
-            pass
+            _, stderr = await asyncio.wait_for(
+                self.proc.communicate(), TIMEOUT
+            )
+            if self.proc.returncode > 0:
+                raise ChildProcessError("\n\n" + stderr.decode())
+        finally:
+            self.child_writer.close()
+            try:
+                self.proc.kill()
+                await asyncio.wait_for(self.proc.wait(), TIMEOUT)
+            except OSError:
+                pass
+            finally:
+                await self.child_writer.wait_closed()
+
+    def __getattr__(self, item):
+        return getattr(self.proc, item)
+
+
+def spawn(test_prog, global_prog=""):
+    return ChildProcess(test_prog, global_prog)
 
 
 class TestSignalctl(tb.TestCase):
     def notify_child(self, p, mark):
-        p.stdin.write(str(mark).encode() + b"\n")
+        p.child_writer.write(str(mark).encode() + b"\n")
 
     async def wait_for_child(self, p, mark):
-        line = await asyncio.wait_for(p.stdout.readline(), TIMEOUT)
+        line = await asyncio.wait_for(p.child_reader.readline(), TIMEOUT)
         if not line:
             self.fail("Child process exited unexpectedly.")
         elif len(line) <= 3:
             self.assertEqual(line.strip(), str(mark).encode())
         else:
-            line += await asyncio.wait_for(p.stdout.read(), TIMEOUT)
+            line += await asyncio.wait_for(p.child_reader.read(), TIMEOUT)
             ex, traceback = pickle.loads(line)
             raise ex from ChildProcessError("\n\n" + traceback.strip())
 
@@ -161,7 +177,7 @@ class TestSignalctl(tb.TestCase):
             p.send_signal(signal.SIGINT)
             with self.assertRaises(asyncio.TimeoutError):
                 await asyncio.wait_for(
-                    asyncio.gather(p.wait(), p.stdout.read(1)), 0.2
+                    asyncio.gather(p.wait(), p.child_reader.read(1)), 0.2
                 )
 
             p.terminate()
@@ -194,7 +210,7 @@ class TestSignalctl(tb.TestCase):
             p.terminate()
             with self.assertRaises(asyncio.TimeoutError):
                 await asyncio.wait_for(
-                    asyncio.gather(p.wait(), p.stdout.read(1)), 0.2
+                    asyncio.gather(p.wait(), p.child_reader.read(1)), 0.2
                 )
 
             p.send_signal(signal.SIGINT)
@@ -354,7 +370,7 @@ class TestSignalctl(tb.TestCase):
                     self.notify_parent(3)
 
             async def _task():
-                async with taskgroup.TaskGroup() as tg:
+                async with asyncio.TaskGroup() as tg:
                     tg.create_task(_subtask1())
                     tg.create_task(_subtask2())
 
@@ -363,9 +379,7 @@ class TestSignalctl(tb.TestCase):
                     await sc.wait_for(_task())
         """
 
-        async with spawn(
-            test_prog, global_prog="from edb.common import taskgroup"
-        ) as p:
+        async with spawn(test_prog) as p:
             await self.wait_for_child(p, 1)
             await self.wait_for_child(p, 1)
             p.terminate()

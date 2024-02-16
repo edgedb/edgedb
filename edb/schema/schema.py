@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from typing import *
+from typing import overload
 
 import abc
 import collections
@@ -54,6 +55,8 @@ if TYPE_CHECKING:
         ],
     ]
 
+EXT_MODULE = sn.UnqualName('ext')
+
 STD_MODULES = (
     sn.UnqualName('std'),
     sn.UnqualName('schema'),
@@ -64,7 +67,8 @@ STD_MODULES = (
     sn.UnqualName('pg'),
     sn.UnqualName('std::_test'),
     sn.UnqualName('fts'),
-    sn.UnqualName('ext'),
+    EXT_MODULE,
+    sn.UnqualName('std::enc'),
 )
 
 # Specifies the order of processing of files and directories in lib/
@@ -76,10 +80,11 @@ STD_SOURCES = (
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
     sn.UnqualName('ext'),
+    sn.UnqualName('enc'),
     sn.UnqualName('pg'),
+    sn.UnqualName('fts'),
 )
 TESTMODE_SOURCES = (
-    sn.UnqualName('fts'),
     sn.UnqualName('_testmode'),
 )
 
@@ -214,7 +219,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get_referrers(  # NoQA: F811
+    def get_referrers(
         self,
         scls: so.Object,
         *,
@@ -224,7 +229,7 @@ class Schema(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_referrers(  # NoQA: F811
+    def get_referrers(
         self,
         scls: so.Object,
         *,
@@ -256,7 +261,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get_by_id(  # NoQA: F811
+    def get_by_id(
         self,
         obj_id: uuid.UUID,
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
@@ -266,7 +271,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get_by_id(  # NoQA: F811
+    def get_by_id(
         self,
         obj_id: uuid.UUID,
         default: None = None,
@@ -275,7 +280,7 @@ class Schema(abc.ABC):
     ) -> Optional[so.Object_T]:
         ...
 
-    def get_by_id(  # NoQA: F811
+    def get_by_id(
         self,
         obj_id: uuid.UUID,
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
@@ -288,9 +293,9 @@ class Schema(abc.ABC):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
     ) -> Optional[so.Object_T]:
         raise NotImplementedError
 
@@ -304,7 +309,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get_global(  # NoQA: F811
+    def get_global(
         self,
         objtype: Type[so.Object_T],
         name: Union[str, sn.Name],
@@ -312,7 +317,7 @@ class Schema(abc.ABC):
     ) -> Optional[so.Object_T]:
         ...
 
-    def get_global(  # NoQA: F811
+    def get_global(
         self,
         objtype: Type[so.Object_T],
         name: Union[str, sn.Name],
@@ -330,7 +335,7 @@ class Schema(abc.ABC):
         raise NotImplementedError
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
@@ -343,7 +348,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: None,
@@ -356,7 +361,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
@@ -370,7 +375,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: None,
@@ -384,7 +389,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
@@ -397,7 +402,7 @@ class Schema(abc.ABC):
     ) -> Optional[so.Object]:
         ...
 
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
@@ -419,7 +424,7 @@ class Schema(abc.ABC):
         )
 
     @abc.abstractmethod
-    def _get(  # NoQA: F811
+    def _get(
         self,
         name: Union[str, sn.Name],
         default: Union[so.Object, so.NoDefaultT, None],
@@ -1269,7 +1274,7 @@ class FlatSchema(Schema):
             return frozenset(referrers)  # type: ignore
 
     @functools.lru_cache()
-    def get_referrers_ex(
+    def get_referrers_ex(  # type: ignore
         self,
         scls: so.Object,
         *,
@@ -1297,27 +1302,31 @@ class FlatSchema(Schema):
 
             return result  # type: ignore
 
-    def _get_by_id(  # NoQA: F811
+    def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
+        # Deep u-optimization; this is the hottest path in the system,
+        # so avoid needing to do lookups for this function.
+        _raw_schema_restore: Callable[[str, uuid.UUID], so.Object] = (
+            so.Object.raw_schema_restore),
     ) -> Optional[so.Object_T]:
         try:
             sclass_name = self._id_to_type[obj_id]
         except KeyError:
             if default is so.NoDefault:
-                raise errors.InvalidReferenceError(
+                raise LookupError(
                     f'reference to a non-existent schema item {obj_id}'
                     f' in schema {self!r}'
                 ) from None
             else:
                 return default
         else:
-            obj = so.Object.schema_restore((sclass_name, obj_id))
+            obj = _raw_schema_restore(sclass_name, obj_id)
             if type is not None and not isinstance(obj, type):
-                raise errors.InvalidReferenceError(
+                raise TypeError(
                     f'schema object {obj_id!r} exists, but is a '
                     f'{obj.__class__.get_schema_class_displayname()!r}, '
                     f'not a {type.get_schema_class_displayname()!r}'
@@ -1325,6 +1334,10 @@ class FlatSchema(Schema):
 
             # Avoid the overhead of cast(Object_T) below
             return obj  # type: ignore
+
+    # Important micro-optimization
+    if not TYPE_CHECKING:
+        get_by_id = _get_by_id
 
     def _get_global(
         self,
@@ -1483,6 +1496,9 @@ class FlatSchema(Schema):
     def __repr__(self) -> str:
         return (
             f'<{type(self).__name__} gen:{self._generation} at {id(self):#x}>')
+
+
+EMPTY_SCHEMA = FlatSchema()
 
 
 def upgrade_schema(schema: FlatSchema) -> FlatSchema:
@@ -1747,7 +1763,7 @@ class ChainedSchema(Schema):
         self,
         obj: so.Object,
     ) -> Optional[Tuple[Any, ...]]:
-        if isinstance(obj, so.GlobalObject):
+        if obj.is_global_object:
             return self._global_schema.maybe_get_obj_data_raw(obj)
         else:
             top = self._top_schema.maybe_get_obj_data_raw(obj)
@@ -1760,14 +1776,17 @@ class ChainedSchema(Schema):
         self,
         obj: so.Object,
     ) -> Tuple[Any, ...]:
-        if isinstance(obj, so.GlobalObject):
-            return self._global_schema.get_obj_data_raw(obj)
+        top = self._top_schema.maybe_get_obj_data_raw(obj)
+        if top is not None:
+            return top
         else:
-            top = self._top_schema.maybe_get_obj_data_raw(obj)
-            if top is not None:
-                return top
-            else:
+            try:
                 return self._base_schema.get_obj_data_raw(obj)
+            except errors.SchemaError:
+                if obj.is_global_object:
+                    return self._global_schema.get_obj_data_raw(obj)
+                else:
+                    raise
 
     def set_obj_field(
         self,
@@ -1957,9 +1976,9 @@ class ChainedSchema(Schema):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
     ) -> Optional[so.Object_T]:
         obj = self._top_schema.get_by_id(obj_id, type=type, default=None)
         if obj is None:
@@ -1969,6 +1988,10 @@ class ChainedSchema(Schema):
                 obj = self._global_schema.get_by_id(
                     obj_id, default=default, type=type)
         return obj
+
+    # Important micro-optimization
+    if not TYPE_CHECKING:
+        get_by_id = _get_by_id
 
     def _get_global(
         self,

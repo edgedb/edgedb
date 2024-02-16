@@ -33,6 +33,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import triggers as s_triggers
 from edb.schema import types as s_types
 
+from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from . import context
@@ -67,8 +68,10 @@ def compile_trigger(
 
         anchors = {}
         new_path = irast.PathId.from_type(
-            schema, source, typename=sn.QualName(
-                module='__derived__', name='__new__')
+            schema,
+            source,
+            typename=sn.QualName(module='__derived__', name='__new__'),
+            env=ctx.env,
         )
         new_set = setgen.class_set(
             source, path_id=new_path, ignore_rewrites=True, ctx=sctx)
@@ -77,8 +80,10 @@ def compile_trigger(
         old_set = None
         if qltypes.TriggerKind.Insert not in kinds:
             old_path = irast.PathId.from_type(
-                schema, source, typename=sn.QualName(
-                    module='__derived__', name='__old__')
+                schema,
+                source,
+                typename=sn.QualName(module='__derived__', name='__old__'),
+                env=ctx.env,
             )
             old_set = setgen.class_set(
                 source, path_id=old_path, ignore_rewrites=True, ctx=sctx)
@@ -93,8 +98,22 @@ def compile_trigger(
                 sctx.iterator_path_ids |= {ir.path_id}
             sctx.anchors[name] = ir
 
-        trigger_set = dispatch.compile(
-            trigger.get_expr(schema).qlast, ctx=sctx)
+        trigger_ast = trigger.get_expr(schema).qlast
+
+        # A conditional trigger desugars to a FOR query that puts the
+        # condition in the FILTER of a trivial SELECT.
+        condition = trigger.get_condition(schema)
+        if condition:
+            trigger_ast = qlast.ForQuery(
+                iterator_alias='__',
+                iterator=qlast.SelectQuery(
+                    result=qlast.Tuple(elements=[]),
+                    where=condition.qlast,
+                ),
+                result=trigger_ast,
+            )
+
+        trigger_set = dispatch.compile(trigger_ast, ctx=sctx)
 
     typeref = typegen.type_to_typeref(source, env=ctx.env)
     taffected = {

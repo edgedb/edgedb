@@ -29,6 +29,7 @@ import json
 from edb import errors
 
 from edb.common import ast
+from edb.common import ordered
 
 from edb.edgeql import qltypes as ft
 
@@ -76,7 +77,7 @@ def is_union_expr(ir: irast.Base) -> bool:
     )
 
 
-def is_empty_array_expr(ir: irast.Base) -> bool:
+def is_empty_array_expr(ir: Optional[irast.Base]) -> TypeGuard[irast.Array]:
     """Return True if the given *ir* expression is an empty array expression.
     """
     return (
@@ -85,14 +86,16 @@ def is_empty_array_expr(ir: irast.Base) -> bool:
     )
 
 
-def is_untyped_empty_array_expr(ir: irast.Base) -> bool:
+def is_untyped_empty_array_expr(
+    ir: Optional[irast.Base]
+) -> TypeGuard[irast.Array]:
     """Return True if the given *ir* expression is an empty
        array expression of an uknown type.
     """
     return (
         is_empty_array_expr(ir)
-        and (ir.typeref is None                    # type: ignore
-             or typeutils.is_generic(ir.typeref))  # type: ignore
+        and (ir.typeref is None
+             or typeutils.is_generic(ir.typeref))
     )
 
 
@@ -116,18 +119,6 @@ def is_subquery_set(ir_expr: irast.Base) -> bool:
     return (
         isinstance(ir_expr, irast.Set) and
         isinstance(ir_expr.expr, irast.Stmt)
-    )
-
-
-def is_scalar_view_set(ir_expr: irast.Base) -> bool:
-    """Return True if the given *ir_expr* expression is a view
-       of scalar type.
-    """
-    return (
-        isinstance(ir_expr, irast.Set) and
-        len(ir_expr.path_id) == 1 and
-        ir_expr.path_id.is_scalar_path() and
-        ir_expr.path_id.is_view_path()
     )
 
 
@@ -156,6 +147,7 @@ def is_trivial_select(ir_expr: irast.Base) -> TypeGuard[irast.SelectStmt]:
         and ir_expr.where is None
         and ir_expr.limit is None
         and ir_expr.offset is None
+        and ir_expr.card_inference_override is None
     )
 
 
@@ -240,41 +232,40 @@ def collapse_type_intersection(
     return source, result
 
 
-def get_nearest_dml_stmt(
-    ir_set: irast.Set
-) -> Optional[irast.MutatingLikeStmt]:
-    """For a given *ir_set* representing a Path, return the nearest path
-       step that is a DML expression.
-    """
-    cur_set: Optional[irast.Set] = ir_set
-    while cur_set is not None:
-        if isinstance(cur_set.expr, irast.MutatingLikeStmt):
-            return cur_set.expr
-        elif isinstance(cur_set.expr, irast.SelectStmt):
-            cur_set = cur_set.expr.result
-        # FIXME: This is a narrow hack around issue #3030 designed to
-        # make simple cases work. This probably covers most cases but
-        # does not cover everything in general.
-        # The critical one is assert_exists inserted by access policies.
-        elif (
-            isinstance(cur_set.expr, irast.Call)
-            and str(cur_set.expr.func_shortname) in {
-                'std::assert_exists',
-                'std::assert_single',
-                'std::assert_distinct',
-                'std::enumerate',
-                'std::min',
-                'std::max',
-                'std::DISTINCT',
-            }
+class CollectDMLSourceVisitor(ast.NodeVisitor):
+    skip_hidden = True
 
-        ):
-            cur_set = cur_set.expr.args[-1].expr
-        elif cur_set.rptr is not None:
-            cur_set = cur_set.rptr.source
-        else:
-            cur_set = None
-    return None
+    def __init__(self) -> None:
+        super().__init__()
+        self.dml: list[irast.MutatingLikeStmt] = []
+
+    def visit_MutatingLikeStmt(self, stmt: irast.MutatingLikeStmt) -> None:
+        # Only INSERTs and UPDATEs produce meaningful overlays.
+        if not isinstance(stmt, irast.DeleteStmt):
+            self.dml.append(stmt)
+
+    def visit_Set(self, node: irast.Set) -> None:
+        # Visit sub-trees
+        if node.expr:
+            self.visit(node.expr)
+        elif node.rptr:
+            self.visit(node.rptr.source)
+
+
+def get_dml_sources(
+    ir_set: irast.Set
+) -> Sequence[irast.MutatingLikeStmt]:
+    """Find the DML expressions that can contribute to the value of a set
+
+    This is used to compute which overlays to use during SQL compilation.
+    """
+    # TODO: Make this caching.
+    visitor = CollectDMLSourceVisitor()
+    visitor.visit(ir_set)
+    # Deduplicate, but preserve order. It shouldn't matter for
+    # *correctness* but it helps keep the nondeterminism in the output
+    # SQL down.
+    return tuple(ordered.OrderedSet(visitor.dml))
 
 
 class ContainsDMLVisitor(ast.NodeVisitor):
@@ -467,3 +458,14 @@ def contains_set_of_op(ir: irast.Base) -> bool:
     flt = (lambda n: any(x == ft.TypeModifier.SetOfType
                          for x in n.params_typemods))
     return bool(ast.find_children(ir, irast.Call, flt, terminate_early=True))
+
+
+def as_const(ir: irast.Base) -> Optional[irast.BaseConstant]:
+    match ir:
+        case irast.BaseConstant():
+            return ir
+        case irast.TypeCast():
+            return as_const(ir.expr)
+        case irast.Set() if ir.expr:
+            return as_const(ir.expr)
+    return None

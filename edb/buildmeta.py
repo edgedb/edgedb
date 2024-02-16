@@ -44,8 +44,8 @@ from edb.common import verutils
 
 
 # Increment this whenever the database layout or stdlib changes.
-EDGEDB_CATALOG_VERSION = 2023_06_28_00_00
-EDGEDB_MAJOR_VERSION = 4
+EDGEDB_CATALOG_VERSION = 2024_02_09_00_00
+EDGEDB_MAJOR_VERSION = 5
 
 
 class MetadataError(Exception):
@@ -427,15 +427,6 @@ def get_version_from_scm(root: pathlib.Path) -> str:
     )
 
     proc = subprocess.run(
-        ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
-        check=True,
-        cwd=root,
-    )
-    branch = proc.stdout.strip()
-
-    proc = subprocess.run(
         ['git', 'tag', '--list', 'v*'],
         stdout=subprocess.PIPE,
         universal_newlines=True,
@@ -480,17 +471,9 @@ def get_version_from_scm(root: pathlib.Path) -> str:
         ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
     else:
         # Dev/nightly build.
-        if branch.startswith("releases/"):
-            if prekind and preval:
-                pass
-            elif micro:
-                micro = str(int(micro) + 1)
-            else:
-                minor = str(int(minor) + 1)
-        else:
-            microkind = ''
-            micro = ''
-            minor = '0'
+        microkind = ''
+        micro = ''
+        minor = '0'
 
         incremented_ver = f'{major}.{minor}{microkind}{micro}'
 

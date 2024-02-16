@@ -295,15 +295,10 @@ following EdgeQL features are often useful:
 Further reading
 ^^^^^^^^^^^^^^^
 
-For guides on advanced migration workflows, refer to the following guides.
+- :ref:`Guide to schema migrations <ref_migration_guide>`
+- :ref:`Migration tips <ref_migration_tips>`
 
-- :ref:`Making a property required <ref_migration_names>`
-- :ref:`Adding backlinks <ref_migration_backlink>`
-- :ref:`Changing the type of a property <ref_migration_proptype>`
-- :ref:`Changing a property to a link <ref_migration_proptolink>`
-- :ref:`Adding a required link <ref_migration_reqlink>`
-
-For more information on how migrations work in EdgeDB, check out the :ref:`CLI
+Further information can be found in the :ref:`CLI
 reference <ref_cli_edgedb_migration>` or the `Beta 1 blog post
 </blog/edgedb-1-0-beta-1-sirius#built-in-database-migrations-in-use>`_, which
 describes the design of the migration system.

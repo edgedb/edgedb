@@ -19,14 +19,20 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *
+
+from edb.pgsql import ast as pgast
 
 from .. import common
 from . import base
 
 
 class Constraint(base.DBObject):
-    def __init__(self, subject_name, constraint_name=None):
+    def __init__(
+        self,
+        subject_name: Sequence[str | pgast.Star],
+        constraint_name: Optional[str] = None,
+    ):
         self._subject_name = subject_name
         self._constraint_name = constraint_name
 
@@ -34,6 +40,9 @@ class Constraint(base.DBObject):
         return 'CONSTRAINT'
 
     def get_subject_type(self):
+        raise NotImplementedError
+
+    def generate_extra(self, block: base.PLBlock):
         raise NotImplementedError
 
     def get_subject_name(self, quote=True):
@@ -51,7 +60,7 @@ class Constraint(base.DBObject):
         if quote and self._constraint_name:
             return common.quote_ident(self._constraint_name)
         else:
-            return self._constraint_name
+            return self._constraint_name or ''
 
-    def constraint_code(self, block: base.PLBlock) -> str | typing.List[str]:
+    def constraint_code(self, block: base.PLBlock) -> str | List[str]:
         raise NotImplementedError

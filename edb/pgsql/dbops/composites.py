@@ -91,7 +91,11 @@ class RecordBase:
 
 
 class CompositeDBObject(base.DBObject):
-    def __init__(self, name, columns: Iterable[tables.Column] | None = None):
+    def __init__(
+        self,
+        name: Sequence[str],
+        columns: Iterable[tables.Column] | None = None,
+    ):
         super().__init__()
         self.name = name
         self._columns: ordered.OrderedSet[tables.Column] = ordered.OrderedSet()

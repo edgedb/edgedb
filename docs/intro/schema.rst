@@ -5,7 +5,7 @@ Schema
 ======
 
 
-This page is indended as a rapid-fire overview of EdgeDB's schema definition
+This page is intended as a rapid-fire overview of EdgeDB's schema definition
 language (SDL) so you can hit the ground running with EdgeDB. Refer to the
 linked pages for more in-depth documentation!
 
@@ -22,7 +22,8 @@ types.
   * - Booleans
     - ``bool``
   * - Numbers
-    - ``int32`` ``int64`` ``float32`` ``float64`` ``bigint`` ``decimal``
+    - ``int16`` ``int32`` ``int64`` ``float32`` ``float64`` 
+      ``bigint`` ``decimal``
   * - UUID
     - ``uuid``
   * - JSON
@@ -65,7 +66,7 @@ to any object types.
 Properties
 ----------
 
-The ``property`` keyword is used to declare a property.
+Declare a property by naming it and setting its type.
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -153,10 +154,18 @@ queried.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Movie {
       required title: str;
       property uppercase_title := str_upper(.title);
+    }
+
+.. code-block:: sdl
+
+    type Movie {
+      required title: str;
+      uppercase_title := str_upper(.title);
     }
 
 See :ref:`Schema > Computeds <ref_datamodel_computed>`.
@@ -280,6 +289,7 @@ queries. The example below defines a backlink.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Movie {
       required title: str;
@@ -287,6 +297,19 @@ queries. The example below defines a backlink.
 
       # returns all movies with same title
       multi link same_title := (
+        with t := .title
+        select detached Movie filter .title = t
+      )
+    }
+
+.. code-block:: sdl
+
+    type Movie {
+      required title: str;
+      multi actors: Person;
+
+      # returns all movies with same title
+      multi same_title := (
         with t := .title
         select detached Movie filter .title = t
       )
@@ -311,6 +334,7 @@ A common use case for computed links is *backlinks*.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Movie {
       required title: str;
@@ -320,6 +344,18 @@ A common use case for computed links is *backlinks*.
     type Person {
       required name: str;
       multi link acted_in := .<actors[is Movie];
+    }
+
+.. code-block:: sdl
+
+    type Movie {
+      required title: str;
+      multi actors: Person;
+    }
+
+    type Person {
+      required name: str;
+      multi acted_in := .<actors[is Movie];
     }
 
 The computed link ``acted_in`` returns all ``Movie`` objects with a link
@@ -335,7 +371,7 @@ understand backlink syntax is to split it into two parts:
 ``[is Movie]``
   This is a *type filter* that filters out all objects that aren't ``Movie``
   objects. A backlink still works without this filter, but could contain any 
-  other number of objects besides `` Movie`` objects.
+  other number of objects besides ``Movie`` objects.
 
 See :ref:`Schema > Computeds > Backlinks <ref_datamodel_links_backlinks>`.
 

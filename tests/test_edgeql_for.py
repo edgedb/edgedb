@@ -1106,3 +1106,139 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [{"key": "Earth"}, {"key": "Water"}]
         )
+
+    async def test_edgeql_for_tuple_optional_01(self):
+        await self.assert_query_result(
+            r'''
+                for user in User union (
+                  ((select (1,) filter false) ?? (2,)).0
+                );
+            ''',
+            [2, 2, 2, 2],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for user in User union (
+                  ((select (1,) filter user.name = 'Alice') ?? (2,)).0
+                );
+            ''',
+            tb.bag([1, 2, 2, 2]),
+        )
+
+    async def test_edgeql_for_optional_01(self):
+        # Lol FOR OPTIONAL doesn't work for object-type iterators
+        # but it does work for 1-ary tuples
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    ((select User filter .name = 'George'),)
+                union x.0.deck_cost ?? 0;
+            ''',
+            [0],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    ((select User filter .name = 'George'),)
+                union x.0
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    ((select User filter .name = 'George'),)
+                union x
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    ((select User filter .name = 'Alice'),)
+                union x.0.deck_cost ?? 0;
+            ''',
+            [11],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    ((select User filter .name = 'George'),)
+                union (insert Award { name := "Participation" })
+            ''',
+            [{}],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in (<bool>{})
+                union (insert Award { name := "Participation!" })
+            ''',
+            [{}],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for user in (select User filter .name = 'Alice') union (
+                  for optional x in (<Card>{},) union (
+                    1
+                  )
+                );
+            ''',
+            [1],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for user in (select User filter .name = 'Alice') union (
+                  for optional x in (<Card>{},) union (
+                    user.name
+                  )
+                );
+            ''',
+            ['Alice'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for user in (select User filter .name = 'Alice') union (
+                  for optional x in (<Card>{},) union (
+                    user.name ++ (x.0.name ?? "!")
+                  )
+                );
+            ''',
+            ['Alice!'],
+        )
+
+    async def test_edgeql_for_optional_02(self):
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    (select User filter .name = 'George')
+                union x.deck_cost ?? 0;
+            ''',
+            [0],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    (select User filter .name = 'Alice')
+                union x.deck_cost ?? 0;
+            ''',
+            [11],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    (select User filter .name = 'George')
+                union (insert Award { name := "Participation" })
+            ''',
+            [{}],
+        )

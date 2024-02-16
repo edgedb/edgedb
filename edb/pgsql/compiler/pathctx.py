@@ -45,6 +45,7 @@ class PathAspect(s_enum.StrEnum):
     VALUE = 'value'
     SOURCE = 'source'
     SERIALIZED = 'serialized'
+    ITERATOR = 'iterator'
 
 
 # A mapping of more specific aspect -> less specific aspect for objects
@@ -135,13 +136,6 @@ def get_path_var(
         rel = rel.query
 
     if flavor == 'normal':
-        # Check if we already have a var, before remapping the path_id.
-        # This is useful for serialized aspect disambiguation in tuples,
-        # since process_set_as_tuple() records serialized vars with
-        # original path_id.
-        if (path_id, aspect) in rel.path_namespace:
-            return rel.path_namespace[path_id, aspect]
-
         if rel.view_path_id_map:
             path_id = map_path_id(path_id, rel.view_path_id_map)
 
@@ -705,8 +699,14 @@ def put_path_serialized_var_if_not_exists(
 
 
 def put_path_bond(
-        stmt: pgast.BaseRelation, path_id: irast.PathId) -> None:
-    stmt.path_scope.add(path_id)
+    stmt: pgast.BaseRelation, path_id: irast.PathId, iterator: bool=False
+) -> None:
+    '''Register a path id that should be joined on when joining stmt
+
+    iterator indicates whether the identity or iterator aspect should
+    be used.
+    '''
+    stmt.path_bonds.add((path_id, iterator))
 
 
 def put_rvar_path_bond(
@@ -1094,6 +1094,19 @@ def has_type_rewrite(
     )
 
 
+def link_needs_type_rewrite(
+        typeref: irast.TypeRef, *, env: context.Environment) -> bool:
+    return (
+        has_type_rewrite(typeref, env=env)
+        # Typically we need to apply rewrites when looking at a link
+        # target that has a policy on it, but we suppress this for
+        # schema::ObjectType. None of the hidden objects should be
+        # user visible anyway, and this allows us to do type id
+        # injection without a join.
+        and str(typeref.real_material_type.name_hint) != 'schema::ObjectType'
+    )
+
+
 def find_path_output(
     rel: pgast.BaseRelation, ref: pgast.BaseExpr
 ) -> Optional[pgast.OutputVar]:
@@ -1152,7 +1165,7 @@ def _get_path_output(
             and src_rptr.real_material_ptr.out_cardinality.is_multi()
             and not irtyputils.is_free_object(src_path_id.target)
         )
-        and not has_type_rewrite(src_path_id.target, env=env)
+        and not link_needs_type_rewrite(src_path_id.target, env=env)
     ):
         # A value reference to Object.id is the same as a value
         # reference to the Object itself. (Though we want to only
@@ -1176,7 +1189,7 @@ def _get_path_output(
         # The VALUES() construct seems to always expose its
         # value as "column1".
         alias = 'column1'
-        ref = pgast.ColumnRef(name=[alias])
+        ref = pgast.ColumnRef(name=[alias], nullable=rel.nullable)
     else:
         ref = get_path_var(rel, path_id, aspect=aspect, flavor=flavor, env=env)
 
@@ -1191,24 +1204,16 @@ def _get_path_output(
     if isinstance(ref, pgast.TupleVarBase):
         elements = []
         for el in ref.elements:
-            el_path_id = reverse_map_path_id(
-                el.path_id, rel.view_path_id_map)
+            element = _get_path_output(
+                rel, el.path_id, aspect=aspect,
+                disable_output_fusion=disable_output_fusion,
+                flavor=flavor,
+                allow_nullable=allow_nullable, env=env)
 
-            try:
-                # Similarly to get_path_var(), check for outer path_id
-                # first for tuple serialized var disambiguation.
-                element = _get_path_output(
-                    rel, el_path_id, aspect=aspect,
-                    disable_output_fusion=disable_output_fusion,
-                    flavor=flavor,
-                    allow_nullable=allow_nullable, env=env)
-            except LookupError:
-                element = get_path_output(
-                    rel, el_path_id, aspect=aspect,
-                    disable_output_fusion=disable_output_fusion,
-                    flavor=flavor,
-                    allow_nullable=allow_nullable, env=env)
-
+            # We need to reverse the mapping for the element path in
+            # the output TupleVar, since it will be used *outside*
+            # this rel, and so without the map applied.
+            el_path_id = reverse_map_path_id(el.path_id, rel.view_path_id_map)
             elements.append(pgast.TupleElement(
                 path_id=el_path_id, val=element, name=element))
 

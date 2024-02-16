@@ -90,10 +90,6 @@ class ParserContext(markup.MarkupExceptionContext):
     def as_markup(cls, self, *, ctx):
         me = markup.elements
 
-        body = []
-
-        lines = []
-        line_numbers = []
         start = self.start_point
         # TODO: do more with end?
         end = self.end_point
@@ -107,94 +103,22 @@ class ParserContext(markup.MarkupExceptionContext):
             offset = match.end()
             line_offsets.append(offset)
 
-        for i in range(self.context_lines + 1, 1, -1):
-            try:
-                ctx_line, _ = self._get_line_snippet(
-                    start, offset=-i, line_offsets=line_offsets)
-            except ValueError:
-                pass
-            else:
-                lines.append(ctx_line)
-                line_numbers.append(start.line - i)
+        line_no = bisect.bisect_right(line_offsets, start.offset) - 1
 
-        snippet, _ = self._get_line_snippet(start, line_offsets=line_offsets)
-        lines.append(snippet)
-        line_numbers.append(start.line)
-
-        for i in range(1, self.context_lines + 1):
-            try:
-                ctx_line, _ = self._get_line_snippet(
-                    start, offset=i, line_offsets=line_offsets)
-            except ValueError:
-                pass
-            else:
-                lines.append(ctx_line)
-                line_numbers.append(start.line + i)
+        context_start = max(0, line_no - self.context_lines)
+        context_end = min(line_no + self.context_lines + 1, len(buf_lines))
 
         endcol = end.column if start.line == end.line else None
         tbp = me.lang.TracebackPoint(
             name=self.name, filename=self.name, lineno=start.line,
             colno=start.column, end_colno=endcol,
-            lines=lines, line_numbers=line_numbers,
-            context=True)
+            lines=buf_lines[context_start:context_end],
+            # Line numbers are 1 indexed here
+            line_numbers=list(range(context_start + 1, context_end + 1)),
+            context=True,
+        )
 
-        body.append(tbp)
-
-        return me.lang.ExceptionContext(title=self.title, body=body)
-
-    def _find_line(self, point, offset=0, *, line_offsets):
-        len_buffer = len(self.buffer)
-        if point.line == 0:
-            if offset < 0:
-                raise ValueError('not enough lines in buffer')
-            else:
-                return 0, len_buffer
-
-        line_no = bisect.bisect_right(line_offsets, point.offset) - 1 + offset
-        if line_no >= len(line_offsets):
-            raise ValueError('not enough lines in buffer')
-
-        # start and end cannot be less than 0 and greater than the
-        # buffer length
-        try:
-            linestart = min(len_buffer, max(0, line_offsets[line_no]))
-        except IndexError:
-            if line_no < 0:
-                # Can't be negative
-                linestart = 0
-            else:
-                # Can't be beyond the buffer's length
-                linestart = len_buffer
-
-        try:
-            lineend = min(len_buffer, max(0, line_offsets[line_no + 1] - 1))
-        except IndexError:
-            if line_no + 1 < 0:
-                # Can't be negative
-                lineend = 0
-            else:
-                # Can't be beyond the buffer's length
-                lineend = len_buffer
-
-        return linestart, lineend
-
-    def _get_line_snippet(
-            self, point, max_length=120, *, offset=0, line_offsets):
-        line_start, line_end = self._find_line(
-            point, offset=offset, line_offsets=line_offsets)
-        line_len = line_end - line_start
-
-        if line_len > max_length:
-            before = min(max_length // 2, point.offset - line_start)
-            after = max_length - before
-        else:
-            before = point.offset - line_start
-            after = line_len - before
-
-        start = point.offset - before
-        end = point.offset + after
-
-        return self.buffer[start:end], before
+        return me.lang.ExceptionContext(title=self.title, body=[tbp])
 
 
 def _get_context(items, *, reverse=False):

@@ -31,7 +31,8 @@ EdgeDB has a rich primitive type system consisting of the following data types.
   * - Booleans
     - ``bool``
   * - Numbers
-    - ``int32`` ``int64`` ``float32`` ``float64`` ``bigint`` ``decimal``
+    - ``int16`` ``int32`` ``int64`` ``float32`` ``float64`` 
+      ``bigint`` ``decimal``
   * - UUID
     - ``uuid``
   * - JSON
@@ -127,7 +128,7 @@ nested.
     db> select ('Apple', 7, true);
     {('Apple', 7, true)} # unnamed tuple
     db> select (fruit := 'Apple', quantity := 3.14, fresh := true);
-    {(fruit := 'Apple', quantity := 3.14, fresh := true)} # unnamed tuple
+    {(fruit := 'Apple', quantity := 3.14, fresh := true)} # named tuple
     db> select <json>["this", "is", "an", "array"];
     {"[\"this\", \"is\", \"an\", \"array\"]"}
 
@@ -683,7 +684,6 @@ executing a query.
     client = edgedb.create_async_client()
 
     async def main():
-
         result = await client.query("select <str>$param", param="Play it, Sam")
         # => "Play it, Sam"
 
@@ -714,6 +714,25 @@ executing a query.
         query := "select <str>$0"
         err = client.Query(ctx, query, &result, param)
         // ...
+    }
+
+  .. code-tab:: rust
+
+    // [dependencies]
+    // edgedb-tokio = "0.5.0"
+    // tokio = { version = "1.28.1", features = ["macros", "rt-multi-thread"] }
+
+    #[tokio::main]
+    async fn main() {
+        let conn = edgedb_tokio::create_client()
+            .await
+            .expect("Client initiation");
+        let param = "Play it, Sam.";
+        let val = conn
+            .query_required_single::<String, _>("select <str>$0", &(param,))
+            .await
+            .expect("Returning value");
+        println!("{val}");
     }
 
 See :ref:`Docs > EdgeQL > Parameters <ref_eql_params>`.
