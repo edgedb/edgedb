@@ -520,7 +520,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     async def _parse(
         self,
-        rpc.CompileRequest query_req,
+        rpc.CompilationRequest query_req,
         uint64_t allow_capabilities,
     ) -> dbview.CompiledQuery:
         cdef dbview.DatabaseConnectionView dbv
@@ -798,7 +798,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.write(self.make_state_data_description_msg())
             raise
 
-        return rpc.CompileRequest(self.server.comp_serializer).update(
+        return rpc.CompilationRequest(self.server.comp_serializer).update(
             self._tokenize(query),
             self.protocol_version,
             output_format=output_format,
@@ -812,7 +812,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     async def parse(self):
         cdef:
             bytes eql
-            rpc.CompileRequest query_req
+            rpc.CompilationRequest query_req
             dbview.DatabaseConnectionView _dbview
             WriteBuffer parse_complete
             WriteBuffer buf
@@ -849,7 +849,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     async def execute(self):
         cdef:
-            rpc.CompileRequest query_req
+            rpc.CompilationRequest query_req
             dbview.DatabaseConnectionView _dbview
             bytes in_tid
             bytes out_tid
@@ -1427,7 +1427,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     async def _execute_utility_stmt(self, eql: str, pgcon):
         cdef dbview.DatabaseConnectionView _dbview
 
-        query_req = rpc.CompileRequest(self.server.comp_serializer).update(
+        query_req = rpc.CompilationRequest(self.server.comp_serializer).update(
             edgeql.Source.from_string(eql), self.protocol_version
         )
 
@@ -1821,7 +1821,7 @@ async def run_script(
     await conn._start_connection(database)
     try:
         compiled = await conn.get_dbview().parse(
-            rpc.CompileRequest(server.comp_serializer).update(
+            rpc.CompilationRequest(server.comp_serializer).update(
                 edgeql.Source.from_string(script),
                 conn.protocol_version,
                 output_format=FMT_NONE,

@@ -915,7 +915,7 @@ cdef class DatabaseConnectionView:
 
     async def parse(
         self,
-        query_req: rpc.CompileRequest,
+        query_req: rpc.CompilationRequest,
         cached_globally=False,
         use_metrics=True,
         # allow passing in the query_unit_group, in case the call site needs
@@ -1007,7 +1007,7 @@ cdef class DatabaseConnectionView:
 
     async def _compile(
         self,
-        query_req: rpc.CompileRequest,
+        query_req: rpc.CompilationRequest,
     ) -> dbstate.QueryUnitGroup:
         compiler_pool = self._db._index._server.get_compiler_pool()
 

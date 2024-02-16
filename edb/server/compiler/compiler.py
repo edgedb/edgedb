@@ -829,7 +829,7 @@ class Compiler:
     ) -> Tuple[
         dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
     ]:
-        request = rpc.CompileRequest(self.state.request_serializer)
+        request = rpc.CompilationRequest(self.state.request_serializer)
         request.deserialize(serialized_request, original_query)
 
         units, cstate = self.compile(

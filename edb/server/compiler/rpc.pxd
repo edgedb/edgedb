@@ -22,7 +22,7 @@ cdef char serialize_output_format(val)
 cdef deserialize_output_format(char mode)
 
 @cython.final
-cdef class CompileRequest:
+cdef class CompilationRequest:
     cdef:
         object _serializer
 

@@ -74,7 +74,7 @@ cdef deserialize_output_format(char mode):
 
 
 @cython.final
-cdef class CompileRequest:
+cdef class CompilationRequest:
     def __cinit__(self, serializer: sertypes.CompilationConfigSerializer):
         self._serializer = serializer
 
@@ -90,7 +90,7 @@ cdef class CompileRequest:
         inline_typeids: bint = False,
         inline_typenames: bint = False,
         inline_objectids: bint = True,
-    ) -> CompileRequest:
+    ) -> CompilationRequest:
         self.source = source
         self.protocol_version = protocol_version
         self.output_format = output_format
@@ -105,25 +105,25 @@ cdef class CompileRequest:
         self.cache_key = None
         return self
 
-    def set_modaliases(self, value) -> CompileRequest:
+    def set_modaliases(self, value) -> CompilationRequest:
         self.modaliases = value
         self.serialized_cache = None
         self.cache_key = None
         return self
 
-    def set_session_config(self, value) -> CompileRequest:
+    def set_session_config(self, value) -> CompilationRequest:
         self.session_config = value
         self.serialized_cache = None
         self.cache_key = None
         return self
 
-    def set_system_config(self, value) -> CompileRequest:
+    def set_system_config(self, value) -> CompilationRequest:
         self.system_config = value
         self.serialized_cache = None
         self.cache_key = None
         return self
 
-    def deserialize(self, bytes data, str query_text) -> CompileRequest:
+    def deserialize(self, bytes data, str query_text) -> CompilationRequest:
         if data[0] == 0:
             self._deserialize_v0(data, query_text)
         else:
@@ -276,7 +276,7 @@ cdef class CompileRequest:
     def __hash__(self):
         return hash(self.get_cache_key())
 
-    def __eq__(self, other: CompileRequest) -> bool:
+    def __eq__(self, other: CompilationRequest) -> bool:
         return (
             self.source.cache_key() == other.source.cache_key() and
             self.protocol_version == other.protocol_version and

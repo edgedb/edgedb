@@ -26,7 +26,7 @@ from edb.server import defines, config
 from edb.server.compiler import sertypes, enums
 
 
-class CompileRequest:
+class CompilationRequest:
     source: edgeql.Source
     protocol_version: defines.ProtocolVersion
     output_format: enums.OutputFormat
@@ -55,28 +55,28 @@ class CompileRequest:
         inline_typeids: bool = False,
         inline_typenames: bool = False,
         inline_objectids: bool = True,
-    ) -> CompileRequest:
+    ) -> CompilationRequest:
         ...
 
     def set_modaliases(
         self, value: typing.Mapping[str | None, str] | None
-    ) -> CompileRequest:
+    ) -> CompilationRequest:
         ...
 
     def set_session_config(
         self, value: typing.Mapping[str, config.SettingValue] | None
-    ) -> CompileRequest:
+    ) -> CompilationRequest:
         ...
 
     def set_system_config(
         self, value: typing.Mapping[str, config.SettingValue] | None
-    ) -> CompileRequest:
+    ) -> CompilationRequest:
         ...
 
     def serialize(self) -> bytes:
         ...
 
-    def deserialize(self, data: bytes, query_text: str) -> CompileRequest:
+    def deserialize(self, data: bytes, query_text: str) -> CompilationRequest:
         ...
 
     def get_cache_key(self) -> uuid.UUID:
