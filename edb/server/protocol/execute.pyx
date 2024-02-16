@@ -104,6 +104,11 @@ async def execute(
         else:
             config_ops = query_unit.config_ops
 
+            if query_unit.cache_sql:
+                # temporary PoC to make query run
+                persist, evict = query_unit.cache_sql
+                await be_conn.sql_execute((evict, persist))
+
             if query_unit.sql:
                 if query_unit.ddl_stmt_id:
                     ddl_ret = await be_conn.run_ddl(query_unit, state)
