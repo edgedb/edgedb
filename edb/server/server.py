@@ -68,6 +68,7 @@ from edb.server import pgcon
 from edb.pgsql import patches as pg_patches
 
 from . import compiler as edbcompiler
+from .compiler import sertypes
 
 if TYPE_CHECKING:
     import asyncio.base_events
@@ -117,6 +118,7 @@ class BaseServer:
     _stmt_cache_size: int | None = None
 
     _compiler_pool: compiler_pool.AbstractPool | None
+    compilation_config_serializer: sertypes.InputShapeSerializer
     _http_request_logger: asyncio.Task | None
     _auth_gc: asyncio.Task | None
 
@@ -915,6 +917,9 @@ class BaseServer:
         self._compiler_pool = await compiler_pool.create_compiler_pool(
             **self._get_compiler_args()
         )
+        self.compilation_config_serializer = (
+            await self._compiler_pool.make_compilation_config_serializer()
+        )
 
         await self._before_start_servers()
         self._servers, actual_port, listen_addrs = await self._start_servers(
@@ -1578,6 +1583,9 @@ class Server(BaseServer):
             raise AssertionError('startup script is not defined')
         self._compiler_pool = await compiler_pool.create_compiler_pool(
             **self._get_compiler_args()
+        )
+        self.compilation_config_serializer = (
+            await self._compiler_pool.make_compilation_config_serializer()
         )
         try:
             await binary.run_script(

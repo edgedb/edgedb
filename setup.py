@@ -1078,6 +1078,14 @@ setuptools.setup(
             library_dirs=EXT_LIB_DIRS,
             libraries=['pg_query']
         ),
+
+        setuptools_extension.Extension(
+            "edb.server.compiler.rpc",
+            ["edb/server/compiler/rpc.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
     ],
     rust_extensions=[
         setuptools_rust.RustExtension(

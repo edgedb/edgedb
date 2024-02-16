@@ -84,6 +84,7 @@ from . import explain
 from . import sertypes
 from . import status
 from . import ddl
+from . import rpc
 
 if TYPE_CHECKING:
     from edb.pgsql import metaschema
@@ -394,6 +395,12 @@ class CompilerState:
         # config spec differs between databases. See also #5836.
         return sertypes.StateSerializerFactory(
             self.std_schema, self.config_spec
+        )
+
+    @functools.cached_property
+    def compilation_config_serializer(self) -> sertypes.InputShapeSerializer:
+        return (
+            self.state_serializer_factory.make_compilation_config_serializer()
         )
 
 
@@ -812,6 +819,43 @@ class Compiler:
 
         return sql_units
 
+    def compile_request(
+        self,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
+        reflection_cache: immutables.Map[str, Tuple[str, ...]],
+        database_config: Optional[immutables.Map[str, config.SettingValue]],
+        system_config: Optional[immutables.Map[str, config.SettingValue]],
+        serialized_request: bytes,
+        original_query: str,
+    ) -> Tuple[
+        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+    ]:
+        request = rpc.CompilationRequest(
+            self.state.compilation_config_serializer
+        )
+        request.deserialize(serialized_request, original_query)
+
+        units, cstate = self.compile(
+            user_schema,
+            global_schema,
+            reflection_cache,
+            database_config,
+            system_config,
+            request.source,
+            request.modaliases,
+            request.session_config,
+            request.output_format,
+            request.expect_one,
+            request.implicit_limit,
+            request.inline_typeids,
+            request.inline_typenames,
+            request.protocol_version,
+            request.inline_objectids,
+            request.json_parameters,
+        )
+        return units, cstate
+
     def compile(
         self,
         user_schema: s_schema.Schema,
@@ -1023,6 +1067,11 @@ class Compiler:
             global_schema,
             protocol_version,
         )
+
+    def make_compilation_config_serializer(
+        self
+    ) -> sertypes.InputShapeSerializer:
+        return self.state.compilation_config_serializer
 
     def describe_database_dump(
         self,

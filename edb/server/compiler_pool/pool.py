@@ -602,6 +602,22 @@ class AbstractPool:
         finally:
             self._release_worker(worker)
 
+    async def make_compilation_config_serializer(
+        self,
+        *args,
+        **kwargs,
+    ):
+        worker = await self._acquire_worker()
+        try:
+            return await worker.call(
+                'make_compilation_config_serializer',
+                *args,
+                **kwargs,
+            )
+
+        finally:
+            self._release_worker(worker)
+
     async def describe_database_dump(
         self,
         *args,
