@@ -314,7 +314,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
-    create type ext::auth::EmailTemplateConfig extending cfg::ConfigObject {
+    create type ext::auth::EmailTemplateConfig extending cfg::ExtensionConfig {
         create link verification -> ext::auth::EmailTemplate {
             create annotation std::description :=
                 "Template for email verification emails.";
@@ -336,12 +336,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create annotation std::description :=
                 "Configuration for builtin auth UI. If not set the builtin \
                 UI is disabled.";
-        };
-
-        create link email_templates -> ext::auth::EmailTemplateConfig {
-            create annotation std::description :=
-                "Configuration for email templates. If not set, default \
-                templates will be used.";
         };
 
         create property app_name: std::str {
