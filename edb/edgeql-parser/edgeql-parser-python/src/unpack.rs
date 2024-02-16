@@ -18,7 +18,7 @@ pub fn unpack(py: Python<'_>, serialized: &PyBytes) -> PyResult<PyObject> {
         }
         1u8 => {
             let pack: PackedEntry = bincode::deserialize(&buf[1..])
-                .map_err(|e| PyValueError::new_err(format!("{e}")))?;
+                .map_err(|e| PyValueError::new_err(format!("Failed to unpack: {e}")))?;
             let entry = Entry::new(py, pack.into())?;
             Ok(entry.into_py(py))
         }

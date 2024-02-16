@@ -6,7 +6,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use edgedb_protocol::codec;
 use edgedb_protocol::model::{BigInt, Decimal};
 use edgeql_parser::tokenizer::Value;
-use pyo3::exceptions::PyAssertionError;
+use pyo3::exceptions::{PyAssertionError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyFloat, PyList, PyLong, PyString};
 
@@ -99,7 +99,8 @@ impl Entry {
 
     fn pack(&self, py: Python) -> PyResult<PyObject> {
         let mut buf = vec![1u8];  // type and version
-        bincode::serialize_into(&mut buf, &self.entry_pack).expect("serialize");
+        bincode::serialize_into(&mut buf, &self.entry_pack)
+            .map_err(|e| PyValueError::new_err(format!("Failed to pack: {e}")))?;
         Ok(PyBytes::new(py, buf.as_slice()).into())
     }
 }
