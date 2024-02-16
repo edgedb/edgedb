@@ -28,7 +28,6 @@ from edb import protocol
 from edb.server import defines as edbdef
 from edb.testbase import server as tb_server
 from edb.testbase import http as tb_http
-from edb.tools import test
 
 
 class BaseTestHttpAuth(
@@ -203,63 +202,72 @@ class TestHttpAuth(BaseTestHttpAuth):
     def test_http_auth_scram_no_user(self):
         self._scram_auth_expect_failure("scram_no_user", "bad-password")
 
-    @test.skip('FIXME: uses configure instance unsafely')
     async def test_http_auth_scram_cors(self):
-        conn_args = self.get_connect_args()
-        url = f'https://{conn_args["host"]}:{conn_args["port"]}/auth/token'
+        # spin up a new server because we are doing instance configs
+        async with tb_server.start_edgedb_server() as sd:
+            conn_args = sd.get_connect_args()
 
-        req = urllib.request.Request(url, method='OPTIONS')
-        req.add_header('Origin', 'https://example.edgedb.com')
-        response = urllib.request.urlopen(
-            req, context=self.tls_context
-        )
-        self.assertNotIn('Access-Control-Allow-Origin', response.headers)
+            url = f'https://{conn_args["host"]}:{conn_args["port"]}/auth/token'
 
-        await self.con.execute(
-            'configure instance '
-            'set cors_allow_origins := {"https://example.edgedb.com"}')
-        await self._wait_for_db_config(
-            'cors_allow_origins', instance_config=True)
-
-        req = urllib.request.Request(url, method='OPTIONS')
-        req.add_header('Origin', 'https://example.edgedb.com')
-        response = urllib.request.urlopen(
-            req, context=self.tls_context
-        )
-        headers = response.headers
-
-        self.assertIn('Access-Control-Allow-Origin', headers)
-        self.assertEqual(
-            headers['Access-Control-Allow-Origin'],
-            'https://example.edgedb.com'
-        )
-        self.assertIn('GET', headers['Access-Control-Allow-Methods'])
-        self.assertIn('Authorization', headers['Access-Control-Allow-Headers'])
-        self.assertIn(
-            'WWW-Authenticate',
-            headers['Access-Control-Expose-Headers']
-        )
-        self.assertIn(
-            'Authentication-Info',
-            headers['Access-Control-Expose-Headers']
-        )
-
-        with self.http_con() as con:
-            _, headers, status = self.http_con_request(
-                con, {}, path="token",
-                headers={'Origin': 'https://example.edgedb.com'}
+            req = urllib.request.Request(url, method='OPTIONS')
+            req.add_header('Origin', 'https://example.edgedb.com')
+            response = urllib.request.urlopen(
+                req, context=self.tls_context
             )
-            self.assertEqual(status, 401)
-            self.assertIn('access-control-allow-origin', headers)
-            self.assertIn('access-control-expose-headers', headers)
+            self.assertNotIn('Access-Control-Allow-Origin', response.headers)
+
+            con = await sd.connect()
+            try:
+                await con.execute(
+                    'configure instance '
+                    'set cors_allow_origins := {"https://example.edgedb.com"}')
+            finally:
+                await con.aclose()
+            await self._wait_for_db_config(
+                'cors_allow_origins', instance_config=True, server=sd)
+
+            req = urllib.request.Request(url, method='OPTIONS')
+            req.add_header('Origin', 'https://example.edgedb.com')
+            response = urllib.request.urlopen(
+                req, context=self.tls_context
+            )
+            headers = response.headers
+
+            self.assertIn('Access-Control-Allow-Origin', headers)
+            self.assertEqual(
+                headers['Access-Control-Allow-Origin'],
+                'https://example.edgedb.com'
+            )
+            self.assertIn('GET', headers['Access-Control-Allow-Methods'])
+            self.assertIn(
+                'Authorization',
+                headers['Access-Control-Allow-Headers']
+            )
             self.assertIn(
                 'WWW-Authenticate',
-                headers['access-control-expose-headers']
+                headers['Access-Control-Expose-Headers']
             )
             self.assertIn(
                 'Authentication-Info',
-                headers['access-control-expose-headers']
+                headers['Access-Control-Expose-Headers']
             )
+
+            with self.http_con(sd) as con:
+                _, headers, status = self.http_con_request(
+                    con, {}, path="token",
+                    headers={'Origin': 'https://example.edgedb.com'}
+                )
+                self.assertEqual(status, 401)
+                self.assertIn('access-control-allow-origin', headers)
+                self.assertIn('access-control-expose-headers', headers)
+                self.assertIn(
+                    'WWW-Authenticate',
+                    headers['access-control-expose-headers']
+                )
+                self.assertIn(
+                    'Authentication-Info',
+                    headers['access-control-expose-headers']
+                )
 
 
 class TestHttpAuthSystem(BaseTestHttpAuth):
