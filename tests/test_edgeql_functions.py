@@ -22,6 +22,7 @@ import decimal
 import json
 import os.path
 import random
+import uuid
 
 import edgedb
 
@@ -3116,54 +3117,63 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 ''',
             )
 
-    async def test_edgeql_functions_int16_bytes_conversion(self):
-        number = 1
+    async def test_edgeql_functions_int_bytes_conversion_01(self):
+        # Make sure we can convert the bytes to ints and back
+        twobytes = b'\x7f\x3a'
+        for numbytes in [2, 4, 8]:
+            raw = twobytes * (numbytes // 2)
+            typename = f'int{numbytes * 8}'
+            await self.assert_query_result(
+                f'''
+                WITH
+                    val := <{typename}>$val,
+                    bin := <bytes>$bin,
+                SELECT (
+                    val = to_{typename}(bin),
+                    bin = to_bytes(val),
+                )
+                ''',
+                {(True, True)},
+                variables={
+                    "val": int.from_bytes(raw, 'big'),
+                    "bin": raw,
+                },
+            )
 
+    async def test_edgeql_functions_int_bytes_conversion_02(self):
+        # Make sure that when we pass more bytes than necessary, only the
+        # lower bits are used to determine value. This is helpful when the
+        # original values come from integers encoded with more bytes.
         await self.assert_query_result(
             r'''
-            WITH
-                input := <bytes><int16>$input,
-                binary := to_bytes(input),
-            SELECT
-                binary = input;
+            SELECT (
+                123 = to_int16(to_bytes(<int32>123)),
+                123 = to_int16(to_bytes(<int64>123)),
+                16908295 = to_int32(to_bytes(<int64>16908295)),
+                62620574343574340 =
+                    to_int64(b'\xff\xff' ++ to_bytes(62620574343574340))
+            )
             ''',
-            {True},
-            variables={
-                "input": number,
-            },
+            {(True, True, True, True)},
         )
 
-    async def test_edgeql_functions_int32_bytes_conversion(self):
-        number = 32768
+    async def test_edgeql_functions_uuid_bytes_conversion(self):
+        uuid_val = uuid.uuid4()
 
         await self.assert_query_result(
             r'''
             WITH
-                input := <bytes><int32>$input,
-                binary := to_bytes(input),
-            SELECT
-                binary = input;
+                uuid_input := <uuid>$uuid_input,
+                bin_input := <bytes>$bin_input,
+            SELECT (
+                bin_input = to_bytes(uuid_input),
+                uuid_input = to_uuid(bin_input),
+            )
             ''',
-            {True},
+            {(True, True)},
             variables={
-                "input": number,
-            },
-        )
-
-    async def test_edgeql_functions_int64_bytes_conversion(self):
-        number = 2147483648
-
-        await self.assert_query_result(
-            r'''
-            WITH
-                input := <bytes><int64>$input,
-                binary := to_bytes(input),
-            SELECT
-                binary = input;
-            ''',
-            {True},
-            variables={
-                "input": number,
+                "uuid_input": uuid_val,
+                "bin_input": uuid_val.bytes,
             },
         )
 

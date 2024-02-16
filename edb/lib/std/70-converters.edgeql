@@ -274,7 +274,7 @@ CREATE FUNCTION
 std::to_bytes(val: std::int16) -> std::bytes
 {
     CREATE ANNOTATION std::description :=
-        'Convert an int16 to binary format';
+        'Convert an int16 to big-endian binary format';
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT int2send(val);
@@ -286,7 +286,7 @@ CREATE FUNCTION
 std::to_bytes(val: std::int32) -> std::bytes
 {
     CREATE ANNOTATION std::description :=
-        'Convert an int32 to binary format';
+        'Convert an int32 to big-endian binary format';
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT int4send(val);
@@ -298,7 +298,7 @@ CREATE FUNCTION
 std::to_bytes(val: std::int64) -> std::bytes
 {
     CREATE ANNOTATION std::description :=
-        'Convert an int64 to binary format';
+        'Convert an int64 to big-endian binary format';
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT int8send(val);
@@ -529,12 +529,12 @@ CREATE FUNCTION
 std::to_int64(val: std::bytes) -> std::int64
 {
     CREATE ANNOTATION std::description :=
-        'Convert binary number into `int64` value.';
+        'Convert bytes into `int64` value using big-endian format.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ('x' || right(val::bytea::text, 16))::bit(24)::bigint;
+        SELECT ('x' || right(val::bytea::text, 16))::bit(64)::bigint;
     $$;
-}
+};
 
 
 CREATE FUNCTION
@@ -570,12 +570,12 @@ CREATE FUNCTION
 std::to_int32(val: std::bytes) -> std::int32
 {
     CREATE ANNOTATION std::description :=
-        'Convert binary number into `int32` value.';
+        'Convert bytes into `int32` value using big-endian format.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ('x' || right(val::bytea::text, 8))::bit(24)::int;
+        SELECT ('x' || right(val::bytea::text, 8))::bit(32)::int;
     $$;
-}
+};
 
 
 CREATE FUNCTION
@@ -611,12 +611,12 @@ CREATE FUNCTION
 std::to_int16(val: std::bytes) -> std::int16
 {
     CREATE ANNOTATION std::description :=
-        'Convert binary number into `int16` value.';
+        'Convert bytes into `int16` value using big-endian format.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ('x' || right(val::bytea::text, 4))::bit(24)::int::smallint;
+        SELECT ('x' || right(val::bytea::text, 4))::bit(16)::int::smallint;
     $$;
-}
+};
 
 
 CREATE FUNCTION
@@ -673,5 +673,17 @@ std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
             )
         END
     )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_uuid(val: std::bytes) -> std::uuid
+{
+    CREATE ANNOTATION std::description :=
+        'Convert binary representation into UUID value.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT ENCODE(val, 'hex')::uuid;
     $$;
 };

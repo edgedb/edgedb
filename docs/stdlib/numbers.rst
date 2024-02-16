@@ -820,9 +820,30 @@ from :eql:type:`str` and :eql:type:`json`.
 
     Returns an :eql:type:`int16` value parsed from the given input.
 
-    The function will use an optional format string passed as *fmt*. See the
-    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
-    writing a format string.
+    The string parsing function will use an optional format string passed as
+    *fmt*. See the :ref:`number formatting options
+    <ref_std_converters_number_fmt>` for help writing a format string.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int16('23');
+        {23}
+        db> select to_int16('23%', '99%');
+        {23}
+
+    The bytes conversion function expects big-endian representation. Only the
+    lower 2 bytes will be used to determine the value, the rest will be
+    ignored. This means that a 64-bit integer can be passed as long as the
+    actual value is contained in the lower 2 bytes.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int16(b'\x00\x07');
+        {7}
+        db> select to_int16(to_bytes(<int64>123));
+        {123}
+
+
 
 ------------
 
@@ -834,9 +855,28 @@ from :eql:type:`str` and :eql:type:`json`.
 
     Returns an :eql:type:`int32` value parsed from the given input.
 
-    The function will use an optional format string passed as *fmt*. See the
-    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
-    writing a format string.
+    The string parsin function will use an optional format string passed as
+    *fmt*. See the :ref:`number formatting options
+    <ref_std_converters_number_fmt>` for help writing a format string.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int32('1000023');
+        {1000023}
+        db> select to_int32('1000023%', '9999999%');
+        {1000023}
+
+    The bytes conversion function expects big-endian representation. Only the
+    lower 4 bytes will be used to determine the value, the rest will be
+    ignored. This means that a 64-bit integer can be passed as long as the
+    actual value is contained in the lower 4 bytes.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int32(b'\x01\x02\x00\x07');
+        {16908295}
+        db> select to_int32(to_bytes(<int64>16908295));
+        {16908295}
 
 
 ------------
@@ -849,9 +889,29 @@ from :eql:type:`str` and :eql:type:`json`.
 
     Returns an :eql:type:`int64` value parsed from the given input.
 
-    The function will use an optional format string passed as *fmt*. See the
-    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
-    writing a format string.
+    The string parsing function will use an optional format string passed as
+    *fmt*. See the :ref:`number formatting options
+    <ref_std_converters_number_fmt>` for help writing a format string.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int64('10000234567');
+        {10000234567}
+        db> select to_int64('10000234567%', '99999999999%');
+        {10000234567}
+
+    The bytes conversion function expects big-endian representation. Only the
+    lower 8 bytes will be used to determine the value, the rest will be
+    ignored.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int64(b'\x01\x02\x00\x07\x11\x22\x33\x44');
+        {72620574343574340}
+
+        db> # notice that the first byte is ignored as padding
+        ... select to_int64(b'\xff\x01\x02\x00\x07\x11\x22\x33\x44');
+        {72620574343574340}
 
 
 ------------
