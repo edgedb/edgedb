@@ -75,8 +75,10 @@ cdef deserialize_output_format(char mode):
 
 @cython.final
 cdef class CompilationRequest:
-    def __cinit__(self, serializer: sertypes.CompilationConfigSerializer):
-        self._serializer = serializer
+    def __cinit__(
+        self, compilation_config_serializer: sertypes.InputShapeSerializer
+    ):
+        self._serializer = compilation_config_serializer
 
     def update(
         self,
@@ -248,7 +250,7 @@ cdef class CompilationRequest:
             serializer = self._serializer
             buf.read_len_prefixed_bytes()
         else:
-            serializer = sertypes.CompilationConfigSerializer(
+            serializer = sertypes.InputShapeSerializer(
                 type_id, buf.read_len_prefixed_bytes(), self.protocol_version
             )
 

@@ -40,7 +40,9 @@ class CompilationRequest:
     modaliases: immutables.Map[str | None, str] | None
     session_config: immutables.Map[str, config.SettingValue] | None
 
-    def __init__(self, serializer: sertypes.CompilationConfigSerializer):
+    def __init__(
+        self, compilation_config_serializer: sertypes.InputShapeSerializer
+    ):
         ...
 
     def update(

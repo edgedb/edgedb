@@ -1759,7 +1759,7 @@ class StateSerializerFactory:
             type_id, type_data, global_reps, protocol_version
         )
 
-    def make_compilation(self) -> CompilationConfigSerializer:
+    def make_compilation(self) -> InputShapeSerializer:
         ctx = Context(
             schema=self._schema,
             protocol_version=edbdef.CURRENT_PROTOCOL,
@@ -1770,14 +1770,14 @@ class StateSerializerFactory:
             ctx=ctx
         )
         type_data = b''.join(ctx.buffer)
-        return CompilationConfigSerializer(
+        return InputShapeSerializer(
             type_id,
             type_data,
             edbdef.CURRENT_PROTOCOL
         )
 
 
-class BaseSerializer:
+class InputShapeSerializer:
     def __init__(
         self,
         type_id: uuid.UUID,
@@ -1808,7 +1808,7 @@ class BaseSerializer:
         return self._codec.decode(state)
 
 
-class StateSerializer(BaseSerializer):
+class StateSerializer(InputShapeSerializer):
     def __init__(
         self,
         type_id: uuid.UUID,
@@ -1830,10 +1830,6 @@ class StateSerializer(BaseSerializer):
         global_name: str,
     ) -> Optional[object]:
         return self._global_reps.get(global_name)
-
-
-class CompilationConfigSerializer(BaseSerializer):
-    pass
 
 
 def derive_alias(
