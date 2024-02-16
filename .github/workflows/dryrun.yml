@@ -35,8 +35,6 @@ jobs:
 
       if_ubuntu_jammy_aarch64: ${{ steps.scm.outputs.if_ubuntu_jammy_aarch64 }}
 
-      if_centos_7_x86_64: ${{ steps.scm.outputs.if_centos_7_x86_64 }}
-
       if_centos_8_x86_64: ${{ steps.scm.outputs.if_centos_8_x86_64 }}
 
       if_centos_8_aarch64: ${{ steps.scm.outputs.if_centos_8_aarch64 }}
@@ -243,20 +241,6 @@ jobs:
         fi
 
         echo if_ubuntu_jammy_aarch64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        idx_file=el7.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
-        fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing centos-7-x86_64'
-          val=false
-        fi
-
-        echo if_centos_7_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
@@ -664,30 +648,6 @@ jobs:
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
-
-  build-centos-7-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_centos_7_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/centos-7@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "7"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v3
-      with:
-        name: builds-centos-7-x86_64
-        path: artifacts/centos-7
 
   build-centos-8-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -1255,27 +1215,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-  test-centos-7-x86_64:
-    needs: [build-centos-7-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: builds-centos-7-x86_64
-        path: artifacts/centos-7
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/centos-7@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "7"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
   test-centos-8-x86_64:
     needs: [build-centos-8-x86_64]
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -1522,8 +1461,6 @@ jobs:
       - test-ubuntu-jammy-x86_64
       - build-ubuntu-jammy-aarch64
       - test-ubuntu-jammy-aarch64
-      - build-centos-7-x86_64
-      - test-centos-7-x86_64
       - build-centos-8-x86_64
       - test-centos-8-x86_64
       - build-centos-8-aarch64
