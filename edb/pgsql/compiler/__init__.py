@@ -49,6 +49,8 @@ class CompileResult:
 
     argmap: Dict[str, pgast.Param]
 
+    detached_params: Optional[List[Tuple[str, ...]]] = None
+
 
 def compile_ir_to_sql_tree(
     ir_expr: irast.Base,
@@ -70,6 +72,7 @@ def compile_ir_to_sql_tree(
         ]
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
+    detach_params: bool = False,
 ) -> CompileResult:
     try:
         # Transform to sql tree
@@ -117,6 +120,7 @@ def compile_ir_to_sql_tree(
             scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
             backend_runtime_params=backend_runtime_params,
+            detach_params=detach_params,
         )
 
         ctx = context.CompilerContextLevel(
@@ -144,6 +148,8 @@ def compile_ir_to_sql_tree(
             assert isinstance(qtree, pgast.Query)
             clauses.fini_toplevel(qtree, ctx)
 
+        detached_params = [p for _, p in sorted(ctx.detached_params.items())]
+
     except errors.EdgeDBError:
         # Don't wrap propertly typed EdgeDB errors into
         # InternalServerError; raise them as is.
@@ -156,7 +162,9 @@ def compile_ir_to_sql_tree(
             args = []
         raise errors.InternalServerError(*args) from e
 
-    return CompileResult(ast=qtree, env=env, argmap=ctx.argmap)
+    return CompileResult(
+        ast=qtree, env=env, argmap=ctx.argmap, detached_params=detached_params
+    )
 
 
 def new_external_rvar(

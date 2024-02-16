@@ -71,6 +71,9 @@ class MigrationAction(enum.IntEnum):
 class BaseQuery:
 
     sql: Tuple[bytes, ...]
+    cache_sql: Optional[Tuple[bytes, bytes]] = dataclasses.field(
+        kw_only=True, default=None
+    )  # (persist, evict)
 
     @property
     def is_transactional(self) -> bool:
@@ -211,6 +214,8 @@ class QueryUnit:
     # executed successfully.  When a QueryUnit contains multiple
     # EdgeQL queries, the status reflects the last query in the unit.
     status: bytes
+
+    cache_sql: Optional[Tuple[bytes, bytes]] = None  # (persist, evict)
 
     # Output format of this query unit
     output_format: enums.OutputFormat = enums.OutputFormat.NONE

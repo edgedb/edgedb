@@ -141,6 +141,8 @@ class CompileContext:
     log_ddl_as_migrations: bool = True
     dump_restore_mode: bool = False
     notebook: bool = False
+    persistent_cache: bool = False
+    cache_key: Optional[uuid.UUID] = None
 
     def _assert_not_in_migration_block(
         self,
@@ -867,6 +869,8 @@ class Compiler:
             request.protocol_version,
             request.inline_objectids,
             request.json_parameters,
+            persistent_cache=True,
+            cache_key=request.get_cache_key(),
         )
         return units, cstate
 
@@ -888,6 +892,8 @@ class Compiler:
         protocol_version: defines.ProtocolVersion,
         inline_objectids: bool = True,
         json_parameters: bool = False,
+        persistent_cache: bool = False,
+        cache_key: Optional[uuid.UUID] = None,
     ) -> Tuple[dbstate.QueryUnitGroup,
                Optional[dbstate.CompilerConnectionState]]:
 
@@ -925,6 +931,8 @@ class Compiler:
             json_parameters=json_parameters,
             source=source,
             protocol_version=protocol_version,
+            persistent_cache=persistent_cache,
+            cache_key=cache_key,
         )
 
         unit_group = compile(ctx=ctx, source=source)
@@ -1822,17 +1830,89 @@ def _compile_ql_query(
 
     result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
+    # This low-hanging-fruit is temporary; persistent cache should cover all
+    # cacheable cases properly in future changes.
+    use_persistent_cache = (
+        ctx.persistent_cache and
+        cacheable and
+        not ctx.bootstrap_mode and
+        script_info is None
+    )
+
     sql_res = pg_compiler.compile_ir_to_sql_tree(
         ir,
         expected_cardinality_one=ctx.expected_cardinality_one,
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
         expand_inhviews=options.expand_inhviews,
+        detach_params=use_persistent_cache,
     )
 
     sql_text = pg_codegen.generate_source(sql_res.ast)
 
     pg_debug.dump_ast_and_query(sql_res.ast, ir)
+
+    cache_sql = None
+    if use_persistent_cache and ctx.cache_key is not None:
+        key = ctx.cache_key.hex
+        func = pg_dbops.Function(
+            name=('edgedb', f'__qh_{key}'),
+            args=[(None, arg) for arg in sql_res.detached_params or []],
+            returns='',
+            text=sql_text,
+        )
+
+        match ctx.output_format:
+            case enums.OutputFormat.NONE:
+                func.returns = 'void'
+
+            case enums.OutputFormat.BINARY:
+                func.set_returning = ir.cardinality.is_multi()
+                if ir.stype.is_object_type():
+                    func.returns = 'record',
+                else:
+                    func.returns = pg_types.pg_type_from_ir_typeref(
+                        ir.expr.typeref)
+
+            case enums.OutputFormat.JSON:
+                func.returns = 'json'
+
+            case enums.OutputFormat.JSON_ELEMENTS:
+                func.returns = 'json'
+                func.set_returning = True
+
+        if not ir.dml_exprs:
+            func.volatility = 'stable'
+
+        cf = pg_dbops.SQLBlock()
+        pg_dbops.CreateFunction(func).generate(cf)
+
+        df = pg_dbops.SQLBlock()
+        pg_dbops.DropFunction(
+            name=func.name, args=func.args or (), if_exists=True
+        ).generate(df)
+
+        func_call = pgast.FuncCall(
+            name=('edgedb', f'__qh_{key}'),
+            args=[
+                pgast.TypeCast(
+                    arg=pgast.ParamRef(number=i),
+                    type_name=pgast.TypeName(
+                        name=arg
+                    )
+                )
+                for i, arg in enumerate(
+                    sql_res.detached_params or [], 1
+                )
+            ],
+        )
+        sql_text = pg_codegen.generate_source(
+            pgast.SelectStmt(target_list=[pgast.ResTarget(val=func_call)])
+        )
+        cache_sql = (
+            cf.to_string().encode(defines.EDGEDB_ENCODING),
+            df.to_string().encode(defines.EDGEDB_ENCODING),
+        )
 
     if (
         (mstate := current_tx.get_migration_state())
@@ -1897,6 +1977,7 @@ def _compile_ql_query(
     return dbstate.Query(
         sql=(sql_bytes,),
         sql_hash=sql_hash,
+        cache_sql=cache_sql,
         cardinality=result_cardinality,
         globals=globals,
         in_type_id=in_type_id.bytes,
@@ -2510,6 +2591,7 @@ def _try_compile(
 
         if isinstance(comp, dbstate.Query):
             unit.sql = comp.sql
+            unit.cache_sql = comp.cache_sql
             unit.globals = comp.globals
             unit.in_type_args = comp.in_type_args
 

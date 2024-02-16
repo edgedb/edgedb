@@ -832,6 +832,15 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         query_req.set_session_config(_dbview.get_session_config())
         query_req.set_system_config(_dbview.get_compilation_system_config())
         compiled = await self._parse(query_req, allow_capabilities)
+        units = compiled.query_unit_group
+        if len(units) == 1 and units[0].cache_sql:
+           conn = await self.get_pgcon()
+           try:
+               # temporary PoC to make query run
+               persist, evict = units[0].cache_sql
+               await conn.sql_execute((evict, persist))
+           finally:
+               self.maybe_release_pgcon(conn)
 
         buf = self.make_command_data_description_msg(compiled)
 
