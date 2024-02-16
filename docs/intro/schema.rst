@@ -81,7 +81,8 @@ Declare a property by naming it and setting its type.
       title: str;
     }
 
-The ``property`` keyword can be omitted for non-computed properties since EdgeDB v3.
+The ``property`` keyword can be omitted for non-computed properties since
+EdgeDB v3.
 
 See :ref:`Schema > Object types <ref_std_object_types>`.
 
