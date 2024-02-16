@@ -840,15 +840,26 @@ class Router:
 
         _check_keyset(
             data,
-            {"provider", "email", "challenge", "callback_url"},
+            {
+                "provider",
+                "email",
+                "challenge",
+                "callback_url",
+                "redirect_on_failure",
+            },
         )
 
         email = data["email"]
         challenge = data["challenge"]
         callback_url = data["callback_url"]
+        redirect_on_failure = data["redirect_on_failure"]
         if not self._is_url_allowed(callback_url):
             raise errors.InvalidData(
                 "Callback URL does not match any allowed URLs.",
+            )
+        if not self._is_url_allowed(redirect_on_failure):
+            raise errors.InvalidData(
+                "Error redirect URL does not match any allowed URLs.",
             )
         maybe_redirect_to = data.get("redirect_to")
         if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
@@ -870,6 +881,7 @@ class Router:
                 callback_url=callback_url,
                 link_url=f"{self.base_path}/magic-link/authenticate",
                 challenge=challenge,
+                redirect_on_failure=redirect_on_failure,
             )
 
             return_data = {
@@ -910,15 +922,26 @@ class Router:
 
         _check_keyset(
             data,
-            {"provider", "email", "challenge", "callback_url"},
+            {
+                "provider",
+                "email",
+                "challenge",
+                "callback_url",
+                "redirect_on_failure",
+            },
         )
 
         email = data["email"]
         challenge = data["challenge"]
         callback_url = data["callback_url"]
+        redirect_on_failure = data["redirect_on_failure"]
         if not self._is_url_allowed(callback_url):
             raise errors.InvalidData(
                 "Callback URL does not match any allowed URLs.",
+            )
+        if not self._is_url_allowed(redirect_on_failure):
+            raise errors.InvalidData(
+                "Error redirect URL does not match any allowed URLs.",
             )
         maybe_redirect_to = data.get("redirect_to")
         if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
@@ -938,6 +961,7 @@ class Router:
                 callback_url=callback_url,
                 link_url=f"{self.base_path}/magic-link/authenticate",
                 challenge=challenge,
+                redirect_on_failure=redirect_on_failure,
             )
 
             return_data = {
@@ -974,32 +998,51 @@ class Router:
                 )
 
     async def handle_magic_link_authenticate(self, request: Any, response: Any):
-        local_client = magic_link.Client(
-            db=self.db,
-            tenant=self.tenant,
-            test_mode=self.test_mode,
-            issuer=self.base_path,
-        )
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
         token = _get_search_param(query, "token")
 
-        (identity_id, challenge, callback_url) = (
-            self._get_data_from_magic_link_token(token)
-        )
-        await pkce.create(self.db, challenge)
-        code = await pkce.link_identity_challenge(
-            self.db, identity_id, challenge
-        )
-        await local_client.verify_email(
-            identity_id, datetime.datetime.now(datetime.timezone.utc)
-        )
+        try:
+            (identity_id, challenge, callback_url) = (
+                self._get_data_from_magic_link_token(token)
+            )
+            await pkce.create(self.db, challenge)
+            code = await pkce.link_identity_challenge(
+                self.db, identity_id, challenge
+            )
+            local_client = magic_link.Client(
+                db=self.db,
+                tenant=self.tenant,
+                test_mode=self.test_mode,
+                issuer=self.base_path,
+            )
+            await local_client.verify_email(
+                identity_id, datetime.datetime.now(datetime.timezone.utc)
+            )
 
-        response.status = http.HTTPStatus.FOUND
-        response.custom_headers["Location"] = util.join_url_params(
-            callback_url, {"code": code}
-        )
+            response.status = http.HTTPStatus.FOUND
+            response.custom_headers["Location"] = util.join_url_params(
+                callback_url, {"code": code}
+            )
+        except Exception as ex:
+            redirect_on_failure = _maybe_get_search_param(
+                query, "redirect_on_failure"
+            )
+            if redirect_on_failure is None:
+                raise ex
+            else:
+                if not self._is_url_allowed(redirect_on_failure):
+                    raise errors.InvalidData(
+                        "Redirect URL does not match any allowed URLs.",
+                    )
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = {
+                    "error": str(ex),
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    redirect_on_failure, redirect_params
+                )
 
     async def handle_webauthn_register_options(
         self, request: Any, response: Any

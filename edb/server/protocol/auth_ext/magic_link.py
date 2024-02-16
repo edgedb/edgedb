@@ -97,7 +97,12 @@ select identity { * };""",
         return data.LocalIdentity(**result_json[0])
 
     async def send_magic_link(
-        self, email: str, callback_url: str, link_url: str, challenge: str
+        self,
+        email: str,
+        callback_url: str,
+        link_url: str,
+        challenge: str,
+        redirect_on_failure: str,
     ):
         signing_key = self._get_signing_key()
         identity_id = await self.get_identity_id_by_email(email)
@@ -122,6 +127,7 @@ select identity { * };""",
             link_url,
             {
                 "token": token,
+                "redirect_on_failure": redirect_on_failure,
             },
         )
 
