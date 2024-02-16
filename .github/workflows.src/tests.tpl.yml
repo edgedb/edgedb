@@ -1,4 +1,4 @@
-<% from "tests.inc.yml" import build, calc_cache_key, restore_cache -%>
+<% from "tests.inc.yml" import init, build, calc_cache_key, install_python_requirements, restore_cache -%>
 name: Tests
 
 on:
@@ -38,30 +38,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        submodules: false
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12.2'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
-      id: venv-cache
-      with:
-        requirement_files: |
-          setup.py
-          pyproject.toml
-        custom_cache_key_element: v2
-
-    - name: Stop if we cannot retrieve the cache
-      if: steps.venv-cache.outputs.cache-hit != 'true'
-      run: |
-        echo ::error::Cannot retrieve venv cache.
-        exit 1
+    << init() >>
+    << install_python_requirements() >>
 
     - name: Download cache key
       uses: actions/download-artifact@v4
