@@ -243,6 +243,20 @@ def serialize_exception(obj, *, ctx):
         classname=obj.__class__.__name__, msg=str(obj), contexts=contexts,
         cause=cause, context=context, id=id(obj))
 
+    if isinstance(obj, BaseExceptionGroup):
+        markup = elements.doc.Section(
+            body=[
+                markup,
+                elements.doc.Section(
+                    title='Grouped exceptions',
+                    body=[
+                        elements.doc.SubNode(body=serializer(sub, ctx=ctx))
+                        for sub in obj.exceptions
+                    ]
+                )
+            ],
+        )
+
     return markup
 
 

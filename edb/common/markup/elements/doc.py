@@ -40,6 +40,10 @@ class Section(DocMarkup):
     collapsed = Field(bool, coerce=True, default=False)
 
 
+class SubNode(DocMarkup):
+    body = Field(base.Markup)
+
+
 class Text(DocMarkup):
     text = Field(str)
 
