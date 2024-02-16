@@ -166,7 +166,7 @@ cdef class CompileRequest:
         if self.modaliases is None:
             out.write_int32(0)
         else:
-            out.write_int32(len(self.modaliases))
+            out.write_int32(len(self.modaliases) + 1)
             for k, v in sorted(
                 self.modaliases.items(),
                 key=lambda i: (0, i[0]) if i[0] is None else (1, i[0])
@@ -230,15 +230,18 @@ cdef class CompileRequest:
         self.implicit_limit = buf.read_int64()
 
         size = buf.read_int32()
-        modaliases = []
-        for _ in range(size):
-            if buf.read_byte():
-                k = buf.read_null_str().decode("utf-8")
-            else:
-                k = None
-            v = buf.read_null_str().decode("utf-8")
-            modaliases.append((k, v))
-        self.modaliases = immutables.Map(modaliases)
+        if size > 0:
+            modaliases = []
+            for _ in range(size - 1):
+                if buf.read_byte():
+                    k = buf.read_null_str().decode("utf-8")
+                else:
+                    k = None
+                v = buf.read_null_str().decode("utf-8")
+                modaliases.append((k, v))
+            self.modaliases = immutables.Map(modaliases)
+        else:
+            self.modaliases = None
 
         type_id = uuidgen.from_bytes(buf.read_bytes(16))
         if type_id == self._serializer.type_id:
