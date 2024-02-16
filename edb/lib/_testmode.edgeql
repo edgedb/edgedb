@@ -359,6 +359,15 @@ std::_datetime_range_buckets(
     $$;
 };
 
+
+CREATE FUNCTION
+std::_current_setting(sqlname: str) -> OPTIONAL std::str {
+    USING SQL $$
+      SELECT current_setting(sqlname, true)
+    $$;
+};
+
+
 CREATE MODULE std::_test;
 
 
