@@ -530,7 +530,9 @@ async def parse_execute_json(
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
 
-    query_req = rpc.CompilationRequest(db.server.comp_serializer).update(
+    query_req = rpc.CompilationRequest(
+        db.server.compilation_config_serializer
+    ).update(
         edgeql.Source.from_string(query),
         protocol_version=edbdef.CURRENT_PROTOCOL,
         input_format=compiler.InputFormat.JSON,

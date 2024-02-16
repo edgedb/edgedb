@@ -798,7 +798,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.write(self.make_state_data_description_msg())
             raise
 
-        return rpc.CompilationRequest(self.server.comp_serializer).update(
+        rv = rpc.CompilationRequest(self.server.compilation_config_serializer)
+        rv.update(
             self._tokenize(query),
             self.protocol_version,
             output_format=output_format,
@@ -807,7 +808,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-        ), allow_capabilities
+        )
+        return rv, allow_capabilities
 
     async def parse(self):
         cdef:
@@ -1421,7 +1423,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     async def _execute_utility_stmt(self, eql: str, pgcon):
         cdef dbview.DatabaseConnectionView _dbview
 
-        query_req = rpc.CompilationRequest(self.server.comp_serializer).update(
+        query_req = rpc.CompilationRequest(
+            self.server.compilation_config_serializer
+        )
+        query_req.update(
             edgeql.Source.from_string(eql), self.protocol_version
         )
 
@@ -1815,7 +1820,9 @@ async def run_script(
     await conn._start_connection(database)
     try:
         compiled = await conn.get_dbview().parse(
-            rpc.CompilationRequest(server.comp_serializer).update(
+            rpc.CompilationRequest(
+                server.compilation_config_serializer
+            ).update(
                 edgeql.Source.from_string(script),
                 conn.protocol_version,
                 output_format=FMT_NONE,

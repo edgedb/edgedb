@@ -118,7 +118,7 @@ class BaseServer:
     _stmt_cache_size: int | None = None
 
     _compiler_pool: compiler_pool.AbstractPool | None
-    comp_serializer: sertypes.InputShapeSerializer
+    compilation_config_serializer: sertypes.InputShapeSerializer
     _http_request_logger: asyncio.Task | None
     _auth_gc: asyncio.Task | None
 
@@ -917,7 +917,7 @@ class BaseServer:
         self._compiler_pool = await compiler_pool.create_compiler_pool(
             **self._get_compiler_args()
         )
-        self.comp_serializer = (
+        self.compilation_config_serializer = (
             await self._compiler_pool.make_compilation_config_serializer()
         )
 
@@ -1584,7 +1584,7 @@ class Server(BaseServer):
         self._compiler_pool = await compiler_pool.create_compiler_pool(
             **self._get_compiler_args()
         )
-        self.comp_serializer = (
+        self.compilation_config_serializer = (
             await self._compiler_pool.make_compilation_config_serializer()
         )
         try:
