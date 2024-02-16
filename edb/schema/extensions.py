@@ -196,7 +196,10 @@ def get_package(
     ]
     if version is not None:
         filters.append(
-            lambda schema, pkg: pkg.get_version(schema) == version,
+            lambda schema, pkg: (
+                pkg.get_version(schema) >= version
+                and pkg.get_version(schema).major == version.major
+            )
         )
 
     pkgs = list(schema.get_objects(
