@@ -29,30 +29,19 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v5
+      id: setup-python
       with:
         python-version: '3.12.2'
-
-    # Build virtualenv
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
+        cache: 'pip'
+        cache-dependency-path: |
           setup.py
           pyproject.toml
-        custom_cache_key_element: v2
 
     - name: Install Python dependencies
-      if: steps.venv-cache.outputs.cache-hit != 'true'
+      if: steps.setup-python.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        set -e
-        python -m pip install -U pip setuptools wheel build
-        bdeps_script="import build; print('\n'.join(build.ProjectBuilder('.').build_system_requires))"
-        readarray -t build_deps < <(python -c "${bdeps_script}")
-        python -m pip download --dest=$VIRTUAL_ENV/deps "${build_deps[@]}" .[test]
-        python -m pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
+        python -m pip install .[test]
 
     # Prepare environment variables and shared artifacts
 
@@ -408,17 +397,13 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v5
+      id: setup-python
       with:
         python-version: '3.12.2'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
+        cache: 'pip'
+        cache-dependency-path: |
           setup.py
           pyproject.toml
-        custom_cache_key_element: v2
 
     # Restore the artifacts and environment variables
 
@@ -491,7 +476,7 @@ jobs:
 
     - name: Stop if we cannot retrieve the cache
       if: |
-        steps.venv-cache.outputs.cache-hit != 'true' ||
+        steps.setup-python.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
@@ -545,17 +530,13 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v5
+      id: setup-python
       with:
         python-version: '3.12.2'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
+        cache: 'pip'
+        cache-dependency-path: |
           setup.py
           pyproject.toml
-        custom_cache_key_element: v2
 
     # Restore the artifacts and environment variables
 
@@ -628,7 +609,7 @@ jobs:
 
     - name: Stop if we cannot retrieve the cache
       if: |
-        steps.venv-cache.outputs.cache-hit != 'true' ||
+        steps.setup-python.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
