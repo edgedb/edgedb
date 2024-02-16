@@ -62,13 +62,13 @@ class ScalarType(
     )
 
     sql_type = so.SchemaField(
-        str, default=None, inheritable=False, compcoef=0.9)
+        str, default=None, inheritable=False, compcoef=0.0)
 
     # A type scheme for supporting type mods in scalar types.
     # If present, describes what the sql_type of children scalars
     # should be, such as 'varchar({__arg_0__})'.
     sql_type_scheme = so.SchemaField(
-        str, default=None, inheritable=False, compcoef=0.9)
+        str, default=None, inheritable=False, compcoef=0.0)
 
     # The number of parameters that the type takes. Currently all parameters
     # must be integer literals.
@@ -76,14 +76,16 @@ class ScalarType(
     num_params = so.SchemaField(
         int, default=None,
         inheritable=False,
-        compcoef=0.8,
+        compcoef=0.0,
     )
 
     # Arguments to fill in a parent type's parameterized type scheme.
     arg_values = so.SchemaField(
-        checked.FrozenCheckedList[str], default=None,
+        checked.FrozenCheckedList[str],
+        default=None,
         inheritable=False,
-        coerce=True, compcoef=0.8,
+        coerce=True,
+        compcoef=0.0,
     )
 
     @classmethod
