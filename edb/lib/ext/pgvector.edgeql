@@ -147,6 +147,17 @@ create extension package pgvector version '0.5.0' {
         set force_return_cast := true;
     };
 
+    create function ext::pgvector::set_probes(num: std::int64) -> std::int64 {
+        using sql $$
+            select num from (
+                select set_config('ivfflat.probes', num::text, true)
+            ) as dummy;
+        $$;
+        CREATE ANNOTATION std::deprecated :=
+            'This function is deprecated. ' ++
+            'Configure ext::pgvector::Config::probes instead';
+    };
+
     create abstract index ext::pgvector::ivfflat_euclidean(
         named only lists: int64
     ) {

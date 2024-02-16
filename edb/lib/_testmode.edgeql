@@ -361,9 +361,9 @@ std::_datetime_range_buckets(
 
 
 CREATE FUNCTION
-std::_current_settings(sqlname: str) -> OPTIONAL std::int64 {
+std::_current_setting(sqlname: str) -> OPTIONAL std::str {
     USING SQL $$
-      SELECT nullif(current_setting(sqlname, true), '')::int8
+      SELECT current_setting(sqlname, true)
     $$;
 };
 
