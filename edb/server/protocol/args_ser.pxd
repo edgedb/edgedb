@@ -42,3 +42,5 @@ cdef bytes recode_global(
     bytes glob,
     object glob_descriptor,
 )
+
+cdef WriteBuffer combine_raw_args(object args = ?)

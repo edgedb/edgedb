@@ -547,3 +547,30 @@ cdef uint64_t _count_globals(
                 num_args += 1
 
     return num_args
+
+
+cdef WriteBuffer combine_raw_args(
+    args: tuple[bytes, ...] | list[bytes] = (),
+):
+    cdef:
+        int arg_len
+        WriteBuffer bind_data = WriteBuffer.new()
+
+    if len(args) > 32767:
+        raise AssertionError(
+            'the number of query arguments cannot exceed 32767')
+
+    bind_data.write_int32(0x00010001)
+    bind_data.write_int16(<int16_t> len(args))
+    for arg in args:
+        if arg is None:
+            bind_data.write_int32(-1)
+        else:
+            arg_len = len(arg)
+            if arg_len > 0x7fffffff:
+                raise ValueError("argument too long")
+            bind_data.write_int32(<int32_t> arg_len)
+            bind_data.write_bytes(arg)
+    bind_data.write_int32(0x00010001)
+
+    return bind_data
