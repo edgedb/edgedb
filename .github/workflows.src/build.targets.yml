@@ -79,12 +79,6 @@ targets:
           platform_version: jammy
           family: debian
           runs_on: [self-hosted, linux, arm64]
-        - name: centos-7-x86_64
-          arch: x86_64
-          platform: centos
-          platform_version: 7
-          family: redhat
-          runs_on: [self-hosted, linux, x64]
         - name: centos-8-x86_64
           arch: x86_64
           platform: centos
