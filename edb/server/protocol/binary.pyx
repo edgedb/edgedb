@@ -65,6 +65,7 @@ from edb.server import defines as edbdef
 from edb.server.compiler import errormech
 from edb.server.compiler import enums
 from edb.server.compiler import sertypes
+from edb.server.compiler cimport rpc
 
 from edb.server.protocol cimport auth_helpers
 from edb.server.protocol import execute
@@ -92,9 +93,6 @@ cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
 cdef object CARD_AT_MOST_ONE = compiler.Cardinality.AT_MOST_ONE
 cdef object CARD_MANY = compiler.Cardinality.MANY
 
-cdef object FMT_BINARY = compiler.OutputFormat.BINARY
-cdef object FMT_JSON = compiler.OutputFormat.JSON
-cdef object FMT_JSON_ELEMENTS = compiler.OutputFormat.JSON_ELEMENTS
 cdef object FMT_NONE = compiler.OutputFormat.NONE
 
 cdef tuple DUMP_VER_MIN = (0, 7)
@@ -522,7 +520,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     async def _parse(
         self,
-        dbview.QueryRequestInfo query_req,
+        rpc.CompileRequest query_req,
         uint64_t allow_capabilities,
     ) -> dbview.CompiledQuery:
         cdef dbview.DatabaseConnectionView dbv
@@ -585,19 +583,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     cdef char render_cardinality(self, query_unit_group) except -1:
         return query_unit_group.cardinality.value
-
-    cdef parse_output_format(self, bytes mode):
-        if mode == b'j':
-            return FMT_JSON
-        elif mode == b'J':
-            return FMT_JSON_ELEMENTS
-        elif mode == b'b':
-            return FMT_BINARY
-        elif mode == b'n':
-            return FMT_NONE
-        else:
-            raise errors.BinaryProtocolError(
-                f'unknown output mode "{repr(mode)[2:-1]}"')
 
     cdef inline reject_headers(self):
         cdef int16_t nheaders = self.buffer.read_int16()
@@ -796,7 +781,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             & messages.CompilationFlag.INJECT_OUTPUT_OBJECT_IDS
         )
 
-        output_format = self.parse_output_format(self.buffer.read_byte())
+        output_format = rpc.deserialize_output_format(self.buffer.read_byte())
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
         )
@@ -813,7 +798,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.write(self.make_state_data_description_msg())
             raise
 
-        return dbview.QueryRequestInfo(
+        return rpc.CompileRequest(self.server.comp_serializer).update(
             self._tokenize(query),
             self.protocol_version,
             output_format=output_format,
@@ -827,7 +812,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     async def parse(self):
         cdef:
             bytes eql
-            dbview.QueryRequestInfo query_req
+            rpc.CompileRequest query_req
             dbview.DatabaseConnectionView _dbview
             WriteBuffer parse_complete
             WriteBuffer buf
@@ -841,6 +826,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if _dbview.get_state_serializer() is None:
             await _dbview.reload_state_serializer()
         query_req, allow_capabilities = self.parse_execute_request()
+        (
+            query_req
+                .set_modaliases(_dbview.get_modaliases())
+                .set_session_config(_dbview.get_session_config())
+                .set_system_config(_dbview.get_compilation_system_config())
+        )
         compiled = await self._parse(query_req, allow_capabilities)
 
         buf = self.make_command_data_description_msg(compiled)
@@ -858,7 +849,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     async def execute(self):
         cdef:
-            dbview.QueryRequestInfo query_req
+            rpc.CompileRequest query_req
             dbview.DatabaseConnectionView _dbview
             bytes in_tid
             bytes out_tid
@@ -874,7 +865,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         args = self.buffer.read_len_prefixed_bytes()
-
+        (
+            query_req
+                .set_modaliases(_dbview.get_modaliases())
+                .set_session_config(_dbview.get_session_config())
+                .set_system_config(_dbview.get_compilation_system_config())
+        )
         self.buffer.finish_message()
 
         if (
@@ -1431,8 +1427,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     async def _execute_utility_stmt(self, eql: str, pgcon):
         cdef dbview.DatabaseConnectionView _dbview
 
-        query_req = dbview.QueryRequestInfo(edgeql.Source.from_string(eql),
-                                            self.protocol_version)
+        query_req = rpc.CompileRequest(self.server.comp_serializer).update(
+            edgeql.Source.from_string(eql), self.protocol_version
+        )
 
         _dbview = self.get_dbview()
 
@@ -1824,7 +1821,7 @@ async def run_script(
     await conn._start_connection(database)
     try:
         compiled = await conn.get_dbview().parse(
-            dbview.QueryRequestInfo(
+            rpc.CompileRequest(server.comp_serializer).update(
                 edgeql.Source.from_string(script),
                 conn.protocol_version,
                 output_format=FMT_NONE,

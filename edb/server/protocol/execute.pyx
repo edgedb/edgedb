@@ -43,6 +43,7 @@ from edb.server import compiler
 from edb.server import config
 from edb.server import defines as edbdef
 from edb.server.compiler import errormech
+from edb.server.compiler cimport rpc
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport frontend
@@ -529,7 +530,7 @@ async def parse_execute_json(
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
 
-    query_req = dbview.QueryRequestInfo(
+    query_req = rpc.CompileRequest(db.server.comp_serializer).update(
         edgeql.Source.from_string(query),
         protocol_version=edbdef.CURRENT_PROTOCOL,
         input_format=compiler.InputFormat.JSON,

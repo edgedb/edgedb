@@ -44,6 +44,7 @@ from edb.server.compiler_pool import state as compiler_state_mod
 
 cimport cython
 
+from edb.server.compiler cimport rpc
 from edb.server.protocol.args_ser cimport (
     recode_global,
 )
@@ -70,61 +71,6 @@ cdef next_dbver():
     global VER_COUNTER
     VER_COUNTER += 1
     return VER_COUNTER
-
-
-@cython.final
-cdef class QueryRequestInfo:
-
-    def __cinit__(
-        self,
-        source: edgeql.Source,
-        protocol_version: tuple,
-        *,
-        output_format: compiler.OutputFormat = compiler.OutputFormat.BINARY,
-        input_format: compiler.InputFormat = compiler.InputFormat.BINARY,
-        expect_one: bint = False,
-        implicit_limit: int = 0,
-        inline_typeids: bint = False,
-        inline_typenames: bint = False,
-        inline_objectids: bint = True,
-    ):
-        self.source = source
-        self.protocol_version = protocol_version
-        self.output_format = output_format
-        self.input_format = input_format
-        self.expect_one = expect_one
-        self.implicit_limit = implicit_limit
-        self.inline_typeids = inline_typeids
-        self.inline_typenames = inline_typenames
-        self.inline_objectids = inline_objectids
-
-        self.cached_hash = hash((
-            self.source.cache_key(),
-            self.protocol_version,
-            self.output_format,
-            self.input_format,
-            self.expect_one,
-            self.implicit_limit,
-            self.inline_typeids,
-            self.inline_typenames,
-            self.inline_objectids,
-        ))
-
-    def __hash__(self):
-        return self.cached_hash
-
-    def __eq__(self, other: QueryRequestInfo) -> bool:
-        return (
-            self.source.cache_key() == other.source.cache_key() and
-            self.protocol_version == other.protocol_version and
-            self.output_format == other.output_format and
-            self.input_format == other.input_format and
-            self.expect_one == other.expect_one and
-            self.implicit_limit == other.implicit_limit and
-            self.inline_typeids == other.inline_typeids and
-            self.inline_typenames == other.inline_typenames and
-            self.inline_objectids == other.inline_objectids
-        )
 
 
 @cython.final
@@ -734,12 +680,6 @@ cdef class DatabaseConnectionView:
         assert query_unit_group.cacheable
 
         if not self._in_tx_with_ddl:
-            key = (
-                key,
-                self.get_modaliases(),
-                self.get_session_config(),
-                self.get_compilation_system_config(),
-            )
             self._db._cache_compiled_query(
                 key, query_unit_group, schema_version
             )
@@ -750,12 +690,6 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_ddl):
             return None
 
-        key = (
-            key,
-            self.get_modaliases(),
-            self.get_session_config(),
-            self.get_compilation_system_config(),
-        )
         query_unit_group, qu_ver = self._db._eql_to_compiled.get(
             key, DICTDEFAULT)
         if query_unit_group is not None and qu_ver != self._db.schema_version:
@@ -981,7 +915,7 @@ cdef class DatabaseConnectionView:
 
     async def parse(
         self,
-        query_req: QueryRequestInfo,
+        query_req: rpc.CompileRequest,
         cached_globally=False,
         use_metrics=True,
         # allow passing in the query_unit_group, in case the call site needs
@@ -1073,7 +1007,7 @@ cdef class DatabaseConnectionView:
 
     async def _compile(
         self,
-        query_req: QueryRequestInfo,
+        query_req: rpc.CompileRequest,
     ) -> dbstate.QueryUnitGroup:
         compiler_pool = self._db._index._server.get_compiler_pool()
 
@@ -1092,7 +1026,7 @@ cdef class DatabaseConnectionView:
                     query_req.inline_typenames,
                     self._protocol_version,
                     query_req.inline_objectids,
-                    query_req.input_format is compiler.InputFormat.JSON,
+                    query_req.json_parameters,
                     self.in_tx_error(),
                 )
             else:
@@ -1113,7 +1047,7 @@ cdef class DatabaseConnectionView:
                     query_req.inline_typenames,
                     self._protocol_version,
                     query_req.inline_objectids,
-                    query_req.input_format is compiler.InputFormat.JSON,
+                    query_req.json_parameters,
                     client_id=self.tenant.client_id,
                 )
         finally:
