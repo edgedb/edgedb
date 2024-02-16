@@ -69,20 +69,15 @@ class AliasCommandContext(
 
 
 def _is_view_from_alias(
-    our_name: sn.QualName,
+    alias_name: sn.QualName,
     obj: s_types.Type,
     schema: s_schema.Schema,
 ) -> bool:
     name = obj.get_name(schema)
-    if our_name == name:
-        return True
-    name_prefix = f'__{our_name.name}__'
-
-    name = obj.get_name(schema)
-    return (
+    return alias_name == name or (
         isinstance(name, sn.QualName)
-        and name.module == our_name.module
-        and name.name.startswith(name_prefix)
+        and name.module == alias_name.module
+        and name.name.startswith(f'__{alias_name.name}__')
     )
 
 

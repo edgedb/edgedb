@@ -2193,14 +2193,9 @@ class ObjectShell(Shell, Generic[Object_T_co]):
                 'cannot resolve anonymous ObjectShell'
             )
 
-        if (
-            self.schemaclass is Object
-            or issubclass(self.schemaclass, QualifiedObject)
-        ):
+        if isinstance(self.name, sn.QualName):
             return schema.get(
-                self.name,
-                type=self.schemaclass,
-                sourcectx=self.sourcectx,
+                self.name, type=self.schemaclass, sourcectx=self.sourcectx,
             )
         else:
             return schema.get_global(self.schemaclass, self.name)
@@ -2213,6 +2208,7 @@ class ObjectShell(Shell, Generic[Object_T_co]):
             return sn.name_from_string(self.get_displayname(schema))
 
     def get_name(self, schema: s_schema.Schema) -> sn.Name:
+        # this function is needed for polymorphism of Object and ObjectShell
         return self.name
 
     def get_displayname(self, schema: s_schema.Schema) -> str:

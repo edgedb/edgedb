@@ -2633,7 +2633,9 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 prop:
                 s_utils.type_shell_multi_substitute(
                     type_substs,
-                    not_none(prop.get_target(schema)).as_shell(schema))
+                    not_none(prop.get_target(schema)).as_shell(schema),
+                    schema,
+                )
                 for prop in seen_props
             }
 
