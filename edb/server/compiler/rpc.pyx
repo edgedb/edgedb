@@ -166,9 +166,9 @@ cdef class CompilationRequest:
         out.write_int64(self.implicit_limit)
 
         if self.modaliases is None:
-            out.write_int32(0)
+            out.write_int32(-2)  # -1 has a slight overhead
         else:
-            out.write_int32(len(self.modaliases) + 1)
+            out.write_int32(len(self.modaliases))
             for k, v in sorted(
                 self.modaliases.items(),
                 key=lambda i: (0, i[0]) if i[0] is None else (1, i[0])
@@ -232,9 +232,9 @@ cdef class CompilationRequest:
         self.implicit_limit = buf.read_int64()
 
         size = buf.read_int32()
-        if size > 0:
+        if size >= 0:
             modaliases = []
-            for _ in range(size - 1):
+            for _ in range(size):
                 if buf.read_byte():
                     k = buf.read_null_str().decode("utf-8")
                 else:
