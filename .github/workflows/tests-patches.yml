@@ -72,7 +72,7 @@ jobs:
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -360,7 +360,7 @@ jobs:
     - name: Download shared artifacts
       uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
-        action: actions/download-artifact@v3
+        action: actions/download-artifact@v4
         with: |
           name: shared-artifacts
           path: .tmp

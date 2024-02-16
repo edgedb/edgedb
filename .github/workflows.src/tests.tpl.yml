@@ -64,7 +64,7 @@ jobs:
         exit 1
 
     - name: Download cache key
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -102,10 +102,10 @@ jobs:
       fail-fast: false
       matrix:
         shard: [
-             1/16,  2/16,  3/16,  4/16,
-             5/16,  6/16,  7/16,  8/16,
-             9/16, 10/16, 11/16, 12/16,
-            13/16, 14/16, 15/16, 16/16,
+           1,  2,  3,  4,
+           5,  6,  7,  8,
+           9, 10, 11, 12,
+          13, 14, 15, 16,
         ]
 
     steps:
@@ -118,13 +118,13 @@ jobs:
         SHARD: ${{ matrix.shard }}
       run: |
         mkdir -p .results/
-        cp .tmp/time_stats.csv .results/shard_${SHARD/\//_}.csv
-        edb test -j2 -v -s ${SHARD} --running-times-log=.results/shard_${SHARD/\//_}.csv
+        cp .tmp/time_stats.csv .results/shard_${SHARD}.csv
+        edb test -j2 -v -s ${SHARD}/16 --running-times-log=.results/shard_${SHARD}.csv
 
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: python-test-results
+        name: python-test-results-${{ matrix.shard }}
         path: .results
         retention-days: 1
 
@@ -142,10 +142,10 @@ jobs:
       run: |
         edb test --list > .tmp/all_tests.txt
 
-    - name: Update shared artifacts
-      uses: actions/upload-artifact@v3
+    - name: Upload list of tests
+      uses: actions/upload-artifact@v4
       with:
-        name: shared-artifacts
+        name: test-list
         path: .tmp
         retention-days: 1
 
@@ -163,15 +163,22 @@ jobs:
           python -m pip install requests
 
       - name: Download shared artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: shared-artifacts
           path: .tmp
 
-      - name: Download python-test results
-        uses: actions/download-artifact@v3
+      - name: Download test list
+        uses: actions/download-artifact@v4
         with:
-          name: python-test-results
+          name: test-list
+          path: .tmp
+
+      - name: Download python-test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: python-test-results-*
+          merge-multiple: true
           path: .results
 
       - name: Merge stats and verify tests completion
