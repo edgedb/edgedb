@@ -107,7 +107,7 @@ def title(
     if app_name is None:
         return f'''<h1><span>{title}</span></h1>'''
 
-    return f'''<h1><span>Sign in {join}</span> {html.escape(app_name)}</h1>'''
+    return f'''<h1><span>{title} {join}</span> {html.escape(app_name)}</h1>'''
 
 
 def oauth_buttons(
