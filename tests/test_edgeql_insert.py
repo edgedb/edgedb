@@ -1273,18 +1273,18 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_for_01(self):
         await self.con.execute(r'''
             FOR x IN {3, 5, 7, 2}
-            UNION (INSERT InsertTest {
+            INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := x,
-            });
+            };
 
             FOR Q IN (SELECT InsertTest{foo := 'foo' ++ <str> InsertTest.l2}
                       FILTER .name = 'insert for 1')
-            UNION (INSERT InsertTest {
+            INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := 35 % Q.l2,
                 l3 := Q.foo,
-            });
+            };
         ''')
 
         await self.assert_query_result(
@@ -1384,12 +1384,10 @@ class TestInsert(tb.QueryTestCase):
                 l2 := 999,
                 subordinates := (
                     FOR x IN {('sub1', 'first'), ('sub2', 'second')}
-                    UNION (
-                        INSERT Subordinate {
-                            name := x.0,
-                            @comment := x.1,
-                        }
-                    )
+                    INSERT Subordinate {
+                        name := x.0,
+                        @comment := x.1,
+                    }
                 )
             };
         ''')
@@ -1417,9 +1415,9 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_06(self):
         res = await self.con.query(r'''
-            FOR a in {"a", "b"} UNION (
-                FOR b in {"c", "d"} UNION (
-                    INSERT Note {name := b}));
+            FOR a IN {"a", "b"}
+            FOR b IN {"c", "d"}
+            INSERT Note {name := b};
         ''')
         self.assertEqual(len(res), 4)
 
@@ -1433,9 +1431,9 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_07(self):
         res = await self.con.query(r'''
-            FOR a in {"a", "b"} UNION (
-                FOR b in {a++"c", a++"d"} UNION (
-                    INSERT Note {name := b}));
+            FOR a IN {"a", "b"}
+            FOR b IN {a++"c", a++"d"}
+            INSERT Note {name := b};
         ''')
         self.assertEqual(len(res), 4)
 
@@ -1449,10 +1447,10 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_08(self):
         res = await self.con.query(r'''
-            FOR a in {"a", "b"} UNION (
-                FOR b in {"a", "b"} UNION (
-                    FOR c in {a++b++"a", a++b++"b"} UNION (
-                        INSERT Note {name := c})));
+            FOR a IN {"a", "b"}
+            FOR b IN {"a", "b"}
+            FOR c IN {a++b++"a", a++b++"b"}
+            INSERT Note {name := c};
         ''')
         self.assertEqual(len(res), 8)
 

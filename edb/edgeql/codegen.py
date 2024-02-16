@@ -119,15 +119,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def _write_keywords(self, *kws: str) -> None:
         self.write(self._kw_case(*kws))
 
-    def _needs_parentheses(self, node) -> bool:  # type: ignore
+    def _needs_parentheses(self, node: Any) -> bool:
         # The "parent" attribute is set by calling `_fix_parent_links`
         # before traversing the AST.  Since it's not an attribute that
         # can be inferred by static typing we ignore typing for this
         # function.
+        parent: Optional[qlast.Base] = node._parent
         return (
-            node._parent is not None and (
-                not isinstance(node._parent, qlast.Base)
-                or not isinstance(node._parent, qlast.DDL)
+            parent is not None
+            and not isinstance(parent, qlast.DDL)
+            # Non-union FOR bodies can't have parens
+            and not (
+                isinstance(parent, qlast.ForQuery)
+                and not parent.has_union
+                and parent.result is node
             )
         )
 
@@ -303,7 +308,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(')')
 
     def visit_ForQuery(self, node: qlast.ForQuery) -> None:
-        # need to parenthesise when GROUP appears as an expression
+        # need to parenthesize when FOR appears as an expression
         parenthesise = self._needs_parentheses(node)
 
         if parenthesise:
@@ -317,10 +322,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.iterator)
         # guarantee an newline here
         self.new_lines = 1
-        self._write_keywords('UNION ')
-        self._block_ws(1)
-        self.visit(node.result)
-        self.indentation -= 1
+        if node.has_union:
+            self._write_keywords('UNION ')
+            self._block_ws(1)
+            self.visit(node.result)
+            self.indentation -= 1
+        else:
+            self.visit(node.result)
 
         if parenthesise:
             self.write(')')

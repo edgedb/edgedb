@@ -82,7 +82,7 @@ jobs:
         | xargs curl > .tmp/time_stats.csv
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -91,14 +91,14 @@ jobs:
     # Restore binary cache
 
     - name: Handle cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
@@ -107,21 +107,21 @@ jobs:
           edb-rust-v3-
 
     - name: Handle cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Handle cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Handle cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
@@ -144,16 +144,15 @@ jobs:
       if: |
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true'
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
 
     # Build EdgeDB CLI
 
     - name: Handle EdgeDB CLI build cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: steps.cli-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/cli
@@ -175,7 +174,7 @@ jobs:
     # Build Rust extensions
 
     - name: Handle Rust extensions build cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: steps.rust-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
@@ -207,7 +206,7 @@ jobs:
     # Build extensions
 
     - name: Handle Cython extensions build cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: steps.ext-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/edb
@@ -231,7 +230,7 @@ jobs:
     # Build parsers
 
     - name: Handle compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
@@ -310,7 +309,7 @@ jobs:
     # Refresh the bootstrap cache
 
     - name: Handle bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache
@@ -354,7 +353,7 @@ jobs:
         exit 1
 
     - name: Download cache key
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -364,26 +363,24 @@ jobs:
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
     - name: Handle Rust extensions build cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
         key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Install rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
 
     - name: Cargo test
-      uses: actions-rs/cargo@v1
       env:
         CARGO_TARGET_DIR: ${{ env.BUILD_TEMP }}/rust/extensions
         CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/extensions/cargo_home
-      with:
-        command: test
+      run:
+        cargo test
 
   python-test:
     needs: build
@@ -392,10 +389,10 @@ jobs:
       fail-fast: false
       matrix:
         shard: [
-             1/16,  2/16,  3/16,  4/16,
-             5/16,  6/16,  7/16,  8/16,
-             9/16, 10/16, 11/16, 12/16,
-            13/16, 14/16, 15/16, 16/16,
+           1,  2,  3,  4,
+           5,  6,  7,  8,
+           9, 10, 11, 12,
+          13, 14, 15, 16,
         ]
 
     steps:
@@ -428,7 +425,7 @@ jobs:
     - name: Download shared artifacts
       uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
-        action: actions/download-artifact@v3
+        action: actions/download-artifact@v4
         with: |
           name: shared-artifacts
           path: .tmp
@@ -444,49 +441,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
         key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache
@@ -522,13 +519,13 @@ jobs:
         SHARD: ${{ matrix.shard }}
       run: |
         mkdir -p .results/
-        cp .tmp/time_stats.csv .results/shard_${SHARD/\//_}.csv
-        edb test -j2 -v -s ${SHARD} --running-times-log=.results/shard_${SHARD/\//_}.csv
+        cp .tmp/time_stats.csv .results/shard_${SHARD}.csv
+        edb test -j2 -v -s ${SHARD}/16 --running-times-log=.results/shard_${SHARD}.csv
 
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: python-test-results
+        name: python-test-results-${{ matrix.shard }}
         path: .results
         retention-days: 1
 
@@ -565,7 +562,7 @@ jobs:
     - name: Download shared artifacts
       uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
-        action: actions/download-artifact@v3
+        action: actions/download-artifact@v4
         with: |
           name: shared-artifacts
           path: .tmp
@@ -581,49 +578,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
         key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache
@@ -660,10 +657,10 @@ jobs:
       run: |
         edb test --list > .tmp/all_tests.txt
 
-    - name: Update shared artifacts
-      uses: actions/upload-artifact@v3
+    - name: Upload list of tests
+      uses: actions/upload-artifact@v4
       with:
-        name: shared-artifacts
+        name: test-list
         path: .tmp
         retention-days: 1
 
@@ -681,15 +678,22 @@ jobs:
           python -m pip install requests
 
       - name: Download shared artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: shared-artifacts
           path: .tmp
 
-      - name: Download python-test results
-        uses: actions/download-artifact@v3
+      - name: Download test list
+        uses: actions/download-artifact@v4
         with:
-          name: python-test-results
+          name: test-list
+          path: .tmp
+
+      - name: Download python-test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: python-test-results-*
+          merge-multiple: true
           path: .results
 
       - name: Merge stats and verify tests completion

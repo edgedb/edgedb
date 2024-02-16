@@ -70,7 +70,7 @@ jobs:
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -79,14 +79,14 @@ jobs:
     # Restore binary cache
 
     - name: Handle cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
@@ -95,21 +95,21 @@ jobs:
           edb-rust-v3-
 
     - name: Handle cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Handle cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Handle cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
@@ -132,16 +132,15 @@ jobs:
       if: |
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true'
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
 
     # Build EdgeDB CLI
 
     - name: Handle EdgeDB CLI build cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: steps.cli-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/cli
@@ -163,7 +162,7 @@ jobs:
     # Build Rust extensions
 
     - name: Handle Rust extensions build cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: steps.rust-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
@@ -195,7 +194,7 @@ jobs:
     # Build extensions
 
     - name: Handle Cython extensions build cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: steps.ext-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/edb
@@ -219,7 +218,7 @@ jobs:
     # Build parsers
 
     - name: Handle compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
@@ -298,7 +297,7 @@ jobs:
     # Refresh the bootstrap cache
 
     - name: Handle bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache
@@ -379,7 +378,7 @@ jobs:
     - name: Download shared artifacts
       uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
-        action: actions/download-artifact@v3
+        action: actions/download-artifact@v4
         with: |
           name: shared-artifacts
           path: .tmp
@@ -395,49 +394,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
         key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache

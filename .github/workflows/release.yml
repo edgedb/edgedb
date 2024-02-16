@@ -39,7 +39,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -61,7 +61,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -83,7 +83,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -105,7 +105,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -127,7 +127,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm
@@ -149,7 +149,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm
@@ -171,7 +171,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -193,7 +193,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -215,7 +215,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -237,7 +237,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -259,7 +259,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -281,7 +281,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -303,7 +303,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -325,7 +325,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -347,7 +347,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9
@@ -369,7 +369,7 @@ jobs:
         BUILD_IS_RELEASE: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9
@@ -392,7 +392,7 @@ jobs:
         BUILD_GENERIC: true
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -415,7 +415,7 @@ jobs:
         BUILD_GENERIC: true
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -439,7 +439,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -463,7 +463,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -519,7 +519,7 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
@@ -575,7 +575,7 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
@@ -585,7 +585,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -605,7 +605,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -625,7 +625,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -645,7 +645,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -665,7 +665,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm
@@ -685,7 +685,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm
@@ -705,7 +705,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -725,7 +725,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -745,7 +745,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -765,7 +765,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -785,7 +785,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -805,7 +805,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -825,7 +825,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -845,7 +845,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -865,7 +865,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9
@@ -885,7 +885,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9
@@ -905,7 +905,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -925,7 +925,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -945,7 +945,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -965,7 +965,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -991,7 +991,7 @@ jobs:
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
@@ -1014,7 +1014,7 @@ jobs:
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
@@ -1058,7 +1058,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -1077,7 +1077,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -1108,7 +1108,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -1127,7 +1127,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -1158,7 +1158,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -1177,7 +1177,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -1208,7 +1208,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -1227,7 +1227,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -1258,7 +1258,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm
@@ -1277,7 +1277,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm
@@ -1308,7 +1308,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm
@@ -1327,7 +1327,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm
@@ -1358,7 +1358,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -1377,7 +1377,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -1408,7 +1408,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -1427,7 +1427,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -1458,7 +1458,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -1477,7 +1477,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -1508,7 +1508,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -1527,7 +1527,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -1558,7 +1558,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -1577,7 +1577,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -1608,7 +1608,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -1627,7 +1627,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -1658,7 +1658,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -1677,7 +1677,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -1708,7 +1708,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -1727,7 +1727,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -1758,7 +1758,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9
@@ -1777,7 +1777,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9
@@ -1808,7 +1808,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9
@@ -1827,7 +1827,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9
@@ -1858,7 +1858,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -1877,7 +1877,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -1908,7 +1908,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -1927,7 +1927,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -1958,7 +1958,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -1977,7 +1977,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -2008,7 +2008,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -2027,7 +2027,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -2058,7 +2058,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
@@ -2087,7 +2087,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64

@@ -75,6 +75,7 @@ ALTER TYPE cfg::AbstractConfig {
 
     CREATE PROPERTY __internal_testmode -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
         SET default := false;
     };
 
@@ -82,6 +83,7 @@ ALTER TYPE cfg::AbstractConfig {
     # reflection queries.
     CREATE PROPERTY __internal_no_apply_query_rewrites -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
         SET default := false;
     };
 
@@ -90,6 +92,7 @@ ALTER TYPE cfg::AbstractConfig {
     # that are hidden in the public introspection schema.
     CREATE PROPERTY __internal_query_reflschema -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
         SET default := false;
     };
 
@@ -358,6 +361,15 @@ std::_datetime_range_buckets(
         hi IS NOT NULL
     $$;
 };
+
+
+CREATE FUNCTION
+std::_current_setting(sqlname: str) -> OPTIONAL std::str {
+    USING SQL $$
+      SELECT current_setting(sqlname, true)
+    $$;
+};
+
 
 CREATE MODULE std::_test;
 
