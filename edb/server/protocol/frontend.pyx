@@ -18,6 +18,7 @@
 
 
 import asyncio
+import contextlib
 import logging
 import time
 
@@ -166,6 +167,14 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                     conn,
                     discard=debug.flags.server_clobber_pg_conns,
                 )
+
+    @contextlib.asynccontextmanager
+    async def with_pgcon(self):
+        con = await self.get_pgcon()
+        try:
+            yield con
+        finally:
+            self.maybe_release_pgcon(con)
 
     def on_aborted_pgcon(self, pgcon.PGConnection conn):
         try:
@@ -445,7 +454,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             self._transport.abort()
             self._transport = None
 
-    def stop(self):
+    def request_stop(self):
         # Actively stop a frontend connection - this is used by the server
         # when it's stopping.
         self._stop_requested = True

@@ -65,6 +65,16 @@ def compile_cast(
         cardinality_mod: Optional[qlast.CardinalityModifier]=None
 ) -> irast.Set:
 
+    if new_stype.is_polymorphic(ctx.env.schema) and srcctx is not None:
+        # If we have no srcctx we don't know whether this is a direct cast
+        # or some implicit cast being processed.
+        raise errors.QueryError(
+            f'cannot cast into generic type '
+            f'{new_stype.get_displayname(ctx.env.schema)!r}',
+            hint="Please ensure you don't use generic "
+                 '"any" types or abstract scalars.',
+            context=srcctx)
+
     if isinstance(ir_expr, irast.EmptySet):
         # For the common case of casting an empty set, we simply
         # generate a new EmptySet node of the requested type.
@@ -92,8 +102,7 @@ def compile_cast(
 
     if new_stype.is_polymorphic(ctx.env.schema):
         raise errors.QueryError(
-            f'cannot cast into generic type '
-            f'{new_stype.get_displayname(ctx.env.schema)!r}',
+            f'expression returns value of indeterminate type',
             context=srcctx)
 
     if (orig_stype == new_stype and
@@ -1116,11 +1125,12 @@ def _cast_array(
             correlated_elements = astutils.extend_path(
                 qlast.Tuple(elements=[source_path, elements]), '1'
             )
+            correlated_query = qlast.SelectQuery(result=correlated_elements)
 
             if el_type.contains_json(subctx.env.schema):
                 subctx.inhibit_implicit_limit = True
 
-            array_ir = dispatch.compile(correlated_elements, ctx=subctx)
+            array_ir = dispatch.compile(correlated_query, ctx=subctx)
             assert isinstance(array_ir, irast.Set)
 
             if direct_cast is not None:

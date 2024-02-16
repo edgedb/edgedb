@@ -19,8 +19,9 @@
 from typing import *
 
 import html
-import urllib
+import urllib.parse
 import re
+
 from email.mime import multipart
 from email.mime import text as mime_text
 
@@ -30,7 +31,38 @@ known_oauth_provider_names = [
     'builtin::oauth_google',
     'builtin::oauth_apple',
     'builtin::oauth_azure',
+    'builtin::oauth_discord',
+    'builtin::oauth_slack',
 ]
+
+
+def _render_oauth_buttons(
+    oauth_providers: list,
+    oauth_params: dict[str, str],
+    oauth_label: str,
+) -> str:
+    if not oauth_providers:
+        return ""
+
+    oauth_buttons = [
+        {
+            "authparams": urllib.parse.urlencode(
+                {'provider': p.name, **oauth_params}
+            ),
+            "image": (
+                f'<img src="_static/icon_{p.name[15:]}.svg"'
+                f' alt="{p.display_name} Icon" />'
+                if p.name in known_oauth_provider_names
+                else ''
+            ),
+            "label": f"{oauth_label} {p.display_name}",
+        }
+        for p in oauth_providers
+    ]
+    return '<div class="oauth-buttons">' + "\n".join(
+        f'<a href="../authorize?{b["authparams"]}>{b["image"]}</a>'
+        for b in oauth_buttons
+    ) + '</div>'
 
 
 def render_login_page(
@@ -66,23 +98,7 @@ def render_login_page(
     if redirect_to_on_signup:
         oauth_params['redirect_to_on_signup'] = redirect_to_on_signup
 
-    oauth_label = "Sign in with" if password_provider else "Continue with"
-    oauth_buttons = '\n'.join(
-        [
-            f'''
-        <a href="../authorize?{urllib.parse.urlencode({
-            'provider': p.name,
-            **oauth_params
-        })}">
-        {(
-            '<img src="_static/icon_' + p.name[15:] + '.svg" alt="' +
-            p.display_name+' Icon" />'
-        ) if p.name in known_oauth_provider_names else ''}
-        <span>{oauth_label} {p.display_name}</span>
-        </a>'''
-            for p in oauth_providers
-        ]
-    )
+    oauth_label = "Sign up with" if password_provider else "Continue with"
 
     forgot_link_script = (
         f'''<script>
@@ -98,7 +114,7 @@ def render_login_page(
         encodeURIComponent(emailInput.value)
         }}&challenge={challenge}`
         </script>'''
-        if password_provider is not None
+        if password_provider
         else ''
     )
 
@@ -113,55 +129,44 @@ def render_login_page(
       <h1>{f'<span>Sign in to</span> {html.escape(app_name)}'
            if app_name else '<span>Sign in</span>'}</h1>
 
-    {
-      f"""
-      <div class="oauth-buttons">
-        {oauth_buttons}
-      </div>""" if len(oauth_providers) > 0 else ''
-    }
-    {
-      """
-      <div class="divider">
-        <span>or</span>
-      </div>"""
-      if password_provider is not None
-        and len(oauth_providers) > 0
-      else ''
-    }
-    {
-      f"""
-      <input type="hidden" name="provider" value="{
-        password_provider.name}" />
-      <input type="hidden" name="redirect_on_failure" value="{
-        base_path}/ui/signin" />
-      <input type="hidden" name="redirect_to" value="{redirect_to}" />
-      <input type="hidden" name="challenge" value="{challenge}" />
+      {_render_oauth_buttons(oauth_providers, oauth_params, oauth_label)}
+      {"""
+       <div class="divider">
+         <span>or</span>
+       </div>
+       """ if password_provider and oauth_providers else ''}
+      {f"""
+       <input type="hidden" name="provider"
+              value="{password_provider.name}" />
+       <input type="hidden" name="redirect_on_failure"
+              value="{base_path}/ui/signin" />
+       <input type="hidden" name="redirect_to" value="{redirect_to}" />
+       <input type="hidden" name="challenge" value="{challenge}" />
 
-      {_render_error_message(error_message)}
+       {_render_error_message(error_message)}
 
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" value="{email or ''}"
-        autofocus />
+       <label for="email">Email</label>
+       <input id="email" name="email" type="email" value="{email or ''}"
+              autofocus />
 
-      <div class="field-header">
-        <label for="password">Password</label>
-        <a
-          id="forgot-password-link"
-          class="field-note"
-          href="forgot-password&challenge={challenge}"
-          tabindex="2">
-          Forgot password?
-        </a>
-      </div>
-      <input id="password" name="password" type="password" />
+       <div class="field-header">
+         <label for="password">Password</label>
+         <a
+           id="forgot-password-link"
+           class="field-note"
+           href="forgot-password&challenge={challenge}"
+           tabindex="2">
+           Forgot password?
+         </a>
+       </div>
+       <input id="password" name="password" type="password" />
 
-      {_render_button('Sign In')}
+       {_render_button('Sign In')}
 
-      <div class="bottom-note">
-        Don't have an account?
-        <a href="signup" tabindex="3">Sign up</a>
-      </div>""" if password_provider is not None else ''
-    }
+       <div class="bottom-note">
+         Don't have an account?
+         <a href="signup" tabindex="3">Sign up</a>
+       </div>""" if password_provider else ''}
     </form>
     {forgot_link_script}''',
     )
@@ -183,14 +188,15 @@ def render_signup_page(
     brand_color: Optional[str] = None,
 ):
     password_provider = None
+    webauthn_provider = None
+    oauth_providers = []
     for p in providers:
         if p.name == 'builtin::local_emailpassword':
             password_provider = p
-            break
-
-    oauth_providers = [
-        p for p in providers if p.name.startswith('builtin::oauth_')
-    ]
+        elif p.name == 'builtin::local_webauthn':
+            webauthn_provider = p
+        elif p.name.startswith('builtin::oauth_'):
+            oauth_providers.append(p)
 
     oauth_params = {
         'redirect_to': redirect_to,
@@ -201,74 +207,88 @@ def render_signup_page(
         oauth_params['redirect_to_on_signup'] = redirect_to_on_signup
 
     oauth_label = "Sign up with" if password_provider else "Continue with"
-    oauth_buttons = '\n'.join(
-        [
-            f'''
-        <a href="../authorize?{urllib.parse.urlencode({
-            'provider': p.name,
-            **oauth_params
-        })}">
-        {(
-            '<img src="_static/icon_' + p.name[15:] + '.svg" alt="' +
-            p.display_name+' Icon" />'
-        ) if p.name in known_oauth_provider_names else ''}
-        <span>{oauth_label} {p.display_name}</span>
-        </a>'''
-            for p in oauth_providers
-        ]
+
+    email_factor_form = f"""
+      <input type="hidden" name="redirect_on_failure"
+             value="{base_path}/ui/signup" />
+      <input type="hidden" name="redirect_to"
+             value="{redirect_to_on_signup or redirect_to}" />
+      <input type="hidden" name="challenge" value="{challenge}" />
+      <input type="hidden" name="verify_url" value="{base_path}/ui/verify" />
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{email or ''}" />
+    """
+
+    has_email_factor = (
+        password_provider is not None or webauthn_provider is not None
     )
+
+    email_factor_form += (
+        f"""
+        <input type="hidden" name="provider" value="{password_provider.name}" />
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" />
+        """
+        if password_provider is not None
+        else ""
+    )
+    match (password_provider, webauthn_provider):
+        case (None, None):
+            email_factor_form += ""
+        case (None, _):
+            email_factor_form += f"""
+            {_render_button('Sign Up', id='webauthn-signup')}
+            """
+        case (_, None):
+            email_factor_form += f"""
+            {_render_button("Sign Up", id="password-signup")}
+            """
+        case (_, _):
+            email_factor_form += f"""
+            {_render_button('Sign Up', id='webauthn-signup')}
+            {_render_button("Sign up with password", id="password-signup")}
+            """
+
+    email_factor_form += f"""
+        <div class="bottom-note">
+          Already have an account?
+          <a href="signin">Sign in</a>
+        </div>
+        """
+
+    content = f'''
+        <form
+        class="container"
+        id="email-factor"
+        method="POST"
+        action="../register" novalidate
+        >
+        <h1>{f'<span>Sign up to</span> {html.escape(app_name)}'
+             if app_name else '<span>Sign up</span>'}</h1>
+
+        {_render_error_message(error_message)}
+
+        {_render_oauth_buttons(oauth_providers, oauth_params, oauth_label)}
+        {"""
+         <div class="divider">
+           <span>or</span>
+         </div>
+         """ if has_email_factor and oauth_providers else ''}
+        {email_factor_form if has_email_factor else ''}
+        </form>
+        {"""
+         <script type="module" src="_static/webauthn-register.js"></script>"""
+         if webauthn_provider is not None else ''}
+    '''
+
     return _render_base_page(
         title=f'Sign up{f" to {app_name}" if app_name else ""}',
         logo_url=logo_url,
         dark_logo_url=dark_logo_url,
         brand_color=brand_color,
         cleanup_search_params=['error', 'email'],
-        content=f'''
-    <form class="container" method="POST" action="../register" novalidate>
-      <h1>{f'<span>Sign up to</span> {html.escape(app_name)}'
-           if app_name else '<span>Sign up</span>'}</h1>
-
-      {_render_error_message(error_message)}
-    {
-      f"""
-      <div class="oauth-buttons">
-        {oauth_buttons}
-      </div>""" if len(oauth_providers) > 0 else ''
-    }
-    {
-      """
-      <div class="divider">
-        <span>or</span>
-      </div>"""
-      if password_provider is not None
-        and len(oauth_providers) > 0
-      else ''
-    }
-    {
-      f"""
-      <input type="hidden" name="provider" value="{password_provider.name}" />
-      <input type="hidden" name="redirect_on_failure" value="{
-        base_path}/ui/signup" />
-      <input type="hidden" name="redirect_to" value="{
-          redirect_to_on_signup or redirect_to}" />
-      <input type="hidden" name="challenge" value="{challenge}" />
-      <input type="hidden" name="verify_url" value="{base_path}/ui/verify" />
-
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" value="{email or ''}" />
-
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" />
-
-      {_render_button('Sign Up')}
-
-      <div class="bottom-note">
-        Already have an account?
-        <a href="signin">Sign in</a>
-      </div>
-      </div>""" if password_provider is not None else ''
-    }
-    </form>''',
+        content=content,
     )
 
 
@@ -296,12 +316,12 @@ def render_forgot_password_page(
 
         <input type="hidden" name="provider" value="{provider_name}" />
         <input type="hidden" name="challenge" value="{challenge}" />
-        <input type="hidden" name="redirect_on_failure" value="{
-          base_path}/ui/forgot-password?challenge={challenge}" />
-        <input type="hidden" name="redirect_to" value="{
-          base_path}/ui/forgot-password?challenge={challenge}" />
-        <input type="hidden" name="reset_url" value="{
-            base_path}/ui/reset-password" />
+        <input type="hidden" name="redirect_on_failure"
+               value="{base_path}/ui/forgot-password?challenge={challenge}" />
+        <input type="hidden" name="redirect_to"
+               value="{base_path}/ui/forgot-password?challenge={challenge}" />
+        <input type="hidden" name="reset_url"
+               value="{base_path}/ui/reset-password" />
 
         <label for="email">Email</label>
         <input id="email" name="email" type="email" value="{email or ''}" />
@@ -364,8 +384,8 @@ def render_reset_password_page(
 
         <input type="hidden" name="provider" value="{provider_name}" />
         <input type="hidden" name="reset_token" value="{reset_token}" />
-        <input type="hidden" name="redirect_on_failure" value="{
-          base_path}/ui/reset-password" />
+        <input type="hidden" name="redirect_on_failure"
+               value="{base_path}/ui/reset-password" />
         <input type="hidden" name="redirect_to" value="{redirect_to}" />
 
         <label for="password">New Password</label>
@@ -535,9 +555,9 @@ def _render_base_page(
     logo = (
         f'''
       <picture class="brand-logo">
-        {'<source srcset="'+html.escape(dark_logo_url)+
-          '" media="(prefers-color-scheme: dark)" />'
-          if dark_logo_url else ''}
+        {'<source srcset="' + html.escape(dark_logo_url) +
+         '" media="(prefers-color-scheme: dark)" />'
+         if dark_logo_url else ''}
         <img src="{html.escape(logo_url)}" />
       </picture>'''
         if logo_url
@@ -572,7 +592,7 @@ def _render_base_page(
     <title>{html.escape(title)}</title>
     {cleanup_script}
   </head>
-  <body {'style="'+get_colour_vars(brand_color)+'"'}>
+  <body {'style="' + get_colour_vars(brand_color) + '"'}>
     {logo}
     {content}
   </body>
@@ -621,9 +641,16 @@ def _render_success_message(success_message: str):
         </div>'''
 
 
-def _render_button(text: str):
+def _render_button(
+    text: str,
+    *,
+    id: Optional[str] = None,
+):
     return f'''
-    <button type="submit">
+    <button
+        type="submit"
+        {f'id="{id}"' if id else ''}
+    >
         <span>{text}</span>
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -743,26 +770,24 @@ def get_colour_vars(bg_hex: str):
         bg_hsl[0], bg_hsl[1], min(90 if luma_dark else 35, bg_hsl[2])
     )
     dark_text_color = hsl_to_rgb(bg_hsl[0], bg_hsl[1], max(60, bg_hsl[2]))
+    accent_bg_text_color = hsl_to_rgb(
+        bg_hsl[0],
+        bg_hsl[1],
+        95 if luma_dark else max(10, min(25, luma * 100 - 60)),
+    )
+    accent_bg_hover_color = hsl_to_rgb(
+        bg_hsl[0], bg_hsl[1], bg_hsl[2] + (5 if luma_dark else -5)
+    )
+    accent_focus_color = ','.join(str(c) for c in text_color)
+    accent_focus_dark_color = ','.join(str(c) for c in dark_text_color)
 
     return f'''--accent-bg-color: #{bg_hex};
-        --accent-bg-text-color: #{rgb_to_hex(
-            *hsl_to_rgb(
-                bg_hsl[0],
-                bg_hsl[1],
-                95 if luma_dark else max(10, min(25, luma * 100 - 60))
-            )
-        )};
-        --accent-bg-hover-color: #{rgb_to_hex(
-            *hsl_to_rgb(
-                bg_hsl[0], bg_hsl[1], bg_hsl[2] + (5 if luma_dark else -5)
-            )
-        )};
+        --accent-bg-text-color: #{rgb_to_hex(*accent_bg_text_color)};
+        --accent-bg-hover-color: #{rgb_to_hex(*accent_bg_hover_color)};
         --accent-text-color: #{rgb_to_hex(*text_color)};
         --accent-text-dark-color: #{rgb_to_hex(*dark_text_color)};
-        --accent-focus-color: rgba({','.join(
-            str(c) for c in text_color)},0.6);
-        --accent-focus-dark-color: rgba({','.join(
-            str(c) for c in dark_text_color)},0.6);'''
+        --accent-focus-color: rgba({accent_focus_color},0.6);
+        --accent-focus-dark-color: rgba({accent_focus_dark_color},0.6);'''
 
 
 def hex_to_rgb(hex: str) -> tuple[float, float, float]:
@@ -791,9 +816,7 @@ def rgb_to_hsl(r: float, g: float, b: float) -> tuple[float, float, float]:
         (
             ((g - b) / s)
             if l == r
-            else (2 + (b - r) / s)
-            if l == g
-            else (4 + (r - g) / s)
+            else (2 + (b - r) / s) if l == g else (4 + (r - g) / s)
         )
         if s != 0
         else 0

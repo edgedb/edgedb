@@ -69,20 +69,15 @@ class AliasCommandContext(
 
 
 def _is_view_from_alias(
-    our_name: sn.QualName,
+    alias_name: sn.QualName,
     obj: s_types.Type,
     schema: s_schema.Schema,
 ) -> bool:
     name = obj.get_name(schema)
-    if our_name == name:
-        return True
-    name_prefix = f'__{our_name.name}__'
-
-    name = obj.get_name(schema)
-    return (
+    return alias_name == name or (
         isinstance(name, sn.QualName)
-        and name.module == our_name.module
-        and name.name.startswith(name_prefix)
+        and name.module == alias_name.module
+        and name.name.startswith(f'__{alias_name.name}__')
     )
 
 
@@ -577,10 +572,10 @@ def define_alias(
     if prev_ir is not None:
         assert old_schema
         for vt in prev_coll_expr_aliases:
-            dt = vt.as_type_delete_if_dead(old_schema)
+            dt = vt.as_type_delete_if_unused(old_schema)
             derived_delta.prepend(dt)
         for vt in prev_ir.new_coll_types:
-            dt = vt.as_type_delete_if_dead(old_schema)
+            dt = vt.as_type_delete_if_unused(old_schema)
             derived_delta.prepend(dt)
 
     for vt in coll_expr_aliases:

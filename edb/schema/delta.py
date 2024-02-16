@@ -1267,6 +1267,7 @@ class CommandContext:
         ] = None,
         backend_runtime_params: Optional[Any] = None,
         compat_ver: Optional[verutils.Version] = None,
+        include_ext_version: bool = True,
     ) -> None:
         self.stack: List[CommandContextToken[Command]] = []
         self._cache: Dict[Hashable, Any] = {}
@@ -1294,6 +1295,7 @@ class CommandContext:
             List[Tuple[Command, AlterObject[so.Object], List[str]]],
         ] = collections.defaultdict(list)
         self.compat_ver = compat_ver
+        self.include_ext_version = include_ext_version
 
     @property
     def modaliases(self) -> Mapping[Optional[str], str]:
@@ -2123,7 +2125,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 delta_drop, cmd_drop, _ = ref.init_delta_branch(
                     schema, context, cmdtype=AlterObject)
                 delta_create, cmd_create, ctx_stack = ref.init_delta_branch(
-                    schema, context, cmdtype=AlterObject)
+                    schema, context, cmdtype=AlterObject,
+                    possible_parent=self,  # type: ignore
+                )
 
                 cmd_drop.from_expr_propagation = True
                 cmd_create.from_expr_propagation = True
@@ -2314,8 +2318,15 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         astnode = self._get_ast_node(schema, context)
 
         if astnode.get_field('name'):
-            name = sn.shortname_from_fullname(self.classname)
-            name = context.early_renames.get(name, name)
+            # We need to be able to catch both renames of the object
+            # itself, which might have a long name (for pointers, for
+            # example) as well as an object being referenced by
+            # shortname, if this is (for example) a concrete
+            # constraint and the abstract constraint was renamed.
+            name = context.early_renames.get(self.classname, self.classname)
+            name = sn.shortname_from_fullname(name)
+            if self.classname not in context.early_renames:
+                name = context.early_renames.get(name, name)
             op = astnode(  # type: ignore
                 name=self._deparse_name(schema, context, name),
             )
@@ -3750,6 +3761,41 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             schema = self._delete_innards(schema, context)
             schema = self.apply_caused(schema, context)
             schema = self._delete_finalize(schema, context)
+
+        return schema
+
+
+class AlterExternalObject(
+    AlterObject[so.ExternalObject_T],
+    ExternalObjectCommand[so.ExternalObject_T],
+):
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        schema = self.apply_prerequisites(schema, context)
+        return schema
+
+    def _alter_innards(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        return self.apply_subcommands(schema, context)
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        self.scls = _dummy_object  # type: ignore
+
+        with self.new_context(schema, context, self.scls):
+            schema = self._alter_begin(schema, context)
+            schema = self._alter_innards(schema, context)
+            schema = self.apply_caused(schema, context)
+            schema = self._alter_finalize(schema, context)
 
         return schema
 

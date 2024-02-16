@@ -25,6 +25,8 @@ import functools
 import json
 import hashlib
 import pickle
+import textwrap
+import time
 import uuid
 
 import immutables
@@ -63,6 +65,7 @@ from edb.schema import reflection as s_refl
 from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
+from edb.schema import version as s_ver
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pg_compiler
@@ -73,6 +76,7 @@ from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
 from edb.pgsql import patches as pg_patches
 from edb.pgsql import types as pg_types
+from edb.pgsql import delta as pg_delta
 
 from . import dbstate
 from . import enums
@@ -999,6 +1003,7 @@ class Compiler:
         )
         return dbstate.ParsedDatabase(
             user_schema_pickle=pickle.dumps(user_schema, -1),
+            schema_version=_get_schema_version(user_schema),
             database_config=db_config,
             ext_config_settings=ext_config_settings,
             protocol_version=defines.CURRENT_PROTOCOL,
@@ -1204,6 +1209,7 @@ class Compiler:
 
         restore_blocks = []
         tables = []
+        repopulate_units = []
         for schema_object_id_bytes, typedesc in blocks:
             schema_object_id = uuidgen.from_bytes(schema_object_id_bytes)
             obj = schema.get_by_id(schema_object_id)
@@ -1293,6 +1299,10 @@ class Compiler:
                         mending_desc.append(
                             _get_ptr_mending_desc(schema, ptr))
 
+                cmd = pg_delta.get_reindex_sql(obj, schema)
+                if cmd:
+                    repopulate_units.append(cmd)
+
             else:
                 raise AssertionError(
                     f'unexpected object type in restore '
@@ -1339,6 +1349,7 @@ class Compiler:
             units=units,
             blocks=restore_blocks,
             tables=tables,
+            repopulate_units=repopulate_units,
         )
 
     def analyze_explain_output(
@@ -1359,6 +1370,9 @@ def compile_schema_storage_in_delta(
 
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+
+    funcblock = block.add_block()
+    cmdblock = block.add_block()
 
     meta_blocks: List[Tuple[str, Dict[str, Any]]] = []
 
@@ -1407,10 +1421,10 @@ def compile_schema_storage_in_delta(
                 df = pg_dbops.DropFunction(
                     name=func.name, args=func.args or (), if_exists=True
                 )
-                df.generate(block)
+                df.generate(funcblock)
 
                 cf = pg_dbops.CreateFunction(func)
-                cf.generate(block)
+                cf.generate(funcblock)
 
                 cache_mm[eql_hash] = argnames
 
@@ -1418,9 +1432,9 @@ def compile_schema_storage_in_delta(
             for argname in argnames:
                 argvals.append(pg_common.quote_literal(args[argname]))
 
-            block.add_command(f'''
+            cmdblock.add_command(textwrap.dedent(f'''\
                 PERFORM {pg_common.qname(*fname)}({", ".join(argvals)});
-            ''')
+            '''))
 
     ctx.state.current_tx().update_cached_reflection(cache_mm.finish())
 
@@ -1486,6 +1500,11 @@ def _compile_schema_storage_stmt(
         ctx.state.current_tx().update_schema(schema)
 
 
+def _get_schema_version(user_schema: s_schema.Schema) -> uuid.UUID:
+    ver = user_schema.get_global(s_ver.SchemaVersion, "__schema_version__")
+    return ver.get_version(user_schema)
+
+
 def _compile_ql_script(
     ctx: CompileContext,
     eql: str,
@@ -1529,6 +1548,8 @@ def _get_compile_options(
         apply_query_rewrites=(
             not ctx.bootstrap_mode
             and not ctx.schema_reflection_mode
+            and not bool(
+                _get_config_val(ctx, '__internal_no_apply_query_rewrites'))
         ),
         apply_user_access_policies=_get_config_val(
             ctx, 'apply_access_policies'),
@@ -1540,7 +1561,10 @@ def _get_compile_options(
             and not ctx.schema_reflection_mode
         ) or is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
-        schema_reflection_mode=ctx.schema_reflection_mode,
+        schema_reflection_mode=(
+            ctx.schema_reflection_mode
+            or _get_config_val(ctx, '__internal_query_reflschema')
+        )
     )
 
 
@@ -1685,7 +1709,13 @@ def _compile_ql_query(
     is_explain = explain_data is not None
     current_tx = ctx.state.current_tx()
 
-    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+    base_schema = (
+        ctx.compiler_state.std_schema
+        if not _get_config_val(ctx, '__internal_query_reflschema')
+        else ctx.compiler_state.refl_schema
+    )
+    schema = current_tx.get_schema(base_schema)
+
     options = _get_compile_options(ctx, is_explain=is_explain)
     ir = qlcompiler.compile_ast_to_ir(
         ql,
@@ -2313,6 +2343,14 @@ def _try_compile(
     ctx: CompileContext,
     source: edgeql.Source,
 ) -> dbstate.QueryUnitGroup:
+    if _get_config_val(ctx, '__internal_testmode'):
+        # This is a bad but simple way to emulate a slow compilation for tests.
+        # Ideally, we should have a testmode function that is hooked to sleep
+        # as `simple_special_case`, or wait for a notification from the test.
+        sentinel = "# EDGEDB_TEST_COMPILER_SLEEP = "
+        text = source.text()
+        if text.startswith(sentinel):
+            time.sleep(float(text[len(sentinel):text.index("\n")]))
 
     default_cardinality = enums.Cardinality.NO_RESULT
     statements = edgeql.parse_block(source)
@@ -2421,12 +2459,17 @@ def _try_compile(
             unit.sql = comp.sql
             unit.create_db = comp.create_db
             unit.drop_db = comp.drop_db
+            unit.drop_db_reset_connections = comp.drop_db_reset_connections
             unit.create_db_template = comp.create_db_template
+            unit.create_db_mode = comp.create_db_mode
             unit.ddl_stmt_id = comp.ddl_stmt_id
             if not ctx.dump_restore_mode:
                 if comp.user_schema is not None:
                     final_user_schema = comp.user_schema
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                    unit.user_schema_version = (
+                        _get_schema_version(comp.user_schema)
+                    )
                     unit.extensions, unit.ext_config_settings = (
                         _extract_extensions(ctx, comp.user_schema)
                     )
@@ -2452,6 +2495,9 @@ def _try_compile(
                 if comp.user_schema is not None:
                     final_user_schema = comp.user_schema
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                    unit.user_schema_version = (
+                        _get_schema_version(comp.user_schema)
+                    )
                     unit.extensions, unit.ext_config_settings = (
                         _extract_extensions(ctx, comp.user_schema)
                     )
@@ -2490,6 +2536,9 @@ def _try_compile(
                 if comp.user_schema is not None:
                     final_user_schema = comp.user_schema
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                    unit.user_schema_version = (
+                        _get_schema_version(comp.user_schema)
+                    )
                     unit.extensions, unit.ext_config_settings = (
                         _extract_extensions(ctx, comp.user_schema)
                     )
@@ -3053,6 +3102,7 @@ class RestoreDescriptor(NamedTuple):
     units: Sequence[dbstate.QueryUnit]
     blocks: Sequence[RestoreBlockDescriptor]
     tables: Sequence[str]
+    repopulate_units: Sequence[str]
 
 
 class DataMendingDescriptor(NamedTuple):

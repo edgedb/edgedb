@@ -77,7 +77,10 @@ commands <ref_eql_ddl_access_policies>`.
       [ when (<condition>) ]
       { allow | deny } <action> [, <action> ... ]
       [ using (<expr>) ]
-      [ <annotation-declarations> ] ;
+      [ "{"
+         [ errmessage := value ; ]
+         [ <annotation-declarations> ]
+        "}" ] ;
 
     # where <action> is one of
     all
@@ -93,9 +96,9 @@ commands <ref_eql_ddl_access_policies>`.
       [ when (<condition>) ]
       { allow | deny } <action> [, <action> ... ]
       [ using (<expr>) ]
-      [ <annotation-declarations> ]
       [ "{"
          [ errmessage := value ; ]
+         [ <annotation-declarations> ]
         "}" ] ;
 
     # where <action> is one of

@@ -14,8 +14,55 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       branch: ${{ steps.whichver.outputs.branch }}
+
+
+      if_debian_buster_x86_64: ${{ steps.scm.outputs.if_debian_buster_x86_64 }}
+
+      if_debian_buster_aarch64: ${{ steps.scm.outputs.if_debian_buster_aarch64 }}
+
+      if_debian_bullseye_x86_64: ${{ steps.scm.outputs.if_debian_bullseye_x86_64 }}
+
+      if_debian_bullseye_aarch64: ${{ steps.scm.outputs.if_debian_bullseye_aarch64 }}
+
+      if_debian_bookworm_x86_64: ${{ steps.scm.outputs.if_debian_bookworm_x86_64 }}
+
+      if_debian_bookworm_aarch64: ${{ steps.scm.outputs.if_debian_bookworm_aarch64 }}
+
+      if_ubuntu_bionic_x86_64: ${{ steps.scm.outputs.if_ubuntu_bionic_x86_64 }}
+
+      if_ubuntu_bionic_aarch64: ${{ steps.scm.outputs.if_ubuntu_bionic_aarch64 }}
+
+      if_ubuntu_focal_x86_64: ${{ steps.scm.outputs.if_ubuntu_focal_x86_64 }}
+
+      if_ubuntu_focal_aarch64: ${{ steps.scm.outputs.if_ubuntu_focal_aarch64 }}
+
+      if_ubuntu_jammy_x86_64: ${{ steps.scm.outputs.if_ubuntu_jammy_x86_64 }}
+
+      if_ubuntu_jammy_aarch64: ${{ steps.scm.outputs.if_ubuntu_jammy_aarch64 }}
+
+      if_centos_8_x86_64: ${{ steps.scm.outputs.if_centos_8_x86_64 }}
+
+      if_centos_8_aarch64: ${{ steps.scm.outputs.if_centos_8_aarch64 }}
+
+      if_rockylinux_9_x86_64: ${{ steps.scm.outputs.if_rockylinux_9_x86_64 }}
+
+      if_rockylinux_9_aarch64: ${{ steps.scm.outputs.if_rockylinux_9_aarch64 }}
+
+      if_linux_x86_64: ${{ steps.scm.outputs.if_linux_x86_64 }}
+
+      if_linux_aarch64: ${{ steps.scm.outputs.if_linux_aarch64 }}
+
+      if_linuxmusl_x86_64: ${{ steps.scm.outputs.if_linuxmusl_x86_64 }}
+
+      if_linuxmusl_aarch64: ${{ steps.scm.outputs.if_linuxmusl_aarch64 }}
+
+      if_macos_x86_64: ${{ steps.scm.outputs.if_macos_x86_64 }}
+
+      if_macos_aarch64: ${{ steps.scm.outputs.if_macos_aarch64 }}
+
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Determine package version
       shell: bash
@@ -24,9 +71,307 @@ jobs:
         echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
+
+    - name: Determine SCM revision
+      id: scm
+      shell: bash
+      run: |
+        rev=$(git rev-parse HEAD)
+        jq_filter='.packages[] | select(.basename == "edgedb-server") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select(($rev != null) and ($REV | startswith($rev)))'
+
+        val=true
+
+        idx_file=buster.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-buster-x86_64'
+          val=false
+        fi
+
+        echo if_debian_buster_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=buster.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-buster-aarch64'
+          val=false
+        fi
+
+        echo if_debian_buster_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bullseye.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bullseye-x86_64'
+          val=false
+        fi
+
+        echo if_debian_bullseye_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bullseye.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bullseye-aarch64'
+          val=false
+        fi
+
+        echo if_debian_bullseye_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bookworm.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bookworm-x86_64'
+          val=false
+        fi
+
+        echo if_debian_bookworm_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bookworm.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bookworm-aarch64'
+          val=false
+        fi
+
+        echo if_debian_bookworm_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bionic.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-bionic-x86_64'
+          val=false
+        fi
+
+        echo if_ubuntu_bionic_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=bionic.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-bionic-aarch64'
+          val=false
+        fi
+
+        echo if_ubuntu_bionic_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=focal.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-focal-x86_64'
+          val=false
+        fi
+
+        echo if_ubuntu_focal_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=focal.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-focal-aarch64'
+          val=false
+        fi
+
+        echo if_ubuntu_focal_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=jammy.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
+          val=false
+        fi
+
+        echo if_ubuntu_jammy_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=jammy.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-jammy-aarch64'
+          val=false
+        fi
+
+        echo if_ubuntu_jammy_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=el8.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing centos-8-x86_64'
+          val=false
+        fi
+
+        echo if_centos_8_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=el8.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing centos-8-aarch64'
+          val=false
+        fi
+
+        echo if_centos_8_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=el9.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing rockylinux-9-x86_64'
+          val=false
+        fi
+
+        echo if_rockylinux_9_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=el9.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing rockylinux-9-aarch64'
+          val=false
+        fi
+
+        echo if_rockylinux_9_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linux-x86_64'
+          val=false
+        fi
+
+        echo if_linux_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linux-aarch64'
+          val=false
+        fi
+
+        echo if_linux_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linuxmusl-x86_64'
+          val=false
+        fi
+
+        echo if_linuxmusl_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linuxmusl-aarch64'
+          val=false
+        fi
+
+        echo if_linuxmusl_aarch64="$val" >> $GITHUB_OUTPUT
+
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing macos-x86_64'
+          val=false
+        fi
+
+        echo if_macos_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing macos-aarch64'
+          val=false
+        fi
+
+        echo if_macos_aarch64="$val" >> $GITHUB_OUTPUT
+
+
+
   build-debian-buster-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_debian_buster_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -40,7 +385,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -49,6 +394,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_debian_buster_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
@@ -61,7 +409,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -70,6 +418,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+    if: needs.prep.outputs.if_debian_bullseye_x86_64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
@@ -82,7 +433,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -91,6 +442,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_debian_bullseye_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
@@ -103,7 +457,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -112,6 +466,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+    if: needs.prep.outputs.if_debian_bookworm_x86_64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
@@ -124,7 +481,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm
@@ -133,6 +490,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_debian_bookworm_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
@@ -145,7 +505,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm
@@ -154,6 +514,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+    if: needs.prep.outputs.if_ubuntu_bionic_x86_64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
@@ -166,7 +529,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -175,6 +538,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_ubuntu_bionic_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
@@ -187,7 +553,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -196,6 +562,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+    if: needs.prep.outputs.if_ubuntu_focal_x86_64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
@@ -208,7 +577,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -217,6 +586,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_ubuntu_focal_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
@@ -229,7 +601,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -238,6 +610,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+    if: needs.prep.outputs.if_ubuntu_jammy_x86_64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
@@ -250,7 +625,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -259,6 +634,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_ubuntu_jammy_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
@@ -271,35 +649,17 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
 
-  build-centos-7-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/centos-7@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "7"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v3
-      with:
-        name: builds-centos-7-x86_64
-        path: artifacts/centos-7
-
   build-centos-8-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_centos_8_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -313,7 +673,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -322,6 +682,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_centos_8_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
@@ -334,7 +697,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -343,6 +706,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+    if: needs.prep.outputs.if_rockylinux_9_x86_64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
@@ -355,7 +721,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9
@@ -364,6 +730,9 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+    if: needs.prep.outputs.if_rockylinux_9_aarch64 == 'true'
+
+
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
@@ -376,7 +745,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9
@@ -384,6 +753,9 @@ jobs:
   build-linux-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_linux_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -398,7 +770,7 @@ jobs:
         BUILD_GENERIC: true
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -406,6 +778,9 @@ jobs:
   build-linux-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
+
+    if: needs.prep.outputs.if_linux_aarch64 == 'true'
+
 
     steps:
     - name: Build
@@ -420,7 +795,7 @@ jobs:
         BUILD_GENERIC: true
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -428,6 +803,9 @@ jobs:
   build-linuxmusl-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_linuxmusl_x86_64 == 'true'
+
 
     steps:
     - name: Build
@@ -443,7 +821,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -451,6 +829,9 @@ jobs:
   build-linuxmusl-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
+
+    if: needs.prep.outputs.if_linuxmusl_aarch64 == 'true'
+
 
     steps:
     - name: Build
@@ -466,35 +847,49 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
 
   build-macos-x86_64:
-    runs-on: ['self-hosted', 'macOS', 'X64']
+    runs-on: ['macos-14']
     needs: prep
 
+    if: needs.prep.outputs.if_macos_x86_64 == 'true'
+
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      if: false
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      if: true
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "x86_64-apple-darwin"
 
     - name: Set up Python
-      uses: actions/setup-python@v4
-      if: false
+      uses: actions/setup-python@v5
+      if: true
       with:
         python-version: "3.x"
+
+    - name: Set up NodeJS
+      uses: actions/setup-node@v4
+      if: true
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      if: true
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -504,40 +899,55 @@ jobs:
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_ARCH: "x86_64"
+        EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
         BUILD_GENERIC: true
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
 
   build-macos-aarch64:
-    runs-on: ['self-hosted', 'macOS', 'ARM64']
+    runs-on: ['macos-14']
     needs: prep
 
+    if: needs.prep.outputs.if_macos_aarch64 == 'true'
+
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      if: false
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      if: true
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "aarch64-apple-darwin"
 
     - name: Set up Python
-      uses: actions/setup-python@v4
-      if: false
+      uses: actions/setup-python@v5
+      if: true
       with:
         python-version: "3.x"
+
+    - name: Set up NodeJS
+      uses: actions/setup-node@v4
+      if: true
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      if: true
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -546,13 +956,14 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "aarch64"
-        PKG_PLATFORM_ARCH: ""
+        PKG_PLATFORM_ARCH: "aarch64"
+        EXTRA_OPTIMIZATIONS: "true"
         METAPKG_GIT_CACHE: disabled
         BUILD_GENERIC: true
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
@@ -562,7 +973,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -583,7 +994,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -604,7 +1015,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -625,7 +1036,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -646,7 +1057,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm
@@ -667,7 +1078,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm
@@ -688,7 +1099,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -709,7 +1120,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -730,7 +1141,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -751,7 +1162,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -772,7 +1183,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -793,7 +1204,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -809,33 +1220,12 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-  test-centos-7-x86_64:
-    needs: [build-centos-7-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: builds-centos-7-x86_64
-        path: artifacts/centos-7
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/centos-7@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "7"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
   test-centos-8-x86_64:
     needs: [build-centos-8-x86_64]
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -856,7 +1246,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -877,7 +1267,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9
@@ -898,7 +1288,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9
@@ -919,7 +1309,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -940,7 +1330,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -961,7 +1351,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -982,7 +1372,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -1000,16 +1390,16 @@ jobs:
 
   test-macos-x86_64:
     needs: [build-macos-x86_64]
-    runs-on: ['self-hosted', 'macOS', 'X64']
+    runs-on: ['macos-14']
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
@@ -1024,16 +1414,16 @@ jobs:
 
   test-macos-aarch64:
     needs: [build-macos-aarch64]
-    runs-on: ['self-hosted', 'macOS', 'ARM64']
+    runs-on: ['macos-14']
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
@@ -1051,7 +1441,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -1071,7 +1461,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -1103,7 +1493,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -1123,7 +1513,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -1155,7 +1545,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -1175,7 +1565,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -1207,7 +1597,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -1227,7 +1617,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -1259,7 +1649,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm
@@ -1279,7 +1669,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm
@@ -1311,7 +1701,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm
@@ -1331,7 +1721,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm
@@ -1363,7 +1753,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -1383,7 +1773,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -1415,7 +1805,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -1435,7 +1825,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -1467,7 +1857,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -1487,7 +1877,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -1519,7 +1909,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -1539,7 +1929,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -1571,7 +1961,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -1591,7 +1981,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -1623,7 +2013,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -1643,7 +2033,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -1670,64 +2060,12 @@ jobs:
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
-  publish-centos-7-x86_64:
-    needs: [test-centos-7-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: builds-centos-7-x86_64
-        path: artifacts/centos-7
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "7"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-centos-7-x86_64:
-    needs: [publish-centos-7-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: builds-centos-7-x86_64
-        path: artifacts/centos-7
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: centos-7
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-7@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "7"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
   publish-centos-8-x86_64:
     needs: [test-centos-8-x86_64]
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -1747,7 +2085,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -1779,7 +2117,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -1799,7 +2137,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -1831,7 +2169,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9
@@ -1851,7 +2189,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9
@@ -1883,7 +2221,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9
@@ -1903,7 +2241,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9
@@ -1935,7 +2273,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -1955,7 +2293,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -1987,7 +2325,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -2007,7 +2345,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -2039,7 +2377,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -2059,7 +2397,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -2091,7 +2429,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -2111,7 +2449,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -2143,12 +2481,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -2173,12 +2511,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -2205,7 +2543,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-docker
         ref: master
@@ -2334,10 +2672,6 @@ jobs:
       - test-ubuntu-jammy-aarch64
       - publish-ubuntu-jammy-aarch64
       - check-published-ubuntu-jammy-aarch64
-      - build-centos-7-x86_64
-      - test-centos-7-x86_64
-      - publish-centos-7-x86_64
-      - check-published-centos-7-x86_64
       - build-centos-8-x86_64
       - test-centos-8-x86_64
       - publish-centos-8-x86_64

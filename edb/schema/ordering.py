@@ -376,7 +376,7 @@ def reconstruct_tree(
 
             allowed_ops = []
             create_cmd_t = ancestor_op.get_other_command_class(sd.CreateObject)
-            if type(ancestor_op) != create_cmd_t:
+            if type(ancestor_op) is not create_cmd_t:
                 allowed_ops.append(create_cmd_t)
             allowed_ops.append(type(ancestor_op))
 
@@ -700,7 +700,7 @@ def _trace_op(
                 # new one is created)
                 if not isinstance(ref, s_expraliases.Alias):
                     deps.add(('alter', ref_name_str))
-                if type(ref) == type(obj):
+                if type(ref) is type(obj):
                     deps.add(('rebase', ref_name_str))
 
                 # The deletion of any implicit ancestors needs to come after

@@ -136,9 +136,6 @@ the type cast if the parameter is optional.
   Parameter <str>$name (Ctrl+D for empty set `{}`):
   {}
 
-When using a client library, pass the idiomatic null pointer for your language:
-``null``, ``None``, ``nil``, etc.
-
 .. note::
 
   The ``<required foo>`` type cast is also valid (though redundant) syntax.

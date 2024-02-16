@@ -65,9 +65,6 @@ async def execute(
     *,
     fe_conn: frontend.AbstractFrontendConnection = None,
     use_prep_stmt: bint = False,
-    # HACK: A hook from the notebook ext, telling us to skip dbview.start
-    # so that it can handle things differently.
-    skip_start: bint = False,
 ):
     cdef:
         bytes state = None, orig_state = None
@@ -89,15 +86,18 @@ async def execute(
             # the current status in be_conn is in sync with dbview, skip the
             # state restoring
             state = None
-        if not skip_start:
-            dbv.start(query_unit)
+        dbv.start(query_unit)
         if query_unit.create_db_template:
             await tenant.on_before_create_db_from_template(
                 query_unit.create_db_template,
                 dbv.dbname,
             )
         if query_unit.drop_db:
-            await tenant.on_before_drop_db(query_unit.drop_db, dbv.dbname)
+            await tenant.on_before_drop_db(
+                query_unit.drop_db,
+                dbv.dbname,
+                close_frontend_conns=query_unit.drop_db_reset_connections,
+            )
         if query_unit.system_config:
             await execute_system_config(be_conn, dbv, query_unit, state)
         else:
@@ -158,6 +158,24 @@ async def execute(
                 dbv.declare_savepoint(
                     query_unit.sp_name, query_unit.sp_id)
 
+            if query_unit.create_db_template:
+                try:
+                    await tenant.on_after_create_db_from_template(
+                        query_unit.create_db,
+                        query_unit.create_db_template,
+                        query_unit.create_db_mode,
+                    )
+                except Exception:
+                    # Clean up the database if we failed to restore into it.
+                    # TODO: Is it worth having 'ready' flag that we set after
+                    # the database is fully set up, and use that to clean up
+                    # databases where a crash prevented doing this cleanup?
+                    db_name = f'{tenant.tenant_id}_{query_unit.create_db}'
+                    await be_conn.sql_execute(
+                        b'drop database "%s"' % db_name.encode('utf-8')
+                    )
+                    raise
+
             if query_unit.create_db:
                 await tenant.introspect_db(query_unit.create_db)
 
@@ -168,6 +186,12 @@ async def execute(
                 await dbv.apply_config_ops(be_conn, config_ops)
 
     except Exception as ex:
+        # If we made schema changes, include the new schema in the
+        # exception so that it can be used when interpreting.
+        if query_unit.user_schema:
+            if isinstance(ex, pgerror.BackendError):
+                ex._user_schema = query_unit.user_schema
+
         dbv.on_error()
 
         if query_unit.tx_commit and not be_conn.in_tx() and dbv.in_tx():
@@ -197,10 +221,6 @@ async def execute(
     finally:
         if query_unit.drop_db:
             tenant.allow_database_connections(query_unit.drop_db)
-        if query_unit.create_db_template:
-            tenant.allow_database_connections(
-                query_unit.create_db_template,
-            )
 
     return data
 
@@ -348,6 +368,11 @@ async def execute_script(
 
     except Exception as e:
         dbv.on_error()
+
+        # Include the new schema in the exception so that it can be
+        # used when interpreting.
+        if isinstance(e, pgerror.BackendError):
+            e._user_schema = dbv.get_user_schema_pickle()
 
         if not in_tx and dbv.in_tx():
             # Abort the implicit transaction
@@ -597,6 +622,8 @@ class DecimalEncoder(json.JSONEncoder):
                 ) + '}'
         if isinstance(obj, list):
             return '[' + ', '.join(map(self.encode, obj)) + ']'
+        if isinstance(obj, bytes):
+            return self.encode(base64.b64encode(obj).decode())
         if isinstance(obj, decimal.Decimal):
             return f'{obj:f}'
         return super().encode(obj)
@@ -672,8 +699,12 @@ async def interpret_error(
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:
+                # Grab the schema from the exception first, if it is present.
                 user_schema_pickle = (
-                    user_schema_pickle or db.user_schema_pickle)
+                    getattr(exc, '_user_schema', None)
+                    or user_schema_pickle
+                    or db.user_schema_pickle
+                )
                 global_schema_pickle = (
                     global_schema_pickle or db._index._global_schema_pickle
                 )

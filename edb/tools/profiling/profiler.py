@@ -110,6 +110,7 @@ class profile:
         self._dir: Union[str, pathlib.Path, None] = dir
         self._profiler: Optional[cProfile.Profile] = None
         self._dump_file_path: Optional[str] = None
+        self._profiler_enabled = False
 
     def __call__(self, func: T) -> T:
         """Apply decorator to a function."""
@@ -118,11 +119,16 @@ class profile:
         def wrapper(*args, **kwargs):
             tracing_singledispatch.profiling_in_progress.set()
             self.n_calls += 1
-            self.profiler.enable()
+            profiler_was_enabled_here = False
+            if not self._profiler_enabled:
+                self.profiler.enable()
+                self._profiler_enabled = True
+                profiler_was_enabled_here = True
             try:
                 return func(*args, **kwargs)
             finally:
-                self.profiler.disable()
+                if profiler_was_enabled_here:
+                    self.profiler.disable()
                 if self.n_calls % self.save_every_n_calls == 0:
                     self.dump_stats()
                 tracing_singledispatch.profiling_in_progress.clear()

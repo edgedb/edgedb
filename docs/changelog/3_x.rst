@@ -1256,3 +1256,35 @@ receive support for a year and a half after their initial release.
 * Correctly update functions when globals/aliases/computeds they depend on
   change
   (:eql:gh:`#6382`)
+
+3.6
+===
+* Fix UPDATE with rewrites on tuples
+  (:eql:gh:`#6337`)
+
+* Fix DML with constraints on abstract types
+  (:eql:gh:`#6421`)
+
+* Fix some interactions between FOR and optional values
+  (:eql:gh:`#6526`)
+
+* Fix inserts silently failing when a json->array cast handles 'null'
+  (:eql:gh:`#6544`)
+
+* Fix tracing of enums in type expressions
+  (:eql:gh:`#6548`)
+
+* Allow indexes that use user-defined functions to actually get hit
+  (:eql:gh:`#6551`)
+
+* Fix schema delta for RESET EXPRESSION
+  (:eql:gh:`#6463`)
+
+* Fix changing a pointer to be computed when there is a subtype
+  (:eql:gh:`#6565`)
+
+* Fix migrating between aliased and non-aliased computeds
+  (:eql:gh:`#6566`)
+
+* Fix some bugs involving union and coalescing of optional values
+  (:eql:gh:`#6590`)

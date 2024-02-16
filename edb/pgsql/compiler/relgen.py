@@ -240,6 +240,7 @@ def get_set_rvar(
                 null_query, (pgast.SelectStmt, pgast.NullRelation))
             null_query.where_clause = pgast.BooleanConstant(val=False)
 
+        relctx.update_scope_masks(ir_set, rvars.main.rvar, ctx=subctx)
         result_rvar = _include_rvars(rvars, scope_stmt=scope_stmt, ctx=subctx)
         for aspect in rvars.main.aspects:
             pathctx.put_path_rvar_if_not_exists(
@@ -601,9 +602,13 @@ def can_omit_optional_wrapper(
             ctx=ctx,
         )
 
+    if isinstance(ir_set.rptr, irast.TupleIndirectionPointer):
+        return can_omit_optional_wrapper(ir_set.rptr.source, new_scope, ctx=ctx)
+
     return bool(
         ir_set.expr is None
         and not ir_set.path_id.is_objtype_path()
+        and not ir_set.path_id.is_type_intersection_path()
         and ir_set.rptr
         and new_scope.is_visible(ir_set.rptr.source.path_id)
         and not ir_set.rptr.is_inbound
@@ -833,7 +838,6 @@ def process_set_as_link_property_ref(
     with ctx.new() as newctx:
         link_path_id = ir_set.path_id.src_path()
         assert link_path_id is not None
-        orig_link_path_id = link_path_id
 
         rptr_specialization: Optional[Set[irast.PointerRef]] = None
 
@@ -843,14 +847,12 @@ def process_set_as_link_property_ref(
                 irutils.collapse_type_intersection(ir_source))
             for ind_ptr in ind_ptrs:
                 rptr_specialization.update(ind_ptr.ptrref.rptr_specialization)
-
-            link_path_id = link_prefix.path_id.ptr_path()
         else:
             link_prefix = ir_source
 
-        source_scope_stmt = relctx.get_scope_stmt(
-            ir_source.path_id, ctx=newctx)
-
+        source_scope_stmt = relctx.maybe_get_scope_stmt(
+            ir_source.path_id, ctx=ctx
+        ) or ctx.rel
         link_rvar = pathctx.maybe_get_path_rvar(
             source_scope_stmt, link_path_id, aspect='source'
         )
@@ -861,6 +863,13 @@ def process_set_as_link_property_ref(
             link_rvar = relctx.new_pointer_rvar(
                 link_prefix.rptr, src_rvar=src_rvar,
                 link_bias=True, ctx=newctx)
+            # Make sure the link rvar understands the path_id we are using.
+            # (FIXME: Would it be better to pass this in to new_pointer_rvar?)
+            pathctx.put_path_bond(link_rvar.query, link_path_id.tgt_path())
+            var = pathctx.get_rvar_path_identity_var(
+                link_rvar, link_prefix.rptr.target.path_id, env=ctx.env)
+            pathctx.put_rvar_path_output(
+                link_rvar, link_path_id.tgt_path(), 'identity', var)
 
         if astutils.is_set_op_query(link_rvar.query):
             # If we have an rptr_specialization, then this is a link
@@ -885,7 +894,7 @@ def process_set_as_link_property_ref(
                     assert isinstance(rvar, pgast.PathRangeVar)
                     if ptr_ids is None or rvar.schema_object_id in ptr_ids:
                         pathctx.put_path_source_rvar(
-                            subquery, orig_link_path_id, rvar
+                            subquery, link_path_id, rvar
                         )
                         continue
                 # Spare get_path_var() from attempting to rebalance
@@ -1085,7 +1094,8 @@ def process_set_as_path(
             and not source_rptr.is_inbound
             and not irtyputils.is_computable_ptrref(source_rptr.ptrref)
             and not irutils.is_type_intersection_reference(ir_set)
-            and not pathctx.has_type_rewrite(ir_source.typeref, env=ctx.env)):
+            and not pathctx.link_needs_type_rewrite(
+                ir_source.typeref, env=ctx.env)):
 
         src_src_is_visible = ctx.scope_tree.is_visible(
             source_rptr.source.path_id)
@@ -1344,6 +1354,15 @@ def process_set_as_subquery(
         source_is_visible = False
 
     with ctx.new() as newctx:
+        # Suppress volatility refs while compiling schema
+        # aliases/globals.  While they might try to apply volatility
+        # refs due to FOR/free objects, it shouldn't be semantically
+        # necessary that they actually are attached to the enclosing
+        # location. This turns out to be an important optimization for
+        # ext::auth::ClientTokenIdentity.
+        if ir_set.is_schema_alias:
+            newctx.volatility_ref = ()
+
         outer_id = ir_set.path_id
         semi_join = False
 
@@ -1978,7 +1997,6 @@ def process_set_as_tuple(
             typeref=ir_set.typeref,
         )
 
-    relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr)
 
     # This is an unfortunate hack. If any of those types that we
@@ -2282,6 +2300,8 @@ def process_set_as_singleton_assertion(
                 ),
             ],
         )
+
+        output.add_null_test(arg_ref, newctx.rel)
 
         # Force Postgres to actually evaluate the result target
         # by putting it into an ORDER BY.

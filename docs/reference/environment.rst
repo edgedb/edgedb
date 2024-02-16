@@ -209,6 +209,16 @@ Server variables
 These variables will work whether you are running EdgeDB inside Docker or not.
 
 
+EDGEDB_DEBUG_HTTP_INJECT_CORS
+.............................
+
+Set to ``1`` to have EdgeDB send appropriate CORS headers with HTTP responses.
+
+.. note::
+
+    This is set to ``1`` by default for EdgeDB Cloud instances.
+
+
 .. _ref_reference_envvar_admin_ui:
 
 EDGEDB_SERVER_ADMIN_UI

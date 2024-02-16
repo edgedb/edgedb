@@ -130,6 +130,9 @@ class flags(metaclass=FlagsMeta):
     delta_execute = Flag(
         doc="Output SQL commands as executed during migration.")
 
+    delta_execute_ddl = Flag(
+        doc="Output just the DDL commands as executed during migration.")
+
     server = Flag(
         doc="Print server errors.")
 
@@ -138,9 +141,6 @@ class flags(metaclass=FlagsMeta):
 
     server_clobber_pg_conns = Flag(
         doc="Discard Postgres connections when releasing them to the pool.")
-
-    http_inject_cors = Flag(
-        doc="Inject 'Access-Control-Allow-Origin: *' header in HTTP ports.")
 
     print_locals = Flag(
         doc="Include values of local variables in tracebacks.")

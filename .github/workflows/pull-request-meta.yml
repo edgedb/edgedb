@@ -1,0 +1,42 @@
+name: Pull Request Meta
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+
+  test-pr:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - name: Verify that postgres/ was not changed unintentionally
+      env:
+        PR_TITLE: ${{ github.event.pull_request.title }}
+      shell: bash
+      run: |
+        required_prefix="Update bundled PostgreSQL"
+
+        if [[ "$PR_TITLE" == $required_prefix* ]]; then
+          exit 0
+        fi
+
+        if git diff --quiet \
+          ${{ github.event.pull_request.base.sha }} \
+          ${{ github.event.pull_request.head.sha }} -- postgres/
+        then
+          echo 'all ok'
+        else
+          echo "postgres/ submodule has been changed,"\
+            "but PR title does not indicate that"
+          echo "(it should start with '$required_prefix')"
+          exit 1
+        fi

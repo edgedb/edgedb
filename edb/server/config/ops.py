@@ -317,6 +317,8 @@ def spec_to_json(spec: spec.Spec):
             typeid = s_obj.get_known_type_id('std::bool')
         elif _issubclass(setting.type, int):
             typeid = s_obj.get_known_type_id('std::int64')
+        elif _issubclass(setting.type, float):
+            typeid = s_obj.get_known_type_id('std::float32')
         elif _issubclass(setting.type, types.ConfigType):
             typeid = setting.type.get_edgeql_typeid()
         elif _issubclass(setting.type, statypes.Duration):

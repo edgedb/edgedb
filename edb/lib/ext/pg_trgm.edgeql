@@ -23,10 +23,10 @@ create extension package pg_trgm version '1.6' {
 
     create module ext::pg_trgm;
 
-    create type ext::pg_trgm::Config extending cfg::ConfigObject {
+    create type ext::pg_trgm::Config extending cfg::ExtensionConfig {
         create required property similarity_threshold: std::float32 {
             create annotation cfg::backend_setting :=
-                "pg_trgm.similarity_threshold";
+                '"pg_trgm.similarity_threshold"';
             create annotation std::description :=
                 "The current similarity threshold that is used by the "
                 ++ "pg_trgm::similar() function, the pg_trgm::gin and "
@@ -38,7 +38,7 @@ create extension package pg_trgm version '1.6' {
         };
         create required property word_similarity_threshold: std::float32 {
             create annotation cfg::backend_setting :=
-                "pg_trgm.word_similarity_threshold";
+                '"pg_trgm.word_similarity_threshold"';
             create annotation std::description :=
                 "The current word similarity threshold that is used by the "
                 ++ "pg_trgrm::word_similar() function. The threshold must be "
@@ -50,7 +50,7 @@ create extension package pg_trgm version '1.6' {
         create required property strict_word_similarity_threshold: std::float32
         {
             create annotation cfg::backend_setting :=
-                "pg_trgm.strict_word_similarity_threshold";
+                '"pg_trgm.strict_word_similarity_threshold"';
             create annotation std::description :=
                 "The current strict word similarity threshold that is used by "
                 ++ "the pg_trgrm::strict_word_similar() function. The "

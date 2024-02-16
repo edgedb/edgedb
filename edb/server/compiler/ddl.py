@@ -248,13 +248,29 @@ def compile_and_apply_ddl_stmt(
 
     create_db = None
     drop_db = None
+    drop_db_reset_connections = False
     create_db_template = None
+    create_db_mode = None
     if isinstance(stmt, qlast.DropDatabase):
         drop_db = stmt.name.name
+        drop_db_reset_connections = stmt.force
     elif isinstance(stmt, qlast.CreateDatabase):
         create_db = stmt.name.name
         create_db_template = stmt.template.name if stmt.template else None
+        create_db_mode = stmt.branch_type
+    elif isinstance(stmt, qlast.AlterDatabase):
+        for cmd in stmt.commands:
+            if isinstance(cmd, qlast.Rename):
+                drop_db = stmt.name.name
+                create_db = cmd.new_name.name
+                drop_db_reset_connections = stmt.force
 
+    if debug.flags.delta_execute_ddl:
+        debug.header('Delta Script (DDL Only)')
+        # The schema updates are always the last statement, so grab
+        # everything but
+        code = '\n\n'.join(block.get_statements()[:-1])
+        debug.dump_code(code, lexer='sql')
     if debug.flags.delta_execute:
         debug.header('Delta Script')
         debug.dump_code(b'\n'.join(sql), lexer='sql')
@@ -270,7 +286,9 @@ def compile_and_apply_ddl_stmt(
         ),
         create_db=create_db,
         drop_db=drop_db,
+        drop_db_reset_connections=drop_db_reset_connections,
         create_db_template=create_db_template,
+        create_db_mode=create_db_mode,
         ddl_stmt_id=ddl_stmt_id,
         user_schema=current_tx.get_user_schema_if_updated(),  # type: ignore
         cached_reflection=current_tx.get_cached_reflection_if_updated(),

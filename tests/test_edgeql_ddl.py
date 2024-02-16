@@ -8786,6 +8786,7 @@ type default::Foo {
     async def test_edgeql_ddl_extension_01(self):
         await self.con.execute(r"""
             CREATE EXTENSION PACKAGE MyExtension VERSION '1.0';
+            CREATE EXTENSION PACKAGE MyExtension VERSION '1.1';
             CREATE EXTENSION PACKAGE MyExtension VERSION '2.0';
         """)
 
@@ -8845,14 +8846,14 @@ type default::Foo {
             [{
                 'name': 'MyExtension',
                 'package': {
-                    'ver': [1, 0],
+                    'ver': [1, 1],
                 }
             }]
         )
 
         async with self.assertRaisesRegexTx(
             edgedb.SchemaError,
-            "version 1.0 is already installed",
+            "version 1.1 is already installed",
         ):
             await self.con.execute(r"""
                 CREATE EXTENSION MyExtension VERSION '2.0';
@@ -10189,6 +10190,26 @@ type default::Foo {
             };
             CREATE TYPE Comment EXTENDING Text;
         """)
+
+        await self.assert_query_result(
+            """
+            select schema::Constraint {
+                name, params: {name, @index} order by @index
+            }
+            filter .name = 'std::max_len_value'
+            and .subject.name = 'body'
+            and .subject[is schema::Pointer].source.name ='default::Text';
+            """,
+            [
+                {
+                    "name": "std::max_len_value",
+                    "params": [
+                        {"name": "__subject__", "@index": 0},
+                        {"name": "max", "@index": 1}
+                    ]
+                }
+            ],
+        )
 
         await self.con.execute("""
             ALTER TYPE Text
@@ -13085,6 +13106,25 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         #     ['test'],
         # )
 
+    async def test_edgeql_ddl_create_migration_05(self):
+        await self.con.execute('''
+            create type X { create property x -> str; };
+        ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidReferenceError,
+                "property 'x' does not"):
+            await self.con.execute('''
+                CREATE MIGRATION
+                {
+                    alter type default::X {
+                        alter property x rename to y;
+                    };
+                    alter type default::X {
+                        alter property x create constraint exclusive;
+                    };
+                };
+            ''')
+
     async def test_edgeql_ddl_naked_backlink_in_computable(self):
         await self.con.execute('''
             CREATE TYPE User {
@@ -13201,6 +13241,33 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             ALTER TYPE Note RENAME TO foo::Note;
             DROP TYPE foo::Note;
             DROP TYPE foo::Tag;
+        """)
+
+    async def test_edgeql_ddl_rewrite_and_trigger_01(self):
+        await self.con.execute("""
+            create type Entry {
+                create property x := 0;
+                create property y -> int64 {
+                    create rewrite insert, update using (.x);
+                };
+            };
+            create type Foo {
+                create trigger log0 after insert for each do (insert Entry);
+            };
+            create type Bar {
+                create trigger log1 after insert for each do (insert Foo);
+            };
+        """)
+
+        await self.con.execute(f"""
+            alter type Entry alter property x using (1)
+        """)
+
+        await self.con.execute(f"""
+            alter type Entry alter property y drop rewrite insert, update;
+        """)
+        await self.con.execute(f"""
+            alter type Foo drop trigger log0;
         """)
 
     async def _simple_rename_ref_test(
@@ -14154,6 +14221,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE REQUIRED LINK bar -> Tgt;
             };
+            CREATE TYPE Bar EXTENDING Foo;
         ''')
 
         await self.con.execute(r'''
@@ -14194,6 +14262,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE REQUIRED MULTI LINK bar -> Tgt;
             };
+            CREATE TYPE Bar EXTENDING Foo;
         ''')
 
         await self.con.execute(r'''
@@ -14234,6 +14303,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE PROPERTY bar -> str;
             };
+            CREATE TYPE Bar EXTENDING Foo;
             INSERT Foo { bar := "hello" };
             ALTER TYPE Foo { ALTER PROPERTY bar { USING ("world") } };
             ALTER TYPE Foo { ALTER PROPERTY bar RESET expression };
@@ -14254,6 +14324,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE MULTI PROPERTY bar -> str;
             };
+            CREATE TYPE Bar EXTENDING Foo;
             INSERT Foo { bar := {"foo", "bar"} };
             ALTER TYPE Foo { ALTER PROPERTY bar { USING ({"a", "b"}) } };
             ALTER TYPE Foo { ALTER PROPERTY bar RESET expression };
@@ -14275,6 +14346,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE MULTI LINK bar -> Tgt;
             };
+            CREATE TYPE Bar EXTENDING Foo;
             INSERT Foo { bar := (INSERT Tgt) };
             ALTER TYPE Foo { ALTER LINK bar { USING (Tgt) } };
             ALTER TYPE Foo { ALTER LINK bar RESET expression };
@@ -14295,6 +14367,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE MULTI PROPERTY bar -> str;
             };
+            CREATE TYPE Bar EXTENDING Foo;
             INSERT Foo { bar := {"foo", "bar"} };
             ALTER TYPE Foo { ALTER PROPERTY bar { USING ({"a", "b"}) } };
         ''')
@@ -14354,6 +14427,83 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             POPULATE MIGRATION;
             COMMIT MIGRATION;
         ''')
+
+    async def test_edgeql_ddl_adjust_computed_13(self):
+        await self.con.execute(r'''
+            create type X {
+                create property bar -> int64 {
+                    create constraint std::exclusive
+                }
+            };
+        ''')
+        await self.con.execute(r'''
+            alter type X alter property bar using ('1');
+        ''')
+
+    async def test_edgeql_ddl_adjust_computed_14(self):
+        await self.con.execute(r'''
+            create type X {
+                create property bar -> int64;
+                create constraint std::exclusive on (.bar);
+            };
+        ''')
+        await self.con.execute(r'''
+            alter type X alter property bar using ('1');
+        ''')
+
+    async def test_edgeql_ddl_adjust_computed_15(self):
+        await self.con.execute(r'''
+            create type Away {
+                create property x -> str;
+                create property y {
+                    using (.x ++ "!");
+                    create constraint exclusive;
+                }
+            };
+            create type Away2 extending Away;
+        ''')
+        await self.con.execute(r'''
+            alter type Away alter property y reset expression;
+        ''')
+
+        await self.con.execute("""
+            insert Away { x := '1', y := '1' }
+        """)
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            '',
+        ):
+            await self.con.execute("""
+                insert Away { x := '2', y := '1' }
+            """)
+
+    async def test_edgeql_ddl_adjust_computed_16(self):
+        # this is caused by the annoying thing where pointers that are
+        # a simple alias like this just inherit from the other point.
+        await self.con.execute(r'''
+            create type Away {
+                create property x -> str;
+                create property y {
+                    using (.x);
+                    create constraint exclusive;
+                }
+            };
+            create type Away2 extending Away;
+        ''')
+        await self.con.execute(r'''
+            alter type Away alter property y reset expression;
+        ''')
+
+        await self.con.execute("""
+            insert Away { x := '2', y := '1' }
+        """)
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            '',
+        ):
+            await self.con.execute("""
+                insert Away { x := '1', y := '1' }
+            """)
 
     async def test_edgeql_ddl_captured_as_migration_01(self):
 
@@ -15972,7 +16122,6 @@ DDLStatement);
 
 class TestDDLNonIsolated(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
-    PARALLELISM_GRANULARITY = 'suite'
 
     async def test_edgeql_ddl_consecutive_create_migration_01(self):
         # A regression test for https://github.com/edgedb/edgedb/issues/2085.
@@ -15990,6 +16139,51 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             CREATE TYPE default::B;
         };
         ''')
+
+    async def test_edgeql_ddl_no_tx_mig_error_01(self):
+        await self.con.execute('''
+            create type Mig01;
+            insert Mig01;
+        ''')
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r"missing value for required property 'n'"):
+            # Test it standalone
+            await self.con.query('''
+                alter type Mig01 create required property n -> int64;
+            ''')
+
+    async def test_edgeql_ddl_no_tx_mig_error_02(self):
+        await self.con.execute('''
+            create type Mig02;
+            insert Mig02;
+        ''')
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r"missing value for required property 'n'"):
+            # Test it in a script
+            await self.con.query('''
+                alter type Mig02 create required property n -> int64;
+                create type Mig02b;
+            ''')
+
+    async def test_edgeql_ddl_no_tx_mig_error_03(self):
+        await self.con.execute('''
+            create type Mig03;
+        ''')
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r"missing value for required property 'n'"):
+            # Test a non-DDL failure in the script where prop was created
+            await self.con.query('''
+                alter type Mig03 create required property n -> int64;
+                insert Mig03 { n := <int64>{} };
+            ''')
+
+
+class TestDDLExtensions(tb.DDLTestCase):
+    TRANSACTION_ISOLATION = False
+    PARALLELISM_GRANULARITY = 'suite'
 
     async def _extension_test_01(self):
         await self.con.execute('''
@@ -16415,22 +16609,19 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                         "session!";
                 ''')
 
-        # TODO: This should all work, instead!
-        async with self.assertRaisesRegexTx(
-                edgedb.UnsupportedFeatureError, ""):
-            await self.con.execute('''
-                configure session set ext::_conf::Config::config_name :=
-                    "session!";
-            ''')
+        await self.con.execute('''
+            configure session set ext::_conf::Config::config_name :=
+                "session!";
+        ''')
 
-            await _check(
-                config_name='session!',
-                objs=[],
-            )
+        await _check(
+            config_name='session!',
+            objs=[],
+        )
 
-            await self.con.execute('''
-                configure session reset ext::_conf::Config::config_name;
-            ''')
+        await self.con.execute('''
+            configure session reset ext::_conf::Config::config_name;
+        ''')
 
         await _check(
             config_name='test',
@@ -16658,6 +16849,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                      'name': '2', 'value': 'bar', 'opt_value': 'opt.'},
                     {'_tname': 'ext::_conf::SubObj',
                      'name': '3', 'value': 'baz', 'extra': 42,
+                     'duration_config': 'PT10M',
                      'opt_value': None},
                     {'_tname': 'ext::_conf::SecretObj',
                      'name': '4', 'value': 'foo',
@@ -16703,6 +16895,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             value := 'quux',
         };
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
+            duration_config := <std::duration>'PT10M',
             extra := 42,
             name := '3',
             value := 'baz',
@@ -16822,7 +17015,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
     async def _extension_test_06b(self):
         await self.con.execute(r"""
             START MIGRATION TO {
-                using extension bar version "1.1";
+                using extension bar version "2.0";
                 module default {
                     function lol() -> str using (ext::bar::fubar())
                 }
@@ -16840,7 +17033,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         async with self._run_and_rollback():
             await self.con.execute(r"""
                 START MIGRATION TO {
-                    using extension bar version "1.1";
+                    using extension bar version "2.0";
                     module default {
                     }
                 };
@@ -16852,7 +17045,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         async with self._run_and_rollback():
             await self.con.execute(r"""
                 START MIGRATION TO {
-                    using extension bar version "1.1";
+                    using extension bar version "2.0";
                     module default {
                     }
                 };
@@ -16903,13 +17096,13 @@ class TestDDLNonIsolated(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
             edgedb.SchemaError,
-            "cannot install extension 'foo' version 1.1: "
+            "cannot install extension 'foo' version 2.0: "
             "version 1.0 is already installed"
         ):
             await self.con.execute(r"""
                 START MIGRATION TO {
                     using extension bar version '1.0';
-                    using extension foo version '1.1';
+                    using extension foo version '2.0';
                     module default {
                     }
                 };
@@ -16925,7 +17118,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
               create module ext::foo;
               create function ext::foo::test() -> str using ("foo?");
             };
-            create extension package foo VERSION '1.1' {
+            create extension package foo VERSION '2.0' {
               set ext_module := "ext::foo";
               create module ext::foo;
               create function ext::foo::test() -> str using ("foo");
@@ -16938,9 +17131,9 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 ext::foo::test() ++ "bar"
               );
             };
-            create extension package bar VERSION '1.1' {
+            create extension package bar VERSION '2.0' {
               set ext_module := "ext::bar";
-              set dependencies := ["foo==1.1"];
+              set dependencies := ["foo==2.0"];
               create module ext::bar;
               create function ext::bar::fubar() -> str using (
                 ext::foo::test() ++ "bar"
@@ -16954,6 +17147,8 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             await self.con.execute('''
                 drop extension package bar VERSION '1.0';
                 drop extension package foo VERSION '1.0';
+                drop extension package bar VERSION '2.0';
+                drop extension package foo VERSION '2.0';
             ''')
 
     async def test_edgeql_ddl_reindex(self):

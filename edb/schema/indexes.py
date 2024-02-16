@@ -122,6 +122,9 @@ def is_index_valid_for_type(
             'ext::pgvector::ivfflat_euclidean'
             | 'ext::pgvector::ivfflat_ip'
             | 'ext::pgvector::ivfflat_cosine'
+            | 'ext::pgvector::hnsw_euclidean'
+            | 'ext::pgvector::hnsw_ip'
+            | 'ext::pgvector::hnsw_cosine'
         ):
             return expr_type.issubclass(
                 schema,
@@ -160,6 +163,15 @@ class Index(
     qlkind=qltypes.SchemaObjectClass.INDEX,
     data_safe=True,
 ):
+    # redefine, so we can change compcoef
+    bases = so.SchemaField(
+        so.ObjectList['Index'],  # type: ignore
+        type_is_generic_self=True,
+        default=so.DEFAULT_CONSTRUCTOR,
+        coerce=True,
+        inheritable=False,
+        compcoef=0.0,  # can't rebase
+    )
 
     subject = so.SchemaField(
         so.Object,
@@ -203,7 +215,7 @@ class Index(
         s_expr.Expression,
         default=None,
         coerce=True,
-        compcoef=0.909,
+        compcoef=0.0,
         ddl_identity=True,
     )
 
@@ -211,7 +223,7 @@ class Index(
         s_expr.Expression,
         default=None,
         coerce=True,
-        compcoef=0.909,
+        compcoef=0.0,
         ddl_identity=True,
     )
 
@@ -275,7 +287,7 @@ class Index(
 
         return super().add_parent_name(base_name, schema)
 
-    def generic(self, schema: s_schema.Schema) -> bool:
+    def is_non_concrete(self, schema: s_schema.Schema) -> bool:
         return self.get_subject(schema) is None
 
     @classmethod

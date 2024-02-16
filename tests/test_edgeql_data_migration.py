@@ -11589,6 +11589,9 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
               multi foo: int64 {
                 constraint exclusive;
               }
+              bar: int64 {
+                constraint exclusive;
+              }
             }
             type Post;
         ''')
@@ -11597,11 +11600,78 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type User {
               multi link posts := .<user[is Post];
               multi property foo := Post.num;
+              property bar := -1;
             }
             type Post {
               user: User;
               num: int64;
             }
+        ''')
+
+    async def test_edgeql_migration_between_computeds_01(self):
+        await self.migrate(r'''
+            type Away {
+                x: str;
+                property y {
+                    using (.x ++ "!");
+                    constraint exclusive;
+                }
+            };
+            type Away2 extending Away;
+        ''')
+
+        await self.migrate(r'''
+            type Away {
+                x: str;
+                property y -> str {
+                    constraint exclusive;
+                }
+            };
+            type Away2 extending Away;
+        ''')
+
+    async def test_edgeql_migration_between_computeds_02(self):
+        await self.migrate(r'''
+            type Away {
+                x: str;
+                property y {
+                    using (.x);
+                    constraint exclusive;
+                }
+            };
+            type Away2 extending Away;
+        ''')
+
+        await self.migrate(r'''
+            type Away {
+                x: str;
+                property y {
+                    using (.x ++ "!");
+                    constraint exclusive;
+                }
+            };
+            type Away2 extending Away;
+        ''')
+
+        await self.migrate(r'''
+            type Away {
+                x: str;
+                property y {
+                    using (.x);
+                    constraint exclusive;
+                }
+            };
+            type Away2 extending Away;
+        ''')
+
+        await self.migrate(r'''
+            type Away {
+                x: str;
+                property y -> str {
+                    constraint exclusive;
+                }
+            };
+            type Away2 extending Away;
         ''')
 
     async def test_edgeql_migration_alias_new_computed_01(self):
@@ -12008,7 +12078,7 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         # Add vector and migrate automatically (because we have an assignment
         # cast available from array<int64> to vector).
         await self.migrate('''
-            using extension pgvector version '0.4';
+            using extension pgvector version '0.5';
 
             module default {
                 scalar type v3 extending ext::pgvector::vector<3>;

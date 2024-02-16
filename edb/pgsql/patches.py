@@ -75,6 +75,7 @@ The current kinds are:
  * ...+config - updates config views
  * ext-pkg - installs an extension package given a name
  * repair - fix up inconsistencies in *user* schemas
+ * sql-introspection - refresh all sql introspection views
 """
 PATCHES: list[tuple[str, str]] = _setup_patches([
 ])

@@ -466,9 +466,9 @@ class DeleteCast(CastCommand, sd.DeleteObject[Cast]):
         schema = super()._delete_begin(schema, context)
         if not context.canonical:
             from_type = self.scls.get_from_type(schema)
-            if op := from_type.as_type_delete_if_dead(schema):
+            if op := from_type.as_type_delete_if_unused(schema):
                 self.add_caused(op)
             to_type = self.scls.get_to_type(schema)
-            if op := to_type.as_type_delete_if_dead(schema):
+            if op := to_type.as_type_delete_if_unused(schema):
                 self.add_caused(op)
         return schema

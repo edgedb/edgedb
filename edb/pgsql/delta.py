@@ -83,7 +83,7 @@ from edb.server import defines as edbdef
 from edb.server import config
 from edb.server.config import ops as config_ops
 
-from . import ast as pg_ast
+from . import ast as pgast
 from .common import qname as q
 from .common import quote_literal as ql
 from .common import quote_ident as qi
@@ -102,16 +102,21 @@ if TYPE_CHECKING:
 VIEW_MODULES = ('sys', 'cfg')
 
 
-def has_table(obj, schema):
+def has_table(obj: Optional[so.InheritingObject], schema: s_schema.Schema):
+    assert obj
+
     if isinstance(obj, s_objtypes.ObjectType):
         return not (
             obj.is_compound_type(schema) or
             obj.get_is_derived(schema) or
             obj.is_view(schema)
         )
-    elif obj.is_pure_computable(schema) or obj.get_is_derived(schema):
+
+    assert isinstance(obj, s_pointers.Pointer)
+
+    if obj.is_pure_computable(schema) or obj.get_is_derived(schema):
         return False
-    elif obj.generic(schema):
+    elif obj.is_non_concrete(schema):
         return (
             not isinstance(obj, s_props.Property)
             and str(obj.get_name(schema)) != 'std::link'
@@ -330,6 +335,7 @@ class Query(MetaCommand, adapts=sd.Query):
             explicit_top_cast=irtyputils.type_to_typeref(
                 schema,
                 schema.get('std::str', type=s_types.Type),
+                cache=None,
             ),
             backend_runtime_params=context.backend_runtime_params,
         )
@@ -1242,7 +1248,7 @@ class FunctionCommand(MetaCommand):
             nativecode.irast,
             ignore_shapes=True,
             explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
-                schema, func.get_return_type(schema)),
+                schema, func.get_return_type(schema), cache=None),
             output_format=compiler.OutputFormat.NATIVE,
             named_param_prefix=self.get_pgname(func, schema)[-1:],
         )
@@ -1368,7 +1374,7 @@ class FunctionCommand(MetaCommand):
                 nativecode.irast,
                 ignore_shapes=True,
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
-                    schema, func.get_return_type(schema)),
+                    schema, func.get_return_type(schema), cache=None),
                 output_format=compiler.OutputFormat.NATIVE,
                 named_param_prefix=self.get_pgname(func, schema)[-1:],
                 backend_runtime_params=context.backend_runtime_params,
@@ -2071,7 +2077,7 @@ class ConstraintCommand(MetaCommand):
 
         ancestors = [
             a for a in constraint.get_ancestors(schema).objects(schema)
-            if not a.generic(schema)
+            if not a.is_non_concrete(schema)
         ]
 
         if (
@@ -2085,7 +2091,7 @@ class ConstraintCommand(MetaCommand):
 
         match subject:
             case s_pointers.Pointer():
-                if subject.generic(schema):
+                if subject.is_non_concrete(schema):
                     return True
                 else:
                     return has_table(subject.get_source(schema), schema)
@@ -2627,7 +2633,9 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 prop:
                 s_utils.type_shell_multi_substitute(
                     type_substs,
-                    not_none(prop.get_target(schema)).as_shell(schema))
+                    not_none(prop.get_target(schema)).as_shell(schema),
+                    schema,
+                )
                 for prop in seen_props
             }
 
@@ -2758,7 +2766,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         cmd = sd.DeltaRoot()
         for prop, new_typ in props.items():
             rnew_typ = new_typ.resolve(schema)
-            if delete := rnew_typ.as_type_delete_if_dead(schema):
+            if delete := rnew_typ.as_type_delete_if_unused(schema):
                 cmd.add_caused(delete)
 
             delta_alter, cmd_alter, _ = prop.init_delta_branch(
@@ -3071,9 +3079,9 @@ class CompositeMetaCommand(MetaCommand):
         if dbops.AlterTable not in self._multicommands:
             mod, name = common.get_backend_name(
                 schema, self.scls, aspect='inhview', catenate=False)
-            self.pgops.add(dbops.Query(f'''\
+            self.pgops.add(dbops.Query(textwrap.dedent(f'''\
                 ALTER VIEW IF EXISTS {mod}."{name}" SET SCHEMA {mod};
-            '''))
+            ''')))
 
         return self._get_multicommand(
             context, dbops.AlterTable, tabname,
@@ -3305,7 +3313,7 @@ class CompositeMetaCommand(MetaCommand):
             ptrs
             and isinstance(obj, s_links.Link)
             and sn.UnqualName('source') not in ptrs
-            and obj.generic(schema)
+            and obj.is_non_concrete(schema)
         ):
             ptrs[sn.UnqualName('source')] = ('source', ('uuid',))
 
@@ -3522,28 +3530,45 @@ class CompositeMetaCommand(MetaCommand):
 
 
 class IndexCommand(MetaCommand):
-    @classmethod
-    def get_compile_options(
-        cls,
-        index: s_indexes.Index,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        schema_object_context: Type[so.Object_T],
-    ) -> qlcompiler.CompilerOptions:
-        subject = index.get_subject(schema)
-        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+    pass
 
-        singletons = [subject]
-        path_prefix_anchor = ql_ast.Subject().name
 
-        return qlcompiler.CompilerOptions(
-            modaliases=context.modaliases,
-            schema_object_context=schema_object_context,
-            anchors={ql_ast.Subject().name: subject},
-            path_prefix_anchor=path_prefix_anchor,
-            singletons=singletons,
-            apply_query_rewrites=False,
-        )
+def get_index_compile_options(
+    index: s_indexes.Index,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    schema_object_context: Optional[Type[so.Object_T]],
+) -> qlcompiler.CompilerOptions:
+    subject = index.get_subject(schema)
+    assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+
+    singletons = [subject]
+    path_prefix_anchor = ql_ast.Subject().name
+
+    return qlcompiler.CompilerOptions(
+        modaliases=modaliases,
+        schema_object_context=schema_object_context,
+        anchors={ql_ast.Subject().name: subject},
+        path_prefix_anchor=path_prefix_anchor,
+        singletons=singletons,
+        apply_query_rewrites=False,
+    )
+
+
+def get_reindex_sql(
+    obj: s_objtypes.ObjectType,
+    schema: s_schema.Schema,
+) -> Optional[str]:
+    "Generate SQL statement that repopulates the index after a restore."
+    "Currently this only applies to FTS indexes."
+
+    (fts_index, _) = s_indexes.get_effective_fts_index(obj, schema)
+    if fts_index:
+        options = get_index_compile_options(fts_index, schema, {}, None)
+        cmd = deltafts.update_fts_document(fts_index, options, schema)
+        return cmd.code(None)
+
+    return None
 
 
 class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
@@ -3556,8 +3581,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     ):
         from .compiler import astutils
 
-        options = cls.get_compile_options(
-            index, schema, context, cls.get_schema_metaclass()
+        options = get_index_compile_options(
+            index, schema, context.modaliases, cls.get_schema_metaclass()
         )
 
         index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
@@ -3622,7 +3647,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 # casts, strip them as they mess with the requirement that
                 # index expressions are IMMUTABLE (also indexes expect the
                 # usage of literals and will do their own implicit casts).
-                if isinstance(kw_sql_tree, pg_ast.TypeCast):
+                if isinstance(kw_sql_tree, pgast.TypeCast):
                     kw_sql_tree = kw_sql_tree.arg
                 sql = codegen.generate_source(kw_sql_tree)
                 sql_kwarg_exprs[name] = sql
@@ -3777,8 +3802,11 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         if index.has_base_with_name(orig_schema, sn.QualName('fts', 'index')):
 
             # compile commands for index drop
-            options = self.get_compile_options(
-                index, orig_schema, context, self.get_schema_metaclass()
+            options = get_index_compile_options(
+                index,
+                orig_schema,
+                context.modaliases,
+                self.get_schema_metaclass()
             )
             drop_ops = deltafts.delete_fts_index(
                 index, drop_index, options, schema, orig_schema, context
@@ -3853,7 +3881,12 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
 
         from edb.pgsql import metaschema
 
-        new_local_spec = config.load_spec_from_schema(schema, only_exts=True)
+        new_local_spec = config.load_spec_from_schema(
+            schema,
+            only_exts=True,
+            # suppress validation because we might be in an intermediate state
+            validate=False,
+        )
         spec_json = config.spec_to_json(new_local_spec)
         self.pgops.add(dbops.Query(textwrap.dedent(f'''\
             UPDATE
@@ -4826,8 +4859,7 @@ class PointerMetaCommand(
             tgt_path_id = ir.singletons[0]
         else:
             tgt_path_id = irpathid.PathId.from_pointer(
-                orig_schema,
-                pointer,
+                orig_schema, pointer, env=None
             )
 
         refs = irutils.get_longest_paths(ir.expr)
@@ -4886,7 +4918,7 @@ class PointerMetaCommand(
         # generate a unique path id for the outer scope
         typ = orig_schema.get(f'schema::ObjectType', type=s_types.Type)
         outer_path = irast.PathId.from_type(
-            orig_schema, typ, typename=sn.QualName("std", "obj")
+            orig_schema, typ, typename=sn.QualName("std", "obj"), env=None,
         )
 
         root_uid = -1
@@ -4952,7 +4984,7 @@ class PointerMetaCommand(
             backend_runtime_params=context.backend_runtime_params,
         )
         sql_tree = sql_res.ast
-        assert isinstance(sql_tree, pg_ast.SelectStmt)
+        assert isinstance(sql_tree, pgast.SelectStmt)
 
         if produce_ctes:
             # ensure the result contains the object id in the second column
@@ -4969,47 +5001,47 @@ class PointerMetaCommand(
         if check_non_null:
             # wrap into raise_on_null
             pointer_name = 'link' if is_link else 'property'
-            msg = pg_ast.StringConstant(
+            msg = pgast.StringConstant(
                 val=f"missing value for required {pointer_name}"
             )
             # Concat to string which is a JSON. Great. Equivalent to SQL:
             # '{"object_id": "' || {obj_id_ref} || '"}'
-            detail = pg_ast.Expr(
+            detail = pgast.Expr(
                 name='||',
-                lexpr=pg_ast.StringConstant(val='{"object_id": "'),
-                rexpr=pg_ast.Expr(
+                lexpr=pgast.StringConstant(val='{"object_id": "'),
+                rexpr=pgast.Expr(
                     name='||',
-                    lexpr=pg_ast.ColumnRef(name=('id', )),
-                    rexpr=pg_ast.StringConstant(val='"}'),
+                    lexpr=pgast.ColumnRef(name=('id',)),
+                    rexpr=pgast.StringConstant(val='"}'),
                 )
             )
-            column = pg_ast.StringConstant(val=str(pointer.id))
+            column = pgast.StringConstant(val=str(pointer.id))
 
-            null_check = pg_ast.FuncCall(
+            null_check = pgast.FuncCall(
                 name=("edgedb", "raise_on_null"),
                 args=[
-                    pg_ast.ColumnRef(name=("val", )),
-                    pg_ast.StringConstant(val="not_null_violation"),
-                    pg_ast.NamedFuncArg(name="msg", val=msg),
-                    pg_ast.NamedFuncArg(name="detail", val=detail),
-                    pg_ast.NamedFuncArg(name="column", val=column),
+                    pgast.ColumnRef(name=("val",)),
+                    pgast.StringConstant(val="not_null_violation"),
+                    pgast.NamedFuncArg(name="msg", val=msg),
+                    pgast.NamedFuncArg(name="detail", val=detail),
+                    pgast.NamedFuncArg(name="column", val=column),
                 ],
             )
 
             inner_colnames = ["val"]
-            target_list = [pg_ast.ResTarget(val=null_check)]
+            target_list = [pgast.ResTarget(val=null_check)]
             if produce_ctes:
                 inner_colnames.append("id")
                 target_list.append(
-                    pg_ast.ResTarget(val=pg_ast.ColumnRef(name=("id", )))
+                    pgast.ResTarget(val=pgast.ColumnRef(name=("id",)))
                 )
 
-            sql_tree = pg_ast.SelectStmt(
+            sql_tree = pgast.SelectStmt(
                 target_list=target_list,
                 from_clause=[
-                    pg_ast.RangeSubselect(
+                    pgast.RangeSubselect(
                         subquery=sql_tree,
-                        alias=pg_ast.Alias(
+                        alias=pgast.Alias(
                             aliasname="_inner", colnames=inner_colnames
                         )
                     )
@@ -5020,11 +5052,13 @@ class PointerMetaCommand(
 
         if produce_ctes:
             # convert root query into last CTE
-            ctes.append(pg_ast.CommonTableExpr(
-                name="_conv_rel",
-                aliascolnames=["val", "id"],
-                query=sql_tree
-            ))
+            ctes.append(
+                pgast.CommonTableExpr(
+                    name="_conv_rel",
+                    aliascolnames=["val", "id"],
+                    query=sql_tree,
+                )
+            )
             # compile to SQL
             ctes_sql = codegen.generate_ctes_source(ctes)
 
@@ -5059,8 +5093,13 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
 
     @classmethod
     def _create_table(
-            cls, link, schema, context, conditional=False, create_bases=True,
-            create_children=True):
+        cls,
+        link: s_links.Link,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        conditional: bool = False,
+        create_children: bool = True,
+    ):
         new_table_name = cls._get_table_name(link, schema)
 
         create_c = dbops.CommandGroup()
@@ -5083,8 +5122,8 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 table_name=new_table_name,
                 columns=[src_col, tgt_col]))
 
-        if not link.generic(schema) and link.scalar():
-            tgt_prop = link.getptr(schema, 'target')
+        if not link.is_non_concrete(schema) and link.scalar():
+            tgt_prop = link.getptr(schema, sn.UnqualName('target'))
             tgt_ptr = types.get_pointer_storage_info(
                 tgt_prop, schema=schema)
             columns.append(
@@ -5131,8 +5170,12 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             for l_descendant in link.descendants(schema):
                 if has_table(l_descendant, schema):
                     lc = LinkMetaCommand._create_table(
-                        l_descendant, schema, context, conditional=True,
-                        create_bases=False, create_children=False)
+                        l_descendant,
+                        schema,
+                        context,
+                        conditional=True,
+                        create_children=False,
+                    )
                     create_c.add_command(lc)
 
         return create_c
@@ -5271,7 +5314,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
         old_table_name = self._get_table_name(link, schema)
 
         if (
-            not link.generic(orig_schema)
+            not link.is_non_concrete(orig_schema)
             and has_table(link.get_source(orig_schema), orig_schema)
             and not link.is_pure_computable(orig_schema)
         ):
@@ -5400,7 +5443,7 @@ class AlterLinkUpperCardinality(
         # or else the view update in the child might fail if a
         # link table isn't created in the parent yet.
         if (
-            not self.scls.generic(schema)
+            not self.scls.is_non_concrete(schema)
             and not self.scls.is_pure_computable(schema)
             and has_table(self.scls.get_source(schema), schema)
         ):
@@ -5424,7 +5467,7 @@ class AlterLinkLowerCardinality(
         orig_schema = schema
         schema = super().apply(schema, context)
 
-        if not self.scls.generic(schema):
+        if not self.scls.is_non_concrete(schema):
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
@@ -5462,7 +5505,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
         orig_schema = context.current().original_schema
 
         link = self.scls
-        is_abs = link.generic(schema)
+        is_abs = link.is_non_concrete(schema)
         is_comp = link.is_pure_computable(schema)
         was_comp = link.is_pure_computable(orig_schema)
 
@@ -5534,13 +5577,17 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
     @classmethod
     def _create_table(
-            cls, prop, schema, context, conditional=False, create_bases=True,
-            create_children=True):
+        cls,
+        prop: s_props.Property,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        conditional: bool = False,
+        create_children: bool = True,
+    ):
         new_table_name = cls._get_table_name(prop, schema)
 
         create_c = dbops.CommandGroup()
 
-        constraints = []
         columns = []
 
         src_col = common.edgedb_name_to_pg_name('source')
@@ -5561,13 +5608,12 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
         ci = dbops.CreateIndex(pg_index)
 
-        if not prop.generic(schema):
+        if not prop.is_non_concrete(schema):
             tgt_cols = cls.get_columns(prop, schema, None)
             columns.extend(tgt_cols)
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
-        table.constraints = constraints
 
         ct = dbops.CreateTable(table=table)
 
@@ -5593,8 +5639,12 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
             for p_descendant in prop.descendants(schema):
                 if has_table(p_descendant, schema):
                     pc = PropertyMetaCommand._create_table(
-                        p_descendant, schema, context, conditional=True,
-                        create_bases=False, create_children=False)
+                        p_descendant,
+                        schema,
+                        context,
+                        conditional=True,
+                        create_children=False,
+                    )
                     create_c.add_command(pc)
 
         return create_c
@@ -5867,7 +5917,7 @@ class AlterPropertyUpperCardinality(
         # or else the view update in the child might fail if a
         # link table isn't created in the parent yet.
         if (
-            not self.scls.generic(schema)
+            not self.scls.is_non_concrete(schema)
             and not self.scls.is_pure_computable(schema)
             and not self.scls.is_endpoint_pointer(schema)
             and has_table(self.scls.get_source(schema), schema)
@@ -5892,7 +5942,7 @@ class AlterPropertyLowerCardinality(
         orig_schema = schema
         schema = super().apply(schema, context)
 
-        if not self.scls.generic(schema):
+        if not self.scls.is_non_concrete(schema):
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
@@ -6611,12 +6661,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 and link.get_implicit_bases(eff_schema)
             ) and isinstance(link, s_links.Link)
 
-            if (
-                link.generic(eff_schema)
-                or (
-                    link.is_pure_computable(eff_schema)
-                    and link.is_pure_computable(orig_schema)
-                )
+            if link.is_non_concrete(eff_schema) or (
+                link.is_pure_computable(eff_schema)
+                and link.is_pure_computable(orig_schema)
             ):
                 continue
 
@@ -6965,8 +7012,11 @@ class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
         tenant_id = self._get_tenant_id(context)
         db_name = common.get_database_backend_name(
             str(self.classname), tenant_id=tenant_id)
+        # We always use the base template, even for branches, since we
+        # implement branches ourselves using pg_dump in order to avoid
+        # connection restrictions.
         tpl_name = common.get_database_backend_name(
-            self.template or edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
+            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
         self.pgops.add(
             dbops.CreateDatabase(
                 dbops.Database(
@@ -6975,7 +7025,6 @@ class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
                         id=str(db.id),
                         tenant_id=tenant_id,
                         builtin=self.get_attribute_value('builtin'),
-                        name=str(self.classname),
                     ),
                 ),
                 template=tpl_name,
@@ -6998,6 +7047,36 @@ class DropDatabase(MetaCommand, DatabaseMixin, adapts=s_db.DropDatabase):
         db_name = common.get_database_backend_name(
             str(self.classname), tenant_id=tenant_id)
         self.pgops.add(dbops.DropDatabase(db_name))
+        return schema
+
+
+class AlterDatabase(MetaCommand, DatabaseMixin, adapts=s_db.AlterDatabase):
+    pass
+
+
+class RenameDatabase(MetaCommand, DatabaseMixin, adapts=s_db.RenameDatabase):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        backend_params = self._get_backend_params(context)
+        self.ensure_has_create_database(backend_params)
+
+        schema = super().apply(schema, context)
+        tenant_id = self._get_tenant_id(context)
+        db_name = common.get_database_backend_name(
+            str(self.classname), tenant_id=tenant_id)
+        new_name = common.get_database_backend_name(
+            str(self.new_name), tenant_id=tenant_id)
+        self.pgops.add(
+            dbops.RenameDatabase(
+                dbops.Database(
+                    new_name,
+                ),
+                old_name=db_name,
+            )
+        )
         return schema
 
 

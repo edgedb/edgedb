@@ -37,7 +37,6 @@ import immutables
 
 from edb.common import debug
 from edb.common import markup
-from edb.common import taskgroup
 
 from .. import metrics
 from .. import args as srvargs
@@ -610,7 +609,7 @@ async def server_main(
         )
         await pool.start()
         try:
-            async with taskgroup.TaskGroup() as tg:
+            async with asyncio.TaskGroup() as tg:
                 tg.create_task(
                     _run_server(
                         loop,

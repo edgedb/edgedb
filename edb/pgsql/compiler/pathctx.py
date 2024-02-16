@@ -45,6 +45,7 @@ class PathAspect(s_enum.StrEnum):
     VALUE = 'value'
     SOURCE = 'source'
     SERIALIZED = 'serialized'
+    ITERATOR = 'iterator'
 
 
 # A mapping of more specific aspect -> less specific aspect for objects
@@ -698,8 +699,14 @@ def put_path_serialized_var_if_not_exists(
 
 
 def put_path_bond(
-        stmt: pgast.BaseRelation, path_id: irast.PathId) -> None:
-    stmt.path_scope.add(path_id)
+    stmt: pgast.BaseRelation, path_id: irast.PathId, iterator: bool=False
+) -> None:
+    '''Register a path id that should be joined on when joining stmt
+
+    iterator indicates whether the identity or iterator aspect should
+    be used.
+    '''
+    stmt.path_bonds.add((path_id, iterator))
 
 
 def put_rvar_path_bond(
@@ -1087,6 +1094,19 @@ def has_type_rewrite(
     )
 
 
+def link_needs_type_rewrite(
+        typeref: irast.TypeRef, *, env: context.Environment) -> bool:
+    return (
+        has_type_rewrite(typeref, env=env)
+        # Typically we need to apply rewrites when looking at a link
+        # target that has a policy on it, but we suppress this for
+        # schema::ObjectType. None of the hidden objects should be
+        # user visible anyway, and this allows us to do type id
+        # injection without a join.
+        and str(typeref.real_material_type.name_hint) != 'schema::ObjectType'
+    )
+
+
 def find_path_output(
     rel: pgast.BaseRelation, ref: pgast.BaseExpr
 ) -> Optional[pgast.OutputVar]:
@@ -1145,7 +1165,7 @@ def _get_path_output(
             and src_rptr.real_material_ptr.out_cardinality.is_multi()
             and not irtyputils.is_free_object(src_path_id.target)
         )
-        and not has_type_rewrite(src_path_id.target, env=env)
+        and not link_needs_type_rewrite(src_path_id.target, env=env)
     ):
         # A value reference to Object.id is the same as a value
         # reference to the Object itself. (Though we want to only

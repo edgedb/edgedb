@@ -149,7 +149,7 @@ def _describe_config_inner(
 
         ptr_card = p.get_cardinality(schema)
         mult = ptr_card.is_multi()
-        psource = f'{config_object_name}{cast}.{ qlquote.quote_ident(pn) }'
+        psource = f'{config_object_name}{cast}.{qlquote.quote_ident(pn)}'
         if isinstance(ptype, s_objtypes.ObjectType):
             item = textwrap.indent(
                 _render_config_object(
@@ -249,13 +249,11 @@ def _render_config_redacted(
     if level == 1:
         return (
             f"'CONFIGURE {scope.to_edgeql()} "
-            f"SET { qlquote.quote_ident(name) } := {{}};  # REDACTED\\n'"
+            f"SET {qlquote.quote_ident(name)} := {{}};  # REDACTED\\n'"
         )
     else:
         indent = ' ' * (4 * (level - 1))
-        return (
-            f"'{indent}{ qlquote.quote_ident(name) } := {{}},  # REDACTED'"
-        )
+        return f"'{indent}{qlquote.quote_ident(name)} := {{}},  # REDACTED'"
 
 
 def _render_config_set(
@@ -273,14 +271,14 @@ def _render_config_set(
     if level == 1:
         return (
             f"'CONFIGURE {scope.to_edgeql()} "
-            f"SET { qlquote.quote_ident(name) } := {{' ++ "
+            f"SET {qlquote.quote_ident(name)} := {{' ++ "
             f"array_join(array_agg((select _ := {v} order by _)), ', ') "
             f"++ '}};\\n'"
         )
     else:
         indent = ' ' * (4 * (level - 1))
         return (
-            f"'{indent}{ qlquote.quote_ident(name) } := {{' ++ "
+            f"'{indent}{qlquote.quote_ident(name)} := {{' ++ "
             f"array_join(array_agg((SELECT _ := {v} ORDER BY _)), ', ') "
             f"++ '}},'"
         )
@@ -301,11 +299,11 @@ def _render_config_scalar(
     if level == 1:
         return (
             f"'CONFIGURE {scope.to_edgeql()} "
-            f"SET { qlquote.quote_ident(name) } := ' ++ {v} ++ ';\\n'"
+            f"SET {qlquote.quote_ident(name)} := ' ++ {v} ++ ';\\n'"
         )
     else:
         indent = ' ' * (4 * (level - 1))
-        return f"'{indent}{ qlquote.quote_ident(name) } := ' ++ {v} ++ ','"
+        return f"'{indent}{qlquote.quote_ident(name)} := ' ++ {v} ++ ','"
 
 
 def _render_config_object(
@@ -406,7 +404,7 @@ def _describe_config_object(
 
             ptr_card = p.get_cardinality(schema)
             mult = ptr_card.is_multi()
-            psource = f'item.{ qlquote.quote_ident(pn) }'
+            psource = f'item.{qlquote.quote_ident(pn)}'
 
             if isinstance(ptype, s_objtypes.ObjectType):
                 rval = textwrap.indent(

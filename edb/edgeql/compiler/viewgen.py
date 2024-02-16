@@ -464,7 +464,8 @@ def _process_view(
         rewrites = _compile_rewrites(
             specified_ptrs, rewrite_kind, view_scls, ir_set, stype, s_ctx, ctx
         )
-        ctx.env.dml_rewrites[ir_set] = rewrites
+        if rewrites:
+            ctx.env.dml_rewrites[ir_set] = rewrites
     else:
         rewrites = None
 
@@ -532,8 +533,6 @@ def _process_view(
             # actual error messages.
             ptr_set.context = psrcctx
 
-            _setup_shape_source(ptr_set, ctx=ctx)
-
         else:
             # The set must be something pretty trivial, so just do it
             ptr_set = setgen.extend_path(
@@ -543,8 +542,6 @@ def _process_view(
                 srcctx=psrcctx or srcctx,
                 ctx=ctx,
             )
-
-        _maybe_fixup_lprop(path_id, ptrcls, ctx=ctx)
 
         set_shape.append((ptr_set, shape_op))
 
@@ -895,14 +892,20 @@ def _compile_rewrites(
     stype: s_objtypes.ObjectType,
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
-) -> irast.Rewrites:
+) -> Optional[irast.Rewrites]:
     # init
-    anchors = prepare_rewrite_anchors(
-        specified_ptrs, kind, stype, ctx
-    )
+    anchors = None
+
+    # Computing anchors isn't cheap, so we want to only do it once,
+    # and only do it when it is necessary.
+    def get_anchors() -> RewriteAnchors:
+        nonlocal anchors
+        if anchors is None:
+            anchors = prepare_rewrite_anchors(specified_ptrs, kind, stype, ctx)
+        return anchors
 
     rewrites = _compile_rewrites_for_stype(
-        stype, kind, view_scls, ir_set, anchors, s_ctx, ctx=ctx
+        stype, kind, view_scls, ir_set, get_anchors, s_ctx, ctx=ctx
     )
 
     if kind == qltypes.RewriteKind.Insert:
@@ -918,7 +921,7 @@ def _compile_rewrites(
         # statement later.
 
         rewrites_by_type = _compile_rewrites_of_children(
-            stype, rewrites, kind, view_scls, ir_set, anchors, s_ctx, ctx
+            stype, rewrites, kind, view_scls, ir_set, get_anchors, s_ctx, ctx
         )
 
     else:
@@ -934,12 +937,12 @@ def _compile_rewrites(
             target = element.target_set
             assert target and target.expr
 
-            ptrref = irtypeutils.ptrref_from_ptrcls(
-                schema=schema, ptrcls=element.ptrcls
-            )
+            ptrref = typegen.ptr_to_ptrref(element.ptrcls, ctx=ctx)
             actual_ptrref = irtypeutils.find_actual_ptrref(ty, ptrref)
             pn = actual_ptrref.shortname.name
-            path_id = irast.PathId.from_pointer(schema, element.ptrcls)
+            path_id = irast.PathId.from_pointer(
+                schema, element.ptrcls, env=ctx.env
+            )
 
             # construct a new set with correct path_id
             ptr_set = setgen.new_set_from_set(
@@ -960,6 +963,9 @@ def _compile_rewrites(
 
             by_type[ty][pn] = (ptr_set, ptrref.real_material_ptr)
 
+    if not anchors:
+        return None
+
     return irast.Rewrites(
         subject_path_id=anchors[0].path_id,
         old_path_id=anchors[2].path_id if anchors[2] else None,
@@ -973,7 +979,7 @@ def _compile_rewrites_of_children(
     kind: qltypes.RewriteKind,
     view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
-    anchors: RewriteAnchors,
+    get_anchors: Callable[[], RewriteAnchors],
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Dict[irast.TypeRef, Dict[sn.UnqualName, EarlyShapePtr]]:
@@ -993,7 +999,7 @@ def _compile_rewrites_of_children(
         child_rewrites = parent_rewrites.copy()
         # override with rewrites defined here
         rewrites_defined_here = _compile_rewrites_for_stype(
-            child, kind, view_scls, ir_set, anchors, s_ctx,
+            child, kind, view_scls, ir_set, get_anchors, s_ctx,
             already_defined_rewrites=child_rewrites,
             ctx=ctx
         )
@@ -1007,7 +1013,7 @@ def _compile_rewrites_of_children(
                 kind,
                 view_scls,
                 ir_set,
-                anchors,
+                get_anchors,
                 s_ctx,
                 ctx=ctx,
             )
@@ -1021,7 +1027,7 @@ def _compile_rewrites_for_stype(
     kind: qltypes.RewriteKind,
     view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
-    anchors: RewriteAnchors,
+    get_anchors: Callable[[], RewriteAnchors],
     s_ctx: ShapeContext,
     *,
     already_defined_rewrites: Optional[
@@ -1069,7 +1075,7 @@ def _compile_rewrites_for_stype(
         ):
             continue
 
-        subject_set, specified_set, old_set = anchors
+        subject_set, specified_set, old_set = get_anchors()
 
         rewrite_view = view_scls
         if stype != view_scls.get_nearest_non_derived_parent(schema):
@@ -1169,7 +1175,8 @@ def prepare_rewrite_anchors(
     # TODO: Do we really need a separate path id for __subject__?
     subject_name = sn.QualName("__derived__", "__subject__")
     subject_path_id = irast.PathId.from_type(
-        schema, stype, typename=subject_name, namespace=ctx.path_id_namespace
+        schema, stype, typename=subject_name, namespace=ctx.path_id_namespace,
+        env=ctx.env,
     )
     subject_set = setgen.new_set(
         stype=stype, path_id=subject_path_id, ctx=ctx
@@ -1181,6 +1188,7 @@ def prepare_rewrite_anchors(
         schema,
         bool_type,
         typename=sn.QualName(module="std", name="bool"),
+        env=ctx.env,
     )
 
     # init set for __specified__
@@ -1191,6 +1199,7 @@ def prepare_rewrite_anchors(
             bool_type,
             typename=sn.QualName(module="__derived__", name=pn.name),
             namespace=ctx.path_id_namespace,
+            env=ctx.env,
         )
 
         specified_pointers.append(
@@ -1214,7 +1223,8 @@ def prepare_rewrite_anchors(
     if rewrite_kind == qltypes.RewriteKind.Update:
         old_name = sn.QualName("__derived__", "__old__")
         old_path_id = irast.PathId.from_type(
-            schema, stype, typename=old_name, namespace=ctx.path_id_namespace
+            schema, stype, typename=old_name, namespace=ctx.path_id_namespace,
+            env=ctx.env,
         )
         old_set = setgen.new_set(
             stype=stype, path_id=old_path_id, ctx=ctx
@@ -1224,58 +1234,6 @@ def prepare_rewrite_anchors(
         old_set = None
 
     return (subject_set, specified_set, old_set)
-
-
-def _maybe_fixup_lprop(
-    path_id: irast.PathId,
-    ptrcls: s_pointers.Pointer,
-    *,
-    ctx: context.ContextLevel,
-) -> None:
-    # HACK?: when we see linkprops being used on an intersection,
-    # attach the flattened source path to make linkprops on
-    # computed backlinks work
-    if (
-        isinstance(path_id.rptr(), irast.TypeIntersectionPointerRef)
-        and ptrcls.is_link_property(ctx.env.schema)
-    ):
-        ctx.path_scope.attach_path(
-            path_id, flatten_intersection=True, context=None)
-
-
-def _setup_shape_source(cur_set: irast.Set, ctx: context.ContextLevel) -> None:
-    """Set up shape source for a shape element.
-
-    This is basically all so that nested link properties get set up properly.
-    XXX: There ought to be a better way.
-    """
-
-    if (isinstance(cur_set.expr, irast.SelectStmt)
-        and (setgen.get_set_type(cur_set, ctx=ctx) ==
-             setgen.get_set_type(cur_set.expr.result, ctx=ctx))):
-        child = cur_set.expr.result
-        _setup_shape_source(child, ctx=ctx)
-        cur_set.shape_source = (
-            child if child.shape else child.shape_source)
-
-    # To get the linkprops to line up for inserts we unfortunately need to
-    # pull linkprop shape elements up into the top element.
-    if not cur_set.shape and isinstance(cur_set.expr, irast.InsertStmt):
-        ptr_shape = []
-        for sub_set, sub_op in cur_set.expr.subject.shape:
-            if not sub_set.path_id.is_linkprop_path():
-                continue
-            sub_rptr = irast.Pointer(
-                source=cur_set,
-                target=sub_set,
-                direction=s_pointers.PointerDirection.Outbound,
-                ptrref=not_none(sub_set.path_id.rptr()),
-                is_definition=True,
-            )
-            sub_set = setgen.new_set_from_set(sub_set, rptr=sub_rptr, ctx=ctx)
-            sub_rptr.target = sub_set
-            ptr_shape.append((sub_set, sub_op))
-        cur_set.shape = tuple(ptr_shape)
 
 
 def _compile_qlexpr(
@@ -2450,8 +2408,6 @@ def _late_compile_view_shapes_in_set(
                 srcctx=srcctx,
                 ctx=ctx,
             )
-
-            _maybe_fixup_lprop(path_tip.path_id, ptr, ctx=ctx)
 
             element_scope = pathctx.get_set_scope(element, ctx=ctx)
 

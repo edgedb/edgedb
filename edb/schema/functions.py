@@ -562,7 +562,8 @@ class DeleteParameter(ParameterCommand, sd.DeleteObject[Parameter]):
     ) -> s_schema.Schema:
         schema = super()._delete_begin(schema, context)
         if not context.canonical:
-            if op := self.scls.get_type(schema).as_type_delete_if_dead(schema):
+            typ = self.scls.get_type(schema)
+            if op := typ.as_type_delete_if_unused(schema):
                 self.add_caused(op)
         return schema
 
@@ -1198,7 +1199,7 @@ class DeleteCallableObject(
                 self.add(param.init_delta_command(schema, sd.DeleteObject))
 
             return_type = scls.get_return_type(schema)
-            if op := return_type.as_type_delete_if_dead(schema):
+            if op := return_type.as_type_delete_if_unused(schema):
                 self.add_caused(op)
 
         return schema

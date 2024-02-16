@@ -207,13 +207,17 @@ class TriggerCommand(
             anchors: dict[str, pathid.PathId | s_types.Type] = {}
             if qltypes.TriggerKind.Insert not in kinds:
                 anchors['__old__'] = pathid.PathId.from_type(
-                    schema, source, typename=sn.QualName(
-                        module='__derived__', name='__old__')
+                    schema,
+                    source,
+                    typename=sn.QualName(module='__derived__', name='__old__'),
+                    env=None,
                 )
             if qltypes.TriggerKind.Delete not in kinds:
                 anchors['__new__'] = pathid.PathId.from_type(
-                    schema, source, typename=sn.QualName(
-                        module='__derived__', name='__new__')
+                    schema,
+                    source,
+                    typename=sn.QualName(module='__derived__', name='__new__'),
+                    env=None,
                 )
 
             singletons = (

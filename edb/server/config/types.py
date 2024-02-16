@@ -33,6 +33,15 @@ if TYPE_CHECKING:
     from . import spec
 
 
+T_type = TypeVar('T_type', bound=type)
+
+
+def _issubclass(
+    typ: type | statypes.CompositeTypeSpec, parent: T_type
+) -> TypeGuard[T_type]:
+    return isinstance(typ, type) and issubclass(typ, parent)
+
+
 class ConfigTypeSpec(statypes.CompositeTypeSpec):
     def __call__(self, **kwargs) -> CompositeConfigType:
         return CompositeConfigType(self, **kwargs)
@@ -176,6 +185,11 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
                     value['_tname'] = f_type.name
 
                 value = cls.from_pyvalue(value, tspec=actual_f_type, spec=spec)
+
+            elif _issubclass(f_type, statypes.Duration):
+                value = statypes.Duration.from_iso8601(value)
+            elif _issubclass(f_type, statypes.ConfigMemory):
+                value = statypes.ConfigMemory(value)
 
             elif not isinstance(f_type, type) or not isinstance(value, f_type):
                 raise cls._err(

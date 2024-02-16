@@ -4,6 +4,7 @@
 
 //! Abstract Syntax Tree for EdgeQL
 #![allow(non_camel_case_types)]
+#![cfg(never)] // TODO: migrate cpython-rust to pyo3
 
 use indexmap::IndexMap;
 
@@ -1211,6 +1212,7 @@ pub struct CommitMigrationRewrite {}
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateDatabase {
     pub template: Option<ObjectRef>,
+    pub branch_type: BranchType,
 }
 
 #[derive(Debug, Clone)]
@@ -2042,4 +2044,13 @@ pub enum ConfigScope {
     DATABASE,
     SESSION,
     GLOBAL,
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "python", derive(IntoPython))]
+#[cfg_attr(feature = "python", py_enum(qlast.BranchType))]
+pub enum BranchType {
+    EMPTY,
+    SCHEMA,
+    DATA,
 }

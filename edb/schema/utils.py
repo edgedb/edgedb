@@ -1291,9 +1291,10 @@ def get_config_type_shape(
 def type_shell_multi_substitute(
     mapping: Dict[sn.Name, s_types.TypeShell[s_types.TypeT_co]],
     typ: s_types.TypeShell[s_types.TypeT_co],
+    schema: s_schema.Schema,
 ) -> s_types.TypeShell[s_types.TypeT_co]:
     for name, new in mapping.items():
-        typ = type_shell_substitute(name, new, typ)
+        typ = type_shell_substitute(name, new, typ, schema)
     return typ
 
 
@@ -1301,6 +1302,7 @@ def type_shell_substitute(
     name: sn.Name,
     new: s_types.TypeShell[s_types.TypeT_co],
     typ: s_types.TypeShell[s_types.TypeT_co],
+    schema: s_schema.Schema,
 ) -> s_types.TypeShell[s_types.TypeT_co]:
     from . import types as s_types
 
@@ -1309,48 +1311,50 @@ def type_shell_substitute(
         return new
 
     if isinstance(typ, s_types.UnionTypeShell):
+        assert isinstance(typ.name, sn.QualName)
         return s_types.UnionTypeShell(
-            module=typ.module,
+            module=typ.name.module,
             schemaclass=typ.schemaclass,
             opaque=typ.opaque,
             components=[
-                type_shell_substitute(name, new, c)
+                type_shell_substitute(name, new, c, schema)
                 for c in typ.components
-            ]
+            ],
         )
     elif isinstance(typ, s_types.IntersectionTypeShell):
+        assert isinstance(typ.name, sn.QualName)
         return s_types.IntersectionTypeShell(
-            module=typ.module,
+            module=typ.name.module,
             schemaclass=typ.schemaclass,
             components=[
-                type_shell_substitute(name, new, c)
+                type_shell_substitute(name, new, c, schema)
                 for c in typ.components
-            ]
+            ],
         )
     elif isinstance(typ, s_types.ArrayTypeShell):
         return s_types.ArrayTypeShell(
-            name=sn.UnqualName('__unresolved__'),
+            name=None,
             expr=typ.expr,
             typemods=typ.typemods,
             schemaclass=typ.schemaclass,
-            subtype=type_shell_substitute(name, new, typ.subtype),
+            subtype=type_shell_substitute(name, new, typ.subtype, schema),
         )
     elif isinstance(typ, s_types.TupleTypeShell):
         return s_types.TupleTypeShell(
-            name=sn.UnqualName('__unresolved__'),
+            name=None,
             typemods=typ.typemods,
             schemaclass=typ.schemaclass,
             subtypes={
-                k: type_shell_substitute(name, new, v)
+                k: type_shell_substitute(name, new, v, schema)
                 for k, v in typ.subtypes.items()
-            }
+            },
         )
     elif isinstance(typ, s_types.RangeTypeShell):
         return s_types.RangeTypeShell(
-            name=sn.UnqualName('__unresolved__'),
+            name=None,
             typemods=typ.typemods,
             schemaclass=typ.schemaclass,
-            subtype=type_shell_substitute(name, new, typ.subtype),
+            subtype=type_shell_substitute(name, new, typ.subtype, schema),
         )
     else:
         return typ

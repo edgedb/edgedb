@@ -3998,6 +3998,54 @@ aa';
         DROP DATABASE abstract;
         """
 
+    def test_edgeql_syntax_ddl_branch_01(self):
+        """
+        CREATE EMPTY BRANCH mytestdb;
+        DROP BRANCH mytestdb;
+        CREATE EMPTY BRANCH `mytest"db"`;
+        DROP BRANCH `mytest"db"`;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=29)
+    def test_edgeql_syntax_ddl_branch_02(self):
+        """
+        CREATE EMPTY BRANCH (mytestdb);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=32)
+    def test_edgeql_syntax_ddl_branch_03(self):
+        """
+        CREATE EMPTY BRANCH foo::mytestdb;
+        """
+
+    def test_edgeql_syntax_ddl_branch_04(self):
+        """
+        CREATE EMPTY BRANCH if;
+        CREATE EMPTY BRANCH abstract;
+
+% OK %
+
+        CREATE EMPTY BRANCH `if`;
+        CREATE EMPTY BRANCH abstract;
+        """
+
+    def test_edgeql_syntax_ddl_branch_05(self):
+        """
+        DROP BRANCH if;
+        DROP BRANCH abstract;
+
+% OK %
+
+        DROP BRANCH `if`;
+        DROP BRANCH abstract;
+        """
+
+    def test_edgeql_syntax_ddl_branch_06(self):
+        """
+        CREATE SCHEMA BRANCH foo FROM bar;
+        CREATE DATA BRANCH foo FROM bar;
+        """
+
     def test_edgeql_syntax_ddl_role_01(self):
         """
         CREATE ROLE username;
@@ -6291,3 +6339,28 @@ class TestEdgeQLNormalization(EdgeQLSyntaxTest):
         '''
         select count 1;
         '''
+
+
+class TestEdgeQLTokenSerialization(unittest.TestCase):
+    def test_edgeql_token_serialization(self):
+        query = "SELECT (12345678, <str>$0)"
+        src1 = tokenizer.Source.from_string(query)
+        src2 = tokenizer.deserialize(src1.serialize(), query)
+        self.assertSourceEqual(src1, src2)
+
+    def test_edgeql_normalized_token_serialization(self):
+        query = "SELECT (12345678, <str>$0)"
+        src1 = tokenizer.NormalizedSource.from_string(query)
+        src2 = tokenizer.deserialize(src1.serialize(), query)
+        self.assertSourceEqual(src1, src2)
+
+    def assertSourceEqual(self, src1, src2):
+        self.assertIs(type(src1), type(src2))
+        self.assertEqual(src1.text(), src2.text())
+        self.assertEqual(src1.cache_key(), src2.cache_key())
+        self.assertEqual(src1.variables(), src2.variables())
+        self.assertEqual(str(src1.tokens()), str(src2.tokens()))
+        self.assertEqual(src1.first_extra(), src2.first_extra())
+        self.assertEqual(src1.extra_counts(), src2.extra_counts())
+        self.assertEqual(src1.extra_blobs(), src2.extra_blobs())
+        self.assertIs(src1.serialize(), src2.serialize())

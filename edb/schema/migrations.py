@@ -200,6 +200,23 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         return cmd
 
+    def apply_subcommands(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        assert not self.get_prerequisites() and not self.get_caused()
+        # Renames shouldn't persist between commands in a migration script.
+        context.renames.clear()
+        for op in self.get_subcommands(
+            include_prerequisites=False,
+            include_caused=False,
+        ):
+            if not isinstance(op, sd.AlterObjectProperty):
+                schema = op.apply(schema, context=context)
+                context.renames.clear()
+        return schema
+
     def _get_ast(
         self,
         schema: s_schema.Schema,

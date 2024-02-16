@@ -22,6 +22,7 @@ from copy import deepcopy
 from typing import *
 from dataclasses import dataclass, field
 import enum
+import uuid
 
 from edb.common import compiler
 from edb.schema import schema as s_schema
@@ -103,6 +104,10 @@ class Column:
     # Used for system columns
     # https://www.postgresql.org/docs/14/ddl-system-columns.html
     hidden: bool = False
+
+    # Value that can be used instead referencing the column.
+    # Used from __type__ only, so that's why it is UUID (for now).
+    static_val: Optional[uuid.UUID] = None
 
     def __str__(self) -> str:
         return self.name or '<unnamed>'

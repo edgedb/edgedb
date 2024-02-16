@@ -676,6 +676,17 @@ class TestSchema(tb.BaseSchemaLoadTest):
         };
         """
 
+    @tb.must_fail(
+        errors.InvalidPropertyDefinitionError,
+        "this type cannot be anonymous",
+    )
+    def test_schema_bad_type_18(self):
+        """
+        type Foo {
+            property val -> enum<VariantA, VariantB>;
+        };
+        """
+
     def test_schema_computable_cardinality_inference_01(self):
         schema = self.load_schema("""
             type Object {
@@ -1577,6 +1588,14 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 default := datetime_current();
               }
             }
+        """
+
+    def test_schema_scalar_order_01(self):
+        # Make sure scalar types account for base types when tracing SDL
+        # dependencies.
+        """
+            scalar type two extending one;
+            scalar type one extending str;
         """
 
     def test_schema_property_cardinality_alter_01(self):
@@ -6461,6 +6480,21 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_index_06(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                required property name -> str;
+                required property year -> int64;
+                index on ((.name, .year));
+            }
+        """, r"""
+            type Base {
+                required property name -> str;
+                required property year -> int64;
+                index on ((.year, .name));
+            }
+        """])
+
     def test_schema_migrations_equivalence_constraint_01(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -8176,6 +8210,118 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 type ReNamedObject extending Base {
                         required property foo -> str;
                 }
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Branch{
+                  property branchURL: std::str {
+                    constraint max_len_value(500);
+                    constraint min_len_value(5);
+                  };
+                };
+            """,
+            r"""
+                type Branch{
+                  property email: std::str {
+                    constraint max_len_value(50);
+                    constraint min_len_value(5);
+                  };
+                };
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_02(self):
+        self._assert_migration_equivalence([
+            r"""
+                type X {
+                    obj: Object {
+                        foo: str;
+                    };
+                };
+            """,
+            r"""
+                type X {
+                    obj2: Object {
+                        bar: int64;
+                    };
+                };
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_03(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Branch{
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property branchURL: std::str {
+                    constraint max_len_value(500);
+                    constraint regexp("url");
+                    constraint min_len_value(5);
+                  };
+                };
+            """,
+            r"""
+                type Branch{
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property phoneNumber: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"phone");
+                  };
+                  property email: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"email");
+                  };
+                };
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_04(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Branch{
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property branchURL: std::str {
+                    constraint max_len_value(500);
+                    constraint regexp("url");
+                    constraint min_len_value(5);
+                  };
+                };
+            """,
+            r"""
+                type Branch2 {
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property phoneNumber: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"phone");
+                  };
+                  property email: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"email");
+                  };
+                };
             """
         ])
 
@@ -9895,7 +10041,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
     def test_schema_describe_schema_03(self):
         self._assert_describe(
             """
-            using extension pgvector version '0.4';
+            using extension pgvector version '0.5';
             module default {
                 scalar type v3 extending ext::pgvector::vector<3>;
 
@@ -9908,7 +10054,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'describe schema as ddl',
 
             """
-            create extension vector version '0.4';
+            create extension vector version '0.5';
             create module default if not exists;
             create scalar type default::v3 extending ext::pgvector::vector<3>;
             create type default::Foo {
@@ -9919,7 +10065,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'describe schema as sdl',
 
             r"""
-            using extension pgvector version '0.4';
+            using extension pgvector version '0.5';
             module default {
                 scalar type v3 extending ext::pgvector::vector<3>;
                 type Foo {
@@ -10075,6 +10221,27 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 create link user := (.<identity[is test::User]);
             };
             """
+        )
+
+    def test_schema_describe_overload_01(self):
+        self._assert_describe(
+            """
+            abstract type Animal {
+                name: str;
+                parent: Animal;
+            }
+            type Human extending Animal {
+                overloaded parent: Human;
+            }
+            """,
+
+            'describe type test::Human as sdl',
+
+            """
+            type test::Human extending test::Animal {
+                overloaded link parent: test::Human;
+            };
+            """,
         )
 
 

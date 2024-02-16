@@ -23,12 +23,12 @@ jobs:
     concurrency: pool-test
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       if: startsWith(github.ref, 'refs/heads')
       with:
         repository: edgedb/edgedb-pool-simulation
@@ -38,11 +38,11 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11.3'
+        python-version: '3.12.2'
 
     - name: Generate requirements.txt
       run: |
-        echo 'uvloop==0.17.0' > requirements.txt
+        echo 'uvloop==0.19.0' > requirements.txt
         mkdir -p pool-simulation/reports
 
     - name: Handle virtualenv

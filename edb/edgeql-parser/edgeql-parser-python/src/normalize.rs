@@ -6,7 +6,7 @@ use edgeql_parser::tokenizer::{Kind, Token, Tokenizer, Value};
 
 use blake2::{Blake2b512, Digest};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Variable {
     pub value: Value,
 }
@@ -18,6 +18,40 @@ pub struct Entry {
     pub variables: Vec<Vec<Variable>>,
     pub named_args: bool,
     pub first_arg: Option<usize>,
+}
+
+/// PackedEntry is a compact Entry for serialization purposes
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct PackedEntry {
+    pub tokens: Vec<Token<'static>>,
+    pub variables: Vec<Vec<Variable>>,
+    pub named_args: bool,
+    pub first_arg: Option<usize>,
+}
+
+impl Into<PackedEntry> for Entry {
+    fn into(self) -> PackedEntry {
+        PackedEntry {
+            tokens: self.tokens,
+            variables: self.variables,
+            named_args: self.named_args,
+            first_arg: self.first_arg,
+        }
+    }
+}
+
+impl Into<Entry> for PackedEntry {
+    fn into(self) -> Entry {
+        let processed_source = serialize_tokens(&self.tokens[..]);
+        Entry {
+            hash: hash(&processed_source),
+            processed_source,
+            tokens: self.tokens,
+            variables: self.variables,
+            named_args: self.named_args,
+            first_arg: self.first_arg,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -155,7 +189,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
 
     all_variables.push(variables);
     let processed_source = serialize_tokens(&rewritten_tokens[..]);
-    return Ok(Entry {
+    Ok(Entry {
         hash: hash(&processed_source),
         processed_source,
         named_args,
@@ -166,7 +200,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
         },
         tokens: rewritten_tokens,
         variables: all_variables,
-    });
+    })
 }
 
 fn is_operator(token: &Token) -> bool {
@@ -200,7 +234,7 @@ fn serialize_tokens(tokens: &[Token]) -> String {
         buf.push_str(&token.text);
         needs_space = !is_operator(token);
     }
-    return buf;
+    buf
 }
 
 fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
@@ -233,7 +267,7 @@ where
 fn hash(text: &str) -> [u8; 64] {
     let mut result = [0u8; 64];
     result.copy_from_slice(&Blake2b512::new_with_prefix(text.as_bytes()).finalize());
-    return result;
+    result
 }
 
 /// Produces tokens corresponding to (<lit typ>$var)
@@ -253,17 +287,17 @@ mod test {
     use super::scan_vars;
     use edgeql_parser::tokenizer::{Token, Tokenizer};
 
-    fn tokenize<'x>(s: &'x str) -> Vec<Token> {
+    fn tokenize(s: &str) -> Vec<Token> {
         let mut r = Vec::new();
         let mut s = Tokenizer::new(s);
         loop {
             match s.next() {
-                Some(Ok(x)) => r.push(x.into()),
+                Some(Ok(x)) => r.push(x),
                 None => break,
                 Some(Err(e)) => panic!("Parse error at {}: {}", s.current_pos(), e.message),
             }
         }
-        return r;
+        r
     }
 
     #[test]

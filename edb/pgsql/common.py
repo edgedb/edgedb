@@ -61,7 +61,7 @@ def quote_e_literal(string: str) -> str:
     return "E'" + escape_sq(string) + "'"
 
 
-def quote_literal(string):
+def quote_literal(string: str) -> str:
     return "'" + string.replace("'", "''") + "'"
 
 
@@ -112,7 +112,7 @@ def qname(*parts: str | pgast.Star, column: bool=False) -> str:
     return '.'.join([quote_ident(q, column=column) for q in parts])
 
 
-def quote_type(type_: Tuple[str, ...] | str):
+def quote_type(type_: Tuple[str, ...] | str) -> str:
     if isinstance(type_, tuple):
         first = qname(*type_[:-1]) + '.' if len(type_) > 1 else ''
         last = type_[-1]

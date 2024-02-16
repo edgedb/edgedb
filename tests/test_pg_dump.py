@@ -113,12 +113,12 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 id,
                 num,
                 _single_link := .single_link {
-                    source := @source.id,
+                    source := E.id,
                     lp0 := @lp0,
                     target := .id,
                 },
                 _multi_link := .multi_link {
-                    source := @source.id,
+                    source := E.id,
                     lp1 := @lp1,
                     target := .id,
                 },
@@ -328,19 +328,20 @@ class TestPGDump03(tb.StablePGDumpTestCase):
                 id,
                 `Ł🤞`,
                 `_Ł💯` := .`Ł💯` {
-                    source := @source.id,
+                    source := Łukasz.id,
                     `🙀🚀🚀🚀🙀` := @`🙀🚀🚀🚀🙀`,
                     `🙀مرحبا🙀` := @`🙀مرحبا🙀`,
                     target := .id,
                 },
             }
         ''')
+        subquery = self.single_link_subquery(
+            "Łukasz", "Ł💯", "A", ["🙀🚀🚀🚀🙀", "🙀مرحبا🙀"])
         sql = f'''
             SELECT
                 id,
                 "Ł🤞",
-                {self.single_link_subquery(
-                    "Łukasz", "Ł💯", "A", ["🙀🚀🚀🚀🙀", "🙀مرحبا🙀"])}
+                {subquery}
             FROM "Łukasz"
         '''
         sqlres = await self.scon.fetch(sql)
@@ -410,10 +411,8 @@ class TestPGDump05(tb.StablePGDumpTestCase):
             SELECT
                 id,
                 name,
-                {self.single_link_subquery(
-                    "SourceA", "link1", "TargetA")},
-                {self.single_link_subquery(
-                    "SourceA", "link2", "TargetA")}
+                {self.single_link_subquery("SourceA", "link1", "TargetA")},
+                {self.single_link_subquery("SourceA", "link2", "TargetA")}
             FROM "SourceA"
 
         '''

@@ -242,6 +242,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     ALIAS = 'ALIAS'
     ANNOTATION = 'ANNOTATION'
     ARRAY_TYPE = 'ARRAY TYPE'
+    BRANCH = 'BRANCH'
     CAST = 'CAST'
     CONSTRAINT = 'CONSTRAINT'
     DATABASE = 'DATABASE'

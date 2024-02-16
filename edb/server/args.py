@@ -128,6 +128,29 @@ class ServerConnTransport(enum.StrEnum):
     SIMPLE_HTTP = "SIMPLE_HTTP"
 
 
+class ReloadTrigger(enum.StrEnum):
+    """
+    Configure what triggers the reload of the following config files:
+    1. TLS certificate and key (server config)
+    2. JWS key (server config)
+    3. Multi-tenant config file (server config)
+    4. Readiness state (server or tenant config)
+    5. JWT sub allowlist and revocation list (server or tenant config)
+    """
+
+    Default = "default"
+    """By default, reload on both SIGHUP and fsevent."""
+
+    Never = "never"
+    """Disable the reload function."""
+
+    Signal = "signal"
+    """Only reload on SIGHUP."""
+
+    FileSystemEvent = "fsevent"
+    """Watch the files for changes and reload when it happens."""
+
+
 class ServerAuthMethods:
 
     def __init__(
@@ -210,8 +233,9 @@ class ServerConfig(NamedTuple):
     emit_server_status: str
     temp_dir: bool
     auto_shutdown_after: float
-    readiness_state_file: Optional[str]
+    readiness_state_file: Optional[pathlib.Path]
     disable_dynamic_system_config: bool
+    reload_config_files: ReloadTrigger
 
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
@@ -928,7 +952,18 @@ _server_options = [
         envvar="EDGEDB_SERVER_DISABLE_DYNAMIC_SYSTEM_CONFIG",
         cls=EnvvarResolver,
         help="Disable dynamic configuration of system config values",
-    )
+    ),
+    click.option(
+        "--reload-config-files",
+        envvar="EDGEDB_SERVER_RELOAD_CONFIG_FILES", cls=EnvvarResolver,
+        type=click.Choice(
+            list(ReloadTrigger.__members__.values()), case_sensitive=True
+        ),
+        hidden=True,
+        default='default',
+        help='Specifies when to reload the config files. See the docstring of '
+             'ReloadTrigger for more information.',
+    ),
 ]
 
 
@@ -992,12 +1027,14 @@ def parse_args(**kwargs: Any):
             "The `--echo-runtime-info` option is deprecated, use "
             "`--emit-server-status` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
 
     if kwargs['bootstrap']:
         warnings.warn(
             "Option `--bootstrap` is deprecated, use `--bootstrap-only`",
             DeprecationWarning,
+            stacklevel=2,
         )
         kwargs['bootstrap_only'] = True
 
@@ -1010,12 +1047,14 @@ def parse_args(**kwargs: Any):
                 " Role `edgedb` is always created and"
                 " no role named after unix user is created any more.",
                 DeprecationWarning,
+                stacklevel=2,
             )
         else:
             warnings.warn(
                 "Option `--default-database-user` is deprecated."
                 " Please create the role explicitly.",
                 DeprecationWarning,
+                stacklevel=2,
             )
 
     if kwargs['default_database']:
@@ -1025,12 +1064,14 @@ def parse_args(**kwargs: Any):
                 " Database `edgedb` is always created and"
                 " no database named after unix user is created any more.",
                 DeprecationWarning,
+                stacklevel=2,
             )
         else:
             warnings.warn(
                 "Option `--default-database` is deprecated."
                 " Please create the database explicitly.",
                 DeprecationWarning,
+                stacklevel=2,
             )
 
     if kwargs['auto_shutdown']:
@@ -1038,6 +1079,7 @@ def parse_args(**kwargs: Any):
             "The `--auto-shutdown` option is deprecated, use "
             "`--auto-shutdown-after` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
         if kwargs['auto_shutdown_after'] < 0:
             kwargs['auto_shutdown_after'] = 0
@@ -1049,6 +1091,7 @@ def parse_args(**kwargs: Any):
             "The `--postgres-dsn` option is deprecated, use "
             "`--backend-dsn` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
         if not kwargs['backend_dsn']:
             kwargs['backend_dsn'] = kwargs['postgres_dsn']
@@ -1060,6 +1103,7 @@ def parse_args(**kwargs: Any):
             "The `--generate-self-signed-cert` option is deprecated, use "
             "`--tls-cert-mode=generate_self_signed` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
         if kwargs['tls_cert_mode'] == 'default':
             kwargs['tls_cert_mode'] = 'generate_self_signed'
@@ -1080,6 +1124,7 @@ def parse_args(**kwargs: Any):
                     "deprecated. Use EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY "
                     "instead.",
                     DeprecationWarning,
+                    stacklevel=2,
                 )
             kwargs['binary_endpoint_security'] = 'optional'
 
@@ -1097,6 +1142,7 @@ def parse_args(**kwargs: Any):
                     "deprecated. Use EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY "
                     "instead.",
                     DeprecationWarning,
+                    stacklevel=2,
                 )
             kwargs['http_endpoint_security'] = 'optional'
 
@@ -1289,6 +1335,7 @@ def parse_args(**kwargs: Any):
                 "The `--bootstrap-script` option is deprecated, use "
                 "`--bootstrap-command-file` instead.",
                 DeprecationWarning,
+                stacklevel=2,
             )
             kwargs['bootstrap_command_file'] = kwargs['bootstrap_script']
         else:
@@ -1297,6 +1344,7 @@ def parse_args(**kwargs: Any):
                 "were specified, but are mutually exclusive. "
                 "Ignoring the deprecated `--bootstrap-script` option.",
                 DeprecationWarning,
+                stacklevel=2,
             )
 
     del kwargs['bootstrap_script']
@@ -1393,6 +1441,10 @@ def parse_args(**kwargs: Any):
             kwargs['instance_name'] = '_localdev'
         else:
             kwargs['instance_name'] = '_unknown'
+
+    kwargs['reload_config_files'] = ReloadTrigger(
+        kwargs['reload_config_files']
+    )
 
     if 'EDGEDB_SERVER_CONFIG_cfg::listen_addresses' in os.environ:
         abort(

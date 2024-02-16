@@ -147,7 +147,9 @@ class DDLQuery(BaseQuery):
     single_unit: bool = False
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
+    drop_db_reset_connections: bool = False
     create_db_template: Optional[str] = None
+    create_db_mode: Optional[qlast.BranchType] = None
     ddl_stmt_id: Optional[str] = None
     config_ops: List[config.Operation] = (
         dataclasses.field(default_factory=list))
@@ -267,11 +269,13 @@ class QueryUnit:
     # close all inactive unused pooled connections to it.
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
+    drop_db_reset_connections: bool = False
 
     # If non-None, contains a name of the DB that will be used as
     # a template database to create the database. The server should
     # close all inactive unused pooled connections to the template db.
     create_db_template: Optional[str] = None
+    create_db_mode: Optional[str] = None
 
     # If non-None, the DDL statement will emit data packets marked
     # with the indicated ID.
@@ -313,6 +317,7 @@ class QueryUnit:
     # If present, represents the future schema state after
     # the command is run. The schema is pickled.
     user_schema: Optional[bytes] = None
+    user_schema_version: Optional[uuid.UUID] = None
     cached_reflection: Optional[bytes] = None
     extensions: Optional[set[str]] = None
     ext_config_settings: Optional[list[config.Setting]] = None
@@ -473,6 +478,7 @@ class SQLQueryUnit:
 @dataclasses.dataclass
 class ParsedDatabase:
     user_schema_pickle: bytes
+    schema_version: uuid.UUID
     database_config: immutables.Map[str, config.SettingValue]
     ext_config_settings: list[config.Setting]
 

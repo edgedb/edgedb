@@ -77,7 +77,7 @@ from edb.schema import objects as s_obj
 
 from edb import errors
 from edb.errors import base as base_errors, EdgeQLSyntaxError
-from edb.common import debug, taskgroup
+from edb.common import debug
 from edb.common import context as pctx
 
 from edb.protocol import messages
@@ -499,6 +499,27 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         else:
             return edgeql.NormalizedSource.from_string(text)
 
+    async def _suppress_tx_timeout(self):
+        async with self.with_pgcon() as conn:
+            await conn.sql_execute(b'''
+                select pg_catalog.set_config(
+                    'idle_in_transaction_session_timeout', '0', true)
+            ''')
+
+    async def _restore_tx_timeout(self, dbview.DatabaseConnectionView dbv):
+        old_timeout = dbv.get_session_config().get(
+            'session_idle_transaction_timeout',
+        )
+        timeout = (
+            'NULL' if not old_timeout
+            else repr(old_timeout.value.to_backend_str())
+        )
+        async with self.with_pgcon() as conn:
+            await conn.sql_execute(f'''
+                select pg_catalog.set_config(
+                    'idle_in_transaction_session_timeout', {timeout}, true)
+            '''.encode('utf-8'))
+
     async def _parse(
         self,
         dbview.QueryRequestInfo query_req,
@@ -526,7 +547,21 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.debug_print('Extra variables', source.variables(),
                              'after', source.first_extra())
 
-        return await dbv.parse(query_req)
+        query_unit_group = dbv.lookup_compiled_query(query_req)
+
+        # If we have to do a compile within a transaction, suppress
+        # the idle_in_transaction_session_timeout.
+        suppress_timeout = (
+            dbv.in_tx() and not dbv.in_tx_error() and query_unit_group is None
+        )
+        if suppress_timeout:
+            await self._suppress_tx_timeout()
+
+        try:
+            return await dbv.parse(query_req, query_unit_group=query_unit_group)
+        finally:
+            if suppress_timeout:
+                await self._restore_tx_timeout(dbv)
 
     cdef parse_cardinality(self, bytes card):
         if card[0] == CARD_MANY.value:
@@ -1053,7 +1088,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self.write_log(
             EdgeSeverity.EDGE_SEVERITY_NOTICE,
             errors.LogMessage.get_code(),
-            'server is stopped; disconnecting now')
+            'requested to stop; disconnecting now')
 
     async def recover_from_error(self):
         # Consume all messages until sync.
@@ -1332,7 +1367,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             blocks_queue = collections.deque(blocks)
             output_queue = asyncio.Queue(maxsize=2)
 
-            async with taskgroup.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 g.create_task(pgcon.dump(
                     blocks_queue,
                     output_queue,
@@ -1512,7 +1547,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 ''',
             )
 
-            schema_sql_units, restore_blocks, tables = \
+            schema_sql_units, restore_blocks, tables, repopulate_units = \
                 await compiler_pool.describe_database_restore(
                     user_schema_pickle,
                     global_schema_pickle,
@@ -1620,6 +1655,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
                 else:
                     self.fallthrough()
+
+            for repopulate_unit in repopulate_units:
+                await pgcon.sql_execute(repopulate_unit.encode())
 
             await pgcon.sql_execute(enable_trigger_q.encode())
 

@@ -84,6 +84,7 @@ cdef class Database:
         readonly object user_config_spec
 
         readonly str name
+        readonly object schema_version
         readonly object dbver
         readonly object db_config
         readonly bytes user_schema_pickle
@@ -94,13 +95,14 @@ cdef class Database:
     cdef schedule_config_update(self)
 
     cdef _invalidate_caches(self)
-    cdef _cache_compiled_query(self, key, query_unit)
+    cdef _cache_compiled_query(self, key, compiled, schema_version)
     cdef _new_view(self, query_cache, protocol_version)
     cdef _remove_view(self, view)
     cdef _update_backend_ids(self, new_types)
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema_pickle,
+        schema_version,
         extensions,
         ext_config_settings,
         reflection_cache=?,
@@ -138,13 +140,11 @@ cdef class DatabaseConnectionView:
         tuple _session_state_db_cache
         tuple _session_state_cache
 
-
-        object _eql_to_compiled
-
         object _txid
         object _in_tx_db_config
         object _in_tx_savepoints
         object _in_tx_user_schema_pickle
+        object _in_tx_user_schema_version
         object _in_tx_user_config_spec
         object _in_tx_global_schema_pickle
         object _in_tx_new_types
@@ -163,7 +163,6 @@ cdef class DatabaseConnectionView:
 
         object __weakref__
 
-    cdef _invalidate_local_cache(self)
     cdef _reset_tx_state(self)
 
     cdef clear_tx_error(self)
@@ -175,13 +174,15 @@ cdef class DatabaseConnectionView:
     cpdef in_tx(self)
     cpdef in_tx_error(self)
 
-    cdef cache_compiled_query(self, object key, object query_unit)
+    cdef cache_compiled_query(
+        self, object key, object query_unit_group, schema_version
+    )
     cdef lookup_compiled_query(self, object key)
 
     cdef tx_error(self)
 
     cdef start(self, query_unit)
-    cdef _start_tx(self)
+    cdef start_tx(self)
     cdef _apply_in_tx(self, query_unit)
     cdef start_implicit(self, query_unit)
     cdef on_error(self)

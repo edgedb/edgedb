@@ -62,7 +62,6 @@ from edb.common import devmode
 from edb.common import debug
 from edb.common import retryloop
 from edb.common import secretkey
-from edb.common import taskgroup
 
 from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
@@ -540,7 +539,6 @@ async def init_cluster(
 
     await cluster.start(port=0)
     await cluster.set_test_config()
-    # await cluster.trust_http_connections()
     await cluster.set_superuser_password('test')
 
     if cleanup_atexit:
@@ -637,18 +635,7 @@ def _extract_background_errors(metrics: str) -> str | None:
 
 
 async def drop_db(conn, dbname):
-    # The connection might not *actually* be closed on the db
-    # side yet. This is a bug (#4567), but hack around it
-    # with a retry loop. Without this, tests would flake
-    # a lot.
-    async for tr in TestCase.try_until_succeeds(
-        ignore=(edgedb.ExecutionError, edgedb.ClientConnectionError),
-        timeout=30
-    ):
-        async with tr:
-            await conn.execute(
-                f'DROP DATABASE {dbname};'
-            )
+    await conn.execute(f'DROP DATABASE {dbname}')
 
 
 class ClusterTestCase(BaseHTTPTestCase):
@@ -1057,7 +1044,6 @@ class DatabaseTestCase(ConnectedTestCase):
     async def setup_and_connect(cls):
         dbname = cls.get_database_name()
 
-        cls.admin_conn = None
         cls.con = None
 
         class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
@@ -1065,16 +1051,17 @@ class DatabaseTestCase(ConnectedTestCase):
         # Only open an extra admin connection if necessary.
         if class_set_up == 'run':
             script = f'CREATE DATABASE {dbname};'
-            cls.admin_conn = await cls.connect()
-            await cls.admin_conn.execute(script)
+            admin_conn = await cls.connect()
+            await admin_conn.execute(script)
+            await admin_conn.aclose()
 
         elif class_set_up == 'inplace':
             dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
 
         elif cls.uses_database_copies():
-            cls.admin_conn = await cls.connect()
+            admin_conn = await cls.connect()
 
-            orig_testmode = await cls.admin_conn.query(
+            orig_testmode = await admin_conn.query(
                 'SELECT cfg::Config.__internal_testmode',
             )
             if not orig_testmode:
@@ -1084,7 +1071,7 @@ class DatabaseTestCase(ConnectedTestCase):
 
             # Enable testmode to unblock the template database syntax below.
             if not orig_testmode:
-                await cls.admin_conn.execute(
+                await admin_conn.execute(
                     'CONFIGURE SESSION SET __internal_testmode := true;',
                 )
 
@@ -1099,7 +1086,7 @@ class DatabaseTestCase(ConnectedTestCase):
                     timeout=30,
                 ):
                     async with tr:
-                        await cls.admin_conn.execute(
+                        await admin_conn.execute(
                             f'''
                                 CREATE DATABASE {qlquote.quote_ident(dbname)}
                                 FROM {qlquote.quote_ident(base_db_name)}
@@ -1108,9 +1095,11 @@ class DatabaseTestCase(ConnectedTestCase):
             await create_db()
 
             if not orig_testmode:
-                await cls.admin_conn.execute(
+                await admin_conn.execute(
                     'CONFIGURE SESSION SET __internal_testmode := false;',
                 )
+
+            await admin_conn.aclose()
 
         cls.con = await cls.connect(database=dbname)
 
@@ -1138,19 +1127,18 @@ class DatabaseTestCase(ConnectedTestCase):
             if class_set_up == 'inplace':
                 await cls.tearDownSingleDB()
         finally:
-            try:
-                await cls.con.aclose()
+            await cls.con.aclose()
 
-                if class_set_up == 'inplace':
-                    pass
+            if class_set_up == 'inplace':
+                pass
 
-                elif class_set_up == 'run' or cls.uses_database_copies():
-                    dbname = qlquote.quote_ident(cls.get_database_name())
-                    await drop_db(cls.admin_conn, dbname)
-
-            finally:
-                if cls.admin_conn is not None:
-                    await cls.admin_conn.aclose()
+            elif class_set_up == 'run' or cls.uses_database_copies():
+                dbname = qlquote.quote_ident(cls.get_database_name())
+                admin_conn = await cls.connect()
+                try:
+                    await drop_db(admin_conn, dbname)
+                finally:
+                    await admin_conn.aclose()
 
     @classmethod
     def get_database_name(cls):
@@ -1342,7 +1330,7 @@ class SQLQueryTestCase(BaseQueryTestCase):
         res = await self.scon.fetch(query)
         return [list(r.values()) for r in res]
 
-    def assert_shape(self, res, rows, cols, column_names=None):
+    def assert_shape(self, res: Any, rows: int, columns: int | List[str]):
         """
         Fail if query result does not confront the specified shape, defined in
         terms of:
@@ -1352,10 +1340,12 @@ class SQLQueryTestCase(BaseQueryTestCase):
         """
 
         self.assertEqual(len(res), rows)
-        if rows > 0:
-            self.assertEqual(len(res[0]), cols)
-        if column_names:
-            self.assertListEqual(column_names, list(res[0].keys()))
+
+        if isinstance(columns, int):
+            if rows > 0:
+                self.assertEqual(len(res[0]), columns)
+        elif isinstance(columns, list):
+            self.assertListEqual(columns, list(res[0].keys()))
 
 
 class CLITestCaseMixin:
@@ -1533,6 +1523,56 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
             self.__class__.con = oldcon
             await con2.aclose()
             await drop_db(self.con, q_tgt_dbname)
+
+    async def check_branching(self, include_data=False, *, check_method):
+        if not self.has_create_database:
+            self.skipTest("create branch is not supported by the backend")
+
+        orig_branch = self.get_database_name()
+        new_branch = f'new_{orig_branch}'
+        # record the original schema
+        orig_schema = await self.con.query_single('describe schema as sdl')
+
+        # connect to a default branch so we can create a new branch
+        branch_type = 'data' if include_data else 'schema'
+        await self.con.execute(
+            f'create {branch_type} branch {new_branch} '
+            f'from {orig_branch}'
+        )
+
+        try:
+            con2 = await self.connect(database=new_branch)
+        except Exception:
+            await drop_db(self.con, new_branch)
+            raise
+
+        oldcon = self.con
+        self.__class__.con = con2
+        try:
+            # We cannot compare the SDL text of the new branch schema to the
+            # original because the order in which it renders all the
+            # components is not guaranteed. Instead we will use migrations to
+            # compare the new branch schema to the original. We expect there
+            # to be no difference and therefore a new migration to the
+            # original schema should have the "complete" status right away.
+            await self.con.execute(f'start migration to {{ {orig_schema} }}')
+            mig_status = json.loads(
+                await self.con.query_single_json(
+                    'describe current migration as json'
+                )
+            )
+            self.assertTrue(mig_status.get('complete'))
+            await self.con.execute('abort migration')
+
+            # run the check_method on the copied branch
+            if include_data:
+                await check_method(self)
+            else:
+                await check_method(self, include_data=include_data)
+        finally:
+            self.__class__.con = oldcon
+            await con2.aclose()
+            await drop_db(self.con, new_branch)
 
 
 class StablePGDumpTestCase(BaseQueryTestCase):
@@ -1811,7 +1851,7 @@ async def setup_test_cases(
             if verbose:
                 print(f' -> {dbname}: OK', flush=True)
     else:
-        async with taskgroup.TaskGroup(name='setup test cases') as g:
+        async with asyncio.TaskGroup() as g:
             # Use a semaphore to limit the concurrency of bootstrap
             # tasks to the number of jobs (bootstrap is heavy, having
             # more tasks than `--jobs` won't necessarily make
@@ -2032,7 +2072,7 @@ class _EdgeDBServer:
     async def kill_process(self, proc: asyncio.Process):
         proc.terminate()
         try:
-            await asyncio.wait_for(proc.wait(), timeout=20)
+            await asyncio.wait_for(proc.wait(), timeout=60)
         except TimeoutError:
             proc.kill()
 
