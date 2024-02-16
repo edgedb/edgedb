@@ -204,7 +204,7 @@ class Buffer:
                         text = '{{str:{strlevel}^{width:d}s}}'.format(
                             strlevel=strlevel, width=width).format(str=text)
                     else:
-                        text = strlevel * 4 + str + strlevel * 4
+                        text = strlevel * 4 + text + strlevel * 4
 
                 if style is None:
                     result.append(text)
