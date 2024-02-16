@@ -11,7 +11,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyFloat, PyList, PyLong, PyString};
 
 use crate::errors::SyntaxError;
-use crate::normalize::{normalize as _normalize, Error, Variable, EntryPack};
+use crate::normalize::{normalize as _normalize, Error, Variable, PackedEntry};
 use crate::tokenizer::tokens_to_py;
 
 #[pyfunction]
@@ -52,7 +52,7 @@ pub struct Entry {
     #[pyo3(get)]
     extra_counts: PyObject,
 
-    entry_pack: EntryPack,
+    entry_pack: PackedEntry,
 }
 
 impl Entry {

@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use edgeql_parser::tokenizer::Token;
 
-use crate::normalize::EntryPack;
+use crate::normalize::PackedEntry;
 use crate::pynormalize::Entry;
 use crate::tokenizer::tokens_to_py;
 
@@ -17,7 +17,7 @@ pub fn unpack(py: Python<'_>, serialized: &PyBytes) -> PyResult<PyObject> {
             tokens_to_py(py, tokens)
         }
         1u8 => {
-            let pack: EntryPack = bincode::deserialize(&buf[1..])
+            let pack: PackedEntry = bincode::deserialize(&buf[1..])
                 .map_err(|e| PyValueError::new_err(format!("{e}")))?;
             let entry = Entry::new(py, pack.into())?;
             Ok(entry.into_py(py))

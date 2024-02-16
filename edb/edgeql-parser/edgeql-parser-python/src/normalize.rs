@@ -20,18 +20,18 @@ pub struct Entry {
     pub first_arg: Option<usize>,
 }
 
-/// EntryPack is a compact Entry for serialization purposes
+/// PackedEntry is a compact Entry for serialization purposes
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct EntryPack {
+pub struct PackedEntry {
     pub tokens: Vec<Token<'static>>,
     pub variables: Vec<Vec<Variable>>,
     pub named_args: bool,
     pub first_arg: Option<usize>,
 }
 
-impl Into<EntryPack> for Entry {
-    fn into(self) -> EntryPack {
-        EntryPack {
+impl Into<PackedEntry> for Entry {
+    fn into(self) -> PackedEntry {
+        PackedEntry {
             tokens: self.tokens,
             variables: self.variables,
             named_args: self.named_args,
@@ -40,7 +40,7 @@ impl Into<EntryPack> for Entry {
     }
 }
 
-impl Into<Entry> for EntryPack {
+impl Into<Entry> for PackedEntry {
     fn into(self) -> Entry {
         let processed_source = serialize_tokens(&self.tokens[..]);
         Entry {
