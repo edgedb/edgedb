@@ -399,7 +399,9 @@ class CompilerState:
 
     @functools.cached_property
     def request_serializer(self) -> sertypes.InputShapeSerializer:
-        return self.state_serializer_factory.make_compilation()
+        return (
+            self.state_serializer_factory.make_compilation_config_serializer()
+        )
 
 
 class Compiler:

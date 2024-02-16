@@ -1759,7 +1759,7 @@ class StateSerializerFactory:
             type_id, type_data, global_reps, protocol_version
         )
 
-    def make_compilation(self) -> InputShapeSerializer:
+    def make_compilation_config_serializer(self) -> InputShapeSerializer:
         ctx = Context(
             schema=self._schema,
             protocol_version=edbdef.CURRENT_PROTOCOL,
