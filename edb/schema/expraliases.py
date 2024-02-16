@@ -416,29 +416,23 @@ class AlterAliasLike(
                 # soon.
                 from . import globals as s_globals
                 from . import objtypes as s_objtypes
-
                 assert isinstance(self.scls, (Alias, s_globals.Global))
-                created_types: List[Any] = list(
-                    self.scls.get_created_types(schema).objects(schema)
-                )
+                created_types: Dict[sn.Name, Any] = {
+                    t.get_name(schema): t
+                    for t in self.scls.get_created_types(schema).objects(schema)
+                }
                 for cmd in type_cmd.get_subcommands():
                     if isinstance(
                         cmd, (sd.CreateObject, s_objtypes.CreateObjectType)
                     ) and issubclass(cmd.get_schema_metaclass(), s_types.Type):
-                        created_types.append(
-                            so.ObjectShell(
-                                name=cmd.classname,
-                                schemaclass=cmd.get_schema_metaclass(),
-                            )
+                        created_types[cmd.classname] = so.ObjectShell(
+                            name=cmd.classname,
+                            schemaclass=cmd.get_schema_metaclass(),
                         )
                     if isinstance(
                         cmd, (sd.DeleteObject, s_objtypes.DeleteObjectType)
                     ) and issubclass(cmd.get_schema_metaclass(), s_types.Type):
-                        created_types = [
-                            t
-                            for t in created_types
-                            if t.get_name(schema) != cmd.classname
-                        ]
+                        del created_types[cmd.classname]
                 self.set_attribute_value('created_types', created_types)
 
                 # Clear out the type field in the schema *now*,
