@@ -265,9 +265,9 @@ class TestDatabase(tb.ConnectedTestCase):
                 await asyncio.sleep(1)
 
             # Drop branch while the frontend connection is active
-            await self.con.execute(
-                'DROP BRANCH test_db_disconnect WITH (FORCE)'
-            )
+            await self.con.execute('''
+                DROP BRANCH test_db_disconnect FORCE
+            ''')
 
             if with_query:
                 try:
@@ -325,7 +325,7 @@ class TestDatabase(tb.ConnectedTestCase):
 
             # Drop branch while the frontend connection is active
             await self.con.execute('''
-                ALTER BRANCH test_db_rename WITH (FORCE)
+                ALTER BRANCH test_db_rename FORCE
                 RENAME TO test_db_rename2
             ''')
 
