@@ -859,13 +859,7 @@ class BranchOptions(Nonterm):
     def reduce_empty(self, *kids):
         self.val = BranchOptionsSpec(force=False)
 
-    def reduce_WITH_LPAREN_RPAREN(self, *kids):
-        self.val = BranchOptionsSpec(force=False)
-
-    def reduce_WITH_LPAREN_FORCE_RPAREN(self, *kids):
-        self.val = BranchOptionsSpec(force=True)
-
-    def reduce_WITH_LPAREN_FORCE_COMMA_RPAREN(self, *kids):
+    def reduce_FORCE(self, *kids):
         self.val = BranchOptionsSpec(force=True)
 
 
