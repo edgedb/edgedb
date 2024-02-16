@@ -433,7 +433,9 @@ class AlterAliasLike(
                         cmd, (sd.DeleteObject, s_objtypes.DeleteObjectType)
                     ) and issubclass(cmd.get_schema_metaclass(), s_types.Type):
                         del created_types[cmd.classname]
-                self.set_attribute_value('created_types', created_types)
+                self.set_attribute_value(
+                    'created_types', set(created_types.values())
+                )
 
                 # Clear out the type field in the schema *now*,
                 # before we call the parent _alter_begin, which will
