@@ -1822,7 +1822,14 @@ class StateSerializer(InputShapeSerializer):
     @functools.cached_property
     def _codec(self) -> InputShapeDesc:
         codec = super()._codec
-        codec.fields['globals'][1].__dict__['data_raw'] = True
+
+        # Global values are directly used in Postgres, so we don't need to
+        # encode/decode them in the I/O server. This feature doesn't worth a
+        # separate switch in the type desc, so we just hack it in here.
+        _, globals_type_desc = codec.fields['globals']
+        assert isinstance(globals_type_desc, InputShapeDesc)
+        globals_type_desc.__dict__['data_raw'] = True
+
         return codec
 
     def get_global_type_rep(
