@@ -58,9 +58,9 @@ type system*.
 Object types
 ------------
 
-Object types are analogous to tables in SQL. They can contain
-**properties**—which can correspond to any scalar types and **links**—which
-correspond to other object types.
+Object types are analogous to tables in SQL. They can contain **properties**,
+which can correspond to any scalar types, and **links**, which can correspond
+to any object types.
 
 Properties
 ----------
