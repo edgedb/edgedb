@@ -826,12 +826,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if _dbview.get_state_serializer() is None:
             await _dbview.reload_state_serializer()
         query_req, allow_capabilities = self.parse_execute_request()
-        (
-            query_req
-                .set_modaliases(_dbview.get_modaliases())
-                .set_session_config(_dbview.get_session_config())
-                .set_system_config(_dbview.get_compilation_system_config())
-        )
+        query_req.set_modaliases(_dbview.get_modaliases())
+        query_req.set_session_config(_dbview.get_session_config())
+        query_req.set_system_config(_dbview.get_compilation_system_config())
         compiled = await self._parse(query_req, allow_capabilities)
 
         buf = self.make_command_data_description_msg(compiled)
@@ -865,12 +862,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         args = self.buffer.read_len_prefixed_bytes()
-        (
-            query_req
-                .set_modaliases(_dbview.get_modaliases())
-                .set_session_config(_dbview.get_session_config())
-                .set_system_config(_dbview.get_compilation_system_config())
-        )
+        query_req.set_modaliases(_dbview.get_modaliases())
+        query_req.set_session_config(_dbview.get_session_config())
+        query_req.set_system_config(_dbview.get_compilation_system_config())
         self.buffer.finish_message()
 
         if (
