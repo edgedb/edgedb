@@ -60,6 +60,11 @@ class Alias(
         compcoef=0.909,
     )
 
+    created_types = so.SchemaField(
+        so.ObjectSet[s_types.Type],
+        default=so.DEFAULT_CONSTRUCTOR,
+    )
+
 
 class AliasCommandContext(
     sd.ObjectCommandContext[so.Object],
@@ -120,56 +125,34 @@ class AliasLikeCommand(
 
     # Generic code
 
-    @classmethod
-    def _get_created_types(
-        cls,
-        scls: so.QualifiedObject_T,
-        schema: s_schema.Schema,
-    ) -> set[s_types.Type]:
-        objs = set()
-
-        typ = cls.get_type(scls, schema)
-        our_name = typ.get_name(schema)
-        assert isinstance(our_name, sn.QualName)
-
-        # XXX: This is pretty unfortunate from a performance
-        # perspective, and not technically correct either.
-        # For 4.x we should track this information in the objects
-        # (or possibly instead ensure we do not put any types in the schema
-        # that are not directly part of the output type.)
-        for obj in schema.get_objects(exclude_stdlib=True, type=s_types.Type):
-            if (
-                obj.get_alias_is_persistent(schema)
-                and obj != typ
-                and _is_view_from_alias(our_name, obj, schema)
-            ):
-                objs.add(obj)
-
-        return objs
-
     def _delete_alias_type(
         self,
         scls: so.QualifiedObject_T,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> sd.DeleteObject[s_types.Type]:
-        created = self._get_created_types(scls, schema)
+    ) -> sd.CommandGroup:
+        from . import globals as s_globals
 
-        alias_type = self.get_type(scls, schema)
-        drop_type = alias_type.init_delta_command(
-            schema, sd.DeleteObject)
-        subcmds = drop_type._canonicalize(schema, context, alias_type)
-        drop_type.update(subcmds)
+        assert isinstance(scls, (Alias, s_globals.Global))
+        types: so.ObjectSet[s_types.Type] = scls.get_created_types(schema)
+        created = types.objects(schema)
+
+        cmd = sd.CommandGroup()
+
+        wipe_created_types = scls.init_delta_command(schema, sd.AlterObject)
+        wipe_created_types.canonical = True
+        wipe_created_types.set_attribute_value('created_types', set())
+        cmd.add(wipe_created_types)
 
         for dep_type in created:
             drop_dep = dep_type.init_delta_command(
-                schema, sd.DeleteObject, if_exists=True)
+                schema, sd.DeleteObject, if_exists=True
+            )
             subcmds = drop_dep._canonicalize(schema, context, dep_type)
             drop_dep.update(subcmds)
 
-            drop_type.add(drop_dep)
-
-        return drop_type
+            cmd.add(drop_dep)
+        return cmd
 
     @classmethod
     def get_type(
@@ -332,6 +315,19 @@ class CreateAliasLike(
             self.set_attribute_value(
                 self.TYPE_FIELD_NAME, type_shell, computed=True)
 
+            created_types = {
+                so.ObjectShell(
+                    name=cmd.classname,
+                    schemaclass=cmd.get_schema_metaclass(),
+                )
+                for cmd in type_cmd.get_subcommands()
+                if (
+                    isinstance(cmd, sd.CreateObject)
+                    and issubclass(cmd.get_schema_metaclass(), s_types.Type)
+                )
+            }
+            self.set_attribute_value('created_types', created_types)
+
         return super()._create_begin(schema, context)
 
 
@@ -399,11 +395,47 @@ class AlterAliasLike(
                     is_alter=is_alias,
                     parser_context=self.get_attribute_source_context('expr'),
                 )
+
+                # clear created_types, so type_cmd will be able to drop unneeded
+                # types
+                wipe_created = self.scls.init_delta_command(
+                    schema, sd.AlterObject
+                )
+                wipe_created.canonical = True
+                wipe_created.set_attribute_value('created_types', set())
+                self.add_prerequisite(wipe_created)
+
                 self.add_prerequisite(type_cmd)
 
                 self.set_attribute_value('expr', expr)
                 self.set_attribute_value(
                     self.TYPE_FIELD_NAME, type_shell, computed=True)
+
+                # TODO: this code chunk is a bit dodgy and inefficient,
+                # but it is fine since we are changing how alias types are saved
+                # soon.
+                from . import globals as s_globals
+                from . import objtypes as s_objtypes
+                assert isinstance(self.scls, (Alias, s_globals.Global))
+                created_types: Dict[sn.Name, Any] = {
+                    t.get_name(schema): t
+                    for t in self.scls.get_created_types(schema).objects(schema)
+                }
+                for cmd in type_cmd.get_subcommands():
+                    if isinstance(
+                        cmd, (sd.CreateObject, s_objtypes.CreateObjectType)
+                    ) and issubclass(cmd.get_schema_metaclass(), s_types.Type):
+                        created_types[cmd.classname] = so.ObjectShell(
+                            name=cmd.classname,
+                            schemaclass=cmd.get_schema_metaclass(),
+                        )
+                    if isinstance(
+                        cmd, (sd.DeleteObject, s_objtypes.DeleteObjectType)
+                    ) and issubclass(cmd.get_schema_metaclass(), s_types.Type):
+                        del created_types[cmd.classname]
+                self.set_attribute_value(
+                    'created_types', set(created_types.values())
+                )
 
                 # Clear out the type field in the schema *now*,
                 # before we call the parent _alter_begin, which will
@@ -572,11 +604,11 @@ def define_alias(
     if prev_ir is not None:
         assert old_schema
         for vt in prev_coll_expr_aliases:
-            dt = vt.as_type_delete_if_unused(old_schema)
-            derived_delta.prepend(dt)
+            if dt := vt.as_type_delete_if_unused(old_schema):
+                derived_delta.prepend(dt)
         for vt in prev_ir.new_coll_types:
-            dt = vt.as_type_delete_if_unused(old_schema)
-            derived_delta.prepend(dt)
+            if dt := vt.as_type_delete_if_unused(old_schema):
+                derived_delta.prepend(dt)
 
     for vt in coll_expr_aliases:
         new_schema = vt.set_field_value(new_schema, 'expr', expr)
