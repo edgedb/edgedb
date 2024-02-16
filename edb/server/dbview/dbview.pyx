@@ -87,7 +87,6 @@ cdef class QueryRequestInfo:
         inline_typeids: bint = False,
         inline_typenames: bint = False,
         inline_objectids: bint = True,
-        allow_capabilities: uint64_t = <uint64_t>compiler.Capability.ALL,
     ):
         self.source = source
         self.protocol_version = protocol_version
@@ -98,7 +97,6 @@ cdef class QueryRequestInfo:
         self.inline_typeids = inline_typeids
         self.inline_typenames = inline_typenames
         self.inline_objectids = inline_objectids
-        self.allow_capabilities = allow_capabilities
 
         self.cached_hash = hash((
             self.source.cache_key(),
@@ -989,6 +987,7 @@ cdef class DatabaseConnectionView:
         # allow passing in the query_unit_group, in case the call site needs
         # to make decisions based on whether the cache is hit
         query_unit_group=None,
+        uint64_t allow_capabilities = <uint64_t>compiler.Capability.ALL,
     ) -> CompiledQuery:
         source = query_req.source
         if cached_globally:
@@ -1032,7 +1031,7 @@ cdef class DatabaseConnectionView:
 
             self.check_capabilities(
                 query_unit_group.capabilities,
-                query_req.allow_capabilities,
+                allow_capabilities,
                 errors.DisabledCapabilityError,
                 "disabled by the client",
             )

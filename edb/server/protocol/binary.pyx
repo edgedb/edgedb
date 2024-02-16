@@ -523,6 +523,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     async def _parse(
         self,
         dbview.QueryRequestInfo query_req,
+        uint64_t allow_capabilities,
     ) -> dbview.CompiledQuery:
         cdef dbview.DatabaseConnectionView dbv
         dbv = self.get_dbview()
@@ -540,7 +541,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f"inline_typeids={query_req.inline_typeids}",
                 f"inline_typenames={query_req.inline_typenames}",
                 f"inline_objectids={query_req.inline_objectids}",
-                f"allow_capabilities={query_req.allow_capabilities}",
+                f"allow_capabilities={allow_capabilities}",
                 f"modaliazes={dbv.get_modaliases()}",
                 f"session_config={dbv.get_session_config()}",
             )
@@ -558,7 +559,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             await self._suppress_tx_timeout()
 
         try:
-            return await dbv.parse(query_req, query_unit_group=query_unit_group)
+            return await dbv.parse(
+                query_req,
+                query_unit_group=query_unit_group,
+                allow_capabilities=allow_capabilities,
+            )
         finally:
             if suppress_timeout:
                 await self._restore_tx_timeout(dbv)
@@ -757,7 +762,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 'server restart is required for the configuration '
                 'change to take effect')
 
-    cdef dbview.QueryRequestInfo parse_execute_request(self):
+    cdef parse_execute_request(self):
         cdef:
             uint64_t allow_capabilities = 0
             uint64_t compilation_flags = 0
@@ -817,8 +822,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-            allow_capabilities=allow_capabilities,
-        )
+        ), allow_capabilities
 
     async def parse(self):
         cdef:
@@ -827,6 +831,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             dbview.DatabaseConnectionView _dbview
             WriteBuffer parse_complete
             WriteBuffer buf
+            uint64_t allow_capabilities
 
         self._last_anon_compiled = None
 
@@ -835,8 +840,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         _dbview = self.get_dbview()
         if _dbview.get_state_serializer() is None:
             await _dbview.reload_state_serializer()
-        query_req = self.parse_execute_request()
-        compiled = await self._parse(query_req)
+        query_req, allow_capabilities = self.parse_execute_request()
+        compiled = await self._parse(query_req, allow_capabilities)
 
         buf = self.make_command_data_description_msg(compiled)
 
@@ -858,13 +863,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             bytes in_tid
             bytes out_tid
             bytes args
+            uint64_t allow_capabilities
 
         self.ignore_headers()
 
         _dbview = self.get_dbview()
         if _dbview.get_state_serializer() is None:
             await _dbview.reload_state_serializer()
-        query_req = self.parse_execute_request()
+        query_req, allow_capabilities = self.parse_execute_request()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         args = self.buffer.read_len_prefixed_bytes()
@@ -885,7 +891,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print('EXECUTE /CACHE MISS', query_req.source.text())
 
-                compiled = await self._parse(query_req)
+                compiled = await self._parse(query_req, allow_capabilities)
                 query_unit_group = compiled.query_unit_group
                 if self._cancelled:
                     raise ConnectionAbortedError
@@ -907,7 +913,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         _dbview.check_capabilities(
             query_unit_group.capabilities,
-            query_req.allow_capabilities,
+            allow_capabilities,
             errors.DisabledCapabilityError,
             "disabled by the client",
         )

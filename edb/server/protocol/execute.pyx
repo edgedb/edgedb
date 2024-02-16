@@ -534,13 +534,13 @@ async def parse_execute_json(
         protocol_version=edbdef.CURRENT_PROTOCOL,
         input_format=compiler.InputFormat.JSON,
         output_format=output_format,
-        allow_capabilities=compiler.Capability.MODIFICATIONS,
     )
 
     compiled = await dbv.parse(
         query_req,
         cached_globally=cached_globally,
         use_metrics=use_metrics,
+        allow_capabilities=compiler.Capability.MODIFICATIONS,
     )
 
     pgcon = await tenant.acquire_pgcon(db.name)
