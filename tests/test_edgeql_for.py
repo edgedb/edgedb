@@ -341,16 +341,12 @@ class TestEdgeQLFor(tb.QueryTestCase):
                     select_deck := ((
                         WITH cards := (
                             FOR letter IN {'I', 'B'}
-                            UNION (
-                                FOR copy IN {'1', '2'}
-                                UNION (
-                                    SELECT User.deck {
-                                        name,
-                                        letter := letter ++ copy
-                                    }
-                                    FILTER User.deck.name[0] = letter
-                                )
-                            )
+                            FOR copy IN {'1', '2'}
+                            SELECT User.deck {
+                                name,
+                                letter := letter ++ copy
+                            }
+                            FILTER User.deck.name[0] = letter
                         )
                         SELECT cards ORDER BY .name THEN .letter
                     ),)
