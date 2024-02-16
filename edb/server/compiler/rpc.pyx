@@ -145,6 +145,8 @@ cdef class CompilationRequest:
         return self.cache_key
 
     cdef _serialize(self):
+        # Please see _deserialize_v0 for the format doc
+
         cdef:
             char version = 0, flags
             WriteBuffer out = WriteBuffer.new()
@@ -212,6 +214,35 @@ cdef class CompilationRequest:
         self.serialized_cache = bytes(out)
 
     cdef _deserialize_v0(self, bytes data, str query_text):
+        # Format:
+        #
+        # * 1 byte of version (0)
+        # * 1 byte of bit flags:
+        #   * json_parameters
+        #   * expect_one
+        #   * inline_typeids
+        #   * inline_typenames
+        #   * inline_objectids
+        # * protocol_version (major: int64, minor: int16)
+        # * 1 byte output_format (the same as in the binary protocol)
+        # * implicit_limit: int64
+        # * Module aliases:
+        #   * length: int32 (-2 for None)
+        #   * For each alias pair:
+        #      * 1 byte, 0 if the name is None
+        #      * else, C-String as the name
+        #      * C-String as the alias
+        # * Session config type descriptor
+        #   * 16 bytes type ID
+        #   * int32-length-prefixed serialized type descriptor
+        # * Session config: int32-length-prefixed serialized data
+        # * Serialized Source or NormalizedSource without the original query
+        #   string
+        # * 16-byte cache key = BLAKE-2b hash of:
+        #    * All above serialized,
+        #    * Except that the source is replaced with Source.cache_key()
+        #    * Plus serialized system cache that only affects compilation
+
         cdef char flags
 
         self.serialized_cache = data
