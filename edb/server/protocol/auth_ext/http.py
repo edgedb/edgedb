@@ -946,7 +946,7 @@ class Router:
                 raise errors.InvalidData(
                     "Error redirect URL does not match any allowed URLs.",
                 )
-            
+
             if (
                 maybe_redirect_to and
                 not self._is_url_allowed(maybe_redirect_to)

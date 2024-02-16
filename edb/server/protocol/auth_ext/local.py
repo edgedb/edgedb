@@ -103,7 +103,7 @@ select ext::auth::EmailFactor {
         return result_json[0]["verified_at"]
 
     async def get_identity_id_by_email(
-        self, 
+        self,
         email: str,
         *,
         factor_type: str = 'EmailFactor'

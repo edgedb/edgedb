@@ -18,7 +18,6 @@
 
 
 import logging
-import datetime
 import aiosmtplib
 import json
 
