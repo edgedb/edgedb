@@ -168,7 +168,7 @@ cdef class CompilationRequest:
         out.write_int64(self.implicit_limit)
 
         if self.modaliases is None:
-            out.write_int32(-2)  # -1 has a slight overhead
+            out.write_int32(-1)
         else:
             out.write_int32(len(self.modaliases))
             for k, v in sorted(
@@ -227,7 +227,7 @@ cdef class CompilationRequest:
         # * 1 byte output_format (the same as in the binary protocol)
         # * implicit_limit: int64
         # * Module aliases:
-        #   * length: int32 (-2 for None)
+        #   * length: int32 (negative means the modaliases is None)
         #   * For each alias pair:
         #      * 1 byte, 0 if the name is None
         #      * else, C-String as the name
