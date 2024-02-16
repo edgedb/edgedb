@@ -338,6 +338,11 @@ class ObjectType(
         self,
         schema: s_schema.Schema,
     ) -> Optional[sd.DeleteObject[ObjectType]]:
+        if not schema.get_by_id(self.id, default=None):
+            # this type was already deleted by some other op
+            # (probably alias types cleanup)
+            return None
+
         # References to aliases can only occur inside other aliases,
         # so when they go, we need to delete the reference also.
         # Compound types also need to be deleted when their last

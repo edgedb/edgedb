@@ -1100,7 +1100,12 @@ class Collection(Type, s_abc.Collection):
     def as_type_delete_if_unused(
         self: CollectionTypeT,
         schema: s_schema.Schema,
-    ) -> sd.DeleteObject[CollectionTypeT]:
+    ) -> Optional[sd.DeleteObject[CollectionTypeT]]:
+        if not schema.get_by_id(self.id, default=None):
+            # this type was already deleted by some other op
+            # (probably alias types cleanup)
+            return None
+
         return self.init_delta_command(
             schema,
             sd.DeleteObject,
@@ -1157,7 +1162,12 @@ class CollectionExprAlias(QualifiedType, Collection):
     def as_type_delete_if_unused(
         self: CollectionExprAliasT,
         schema: s_schema.Schema,
-    ) -> sd.DeleteObject[CollectionExprAliasT]:
+    ) -> Optional[sd.DeleteObject[CollectionExprAliasT]]:
+        if not schema.get_by_id(self.id, default=None):
+            # this type was already deleted by some other op
+            # (probably alias types cleanup)
+            return None
+
         cmd = self.init_delta_command(schema, sd.DeleteObject, if_exists=True)
         cmd.add_prerequisite(self.as_underlying_type_delete_if_unused(schema))
         return cmd
