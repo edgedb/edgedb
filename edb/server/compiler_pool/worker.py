@@ -175,7 +175,7 @@ def compile(
         system_config,
     )
 
-    units, cstate = COMPILER.compile(
+    units, cstate = COMPILER.compile_request(
         db.user_schema,
         GLOBAL_SCHEMA,
         db.reflection_cache,
