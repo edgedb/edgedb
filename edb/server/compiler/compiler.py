@@ -396,6 +396,10 @@ class CompilerState:
             self.std_schema, self.config_spec
         )
 
+    @functools.cached_property
+    def request_serializer(self) -> sertypes.CompilationConfigSerializer:
+        return self.state_serializer_factory.make_compilation()
+
 
 class Compiler:
 
@@ -1023,6 +1027,11 @@ class Compiler:
             global_schema,
             protocol_version,
         )
+
+    def make_compilation_config_serializer(
+        self
+    ) -> sertypes.CompilationConfigSerializer:
+        return self.state.request_serializer
 
     def describe_database_dump(
         self,
