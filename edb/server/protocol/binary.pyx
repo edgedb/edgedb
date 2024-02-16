@@ -836,9 +836,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if len(units) == 1 and units[0].cache_sql:
            conn = await self.get_pgcon()
            try:
-               # temporary PoC to make query run
-               persist, evict = units[0].cache_sql
-               await conn.sql_execute((evict, persist))
+               await execute.persist_cache(conn, _dbview, compiled)
            finally:
                self.maybe_release_pgcon(conn)
 

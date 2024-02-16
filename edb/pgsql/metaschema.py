@@ -174,6 +174,32 @@ class DMLDummyTable(dbops.Table):
     '''
 
 
+class QueryCacheTable(dbops.Table):
+    def __init__(self) -> None:
+        super().__init__(name=('edgedb', '_query_cache'))
+
+        self.add_columns([
+            dbops.Column(name='key', type='uuid', required=True),
+            dbops.Column(name='schema_version', type='uuid', required=True),
+            dbops.Column(name='input', type='bytea', required=True),
+            dbops.Column(name='output', type='bytea', required=True),
+            dbops.Column(name='evict', type='text', required=True),
+            dbops.Column(
+                name='creation_time',
+                type='timestamp with time zone',
+                required=True,
+                default='current_timestamp',
+            ),
+        ])
+
+        self.add_constraint(
+            dbops.PrimaryKey(
+                table_name=('edgedb', '_query_cache'),
+                columns=['key'],
+            ),
+        )
+
+
 class BigintDomain(dbops.Domain):
     """Bigint: a variant of numeric that enforces zero digits after the dot.
 
@@ -4534,6 +4560,7 @@ async def bootstrap(
         dbops.CreateView(NormalizedPgSettingsView()),
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
+        dbops.CreateTable(QueryCacheTable()),
         dbops.Query(DMLDummyTable.SETUP_QUERY),
         dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
         dbops.CreateFunction(UuidGenerateV4Function('edgedbext')),

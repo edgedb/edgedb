@@ -81,12 +81,14 @@ cdef class CompiledQuery:
         query_unit_group: dbstate.QueryUnitGroup,
         first_extra: Optional[int]=None,
         extra_counts=(),
-        extra_blobs=()
+        extra_blobs=(),
+        request=None,
     ):
         self.query_unit_group = query_unit_group
         self.first_extra = first_extra
         self.extra_counts = extra_counts
         self.extra_blobs = extra_blobs
+        self.request = request
 
 
 cdef class Database:
@@ -1003,6 +1005,7 @@ cdef class DatabaseConnectionView:
             first_extra=source.first_extra(),
             extra_counts=source.extra_counts(),
             extra_blobs=source.extra_blobs(),
+            request=query_req,
         )
 
     async def _compile(

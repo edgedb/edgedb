@@ -57,6 +57,66 @@ cdef object logger = logging.getLogger('edb.server')
 cdef object FMT_NONE = compiler.OutputFormat.NONE
 
 
+async def persist_cache(
+    be_conn: pgcon.PGConnection,
+    dbv: dbview.DatabaseConnectionView,
+    compiled: dbview.CompiledQuery,
+):
+    units = compiled.query_unit_group
+
+    # FIXME: this is temporary; drop this assertion when we support scripts
+    assert len(units) == 1
+    query_unit = units[0]
+
+    assert query_unit.cache_sql is not None
+    persist, evict = query_unit.cache_sql
+
+    serialized_result = units.maybe_get_serialized(0)
+    assert serialized_result is not None
+
+    insert_sql = b'''
+        INSERT INTO "edgedb"."_query_cache"
+        ("key", "schema_version", "input", "output", "evict")
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (key) DO UPDATE SET
+        "schema_version"=$2, "input"=$3, "output"=$4, "evict"=$5
+    '''
+    bind_datas = [args_ser.combine_raw_args()] * 2
+    bind_datas += [args_ser.combine_raw_args((
+        compiled.request.get_cache_key().bytes,
+        dbv.schema_version.bytes,
+        compiled.request.serialize(),
+        serialized_result,
+        evict,
+    ))]
+    units = compiler.QueryUnitGroup()
+    units.append(
+        compiler.QueryUnit(sql=(evict,), status=b''), serialize=False)
+    units.append(
+        compiler.QueryUnit(sql=(persist,), status=b''), serialize=False)
+    units.append(
+        compiler.QueryUnit(
+            sql=(insert_sql,),
+            sql_hash=hashlib.sha1(insert_sql).hexdigest().encode('latin1'),
+            status=b'',
+        ),
+        serialize=False,
+    )
+
+    try:
+        async with be_conn.parse_execute_script_context():
+            parse_array = [False] * 3
+            be_conn.send_query_unit_group(
+                units, True, bind_datas, None, 0, 3, dbv.dbver, parse_array)
+            for i, unit in enumerate(units):
+                await be_conn.wait_for_command(
+                    unit, parse_array[i], dbv.dbver, ignore_data=True
+                )
+    except Exception:
+        dbv.on_error()
+        raise
+
+
 # TODO: can we merge execute and execute_script?
 async def execute(
     be_conn: pgcon.PGConnection,
@@ -104,10 +164,8 @@ async def execute(
         else:
             config_ops = query_unit.config_ops
 
-            if query_unit.cache_sql:
-                # temporary PoC to make query run
-                persist, evict = query_unit.cache_sql
-                await be_conn.sql_execute((evict, persist))
+            if compiled.request and query_unit.cache_sql:
+                await persist_cache(be_conn, dbv, compiled)
 
             if query_unit.sql:
                 if query_unit.ddl_stmt_id:
