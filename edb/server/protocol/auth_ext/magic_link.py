@@ -121,7 +121,7 @@ select identity { * };""",
                 "callback_url": callback_url,
             },
             include_issued_at=True,
-            expires_in=datetime.timedelta(minutes=10),
+            expires_in=self.provider.token_time_to_live.to_timedelta(),
         )
 
         link = util.join_url_params(
