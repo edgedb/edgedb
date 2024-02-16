@@ -59,10 +59,14 @@ def _render_oauth_buttons(
         }
         for p in oauth_providers
     ]
-    return '<div class="oauth-buttons">' + "\n".join(
-        f'<a href="../authorize?{b["authparams"]}>{b["image"]}</a>'
-        for b in oauth_buttons
-    ) + '</div>'
+    return (
+        '<div class="oauth-buttons">'
+        + "\n".join(
+            f'<a href="../authorize?{b["authparams"]}>{b["image"]}</a>'
+            for b in oauth_buttons
+        )
+        + '</div>'
+    )
 
 
 def render_login_page(
@@ -120,10 +124,14 @@ def render_login_page(
     )
 
     email_factor_form = f"""
-      <input type="hidden" name="redirect_on_failure" value="{
-        base_path}/ui/signin" />
-      <input type="hidden" name="redirect_to" value="{
-          redirect_to_on_signup or redirect_to}" />
+      <input
+        type="hidden"
+        name="redirect_on_failure"
+        value="{base_path}/ui/signin" />
+      <input
+        type="hidden"
+        name="redirect_to"
+        value="{redirect_to_on_signup or redirect_to}" />
       <input type="hidden" name="challenge" value="{challenge}" />
 
       <label for="email">Email</label>
@@ -194,23 +202,18 @@ def render_login_page(
            if app_name else '<span>Sign in</span>'}</h1>
 
       {_render_oauth_buttons(oauth_providers, oauth_params, oauth_label)}
-      {
-        """
-        <div class="divider">
-          <span>or</span>
-        </div>"""
-        if has_email_factor is not None
-          and len(oauth_providers) > 0
-        else ''
-      }
+      {"""
+      <div class="divider">
+        <span>or</span>
+      </div>""" if has_email_factor and oauth_providers else ''}
       {email_factor_form if has_email_factor else ''}
       </form>
       {forgot_link_script}
-      {
-        """
-        <script type="module" src="_static/webauthn-authenticate.js"></script>"""
-        if webauthn_provider is not None else ''
-      }
+      {"""
+      <script
+        type="module"
+        src="_static/webauthn-authenticate.js"
+      ></script>""" if webauthn_provider else ''}
       ''',
     )
 
