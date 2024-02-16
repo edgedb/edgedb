@@ -75,13 +75,13 @@ Declare a property by naming it and setting its type.
       property title -> str;
     }
 
-The ``property`` keyword can be omitted for non-computed properties since EdgeDB v3.
-
 .. code-block:: sdl
 
     type Movie {
       title: str;
     }
+
+The ``property`` keyword can be omitted for non-computed properties since EdgeDB v3.
 
 See :ref:`Schema > Object types <ref_std_object_types>`.
 
@@ -187,8 +187,6 @@ Object types can have links to other object types.
       required property name -> str;
     }
 
-The ``link`` keyword can be omitted for non-computed links since EdgeDB v3.
-
 .. code-block:: sdl
 
     type Movie {
@@ -199,6 +197,8 @@ The ``link`` keyword can be omitted for non-computed links since EdgeDB v3.
     type Person {
       required name: str;
     }
+
+The ``link`` keyword can be omitted for non-computed links since EdgeDB v3.
 
 Use the ``required`` and ``multi`` keywords to specify the cardinality of the
 relation.
