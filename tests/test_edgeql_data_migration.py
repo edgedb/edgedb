@@ -3343,6 +3343,44 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         ], check_complete=False)
         await self.fast_forward_describe_migration()
 
+    async def test_edgeql_migration_vector_change_01(self):
+        await self.migrate('''
+            using extension pgvector;
+            module default {
+                scalar type Embedding extending ext::pgvector::vector<384>;
+                type Obj {
+                   embeddings: Embedding;
+                }
+            }
+        ''', explicit_modules=True)
+
+        await self.start_migration('''
+            using extension pgvector;
+            module default {
+                scalar type Embedding extending ext::pgvector::vector<768>;
+                type Obj {
+                   embeddings: Embedding;
+                }
+            }
+        ''', explicit_modules=True)
+
+        await self.assert_describe_migration({
+            'proposed': {
+                'statements': [{
+                    'text': """
+                        ALTER TYPE default::Obj {DROP PROPERTY embeddings;};
+                    """
+                }]
+            }
+        })
+
+        # FIXME: Rejecting it still fails in a bad way.
+        # (This needs to fail in *some* way, but it ISEs.)
+        # await self.interact([
+        #     ("did you drop property 'embeddings' of object type "
+        #      "'default::Obj'?", "n"),
+        # ])
+
     async def test_edgeql_migration_force_delete_01(self):
         await self.migrate('''
             type Base;
