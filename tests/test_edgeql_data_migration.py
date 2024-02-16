@@ -3374,12 +3374,14 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         })
 
-        # FIXME: Rejecting it still fails in a bad way.
-        # (This needs to fail in *some* way, but it ISEs.)
-        # await self.interact([
-        #     ("did you drop property 'embeddings' of object type "
-        #      "'default::Obj'?", "n"),
-        # ])
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"cannot produce migration because of a dependency cycle",
+        ):
+            await self.interact([
+                ("did you drop property 'embeddings' of object type "
+                 "'default::Obj'?", "n"),
+            ])
 
     async def test_edgeql_migration_force_delete_01(self):
         await self.migrate('''

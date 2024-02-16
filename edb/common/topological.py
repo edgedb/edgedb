@@ -33,8 +33,8 @@ class CycleError(Exception):
     def __init__(
         self,
         msg: str,
-        item: Optional[Any] = None,
-        path: Optional[List[Any]] = None,
+        item: Any,
+        path: tuple[Any, ...] = (),
     ) -> None:
         super().__init__(msg)
         self.item = item
@@ -144,7 +144,7 @@ def sort_ex(
         if item in visiting:
             # Separate the matching item from the rest of the visiting
             # set for error reporting.
-            vis_list = list(visiting - {item})
+            vis_list = tuple(visiting - {item})
             cycle_item = item if len(vis_list) == 0 else vis_list[-1]
             raise CycleError(
                 f"dependency cycle between {cycle_item!r} "

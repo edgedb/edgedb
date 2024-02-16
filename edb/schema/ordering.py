@@ -110,7 +110,18 @@ def linearize_delta(
         item.deps &= everything
         item.weak_deps &= everything
 
-    sortedlist = [i[1] for i in topological.sort_ex(depgraph)]
+    try:
+        sortedlist = [i[1] for i in topological.sort_ex(depgraph)]
+    except topological.CycleError as ex:
+        cycle = [depgraph[k].item for k in (ex.item,) + ex.path + (ex.item,)]
+        messages = [
+            '  ' + nodes[-1].get_friendly_description(parent_op=nodes[-2])
+            for nodes in cycle
+        ]
+        raise errors.SchemaDefinitionError(
+            'cannot produce migration because of a dependency cycle:\n'
+            + ' depends on\n'.join(messages)
+        ) from None
     reconstructed = reconstruct_tree(sortedlist, depgraph)
     delta.replace_all(reconstructed.get_subcommands())
     return delta
