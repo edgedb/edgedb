@@ -144,11 +144,10 @@ jobs:
       if: |
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true'
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
 
     # Build EdgeDB CLI
 
@@ -371,11 +370,10 @@ jobs:
         key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Install rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
 
     - name: Cargo test
       uses: actions-rs/cargo@v1
