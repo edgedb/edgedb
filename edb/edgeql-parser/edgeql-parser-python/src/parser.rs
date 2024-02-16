@@ -1,7 +1,7 @@
 use once_cell::sync::OnceCell;
 
 use edgeql_parser::parser;
-use pyo3::exceptions::PyAssertionError;
+use pyo3::exceptions::{PyAssertionError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyString, PyTuple};
 
@@ -114,8 +114,8 @@ pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<()> {
     let bytes = std::fs::read(&spec_filepath)
         .unwrap_or_else(|e| panic!("Cannot read grammar spec from {spec_filepath} ({e})"));
 
-    let spec: parser::Spec = bitcode::deserialize::<parser::SpecSerializable>(&bytes)
-        .unwrap()
+    let spec: parser::Spec = bincode::deserialize::<parser::SpecSerializable>(&bytes)
+        .map_err(|e| PyValueError::new_err(format!("Bad spec: {e}")))?
         .into();
     let productions = load_productions(py, &spec)?;
 
@@ -129,8 +129,10 @@ pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<()> {
 #[pyfunction]
 pub fn save_spec(spec_json: &PyString, dst: &PyString) -> PyResult<()> {
     let spec_json = spec_json.to_string();
-    let spec: parser::SpecSerializable = serde_json::from_str(&spec_json).unwrap();
-    let spec_bitcode = bitcode::serialize(&spec).unwrap();
+    let spec: parser::SpecSerializable = serde_json::from_str(&spec_json)
+        .map_err(|e| PyValueError::new_err(format!("Invalid JSON: {e}")))?;
+    let spec_bitcode = bincode::serialize(&spec)
+        .map_err(|e| PyValueError::new_err(format!("Failed to pack spec: {e}")))?;
 
     let dst = dst.to_string();
 

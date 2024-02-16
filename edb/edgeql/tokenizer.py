@@ -30,11 +30,31 @@ from edb import errors
 TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 
+def deserialize(serialized: bytes, text: str) -> Source:
+    match serialized[0]:
+        case 0:
+            return Source(
+                text, ql_parser.unpack(serialized), serialized
+            )
+        case 1:
+            return NormalizedSource(
+                ql_parser.unpack(serialized), text, serialized
+            )
+
+    raise ValueError(f"Invalid type/version byte: {serialized[0]}")
+
+
 class Source:
-    def __init__(self, text: str, tokens: List[ql_parser.Token]) -> None:
+    def __init__(
+        self,
+        text: str,
+        tokens: List[ql_parser.Token],
+        serialized: bytes,
+    ) -> None:
         self._cache_key = hashlib.blake2b(text.encode('utf-8')).digest()
         self._text = text
         self._tokens = tokens
+        self._serialized = serialized
 
     def text(self) -> str:
         return self._text
@@ -57,16 +77,27 @@ class Source:
     def extra_blobs(self) -> Sequence[bytes]:
         return ()
 
+    def serialize(self) -> bytes:
+        return self._serialized
+
     @classmethod
     def from_string(cls, text: str) -> Source:
-        return cls(text=text, tokens=_tokenize(text))
+        result = _tokenize(text)
+        return cls(
+            text=text, tokens=result.out, serialized=result.pack()
+        )
 
     def __repr__(self):
         return f'<edgeql.Source text={self._text!r}>'
 
 
 class NormalizedSource(Source):
-    def __init__(self, normalized: ql_parser.Entry, text: str) -> None:
+    def __init__(
+        self,
+        normalized: ql_parser.Entry,
+        text: str,
+        serialized: bytes,
+    ) -> None:
         self._text = text
         self._cache_key = normalized.key
         self._tokens = normalized.tokens
@@ -74,6 +105,7 @@ class NormalizedSource(Source):
         self._first_extra = normalized.first_extra
         self._extra_counts = normalized.extra_counts
         self._extra_blobs = normalized.extra_blobs
+        self._serialized = serialized
 
     def text(self) -> str:
         return self._text
@@ -98,7 +130,8 @@ class NormalizedSource(Source):
 
     @classmethod
     def from_string(cls, text: str) -> NormalizedSource:
-        return cls(_normalize(text), text)
+        normalized = _normalize(text)
+        return cls(normalized, text, normalized.pack())
 
 
 def inflate_span(
@@ -129,7 +162,7 @@ def inflate_position(
     )
 
 
-def _tokenize(eql: str) -> List[ql_parser.Token]:
+def _tokenize(eql: str) -> ql_parser.ParserResult:
     result = ql_parser.tokenize(eql)
 
     if len(result.errors) > 0:
@@ -144,7 +177,7 @@ def _tokenize(eql: str) -> List[ql_parser.Token]:
             message, position=position, hint=hint, details=details
         )
 
-    return result.out
+    return result
 
 
 def _normalize(eql: str) -> ql_parser.Entry:

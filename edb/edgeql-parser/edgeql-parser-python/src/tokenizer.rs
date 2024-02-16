@@ -1,5 +1,6 @@
 use edgeql_parser::tokenizer::{Token, Tokenizer};
 use once_cell::sync::OnceCell;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyString};
 
@@ -49,7 +50,8 @@ impl OpaqueToken {
         Ok(self.inner.to_string())
     }
     fn __reduce__(&self, py: Python) -> PyResult<(PyObject, (PyObject,))> {
-        let data = bitcode::serialize(&self.inner).unwrap();
+        let data = bincode::serialize(&self.inner)
+            .map_err(|e| PyValueError::new_err(format!("Failed to reduce: {e}")))?;
 
         let tok = get_unpickle_token_fn(py);
         Ok((tok, (PyBytes::new(py, &data).to_object(py),)))
@@ -86,7 +88,8 @@ pub fn fini_module(py: Python, m: &PyModule) {
 
 #[pyfunction]
 pub fn unpickle_token(bytes: &PyBytes) -> PyResult<OpaqueToken> {
-    let token = bitcode::deserialize(bytes.as_bytes()).unwrap();
+    let token = bincode::deserialize(bytes.as_bytes())
+        .map_err(|e| PyValueError::new_err(format!("Failed to read token: {e}")))?;
     Ok(OpaqueToken { inner: token })
 }
 

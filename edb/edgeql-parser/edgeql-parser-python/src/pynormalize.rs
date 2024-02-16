@@ -6,37 +6,19 @@ use bytes::{BufMut, Bytes, BytesMut};
 use edgedb_protocol::codec;
 use edgedb_protocol::model::{BigInt, Decimal};
 use edgeql_parser::tokenizer::Value;
-use pyo3::exceptions::PyAssertionError;
+use pyo3::exceptions::{PyAssertionError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyFloat, PyList, PyLong, PyString};
 
 use crate::errors::SyntaxError;
-use crate::normalize::{normalize as _normalize, Error, Variable};
+use crate::normalize::{normalize as _normalize, Error, Variable, PackedEntry};
 use crate::tokenizer::tokens_to_py;
 
 #[pyfunction]
 pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
     let text = text.to_string();
     match _normalize(&text) {
-        Ok(entry) => {
-            let blobs =
-                serialize_all(py, &entry.variables).map_err(PyAssertionError::new_err)?;
-            let counts: Vec<_> = entry
-                .variables
-                .iter()
-                .map(|x| x.len().into_py(py))
-                .collect();
-
-            Ok(Entry {
-                key: PyBytes::new(py, &entry.hash[..]).into(),
-                tokens: tokens_to_py(py, entry.tokens)?,
-                extra_blobs: blobs.into(),
-                extra_named: entry.named_args,
-                first_extra: entry.first_arg,
-                extra_counts: PyList::new(py, &counts[..]).into(),
-                variables: entry.variables,
-            })
-        }
+        Ok(entry) => Entry::new(py, entry),
         Err(Error::Tokenizer(msg, pos)) => {
             Err(SyntaxError::new_err((
                 msg,
@@ -70,7 +52,29 @@ pub struct Entry {
     #[pyo3(get)]
     extra_counts: PyObject,
 
-    variables: Vec<Vec<Variable>>,
+    entry_pack: PackedEntry,
+}
+
+impl Entry {
+    pub fn new(py: Python, entry: crate::normalize::Entry) -> PyResult<Self> {
+        let blobs =
+            serialize_all(py, &entry.variables).map_err(PyAssertionError::new_err)?;
+        let counts: Vec<_> = entry
+            .variables
+            .iter()
+            .map(|x| x.len().into_py(py))
+            .collect();
+
+        Ok(Entry {
+            key: PyBytes::new(py, &entry.hash[..]).into(),
+            tokens: tokens_to_py(py, entry.tokens.clone())?,
+            extra_blobs: blobs.into(),
+            extra_named: entry.named_args,
+            first_extra: entry.first_arg,
+            extra_counts: PyList::new(py, &counts[..]).into(),
+            entry_pack: entry.into(),
+        })
+    }
 }
 
 #[pymethods]
@@ -81,7 +85,7 @@ impl Entry {
             Some(first) => first,
             None => return Ok(vars.to_object(py)),
         };
-        for (idx, var) in self.variables.iter().flatten().enumerate() {
+        for (idx, var) in self.entry_pack.variables.iter().flatten().enumerate() {
             let s = if self.extra_named {
                 format!("__edb_arg_{}", first + idx)
             } else {
@@ -91,6 +95,13 @@ impl Entry {
         }
 
         Ok(vars.to_object(py))
+    }
+
+    fn pack(&self, py: Python) -> PyResult<PyObject> {
+        let mut buf = vec![1u8];  // type and version
+        bincode::serialize_into(&mut buf, &self.entry_pack)
+            .map_err(|e| PyValueError::new_err(format!("Failed to pack: {e}")))?;
+        Ok(PyBytes::new(py, buf.as_slice()).into())
     }
 }
 

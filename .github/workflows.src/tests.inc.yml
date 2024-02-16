@@ -202,9 +202,9 @@
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
         restore-keys: |
-          edb-parsers-v2-
+          edb-parsers-v3-
 
     - name: Build parsers
       env:
@@ -358,7 +358,7 @@
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
       uses: actions/cache@v3
