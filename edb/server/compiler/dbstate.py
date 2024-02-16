@@ -102,7 +102,6 @@ class Query(BaseQuery):
 
     is_transactional: bool = True
     has_dml: bool = False
-    single_unit: bool = False
     cacheable: bool = True
     is_explain: bool = False
     query_asts: Any = None
@@ -115,7 +114,6 @@ class SimpleQuery(BaseQuery):
     sql: Tuple[bytes, ...]
     is_transactional: bool = True
     has_dml: bool = False
-    single_unit: bool = False
     # XXX: Temporary hack, since SimpleQuery will die
     in_type_args: Optional[List[Param]] = None
 
@@ -129,7 +127,6 @@ class SessionStateQuery(BaseQuery):
     is_system_config: bool = False
     config_op: Optional[config.Operation] = None
     is_transactional: bool = True
-    single_unit: bool = False
     globals: Optional[list[tuple[str, bool]]] = None
 
     in_type_data: Optional[bytes] = None
@@ -144,7 +141,6 @@ class DDLQuery(BaseQuery):
     global_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
     is_transactional: bool = True
-    single_unit: bool = False
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
     drop_db_reset_connections: bool = False
@@ -163,7 +159,6 @@ class TxControlQuery(BaseQuery):
 
     modaliases: Optional[immutables.Map[Optional[str], str]]
     is_transactional: bool = True
-    single_unit: bool = False
 
     user_schema: Optional[s_schema.Schema] = None
     global_schema: Optional[s_schema.Schema] = None
@@ -182,7 +177,6 @@ class MigrationControlQuery(BaseQuery):
 
     modaliases: Optional[immutables.Map[Optional[str], str]]
     is_transactional: bool = True
-    single_unit: bool = False
 
     user_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None

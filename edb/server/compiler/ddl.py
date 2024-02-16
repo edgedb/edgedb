@@ -165,7 +165,6 @@ def compile_and_apply_ddl_stmt(
             sql=(b'SELECT LIMIT 0',),
             user_schema=current_tx.get_user_schema(),
             is_transactional=True,
-            single_unit=False,
         )
 
     # If we are in a migration rewrite, we also don't actually
@@ -192,7 +191,6 @@ def compile_and_apply_ddl_stmt(
             sql=(b'SELECT LIMIT 0',),
             user_schema=current_tx.get_user_schema(),
             is_transactional=True,
-            single_unit=False,
         )
 
     # Do a dry-run on test_schema to canonicalize
@@ -278,12 +276,6 @@ def compile_and_apply_ddl_stmt(
     return dbstate.DDLQuery(
         sql=sql,
         is_transactional=is_transactional,
-        single_unit=bool(
-            (not is_transactional)
-            or (drop_db is not None)
-            or (create_db is not None)
-            or new_types
-        ),
         create_db=create_db,
         drop_db=drop_db,
         drop_db_reset_connections=drop_db_reset_connections,
@@ -449,7 +441,6 @@ def _start_migration(
             tx_action=tx_query.action,
             cacheable=False,
             modaliases=None,
-            single_unit=tx_query.single_unit,
         )
     else:
         savepoint_name = current_tx.start_migration()
@@ -570,7 +561,6 @@ def _populate_migration(
         action=dbstate.MigrationAction.POPULATE,
         cacheable=False,
         modaliases=None,
-        single_unit=False,
     )
 
 
@@ -801,7 +791,6 @@ def _alter_current_migration_reject_proposed(
         action=dbstate.MigrationAction.REJECT_PROPOSED,
         cacheable=False,
         modaliases=None,
-        single_unit=False,
     )
 
 
@@ -898,7 +887,6 @@ def _commit_migration(
         tx_action=tx_action,
         cacheable=False,
         modaliases=None,
-        single_unit=True,
         user_schema=ctx.state.current_tx().get_user_schema(),
         cached_reflection=(current_tx.get_cached_reflection_if_updated()),
     )
@@ -929,7 +917,6 @@ def _abort_migration(
         tx_action=tx_action,
         cacheable=False,
         modaliases=None,
-        single_unit=True,
     )
 
 
@@ -955,7 +942,6 @@ def _start_migration_rewrite(
             tx_action=tx_query.action,
             cacheable=False,
             modaliases=None,
-            single_unit=tx_query.single_unit,
         )
     else:
         savepoint_name = current_tx.start_migration()
@@ -1068,7 +1054,6 @@ def _commit_migration_rewrite(
         tx_action=tx_action,
         cacheable=False,
         modaliases=None,
-        single_unit=True,
         user_schema=ctx.state.current_tx().get_user_schema(),
         cached_reflection=(current_tx.get_cached_reflection_if_updated()),
     )
@@ -1100,7 +1085,6 @@ def _abort_migration_rewrite(
         tx_action=tx_action,
         cacheable=False,
         modaliases=None,
-        single_unit=True,
     )
 
     return query
@@ -1175,7 +1159,6 @@ def _reset_schema(
         tx_action=None,
         cacheable=False,
         modaliases=None,
-        single_unit=True,
         user_schema=current_tx.get_user_schema(),
         cached_reflection=(current_tx.get_cached_reflection_if_updated()),
     )
@@ -1276,7 +1259,6 @@ def administer_repair_schema(
 
     return dbstate.DDLQuery(
         sql=sql,
-        single_unit=False,
         user_schema=current_tx.get_user_schema_if_updated(),  # type: ignore
         global_schema=current_tx.get_global_schema_if_updated(),
         config_ops=config_ops,

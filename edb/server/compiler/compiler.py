@@ -1845,7 +1845,6 @@ def _compile_ql_transaction(
 ) -> dbstate.TxControlQuery:
 
     cacheable = True
-    single_unit = False
 
     modaliases = None
     final_user_schema: Optional[s_schema.Schema] = None
@@ -1889,7 +1888,6 @@ def _compile_ql_transaction(
         modaliases = new_state.modaliases
 
         sql = (b'COMMIT',)
-        single_unit = True
         cacheable = False
         action = dbstate.TxAction.COMMIT
 
@@ -1898,7 +1896,6 @@ def _compile_ql_transaction(
         modaliases = new_state.modaliases
 
         sql = (b'ROLLBACK',)
-        single_unit = True
         cacheable = False
         action = dbstate.TxAction.ROLLBACK
 
@@ -1927,7 +1924,6 @@ def _compile_ql_transaction(
 
         pgname = pg_common.quote_ident(ql.name)
         sql = (f'ROLLBACK TO SAVEPOINT {pgname};'.encode(),)
-        single_unit = True
         cacheable = False
         action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
         sp_name = ql.name
@@ -1939,7 +1935,6 @@ def _compile_ql_transaction(
         sql=sql,
         action=action,
         cacheable=cacheable,
-        single_unit=single_unit,
         modaliases=modaliases,
         user_schema=final_user_schema,
         cached_reflection=final_cached_reflection,
@@ -2164,7 +2159,6 @@ def _compile_ql_config_op(
         ctx, ir, sql_res.argmap, None
     )
 
-    single_unit = False
     if ql.scope is qltypes.ConfigScope.SESSION:
         config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
@@ -2196,8 +2190,6 @@ def _compile_ql_config_op(
             # This is a complex config object operation, the
             # op will be produced by the compiler as json.
             config_op = None
-
-        single_unit = True
     else:
         raise AssertionError(f'unexpected configuration scope: {ql.scope}')
 
@@ -2207,7 +2199,6 @@ def _compile_ql_config_op(
         is_system_config=is_system_config,
         config_scope=ql.scope,
         requires_restart=requires_restart,
-        single_unit=single_unit,
         config_op=config_op,
         globals=globals,
         in_type_args=in_type_args,
@@ -2417,12 +2408,6 @@ def _try_compile(
                     f'cannot execute {status.get_status(stmt).decode()} '
                     f'in a transaction',
                     context=stmt.context,
-                )
-
-            if not getattr(comp, 'single_unit', None):
-                raise errors.InternalServerError(
-                    'non-transactional compilation units must '
-                    'be single-unit'
                 )
 
             unit.is_transactional = False
