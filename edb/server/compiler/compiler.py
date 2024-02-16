@@ -398,7 +398,7 @@ class CompilerState:
         )
 
     @functools.cached_property
-    def request_serializer(self) -> sertypes.InputShapeSerializer:
+    def compilation_config_serializer(self) -> sertypes.InputShapeSerializer:
         return (
             self.state_serializer_factory.make_compilation_config_serializer()
         )
@@ -831,7 +831,9 @@ class Compiler:
     ) -> Tuple[
         dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
     ]:
-        request = rpc.CompilationRequest(self.state.request_serializer)
+        request = rpc.CompilationRequest(
+            self.state.compilation_config_serializer
+        )
         request.deserialize(serialized_request, original_query)
 
         units, cstate = self.compile(
@@ -1069,7 +1071,7 @@ class Compiler:
     def make_compilation_config_serializer(
         self
     ) -> sertypes.InputShapeSerializer:
-        return self.state.request_serializer
+        return self.state.compilation_config_serializer
 
     def describe_database_dump(
         self,
