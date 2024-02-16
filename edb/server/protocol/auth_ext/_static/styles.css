@@ -110,6 +110,7 @@ body {
 }
 .container button span {
   grid-column: 2;
+  margin: 0 12px;
 }
 .container button svg {
   margin-left: 8px;
@@ -144,6 +145,7 @@ body {
   padding: 0;
   justify-content: center;
   margin-right: 12px;
+  flex-shrink: 0;
 }
 .container button.icon-only svg {
   margin-left: 0;
@@ -152,6 +154,9 @@ body {
 
 .button-group {
   display: flex;
+}
+.button-group button:not(.icon-only) {
+  flex-grow: 1;
 }
 
 .slider-container {
@@ -267,6 +272,19 @@ a.field-note:hover {
 .oauth-buttons a span {
   margin-left: 12px;
 }
+.oauth-buttons.collapsed {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.oauth-buttons.collapsed a {
+  padding: 0;
+  width: 46px;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.oauth-buttons.collapsed a span {
+  display: none;
+}
 
 .divider {
   display: flex;
@@ -332,6 +350,15 @@ a.field-note:hover {
   color: #1f8aed;
   border-color: #1f8aed;
   background: #e4f1fc;
+}
+
+.no-webauthn-error {
+  border: 1px solid #f9827b;
+  background: #fee6e5;
+  color: #eb4b42;
+  margin: 8px 0;
+  border-radius: 8px;
+  padding: 10px 12px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -425,5 +452,10 @@ a.field-note:hover {
   }
   .success-message {
     background: #293a4a;
+  }
+
+  .no-webauthn-error {
+    background: #423336;
+    border-color: #a1433d;
   }
 }

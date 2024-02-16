@@ -16,27 +16,41 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   } else {
     const form = document.getElementById("email-factor");
-    let mainFormAction = "";
+    let mainFormAction = form.action;
 
-    const showPasswordFormButton =
-      document.getElementById("show-password-form");
-    if (showPasswordFormButton) {
-      showPasswordFormButton.addEventListener("click", () => {
+    const hiddenInputs = Array.from(
+      form.querySelectorAll("input[type=hidden]")
+    ).filter((input) => !!input.dataset.secondaryValue);
+    const hiddenInputValues = hiddenInputs.map((input) => input.value);
+
+    console.log(hiddenInputs, hiddenInputValues);
+
+    if (!sliderContainer.children[0].classList.contains("active")) {
+      form.action = form.dataset.secondaryAction;
+      setInputValues(hiddenInputs);
+    }
+
+    document
+      .getElementById("show-password-form")
+      .addEventListener("click", () => {
         moveSliderToIndex(sliderContainer, 1);
-        mainFormAction = form.action;
-        form.action = "../authenticate";
+
+        form.action = form.dataset.secondaryAction;
+        setInputValues(hiddenInputs);
+
         document.getElementById("password")?.focus({ preventScroll: true });
       });
-    }
 
-    const hidePasswordFormButton =
-      document.getElementById("hide-password-form");
-    if (hidePasswordFormButton) {
-      hidePasswordFormButton.addEventListener("click", () => {
+    document
+      .getElementById("hide-password-form")
+      .addEventListener("click", () => {
         moveSliderToIndex(sliderContainer, 0);
+
         form.action = mainFormAction;
+        setInputValues(hiddenInputs, hiddenInputValues);
+
+        failureRedirectInput.value = failureRedirect;
       });
-    }
   }
 });
 
@@ -52,7 +66,30 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     forgotLink.href = `${href}&email=${encodeURIComponent(emailInput.value)}`;
   }
+
+  const emailInputs = document.querySelectorAll("input[name=email]");
+  for (const input of emailInputs) {
+    input.addEventListener("input", (e) => {
+      const val = e.target.value;
+      for (const _input of emailInputs) {
+        if (_input !== input) {
+          _input.value = val;
+        }
+      }
+    });
+  }
 });
+
+/**
+ * @param {HTMLElement[]} inputs
+ * @param {string[]} [values]
+ */
+function setInputValues(inputs, values) {
+  for (let i = 0; i < inputs.length; i++) {
+    const input = inputs[i];
+    input.value = values ? values[i] : input.dataset.secondaryValue;
+  }
+}
 
 let firstInteraction = true;
 
@@ -71,7 +108,9 @@ function moveSliderToIndex(sliderContainer, index) {
       "px";
 
     // Set the height for the first time as transition from 'auto' doesn't work
-    sliderContainer.style.height = `${sliderContainer.children[0].scrollHeight}px`;
+    sliderContainer.style.height = `${
+      sliderContainer.getElementsByClassName("active")[0].scrollHeight
+    }px`;
   }
 
   setActiveClass(sliderContainer.children, index);

@@ -116,7 +116,8 @@ def oauth_buttons(
     challenge: str,
     redirect_to_on_signup: Optional[str],
     oauth_providers: list,
-    label_prefix: str
+    label_prefix: str,
+    collapsed: bool
 ) -> str:
     if len(oauth_providers) == 0:
         return ''
@@ -136,7 +137,7 @@ def oauth_buttons(
     )
 
     return f'''
-      <div class="oauth-buttons">
+      <div class="oauth-buttons{' collapsed' if collapsed else ''}">
         {buttons}
       </div>
     '''
@@ -158,10 +159,11 @@ def _oauth_button(
         if provider.name in known_oauth_provider_names
         else ''
     )
+    label = f'{label_prefix} {provider.display_name}'
     return f'''
-        <a href={href}>
+        <a href={href} title="{label}">
           {img}
-          <span>{label_prefix} {provider.display_name}</span>
+          <span>{label}</span>
         </a>
     '''
 
@@ -220,23 +222,24 @@ divider = '''
 
 
 def tabs_content(
-    sections: list[str]
+    sections: list[str],
+    selected_tab: int
 ) -> str:
-    content = f'''
-        <div class="slider-section active">
-          {sections[0]}
-        </div>
-    '''
+    content = ''
 
-    for section in sections[1:]:
+    for i, section in enumerate(sections):
         content += f'''
-            <div class="slider-section">
+            <div class="slider-section{' active' if selected_tab == i else ''}">
               {section}
             </div>
         '''
 
+    style = (
+        f'style="transform: translateX({-100 * selected_tab}%)"'
+        if selected_tab > 0 else ''
+    )
     return f'''
-        <div id="slider-container" class="slider-container">
+        <div id="slider-container" class="slider-container" {style}>
           {content}
         </div>
     '''
@@ -249,18 +252,14 @@ _tab_underline = '''
 
 
 def tabs_buttons(
-    labels: list[str]
+    labels: list[str],
+    selected_tab: int
 ) -> str:
-    content = f'''
-        <div class="tab active">
-          {labels[0]}
-          {_tab_underline}
-        </div>
-    '''
+    content = ''
 
-    for label in labels[1:]:
+    for i, label in enumerate(labels):
         content += f'''
-            <div class="tab">
+            <div class="tab{' active' if selected_tab == i else ''}">
               {label}
               {_tab_underline}
             </div>
@@ -271,6 +270,17 @@ def tabs_buttons(
           {content}
         </div>
     '''
+
+
+def hidden_input(
+    *,
+    name: str,
+    value: str,
+    secondary_value: Optional[str] = None
+) -> str:
+    return f'''<input type="hidden" name="{name}" value="{value}" {
+        f'data-secondary-value="{secondary_value}"'
+        if secondary_value else ''} />'''
 
 
 def bottom_note(
