@@ -376,12 +376,11 @@ jobs:
         toolchain: "stable"
 
     - name: Cargo test
-      uses: actions-rs/cargo@v1
       env:
         CARGO_TARGET_DIR: ${{ env.BUILD_TEMP }}/rust/extensions
         CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/extensions/cargo_home
-      with:
-        command: test
+      run:
+        cargo test
 
   python-test:
     needs: build
