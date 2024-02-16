@@ -8786,6 +8786,7 @@ type default::Foo {
     async def test_edgeql_ddl_extension_01(self):
         await self.con.execute(r"""
             CREATE EXTENSION PACKAGE MyExtension VERSION '1.0';
+            CREATE EXTENSION PACKAGE MyExtension VERSION '1.1';
             CREATE EXTENSION PACKAGE MyExtension VERSION '2.0';
         """)
 
@@ -8845,14 +8846,14 @@ type default::Foo {
             [{
                 'name': 'MyExtension',
                 'package': {
-                    'ver': [1, 0],
+                    'ver': [1, 1],
                 }
             }]
         )
 
         async with self.assertRaisesRegexTx(
             edgedb.SchemaError,
-            "version 1.0 is already installed",
+            "version 1.1 is already installed",
         ):
             await self.con.execute(r"""
                 CREATE EXTENSION MyExtension VERSION '2.0';
@@ -17014,7 +17015,7 @@ class TestDDLExtensions(tb.DDLTestCase):
     async def _extension_test_06b(self):
         await self.con.execute(r"""
             START MIGRATION TO {
-                using extension bar version "1.1";
+                using extension bar version "2.0";
                 module default {
                     function lol() -> str using (ext::bar::fubar())
                 }
@@ -17032,7 +17033,7 @@ class TestDDLExtensions(tb.DDLTestCase):
         async with self._run_and_rollback():
             await self.con.execute(r"""
                 START MIGRATION TO {
-                    using extension bar version "1.1";
+                    using extension bar version "2.0";
                     module default {
                     }
                 };
@@ -17044,7 +17045,7 @@ class TestDDLExtensions(tb.DDLTestCase):
         async with self._run_and_rollback():
             await self.con.execute(r"""
                 START MIGRATION TO {
-                    using extension bar version "1.1";
+                    using extension bar version "2.0";
                     module default {
                     }
                 };
@@ -17095,13 +17096,13 @@ class TestDDLExtensions(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
             edgedb.SchemaError,
-            "cannot install extension 'foo' version 1.1: "
+            "cannot install extension 'foo' version 2.0: "
             "version 1.0 is already installed"
         ):
             await self.con.execute(r"""
                 START MIGRATION TO {
                     using extension bar version '1.0';
-                    using extension foo version '1.1';
+                    using extension foo version '2.0';
                     module default {
                     }
                 };
@@ -17117,7 +17118,7 @@ class TestDDLExtensions(tb.DDLTestCase):
               create module ext::foo;
               create function ext::foo::test() -> str using ("foo?");
             };
-            create extension package foo VERSION '1.1' {
+            create extension package foo VERSION '2.0' {
               set ext_module := "ext::foo";
               create module ext::foo;
               create function ext::foo::test() -> str using ("foo");
@@ -17130,9 +17131,9 @@ class TestDDLExtensions(tb.DDLTestCase):
                 ext::foo::test() ++ "bar"
               );
             };
-            create extension package bar VERSION '1.1' {
+            create extension package bar VERSION '2.0' {
               set ext_module := "ext::bar";
-              set dependencies := ["foo==1.1"];
+              set dependencies := ["foo==2.0"];
               create module ext::bar;
               create function ext::bar::fubar() -> str using (
                 ext::foo::test() ++ "bar"
@@ -17146,6 +17147,8 @@ class TestDDLExtensions(tb.DDLTestCase):
             await self.con.execute('''
                 drop extension package bar VERSION '1.0';
                 drop extension package foo VERSION '1.0';
+                drop extension package bar VERSION '2.0';
+                drop extension package foo VERSION '2.0';
             ''')
 
     async def test_edgeql_ddl_reindex(self):
