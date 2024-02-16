@@ -1158,8 +1158,6 @@ class Pool(BasePool[C]):
                 self._schedule_discard(block, conn)
 
     async def acquire(self, dbname: str) -> C:
-        assert 'buttsquid' not in dbname, dbname
-
         self._nacquires += 1
         self._maybe_schedule_tick()
         try:
