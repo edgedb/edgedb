@@ -102,15 +102,20 @@ select ext::auth::EmailFactor {
 
         return result_json[0]["verified_at"]
 
-    async def get_identity_id_by_email(self, email: str) -> str | None:
+    async def get_identity_id_by_email(
+        self, 
+        email: str,
+        *,
+        factor_type: str = 'EmailFactor'
+    ) -> str | None:
         r = await execute.parse_execute_json(
             self.db,
-            """
+            f"""
 with
     email := <str>$email,
     identity := (
         select ext::auth::LocalIdentity
-        filter .<identity[is ext::auth::EmailFactor].email = email
+        filter .<identity[is ext::auth::{factor_type}].email = email
     ),
 select identity.id;""",
             variables={"email": email},

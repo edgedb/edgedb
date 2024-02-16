@@ -105,7 +105,8 @@ select identity { * };""",
         redirect_on_failure: str,
     ):
         signing_key = self._get_signing_key()
-        identity_id = await self.get_identity_id_by_email(email)
+        identity_id = await self.get_identity_id_by_email(
+            email, factor_type='MagicLinkFactor')
 
         if identity_id is None:
             await auth_emails.send_fake_email(self.tenant)
