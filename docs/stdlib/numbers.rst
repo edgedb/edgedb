@@ -838,9 +838,6 @@ from :eql:type:`str` and :eql:type:`json`.
 
         db> select to_int16(b'\x00\x07');
         {7}
-        db> select to_int16(to_bytes(<int64>123));
-        {123}
-
 
 
 ------------
@@ -871,8 +868,6 @@ from :eql:type:`str` and :eql:type:`json`.
 
         db> select to_int32(b'\x01\x02\x00\x07');
         {16908295}
-        db> select to_int32(to_bytes(<int64>16908295));
-        {16908295}
 
 
 ------------
@@ -902,10 +897,6 @@ from :eql:type:`str` and :eql:type:`json`.
     .. code-block:: edgeql-repl
 
         db> select to_int64(b'\x01\x02\x00\x07\x11\x22\x33\x44');
-        {72620574343574340}
-
-        db> # notice that the first byte is ignored as padding
-        ... select to_int64(b'\xff\x01\x02\x00\x07\x11\x22\x33\x44');
         {72620574343574340}
 
 
