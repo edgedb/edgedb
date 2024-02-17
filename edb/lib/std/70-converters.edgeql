@@ -532,7 +532,18 @@ std::to_int64(val: std::bytes) -> std::int64
         'Convert bytes into `int64` value using big-endian format.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ('x' || right(val::bytea::text, 16))::bit(64)::bigint;
+    SELECT
+        CASE WHEN (length(val) = 8) THEN
+            ('x' || right(val::bytea::text, 16))::bit(64)::bigint
+        ELSE
+            edgedb.raise(
+                0::int8,
+                'invalid_parameter_value',
+                msg => (
+                    'to_int64(): the argument must be exactly 8 bytes long'
+                )
+            )
+        END
     $$;
 };
 
@@ -573,7 +584,18 @@ std::to_int32(val: std::bytes) -> std::int32
         'Convert bytes into `int32` value using big-endian format.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ('x' || right(val::bytea::text, 8))::bit(32)::int;
+    SELECT
+        CASE WHEN (length(val) = 4) THEN
+            ('x' || right(val::bytea::text, 8))::bit(32)::int
+        ELSE
+            edgedb.raise(
+                0::int4,
+                'invalid_parameter_value',
+                msg => (
+                    'to_int32(): the argument must be exactly 4 bytes long'
+                )
+            )
+        END
     $$;
 };
 
@@ -614,7 +636,18 @@ std::to_int16(val: std::bytes) -> std::int16
         'Convert bytes into `int16` value using big-endian format.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ('x' || right(val::bytea::text, 4))::bit(16)::int::smallint;
+    SELECT
+        CASE WHEN (length(val) = 2) THEN
+            ('x' || right(val::bytea::text, 4))::bit(16)::int::smallint
+        ELSE
+            edgedb.raise(
+                0::int2,
+                'invalid_parameter_value',
+                msg => (
+                    'to_int16(): the argument must be exactly 2 bytes long'
+                )
+            )
+        END
     $$;
 };
 
@@ -684,6 +717,17 @@ std::to_uuid(val: std::bytes) -> std::uuid
         'Convert binary representation into UUID value.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ENCODE(val, 'hex')::uuid;
+    SELECT
+        CASE WHEN (length(val) = 16) THEN
+            ENCODE(val, 'hex')::uuid
+        ELSE
+            edgedb.raise(
+                NULL::uuid,
+                'invalid_parameter_value',
+                msg => (
+                    'to_uuid(): the argument must be exactly 16 bytes long'
+                )
+            )
+        END
     $$;
 };

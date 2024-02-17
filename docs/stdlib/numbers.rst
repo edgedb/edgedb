@@ -831,10 +831,8 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select to_int16('23%', '99%');
         {23}
 
-    The bytes conversion function expects big-endian representation. Only the
-    lower 2 bytes will be used to determine the value, the rest will be
-    ignored. This means that a 64-bit integer can be passed as long as the
-    actual value is contained in the lower 2 bytes.
+    The bytes conversion function expects exactly 2 bytes using big-endian
+    representation.
 
     .. code-block:: edgeql-repl
 
@@ -866,10 +864,8 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select to_int32('1000023%', '9999999%');
         {1000023}
 
-    The bytes conversion function expects big-endian representation. Only the
-    lower 4 bytes will be used to determine the value, the rest will be
-    ignored. This means that a 64-bit integer can be passed as long as the
-    actual value is contained in the lower 4 bytes.
+    The bytes conversion function expects exactly 4 bytes using big-endian
+    representation.
 
     .. code-block:: edgeql-repl
 
@@ -900,9 +896,8 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select to_int64('10000234567%', '99999999999%');
         {10000234567}
 
-    The bytes conversion function expects big-endian representation. Only the
-    lower 8 bytes will be used to determine the value, the rest will be
-    ignored.
+    The bytes conversion function expects exactly 8 bytes using big-endian
+    representation.
 
     .. code-block:: edgeql-repl
 

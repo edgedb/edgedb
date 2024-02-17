@@ -179,7 +179,7 @@ Bytes
         db> select to_bytes(123456789123456789);
         {b'\x01\xb6\x9bK\xac\xd0_\x15'}
 
-    The UUID values are converted to the underlying 16-byte string:
+    The UUID values are converted to the underlying string of 16 bytes:
 
     .. code-block:: edgeql-repl
 
