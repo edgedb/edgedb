@@ -271,6 +271,54 @@ std::to_bytes(s: std::str) -> std::bytes {
 
 
 CREATE FUNCTION
+std::to_bytes(val: std::int16) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Convert an int16 to big-endian binary format';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT int2send(val);
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_bytes(val: std::int32) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Convert an int32 to big-endian binary format';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT int4send(val);
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_bytes(val: std::int64) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Convert an int64 to big-endian binary format';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT int8send(val);
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_bytes(val: std::uuid) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Convert an UUID to binary format';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT uuid_send(val);
+    $$;
+};
+
+
+CREATE FUNCTION
 std::to_json(str: std::str) -> std::json
 {
     CREATE ANNOTATION std::description :=
@@ -478,6 +526,29 @@ std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
 
 
 CREATE FUNCTION
+std::to_int64(val: std::bytes) -> std::int64
+{
+    CREATE ANNOTATION std::description :=
+        'Convert bytes into `int64` value using big-endian format.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT
+        CASE WHEN (length(val) = 8) THEN
+            ('x' || right(val::bytea::text, 16))::bit(64)::bigint
+        ELSE
+            edgedb.raise(
+                0::int8,
+                'invalid_parameter_value',
+                msg => (
+                    'to_int64(): the argument must be exactly 8 bytes long'
+                )
+            )
+        END
+    $$;
+};
+
+
+CREATE FUNCTION
 std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
 {
     CREATE ANNOTATION std::description := 'Create a `int32` value.';
@@ -507,6 +578,29 @@ std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
 
 
 CREATE FUNCTION
+std::to_int32(val: std::bytes) -> std::int32
+{
+    CREATE ANNOTATION std::description :=
+        'Convert bytes into `int32` value using big-endian format.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT
+        CASE WHEN (length(val) = 4) THEN
+            ('x' || right(val::bytea::text, 8))::bit(32)::int
+        ELSE
+            edgedb.raise(
+                0::int4,
+                'invalid_parameter_value',
+                msg => (
+                    'to_int32(): the argument must be exactly 4 bytes long'
+                )
+            )
+        END
+    $$;
+};
+
+
+CREATE FUNCTION
 std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
 {
     CREATE ANNOTATION std::description := 'Create a `int16` value.';
@@ -531,6 +625,29 @@ std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
             )
         END
     )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_int16(val: std::bytes) -> std::int16
+{
+    CREATE ANNOTATION std::description :=
+        'Convert bytes into `int16` value using big-endian format.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT
+        CASE WHEN (length(val) = 2) THEN
+            ('x' || right(val::bytea::text, 4))::bit(16)::int::smallint
+        ELSE
+            edgedb.raise(
+                0::int2,
+                'invalid_parameter_value',
+                msg => (
+                    'to_int16(): the argument must be exactly 2 bytes long'
+                )
+            )
+        END
     $$;
 };
 
@@ -589,5 +706,28 @@ std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
             )
         END
     )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_uuid(val: std::bytes) -> std::uuid
+{
+    CREATE ANNOTATION std::description :=
+        'Convert binary representation into UUID value.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT
+        CASE WHEN (length(val) = 16) THEN
+            ENCODE(val, 'hex')::uuid
+        ELSE
+            edgedb.raise(
+                NULL::uuid,
+                'invalid_parameter_value',
+                msg => (
+                    'to_uuid(): the argument must be exactly 16 bytes long'
+                )
+            )
+        END
     $$;
 };

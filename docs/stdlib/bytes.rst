@@ -41,6 +41,18 @@ Bytes
     * - :eql:func:`to_str`
       - :eql:func-desc:`to_str`
 
+    * - :eql:func:`to_int16`
+      - :eql:func-desc:`to_int16`
+
+    * - :eql:func:`to_int32`
+      - :eql:func-desc:`to_int32`
+
+    * - :eql:func:`to_int64`
+      - :eql:func-desc:`to_int64`
+
+    * - :eql:func:`to_uuid`
+      - :eql:func-desc:`to_uuid`
+
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`
 
@@ -136,18 +148,47 @@ Bytes
 ---------
 
 .. eql:function:: std::to_bytes(s: str) -> bytes
+                  std::to_bytes(val: int16) -> bytes
+                  std::to_bytes(val: int32) -> bytes
+                  std::to_bytes(val: int64) -> bytes
+                  std::to_bytes(val: int64) -> bytes
+                  std::to_bytes(val: uuid) -> bytes
 
     :index: encode stringencoder
 
     .. versionadded:: 4.0
 
-    Converts a :eql:type:`str` value to :eql:type:`bytes` using
-    UTF-8 encoding.
+    Converts a given value into binary representation as :eql:type:`bytes`.
+
+    The strings get converted using UTF-8 encoding:
 
     .. code-block:: edgeql-repl
 
         db> select to_bytes('テキスト');
         {b'\xe3\x83\x86\xe3\x82\xad\xe3\x82\xb9\xe3\x83\x88'}
+
+    The integer values are encoded as big-endian (most significant bit comes
+    first) byte strings:
+
+    .. code-block:: edgeql-repl
+
+        db> select to_bytes(<int16>31);
+        {b'\x00\x1f'}
+        db> select to_bytes(<int32>31);
+        {b'\x00\x00\x00\x1f'}
+        db> select to_bytes(123456789123456789);
+        {b'\x01\xb6\x9bK\xac\xd0_\x15'}
+
+    The UUID values are converted to the underlying string of 16 bytes:
+
+    .. code-block:: edgeql-repl
+
+        db> select to_bytes(<uuid>'1d70c86e-cc92-11ee-b4c7-a7aa0a34e2ae');
+        {b'\x1dp\xc8n\xcc\x92\x11\xee\xb4\xc7\xa7\xaa\n4\xe2\xae'}
+
+    To perform the reverse conversion there are corresponding functions:
+    :eql:func:`to_str`, :eql:func:`to_int16`, :eql:func:`to_int32`,
+    :eql:func:`to_int64`, :eql:func:`to_uuid`.
 
 
 ---------
@@ -187,7 +228,7 @@ Bytes
     .. versionadded:: 4.0
 
     Returns the :eql:type:`bytes` of a Base64-encoded :eql:type:`str`.
-    
+
     Returns an InvalidValueError if input is not valid Base64.
 
     .. code-block:: edgeql-repl

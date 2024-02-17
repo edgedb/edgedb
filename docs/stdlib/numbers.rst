@@ -814,41 +814,90 @@ from :eql:type:`str` and :eql:type:`json`.
 
 
 .. eql:function:: std::to_int16(s: str, fmt: optional str={}) -> int16
+                  std::to_int16(val: bytes) -> int16
 
     :index: parse int16
 
-    Returns an :eql:type:`int16` value parsed from the given string.
+    Returns an :eql:type:`int16` value parsed from the given input.
 
-    The function will use an optional format string passed as *fmt*. See the
-    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
-    writing a format string.
+    The string parsing function will use an optional format string passed as
+    *fmt*. See the :ref:`number formatting options
+    <ref_std_converters_number_fmt>` for help writing a format string.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int16('23');
+        {23}
+        db> select to_int16('23%', '99%');
+        {23}
+
+    The bytes conversion function expects exactly 2 bytes using big-endian
+    representation.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int16(b'\x00\x07');
+        {7}
+
 
 ------------
 
 
 .. eql:function:: std::to_int32(s: str, fmt: optional str={}) -> int32
+                  std::to_int32(val: bytes) -> int32
 
     :index: parse int32
 
-    Returns an :eql:type:`int32` value parsed from the given string.
+    Returns an :eql:type:`int32` value parsed from the given input.
 
-    The function will use an optional format string passed as *fmt*. See the
-    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
-    writing a format string.
+    The string parsin function will use an optional format string passed as
+    *fmt*. See the :ref:`number formatting options
+    <ref_std_converters_number_fmt>` for help writing a format string.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int32('1000023');
+        {1000023}
+        db> select to_int32('1000023%', '9999999%');
+        {1000023}
+
+    The bytes conversion function expects exactly 4 bytes using big-endian
+    representation.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int32(b'\x01\x02\x00\x07');
+        {16908295}
 
 
 ------------
 
 
 .. eql:function:: std::to_int64(s: str, fmt: optional str={}) -> int64
+                  std::to_int64(val: bytes) -> int64
 
     :index: parse int64
 
-    Returns an :eql:type:`int64` value parsed from the given string.
+    Returns an :eql:type:`int64` value parsed from the given input.
 
-    The function will use an optional format string passed as *fmt*. See the
-    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
-    writing a format string.
+    The string parsing function will use an optional format string passed as
+    *fmt*. See the :ref:`number formatting options
+    <ref_std_converters_number_fmt>` for help writing a format string.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int64('10000234567');
+        {10000234567}
+        db> select to_int64('10000234567%', '99999999999%');
+        {10000234567}
+
+    The bytes conversion function expects exactly 8 bytes using big-endian
+    representation.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_int64(b'\x01\x02\x00\x07\x11\x22\x33\x44');
+        {72620574343574340}
 
 
 ------------

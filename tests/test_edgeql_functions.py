@@ -22,6 +22,7 @@ import decimal
 import json
 import os.path
 import random
+import uuid
 
 import edgedb
 
@@ -3115,6 +3116,141 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 SELECT to_str(b'\x00')
                 ''',
             )
+
+    async def test_edgeql_functions_int_bytes_conversion_01(self):
+        # Make sure we can convert the bytes to ints and back
+        twobytes = b'\x7f\x3a'
+        for numbytes in [2, 4, 8]:
+            raw = twobytes * (numbytes // 2)
+            typename = f'int{numbytes * 8}'
+            await self.assert_query_result(
+                f'''
+                WITH
+                    val := <{typename}>$val,
+                    bin := <bytes>$bin,
+                SELECT (
+                    val = to_{typename}(bin),
+                    bin = to_bytes(val),
+                )
+                ''',
+                {(True, True)},
+                variables={
+                    "val": int.from_bytes(raw, 'big'),
+                    "bin": raw,
+                },
+            )
+
+    async def test_edgeql_functions_int_bytes_conversion_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int16.*the argument must be exactly 2 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int16(b'\x01')
+                    ''',
+                )
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int16.*the argument must be exactly 2 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int16(to_bytes(<int32>123))
+                    ''',
+                )
+
+    async def test_edgeql_functions_int_bytes_conversion_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int32.*the argument must be exactly 4 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int32(to_bytes(<int16>23))
+                    ''',
+                )
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int32.*the argument must be exactly 4 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int32(to_bytes(<int64>16908295))
+                    ''',
+                )
+
+    async def test_edgeql_functions_int_bytes_conversion_04(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int64.*the argument must be exactly 8 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int64(to_bytes(<int16>23))
+                    ''',
+                )
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int64.*the argument must be exactly 8 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int64(b'\x00\x00' ++ to_bytes(62620574343574340))
+                    ''',
+                )
+
+    async def test_edgeql_functions_uuid_bytes_conversion_01(self):
+        uuid_val = uuid.uuid4()
+
+        await self.assert_query_result(
+            r'''
+            WITH
+                uuid_input := <uuid>$uuid_input,
+                bin_input := <bytes>$bin_input,
+            SELECT (
+                bin_input = to_bytes(uuid_input),
+                uuid_input = to_uuid(bin_input),
+            )
+            ''',
+            {(True, True)},
+            variables={
+                "uuid_input": uuid_val,
+                "bin_input": uuid_val.bytes,
+            },
+        )
+
+    async def test_edgeql_functions_uuid_bytes_conversion_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_uuid.*the argument must be exactly 16 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_uuid(to_bytes(uuid_generate_v4())[:10])
+                    ''',
+                )
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_uuid.*the argument must be exactly 16 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_uuid(b'\xff\xff' ++ to_bytes(uuid_generate_v4()))
+                    ''',
+                )
 
     async def test_edgeql_functions_array_join_01(self):
         await self.assert_query_result(
