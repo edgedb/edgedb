@@ -210,3 +210,6 @@ exclude_lines = [
 ]
 show_missing = true
 ignore_errors = true
+
+# Change the below to invalidate dependency cache in CI
+# CACHE-TAG: 1

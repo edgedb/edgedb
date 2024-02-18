@@ -26,11 +26,26 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v5
+      id: setup-python
       with:
         python-version: '3.12.2'
         cache: 'pip'
         cache-dependency-path: |
           pyproject.toml
+
+    # The below is technically a lie as we are technically not
+    # inside a virtual env, but there is really no reason to bother
+    # actually creating and activating one as below works just fine.
+    - name: Export $VIRTUAL_ENV
+      run: |
+        venv="$(python -c 'import sys; sys.stdout.write(sys.prefix)')"
+        echo "VIRTUAL_ENV=${venv}" >> $GITHUB_ENV
+
+    - name: Set up uv cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
 
     - name: Cached requirements.txt
       uses: actions/cache@v4
@@ -47,7 +62,9 @@ jobs:
           --output-file requirements.txt pyproject.toml
 
     - name: Install Python dependencies
-      run: python -m pip install -U -r requirements.txt
+      run: |
+        python -c "import sys; print(sys.prefix)"
+        python -m pip install uv && uv pip install -U -r requirements.txt
 
     - name: Compute cache keys
       run: |
@@ -351,11 +368,26 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v5
+      id: setup-python
       with:
         python-version: '3.12.2'
         cache: 'pip'
         cache-dependency-path: |
           pyproject.toml
+
+    # The below is technically a lie as we are technically not
+    # inside a virtual env, but there is really no reason to bother
+    # actually creating and activating one as below works just fine.
+    - name: Export $VIRTUAL_ENV
+      run: |
+        venv="$(python -c 'import sys; sys.stdout.write(sys.prefix)')"
+        echo "VIRTUAL_ENV=${venv}" >> $GITHUB_ENV
+
+    - name: Set up uv cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
     
     - name: Download requirements.txt
       uses: actions/cache@v4
@@ -364,7 +396,7 @@ jobs:
         key: edb-requirements-${{ hashFiles('pyproject.toml') }}
 
     - name: Install Python dependencies
-      run: python -m pip install -U -r requirements.txt
+      run: python -m pip install uv && uv pip install -U -r requirements.txt
 
     # Restore the artifacts and environment variables
 
