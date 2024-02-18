@@ -433,21 +433,22 @@ def _compile_cli(build_base, build_temp):
     )
 
 
+_PYTHON_ONLY = os.environ.get("BUILD_EXT_MODE", "both") == "skip"
+
+
 class build(setuptools_build.build):
 
     user_options = setuptools_build.build.user_options
 
-    sub_commands = (
-        [
-            ("build_libpg_query", lambda self: True),
-            *setuptools_build.build.sub_commands,
-            ("build_metadata", lambda self: True),
-            ("build_parsers", lambda self: True),
-            ("build_postgres", lambda self: True),
-            ("build_cli", lambda self: True),
-            ("build_ui", lambda self: True),
-        ]
-    )
+    sub_commands = setuptools_build.build.sub_commands if _PYTHON_ONLY else [
+        ("build_libpg_query", lambda self: True),
+        *setuptools_build.build.sub_commands,
+        ("build_metadata", lambda self: True),
+        ("build_parsers", lambda self: True),
+        ("build_postgres", lambda self: True),
+        ("build_cli", lambda self: True),
+        ("build_ui", lambda self: True),
+    ]
 
 
 class build_metadata(setuptools.Command):

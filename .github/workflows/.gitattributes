@@ -1,2 +1,1 @@
-*.yml    -diff -merge
 *.yml    linguist-generated=true

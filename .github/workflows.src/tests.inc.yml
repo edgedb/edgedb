@@ -1,4 +1,4 @@
-<% macro _init() -%>
+<% macro init() -%>
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -13,38 +13,31 @@
       uses: actions/setup-python@v5
       with:
         python-version: '3.12.2'
+        cache: 'pip'
+        cache-dependency-path: |
+          pyproject.toml
+
 <%- endmacro %>
 
-<% macro _init_venv() -%>
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
-          setup.py
-          pyproject.toml
-        custom_cache_key_element: v2
-<%- endmacro -%>
-
 <% macro build() %>
-    << _init() >>
+    << init() >>
 
-    # Build virtualenv
+    - name: Cached requirements.txt
+      uses: actions/cache@v4
+      id: requirements-cache
+      with:
+        path: requirements.txt
+        key: edb-requirements-${{ hashFiles('pyproject.toml') }}
 
-    << _init_venv() >>
+    - name: Compute requirements.txt
+      if: steps.requirements-cache.outputs.cache-hit != 'true'
+      run: |
+        python -m pip install pip-tools
+        pip-compile --no-strip-extras --all-build-deps --extra test \
+          --output-file requirements.txt pyproject.toml
 
     - name: Install Python dependencies
-      if: steps.venv-cache.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        set -e
-        python -m pip install -U pip setuptools wheel build
-        bdeps_script="import build; print('\n'.join(build.ProjectBuilder('.').build_system_requires))"
-        readarray -t build_deps < <(python -c "${bdeps_script}")
-        python -m pip download --dest=$VIRTUAL_ENV/deps "${build_deps[@]}" .[test]
-        python -m pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
-
-    # Prepare environment variables and shared artifacts
+      run: python -m pip install -U -r requirements.txt
 
     << caller() >>
 
@@ -259,19 +252,13 @@
 
     # Install edgedb-server and populate egg-info
 
-    - name: Install edgedb-server and populate egg-info
+    - name: Install edgedb-server
       env:
-        CACHE_HIT: ${{ steps.venv-cache.outputs.cache-hit }}
         BUILD_EXT_MODE: skip
       run: |
-        if [[ "$CACHE_HIT" == "true" ]]; then
-          rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
-        else
-          # --no-build-isolation because we have explicitly installed all deps
-          # and don't want them to be reinstalled in an "isolated env".
-          pip install --no-build-isolation --no-deps -e .[test,docs]
-          rsync -av ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
-        fi
+        # --no-build-isolation because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-build-isolation --no-deps -e .[test,docs]
 
     # Refresh the bootstrap cache
 
@@ -306,10 +293,20 @@
     echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 <%- endmacro %>
 
-<% macro restore_cache() %>
-    << _init() >>
+<% macro install_python_requirements() %>
+    - name: Download requirements.txt
+      uses: actions/cache@v4
+      with:
+        path: requirements.txt
+        key: edb-requirements-${{ hashFiles('pyproject.toml') }}
 
-    << _init_venv() >>
+    - name: Install Python dependencies
+      run: python -m pip install -U -r requirements.txt
+<%- endmacro %>
+
+<% macro restore_cache() %>
+    << init() >>
+    << install_python_requirements() >>
 
     # Restore the artifacts and environment variables
 
@@ -382,7 +379,6 @@
 
     - name: Stop if we cannot retrieve the cache
       if: |
-        steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
@@ -401,7 +397,14 @@
         rsync -av ./build/extensions/edb/ ./edb/
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
-        rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+
+    - name: Install edgedb-server
+      env:
+        BUILD_EXT_MODE: skip
+      run: |
+        # --no-build-isolation because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-build-isolation --no-deps -e .[test,docs]
 <%- endmacro %>
 
 <% macro setup_terraform() -%>
