@@ -1848,38 +1848,53 @@ def _compile_ql_query(
         detach_params=use_persistent_cache,
     )
 
-    sql_text = pg_codegen.generate_source(sql_res.ast)
+    sql_ast = sql_res.ast
 
-    pg_debug.dump_ast_and_query(sql_res.ast, ir)
+    pg_debug.dump_ast_and_query(sql_ast, ir)
 
     cache_sql = None
     if use_persistent_cache and ctx.cache_key is not None:
         key = ctx.cache_key.hex
-        func = pg_dbops.Function(
-            name=('edgedb', f'__qh_{key}'),
-            args=[(None, arg) for arg in sql_res.detached_params or []],
-            returns='',
-            text=sql_text,
-        )
+        returns_record = False
+        set_returning = False
+        return_type: tuple[str, ...] = ('unknown',)
 
         match ctx.output_format:
             case enums.OutputFormat.NONE:
-                func.returns = 'void'
+                return_type = ('void',)
 
             case enums.OutputFormat.BINARY:
-                func.set_returning = ir.cardinality.is_multi()
+                set_returning = ir.cardinality.is_multi()
                 if ir.stype.is_object_type():
-                    func.returns = 'record',
+                    return_type = ('record',)
+                    returns_record = True
                 else:
-                    func.returns = pg_types.pg_type_from_ir_typeref(
+                    return_type = pg_types.pg_type_from_ir_typeref(
                         ir.expr.typeref)
 
             case enums.OutputFormat.JSON:
-                func.returns = 'json'
+                return_type = ('json',)
 
             case enums.OutputFormat.JSON_ELEMENTS:
-                func.returns = 'json'
-                func.set_returning = True
+                return_type = ('json',)
+                set_returning = True
+
+        if returns_record:
+            assert isinstance(sql_ast, pgast.ReturningQuery)
+            sql_ast.target_list.append(
+                pgast.ResTarget(
+                    name="sentinel",
+                    val=pgast.BooleanConstant(val=True),
+                ),
+            )
+
+        func = pg_dbops.Function(
+            name=('edgedb', f'__qh_{key}'),
+            args=[(None, arg) for arg in sql_res.detached_params or []],
+            returns=return_type,
+            set_returning=set_returning,
+            text=pg_codegen.generate_source(sql_ast),
+        )
 
         if not ir.dml_exprs:
             func.volatility = 'stable'
@@ -1905,10 +1920,35 @@ def _compile_ql_query(
                     sql_res.detached_params or [], 1
                 )
             ],
+            coldeflist=[],
         )
-        sql_text = pg_codegen.generate_source(
-            pgast.SelectStmt(target_list=[pgast.ResTarget(val=func_call)])
-        )
+        if returns_record:
+            func_call.coldeflist.extend([
+                pgast.ColumnDef(
+                    name="result",
+                    typename=pgast.TypeName(name=('record',)),
+                ),
+                pgast.ColumnDef(
+                    name="sentinel",
+                    typename=pgast.TypeName(name=('bool',)),
+                ),
+            ])
+            sql_ast = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(val=pgast.ColumnRef(name=("result",))),
+                ],
+                from_clause=[
+                    pgast.RangeFunction(
+                        functions=[func_call],
+                        is_rowsfrom=True,
+                    ),
+                ],
+            )
+        else:
+            sql_ast = pgast.SelectStmt(
+                target_list=[pgast.ResTarget(val=func_call)],
+            )
+
         cache_sql = (
             cf.to_string().encode(defines.EDGEDB_ENCODING),
             df.to_string().encode(defines.EDGEDB_ENCODING),
@@ -1925,6 +1965,7 @@ def _compile_ql_query(
 
         return dbstate.NullQuery()
 
+    sql_text = pg_codegen.generate_source(sql_ast)
     sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
     globals = None
