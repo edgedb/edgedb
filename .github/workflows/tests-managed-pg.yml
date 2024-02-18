@@ -381,12 +381,10 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
+      uses: actions/download-artifact@v4
       with:
-        action: actions/download-artifact@v4
-        with: |
-          name: shared-artifacts
-          path: .tmp
+        name: shared-artifacts
+        path: .tmp
 
     - name: Set environment variables
       run: |
@@ -596,12 +594,10 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
+      uses: actions/download-artifact@v4
       with:
-        action: actions/download-artifact@v4
-        with: |
-          name: shared-artifacts
-          path: .tmp
+        name: shared-artifacts
+        path: .tmp
 
     - name: Set environment variables
       run: |
@@ -859,12 +855,10 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
+      uses: actions/download-artifact@v4
       with:
-        action: actions/download-artifact@v4
-        with: |
-          name: shared-artifacts
-          path: .tmp
+        name: shared-artifacts
+        path: .tmp
 
     - name: Set environment variables
       run: |
@@ -1088,12 +1082,10 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
+      uses: actions/download-artifact@v4
       with:
-        action: actions/download-artifact@v4
-        with: |
-          name: shared-artifacts
-          path: .tmp
+        name: shared-artifacts
+        path: .tmp
 
     - name: Set environment variables
       run: |
@@ -1305,12 +1297,10 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
+      uses: actions/download-artifact@v4
       with:
-        action: actions/download-artifact@v4
-        with: |
-          name: shared-artifacts
-          path: .tmp
+        name: shared-artifacts
+        path: .tmp
 
     - name: Set environment variables
       run: |
