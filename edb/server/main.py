@@ -39,6 +39,7 @@ import setproctitle
 import uvloop
 
 from . import logsetup
+# ruff: noqa: E402
 logsetup.early_setup()
 
 from edb import buildmeta

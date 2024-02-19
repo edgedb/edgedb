@@ -3875,7 +3875,7 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         # schema is in place.
         if not (
             is_cfg_view(scls, eff_schema)
-            and not scls.get_name(eff_schema).module in VIEW_MODULES
+            and scls.get_name(eff_schema).module not in VIEW_MODULES
         ):
             return
 

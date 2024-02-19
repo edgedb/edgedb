@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Literal, Optional, AbstractSet
 
 from edb import errors
 

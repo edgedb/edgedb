@@ -1606,7 +1606,7 @@ class PointerCommand(
         if is_computable:
             if any(
                 b.is_non_concrete(schema)
-                and not str(b.get_name(schema)) in (
+                and str(b.get_name(schema)) not in (
                     'std::link', 'std::property')
                 for b in scls.get_bases(schema).objects(schema)
             ):

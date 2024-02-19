@@ -113,7 +113,7 @@ if TYPE_CHECKING:
 
 else:
 
-    class Name(abc.ABC):
+    class Name(abc.ABC):  # noqa: B024
         pass
 
     class QualName(NamedTuple):
