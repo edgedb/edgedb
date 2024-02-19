@@ -395,6 +395,16 @@ def _get_pg_source_stamp():
     return source_stamp
 
 
+def _get_libpg_query_source_stamp():
+    output = subprocess.check_output(
+        ['git', 'submodule', 'status', 'edb/pgsql/parser/libpg_query'],
+        universal_newlines=True,
+        cwd=ROOT_PATH,
+    )
+    revision, _, _ = output[1:].partition(' ')
+    return revision
+
+
 def _compile_cli(build_base, build_temp):
     rust_root = build_base / 'cli'
     env = dict(os.environ)
@@ -514,7 +524,7 @@ class ci_helper(setuptools.Command):
     description = "echo specified hash or build info for CI"
     user_options = [
         ('type=', None,
-         'one of: cli, rust, ext, parsers, postgres, bootstrap, '
+         'one of: cli, rust, ext, parsers, postgres, libpg_query, bootstrap, '
          'build_temp, build_lib'),
     ]
 
@@ -537,6 +547,9 @@ class ci_helper(setuptools.Command):
 
         elif self.type == 'postgres':
             print(_get_pg_source_stamp().strip())
+
+        elif self.type == 'libpg_query':
+            print(_get_libpg_query_source_stamp().strip())
 
         elif self.type == 'bootstrap':
             bootstrap_hash = hash_dirs(
@@ -580,7 +593,7 @@ class ci_helper(setuptools.Command):
         else:
             raise RuntimeError(
                 f'Illegal --type={self.type}; can only be: '
-                'cli, rust, ext, postgres, bootstrap, parsers,'
+                'cli, rust, ext, postgres, libpg_query, bootstrap, parsers,'
                 'build_temp or build_lib'
             )
 
