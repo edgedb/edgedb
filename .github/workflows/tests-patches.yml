@@ -21,11 +21,6 @@ jobs:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 50
-        submodules: true
-
     - name: Set up Python
       uses: actions/setup-python@v5
       id: setup-python
@@ -136,8 +131,19 @@ jobs:
       uses: actions/cache@v4
       id: libpg-query-cache
       with:
-        path: edb/pgsql/parser/libpg_query/libpg_query.a
+        path: build/libpg_query/libpg_query.a
         key: edb-libpg_query-v1-${{ env.LIBPG_QUERY_GIT_REV }}
+
+    - name: Fetch submodules
+      if: |
+        steps.ext-cache.outputs.cache-hit != 'true' ||
+        steps.postgres-cache.outputs.cache-hit != 'true' ||
+        steps.libpg-query-cache.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 50
+        submodules: true
+        clean: false
 
     # Install system dependencies for building
 
@@ -212,11 +218,17 @@ jobs:
     # Build libpg_query
 
     - name: Build libpg_query
-      if: |
-        steps.libpg-query-cache.outputs.cache-hit != 'true' &&
-        steps.ext-cache.outputs.cache-hit != 'true'
+      if: steps.ext-cache.outputs.cache-hit != 'true'
+      env:
+        CACHE_HIT: ${{ steps.libpg-query-cache.outputs.cache-hit }}
       run: |
-        python setup.py build_libpg_query
+        if [[ "$CACHE_HIT" != "true" ]]; then
+          python setup.py build_libpg_query
+          mkdir -p build/libpg_query
+          cp edb/pgsql/parser/libpg_query/libpg_query.a build/libpg_query/
+        else
+          cp build/libpg_query/libpg_query.a edb/pgsql/parser/libpg_query/
+        fi
 
     # Build extensions
 
@@ -353,11 +365,6 @@ jobs:
       with:
         fetch-depth: 0
         submodules: false
-
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 50
-        submodules: true
 
     - name: Set up Python
       uses: actions/setup-python@v5
