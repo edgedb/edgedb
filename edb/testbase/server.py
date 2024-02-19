@@ -763,21 +763,11 @@ class ClusterTestCase(BaseHTTPTestCase):
         """A version of assertRaisesRegex with automatic transaction recovery
         """
 
-        with super().assertRaisesRegex(exception, regex, msg=msg):
+        with super().assertRaisesRegex(exception, regex, msg=msg, **kwargs):
             try:
                 tx = self.con.transaction()
                 await tx.start()
                 yield
-            except BaseException as e:
-                if isinstance(e, exception):
-                    for attr_name, expected_val in kwargs.items():
-                        val = getattr(e, attr_name)
-                        if val != expected_val:
-                            raise self.failureException(
-                                f'{exception.__name__} context attribute '
-                                f'{attr_name!r} is {val} (expected '
-                                f'{expected_val!r})') from e
-                raise
             finally:
                 await tx.rollback()
 
