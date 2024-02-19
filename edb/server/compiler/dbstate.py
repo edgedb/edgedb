@@ -22,6 +22,8 @@ from typing import *  # NoQA
 
 import dataclasses
 import enum
+import io
+import pickle
 import time
 import uuid
 
@@ -344,6 +346,20 @@ class QueryUnit:
             or self.tx_savepoint_rollback
         )
 
+    def serialize(self) -> bytes:
+        rv = io.BytesIO()
+        rv.write(b"\x00")  # 1 byte of version number
+        pickle.dump(self, rv, -1)
+        return rv.getvalue()
+
+    @classmethod
+    def deserialize(cls, data: bytes) -> Self:
+        buf = memoryview(data)
+        match buf[0]:
+            case 0x00:
+                return pickle.loads(buf[1:])
+        raise ValueError(f"Bad version number: {buf[0]}")
+
 
 @dataclasses.dataclass
 class QueryUnitGroup:
@@ -370,20 +386,41 @@ class QueryUnitGroup:
     in_type_args_real_count: int = 0
     globals: Optional[list[tuple[str, bool]]] = None
 
-    units: List[QueryUnit] = dataclasses.field(default_factory=list)
+    # Cacheable QueryUnit is serialized in the compiler, so that the I/O server
+    # doesn't need to serialize it again for persistence.
+    _units: List[QueryUnit | bytes] = dataclasses.field(default_factory=list)
+    # This is a I/O server-only cache for unpacked QueryUnits
+    _unpacked_units: List[QueryUnit] | None = None
 
     state_serializer: Optional[sertypes.StateSerializer] = None
+
+    @property
+    def units(self) -> List[QueryUnit]:
+        if self._unpacked_units is None:
+            self._unpacked_units = [
+                QueryUnit.deserialize(unit) if type(unit) is bytes else unit
+                for unit in self._units
+            ]
+        return self._unpacked_units
 
     def __iter__(self) -> Iterator[QueryUnit]:
         return iter(self.units)
 
     def __len__(self) -> int:
-        return len(self.units)
+        return len(self._units)
 
     def __getitem__(self, item: int) -> QueryUnit:
         return self.units[item]
 
-    def append(self, query_unit: QueryUnit) -> None:
+    def maybe_get_serialized(self, item: int) -> bytes | None:
+        if type(self._units[item]) is bytes:
+            return self._units[item]
+
+    def append(
+        self,
+        query_unit: QueryUnit,
+        serialize: bool = True,
+    ) -> None:
         self.capabilities |= query_unit.capabilities
 
         if not query_unit.cacheable:
@@ -404,7 +441,10 @@ class QueryUnitGroup:
                 self.globals = []
             self.globals.extend(query_unit.globals)
 
-        self.units.append(query_unit)
+        if not serialize or query_unit.cache_sql is None:
+            self._units.append(query_unit)
+        else:
+            self._units.append(query_unit.serialize())
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
