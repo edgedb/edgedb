@@ -1132,8 +1132,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
         qry = r"""
             CREATE ABSTRACT CONSTRAINT mymax3(max: std::int64) {
                 SET errmessage :=
-                    '{__subject__} must be no longer ' ++
-                    'than {max} characters.';
+                    'My custom ' ++ 'message.';
                 USING (__subject__ <= max);
             };
 
@@ -1148,14 +1147,26 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         # making sure the constraint was applied successfully
         async with self.assertRaisesRegexTx(
-            edgedb.ConstraintViolationError,
-            'foo must be no longer than 3 characters.',
+            edgedb.ConstraintViolationError, 'My custom message.'
         ):
-            await self.con.execute("""
-                INSERT ConstraintOnTest3 {
-                    foo := 'Test'
-                };
-            """)
+            try:
+                await self.con.execute(
+                    """
+                    INSERT ConstraintOnTest3 {
+                        foo := 'Test'
+                    };
+                    """
+                )
+            except edgedb.ConstraintViolationError as e:
+                # edgedb-python does not expose a nicer access to details field
+                details = e._attrs[2].decode("utf-8")
+                self.assertEqual(
+                    details,
+                    "violated constraint 'default::mymax3' on "
+                    "property 'foo' of "
+                    "object type 'default::ConstraintOnTest3'",
+                )
+                raise
 
         # testing interpolation
         await self.con.execute(r"""
@@ -1168,12 +1179,24 @@ class TestConstraintsDDL(tb.DDLTestCase):
             };
         """)
         async with self.assertRaisesRegexTx(
-            edgedb.ConstraintViolationError,
-            '{"json": "{nope} {min} 4"}',
+            edgedb.ConstraintViolationError, '{"json": "{nope} {min} 4"}'
         ):
-            await self.con.execute("""
-                INSERT ConstraintOnTest4_2 { email := '' };
-            """)
+            try:
+                await self.con.execute(
+                    """
+                    INSERT ConstraintOnTest4_2 { email := '' };
+                    """
+                )
+            except edgedb.ConstraintViolationError as e:
+                # edgedb-python does not expose a nicer access to details field
+                details = e._attrs[2].decode("utf-8")
+                self.assertEqual(
+                    details,
+                    "violated constraint 'std::min_len_value' on "
+                    "property 'email' of "
+                    "object type 'default::ConstraintOnTest4_2'",
+                )
+                raise
 
     async def test_constraints_ddl_05(self):
         # Test that constraint expression returns a boolean.
