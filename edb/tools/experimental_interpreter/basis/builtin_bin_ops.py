@@ -40,6 +40,8 @@ def eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             return [BoolVal(v1 == v2)]
         case [[e.RefVal(id1, v1)], [e.RefVal(id2, v2)]]:    
             return [BoolVal(id1 == id2)]
+        case [[v1], [v2]]:
+            return [BoolVal(v1 == v2)]
     raise FunCallErr(arg)
 
 

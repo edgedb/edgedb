@@ -157,8 +157,8 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
             return [typed_val_to_json_like(v, t, dbschema)
                     for (v, t) in zip(array, tp.tps, strict=True)]
         case NamedTupleVal(val=dic):
-            assert isinstance(tp, e.NamedTupleTp)
-            return {k: typed_val_to_json_like(v, tp.val[k], dbschema)
+            assert isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Tuple
+            return {k: typed_val_to_json_like(v, tp.tps[tp.labels.index(k)], dbschema)
                     for (k, v) in dic.items()}
         # case LinkPropVal(refid=_, linkprop=linkprop):
         #     assert isinstance(tp, e.LinkPropTp)

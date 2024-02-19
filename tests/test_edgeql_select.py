@@ -1018,6 +1018,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
              {'body': 'We need to be able to render data in tabular format.'}],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("<introspection> support for .__type__")
     async def test_edgeql_select_type_01(self):
         await self.assert_query_result(
             r'''
@@ -1037,6 +1038,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("<introspection> support for .__type__")
     async def test_edgeql_select_type_02(self):
         await self.assert_query_result(
             r'''
@@ -1045,6 +1047,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['default::User']
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("<introspection> support for .__type__")
     async def test_edgeql_select_type_03(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -1053,6 +1056,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT User.name.__type__.name LIMIT 1;
             ''')
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("<introspection> support for .__type__")
     async def test_edgeql_select_type_04(self):
         # Make sure that the __type__ attribute gets the same object
         # as a direct schema::ObjectType query. As long as this is true,
@@ -1080,6 +1084,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("<introspection> support for .__type__")
     async def test_edgeql_select_type_05(self):
         await self.assert_query_result(
             r'''
@@ -2229,6 +2234,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("<funcall overloading> mysterious UncheckedType appearing during funcall checking")
     async def test_edgeql_select_tvariant_08(self):
         await self.assert_query_result(
             r"""
@@ -3108,6 +3114,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Function returning uncheckedTypeName")
     async def test_edgeql_select_setops_29(self):
         # These queries all produced compiler ISEs in the past
         # The results aren't super important, so just run them
@@ -4964,6 +4971,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Function call mysteriously returns UncheckedTypeName")
     async def test_edgeql_select_subqueries_08(self):
         await self.assert_query_result(
             r"""
@@ -5008,6 +5016,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
              '31', '32', '33', '34', '41', '42', '43', '44'},
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Type intersection on computed properties i.e. only compute this property if a tp intersection is satisfied")
     async def test_edgeql_select_subqueries_11(self):
         await self.assert_query_result(
             r"""
@@ -5548,6 +5557,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Release Edge'],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Type introspection projecting __type__")
     async def test_edgeql_select_slice_02(self):
         await self.assert_query_result(
             r"""
@@ -5639,6 +5649,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['default::Iss'],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Func call returns UncheckedTypeName")
     async def test_edgeql_select_slice_03(self):
         await self.assert_query_result(
             r"""
@@ -5660,6 +5671,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters like $0 not handled")
     async def test_edgeql_select_slice_04(self):
 
         await self.assert_query_result(
@@ -7248,6 +7260,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 s
             )
 
+    @test.decorators.experimental_interpreter_exclude("Expected failures")
     async def test_edgeql_select_shape_on_scalar(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -8185,6 +8198,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         };
         ''')
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Function overloading checking: Mysterious UncheckedTypeName sneaks into the synthesized type")
     async def test_edgeql_shape_computed_alias_01(self):
         # Issue #4023 had this producing an incorrect key name in JSON mode
         await self.assert_query_result(
@@ -8194,6 +8208,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{"is_abstract": True}]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("<schema introspection> python.__tname__")
     async def test_edgeql_select_tname_overriden_type_01(self):
         # Test that overriding type doesn't break __tname__
         res = await self.con._fetchall("""
@@ -8299,6 +8314,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             __typenames__=True
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("<schema introspection> .pointers on ObjectType")
     async def test_edgeql_type_pointer_inlining_02(self):
         await self.con._fetchall(
             r'''

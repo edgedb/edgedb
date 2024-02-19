@@ -359,8 +359,6 @@ def tp_is_primitive(tp: e.Tp) -> bool:
             return tp_is_primitive(under_tp)
         case e.CompositeTp(_):
             return False
-        case e.NamedTupleTp(_):
-            return False
         case _:
             raise ValueError("Not implemented", tp)
 

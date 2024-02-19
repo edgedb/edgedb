@@ -131,6 +131,10 @@ class CompositeTp:
     def __hash__(self):
         return hash((self.kind, tuple(self.tps), tuple(self.labels)))
 
+    def __post_init__(self):
+        if not isinstance(self.labels, list):
+            raise ValueError("labels must be a list")
+
 # @dataclass(frozen=True)
 # class TupleTp:
 #     tps: List[Tp]
@@ -141,8 +145,8 @@ def UnnamedTupleTp(tps: List[Tp]):
     return CompositeTp(CompositeTpKind.Tuple, tps, [])
 
 def NamedTupleTp(val: Dict[str, Tp]):
-    lbls = val.keys()
-    tps = val.values()
+    lbls = [*val.keys()]
+    tps = [*val.values()]
     return CompositeTp(CompositeTpKind.Tuple, tps, lbls)
 
 @dataclass(frozen=True)
@@ -723,7 +727,7 @@ class RefVal:
 #     subject : Val
 #     link_properties : Val
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class UnnamedTupleVal:
     val: Sequence[Val]
 
