@@ -139,7 +139,7 @@ def compile_Parameter(
         if ctx.env.detach_params:
             # Extract the type casting to build a stored function later
             ctx.detached_params[index] = pg_types.pg_type_from_ir_typeref(
-                expr.typeref)
+                expr.typeref.base_type or expr.typeref)
             return result
 
     return pgast.TypeCast(
