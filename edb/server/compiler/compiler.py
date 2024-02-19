@@ -1825,7 +1825,7 @@ def _compile_ql_query(
                     returns_record = True
                 else:
                     return_type = pg_types.pg_type_from_ir_typeref(
-                        ir.expr.typeref)
+                        ir.expr.typeref.base_type or ir.expr.typeref)
 
             case enums.OutputFormat.JSON:
                 return_type = ('json',)
