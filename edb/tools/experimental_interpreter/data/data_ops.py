@@ -761,6 +761,10 @@ class ResultMultiSetVal:
     def getRawVals(self) -> Sequence[Val]:
         return self._vals
 
+    def __post_init__(self):
+        if not isinstance(self._vals, list) or not all(isinstance(v, Val) for v in self._vals):
+            raise ValueError("vals must be a list")
+
 
 # @dataclass(frozen=True, order=True)
 # class ConditionalDedupMultiSetVal:

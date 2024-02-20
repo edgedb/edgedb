@@ -210,6 +210,7 @@ def except_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 multiply_impl = lift_binary_scalar_op(operator.mul)
+floor_divide_impl = lift_binary_scalar_op(operator.floordiv)
 mod_impl = lift_binary_scalar_op(operator.mod)
 gt_impl = lift_binary_scalar_op(operator.gt, override_ret_tp=e.BoolTp())
 not_impl = lift_unary_scalar_op(operator.not_)

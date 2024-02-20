@@ -300,8 +300,6 @@ def repl(*, init_sdl_file=None,
                 except KeyboardInterrupt:
                     reset_s()
                     continue
-            if not s:
-                return
         try:
             readline.write_history_file(history_file)
             if s.startswith("\\"):

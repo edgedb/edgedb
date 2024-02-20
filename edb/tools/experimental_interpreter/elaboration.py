@@ -328,7 +328,7 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
                     offset=elab(qle.offset)
                     if qle.offset is not None else IntVal(0),
                     limit=elab(qle.limit)
-                    if qle.limit is not None else IntInfVal(),)))
+                    if qle.limit is not None else e.MultiSetExpr([]),)))
     else:
         subject_elab = elab(qle.result)
         # if isinstance(subject_elab, FreeVarExpr):

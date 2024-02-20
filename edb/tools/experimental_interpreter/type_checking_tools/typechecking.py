@@ -194,12 +194,13 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 result_tp = tp_ck
             else:
                 (arg_tp, arg_v) = synthesize_type(ctx, arg)
-                if check_castable(ctx, arg_tp.tp, tp_ck):
+                candidate_cast = check_castable(ctx, arg_tp.tp, tp_ck)
+                if candidate_cast is not None:
                 # (result_tp, result_card) = type_cast_tp(ctx, arg_tp, tp_ck)
                     (result_tp, result_card) = (tp_ck, arg_tp.mode)
                     result_expr = e.CheckedTypeCastExpr(
                         cast_tp=(arg_tp.tp, tp_ck),
-                        cast_spec=ctx.schema.casts[(arg_tp.tp, tp_ck)],
+                        cast_spec=candidate_cast,
                         arg=arg_v)
                 else:
                     raise ValueError("Cannot cast", arg_tp, tp_ck)
@@ -528,6 +529,11 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
     # check integrity
     if isinstance(result_tp, e.ObjectTp):
         raise ValueError("Must return NominalLinkTp instead of object tp", expr, result_tp)
+
+    
+    # Comment this safety check to improve type checking performance
+    # if eops.appears_in_expr_pred(lambda x: isinstance(x, e.UncheckedTypeName), result_tp):
+    #     raise ValueError("Unchecked type name in result", result_tp)
 
     return (e.ResultTp(result_tp, result_card), result_expr)
 

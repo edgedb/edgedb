@@ -72,6 +72,8 @@ def map_tp(
                 return e.DefaultTp(expr=expr, tp=recur(tp))
             case e.UncheckedTypeName(name=name):
                 return tp
+            case e.UnionTp(l, r):
+                return e.UnionTp(recur(l), recur(r))
             case _:
                 raise ValueError("Not Implemented", tp)
 
@@ -200,6 +202,9 @@ def map_expr(
                     cast_tp=cast_tp,
                     cast_spec=cast_spec,
                     arg=recur(arg))
+
+            case _:
+                return map_tp(f, expr)
     raise ValueError("Not Implemented: map_expr ", expr)
 
 

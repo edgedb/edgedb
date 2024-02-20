@@ -148,6 +148,8 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
 def offset_vals(val: Sequence[Val], offset: Val):
     match offset:
         case e.ScalarVal(_, v):
+            if v < 0:
+                raise edgedb.InvalidValueError("OFFSET must not be negative")
             return val[v:]
         case _:
             raise ValueError("offset must be an int")
@@ -157,6 +159,8 @@ def limit_vals(val: Sequence[Val],
                limit: Val) -> Sequence[Val]:
     match limit:
         case e.ScalarVal(_,v):
+            if v < 0:
+                raise edgedb.InvalidValueError("LIMIT must not be negative")
             return val[:v]
         case _:
             raise ValueError("offset must be an int")
@@ -330,7 +334,7 @@ def eval_expr(ctx: EvalEnv,
                     body = looked_up_fun.impl
                     for i, arg in enumerate(vset):
                         ctx, body = ctx_extend(ctx, body, e.ResultMultiSetVal(arg))
-                    after_fun_vals = [*after_fun_vals, eval_expr(ctx, db, body)]
+                    after_fun_vals = [*after_fun_vals, *eval_expr(ctx, db, body).getVals()]
             else:
                 raise ValueError("Not implemented yet", looked_up_fun)
             return e.ResultMultiSetVal(after_fun_vals)
@@ -437,11 +441,13 @@ def eval_expr(ctx: EvalEnv,
             assert len(offsetv_m.getVals()) <= 1
             offsetv = offsetv_m.getVals()[0] if len(offsetv_m.getVals()) == 1 else e.IntVal(0)
             limitv_m = eval_expr(ctx, db, limit)
+            offseted_result = offset_vals(subjectv.getVals(), offsetv)
             assert len(limitv_m.getVals()) <= 1
-            limitv = limitv_m.getVals()[0] if len(limitv_m.getVals()) == 1 else e.IntInfVal()
-            result_list = list(limit_vals(
-                             offset_vals(subjectv.getVals(), offsetv),
-                             limitv))
+            if len(limitv_m.getVals()) == 1:
+                limitv = limitv_m.getVals()[0] 
+                result_list = list(limit_vals(offseted_result, limitv))
+            else:
+                result_list = offseted_result
             return e.ResultMultiSetVal(result_list)
         case SubqueryExpr(expr=expr):
             exprv = eval_expr(ctx, db , expr)

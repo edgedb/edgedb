@@ -88,10 +88,10 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
     def dump_state(self) -> object:
         return {
             "schema": self.schema, # assume schema is immutable
-            "db": copy.copy(self.db.dbdata),
-            "to_delete": copy.copy(self.to_delete),
-            "to_update": copy.copy(self.to_update),
-            "to_insert": copy.copy(self.to_insert),
+            "db": copy.deepcopy(self.db.dbdata),
+            "to_delete": copy.deepcopy(self.to_delete),
+            "to_update": copy.deepcopy(self.to_update),
+            "to_insert": copy.deepcopy(self.to_insert),
             "next_id_to_return": self.next_id_to_return
         }
 
@@ -132,7 +132,11 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
         return prop in self.get_props_for_id(id).keys()
     
     def project(self, id: EdgeID, prop: str) -> MultiSetVal:
-        return self.get_props_for_id(id)[prop]
+        props = self.get_props_for_id(id)
+        if prop in props:
+            return props[prop]
+        else:
+            raise ValueError(f"Property {prop} not found in object {id}")
 
     def reverse_project(self, subject_ids: Sequence[EdgeID], prop: str) -> MultiSetVal:
         results: List[Val] = []

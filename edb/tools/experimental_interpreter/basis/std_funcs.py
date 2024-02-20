@@ -1,5 +1,6 @@
 
 from typing import *
+import json
 
 from ..data import data_ops as e
 from ..data.data_ops import (
@@ -201,6 +202,12 @@ def str_lower_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [[e.ScalarVal(_, s)]]:
             return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), s.lower())]
+    raise FunCallErr()
+
+def to_json_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[e.ScalarVal(_, s)]]:
+            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "json"])), json.loads(s))]
     raise FunCallErr()
 
 def random_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
