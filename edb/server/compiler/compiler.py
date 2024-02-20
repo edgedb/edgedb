@@ -1811,7 +1811,7 @@ def _compile_ql_query(
     if use_persistent_cache and ctx.cache_key is not None:
         key = ctx.cache_key.hex
         returns_record = False
-        set_returning = False
+        set_returning = True
         return_type: tuple[str, ...] = ('unknown',)
 
         match ctx.output_format:
@@ -1819,7 +1819,6 @@ def _compile_ql_query(
                 return_type = ('void',)
 
             case enums.OutputFormat.BINARY:
-                set_returning = ir.cardinality.is_multi()
                 if ir.stype.is_object_type():
                     return_type = ('record',)
                     returns_record = True
@@ -1832,7 +1831,6 @@ def _compile_ql_query(
 
             case enums.OutputFormat.JSON_ELEMENTS:
                 return_type = ('json',)
-                set_returning = True
 
         if returns_record:
             assert isinstance(sql_ast, pgast.ReturningQuery)
