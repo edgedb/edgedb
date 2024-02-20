@@ -121,7 +121,7 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
             else:
                 raise ValueError("not implemented")
         case RefVal(refid, object):
-            if not isinstance(tp, e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp | e.UnionTp):
+            if not isinstance(tp, e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp | e.UnionTp | e.IntersectTp):
                 raise ValueError("Expecing objecttp", tp)
             object_val_result =  typed_objectval_to_json_like(object, tp, dbschema)
             if len(object_val_result) == 0:
@@ -149,15 +149,16 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
                     case e.UnionTp(l, r):
                         all_u_tps = tops.collect_tp_union(tp)
                         if all(isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Tuple for tp in all_u_tps):
-                            if all(len(all_i_tps[0].tps) == len(tp.tps) for tp in all_u_tps):# type: ignore
+                            if all(len(all_u_tps[0].tps) == len(tp.tps) for tp in all_u_tps):# type: ignore
                                 tps = [ tops.construct_tps_union([tp.tps[i] for tp in all_u_tps]) # type: ignore
                                     for i in range(len(all_u_tps[0].tps))# type: ignore
                                 ]
-                raise ValueError("Expecing unnamed tuple tp", pp.show(tp))
+                    case _:
+                        raise ValueError("Expecing unnamed tuple tp", pp.show(tp))
             else:
                 tps = tp.tps
             return [typed_val_to_json_like(v, t, dbschema)
-                    for (v, t) in zip(array, tp.tps, strict=True)]
+                    for (v, t) in zip(array, tps, strict=True)]
         case NamedTupleVal(val=dic):
             assert isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Tuple
             return {k: typed_val_to_json_like(v, tp.tps[tp.labels.index(k)], dbschema)

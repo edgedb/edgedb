@@ -293,6 +293,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     candidates)
             result_card = e.CardAny
         case e.TpIntersectExpr(subject=subject, tp=intersect_tp):
+            # intersect_tp = check_type_valid(ctx, intersect_tp)
+            if isinstance(intersect_tp, e.UncheckedTypeName):
+                intersect_tp = intersect_tp.name
             intersect_tp_name , _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp)
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.TpIntersectExpr(subject_ck, intersect_tp_name)
@@ -573,7 +576,7 @@ def check_type_no_card(ctx: e.TcCtx, expr: e.Expr,
                         case _:
                             raise ValueError("Not Implemented", cast_fun.kind)
                 else:
-                    raise ValueError("Not a sub type", expr_tp.tp, tp)
+                    raise ValueError("Not a sub type", pp.show(expr_tp.tp), pp.show(tp))
 
 
 
@@ -610,5 +613,7 @@ def check_type_valid(ctx: e.TcCtx | e.DBSchema, tp : e.Tp) -> e.Tp:
             return tp
         case e.CompositeTp(kind=kind, tps=tps, labels=labels):
             return e.CompositeTp(kind=kind, tps=[check_type_valid(ctx, t) for t in tps], labels=labels)
+        case e.QualifiedName(_):
+            return tp
         case _:
             raise ValueError("Not Implemented", tp)

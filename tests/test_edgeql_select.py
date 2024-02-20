@@ -204,6 +204,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("IS …  is not differentiated from [IS …]")
     async def test_edgeql_select_computable_06(self):
         await self.assert_query_result(
             r'''
@@ -297,6 +298,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("IS …  is not differentiated from [IS …]")
     async def test_edgeql_select_computable_09(self):
         await self.assert_query_result(
             r"""
@@ -2411,6 +2413,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Unchecked Type Name in FuncCall, SUSPECTED REASON: TP INTERSECTION")
     async def test_edgeql_select_instance_01(self):
         await self.assert_query_result(
             r'''
@@ -2438,6 +2441,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Unchecked Type Name in FuncCall, SUSPECTED REASON: TP INTERSECTION")
     async def test_edgeql_select_instance_03(self):
         await self.assert_query_result(
             r'''
@@ -3298,6 +3302,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [10]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not yet supported")
     async def test_edgeql_select_func_05(self):
         await self.con.execute(r'''
             CREATE FUNCTION concat1(VARIADIC s: anytype) -> std::str
@@ -3338,6 +3343,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             DROP FUNCTION concat1(VARIADIC s: anytype);
         ''')
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not yet supported")
     async def test_edgeql_select_func_06(self):
         await self.con.execute(r'''
             CREATE FUNCTION concat2(VARIADIC s: std::str) -> std::str {
@@ -3351,6 +3357,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r'function .+ does not exist'):
             await self.con.execute(r'SELECT concat2(123);')
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not yet supported")
     async def test_edgeql_select_func_07(self):
         await self.con.execute(r'''
             CREATE FUNCTION concat3(sep: OPTIONAL std::str,
@@ -3438,6 +3445,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             DROP FUNCTION concat3(sep: std::str, VARIADIC s: std::str);
         ''')
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("with con.transaction()")
     async def test_edgeql_select_func_08(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -3728,6 +3736,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
              {'kind': 'Low'}, {'kind': 'Closed'}],
         )
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_select_coalesce_02(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -3739,6 +3748,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 };
             ''')
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("query retuning JSON field")
     async def test_edgeql_select_coalesce_03(self):
         issues_h = await self.con.query(r'''
             SELECT Issue{number}
@@ -4668,6 +4678,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_select_empty_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -5273,6 +5284,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Yury'],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Implicit cast on int + float")
     async def test_edgeql_select_alias_indirection_04(self):
         result = await self.con.query(r"""
             # Reference a constant expression in an alias.
@@ -5973,6 +5985,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [""],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Json index")
     async def test_edgeql_select_bigint_index_03(self):
 
         big_pos = str(2**40)
@@ -6529,6 +6542,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             {'sub': '1'},
         ])
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_partial_06(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'invalid property reference on a '
@@ -6752,6 +6766,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
         self.assertNotIn('__tname__', json_res)
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_select_bad_reference_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -6762,6 +6777,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT Usr;
             """)
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_select_bad_reference_02(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -6772,6 +6788,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT User.nam;
             """)
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_select_bad_reference_03(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -6782,6 +6799,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 select Issue filter number = '4418';
             """)
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_select_bad_reference_04(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -6792,6 +6810,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 select Issue filter referrnce = '#4418';
             """)
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_select_bad_reference_05(self):
 
         with self.assertRaisesRegex(
@@ -6863,6 +6882,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_01(self):
         await self.assert_query_result(
             r'''SELECT 5 IS int64;''',
@@ -6909,6 +6929,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_02(self):
         await self.assert_query_result(
             r'''SELECT 5.5 IS int64;''',
@@ -6955,6 +6976,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_03(self):
 
         await self.assert_query_result(
@@ -7002,6 +7024,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_04(self):
 
         await self.assert_query_result(
@@ -7049,6 +7072,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_05(self):
 
         await self.assert_query_result(
@@ -7096,6 +7120,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_06(self):
         await self.assert_query_result(
             r'''
@@ -7104,6 +7129,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_07(self):
         await self.assert_query_result(
             r'''
@@ -7112,6 +7138,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_08(self):
         await self.assert_query_result(
             r'''
@@ -7120,6 +7147,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_09(self):
         await self.assert_query_result(
             r'''
@@ -7128,6 +7156,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on composite type")
     async def test_edgeql_select_is_10(self):
         await self.assert_query_result(
             r'''
@@ -7136,6 +7165,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on composite type")
     async def test_edgeql_select_is_11(self):
         await self.assert_query_result(
             r'''
@@ -7144,6 +7174,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on composite type")
     async def test_edgeql_select_is_12(self):
         await self.assert_query_result(
             r'''
@@ -7170,6 +7201,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_select_duplicate_definition_01(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -7184,6 +7216,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_select_duplicate_definition_02(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -7198,6 +7231,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_select_duplicate_definition_03(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -7347,6 +7381,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ["Elvis", "Yury"],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
     async def test_edgeql_select_expr_objects_03(self):
         await self.con.execute(
             '''
@@ -7366,6 +7401,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
+    
+    @test.decorators.experimental_interpreter_triaged_pending_feature("IS …  is not differentiated from [IS …]")
     async def test_edgeql_select_expr_objects_04(self):
         await self.assert_query_result(
             r'''
@@ -7430,6 +7467,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+    @test.decorators.experimental_interpreter_exclude("con returning Json not supported field inspection")
     async def test_edgeql_select_expr_objects_07(self):
         # get the User names and ids
         res = await self.con.query(r'''
@@ -7511,6 +7549,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT DISTINCT { z := 1 } = { z := 2 };
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("I don't know the semantics, need clarification             SELECT [User, Issue];")
     async def test_edgeql_select_array_common_type_01(self):
         res = await self.con._fetchall("""
             SELECT [User, Issue];
@@ -7526,6 +7565,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         for row in res:
             self.assertTrue(row[0].__tname__.startswith("default::"))
 
+    @test.decorators.experimental_interpreter_exclude("con returning Json not supported field inspection")
     async def test_edgeql_select_free_shape_01(self):
         res = await self.con.query_single('SELECT {test := 1}')
         self.assertEqual(res.test, 1)
@@ -7900,6 +7940,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [[{"id": str}]]
         )
 
+    @test.decorators.experimental_interpreter_exclude("Expected Failure")
     async def test_edgeql_assert_fail_object_computed_01(self):
         # check that accessing a trivial computable on an object
         # that will fail to evaluate still fails
@@ -7943,6 +7984,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT array_agg((SELECT User {m := Publication}))[{1000}].m;
             """)
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
     async def test_edgeql_select_call_null_01(self):
         # testing calls with null args
         await self.con.execute('''
@@ -7966,6 +8008,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
     async def test_edgeql_select_call_null_02(self):
         # testing calls with null args to a function that we can't mark
         # as strict
@@ -8186,12 +8229,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.decorators.experimental_interpreter_exclude("con returning Json not supported field inspection")
     async def test_edgeql_select_free_object_distinct_01(self):
         foo, bar = await self.con.query_single('''
             select ({foo := "test"}, {bar := 1000})
         ''')
         self.assertNotEqual(foo.id, bar.id)
 
+    @test.decorators.experimental_interpreter_exclude("con returning Json not supported field inspection")
     async def test_edgeql_select_free_object_distinct_02(self):
         vals = await self.con.query('''
             for x in {1,2,3} union { asdf := 10*x };
@@ -8211,6 +8256,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+    @test.decorators.experimental_interpreter_exclude("con returning Json not supported field inspection")
     async def test_edgeql_select_free_object_distinct_03(self):
         vals = await self.con.query('''
             with w := {x := 10}
@@ -8218,6 +8264,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''')
         self.assertEqual(1, len({v.id for v in vals}))
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Unchecked Type Name during function call")
     async def test_edgeql_select_card_blowup_01(self):
         # This used to really blow up cardinality inference
         await self.con.query('''

@@ -219,6 +219,9 @@ class DefaultTp:
     expr: BindingExpr
     tp: Tp
 
+    def __hash__(self) -> int:
+        return hash(self.tp)
+
 
 @dataclass(frozen=True)
 class AnyTp:

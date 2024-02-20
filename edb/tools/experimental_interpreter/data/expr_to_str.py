@@ -82,6 +82,8 @@ def show_tp(tp: e.Tp) -> str:
                 return 'overloaded()'
             else:
                 return 'overloaded(linkprop=' + show_tp(linkprop) + ")"
+        case e.QualifiedName(_) | e.UnqualifiedName(_):
+            return show_raw_name(tp)
         case _:
             raise ValueError('Unimplemented', tp)
 
@@ -159,7 +161,7 @@ def show_expr(expr: e.Expr) -> str:
         case e.BackLinkExpr(subject=subject, label=label):
             return show_expr(subject) + ".<" + label
         case e.TpIntersectExpr(subject=subject, tp=tp):
-            return show_expr(subject) + " [is " + show_raw_name(tp) + "]"
+            return show_expr(subject) + " [is " + show_tp(tp) + "]"
         case e.SubqueryExpr(expr=subject):
             return "select " + show_expr(subject)
         case e.FilterOrderExpr(subject=subject, filter=filter, order=order):

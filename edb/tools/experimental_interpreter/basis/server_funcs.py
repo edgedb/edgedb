@@ -47,6 +47,7 @@ all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e
     "sum": std_sum_impl,
     "assert_exists": std_assert_exists,
     "assert_single": std_assert_single,
+    "assert_distinct": std_assert_distinct,
     "str_split": str_split_impl,
     "str_upper": str_upper_impl,
     "str_lower": str_lower_impl,

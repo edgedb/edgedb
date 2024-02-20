@@ -31,6 +31,8 @@ def reverse_elab_raw_name(name: e.RawName) -> qlast.ObjectRef:
             return qlast.ObjectRef(name=names[-1], module="::".join(names[:-1]))
         case e.UnqualifiedName(name=n):
             return qlast.ObjectRef(name=n)
+        case e.UncheckedTypeName(name=n):
+            return reverse_elab_raw_name(n)
         case _:
             raise ValueError(name)
 
@@ -84,7 +86,12 @@ def reverse_elab_type_name(tp: Tp) -> qlast.TypeName:
                 return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.name))
             else:
                 raise ValueError("Unimplemented")
+        case e.CompositeTp(kind=kind, tps=tps, labels=labels):
+            return qlast.TypeName(
+                maintype=qlast.ObjectRef(name=kind.name),
+                subtypes=[reverse_elab_type_name(tp) for tp in tps])
     raise ValueError("Unimplemented")
+
 
 
 def reverse_elab_order(order: Dict[str, Expr]) -> Optional[List[qlast.SortExpr]]:

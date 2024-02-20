@@ -120,6 +120,9 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
             if args:
                 [res_tps, args_cks] = zip(*[tc.synthesize_type(ctx, v) for v in args])
                 [tps, arg_cards] = zip(*res_tps)
+                tps = list(tps)
+                arg_cards = list(arg_cards)
+                args_cks = list(args_cks)
             else:
                 tps = []
                 arg_cards = []
@@ -137,7 +140,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                     raise ValueError("Overloading for function incorrectly calculated", fun_call)
             else:
                 ok_candidates : List[Tuple[int, e.Tp]] = []
-                for i, fun_def in enumerate(fun_defs):
+                for fun_idx, fun_def in enumerate(fun_defs):
                     if len(tps) == len(fun_def.tp.args_tp):
                         if len(kwargs) == 0:
                             result_tp = check_args_ret_type_match(ctx, tps, fun_def.tp)
@@ -163,7 +166,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                         else:
                             result_tp = check_args_ret_type_match(ctx, new_tps, fun_def.tp)
                     if result_tp is not None:
-                        ok_candidates.append((i, result_tp))
+                        ok_candidates.append((fun_idx, result_tp))
                 
                 if len(ok_candidates) > 1 :
                     print_warning("WARNING: Ambiguous overloading", pp.show_qname(qualified_fname),

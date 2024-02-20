@@ -178,6 +178,8 @@ def distinct_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
         case [vset]:
             if all(isinstance(v, e.RefVal) for v in vset):
                 return {v.refid : v for v in vset}.values() # type: ignore
+            elif all(isinstance(v, e.ArrVal | e.UnnamedTupleVal | e.NamedTupleVal) for v in vset):
+                return vset
             else:
                 return list(set(vset))
     raise FunCallErr()

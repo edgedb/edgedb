@@ -161,13 +161,48 @@ def std_assert_single(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
                 raise ValueError(msg)
             else:
                 return l
+        case [l, []]:
+            if len(l) > 1:
+                raise ValueError("Expected a single value, got more than one.")
+            else:
+                return l
     raise FunCallErr()
 
+def std_assert_distinct(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [vset, pmsg]:
+            msg = None
+
+            match pmsg:
+                case [msg]:
+                    msg = msg
+                case []:
+                    msg = "Expected distinct values, got duplicates."
+                
+            if all(isinstance(v, e.RefVal) for v in vset):
+                ids = {v.refid : v for v in vset}.values() # type: ignore
+                if len(ids) != len(vset):
+                    raise ValueError(msg)
+                else:
+                    return vset
+            elif all(isinstance(v, e.ArrVal | e.UnnamedTupleVal | e.NamedTupleVal) for v in vset):
+                if len(set(vset)) != len(vset):
+                    raise ValueError(msg)
+                else:
+                    return vset
+            else:
+                raise ValueError("Not implemented: assert_distinct")
+    raise FunCallErr()
 def std_assert_exists(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [l, [msg]]:
             if len(l) == 0:
                 raise ValueError(msg)
+            else:
+                return l
+        case [l, []]:
+            if len(l) == 0:
+                raise ValueError("Expected a value, got none.")
             else:
                 return l
     raise FunCallErr()
