@@ -191,6 +191,61 @@ class QueryCacheTable(dbops.Table):
         )
 
 
+class EvictQueryCacheFunction(dbops.Function):
+
+    text = f'''
+    DECLARE
+        evict_sql text;
+    BEGIN
+        DELETE FROM "edgedb"."_query_cache"
+            WHERE "key" = cache_key
+            RETURNING "evict" INTO evict_sql;
+        IF evict_sql IS NOT NULL THEN
+            EXECUTE evict_sql;
+        END IF;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_evict_query_cache'),
+            args=[("cache_key", ("uuid",))],
+            returns=("void",),
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
+class ClearQueryCacheFunction(dbops.Function):
+
+    # TODO(fantix): this may consume a lot of memory in Postgres
+    text = f'''
+    DECLARE
+        row record;
+    BEGIN
+        FOR row IN
+            DELETE FROM "edgedb"."_query_cache"
+            RETURNING "input", "evict"
+        LOOP
+            EXECUTE row."evict";
+            RETURN NEXT row."input";
+        END LOOP;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_clear_query_cache'),
+            args=[],
+            returns=('bytea',),
+            set_returning=True,
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
 class BigintDomain(dbops.Domain):
     """Bigint: a variant of numeric that enforces zero digits after the dot.
 
@@ -4553,6 +4608,8 @@ async def bootstrap(
         dbops.CreateTable(DMLDummyTable()),
         dbops.CreateTable(QueryCacheTable()),
         dbops.Query(DMLDummyTable.SETUP_QUERY),
+        dbops.CreateFunction(EvictQueryCacheFunction()),
+        dbops.CreateFunction(ClearQueryCacheFunction()),
         dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
         dbops.CreateFunction(UuidGenerateV4Function('edgedbext')),
         dbops.CreateFunction(UuidGenerateV5Function('edgedbext')),
