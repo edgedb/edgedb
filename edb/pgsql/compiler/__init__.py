@@ -121,7 +121,6 @@ def compile_ir_to_sql_tree(
             scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
             backend_runtime_params=backend_runtime_params,
-            detach_params=detach_params,
         )
 
         ctx = context.CompilerContextLevel(
