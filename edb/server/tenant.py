@@ -1433,6 +1433,8 @@ class Tenant(ha_base.ClusterProtocol):
                 suggested_client_pool_size=self._suggested_client_pool_size,
                 tenant_id=self._tenant_id,
             ),
+            instance_config=config.debug_serialize_config(
+                self.get_sys_config()),
             user_roles=self._roles,
             pg_addr={
                 k: v for k, v in self.get_pgaddr().items() if k not in ["ssl"]

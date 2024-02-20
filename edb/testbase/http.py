@@ -76,12 +76,12 @@ class BaseHttpExtensionTest(server.QueryTestCase):
                         path="server-info",
                     )
                     data = json.loads(rdata)
+                    if 'databases' not in data:
+                        # multi-tenant instance - use the first tenant
+                        data = next(iter(data['tenants'].values()))
                     if instance_config:
                         config = data['instance_config']
                     else:
-                        if 'databases' not in data:
-                            # multi-tenant instance - use the first tenant
-                            data = next(iter(data['tenants'].values()))
                         config = data['databases'][dbname]['config']
                     if config_key not in config:
                         raise AssertionError('database config not ready')
