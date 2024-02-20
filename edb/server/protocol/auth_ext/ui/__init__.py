@@ -1,3 +1,4 @@
+# flake8: noqa: e126, e121, e127, e128
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -84,8 +85,10 @@ def render_signin_page(
         single_form_fields=f'''
             {render.hidden_input(
                 name='redirect_to',
-                value=redirect_to if webauthn_provider
-                    else (base_path+'/ui/magic-link-sent'),
+                value=(
+                    redirect_to if webauthn_provider
+                    else (base_path + '/ui/magic-link-sent')
+                ),
                 secondary_value=redirect_to
             )}
             {render.hidden_input(
