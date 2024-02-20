@@ -112,9 +112,17 @@ async def persist_cache(
                 await be_conn.wait_for_command(
                     unit, parse_array[i], dbv.dbver, ignore_data=True
                 )
-    except Exception:
-        dbv.on_error()
-        raise
+    except Exception as ex:
+        if (
+            isinstance(ex, pgerror.BackendError)
+            and ex.code_is(pgerror.ERROR_SERIALIZATION_FAILURE)
+        ):
+            # XXX: Is it OK to just ignore it? Can we rely on the conflict
+            # having set it to the same thing?
+            pass
+        else:
+            dbv.on_error()
+            raise
 
 
 # TODO: can we merge execute and execute_script?
