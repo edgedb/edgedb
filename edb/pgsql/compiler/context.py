@@ -508,7 +508,6 @@ class Environment:
     external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
     materialized_views: Dict[uuid.UUID, irast.Set]
     backend_runtime_params: pgparams.BackendRuntimeParams
-    detach_params: bool
 
     #: A list of CTEs that implement constraint validation at the
     #: query level.
@@ -531,7 +530,6 @@ class Environment:
             Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
         ] = None,
         backend_runtime_params: pgparams.BackendRuntimeParams,
-        detach_params: bool = False,
     ) -> None:
         self.aliases = aliases.AliasGenerator()
         self.output_format = output_format
@@ -549,7 +547,6 @@ class Environment:
         self.materialized_views = {}
         self.check_ctes = []
         self.backend_runtime_params = backend_runtime_params
-        self.detach_params = detach_params
 
 
 # XXX: this context hack is necessary until pathctx is converted

@@ -136,9 +136,6 @@ def compile_Parameter(
     else:
         index = ctx.argmap[expr.name].index
         result = pgast.ParamRef(number=index, nullable=not expr.required)
-        if ctx.env.detach_params:
-            # XXX: Do we need this?
-            return result
 
     return pgast.TypeCast(
         arg=result,
