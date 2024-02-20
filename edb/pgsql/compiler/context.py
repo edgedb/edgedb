@@ -304,10 +304,6 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: needed by DML.
     shapes_needed_by_dml: Set[irast.Set]
 
-    #: Aggregated output of detached SQL parameters (position integer) and
-    #: their SQL types (qualified names tuple)
-    detached_params: Dict[int, Tuple[str, ...]]
-
     def __init__(
         self,
         prevlevel: Optional[CompilerContextLevel],
@@ -358,7 +354,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.shapes_needed_by_dml = set()
 
             self.trigger_mode = False
-            self.detached_params = {}
 
         else:
             self.env = prevlevel.env
@@ -398,7 +393,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.external_rels = prevlevel.external_rels
 
             self.trigger_mode = prevlevel.trigger_mode
-            self.detached_params = prevlevel.detached_params
 
             if mode is ContextSwitchMode.SUBSTMT:
                 if self.pending_query is not None:

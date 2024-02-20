@@ -28,6 +28,7 @@ from edb.ir import ast as irast
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import params as pgparams
+from edb.pgsql import types as pgtypes
 
 from . import config as _config_compiler  # NOQA
 from . import expr as _expr_compiler  # NOQA
@@ -148,7 +149,17 @@ def compile_ir_to_sql_tree(
             assert isinstance(qtree, pgast.Query)
             clauses.fini_toplevel(qtree, ctx)
 
-        detached_params = [p for _, p in sorted(ctx.detached_params.items())]
+        if detach_params:
+            detached_params_idx = {
+                ctx.argmap[param.name].index: (
+                    pgtypes.pg_type_from_ir_typeref(
+                        param.ir_type.base_type or param.ir_type))
+                for param in ctx.env.query_params
+                if not param.sub_params
+            }
+        else:
+            detached_params_idx = {}
+        detached_params = [p for _, p in sorted(detached_params_idx.items())]
 
     except errors.EdgeDBError:
         # Don't wrap propertly typed EdgeDB errors into
