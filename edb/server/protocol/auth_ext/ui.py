@@ -376,13 +376,10 @@ def render_signup_page(
       {_render_error_message(error_message)}
 
       {_render_oauth_buttons(oauth_providers, oauth_params, oauth_label)}
-      {
-        """
-        <div class="divider">
-          <span>or</span>
-        </div>
-        """ if has_email_factor and oauth_providers else ''
-      }
+      {"""
+      <div class="divider">
+        <span>or</span>
+      </div>""" if has_email_factor and oauth_providers else ''}
       {email_factor_form if has_email_factor else ''}
     </form>
     {email_factor_script}
