@@ -357,7 +357,7 @@ class QueryUnit:
         buf = memoryview(data)
         match buf[0]:
             case 0x00:
-                return pickle.loads(buf[1:])
+                return pickle.loads(buf[1:])  # type: ignore[no-any-return]
         raise ValueError(f"Bad version number: {buf[0]}")
 
 
@@ -398,7 +398,7 @@ class QueryUnitGroup:
     def units(self) -> List[QueryUnit]:
         if self._unpacked_units is None:
             self._unpacked_units = [
-                QueryUnit.deserialize(unit) if type(unit) is bytes else unit
+                QueryUnit.deserialize(unit) if isinstance(unit, bytes) else unit
                 for unit in self._units
             ]
         return self._unpacked_units
@@ -413,8 +413,10 @@ class QueryUnitGroup:
         return self.units[item]
 
     def maybe_get_serialized(self, item: int) -> bytes | None:
-        if type(self._units[item]) is bytes:
-            return self._units[item]
+        unit = self._units[item]
+        if isinstance(unit, bytes):
+            return unit
+        return None
 
     def append(
         self,
