@@ -28,6 +28,7 @@ import pickle
 import struct
 import time
 import typing
+import uuid
 import weakref
 
 import immutables
@@ -888,6 +889,11 @@ cdef class DatabaseConnectionView:
 
         self._reset_tx_state()
         return side_effects
+
+    async def clear_cache_keys(self, conn) -> list[bytes]:
+        rows = await conn.sql_fetch(b'SELECT "edgedb"."_clear_query_cache"()')
+        self._db._eql_to_compiled.clear()
+        return [row[0] for row in rows or []]
 
     async def apply_config_ops(self, conn, ops):
         settings = self.get_config_spec()
