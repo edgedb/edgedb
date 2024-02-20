@@ -4,6 +4,13 @@
 EdgeQL over HTTP
 ================
 
+.. toctree::
+    :maxdepth: 2
+    :hidden:
+
+    protocol
+    health-checks
+
 EdgeDB can expose an HTTP endpoint for EdgeQL queries. Since HTTP is a
 stateless protocol, no :ref:`DDL <ref_eql_ddl>`,
 :ref:`transaction commands <ref_eql_statements_start_tx>`,
@@ -103,10 +110,3 @@ example showing how you might send the query ``select Person {*};`` using cURL:
        --data-urlencode "query=select Person {*};"
 
 .. lint-on
-
-.. toctree::
-    :maxdepth: 2
-    :hidden:
-
-    protocol
-    health-checks
