@@ -34,6 +34,7 @@ import hashlib
 from typing import Any, Callable
 from jwcrypto import jwt, jwk
 
+from edgedb import QueryAssertionError
 from edb.testbase import http as tb
 from edb.common import assert_data_shape
 
@@ -3638,6 +3639,55 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(user_id_decoded, existing_user_handle)
+
+    async def test_http_auth_ext_webauthn_emails_share_user_handle(self):
+        email = "test@example.com"
+
+        user_handle_one = uuid.uuid4().bytes
+        credential_id_one = uuid.uuid4().bytes
+        public_key_one = uuid.uuid4().bytes
+
+        user_handle_two = uuid.uuid4().bytes
+        credential_id_two = uuid.uuid4().bytes
+        public_key_two = uuid.uuid4().bytes
+
+        with self.assertRaisesRegex(
+            QueryAssertionError,
+            "user_handle must be the same for a given email",
+        ):
+            await self.con.execute(
+                """
+                with
+                    factor_one := (insert ext::auth::WebAuthnFactor {
+                        email := <str>$email,
+                        user_handle := <bytes>$user_handle_one,
+                        credential_id := <bytes>$credential_id_one,
+                        public_key := <bytes>$public_key_one,
+                        identity := (insert ext::auth::LocalIdentity {
+                            issuer := "local",
+                            subject := "",
+                        }),
+                    }),
+                    factor_two := (insert ext::auth::WebAuthnFactor {
+                        email := <str>$email,
+                        user_handle := <bytes>$user_handle_two,
+                        credential_id := <bytes>$credential_id_two,
+                        public_key := <bytes>$public_key_two,
+                        identity := (insert ext::auth::LocalIdentity {
+                            issuer := "local",
+                            subject := "",
+                        }),
+                    })
+                select true;
+                """,
+                email=email,
+                user_handle_one=user_handle_one,
+                credential_id_one=credential_id_one,
+                public_key_one=public_key_one,
+                user_handle_two=user_handle_two,
+                credential_id_two=credential_id_two,
+                public_key_two=public_key_two,
+            )
 
     async def test_http_auth_ext_webauthn_authenticate_options(self):
         with self.http_con() as http_con:

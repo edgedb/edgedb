@@ -76,6 +76,16 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create constraint exclusive;
         };
 
+        create trigger email_shares_user_handle after insert for each do (
+            std::assert(
+                (__new__.user_handle = (
+                    select detached ext::auth::WebAuthnFactor
+                    filter .email = __new__.email
+                    and not .id = __new__.id
+                ).user_handle) ?? true,
+                message := "user_handle must be the same for a given email"
+            )
+        );
         create constraint exclusive on ((.email, .credential_id));
     };
 
