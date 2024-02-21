@@ -183,7 +183,7 @@ def render_signin_page(
            if email_factor_form and len(oauth_providers) > 0
            else ''}
           {email_factor_form or ''}
-          {render.script('webauthn') if webauthn_provider else ''}
+          {render.script('webauthn-authenticate') if webauthn_provider else ''}
         ''',
     )
 
@@ -393,7 +393,7 @@ def render_signup_page(
              if email_factor_form and len(oauth_providers) > 0
              else ''}
             {email_factor_form or ''}
-            {render.script('webauthn') if webauthn_provider else ''}
+            {render.script('webauthn-register') if webauthn_provider else ''}
         ''',
     )
 

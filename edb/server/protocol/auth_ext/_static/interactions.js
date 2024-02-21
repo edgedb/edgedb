@@ -23,8 +23,6 @@ document.addEventListener("DOMContentLoaded", () => {
     ).filter((input) => !!input.dataset.secondaryValue);
     const hiddenInputValues = hiddenInputs.map((input) => input.value);
 
-    console.log(hiddenInputs, hiddenInputValues);
-
     if (!sliderContainer.children[0].classList.contains("active")) {
       form.action = form.dataset.secondaryAction;
       setInputValues(hiddenInputs);

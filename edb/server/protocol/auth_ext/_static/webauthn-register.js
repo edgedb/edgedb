@@ -1,18 +1,22 @@
-import { decodeBase64Url, encodeBase64Url } from "./utils.js";
+import {
+  addWebAuthnSubmitHandler,
+  decodeBase64Url,
+  encodeBase64Url,
+} from "./utils.js";
+
+addWebAuthnSubmitHandler(onRegisterSubmit);
 
 let registering = false;
 
 /**
  * Handle the form submission for WebAuthn registration
- * @param {SubmitEvent} event
  * @param {HTMLFormElement} form
  * @returns void
  */
-export async function onRegisterSubmit(event, form) {
-  if (event.submitter?.id !== "webauthn-signup" || registering) {
+export async function onRegisterSubmit(form) {
+  if (registering) {
     return;
   }
-  event.preventDefault();
 
   registering = true;
   const registerButton = document.getElementById("webauthn-signup");

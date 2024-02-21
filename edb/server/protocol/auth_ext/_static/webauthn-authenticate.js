@@ -1,22 +1,23 @@
 import {
+  addWebAuthnSubmitHandler,
   decodeBase64Url,
   encodeBase64Url,
   parseResponseAsJSON,
 } from "./utils.js";
 
+addWebAuthnSubmitHandler(onAuthenticateSubmit);
+
 let authenticating = false;
 
 /**
  * Handle the form submission for WebAuthn authentication
- * @param {SubmitEvent} event
  * @param {HTMLFormElement} form
  * @returns void
  */
-export async function onAuthenticateSubmit(event, form) {
-  if (event.submitter?.id !== "webauthn-signin" || authenticating) {
+async function onAuthenticateSubmit(form) {
+  if (authenticating) {
     return;
   }
-  event.preventDefault();
 
   authenticating = true;
   const signinButton = document.getElementById("webauthn-signin");
