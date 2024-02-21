@@ -19,14 +19,26 @@
 
 import datetime
 import json
+import base64
 
+from jwcrypto import jwk
 from typing import Any
 from edb.server.protocol import execute
+
+from . import util
 
 
 class Client:
     def __init__(self, db: Any):
         self.db = db
+
+    def _get_signing_key(self) -> jwk.JWK:
+        auth_signing_key = util.get_config(
+            self.db, "ext::auth::AuthConfig::auth_signing_key"
+        )
+        key_bytes = base64.b64encode(auth_signing_key.encode())
+
+        return jwk.JWK(kty="oct", k=key_bytes.decode())
 
     async def verify_email(
         self, identity_id: str, verified_at: datetime.datetime
@@ -89,3 +101,31 @@ select ext::auth::EmailFactor {
         assert len(result_json) == 1
 
         return result_json[0]["verified_at"]
+
+    async def get_identity_id_by_email(
+        self,
+        email: str,
+        *,
+        factor_type: str = 'EmailFactor'
+    ) -> str | None:
+        r = await execute.parse_execute_json(
+            self.db,
+            f"""
+with
+    email := <str>$email,
+    identity := (
+        select ext::auth::LocalIdentity
+        filter .<identity[is ext::auth::{factor_type}].email = email
+    ),
+select identity.id;""",
+            variables={"email": email},
+            cached_globally=True,
+        )
+
+        result_json = json.loads(r.decode())
+        if len(result_json) == 0:
+            return None
+
+        assert len(result_json) == 1
+
+        return result_json[0]
