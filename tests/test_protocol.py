@@ -511,7 +511,7 @@ class TestProtocol(ProtocolTestCase):
             await con2.aclose()
 
     async def _parse_execute(self, query, args):
-        output_format=protocol.OutputFormat.BINARY
+        output_format = protocol.OutputFormat.BINARY
         await self._parse(query, output_format=output_format)
         res = await self.con.recv()
 
