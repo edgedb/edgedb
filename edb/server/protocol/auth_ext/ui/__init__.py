@@ -1,4 +1,3 @@
-# flake8: noqa: e126, e121, e127, e128
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -17,7 +16,7 @@
 # limitations under the License.
 #
 
-from typing import *
+from typing import Optional
 
 import html
 
