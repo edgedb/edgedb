@@ -1,16 +1,26 @@
-import { decodeBase64Url, encodeBase64Url } from "./utils.js";
+import {
+  addWebAuthnSubmitHandler,
+  decodeBase64Url,
+  encodeBase64Url,
+} from "./utils.js";
+
+addWebAuthnSubmitHandler(onRegisterSubmit);
+
+let registering = false;
 
 /**
  * Handle the form submission for WebAuthn registration
- * @param {SubmitEvent} event
  * @param {HTMLFormElement} form
  * @returns void
  */
-export async function onRegisterSubmit(event, form) {
-  if (event.submitter?.id !== "webauthn-signup") {
+export async function onRegisterSubmit(form) {
+  if (registering) {
     return;
   }
-  event.preventDefault();
+
+  registering = true;
+  const registerButton = document.getElementById("webauthn-signup");
+  registerButton.disabled = true;
 
   const formData = new FormData(form);
   const email = formData.get("email");
@@ -20,18 +30,21 @@ export async function onRegisterSubmit(event, form) {
   const redirectTo = formData.get("redirect_to");
   const verifyUrl = formData.get("verify_url");
 
-  const missingFields = [
-    email,
-    provider,
-    challenge,
-    redirectTo,
-    verifyUrl,
-  ].filter((v) => !v);
-  if (missingFields.length > 0) {
-    throw new Error("Missing required parameters: " + missingFields.join(", "));
-  }
-
   try {
+    const missingFields = Object.entries({
+      email,
+      provider,
+      challenge,
+      redirectTo,
+      verifyUrl,
+    }).filter(([k, v]) => !v);
+    if (missingFields.length > 0) {
+      throw new Error(
+        "Missing required parameters: " +
+          missingFields.map(([k]) => k).join(", ")
+      );
+    }
+
     const maybeCode = await register({
       email,
       provider,
@@ -51,6 +64,9 @@ export async function onRegisterSubmit(event, form) {
     const url = new URL(redirectOnFailure ?? redirectTo);
     url.searchParams.append("error", error.message);
     window.location.href = url.href;
+  } finally {
+    registering = false;
+    registerButton.disabled = false;
   }
 }
 
