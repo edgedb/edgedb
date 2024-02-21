@@ -2593,7 +2593,7 @@ jobs:
       uses: docker/setup-qemu-action@v2
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      uses: docker/setup-buildx-action@edfb0fe6204400c56fbfd3feba3fe9ad1adfa345  # v3
 
     - name: Publish Docker Image (docker.io)
       uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
