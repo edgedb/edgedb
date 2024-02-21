@@ -443,7 +443,7 @@ class QueryUnitGroup:
                 self.globals = []
             self.globals.extend(query_unit.globals)
 
-        if not serialize or query_unit.cache_sql is None:
+        if not serialize:
             self._units.append(query_unit)
         else:
             self._units.append(query_unit.serialize())

@@ -855,7 +855,7 @@ class Compiler:
             request.protocol_version,
             request.inline_objectids,
             request.json_parameters,
-            persistent_cache=True,
+            persistent_cache=False,
             cache_key=request.get_cache_key(),
         )
         return units, cstate

@@ -68,9 +68,6 @@ async def persist_cache(
     assert len(units) == 1
     query_unit = units[0]
 
-    assert query_unit.cache_sql is not None
-    persist, evict = query_unit.cache_sql
-
     serialized_result = units.maybe_get_serialized(0)
     assert serialized_result is not None
 
@@ -81,19 +78,14 @@ async def persist_cache(
         ON CONFLICT (key) DO UPDATE SET
         "schema_version"=$2, "input"=$3, "output"=$4, "evict"=$5
     '''
-    bind_datas = [args_ser.combine_raw_args()] * 2
-    bind_datas += [args_ser.combine_raw_args((
+    bind_datas = [args_ser.combine_raw_args((
         compiled.request.get_cache_key().bytes,
         dbv.schema_version.bytes,
         compiled.request.serialize(),
         serialized_result,
-        evict,
+        b"",
     ))]
     units = compiler.QueryUnitGroup()
-    units.append(
-        compiler.QueryUnit(sql=(evict,), status=b''), serialize=False)
-    units.append(
-        compiler.QueryUnit(sql=(persist,), status=b''), serialize=False)
     units.append(
         compiler.QueryUnit(
             sql=(insert_sql,),
@@ -105,9 +97,9 @@ async def persist_cache(
 
     try:
         async with be_conn.parse_execute_script_context():
-            parse_array = [False] * 3
+            parse_array = [False] * len(units)
             be_conn.send_query_unit_group(
-                units, True, bind_datas, None, 0, 3, dbv.dbver, parse_array)
+                units, True, bind_datas, None, 0, len(units), dbv.dbver, parse_array)
             for i, unit in enumerate(units):
                 await be_conn.wait_for_command(
                     unit, parse_array[i], dbv.dbver, ignore_data=True
@@ -172,7 +164,8 @@ async def execute(
         else:
             config_ops = query_unit.config_ops
 
-            if compiled.request and query_unit.cache_sql:
+            # Only newly-compiled result has the request object
+            if compiled.request:
                 await persist_cache(be_conn, dbv, compiled)
 
             if query_unit.sql:
