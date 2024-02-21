@@ -459,3 +459,26 @@ class TestCompilerPool(tbs.TestCase):
 
     async def test_server_compiler_pool_disconnect_queue_adaptive(self):
         await self._test_pool_disconnect_queue(pool.SimpleAdaptivePool)
+
+    def test_server_compiler_rpc_hash_eq(self):
+        compiler = edbcompiler.new_compiler(
+            std_schema=self._std_schema,
+            reflection_schema=self._refl_schema,
+            schema_class_layout=self._schema_class_layout,
+        )
+
+        def test(source: edgeql.Source):
+            request1 = rpc.CompilationRequest(
+                compiler.state.compilation_config_serializer
+            ).update(
+                source=source,
+                protocol_version=(1, 0),
+            )
+            request2 = rpc.CompilationRequest(
+                compiler.state.compilation_config_serializer
+            ).deserialize(request1.serialize(), "<unknown>")
+            self.assertEqual(hash(request1), hash(request2))
+            self.assertEqual(request1, request2)
+
+        test(edgeql.Source.from_string("SELECT 42"))
+        test(edgeql.NormalizedSource.from_string("SELECT 42"))
