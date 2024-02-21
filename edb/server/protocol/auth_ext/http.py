@@ -114,6 +114,15 @@ class Router:
                     return await self.handle_webauthn_register_options(
                         *handler_args
                     )
+                case ('webauthn', 'authenticate'):
+                    return await self.handle_webauthn_authenticate(
+                        *handler_args
+                    )
+                case ('webauthn', 'authenticate', 'options'):
+                    return await self.handle_webauthn_authenticate_options(
+                        *handler_args
+                    )
+
                 # UI routes
                 case ('ui', 'signin'):
                     return await self.handle_ui_signin(*handler_args)
@@ -914,6 +923,98 @@ class Router:
             response.body = json.dumps(
                 {"code": pkce_code, "provider": provider_name}
             ).encode()
+
+    async def handle_webauthn_authenticate_options(
+        self, request: Any, response: Any
+    ):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        email = _get_search_param(query, "email")
+        webauthn_provider = self._get_webauthn_provider()
+        if webauthn_provider is None:
+            raise errors.MissingConfiguration(
+                "ext::auth::AuthConfig::providers",
+                "WebAuthn provider is not configured",
+            )
+        webauthn_client = webauthn.Client(self.db)
+
+        (user_handle, registration_options) = (
+            await webauthn_client.create_authentication_options_for_email(
+                email=email, webauthn_provider=webauthn_provider
+            )
+        )
+
+        _set_cookie(
+            response,
+            "edgedb-webauthn-authentication-user-handle",
+            user_handle,
+            path="/",
+        )
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"application/json"
+        response.body = registration_options
+
+    async def handle_webauthn_authenticate(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(
+            data,
+            {"challenge", "email", "assertion"},
+        )
+        webauthn_client = webauthn.Client(self.db)
+
+        email: str = data["email"]
+        assertion: str = data["assertion"]
+        pkce_challenge: str = data["challenge"]
+
+        user_handle_cookie = request.cookies.get(
+            "edgedb-webauthn-authentication-user-handle"
+        ).value
+        if user_handle_cookie is None:
+            raise errors.InvalidData(
+                "Missing 'edgedb-webauthn-authentication-user-handle' cookie"
+            )
+        try:
+            user_handle = base64.urlsafe_b64decode(user_handle_cookie)
+        except Exception as e:
+            raise errors.InvalidData(
+                "Failed to decode 'edgedb-webauthn-authentication-user-handle'"
+                " cookie"
+            ) from e
+
+        identity = await webauthn_client.authenticate(
+            assertion=assertion,
+            email=email,
+            user_handle=user_handle,
+        )
+
+        require_verification = webauthn_client.provider.require_verification
+        if require_verification:
+            email_is_verified = await webauthn_client.is_email_verified(
+                email, assertion
+            )
+            if not email_is_verified:
+                raise errors.VerificationRequired()
+
+        await pkce.create(self.db, pkce_challenge)
+        code = await pkce.link_identity_challenge(
+            self.db, identity.id, pkce_challenge
+        )
+
+        _set_cookie(
+            response,
+            "edgedb-webauthn-authentication-user-handle",
+            "",
+            path="/",
+        )
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"application/json"
+        response.body = json.dumps(
+            {
+                "code": code,
+            }
+        ).encode()
 
     async def handle_ui_signin(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
