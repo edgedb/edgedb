@@ -135,7 +135,8 @@ between all numeric types. All numeric types can also be cast to and
 from :eql:type:`str` and :eql:type:`json`.
 
 
-----------
+Definitions
+-----------
 
 
 .. eql:type:: std::int16
@@ -814,7 +815,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
 
 .. eql:function:: std::to_int16(s: str, fmt: optional str={}) -> int16
-                  std::to_int16(val: bytes) -> int16
+                  std::to_int16(val: bytes, endian: Endian) -> int16
 
     :index: parse int16
 
@@ -831,20 +832,27 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select to_int16('23%', '99%');
         {23}
 
-    The bytes conversion function expects exactly 2 bytes using big-endian
-    representation.
+    The bytes conversion function expects exactly 2 bytes with specified
+    endianness.
 
     .. code-block:: edgeql-repl
 
-        db> select to_int16(b'\x00\x07');
+        db> select to_int16(b'\x00\x07', Endian.Big);
         {7}
+        db> select to_int16(b'\x07\x00', Endian.Little);
+        {7}
+
+    .. note::
+
+        Due to underlying implementation details using big-endian encoding
+        results in slightly faster performance of ``to_int16``.
 
 
 ------------
 
 
 .. eql:function:: std::to_int32(s: str, fmt: optional str={}) -> int32
-                  std::to_int32(val: bytes) -> int32
+                  std::to_int32(val: bytes, endian: Endian) -> int32
 
     :index: parse int32
 
@@ -861,20 +869,27 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select to_int32('1000023%', '9999999%');
         {1000023}
 
-    The bytes conversion function expects exactly 4 bytes using big-endian
-    representation.
+    The bytes conversion function expects exactly 4 bytes with specified
+    endianness.
 
     .. code-block:: edgeql-repl
 
-        db> select to_int32(b'\x01\x02\x00\x07');
+        db> select to_int32(b'\x01\x02\x00\x07', Endian.Big);
         {16908295}
+        db> select to_int32(b'\x07\x00\x02\x01', Endian.Little);
+        {16908295}
+
+    .. note::
+
+        Due to underlying implementation details using big-endian encoding
+        results in slightly faster performance of ``to_int32``.
 
 
 ------------
 
 
 .. eql:function:: std::to_int64(s: str, fmt: optional str={}) -> int64
-                  std::to_int64(val: bytes) -> int64
+                  std::to_int64(val: bytes, endian: Endian) -> int64
 
     :index: parse int64
 
@@ -891,13 +906,22 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select to_int64('10000234567%', '99999999999%');
         {10000234567}
 
-    The bytes conversion function expects exactly 8 bytes using big-endian
-    representation.
+    The bytes conversion function expects exactly 8 bytes with specified
+    endianness.
 
     .. code-block:: edgeql-repl
 
-        db> select to_int64(b'\x01\x02\x00\x07\x11\x22\x33\x44');
+        db> select to_int64(b'\x01\x02\x00\x07\x11\x22\x33\x44',
+        ...                 Endian.Big);
         {72620574343574340}
+        db> select to_int64(b'\x44\x33\x22\x11\x07\x00\x02\x01',
+        ...                 Endian.Little);
+        {72620574343574340}
+
+    .. note::
+
+        Due to underlying implementation details using big-endian encoding
+        results in slightly faster performance of ``to_int64``.
 
 
 ------------

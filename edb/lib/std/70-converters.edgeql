@@ -270,38 +270,77 @@ std::to_bytes(s: std::str) -> std::bytes {
 };
 
 
+CREATE SCALAR TYPE
+std::Endian EXTENDING enum<Little, Big>;
+
+
 CREATE FUNCTION
-std::to_bytes(val: std::int16) -> std::bytes
+std::to_bytes(val: std::int16, endian: std::Endian) -> std::bytes
 {
     CREATE ANNOTATION std::description :=
-        'Convert an int16 to big-endian binary format';
+        'Convert an int16 using specified endian binary format.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT int2send(val);
+        SELECT
+            CASE WHEN (endian = 'Little') THEN
+                substring(bin, 2, 1)
+                || substring(bin, 1, 1)
+            ELSE
+                bin
+            END
+        FROM (
+            SELECT int2send(val) AS bin
+        ) AS t;
     $$;
 };
 
 
 CREATE FUNCTION
-std::to_bytes(val: std::int32) -> std::bytes
+std::to_bytes(val: std::int32, endian: std::Endian) -> std::bytes
 {
     CREATE ANNOTATION std::description :=
-        'Convert an int32 to big-endian binary format';
+        'Convert an int32 using specified endian binary format.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT int4send(val);
+        SELECT
+            CASE WHEN (endian = 'Little') THEN
+                substring(bin, 4, 1)
+                || substring(bin, 3, 1)
+                || substring(bin, 2, 1)
+                || substring(bin, 1, 1)
+            ELSE
+                bin
+            END
+        FROM (
+            SELECT int4send(val) AS bin
+        ) AS t;
     $$;
 };
 
 
 CREATE FUNCTION
-std::to_bytes(val: std::int64) -> std::bytes
+std::to_bytes(val: std::int64, endian: std::Endian) -> std::bytes
 {
     CREATE ANNOTATION std::description :=
-        'Convert an int64 to big-endian binary format';
+        'Convert an int64 using specified endian binary format.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT int8send(val);
+        SELECT
+            CASE WHEN (endian = 'Little') THEN
+                substring(bin, 8, 1)
+                || substring(bin, 7, 1)
+                || substring(bin, 6, 1)
+                || substring(bin, 5, 1)
+                || substring(bin, 4, 1)
+                || substring(bin, 3, 1)
+                || substring(bin, 2, 1)
+                || substring(bin, 1, 1)
+            ELSE
+                bin
+            END
+        FROM (
+            SELECT int8send(val) AS bin
+        ) AS t;
     $$;
 };
 
@@ -310,7 +349,7 @@ CREATE FUNCTION
 std::to_bytes(val: std::uuid) -> std::bytes
 {
     CREATE ANNOTATION std::description :=
-        'Convert an UUID to binary format';
+        'Convert an UUID to binary format.';
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT uuid_send(val);
@@ -526,15 +565,33 @@ std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
 
 
 CREATE FUNCTION
-std::to_int64(val: std::bytes) -> std::int64
+std::to_int64(val: std::bytes, endian: std::Endian) -> std::int64
 {
     CREATE ANNOTATION std::description :=
-        'Convert bytes into `int64` value using big-endian format.';
+        'Convert bytes into `int64` value.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT
         CASE WHEN (length(val) = 8) THEN
-            ('x' || right(val::bytea::text, 16))::bit(64)::bigint
+            (
+                'x'
+                || right(
+                    (
+                        CASE WHEN (endian = 'Little') THEN
+                            substring(val, 8, 1)
+                            || substring(val, 7, 1)
+                            || substring(val, 6, 1)
+                            || substring(val, 5, 1)
+                            || substring(val, 4, 1)
+                            || substring(val, 3, 1)
+                            || substring(val, 2, 1)
+                            || substring(val, 1, 1)
+                        ELSE
+                            val
+                        END
+                    )::text, 16
+                )
+            )::bit(64)::int8
         ELSE
             edgedb.raise(
                 0::int8,
@@ -578,15 +635,29 @@ std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
 
 
 CREATE FUNCTION
-std::to_int32(val: std::bytes) -> std::int32
+std::to_int32(val: std::bytes, endian: std::Endian) -> std::int32
 {
     CREATE ANNOTATION std::description :=
-        'Convert bytes into `int32` value using big-endian format.';
+        'Convert bytes into `int32` value.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT
         CASE WHEN (length(val) = 4) THEN
-            ('x' || right(val::bytea::text, 8))::bit(32)::int
+            (
+                'x'
+                || right(
+                    (
+                        CASE WHEN (endian = 'Little') THEN
+                            substring(val, 4, 1)
+                            || substring(val, 3, 1)
+                            || substring(val, 2, 1)
+                            || substring(val, 1, 1)
+                        ELSE
+                            val
+                        END
+                    )::text, 8
+                )
+            )::bit(32)::int4
         ELSE
             edgedb.raise(
                 0::int4,
@@ -630,15 +701,39 @@ std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
 
 
 CREATE FUNCTION
-std::to_int16(val: std::bytes) -> std::int16
+std::to_int16(val: std::bytes, endian: std::Endian) -> std::int16
 {
     CREATE ANNOTATION std::description :=
-        'Convert bytes into `int16` value using big-endian format.';
+        'Convert bytes into `int16` value.';
     SET volatility := 'Immutable';
+    # There is no direct cast from bits to int2 in Postgres, so we need to use
+    # the bit(32)::int4 as an intermediary value. However, the first bit is
+    # the sign bit and must be preserved as such, otherwise we will have
+    # overflow when casting from int4 to int2. So we pad the bytes with 0 on
+    # the right (which happens by default when casting 2 bytes from text to
+    # bit(32)) and then right-shift preserving the sign bit. This results in
+    # the int4 value in the lower two bytes being fully compatible with int2
+    # value.
     USING SQL $$
     SELECT
         CASE WHEN (length(val) = 2) THEN
-            ('x' || right(val::bytea::text, 4))::bit(16)::int::smallint
+            (
+                (
+                    (
+                        'x'
+                        || right(
+                            (
+                                CASE WHEN (endian = 'Little') THEN
+                                    substring(val, 2, 1)
+                                    || substring(val, 1, 1)
+                                ELSE
+                                    val
+                                END
+                            )::text, 4
+                        )
+                    )::bit(32)::int4
+                )>>16
+            )::int2
         ELSE
             edgedb.raise(
                 0::int2,

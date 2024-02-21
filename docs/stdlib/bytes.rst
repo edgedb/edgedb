@@ -12,6 +12,9 @@ Bytes
     * - :eql:type:`bytes`
       - Byte sequence
 
+    * - :eql:type:`Endian`
+      - An enum for indicating integer value encoding.
+
     * - :eql:op:`bytes[i] <bytesidx>`
       - :eql:op-desc:`bytesidx`
 
@@ -98,6 +101,36 @@ Bytes
         db> select <bytes>to_json("\"SGVsbG8gRWRnZURCIQ==\"");
         {b'Hello EdgeDB!'}
 
+
+----------
+
+
+.. eql:type:: std::Endian
+
+    .. versionadded:: 5.0
+
+    An enum for indicating integer value encoding.
+
+    This enum is used by the :eql:func:`to_int16`, :eql:func:`to_int32`,
+    :eql:func:`to_int64` and the :eql:func:`to_bytes` converters working with
+    :eql:type:`bytes` and integers.
+
+    ``Endian.Big`` stands for big-endian encoding going from most significant
+    byte to least. ``Endian.Little`` stands for little-endian encoding going
+    from least to most significant byte.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_bytes(<int32>16908295, Endian.Big);
+        {b'\x01\x02\x00\x07'}
+        db> select to_int32(b'\x01\x02\x00\x07', Endian.Big);
+        {16908295}
+        db> select to_bytes(<int32>16908295, Endian.Little);
+        {b'\x07\x00\x02\x01'}
+        db> select to_int32(b'\x07\x00\x02\x01', Endian.Little);
+        {16908295}
+
+
 ----------
 
 
@@ -148,10 +181,9 @@ Bytes
 ---------
 
 .. eql:function:: std::to_bytes(s: str) -> bytes
-                  std::to_bytes(val: int16) -> bytes
-                  std::to_bytes(val: int32) -> bytes
-                  std::to_bytes(val: int64) -> bytes
-                  std::to_bytes(val: int64) -> bytes
+                  std::to_bytes(val: int16, endian: Endian) -> bytes
+                  std::to_bytes(val: int32, endian: Endian) -> bytes
+                  std::to_bytes(val: int64, endian: Endian) -> bytes
                   std::to_bytes(val: uuid) -> bytes
 
     :index: encode stringencoder
@@ -167,17 +199,23 @@ Bytes
         db> select to_bytes('テキスト');
         {b'\xe3\x83\x86\xe3\x82\xad\xe3\x82\xb9\xe3\x83\x88'}
 
-    The integer values are encoded as big-endian (most significant bit comes
-    first) byte strings:
+    The integer values can be encoded as big-endian (most significant bit
+    comes first) byte strings:
 
     .. code-block:: edgeql-repl
 
-        db> select to_bytes(<int16>31);
+        db> select to_bytes(<int16>31, Endian.Big);
         {b'\x00\x1f'}
-        db> select to_bytes(<int32>31);
+        db> select to_bytes(<int32>31, Endian.Big);
         {b'\x00\x00\x00\x1f'}
-        db> select to_bytes(123456789123456789);
+        db> select to_bytes(123456789123456789, Endian.Big);
         {b'\x01\xb6\x9bK\xac\xd0_\x15'}
+
+    .. note::
+
+        Due to underlying implementation details using big-endian encoding
+        results in slightly faster performance of ``to_bytes`` when converting
+        integers.
 
     The UUID values are converted to the underlying string of 16 bytes:
 
