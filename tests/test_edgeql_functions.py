@@ -3119,26 +3119,32 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_int_bytes_conversion_01(self):
         # Make sure we can convert the bytes to ints and back
-        twobytes = b'\x7f\x3a'
-        for numbytes in [2, 4, 8]:
-            raw = twobytes * (numbytes // 2)
-            typename = f'int{numbytes * 8}'
-            await self.assert_query_result(
-                f'''
-                WITH
-                    val := <{typename}>$val,
-                    bin := <bytes>$bin,
-                SELECT (
-                    val = to_{typename}(bin),
-                    bin = to_bytes(val),
+        for num in range(256):
+            byte = num.to_bytes()
+            for numbytes in [2, 4, 8]:
+                raw = byte * numbytes
+                typename = f'int{numbytes * 8}'
+                await self.assert_query_result(
+                    f'''
+                    WITH
+                        val_b := <{typename}>$val_b,
+                        val_l := <{typename}>$val_l,
+                        bin := <bytes>$bin,
+                    SELECT (
+                        val_b = to_{typename}(bin, Endian.Big),
+                        val_l = to_{typename}(bin, Endian.Little),
+                        bin = to_bytes(val_b, Endian.Big),
+                        bin = to_bytes(val_l, Endian.Little),
+                    )
+                    ''',
+                    {(True, True, True, True)},
+                    variables={
+                        "val_b": int.from_bytes(raw, 'big', signed=True),
+                        "val_l": int.from_bytes(raw, 'little', signed=True),
+                        "bin": raw,
+                    },
+                    msg=f'Failed to convert {raw!r} to int or vice versa'
                 )
-                ''',
-                {(True, True)},
-                variables={
-                    "val": int.from_bytes(raw, 'big'),
-                    "bin": raw,
-                },
-            )
 
     async def test_edgeql_functions_int_bytes_conversion_02(self):
         with self.assertRaisesRegex(
@@ -3148,7 +3154,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.execute(
                     r'''
-                    SELECT to_int16(b'\x01')
+                    SELECT to_int16(b'\x01', Endian.Big)
                     ''',
                 )
 
@@ -3159,7 +3165,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.execute(
                     r'''
-                    SELECT to_int16(to_bytes(<int32>123))
+                    SELECT to_int16(
+                        to_bytes(<int32>123, Endian.Big),
+                        Endian.Big,
+                    )
                     ''',
                 )
 
@@ -3171,7 +3180,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.execute(
                     r'''
-                    SELECT to_int32(to_bytes(<int16>23))
+                    SELECT to_int32(
+                        to_bytes(<int16>23, Endian.Big),
+                        Endian.Big,
+                    )
                     ''',
                 )
 
@@ -3182,7 +3194,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.execute(
                     r'''
-                    SELECT to_int32(to_bytes(<int64>16908295))
+                    SELECT to_int32(
+                        to_bytes(<int64>16908295, Endian.Big),
+                        Endian.Big,
+                    )
                     ''',
                 )
 
@@ -3194,7 +3209,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.execute(
                     r'''
-                    SELECT to_int64(to_bytes(<int16>23))
+                    SELECT to_int64(
+                        to_bytes(<int16>23, Endian.Big),
+                        Endian.Big,
+                    )
                     ''',
                 )
 
@@ -3205,7 +3223,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.execute(
                     r'''
-                    SELECT to_int64(b'\x00\x00' ++ to_bytes(62620574343574340))
+                    SELECT to_int64(
+                        b'\x00' ++ to_bytes(62620574343574340, Endian.Big),
+                        Endian.Big,
+                    )
                     ''',
                 )
 
