@@ -235,6 +235,26 @@ cdef class Database:
         else:
             return old_serializer
 
+    def hydrate_cache(self, query_cache):
+        new = set()
+        for schema_version, in_data, out_data in query_cache:
+            query_req = rpc.CompilationRequest(
+                self.server.compilation_config_serializer)
+            query_req.deserialize(in_data, "<unknown>")
+            schema_version = uuidgen.from_bytes(schema_version)
+            new.add(query_req)
+
+            _, cached_ver = self._eql_to_compiled.get(query_req, DICTDEFAULT)
+            if cached_ver != schema_version:
+                unit = dbstate.QueryUnit.deserialize(out_data)
+                group = dbstate.QueryUnitGroup()
+                group.append(unit)
+                self._eql_to_compiled[query_req] = group, schema_version
+
+        for query_req in list(self._eql_to_compiled.keys()):
+            if query_req not in new:
+                del self._eql_to_compiled[query_req]
+
     def iter_views(self):
         yield from self._views
 
@@ -245,7 +265,9 @@ cdef class Database:
         if self.user_schema_pickle is None:
             async with self._introspection_lock:
                 if self.user_schema_pickle is None:
-                    await self.tenant.introspect_db(self.name)
+                    await self.tenant.introspect_db(
+                        self.name, hydrate_cache=True
+                    )
 
 
 cdef class DatabaseConnectionView:

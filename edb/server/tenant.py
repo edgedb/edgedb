@@ -831,7 +831,9 @@ class Tenant(ha_base.ClusterProtocol):
 
         return extensions
 
-    async def introspect_db(self, dbname: str) -> None:
+    async def introspect_db(
+        self, dbname: str, hydrate_cache: bool = False
+    ) -> None:
         """Use this method to (re-)introspect a DB.
 
         If the DB is already registered in self._dbindex, its
@@ -896,6 +898,14 @@ class Tenant(ha_base.ClusterProtocol):
             db_config_json = await self._server.introspect_db_config(conn)
 
             extensions = await self._introspect_extensions(conn)
+
+            query_cache: list[tuple[bytes, ...]] | None = None
+            if hydrate_cache:
+                query_cache = await conn.sql_fetch(
+                    b'SELECT "schema_version", "input", "output" '
+                    b'FROM "edgedb"."_query_cache"',
+                    use_prep_stmt=True,
+                )
         finally:
             self.release_pgcon(dbname, conn)
 
@@ -918,6 +928,8 @@ class Tenant(ha_base.ClusterProtocol):
             parsed_db.protocol_version,
             parsed_db.state_serializer,
         )
+        if query_cache:
+            db.hydrate_cache(query_cache)
 
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.
