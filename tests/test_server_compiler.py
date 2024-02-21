@@ -480,4 +480,5 @@ class TestCompilerPool(tbs.TestCase):
             self.assertEqual(hash(request1), hash(request2))
             self.assertEqual(request1, request2)
 
+        test(edgeql.Source.from_string("SELECT 42"))
         test(edgeql.NormalizedSource.from_string("SELECT 42"))
