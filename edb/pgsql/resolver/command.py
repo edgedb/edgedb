@@ -19,7 +19,7 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import *
+from typing import Optional, Dict, List
 
 from edb.pgsql import ast as pgast
 

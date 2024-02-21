@@ -13,7 +13,7 @@ See README.md in this package for more details.
 # flake8: NoQA
 
 from __future__ import annotations
-from typing import *
+from typing import Annotated, Any, Callable, ClassVar, Concatenate, Final, ForwardRef, Generic, Literal, Optional, ParamSpec, Protocol, Tuple, Type, TypeVar, TypeVarTuple, Union, AbstractSet, ByteString, Container, ContextManager, Hashable, ItemsView, Iterable, Iterator, KeysView, Mapping, MappingView, MutableMapping, MutableSequence, MutableSet, Sequence, Sized, ValuesView, Awaitable, AsyncIterator, AsyncIterable, Coroutine, Collection, AsyncGenerator, AsyncContextManager, Reversible, SupportsAbs, SupportsBytes, SupportsComplex, SupportsFloat, SupportsIndex, SupportsInt, SupportsRound, ChainMap, Counter, Deque, Dict, DefaultDict, List, OrderedDict, Set, FrozenSet, NamedTuple, TypedDict, Generator, BinaryIO, IO, Match, Pattern, TextIO, AnyStr, assert_type, assert_never, cast, clear_overloads, dataclass_transform, final, get_args, get_origin, get_overloads, get_type_hints, is_typeddict, LiteralString, Never, NewType, no_type_check, no_type_check_decorator, NoReturn, NotRequired, overload, ParamSpecArgs, ParamSpecKwargs, Required, reveal_type, runtime_checkable, Self, Text, TYPE_CHECKING, TypeAlias, TypeGuard
 
 import functools
 import sys

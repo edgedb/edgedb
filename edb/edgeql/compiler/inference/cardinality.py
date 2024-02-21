@@ -25,7 +25,7 @@ cardinality fields and performing cardinality checks.
 
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Tuple, Iterable, Sequence, Dict, List, Set, FrozenSet, NamedTuple
 
 import enum
 import functools

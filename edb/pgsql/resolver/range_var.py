@@ -20,7 +20,7 @@
 in our internal Postgres instance."""
 
 import functools
-from typing import *
+from typing import Optional, Tuple, Union, Iterable, List, cast
 
 from edb import errors
 from edb.common.parsing import ParserContext

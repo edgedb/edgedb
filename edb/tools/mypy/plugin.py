@@ -20,7 +20,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Optional, AbstractSet, List, Set, NamedTuple
 
 from mypy import exprtotype
 import mypy.plugin as mypy_plugin

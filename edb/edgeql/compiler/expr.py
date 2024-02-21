@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Callable, Optional, Type, Union, Sequence, List, cast
 
 from edb import errors
 

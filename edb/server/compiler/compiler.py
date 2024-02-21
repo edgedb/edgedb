@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Tuple, Union, AbstractSet, Iterable, Mapping, Sequence, Dict, List, NamedTuple, cast, TYPE_CHECKING
 
 import dataclasses
 import functools

@@ -25,7 +25,7 @@ though if that starts becoming a problem it should just be abandoned.
 from __future__ import annotations
 
 
-from typing import *
+from typing import Optional, Tuple, AbstractSet, Dict, List
 
 from edb.common import ast
 from edb.common import ordered

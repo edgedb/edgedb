@@ -92,7 +92,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from typing import *
+from typing import Optional, Tuple, Sequence, TYPE_CHECKING
 
 from edb import errors
 from edb.common.typeutils import not_none

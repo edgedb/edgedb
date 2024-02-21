@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Optional, Tuple, Sequence, Dict, List, Set, TypeGuard
 
 from edb.common import enum as s_enum
 

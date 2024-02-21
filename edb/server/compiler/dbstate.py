@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Tuple, Iterator, Dict, List, NamedTuple
 
 import dataclasses
 import enum

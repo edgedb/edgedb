@@ -25,7 +25,7 @@ multiplicity fields and performing multiplicity checks.
 
 
 from __future__ import annotations
-from typing import *
+from typing import Tuple, Iterable, List
 
 import dataclasses
 import functools

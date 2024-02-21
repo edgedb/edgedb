@@ -21,7 +21,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Tuple, Iterable, Sequence, Dict, List, Set
 
 from edb import errors
 from edb.common import context as pctx

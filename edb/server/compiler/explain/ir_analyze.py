@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Iterator, cast
 
 import dataclasses
 

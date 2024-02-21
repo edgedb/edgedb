@@ -49,7 +49,7 @@ against the real DB.
 
 from __future__ import annotations
 
-from typing import *
+from typing import Any, Callable, Optional, Protocol, Tuple, TypeVar, Union, Iterable, Iterator, Sequence, Collection, Dict, List, Set, NamedTuple
 
 from edb.common import debug
 from edb.common.compiler import SimpleCounter

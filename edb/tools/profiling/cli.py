@@ -22,7 +22,7 @@ See README.md in this package for more details.
 """
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Union, List
 
 import pathlib
 

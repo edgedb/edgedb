@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Tuple, Type, Iterator, List, cast
 
 import contextlib
 import uuid

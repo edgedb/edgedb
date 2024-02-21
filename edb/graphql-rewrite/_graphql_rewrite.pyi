@@ -1,4 +1,4 @@
-from typing import *
+from typing import Any, Optional, Tuple, Dict, List
 
 class Entry:
     key: str

@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from typing import *
+from typing import Any, Optional, Union, Sequence
 
 import asyncio
 import email

@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Tuple, Union, Iterator, Mapping, Dict, NoReturn, TYPE_CHECKING
 
 import asyncio
 import contextlib

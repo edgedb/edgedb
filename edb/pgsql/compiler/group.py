@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Optional, AbstractSet, List
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import desugar_group

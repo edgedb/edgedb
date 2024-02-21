@@ -24,8 +24,7 @@ import functools
 import hashlib
 import base64
 import re
-from typing import *
-from typing import overload
+from typing import Literal, Optional, Tuple, Union, overload
 import uuid
 
 from edb.common import uuidgen

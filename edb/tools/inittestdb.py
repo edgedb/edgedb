@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import List
 
 import asyncio
 import os.path

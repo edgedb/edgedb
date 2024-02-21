@@ -20,7 +20,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Type, Dict, NamedTuple
 
 import json
 import re

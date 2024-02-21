@@ -20,7 +20,7 @@
 
 import functools
 import platform
-from typing import *
+from typing import Optional, Sequence, List
 
 from edb import errors
 

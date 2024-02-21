@@ -78,7 +78,7 @@ They are discussed in more detail at the implementation sites.
 
 from __future__ import annotations
 
-from typing import *
+from typing import Tuple
 
 from edb.ir import ast as irast
 

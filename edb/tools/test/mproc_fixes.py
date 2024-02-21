@@ -20,7 +20,6 @@
 
 
 from __future__ import annotations
-from typing import *
 
 import logging
 import multiprocessing.pool

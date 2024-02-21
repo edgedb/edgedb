@@ -20,7 +20,7 @@
 """Abstractions for low-level database DDL and DML operations."""
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Tuple, List, Set
 
 import itertools
 

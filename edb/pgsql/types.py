@@ -22,8 +22,7 @@ from __future__ import annotations
 import functools
 import dataclasses
 import uuid
-from typing import *
-from typing import overload
+from typing import Literal, Optional, Tuple, cast, overload
 
 from edb.common.typeutils import not_none
 

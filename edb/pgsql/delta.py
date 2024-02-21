@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Callable, Optional, Tuple, Type, AbstractSet, Iterable, Mapping, Sequence, Dict, List, cast, TYPE_CHECKING
 from copy import copy
 
 import collections.abc

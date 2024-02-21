@@ -29,7 +29,7 @@ import os
 import mimetypes
 import uuid
 
-from typing import *
+from typing import Any, Optional, Tuple, FrozenSet, cast
 
 import aiosmtplib
 from jwcrypto import jwk, jwt

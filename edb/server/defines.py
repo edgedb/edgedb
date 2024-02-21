@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import TypeAlias
 
 from edb import buildmeta
 from edb.schema import defines as s_def

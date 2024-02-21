@@ -17,7 +17,7 @@
 #
 
 from __future__ import annotations
-from typing import *
+from typing import Any, ClassVar, Generic, Optional, Tuple, Type, TypeVar, Union, Dict, get_type_hints
 
 import functools
 import types

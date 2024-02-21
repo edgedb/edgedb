@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 import warnings
-from typing import *
+from typing import Optional
 
 import asyncio
 import contextlib

@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-from typing import *
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import tokenizer

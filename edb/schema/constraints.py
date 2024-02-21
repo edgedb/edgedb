@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Tuple, Type, TypeVar, Mapping, Dict, List, Set, cast, TYPE_CHECKING
 import re
 
 from edb import errors

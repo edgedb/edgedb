@@ -20,7 +20,6 @@
 """Patches to apply to databases"""
 
 from __future__ import annotations
-from typing import *
 
 
 def get_version_key(num_patches: int):

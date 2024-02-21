@@ -17,7 +17,7 @@
 #
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Callable, Optional, Tuple, Type, Union, Mapping, List
 import pathlib
 
 from edb import errors

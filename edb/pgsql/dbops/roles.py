@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Union, Iterable, Mapping
 
 import json
 import textwrap

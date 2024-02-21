@@ -24,7 +24,7 @@ from abc import abstractmethod
 import collections.abc
 import dataclasses
 import json
-from typing import *
+from typing import Any, Optional, Iterator, Sequence, Dict
 
 from edb.edgeql import compiler as qlcompiler
 from edb.ir import staeval
