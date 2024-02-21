@@ -286,14 +286,13 @@ filter .email = <str>$email;""",
         result_json = json.loads(result.decode())
         if len(result_json) == 0:
             raise errors.WebAuthnAuthenticationFailed(
-                "No WebAuthn credentials found for the email."
+                "No WebAuthn credentials found for this email."
             )
 
         user_handles: set[str] = {x["user_handle"] for x in result_json}
-        if len(user_handles) > 1:
-            raise errors.WebAuthnAuthenticationFailed(
-                "Multiple user handles found for the email."
-            )
+        assert (
+            len(user_handles) == 1
+        ), "Found WebAuthn multiple user handles for the same email."
 
         user_handle = base64.b64decode(result_json[0]["user_handle"])
 
