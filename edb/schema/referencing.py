@@ -18,7 +18,20 @@
 
 
 from __future__ import annotations
-from typing import Any, Callable, ClassVar, Optional, Tuple, Type, TypeVar, AbstractSet, Iterable, Dict, List, cast
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    AbstractSet,
+    Iterable,
+    Dict,
+    List,
+    cast,
+)
 
 import hashlib
 

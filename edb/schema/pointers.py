@@ -17,7 +17,19 @@
 #
 
 from __future__ import annotations
-from typing import Any, Optional, Tuple, TypeVar, Union, Iterable, Sequence, Dict, List, cast, TYPE_CHECKING
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    Iterable,
+    Sequence,
+    Dict,
+    List,
+    cast,
+    TYPE_CHECKING,
+)
 
 import collections.abc
 import enum

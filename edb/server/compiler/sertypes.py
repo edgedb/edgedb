@@ -18,7 +18,20 @@
 
 
 from __future__ import annotations
-from typing import Any, Callable, ClassVar, Literal, Optional, Type, Iterable, Mapping, Sequence, Dict, cast, overload
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Literal,
+    Optional,
+    Type,
+    Iterable,
+    Mapping,
+    Sequence,
+    Dict,
+    cast,
+    overload,
+)
 
 import collections.abc
 import dataclasses

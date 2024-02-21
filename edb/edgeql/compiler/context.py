@@ -20,7 +20,25 @@
 """EdgeQL to IR compiler context."""
 
 from __future__ import annotations
-from typing import Callable, Literal, Optional, Tuple, Type, Union, Mapping, MutableMapping, Sequence, ChainMap, Dict, List, Set, FrozenSet, cast, overload, TYPE_CHECKING
+from typing import (
+    Callable,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    Mapping,
+    MutableMapping,
+    Sequence,
+    ChainMap,
+    Dict,
+    List,
+    Set,
+    FrozenSet,
+    cast,
+    overload,
+    TYPE_CHECKING,
+)
 
 import collections
 import dataclasses

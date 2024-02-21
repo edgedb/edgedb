@@ -19,7 +19,16 @@
 
 from __future__ import annotations
 
-from typing import Any, Generic, Optional, Type, TypeVar, ContextManager, DefaultDict, List
+from typing import (
+    Any,
+    Generic,
+    Optional,
+    Type,
+    TypeVar,
+    ContextManager,
+    DefaultDict,
+    List,
+)
 
 import collections
 import re

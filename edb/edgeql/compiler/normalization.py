@@ -21,7 +21,18 @@
 
 
 from __future__ import annotations
-from typing import Any, Optional, Tuple, Union, AbstractSet, Mapping, Collection, Dict, List, cast
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Union,
+    AbstractSet,
+    Mapping,
+    Collection,
+    Dict,
+    List,
+    cast,
+)
 
 import functools
 

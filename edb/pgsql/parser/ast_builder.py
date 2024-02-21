@@ -18,7 +18,18 @@
 
 
 import dataclasses
-from typing import Any, Callable, Optional, Tuple, Type, TypeVar, Union, Sequence, List, cast
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    Sequence,
+    List,
+    cast,
+)
 
 from edb.common.parsing import ParserContext
 
