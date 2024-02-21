@@ -34,6 +34,7 @@ from edb.testbase import lang as tb
 from edb.testbase import server as tbs
 from edb.server import args as edbargs
 from edb.server import compiler as edbcompiler
+from edb.server.compiler import rpc
 from edb.server import config
 from edb.server.compiler_pool import amsg
 from edb.server.compiler_pool import pool
@@ -422,18 +423,33 @@ class TestCompilerPool(tbs.TestCase):
                 os.kill(w2.get_pid(), signal.SIGTERM)
                 await asyncio.wait_for(pool_._ready_evt.wait(), LONG_WAIT)
 
+                compiler = edbcompiler.new_compiler(
+                    std_schema=self._std_schema,
+                    reflection_schema=self._refl_schema,
+                    schema_class_layout=self._schema_class_layout,
+                )
+
                 context = edbcompiler.new_compiler_context(
-                    compiler_state=None,
+                    compiler_state=compiler.state,
                     user_schema=self._std_schema,
                     modaliases={None: 'default'},
                 )
+
+                orig_query = 'SELECT 123'
+                request = rpc.CompilationRequest(
+                    compiler.state.compilation_config_serializer
+                ).update(
+                    source=edgeql.Source.from_string(orig_query),
+                    protocol_version=(1, 0),
+                    implicit_limit=101,
+                )
+
                 await asyncio.gather(*(pool_.compile_in_tx(
                     context.state.current_tx().id,
                     pickle.dumps(context.state),
                     0,
-                    edgeql.Source.from_string('SELECT 123'),
-                    edbcompiler.OutputFormat.BINARY,
-                    False, 101, False, True, (1, 0), True
+                    request.serialize(),
+                    orig_query,
                 ) for _ in range(4)))
             finally:
                 await pool_.stop()
@@ -443,3 +459,26 @@ class TestCompilerPool(tbs.TestCase):
 
     async def test_server_compiler_pool_disconnect_queue_adaptive(self):
         await self._test_pool_disconnect_queue(pool.SimpleAdaptivePool)
+
+    def test_server_compiler_rpc_hash_eq(self):
+        compiler = edbcompiler.new_compiler(
+            std_schema=self._std_schema,
+            reflection_schema=self._refl_schema,
+            schema_class_layout=self._schema_class_layout,
+        )
+
+        def test(source: edgeql.Source):
+            request1 = rpc.CompilationRequest(
+                compiler.state.compilation_config_serializer
+            ).update(
+                source=source,
+                protocol_version=(1, 0),
+            )
+            request2 = rpc.CompilationRequest(
+                compiler.state.compilation_config_serializer
+            ).deserialize(request1.serialize(), "<unknown>")
+            self.assertEqual(hash(request1), hash(request2))
+            self.assertEqual(request1, request2)
+
+        test(edgeql.Source.from_string("SELECT 42"))
+        test(edgeql.NormalizedSource.from_string("SELECT 42"))

@@ -17,6 +17,10 @@
 #
 
 
+import urllib.parse
+import datetime
+
+from jwcrypto import jwt, jwk
 from typing import TypeVar, Type, overload, Any, cast, Optional
 
 from edb.server import config as edb_config
@@ -116,3 +120,46 @@ def get_app_details_config(db: Any) -> config.AppDetailsConfig:
             or (ui_config.brand_color if ui_config else None)
         ),
     )
+
+
+def join_url_params(url: str, params: dict[str, str]):
+    parsed_url = urllib.parse.urlparse(url)
+    query_params = {
+        **urllib.parse.parse_qs(parsed_url.query),
+        **{key: [val] for key, val in params.items()},
+    }
+    new_query_params = urllib.parse.urlencode(query_params, doseq=True)
+    return parsed_url._replace(query=new_query_params).geturl()
+
+
+def make_token(
+    signing_key: jwk.JWK,
+    issuer: str,
+    subject: str,
+    additional_claims: dict[str, str | int | float | bool | None] | None = None,
+    include_issued_at: bool = False,
+    expires_in: datetime.timedelta | None = None,
+) -> str:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    expires_in = (
+        datetime.timedelta(seconds=0) if expires_in is None else expires_in
+    )
+    expires_at = now + expires_in
+
+    claims: dict[str, Any] = {
+        "iss": issuer,
+        "sub": subject,
+        **(additional_claims or {}),
+    }
+    if expires_in.total_seconds() != 0:
+        claims["exp"] = expires_at.timestamp()
+    if include_issued_at:
+        claims["iat"] = now.timestamp()
+
+    token = jwt.JWT(
+        header={"alg": "HS256"},
+        claims=claims,
+    )
+    token.make_signed_token(signing_key)
+
+    return token.serialize()

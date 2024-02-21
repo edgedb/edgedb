@@ -21,3 +21,35 @@ export function encodeBase64Url(bytes) {
     .replace(/\//g, "_")
     .replace(/=/g, "");
 }
+
+/**
+ * Parse an HTTP Response object. Allows passing in custom handlers for
+ * different status codes and error.type values
+ *
+ * @param {Response} response
+ * @param {Function[]=} handlers
+ */
+export async function parseResponseAsJSON(response, handlers = []) {
+  const bodyText = await response.text();
+
+  if (!response.ok) {
+    let error;
+    try {
+      error = JSON.parse(bodyText);
+    } catch (e) {
+      throw new Error(
+        `Failed to parse body as JSON. Status: ${response.status} ${response.statusText}. Body: ${bodyText}`
+      );
+    }
+
+    for (const handler of handlers) {
+      handler(response, error);
+    }
+
+    throw new Error(
+      `Response was not OK. Status: ${response.status} ${response.statusText}. Body: ${bodyText}`
+    );
+  }
+
+  return JSON.parse(bodyText);
+}

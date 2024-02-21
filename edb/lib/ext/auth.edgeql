@@ -67,10 +67,14 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property password_hash: std::str;
     };
 
-    create type ext::auth::WebAuthnFactor extending ext::auth::EmailFactor {
-        create required property user_handle: std::bytes {
+    create type ext::auth::MagicLinkFactor extending ext::auth::EmailFactor {
+        alter property email {
             create constraint exclusive;
         };
+    };
+
+    create type ext::auth::WebAuthnFactor extending ext::auth::EmailFactor {
+        create required property user_handle: std::bytes;
         create required property credential_id: std::bytes {
             create constraint exclusive;
         };
@@ -78,6 +82,16 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create constraint exclusive;
         };
 
+        create trigger email_shares_user_handle after insert for each do (
+            std::assert(
+                __new__.user_handle = (
+                    select detached ext::auth::WebAuthnFactor
+                    filter .email = __new__.email
+                    and not .id = __new__.id
+                ).user_handle,
+                message := "user_handle must be the same for a given email"
+            )
+        );
         create constraint exclusive on ((.email, .credential_id));
     };
 
@@ -90,6 +104,16 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property user_handle: std::bytes;
 
         create constraint exclusive on ((.user_handle, .email, .challenge));
+    };
+
+    create type ext::auth::WebAuthnAuthenticationChallenge
+        extending ext::auth::Auditable {
+        create required property challenge: std::bytes {
+            create constraint exclusive;
+        };
+        create required link factor: ext::auth::WebAuthnFactor {
+            create constraint exclusive;
+        };
     };
 
     create type ext::auth::PKCEChallenge extending ext::auth::Auditable {
@@ -243,6 +267,20 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
         create required property require_verification: std::bool {
             set default := true;
+        };
+    };
+
+    create type ext::auth::MagicLinkProviderConfig
+        extending ext::auth::ProviderConfig {
+        alter property name {
+            set default := 'builtin::local_magic_link';
+            set protected := true;
+        };
+
+        create required property token_time_to_live: std::duration {
+            set default := <std::duration>'10 minutes';
+            create annotation std::description :=
+                "The time after which a magic link token expires.";
         };
     };
 

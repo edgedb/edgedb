@@ -620,10 +620,16 @@ def _interpret_constraint_errors(
             obj_ptr = obj_type.getptr(schema, sn.UnqualName('id'))
             constraint = obj_ptr.get_exclusive_constraints(schema)[0]
 
-        msg = constraint.format_error(schema)
+        # msg is for the "end user" that should not mention pointers and object
+        # type it is also affected by setting `errmessage` in user schema.
+        msg = constraint.format_error_message(schema)
+
+        # details is for the "developer" that must explain what's going on
+        # under the hood. It contains verbose descriptions of object involved.
         subject = constraint.get_subject(schema)
-        vname = subject.get_verbosename(schema, with_parent=True)
-        details = constraint.format_error_message(schema, vname)
+        subject_description = subject.get_verbosename(schema, with_parent=True)
+        constraint_description = constraint.get_verbosename(schema)
+        details = f'violated {constraint_description} on {subject_description}'
 
         if from_graphql:
             msg = gql_replace_type_names_in_text(msg)

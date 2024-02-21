@@ -34,6 +34,7 @@ import hashlib
 from typing import Any, Callable
 from jwcrypto import jwt, jwk
 
+from edgedb import QueryAssertionError
 from edb.testbase import http as tb
 from edb.common import assert_data_shape
 
@@ -463,6 +464,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             relying_party_origin := 'https://example.com:8080',
             require_verification := false,
         }};
+
+        CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::MagicLinkProviderConfig {{}};
         """,
     ]
 
@@ -729,10 +733,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 self.fail("Failed to parse JSON from response body")
 
             self.assertEqual(status, 400)
-            self.assertEqual(body_json.get("error"), {
-                "type": "InvalidData",
-                "message": "Invalid state token",
-            })
+            self.assertEqual(
+                body_json.get("error"),
+                {
+                    "type": "InvalidData",
+                    "message": "Invalid state token",
+                },
+            )
 
     async def test_http_auth_ext_github_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
@@ -3573,6 +3580,260 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     email=email,
                     user_handle=user_handle,
                 )
+            )
+
+    async def test_http_auth_ext_webauthn_register_options_existing_user(self):
+        email = "existing@example.com"
+        existing_user_handle = uuid.uuid4().bytes
+
+        # Insert two existing WebAuthnFactors for the email
+        await self.con.query_single(
+            """
+            with
+                email := <str>$email,
+                user_handle := <bytes>$user_handle,
+                credential_one := <bytes>$credential_one,
+                public_key_one := <bytes>$public_key_one,
+                credential_two := <bytes>$credential_two,
+                public_key_two := <bytes>$public_key_two,
+                factor_one := (insert ext::auth::WebAuthnFactor {
+                    email := email,
+                    user_handle := user_handle,
+                    credential_id := credential_one,
+                    public_key := public_key_one,
+                    identity := (insert ext::auth::LocalIdentity {
+                        issuer := "local",
+                        subject := "",
+                    }),
+                }),
+                factor_two := (insert ext::auth::WebAuthnFactor {
+                    email := email,
+                    user_handle := user_handle,
+                    credential_id := credential_two,
+                    public_key := public_key_two,
+                    identity := (insert ext::auth::LocalIdentity {
+                        issuer := "local",
+                        subject := "",
+                    }),
+                }),
+            select true;
+            """,
+            email=email,
+            user_handle=existing_user_handle,
+            credential_one=uuid.uuid4().bytes,
+            public_key_one=uuid.uuid4().bytes,
+            credential_two=uuid.uuid4().bytes,
+            public_key_two=uuid.uuid4().bytes,
+        )
+
+        with self.http_con() as http_con:
+            body, _, status = self.http_con_request(
+                http_con,
+                path=f"webauthn/register/options?email={email}",
+            )
+
+            self.assertEqual(status, 200)
+
+            body_json = json.loads(body)
+            self.assertIn("user", body_json)
+            self.assertIn("id", body_json["user"])
+            user_id_decoded = base64.urlsafe_b64decode(
+                f'{body_json["user"]["id"]}==='
+            )
+
+            self.assertEqual(user_id_decoded, existing_user_handle)
+
+    async def test_http_auth_ext_webauthn_emails_share_user_handle(self):
+        email = "test@example.com"
+
+        user_handle_one = uuid.uuid4().bytes
+        credential_id_one = uuid.uuid4().bytes
+        public_key_one = uuid.uuid4().bytes
+
+        user_handle_two = uuid.uuid4().bytes
+        credential_id_two = uuid.uuid4().bytes
+        public_key_two = uuid.uuid4().bytes
+
+        with self.assertRaisesRegex(
+            QueryAssertionError,
+            "user_handle must be the same for a given email",
+        ):
+            await self.con.execute(
+                """
+                with
+                    factor_one := (insert ext::auth::WebAuthnFactor {
+                        email := <str>$email,
+                        user_handle := <bytes>$user_handle_one,
+                        credential_id := <bytes>$credential_id_one,
+                        public_key := <bytes>$public_key_one,
+                        identity := (insert ext::auth::LocalIdentity {
+                            issuer := "local",
+                            subject := "",
+                        }),
+                    }),
+                    factor_two := (insert ext::auth::WebAuthnFactor {
+                        email := <str>$email,
+                        user_handle := <bytes>$user_handle_two,
+                        credential_id := <bytes>$credential_id_two,
+                        public_key := <bytes>$public_key_two,
+                        identity := (insert ext::auth::LocalIdentity {
+                            issuer := "local",
+                            subject := "",
+                        }),
+                    })
+                select true;
+                """,
+                email=email,
+                user_handle_one=user_handle_one,
+                credential_id_one=credential_id_one,
+                public_key_one=public_key_one,
+                user_handle_two=user_handle_two,
+                credential_id_two=credential_id_two,
+                public_key_two=public_key_two,
+            )
+
+    async def test_http_auth_ext_webauthn_authenticate_options(self):
+        with self.http_con() as http_con:
+            email = "test@example.com"
+            user_handle = uuid.uuid4().bytes
+            credential_id = uuid.uuid4().bytes
+            public_key = uuid.uuid4().bytes
+
+            await self.con.query_single(
+                """
+                with identity := (insert ext::auth::LocalIdentity {
+                    issuer := "local",
+                    subject := "",
+                })
+                INSERT ext::auth::WebAuthnFactor {
+                    email := <str>$email,
+                    user_handle := <bytes>$user_handle,
+                    credential_id := <bytes>$credential_id,
+                    public_key := <bytes>$public_key,
+                    identity := identity,
+                };
+                """,
+                email=email,
+                user_handle=user_handle,
+                credential_id=credential_id,
+                public_key=public_key,
+            )
+
+            body, _, status = self.http_con_request(
+                http_con,
+                path=f"webauthn/authenticate/options?email={email}",
+            )
+
+            self.assertEqual(status, 200)
+
+            body_json = json.loads(body)
+            self.assertIn("challenge", body_json)
+            self.assertIsInstance(body_json["challenge"], str)
+            self.assertIn("rpId", body_json)
+            self.assertIsInstance(body_json["rpId"], str)
+            self.assertIn("timeout", body_json)
+            self.assertIsInstance(body_json["timeout"], int)
+            self.assertIn("allowCredentials", body_json)
+            self.assertIsInstance(body_json["allowCredentials"], list)
+            allow_credentials = body_json["allowCredentials"]
+            self.assertTrue(
+                all(
+                    "type" in cred and "id" in cred
+                    for cred in allow_credentials
+                ),
+                "Each credential should have 'type' and 'id' keys",
+            )
+            self.assertIn(
+                base64.urlsafe_b64encode(credential_id).rstrip(b"=").decode(),
+                [cred["id"] for cred in allow_credentials],
+                (
+                    "The generated credential_id should be in the "
+                    "'allowCredentials' list"
+                ),
+            )
+
+            challenge_bytes = base64.urlsafe_b64decode(
+                f'{body_json["challenge"]}==='
+            )
+            self.assertTrue(
+                await self.con.query_single(
+                    '''
+                    SELECT EXISTS (
+                        SELECT ext::auth::WebAuthnAuthenticationChallenge
+                        filter .challenge = <bytes>$challenge
+                        AND .factor.email = <str>$email
+                        AND .factor.user_handle = <bytes>$user_handle
+                    )
+                    ''',
+                    challenge=challenge_bytes,
+                    email=email,
+                    user_handle=user_handle,
+                )
+            )
+
+    async def test_http_auth_ext_magic_link_01(self):
+        email = "test@example.com"
+        challenge = "test_challenge"
+        callback_url = "https://example.com/auth/callback"
+        redirect_on_failure = "https://example.com/auth/magic-link-failure"
+
+        with self.http_con() as http_con:
+            _, _, status = self.http_con_request(
+                http_con,
+                method="POST",
+                path="magic-link/register",
+                body=json.dumps(
+                    {
+                        "provider": "builtin::local_magic_link",
+                        "email": email,
+                        "challenge": challenge,
+                        "callback_url": callback_url,
+                        "redirect_on_failure": redirect_on_failure,
+                    }
+                ).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            self.assertEqual(status, 200)
+
+            # Get the token from email
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], "noreply@example.com")
+            self.assertEqual(email_args["recipients"], email)
+            html_msg = email_args["message"].get_payload(0).get_payload(1)
+            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
+            assert match is not None
+            verify_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(verify_url.query)
+            token = search_params.get("token", [None])[0]
+            assert token is not None
+
+            _, headers, status = self.http_con_request(
+                http_con,
+                method="GET",
+                path=f"magic-link/authenticate?token={token}",
+            )
+
+            self.assertEqual(status, 302)
+            location = headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                callback_url,
             )
 
     async def test_client_token_identity_card(self):

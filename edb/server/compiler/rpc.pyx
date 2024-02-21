@@ -252,11 +252,11 @@ cdef class CompilationRequest:
         assert buf.read_byte() == 0  # version
 
         flags = buf.read_byte()
-        self.json_parameters = flags & MASK_JSON_PARAMETERS
-        self.expect_one = flags & MASK_EXPECT_ONE
-        self.inline_typeids = flags & MASK_INLINE_TYPEIDS
-        self.inline_typenames = flags & MASK_INLINE_TYPENAMES
-        self.inline_objectids = flags & MASK_INLINE_OBJECTIDS
+        self.json_parameters = flags & MASK_JSON_PARAMETERS > 0
+        self.expect_one = flags & MASK_EXPECT_ONE > 0
+        self.inline_typeids = flags & MASK_INLINE_TYPEIDS > 0
+        self.inline_typenames = flags & MASK_INLINE_TYPENAMES > 0
+        self.inline_objectids = flags & MASK_INLINE_OBJECTIDS > 0
 
         self.protocol_version = buf.read_int16(), buf.read_int16()
         self.output_format = deserialize_output_format(buf.read_byte())

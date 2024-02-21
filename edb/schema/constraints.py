@@ -218,31 +218,32 @@ class Constraint(
             self.get_field_value(schema, 'subject'),
         )
 
-    def format_error(
+    def format_error_message(
         self,
         schema: s_schema.Schema,
     ) -> str:
         subject = self.get_subject(schema)
-        titleattr = subject.get_annotation(schema, sn.QualName('std', 'title'))
 
-        if not titleattr:
-            subjname = subject.get_shortname(schema)
-            subjtitle = subjname.name
+        title_ann = subject.get_annotation(schema, sn.QualName('std', 'title'))
+        if title_ann:
+            subject_name = title_ann
         else:
-            subjtitle = titleattr
+            short_name = subject.get_shortname(schema)
+            subject_name = short_name.name
 
-        return self.format_error_message(schema, subjtitle)
+        return self.format_error_text(schema, subject_name)
 
-    def format_error_message(
+    def format_error_text(
         self,
         schema: s_schema.Schema,
-        subjtitle: str,
+        subject_name: str,
     ) -> str:
-        errmsg: Optional[str] = self.get_errmessage(schema)
+        text = self.get_errmessage(schema)
+        assert text
         args = self.get_args(schema)
         if args:
             args_ql: List[qlast.Base] = [
-                qlast.Path(steps=[qlast.ObjectRef(name=subjtitle)]),
+                qlast.Path(steps=[qlast.ObjectRef(name=subject_name)]),
             ]
 
             args_ql.extend(arg.qlast for arg in args)
@@ -264,10 +265,9 @@ class Constraint(
             args_map = {name: edgeql.generate_source(val, pretty=False)
                         for name, val in index_parameters.items()}
         else:
-            args_map = {'__subject__': subjtitle}
+            args_map = {'__subject__': subject_name}
 
-        assert errmsg is not None
-        return interpolate_errmessage(errmsg, args_map)
+        return interpolate_error_text(text, args_map)
 
     def as_alter_delta(
         self,
@@ -1578,7 +1578,7 @@ class RebaseConstraint(
         return ()
 
 
-def interpolate_errmessage(message: str, args: Dict[str, str]) -> str:
+def interpolate_error_text(text: str, args: Dict[str, str]) -> str:
     """
     Converts message template "hello {world}! {nope}{{world}}" and
     arguments {"world": "Alice", "hell": "Eve"}
@@ -1589,8 +1589,8 @@ def interpolate_errmessage(message: str, args: Dict[str, str]) -> str:
 
     formatted = ""
     last_start = 0
-    for match in re.finditer(regex, message, flags=0):
-        formatted += message[last_start : match.start()]
+    for match in re.finditer(regex, text, flags=0):
+        formatted += text[last_start : match.start()]
         last_start = match.end()
 
         if match[1] is None:
@@ -1603,5 +1603,5 @@ def interpolate_errmessage(message: str, args: Dict[str, str]) -> str:
             # arg not found
             formatted += match[0]
 
-    formatted += message[last_start:]
+    formatted += text[last_start:]
     return formatted

@@ -282,7 +282,7 @@ class ScalarType(
     ) -> Optional[str]:
         type, scheme = self.resolve_sql_type_scheme(schema)
         if scheme:
-            return constraints.interpolate_errmessage(
+            return constraints.interpolate_error_text(
                 scheme,
                 {
                     f'__arg_{i}__': v
