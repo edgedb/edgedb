@@ -1018,15 +1018,8 @@ cdef class DatabaseConnectionView:
                     self.txid,
                     self._last_comp_state,
                     self._last_comp_state_id,
-                    query_req.source,
-                    query_req.output_format,
-                    query_req.expect_one,
-                    query_req.implicit_limit,
-                    query_req.inline_typeids,
-                    query_req.inline_typenames,
-                    self._protocol_version,
-                    query_req.inline_objectids,
-                    query_req.json_parameters,
+                    query_req.serialize(),
+                    query_req.source.text(),
                     self.in_tx_error(),
                 )
             else:
