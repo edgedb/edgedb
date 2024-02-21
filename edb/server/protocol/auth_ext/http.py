@@ -920,42 +920,46 @@ class Router:
     async def handle_magic_link_email(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
 
-        _check_keyset(
-            data,
-            {
-                "provider",
-                "email",
-                "challenge",
-                "callback_url",
-                "redirect_on_failure",
-            },
-        )
-
-        email = data["email"]
-        challenge = data["challenge"]
-        callback_url = data["callback_url"]
-        redirect_on_failure = data["redirect_on_failure"]
-        if not self._is_url_allowed(callback_url):
-            raise errors.InvalidData(
-                "Callback URL does not match any allowed URLs.",
-            )
-        if not self._is_url_allowed(redirect_on_failure):
-            raise errors.InvalidData(
-                "Error redirect URL does not match any allowed URLs.",
-            )
         maybe_redirect_to = data.get("redirect_to")
-        if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
-            raise errors.InvalidData(
-                "Redirect URL does not match any allowed URLs.",
+
+        try:
+            _check_keyset(
+                data,
+                {
+                    "provider",
+                    "email",
+                    "challenge",
+                    "callback_url",
+                    "redirect_on_failure",
+                },
             )
 
-        magic_link_client = magic_link.Client(
-            db=self.db,
-            issuer=self.base_path,
-            tenant=self.tenant,
-            test_mode=self.test_mode,
-        )
-        try:
+            email = data["email"]
+            challenge = data["challenge"]
+            callback_url = data["callback_url"]
+            redirect_on_failure = data["redirect_on_failure"]
+            if not self._is_url_allowed(callback_url):
+                raise errors.InvalidData(
+                    "Callback URL does not match any allowed URLs.",
+                )
+            if not self._is_url_allowed(redirect_on_failure):
+                raise errors.InvalidData(
+                    "Error redirect URL does not match any allowed URLs.",
+                )
+
+            if (
+                maybe_redirect_to and
+                not self._is_url_allowed(maybe_redirect_to)
+            ):
+                raise errors.InvalidData(
+                    "Redirect URL does not match any allowed URLs.",
+                )
+            magic_link_client = magic_link.Client(
+                db=self.db,
+                issuer=self.base_path,
+                tenant=self.tenant,
+                test_mode=self.test_mode,
+            )
             await magic_link_client.send_magic_link(
                 email=email,
                 callback_url=callback_url,

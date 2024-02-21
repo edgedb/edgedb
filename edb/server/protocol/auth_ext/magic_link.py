@@ -18,7 +18,6 @@
 
 
 import logging
-import datetime
 import aiosmtplib
 import json
 
@@ -105,7 +104,8 @@ select identity { * };""",
         redirect_on_failure: str,
     ):
         signing_key = self._get_signing_key()
-        identity_id = await self.get_identity_id_by_email(email)
+        identity_id = await self.get_identity_id_by_email(
+            email, factor_type='MagicLinkFactor')
 
         if identity_id is None:
             await auth_emails.send_fake_email(self.tenant)
@@ -120,7 +120,7 @@ select identity { * };""",
                 "callback_url": callback_url,
             },
             include_issued_at=True,
-            expires_in=datetime.timedelta(minutes=10),
+            expires_in=self.provider.token_time_to_live.to_timedelta(),
         )
 
         link = util.join_url_params(
