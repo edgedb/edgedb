@@ -4,7 +4,8 @@
 Next.js (App Router)
 ====================
 
-:edb-alt-title: Building a simple blog application with EdgeDB and Next.js (App Router)
+:edb-alt-title: Building a simple blog application with
+   EdgeDB and Next.js (App Router)
 
 We're going to build a simple blog application with
 `Next.js <https://nextjs.org/>`_ and EdgeDB. Let's start by scaffolding our
@@ -15,9 +16,9 @@ app with Next.js's ``create-next-app`` tool.
   $ npx create-next-app@latest
 
 You'll be prompted to provide a name (we'll use ``nextjs-blog``) for your 
-app and choose project options.
-For this tutorial, we'll go with the recommended settings including TypeScript, 
-App Router, and **opt-ing out** of the ``src/`` directory.
+app and choose project options. For this tutorial, we'll go with the 
+recommended settings including TypeScript, App Router, and 
+**opt-ing out** of the ``src/`` directory.
 
 The scaffolding tool will create a simple Next.js app and install its 
 dependencies. Once it's done, you can navigate to the app's directory and 
@@ -51,7 +52,8 @@ homepage. At this point the app's file structure looks like this:
 
 There's an async function ``Home`` defined in ``app/page.tsx`` that renders 
 the homepage. It's a 
-`Server Component <https://nextjs.org/docs/app/building-your-application/rendering/server-components>`_  
+`Server Component <https://nextjs.org/docs/app/building-your-application/
+rendering/server-components>`_  
 which lets you integrate server-side logic directly 
 into your React components. Server Components are executed on the server and 
 can fetch data from a database or an API. We'll use this feature to load blog 
@@ -274,7 +276,8 @@ NPM:
 
 .. code-block:: bash
 
-  $ npm install edgedb # or yarn add edgedb or pnpm add edgedb or bun add edgedb
+  $ npm install edgedb 
+  # or yarn add edgedb or pnpm add edgedb or bun add edgedb
 
 Then go to the ``app/page.tsx`` file to replace the static data with a
 the blogposts fetched from the database.
@@ -307,7 +310,7 @@ To fetch these from the homepage, we'll create an EdgeDB client and use the
   -     {
   -       id: 'post2',
   -       title: 'How to build a blog with EdgeDB and Next.js',
-  -       content: "Let's start by scaffolding our app with `create-next-app`.",
+  -       content: "Start by scaffolding our app with `create-next-app`.",
   -     },
   -   ]
   +   const posts = await client.query<Post>(`\
@@ -455,7 +458,8 @@ Rendering blog posts
 Our homepage renders a list of links to each of our blog posts, but we haven't
 implemented the page that actually displays the posts. Let's create a new page
 at ``app/post/[id]/page.tsx``. This is a
-`dynamic route <https://nextjs.org/docs/app/building-your-application/routing/dynamic-routes>`_ that
+`dynamic route <https://nextjs.org/docs/app/building-your-application/
+routing/dynamic-routes>`_ that
 includes an ``id`` URL parameter. We'll use this parameter to fetch the
 appropriate post from the database.
 
@@ -500,10 +504,10 @@ Add the following code in ``app/post/[id]/page.tsx``:
     )
   }
 
-We are again using a Server Component to fetch the post from the database. This 
-time, we're using the ``filter_single`` method to filter the ``BlogPost`` type 
-by its ``id``. We're also using the ``uuid`` function from the query builder to 
-convert the ``id`` parameter to a UUID.
+We are again using a Server Component to fetch the post from the database. 
+This time, we're using the ``filter_single`` method to filter the 
+``BlogPost`` type by its ``id``. We're also using the ``uuid`` function 
+from the query builder to convert the ``id`` parameter to a UUID.
 
 Now, click on one of the blog post links on the homepage. This should bring
 you to ``/post/<uuid>``.
@@ -561,8 +565,8 @@ database. Open a REPL and ``insert`` some blog posts:
 Add the following ``prebuild`` script to your ``package.json``. When Vercel
 initializes the build, it will trigger this script which will generate the
 query builder. The ``npx @edgedb/generate edgeql-js`` command will read the
-value of the ``EDGEDB_DSN`` variable, connect to the database, and generate the
-query builder before Vercel starts building the project.
+value of the ``EDGEDB_DSN`` variable, connect to the database, and generate 
+the query builder before Vercel starts building the project.
 
 .. code-block:: javascript-diff
 
@@ -609,13 +613,15 @@ Wrapping up
 -----------
 
 This tutorial demonstrates how to work with EdgeDB in a
-Next.js app, using the App Router. We've created a simple blog application that 
-loads posts from a database and displays them on the homepage. We've also 
-created a dynamic route that fetches a single post from the database and 
-displays it on a separate page.
+Next.js app, using the App Router. We've created a simple blog application 
+that loads posts from a database and displays them on the homepage. 
+We've also created a dynamic route that fetches a single post from the 
+database and displays it on a separate page.
 
 The next step is to add a ``/newpost`` page with a form for writing new blog
 posts and saving them into EdgeDB. That's left as an exercise for the reader.
 
-To see the final code for this tutorial, refer to `github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
-<https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog-app-router>`_.
+To see the final code for this tutorial, refer to 
+`github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
+<https://github.com/edgedb/edgedb-examples/tree/main/
+nextjs-blog-app-router>`_.
