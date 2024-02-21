@@ -200,14 +200,17 @@ class Constraint(
         their generation.
         """
 
-        # abstract constraints don't have an origin
-        # delegated constraints don't have an origin
-        if self.is_non_concrete(schema) or self.get_delegated(schema):
-            return []
-
         # collect origins from all ancestors
         origins: Set[Constraint] = set()
         for base in self.get_bases(schema).objects(schema):
+            # abstract bases are not an origin
+            if base.is_non_concrete(schema):
+                continue
+            # delegated bases are not an origin
+            if base.get_delegated(schema):
+                continue
+
+            # recurse
             origins.update(base.get_constraint_origins(schema))
 
         # if no ancestors have an origin, I am the origin
