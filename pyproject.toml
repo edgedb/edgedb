@@ -214,8 +214,6 @@ ignore_errors = true
 [tool.ruff]
 lint.select = ["E", "F", "B"]
 lint.ignore = [
-    "F403", # TODO: change all "from typing import *"
-    "F405", # TODO: ditto
     "F541",
     "B008",
     "B904",
