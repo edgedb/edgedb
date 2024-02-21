@@ -975,6 +975,8 @@ class Compiler:
             request.inline_objectids,
             request.json_parameters,
             expect_rollback=expect_rollback,
+            persistent_cache=True,
+            cache_key=request.get_cache_key(),
         )
         return units, cstate
 
@@ -992,6 +994,8 @@ class Compiler:
         inline_objectids: bool = True,
         json_parameters: bool = False,
         expect_rollback: bool = False,
+        persistent_cache: bool = False,
+        cache_key: Optional[uuid.UUID] = None,
     ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
         if (
             expect_rollback and
@@ -1017,6 +1021,8 @@ class Compiler:
             protocol_version=protocol_version,
             json_parameters=json_parameters,
             expect_rollback=expect_rollback,
+            persistent_cache=persistent_cache,
+            cache_key=cache_key,
         )
 
         return compile(ctx=ctx, source=source), ctx.state
