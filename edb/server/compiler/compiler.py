@@ -925,6 +925,37 @@ class Compiler:
         else:
             return unit_group, None
 
+    def compile_in_tx_request(
+        self,
+        state: dbstate.CompilerConnectionState,
+        txid: int,
+        serialized_request: bytes,
+        original_query: str,
+        expect_rollback: bool = False,
+    ) -> Tuple[
+        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+    ]:
+        request = rpc.CompilationRequest(
+            self.state.compilation_config_serializer
+        )
+        request.deserialize(serialized_request, original_query)
+
+        units, cstate = self.compile_in_tx(
+            state,
+            txid,
+            request.source,
+            request.output_format,
+            request.expect_one,
+            request.implicit_limit,
+            request.inline_typeids,
+            request.inline_typenames,
+            request.protocol_version,
+            request.inline_objectids,
+            request.json_parameters,
+            expect_rollback=expect_rollback,
+        )
+        return units, cstate
+
     def compile_in_tx(
         self,
         state: dbstate.CompilerConnectionState,
