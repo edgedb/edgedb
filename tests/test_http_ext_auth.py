@@ -3775,9 +3775,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         email = "test@example.com"
         challenge = "test_challenge"
         callback_url = "https://example.com/auth/callback"
+        redirect_on_failure = "https://example.com/auth/magic-link-failure"
 
         with self.http_con() as http_con:
-            body, _, status = self.http_con_request(
+            _, _, status = self.http_con_request(
                 http_con,
                 method="POST",
                 path="magic-link/register",
@@ -3787,6 +3788,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         "email": email,
                         "challenge": challenge,
                         "callback_url": callback_url,
+                        "redirect_on_failure": redirect_on_failure,
                     }
                 ).encode(),
                 headers={"Content-Type": "application/json"},
