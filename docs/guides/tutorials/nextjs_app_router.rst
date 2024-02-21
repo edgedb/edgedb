@@ -1,28 +1,32 @@
-.. _ref_guide_nextjs:
+.. _ref_guide_nextjs_app_router:
 
-=======
-Next.js
-=======
+====================
+Next.js (App Router)
+====================
 
-:edb-alt-title: Building a simple blog application with EdgeDB and Next.js
+:edb-alt-title: Building a simple blog application with EdgeDB and Next.js (App Router)
 
 We're going to build a simple blog application with
 `Next.js <https://nextjs.org/>`_ and EdgeDB. Let's start by scaffolding our
-app with Next.js's ``create-next-app`` tool. We'll be using TypeScript for
-this tutorial.
+app with Next.js's ``create-next-app`` tool.
 
 .. code-block:: bash
 
-  $ npx create-next-app --typescript nextjs-blog
+  $ npx create-next-app@latest
 
-This will take a minute to run. The scaffolding tool is creating a simple
-Next.js app and installing all our dependencies for us. Once it's complete,
-let's navigate into the directory and start the dev server.
+You'll be prompted to provide a name (we'll use ``nextjs-blog``) for your 
+app and choose project options.
+For this tutorial, we'll go with the recommended settings including TypeScript, 
+App Router, and **opt-ing out** of the ``src/`` directory.
+
+The scaffolding tool will create a simple Next.js app and install its 
+dependencies. Once it's done, you can navigate to the app's directory and 
+start the development server.
 
 .. code-block:: bash
 
   $ cd nextjs-blog
-  $ yarn dev
+  $ yarn dev # or pnpm dev or npm run dev or bun dev
 
 Open `localhost:3000 <http://localhost:3000>`_ to see the default Next.js
 homepage. At this point the app's file structure looks like this:
@@ -34,44 +38,44 @@ homepage. At this point the app's file structure looks like this:
   package.json
   next.config.js
   next-env.d.ts
-  pages
-  ├── _app.tsx
-  ├── api
-  │   └── hello.ts
-  └── index.tsx
+  postcss.config.js
+  tailwind.config.js
+  app
+  ├── page.tsx
+  ├── layout.tsx
+  ├── globals.css
+  └── favicon.ico
   public
-  ├── favicon.ico
+  ├── next.tsx
   └── vercel.svg
-  styles
-  ├── Home.module.css
-  └── globals.css
 
-There's a custom App component defined in ``pages/_app.tsx`` that loads some
-global CSS, plus the homepage at ``pages/index.tsx`` and a single API route at
-``pages/api/hello.ts``. The ``styles`` and ``public`` directories contain some
-other assets.
+There's an async function ``Home`` defined in ``app/page.tsx`` that renders 
+the homepage. It's a 
+`Server Component <https://nextjs.org/docs/app/building-your-application/rendering/server-components>`_  
+which lets you integrate server-side logic directly 
+into your React components. Server Components are executed on the server and 
+can fetch data from a database or an API. We'll use this feature to load blog 
+posts from an EdgeDB database.
 
 Updating the homepage
 ---------------------
 
 Let's start by implementing a simple homepage for our blog application using
-static data. Replace the contents of ``pages/index.tsx`` with the following.
+static data. Replace the contents of ``app/page.tsx`` with the following.
 
 .. code-block:: tsx
 
-  // pages/index.tsx
+  // app/page.tsx
 
-  import type {NextPage} from 'next';
-  import Head from 'next/head';
-  import styles from '../styles/Home.module.css';
+  import Link from 'next/link'
 
   type Post = {
-    id: string;
-    title: string;
-    content: string;
-  };
+    id: string
+    title: string
+    content: string
+  }
 
-  const HomePage: NextPage = () => {
+  export default async function Home() {
     const posts: Post[] = [
       {
         id: 'post1',
@@ -83,43 +87,33 @@ static data. Replace the contents of ``pages/index.tsx`` with the following.
         title: 'How to build a blog with EdgeDB and Next.js',
         content: "Let's start by scaffolding our app with `create-next-app`.",
       },
-    ];
+    ]
 
     return (
-      <div className={styles.container}>
-        <Head>
-          <title>My Blog</title>
-          <meta name="description" content="An awesome blog" />
-          <link rel="icon" href="/favicon.ico" />
-        </Head>
-
-        <main className={styles.main}>
-          <h1 className={styles.title}>Blog</h1>
-          <div style={{height: '50px'}}></div>
-          {posts.map((post) => {
-            return (
-              <a href={`/post/${post.id}`} key={post.id}>
-                <div className={styles.card}>
-                  <p>{post.title}</p>
-                </div>
-              </a>
-            );
-          })}
-        </main>
+      <div className="container mx-auto p-4 bg-black text-white">
+        <h1 className="text-3xl font-bold mb-4">Posts</h1>
+        <ul>
+          {posts.map((post) => (
+            <li
+              key={post.id}
+              className="mb-4"
+            >
+              <Link
+                href={`/post/${post.id}`}
+                className="text-blue-500"
+              >
+                {post.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
       </div>
-    );
-  };
-
-  export default HomePage;
-
-After saving, Next.js should hot-reload, and the homepage should look
-something like this.
+    )
+  }
 
 
-.. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/basic_home.png
-    :alt: Basic blog homepage with static content
-    :width: 100%
+After saving, Next.js should hot-reload, and you should see the updated
+homepage in your browser.
 
 Initializing EdgeDB
 -------------------
@@ -211,12 +205,13 @@ update the contents of ``default.esdl`` with the following simple blog schema.
 
   module default {
     type BlogPost {
-      required property title -> str;
-      required property content -> str {
+      required title: str;
+      required content: str {
         default := ""
-      };
+      }
     }
   }
+
 
 .. note::
 
@@ -248,7 +243,7 @@ the REPL.
 .. code-block:: bash
 
   $ edgedb
-  EdgeDB 2.x (repl 2.x)
+  EdgeDB 4.x (repl 4.x)
   Type \help for help, \quit to quit.
   edgedb>
 
@@ -269,92 +264,82 @@ Then execute the following ``insert`` statements.
   {default::BlogPost {id: 88c800e6-c780-11ec-8a1a-b3a3020189dd}}
 
 
-Loading posts with an API route
--------------------------------
+Loading posts with React Server Components
+------------------------------------------
 
-Now that we have a couple posts in the database, let's load them dynamically
-with a Next.js `API route <https://nextjs.org/docs/api-routes/introduction>`_.
+Now that we have a couple posts in the database, let's load them into our 
+Next.js app.
 To do that, we'll need the ``edgedb`` client library. Let's install that from
 NPM:
 
 .. code-block:: bash
 
-  $ npm install edgedb
+  $ npm install edgedb # or yarn add edgedb or pnpm add edgedb or bun add edgedb
 
-Then create a new file at ``pages/api/post.ts`` and copy in the following code.
+Then go to the ``app/page.tsx`` file to replace the static data with a
+the blogposts fetched from the database.
 
-.. code-block:: typescript
-
-  // pages/api/post.ts
-
-  import type {NextApiRequest, NextApiResponse} from 'next';
-  import {createClient} from 'edgedb';
-
-  export const client = createClient();
-
-  export default async function handler(
-    req: NextApiRequest,
-    res: NextApiResponse
-  ) {
-    const posts = await client.query(`select BlogPost {
-      id,
-      title,
-      content
-    };`);
-    res.status(200).json(posts);
-  }
-
-This file initializes an EdgeDB client, which manages a pool of connections to
-the database and provides an API for executing queries. We're using the
-``.query()`` method to fetch all the posts in the database with a simple
+To fetch these from the homepage, we'll create an EdgeDB client and use the
+``.query()`` method to fetch all the posts in the database with a 
 ``select`` statement.
-
-If you visit `localhost:3000/api/post <http://localhost:3000/api/post>`_ in
-your browser, you should see a plaintext JSON representation of the blog posts
-we inserted earlier.
-
-To fetch these from the homepage, we'll use ``useState``, ``useEffect``, and
-the built-in ``fetch`` API. At the top of the ``HomePage`` component in
-``pages/index.tsx``, replace the static data and add the missing imports.
 
 .. code-block:: tsx-diff
 
-     // pages/index.tsx
-  +  import {useState, useEffect} from 'react';
+    // app/page.tsx
 
-     type Post = {
-       id: string;
-       title: string;
-       content: string;
-     };
+    import Link from 'next/link'
+  + import { createClient } from 'edgedb';
 
-     const HomePage: NextPage = () => {
-  -    const posts: Post[] = [
-  -      {
-  -        id: 'post1',
-  -        title: 'This one weird trick makes using databases fun',
-  -        content: 'Use EdgeDB',
-  -      },
-  -      {
-  -        id: 'post2',
-  -        title: 'How to build a blog with EdgeDB and Next.js',
-  -        content: "Let's start by scaffolding our app...",
-  -      },
-  -    ];
+    type Post = {
+      id: string
+      title: string
+      content: string
+    }
+  + const client = createClient();
 
-  +    const [posts, setPosts] = useState<Post[] | null>(null);
-  +    useEffect(() => {
-  +      fetch(`/api/post`)
-  +        .then((result) => result.json())
-  +        .then(setPosts);
-  +    }, []);
-  +    if (!posts) return <p>Loading...</p>;
+    export default async function Home() {
+  -   const posts: Post[] = [
+  -     {
+  -       id: 'post1',
+  -       title: 'This one weird trick makes using databases fun',
+  -       content: 'Use EdgeDB',
+  -     },
+  -     {
+  -       id: 'post2',
+  -       title: 'How to build a blog with EdgeDB and Next.js',
+  -       content: "Let's start by scaffolding our app with `create-next-app`.",
+  -     },
+  -   ]
+  +   const posts = await client.query<Post>(`\
+  +    select BlogPost {
+  +      id,
+  +      title,
+  +      content
+  +   };`)
 
-       return <div>...</div>;
-     }
+      return (
+        <div className="container mx-auto p-4 bg-black text-white">
+          <h1 className="text-3xl font-bold mb-4">Posts</h1>
+          <ul>
+            {posts.map((post) => (
+              <li
+                key={post.id}
+                className="mb-4"
+              >
+                <Link
+                  href={`/post/${post.id}`}
+                  className="text-blue-500"
+                >
+                  {post.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )
+    }
 
-When you refresh the page, you should briefly see a ``Loading...`` indicator
-before the homepage renders the (dynamically loaded!) blog posts.
+When you refresh the page, you should see the blog posts.
 
 Generating the query builder
 ----------------------------
@@ -370,6 +355,9 @@ First, install the generator to your project.
 .. code-block:: bash
 
   $ yarn add --dev @edgedb/generate
+  $ # or pnpm add --dev @edgedb/generate
+  $ # or npm install --save-dev @edgedb/generate
+  $ # or bun add --dev @edgedb/generate
 
 Then generate the query builder with the following command.
 
@@ -398,78 +386,64 @@ in the ``dbschema/edgeql-js`` directory. It also asked us if we wanted to add
 the generated code to our ``.gitignore``; typically it's not good practice to
 include generated files in version control.
 
-Back in ``pages/api/post.ts``, let's update our code to use the query builder
+Back in ``app/page.tsx``, let's update our code to use the query builder
 instead.
 
 .. code-block:: typescript-diff
+    
+    // app/page.tsx
 
-    // pages/api/post.ts
+    import Link from 'next/link'
+    import { createClient } from 'edgedb';
+  + import e from '@/dbschema/edgeql-js';
 
-    import type {NextApiRequest, NextApiResponse} from 'next';
-    import {createClient} from 'edgedb';
-  + import e, {$infer} from '../../dbschema/edgeql-js';
+  - type Post = {
+  -   id: string
+  -   title: string
+  -   content: string
+  - }
+    const client = createClient();
 
-    export const client = createClient();
-
-  + const selectPosts = e.select(e.BlogPost, () => ({
-  +   id: true,
-  +   title: true,
-  +   content: true,
-  + }));
-
-  + export type Posts = $infer<typeof selectPosts>;
-
-    export default async function handler(
-      req: NextApiRequest,
-      res: NextApiResponse
-    ) {
-  -   const posts = await client.query(`select BlogPost {
-  -     id,
-  -     title,
-  -     content
-  -   };`);
+    export default async function Home() {
+  -   const posts = await client.query(`\
+  -    select BlogPost {
+  -      id,
+  -      title,
+  -      content
+  -   };`)
+  +   const selectPosts = e.select(e.BlogPost, () => ({
+  +     id: true,
+  +     title: true,
+  +     content: true,
+  +   }));
   +   const posts = await selectPosts.run(client);
-      res.status(200).json(posts);
+    
+      return (
+        <div className="container mx-auto p-4 bg-black text-white">
+          <h1 className="text-3xl font-bold mb-4">Posts</h1>
+          <ul>
+            {posts.map((post) => (
+              <li
+                key={post.id}
+                className="mb-4"
+              >
+                <Link
+                  href={`/post/${post.id}`}
+                  className="text-blue-500"
+                >
+                  {post.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )
     }
 
 Instead of writing our query as a plain string, we're now using the query
 builder to declare our query in a code-first way. As you can see we import the
 query builder as a single default import ``e`` from the ``dbschema/edgeql-js``
 directory.
-
-We're also using a utility called ``$infer`` to extract the inferred type of
-this query. In VSCode you can hover over ``Posts`` to see what this type is.
-
-.. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/inference.png
-    :alt: Inferred type of posts query
-    :width: 100%
-
-Back in ``pages/index.tsx``, let's update our code to use the inferred
-``Posts`` type instead of our manual type declaration.
-
-.. code-block:: typescript-diff
-
-     // pages/index.tsx
-
-     import type {NextPage} from 'next';
-     import Head from 'next/head';
-     import {useEffect, useState} from 'react';
-     import styles from '../styles/Home.module.css';
-  +  import {Posts} from "./api/post";
-
-  -  type Post = {
-  -    id: string;
-  -    title: string;
-  -    content: string;
-  -  };
-
-     const Home: NextPage = () => {
-
-  +    const [posts, setPosts] = useState<Posts | null>(null);
-       // ...
-
-     }
 
 Now, when we update our ``selectPosts`` query, the type of our dynamically
 loaded ``posts`` variable will update automatically—no need to keep
@@ -480,78 +454,59 @@ Rendering blog posts
 
 Our homepage renders a list of links to each of our blog posts, but we haven't
 implemented the page that actually displays the posts. Let's create a new page
-at ``pages/post/[id].tsx``. This is a
-`dynamic route <https://nextjs.org/docs/routing/dynamic-routes>`_ that
+at ``app/post/[id]/page.tsx``. This is a
+`dynamic route <https://nextjs.org/docs/app/building-your-application/routing/dynamic-routes>`_ that
 includes an ``id`` URL parameter. We'll use this parameter to fetch the
 appropriate post from the database.
 
-Create ``pages/post/[id].tsx`` and add the following code. We're using
-``getServerSideProps`` to load the blog post data server-side, to avoid
-loading spinners and ensure the page loads fast.
+Add the following code in ``app/post/[id]/page.tsx``:
 
 .. code-block:: tsx
+  
+  import { createClient } from 'edgedb'
+  import e from '@/dbschema/edgeql-js'
+  import Link from 'next/link'
 
-  import React from 'react';
-  import {GetServerSidePropsContext, InferGetServerSidePropsType} from 'next';
+  const client = createClient()
 
-  import {client} from '../api/post';
-  import e from '../../dbschema/edgeql-js';
-
-  export const getServerSideProps = async (
-    context?: GetServerSidePropsContext
-  ) => {
+  export default async function Post({ params }: { params: { id: string } }) {
     const post = await e
       .select(e.BlogPost, (post) => ({
         id: true,
         title: true,
         content: true,
-        filter_single: e.op(
-          post.id,
-          '=',
-          e.uuid(context!.params!.id as string)
-        ),
+        filter_single: e.op(post.id, '=', e.uuid(params.id)),
       }))
-      .run(client);
-    return {props: {post: post!}};
-  };
+      .run(client)
 
-  export type GetPost = InferGetServerSidePropsType<typeof getServerSideProps>;
+    if (!post) {
+      return <div>Post not found</div>
+    }
 
-  const Post: React.FC<GetPost> = (props) => {
     return (
-      <div
-        style={{
-          margin: 'auto',
-          width: '100%',
-          maxWidth: '600px',
-        }}
-      >
-        <h1 style={{padding: '50px 0px'}}>{props.post.title}</h1>
-        <p style={{color: '#666'}}>{props.post.content}</p>
+      <div className="container mx-auto p-4 bg-black text-white">
+        <nav>
+          <Link
+            href="/"
+            className="text-blue-500 mb-4 block"
+            replace
+          >
+            Back to list
+          </Link>
+        </nav>
+        <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
+        <p>{post.content}</p>
       </div>
-    );
-  };
+    )
+  }
 
-  export default Post;
-
-
-Inside ``getServerSideProps`` we're extracting the ``id`` parameter from
-``context.params`` and using it in our EdgeQL query. The query is a ``select``
-query that fetches the ``id``, ``title``, and ``content`` of the post with a
-matching ``id``.
-
-We're using Next's ``InferGetServerSidePropsType`` utility to extract the
-inferred type of our query and pass it into ``React.FC``. Now, if we update
-our query, the type of the component props will automatically update too. In
-fact, this entire application is end-to-end typesafe.
+We are again using a Server Component to fetch the post from the database. This 
+time, we're using the ``filter_single`` method to filter the ``BlogPost`` type 
+by its ``id``. We're also using the ``uuid`` function from the query builder to 
+convert the ``id`` parameter to a UUID.
 
 Now, click on one of the blog post links on the homepage. This should bring
-you to ``/post/<uuid>``, which should display something like this:
-
-.. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/post.png
-    :alt: Basic blog homepage with static content
-    :width: 100%
+you to ``/post/<uuid>``.
 
 Deploying to Vercel
 -------------------
@@ -653,14 +608,14 @@ supplied by Vercel.
 Wrapping up
 -----------
 
-Admittedly this isn't the prettiest blog of all time, or the most
-feature-complete. But this tutorial demonstrates how to work with EdgeDB in a
-Next.js app, including data fetching with API routes and
-``getServerSideProps``.
+This tutorial demonstrates how to work with EdgeDB in a
+Next.js app, using the App Router. We've created a simple blog application that 
+loads posts from a database and displays them on the homepage. We've also 
+created a dynamic route that fetches a single post from the database and 
+displays it on a separate page.
 
 The next step is to add a ``/newpost`` page with a form for writing new blog
 posts and saving them into EdgeDB. That's left as an exercise for the reader.
 
-To see the final code for this tutorial, refer to
-`github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
-<https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog>`_.
+To see the final code for this tutorial, refer to `github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
+<https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog-app-router>`_.

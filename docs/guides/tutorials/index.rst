@@ -8,7 +8,8 @@ Using EdgeDB with...
 .. toctree::
     :maxdepth: 1
 
-    nextjs
+    nextjs_app_router
+    nextjs_pages_router
     rest_apis_with_fastapi
     rest_apis_with_flask
     phoenix_github_oauth
