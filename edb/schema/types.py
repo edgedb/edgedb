@@ -614,7 +614,7 @@ class TypeShell(so.ObjectShell[TypeT_co]):
         attrs: Optional[Dict[str, Any]] = None,
     ) -> sd.Command:
         raise errors.UnsupportedFeatureError(
-            f'unsupported type intersection in schema',
+            f'unsupported type intersection in schema {str(view_name)} -- {str(self.schemaclass)}',
             hint=f'Type intersections are currently '
                  f'unsupported as valid link targets.',
             context=self.sourcectx,
