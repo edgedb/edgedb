@@ -1845,7 +1845,7 @@ def _compile_ql_query(
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
         expand_inhviews=options.expand_inhviews,
-        detach_params=use_persistent_cache and debug.flags.func_cache,
+        detach_params=bool(use_persistent_cache and debug.flags.func_cache),
     )
 
     sql_ast = sql_res.ast
