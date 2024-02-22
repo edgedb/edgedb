@@ -1831,7 +1831,7 @@ def _compile_ql_query(
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
         expand_inhviews=options.expand_inhviews,
-        detach_params=use_persistent_cache,
+        detach_params=use_persistent_cache and debug.flags.func_cache,
     )
 
     sql_ast = sql_res.ast
@@ -1839,7 +1839,11 @@ def _compile_ql_query(
     pg_debug.dump_ast_and_query(sql_ast, ir)
 
     cache_sql = None
-    if use_persistent_cache and ctx.cache_key is not None:
+    if (
+        debug.flags.func_cache and
+        use_persistent_cache and
+        ctx.cache_key is not None
+    ):
         key = ctx.cache_key.hex
         returns_record = False
         set_returning = True
@@ -1937,6 +1941,8 @@ def _compile_ql_query(
             cf.to_string().encode(defines.EDGEDB_ENCODING),
             df.to_string().encode(defines.EDGEDB_ENCODING),
         )
+    elif use_persistent_cache and ctx.cache_key is not None:
+        cache_sql = (b"", b"")
 
     if (
         (mstate := current_tx.get_migration_state())

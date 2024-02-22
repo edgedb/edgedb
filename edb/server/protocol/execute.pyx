@@ -185,8 +185,9 @@ async def execute(
 
             if query_unit.sql:
                 if query_unit.user_schema:
-                    # TODO(fantix): do this in the same transaction
-                    recompile_requests = await dbv.clear_cache_keys(be_conn)
+                    if debug.flags.func_cache:
+                        # TODO(fantix): do this in the same transaction
+                        recompile_requests = await dbv.clear_cache_keys(be_conn)
                     ddl_ret = await be_conn.run_ddl(query_unit, state)
                     if ddl_ret and ddl_ret['new_types']:
                         new_types = ddl_ret['new_types']
@@ -341,9 +342,10 @@ async def execute_script(
     recompile_requests = None
 
     try:
-        if any(query_unit.user_schema for query_unit in unit_group):
-            # TODO(fantix): do this in the same transaction
-            recompile_requests = await dbv.clear_cache_keys(conn)
+        if debug.flags.func_cache:
+            if any(query_unit.user_schema for query_unit in unit_group):
+                # TODO(fantix): do this in the same transaction
+                recompile_requests = await dbv.clear_cache_keys(conn)
 
         if conn.last_state == state:
             # the current status in be_conn is in sync with dbview, skip the
