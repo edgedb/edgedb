@@ -9,6 +9,12 @@ Full-text Search
 The ``fts`` built-in module contains various tools that enable full-text
 search functionality in EdgeDB.
 
+.. note::
+
+    Since full-text search is a natural language search, it may not be ideal
+    for your use case, particularly if you want to find partial matches. In
+    that case, you may want to look instead at :ref:`ref_ext_pgtrgm`.
+
 .. list-table::
     :class: funcoptable
 

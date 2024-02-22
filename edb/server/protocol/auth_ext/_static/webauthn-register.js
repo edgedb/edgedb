@@ -1,53 +1,74 @@
-import { decodeBase64Url, encodeBase64Url } from "./utils.js";
+import {
+  addWebAuthnSubmitHandler,
+  decodeBase64Url,
+  encodeBase64Url,
+} from "./utils.js";
 
-document.addEventListener("DOMContentLoaded", () => {
-  const registerForm = document.getElementById("email-factor");
+addWebAuthnSubmitHandler(onRegisterSubmit);
 
-  if (registerForm === null) {
+let registering = false;
+
+/**
+ * Handle the form submission for WebAuthn registration
+ * @param {HTMLFormElement} form
+ * @returns void
+ */
+export async function onRegisterSubmit(form) {
+  if (registering) {
     return;
   }
 
-  registerForm.addEventListener("submit", async (event) => {
-    if (event.submitter?.id !== "webauthn-signup") {
-      return;
+  registering = true;
+  const registerButton = document.getElementById("webauthn-signup");
+  registerButton.disabled = true;
+
+  const formData = new FormData(form);
+  const email = formData.get("email");
+  const provider = "builtin::local_webauthn";
+  const challenge = formData.get("challenge");
+  const redirectOnFailure = formData.get("redirect_on_failure");
+  const redirectTo = formData.get("redirect_to");
+  const verifyUrl = formData.get("verify_url");
+
+  try {
+    const missingFields = Object.entries({
+      email,
+      provider,
+      challenge,
+      redirectTo,
+      verifyUrl,
+    }).filter(([k, v]) => !v);
+    if (missingFields.length > 0) {
+      throw new Error(
+        "Missing required parameters: " +
+          missingFields.map(([k]) => k).join(", ")
+      );
     }
-    event.preventDefault();
 
-    const formData = new FormData(/** @type {HTMLFormElement} */ registerForm);
-    const email = formData.get("email");
-    const provider = "builtin::local_webauthn";
-    const challenge = formData.get("challenge");
-    const redirectOnFailure = formData.get("redirect_on_failure");
-    const redirectTo = formData.get("redirect_to");
-    const verifyUrl = formData.get("verify_url");
+    const maybeCode = await register({
+      email,
+      provider,
+      challenge,
+      verifyUrl,
+    });
 
-    if (redirectTo === null) {
-      throw new Error("Missing redirect_to parameter");
+    const redirectUrl = new URL(redirectTo);
+    redirectUrl.searchParams.append("isSignUp", "true");
+    if (maybeCode !== null) {
+      redirectUrl.searchParams.append("code", maybeCode);
     }
 
-    try {
-      const maybeCode = await register({
-        email,
-        provider,
-        challenge,
-        verifyUrl,
-      });
-
-      const redirectUrl = new URL(redirectTo);
-      redirectUrl.searchParams.append("isSignUp", "true");
-      if (maybeCode !== null) {
-        redirectUrl.searchParams.append("code", maybeCode);
-      }
-
-      window.location.href = redirectUrl.href;
-    } catch (error) {
-      console.error("Failed to register WebAuthn credentials:", error);
-      const url = new URL(redirectOnFailure ?? redirectTo);
-      url.searchParams.append("error", error.message);
-      window.location.href = url.href;
-    }
-  });
-});
+    window.location.href = redirectUrl.href;
+  } catch (error) {
+    console.error("Failed to register WebAuthn credentials:", error);
+    const url = new URL(redirectOnFailure ?? redirectTo);
+    url.searchParams.append("error", error.message);
+    window.location.href = url.href;
+  } finally {
+    registering = false;
+    registerButton.disabled = false;
+  }
+}
 
 const WEBAUTHN_OPTIONS_URL = new URL(
   "../webauthn/register/options",

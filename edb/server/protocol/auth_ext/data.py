@@ -182,3 +182,21 @@ class WebAuthnFactor:
         self.user_handle = base64.b64decode(user_handle)
         self.credential_id = base64.b64decode(credential_id)
         self.public_key = base64.b64decode(public_key)
+
+
+@dataclasses.dataclass
+class WebAuthnAuthenticationChallenge:
+    id: str
+    created_at: datetime.datetime
+    modified_at: datetime.datetime
+    challenge: bytes
+    factor: WebAuthnFactor
+
+    def __init__(self, *, id, created_at, modified_at, challenge, factor):
+        self.id = id
+        self.created_at = created_at
+        self.modified_at = modified_at
+        self.challenge = base64.b64decode(challenge)
+        self.factor = (
+            WebAuthnFactor(**factor) if isinstance(factor, dict) else factor
+        )

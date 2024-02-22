@@ -51,6 +51,7 @@ from . import (
     config,
     email as auth_emails,
     webauthn,
+    magic_link,
 )
 
 
@@ -106,6 +107,14 @@ class Router:
                     return await self.handle_send_reset_email(*handler_args)
                 case ('reset-password',):
                     return await self.handle_reset_password(*handler_args)
+                case ('magic-link', 'register'):
+                    return await self.handle_magic_link_register(*handler_args)
+                case ('magic-link', 'email'):
+                    return await self.handle_magic_link_email(*handler_args)
+                case ('magic-link', 'authenticate'):
+                    return await self.handle_magic_link_authenticate(
+                        *handler_args
+                    )
 
                 # WebAuthn routes
                 case ('webauthn', 'register'):
@@ -114,6 +123,15 @@ class Router:
                     return await self.handle_webauthn_register_options(
                         *handler_args
                     )
+                case ('webauthn', 'authenticate'):
+                    return await self.handle_webauthn_authenticate(
+                        *handler_args
+                    )
+                case ('webauthn', 'authenticate', 'options'):
+                    return await self.handle_webauthn_authenticate_options(
+                        *handler_args
+                    )
+
                 # UI routes
                 case ('ui', 'signin'):
                     return await self.handle_ui_signin(*handler_args)
@@ -129,6 +147,8 @@ class Router:
                     return await self.handle_ui_resend_verification(
                         *handler_args
                     )
+                case ("ui", "magic-link-sent"):
+                    return await self.handle_ui_magic_link_sent(*handler_args)
                 case ('ui', '_static', filename):
                     filepath = os.path.join(
                         os.path.dirname(__file__), '_static', filename
@@ -296,7 +316,7 @@ class Router:
             }
             if error_description is not None:
                 params["error_description"] = error_description
-            response.custom_headers["Location"] = _join_url_params(
+            response.custom_headers["Location"] = util.join_url_params(
                 redirect_to, params
             )
             response.status = http.HTTPStatus.FOUND
@@ -348,7 +368,7 @@ class Router:
                 auth_token=auth_token,
                 refresh_token=refresh_token,
             )
-        new_url = _join_url_params(
+        new_url = util.join_url_params(
             (
                 (redirect_to_on_signup or redirect_to)
                 if new_identity
@@ -460,7 +480,7 @@ class Router:
                         "provider": register_provider_name,
                     }
                 )
-                response.custom_headers["Location"] = _join_url_params(
+                response.custom_headers["Location"] = util.join_url_params(
                     maybe_redirect_to, redirect_params
                 )
             else:
@@ -486,7 +506,7 @@ class Router:
                     "error": str(ex),
                     "email": data.get('email', ''),
                 }
-                response.custom_headers["Location"] = _join_url_params(
+                response.custom_headers["Location"] = util.join_url_params(
                     redirect_on_failure, redirect_params
                 )
             else:
@@ -533,7 +553,7 @@ class Router:
                 redirect_params = {
                     "code": pkce_code,
                 }
-                response.custom_headers["Location"] = _join_url_params(
+                response.custom_headers["Location"] = util.join_url_params(
                     maybe_redirect_to, redirect_params
                 )
             else:
@@ -558,7 +578,7 @@ class Router:
                     "error": str(ex),
                     "email": data.get('email', ''),
                 }
-                response.custom_headers["Location"] = _join_url_params(
+                response.custom_headers["Location"] = util.join_url_params(
                     redirect_on_failure, redirect_params
                 )
             else:
@@ -705,7 +725,7 @@ class Router:
                 )
 
                 reset_token_params = {"reset_token": new_reset_token}
-                reset_url = _join_url_params(
+                reset_url = util.join_url_params(
                     data['reset_url'], reset_token_params
                 )
 
@@ -725,7 +745,7 @@ class Router:
 
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
-                response.custom_headers["Location"] = _join_url_params(
+                response.custom_headers["Location"] = util.join_url_params(
                     maybe_redirect_to, return_data
                 )
             else:
@@ -753,7 +773,7 @@ class Router:
                     "error": str(ex),
                     "email": data.get('email', ''),
                 }
-                response.custom_headers["Location"] = _join_url_params(
+                response.custom_headers["Location"] = util.join_url_params(
                     redirect_on_failure, redirect_params
                 )
             else:
@@ -788,7 +808,7 @@ class Router:
 
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
-                response.custom_headers["Location"] = _join_url_params(
+                response.custom_headers["Location"] = util.join_url_params(
                     maybe_redirect_to, {"code": code}
                 )
             else:
@@ -809,11 +829,224 @@ class Router:
                     "error": str(ex),
                     "reset_token": data.get('reset_token', ''),
                 }
-                response.custom_headers["Location"] = _join_url_params(
+                response.custom_headers["Location"] = util.join_url_params(
                     redirect_on_failure, redirect_params
                 )
             else:
                 raise ex
+
+    async def handle_magic_link_register(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(
+            data,
+            {
+                "provider",
+                "email",
+                "challenge",
+                "callback_url",
+                "redirect_on_failure",
+            },
+        )
+
+        email = data["email"]
+        challenge = data["challenge"]
+        callback_url = data["callback_url"]
+        redirect_on_failure = data["redirect_on_failure"]
+        if not self._is_url_allowed(callback_url):
+            raise errors.InvalidData(
+                "Callback URL does not match any allowed URLs.",
+            )
+        if not self._is_url_allowed(redirect_on_failure):
+            raise errors.InvalidData(
+                "Error redirect URL does not match any allowed URLs.",
+            )
+        maybe_redirect_to = data.get("redirect_to")
+        if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
+            raise errors.InvalidData(
+                "Redirect URL does not match any allowed URLs.",
+            )
+        magic_link_client = magic_link.Client(
+            db=self.db,
+            issuer=self.base_path,
+            tenant=self.tenant,
+            test_mode=self.test_mode,
+        )
+        try:
+            await magic_link_client.register(
+                email=email,
+            )
+            await magic_link_client.send_magic_link(
+                email=email,
+                callback_url=callback_url,
+                link_url=f"{self.base_path}/magic-link/authenticate",
+                challenge=challenge,
+                redirect_on_failure=redirect_on_failure,
+            )
+
+            return_data = {
+                "email_sent": email,
+            }
+
+            if maybe_redirect_to:
+                response.status = http.HTTPStatus.FOUND
+                response.custom_headers["Location"] = util.join_url_params(
+                    maybe_redirect_to, return_data
+                )
+            else:
+                response.status = http.HTTPStatus.OK
+                response.content_type = b"application/json"
+                response.body = json.dumps(return_data).encode()
+        except Exception as ex:
+            redirect_on_failure = data.get(
+                "redirect_on_failure", maybe_redirect_to
+            )
+            if redirect_on_failure is None:
+                raise ex
+            else:
+                if not self._is_url_allowed(redirect_on_failure):
+                    raise errors.InvalidData(
+                        "Redirect URL does not match any allowed URLs.",
+                    )
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = {
+                    "error": str(ex),
+                    "email": data.get('email', ''),
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    redirect_on_failure, redirect_params
+                )
+
+    async def handle_magic_link_email(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        maybe_redirect_to = data.get("redirect_to")
+
+        try:
+            _check_keyset(
+                data,
+                {
+                    "provider",
+                    "email",
+                    "challenge",
+                    "callback_url",
+                    "redirect_on_failure",
+                },
+            )
+
+            email = data["email"]
+            challenge = data["challenge"]
+            callback_url = data["callback_url"]
+            redirect_on_failure = data["redirect_on_failure"]
+            if not self._is_url_allowed(callback_url):
+                raise errors.InvalidData(
+                    "Callback URL does not match any allowed URLs.",
+                )
+            if not self._is_url_allowed(redirect_on_failure):
+                raise errors.InvalidData(
+                    "Error redirect URL does not match any allowed URLs.",
+                )
+
+            if (
+                maybe_redirect_to and
+                not self._is_url_allowed(maybe_redirect_to)
+            ):
+                raise errors.InvalidData(
+                    "Redirect URL does not match any allowed URLs.",
+                )
+            magic_link_client = magic_link.Client(
+                db=self.db,
+                issuer=self.base_path,
+                tenant=self.tenant,
+                test_mode=self.test_mode,
+            )
+            await magic_link_client.send_magic_link(
+                email=email,
+                callback_url=callback_url,
+                link_url=f"{self.base_path}/magic-link/authenticate",
+                challenge=challenge,
+                redirect_on_failure=redirect_on_failure,
+            )
+
+            return_data = {
+                "email_sent": email,
+            }
+
+            if maybe_redirect_to:
+                response.status = http.HTTPStatus.FOUND
+                response.custom_headers["Location"] = util.join_url_params(
+                    maybe_redirect_to, return_data
+                )
+            else:
+                response.status = http.HTTPStatus.OK
+                response.content_type = b"application/json"
+                response.body = json.dumps(return_data).encode()
+        except Exception as ex:
+            redirect_on_failure = data.get(
+                "redirect_on_failure", maybe_redirect_to
+            )
+            if redirect_on_failure is None:
+                raise ex
+            else:
+                if not self._is_url_allowed(redirect_on_failure):
+                    raise errors.InvalidData(
+                        "Redirect URL does not match any allowed URLs.",
+                    )
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = {
+                    "error": str(ex),
+                    "email": data.get('email', ''),
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    redirect_on_failure, redirect_params
+                )
+
+    async def handle_magic_link_authenticate(self, request: Any, response: Any):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        token = _get_search_param(query, "token")
+
+        try:
+            (identity_id, challenge, callback_url) = (
+                self._get_data_from_magic_link_token(token)
+            )
+            await pkce.create(self.db, challenge)
+            code = await pkce.link_identity_challenge(
+                self.db, identity_id, challenge
+            )
+            local_client = magic_link.Client(
+                db=self.db,
+                tenant=self.tenant,
+                test_mode=self.test_mode,
+                issuer=self.base_path,
+            )
+            await local_client.verify_email(
+                identity_id, datetime.datetime.now(datetime.timezone.utc)
+            )
+
+            response.status = http.HTTPStatus.FOUND
+            response.custom_headers["Location"] = util.join_url_params(
+                callback_url, {"code": code}
+            )
+        except Exception as ex:
+            redirect_on_failure = _maybe_get_search_param(
+                query, "redirect_on_failure"
+            )
+            if redirect_on_failure is None:
+                raise ex
+            else:
+                if not self._is_url_allowed(redirect_on_failure):
+                    raise errors.InvalidData(
+                        "Redirect URL does not match any allowed URLs.",
+                    )
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = {
+                    "error": str(ex),
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    redirect_on_failure, redirect_params
+                )
 
     async def handle_webauthn_register_options(
         self, request: Any, response: Any
@@ -915,6 +1148,98 @@ class Router:
                 {"code": pkce_code, "provider": provider_name}
             ).encode()
 
+    async def handle_webauthn_authenticate_options(
+        self, request: Any, response: Any
+    ):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        email = _get_search_param(query, "email")
+        webauthn_provider = self._get_webauthn_provider()
+        if webauthn_provider is None:
+            raise errors.MissingConfiguration(
+                "ext::auth::AuthConfig::providers",
+                "WebAuthn provider is not configured",
+            )
+        webauthn_client = webauthn.Client(self.db)
+
+        (user_handle, registration_options) = (
+            await webauthn_client.create_authentication_options_for_email(
+                email=email, webauthn_provider=webauthn_provider
+            )
+        )
+
+        _set_cookie(
+            response,
+            "edgedb-webauthn-authentication-user-handle",
+            user_handle,
+            path="/",
+        )
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"application/json"
+        response.body = registration_options
+
+    async def handle_webauthn_authenticate(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(
+            data,
+            {"challenge", "email", "assertion"},
+        )
+        webauthn_client = webauthn.Client(self.db)
+
+        email: str = data["email"]
+        assertion: str = data["assertion"]
+        pkce_challenge: str = data["challenge"]
+
+        user_handle_cookie = request.cookies.get(
+            "edgedb-webauthn-authentication-user-handle"
+        ).value
+        if user_handle_cookie is None:
+            raise errors.InvalidData(
+                "Missing 'edgedb-webauthn-authentication-user-handle' cookie"
+            )
+        try:
+            user_handle = base64.urlsafe_b64decode(user_handle_cookie)
+        except Exception as e:
+            raise errors.InvalidData(
+                "Failed to decode 'edgedb-webauthn-authentication-user-handle'"
+                " cookie"
+            ) from e
+
+        identity = await webauthn_client.authenticate(
+            assertion=assertion,
+            email=email,
+            user_handle=user_handle,
+        )
+
+        require_verification = webauthn_client.provider.require_verification
+        if require_verification:
+            email_is_verified = await webauthn_client.is_email_verified(
+                email, assertion
+            )
+            if not email_is_verified:
+                raise errors.VerificationRequired()
+
+        await pkce.create(self.db, pkce_challenge)
+        code = await pkce.link_identity_challenge(
+            self.db, identity.id, pkce_challenge
+        )
+
+        _set_cookie(
+            response,
+            "edgedb-webauthn-authentication-user-handle",
+            "",
+            path="/",
+        )
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"application/json"
+        response.body = json.dumps(
+            {
+                "code": code,
+            }
+        ).encode()
+
     async def handle_ui_signin(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
 
@@ -950,7 +1275,7 @@ class Router:
 
             response.status = http.HTTPStatus.OK
             response.content_type = b'text/html'
-            response.body = ui.render_login_page(
+            response.body = ui.render_signin_page(
                 base_path=self.base_path,
                 providers=providers,
                 redirect_to=ui_config.redirect_to,
@@ -958,6 +1283,7 @@ class Router:
                 error_message=_maybe_get_search_param(query, 'error'),
                 email=_maybe_get_search_param(query, 'email'),
                 challenge=maybe_challenge,
+                selected_tab=_maybe_get_search_param(query, 'selected_tab'),
                 app_name=app_details_config.app_name,
                 logo_url=app_details_config.logo_url,
                 dark_logo_url=app_details_config.dark_logo_url,
@@ -1006,6 +1332,7 @@ class Router:
                 error_message=_maybe_get_search_param(query, 'error'),
                 email=_maybe_get_search_param(query, 'email'),
                 challenge=maybe_challenge,
+                selected_tab=_maybe_get_search_param(query, 'selected_tab'),
                 app_name=app_details_config.app_name,
                 logo_url=app_details_config.logo_url,
                 dark_logo_url=app_details_config.dark_logo_url,
@@ -1279,6 +1606,21 @@ class Router:
             brand_color=app_details_config.brand_color,
         )
 
+    async def handle_ui_magic_link_sent(self, request: Any, response: Any):
+        """
+        Success page for when a magic link is sent
+        """
+
+        app_details = self._get_app_details_config()
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"text/html"
+        response.body = ui.render_magic_link_sent_page(
+            app_name=app_details.app_name,
+            logo_url=app_details.logo_url,
+            dark_logo_url=app_details.dark_logo_url,
+            brand_color=app_details.brand_color,
+        )
+
     def _get_callback_url(self) -> str:
         return f"{self.base_path}/callback"
 
@@ -1366,22 +1708,16 @@ class Router:
         expires_in = (
             datetime.timedelta(minutes=10) if expires_in is None else expires_in
         )
-        expires_at = datetime.datetime.now(datetime.timezone.utc) + expires_in
-
-        claims: dict[str, Any] = {
-            "iss": self.base_path,
-            "sub": identity_id,
-            "jti": secret,
-            **(additional_claims or {}),
-        }
-        if expires_in.total_seconds() != 0:
-            claims["exp"] = expires_at.timestamp()
-        session_token = jwt.JWT(
-            header={"alg": "HS256"},
-            claims=claims,
+        return util.make_token(
+            signing_key=signing_key,
+            subject=identity_id,
+            issuer=self.base_path,
+            expires_in=expires_in,
+            additional_claims={
+                "jti": secret,
+                **(additional_claims or {}),
+            },
         )
-        session_token.make_signed_token(signing_key)
-        return session_token.serialize()
 
     def _verify_and_extract_claims(
         self, jwtStr: str
@@ -1389,6 +1725,20 @@ class Router:
         signing_key = self._get_auth_signing_key()
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
+
+    def _get_data_from_magic_link_token(self, token: str):
+        try:
+            claims = self._verify_and_extract_claims(token)
+        except Exception:
+            raise errors.InvalidData("Invalid 'magic_link_token'")
+
+        identity_id = cast(Optional[str], claims.get('sub'))
+        challenge = cast(Optional[str], claims.get('challenge'))
+        callback_url = cast(Optional[str], claims.get('callback_url'))
+        if identity_id is None or challenge is None or callback_url is None:
+            raise errors.InvalidData("Invalid 'magic_link_token'")
+
+        return (identity_id, challenge, callback_url)
 
     def _get_data_from_reset_token(self, token: str) -> Tuple[str, str, str]:
         try:
@@ -1719,15 +2069,5 @@ def _check_keyset(candidate: dict[str, Any], keyset: set[str]):
     missing_fields = [field for field in keyset if field not in candidate]
     if missing_fields:
         raise errors.InvalidData(
-            "Missing required fields: " ", ".join(missing_fields)
+            f"Missing required fields: {', '.join(missing_fields)}"
         )
-
-
-def _join_url_params(url: str, params: dict[str, str]):
-    parsed_url = urllib.parse.urlparse(url)
-    query_params = {
-        **urllib.parse.parse_qs(parsed_url.query),
-        **{key: [val] for key, val in params.items()},
-    }
-    new_query_params = urllib.parse.urlencode(query_params, doseq=True)
-    return parsed_url._replace(query=new_query_params).geturl()

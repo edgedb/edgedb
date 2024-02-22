@@ -51,7 +51,7 @@ class Source:
         tokens: List[ql_parser.Token],
         serialized: bytes,
     ) -> None:
-        self._cache_key = hashlib.blake2b(text.encode('utf-8')).digest()
+        self._cache_key = hashlib.blake2b(serialized).digest()
         self._text = text
         self._tokens = tokens
         self._serialized = serialized
