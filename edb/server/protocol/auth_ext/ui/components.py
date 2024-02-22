@@ -169,7 +169,7 @@ def _oauth_button(
 
 
 def button(
-    text: str,
+    text: Optional[str],
     *,
     id: Optional[str] = None,
     secondary: Optional[bool] = False,
@@ -189,7 +189,7 @@ def button(
 
     return f'''
       <button {attrs}>
-        {f'<span>{text}</span>' if text is not None else ''}
+        {f'<span>{text}</span>' if text else ''}
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="24"
@@ -412,7 +412,9 @@ def base_default_email(
                               <tr>
                                 <td style="width: 150px">
                                   <img
-                                    alt="{f'{app_name} logo' if app_name else ''}"
+                                    alt="
+                                      {f'{app_name} logo' if app_name else ''}
+                                    "
                                     height="150"
                                     src="{logo_url}"
                                     style="
@@ -442,7 +444,7 @@ def base_default_email(
         </table>
       </div>
       <!--[if mso | IE]></td></tr></table><table align="center" border="0" cellpadding="0" cellspacing="0" class="" style="width:600px;" width="600" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-""" if logo_url else ""
+""" if logo_url else "" # noqa: E501
 
     return f"""
 <!doctype html>
@@ -599,4 +601,4 @@ def base_default_email(
     </div>
   </body>
 </html>
-"""
+""" # noqa: E501

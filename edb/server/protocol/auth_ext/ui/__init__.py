@@ -897,7 +897,7 @@ email address:
     </div>
   </td>
 </tr>
-    """
+    """ # noqa: E501
     html_msg = mime_text.MIMEText(
         render.base_default_email(
             app_name=app_name,
@@ -924,7 +924,9 @@ def render_verification_email(
     msg = multipart.MIMEMultipart()
     msg["From"] = from_addr
     msg["To"] = to_addr
-    msg["Subject"] = f"Verify your email{f' for {app_name}' if app_name else ''}"
+    msg["Subject"] = (
+        f"Verify your email{f' for {app_name}' if app_name else ''}"
+    )
     alternative = multipart.MIMEMultipart('alternative')
     plain_text_msg = mime_text.MIMEText(
         f"""
