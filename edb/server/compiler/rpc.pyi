@@ -70,6 +70,11 @@ class CompilationRequest:
     ) -> CompilationRequest:
         ...
 
+    def set_database_config(
+            self, value: typing.Mapping[str, config.SettingValue] | None
+    ) -> CompilationRequest:
+        ...
+
     def set_system_config(
         self, value: typing.Mapping[str, config.SettingValue] | None
     ) -> CompilationRequest:

@@ -38,6 +38,7 @@ cdef class CompilationRequest:
 
         readonly object modaliases
         readonly object session_config
+        object database_config
         object system_config
 
         bytes serialized_cache

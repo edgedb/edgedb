@@ -830,6 +830,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         query_req, allow_capabilities = self.parse_execute_request()
         query_req.set_modaliases(_dbview.get_modaliases())
         query_req.set_session_config(_dbview.get_session_config())
+        query_req.set_database_config(_dbview.get_database_config())
         query_req.set_system_config(_dbview.get_compilation_system_config())
         compiled = await self._parse(query_req, allow_capabilities)
         units = compiled.query_unit_group
@@ -873,6 +874,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         args = self.buffer.read_len_prefixed_bytes()
         query_req.set_modaliases(_dbview.get_modaliases())
         query_req.set_session_config(_dbview.get_session_config())
+        query_req.set_database_config(_dbview.get_database_config())
         query_req.set_system_config(_dbview.get_compilation_system_config())
         self.buffer.finish_message()
 
