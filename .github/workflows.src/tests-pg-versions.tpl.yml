@@ -57,10 +57,16 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --name postgres
         ports:
           - 5432:5432
 
     steps:
+    - name: Trust pgvector extension
+      uses: docker://docker
+      with:
+        args: docker exec postgres sed -i $a\trusted=true /usr/share/postgresql/${{ matrix.postgres-version }}/extension/vector.control
+
     <<- restore_cache() >>
 
     # Run the test
