@@ -176,6 +176,8 @@ class flags(metaclass=FlagsMeta):
 
     zombodb = Flag(doc="Enabled zombodb and disables postgres FTS")
 
+    func_cache = Flag(doc="Use stored functions for persistent cache")
+
 
 @contextlib.contextmanager
 def timeit(title='block'):
