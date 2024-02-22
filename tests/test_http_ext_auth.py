@@ -2919,7 +2919,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(email_args["recipients"], form_data["email"])
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
-            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
             assert match is not None
             verify_url = urllib.parse.urlparse(match.group(1))
             search_params = urllib.parse.parse_qs(verify_url.query)
@@ -3162,8 +3164,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(email_args["recipients"], form_data["email"])
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
-            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
-            self.assertIsNotNone(match)
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
+            assert match is not None
             reset_url = match.group(1)
             self.assertTrue(
                 reset_url.startswith(form_data['reset_url'] + '?reset_token=')
@@ -3340,8 +3344,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(email_args["recipients"], form_data["email"])
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
-            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
-            self.assertIsNotNone(match)
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
+            assert match is not None
             reset_url = match.group(1)
             self.assertTrue(
                 reset_url.startswith(form_data['reset_url'] + '?reset_token=')
@@ -3805,7 +3811,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(email_args["recipients"], email)
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
-            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
             assert match is not None
             verify_url = urllib.parse.urlparse(match.group(1))
             search_params = urllib.parse.parse_qs(verify_url.query)
