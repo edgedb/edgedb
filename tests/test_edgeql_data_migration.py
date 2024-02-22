@@ -12098,8 +12098,6 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     async def test_edgeql_migration_extension_01(self):
         # Test migrations getting from an array in integers to vector and then
         # revert to an array of floats.
-        if not self.is_superuser:
-            self.skipTest('the backend is not running with superuser')
 
         await self.migrate('''
             module default {
