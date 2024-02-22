@@ -3344,9 +3344,6 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.fast_forward_describe_migration()
 
     async def test_edgeql_migration_vector_change_01(self):
-        if not self.is_superuser:
-            self.skipTest('the backend is not running with superuser')
-
         await self.migrate('''
             using extension pgvector;
             module default {
