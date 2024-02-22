@@ -697,6 +697,23 @@ class UnionTypeShell(TypeExprShell[TypeT_co]):
         return f'<{type(self).__name__} {dn}({comps}) at 0x{id(self):x}>'
 
 
+class AlterType(sd.AlterObject[TypeT]):
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.scls.get_from_alias(schema):
+            # This is a nested view type, e.g
+            # __FooAlias_bar produced by  FooAlias := (SELECT Foo { bar: ... })
+            # and should obviously not appear as a top level definition.
+            return None
+        else:
+            return super()._get_ast(schema, context, parent_node=parent_node)
+
 class RenameType(sd.RenameObject[TypeT]):
 
     def _canonicalize(
@@ -3109,6 +3126,7 @@ class CreateCollectionType(
 
 class AlterCollectionType(
     CollectionTypeCommand[CollectionTypeT],
+    AlterType[CollectionTypeT],
     sd.AlterObject[CollectionTypeT],
 ):
     pass

@@ -577,6 +577,7 @@ class RebaseObjectType(
 
 
 class AlterObjectType(ObjectTypeCommand,
+                      s_types.AlterType[ObjectType],
                       inheriting.AlterInheritingObject[ObjectType]):
     astnode = qlast.AlterObjectType
 

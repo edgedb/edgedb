@@ -145,8 +145,10 @@ class AliasLikeCommand(
         cmd.add(wipe_created_types)
 
         for dep_type in created:
+            if_unused = isinstance(dep_type, s_types.Collection)
+
             drop_dep = dep_type.init_delta_command(
-                schema, sd.DeleteObject, if_exists=True
+                schema, sd.DeleteObject, if_exists=True, if_unused=if_unused
             )
             subcmds = drop_dep._canonicalize(schema, context, dep_type)
             drop_dep.update(subcmds)
@@ -514,10 +516,14 @@ def define_alias(
             new_schema, 'builtin', False
         )
         
+        # if isinstance(ty, s_types.Collection):
+        #     derived_delta.add(
+                # ty.as_shell(schema).as_create_delta(schema=new_schema)
+        #     )
+        # else:
         derived_delta.add(
             ty.as_create_delta(
-                schema=new_schema,
-                context=so.ComparisonContext()
+                schema=new_schema, context=so.ComparisonContext()
             )
         )
 
