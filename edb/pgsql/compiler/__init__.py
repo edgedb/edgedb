@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, Mapping, Dict
+from typing import Optional, Tuple, Mapping, Dict, List
 from dataclasses import dataclass
 
 from edb import errors

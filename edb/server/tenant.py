@@ -22,6 +22,7 @@ from typing import (
     Callable,
     Tuple,
     Iterator,
+    Iterable,
     Mapping,
     Coroutine,
     AsyncGenerator,
