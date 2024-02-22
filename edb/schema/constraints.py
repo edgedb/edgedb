@@ -176,18 +176,45 @@ class Constraint(
             return [self.get_nearest_generic_parent(schema)]
 
     def get_constraint_origins(
-            self, schema: s_schema.Schema) -> List[Constraint]:
-        origins: List[Constraint] = []
-        for base in self.get_bases(schema).objects(schema):
-            if not base.is_non_concrete(schema) and not base.get_delegated(
-                schema
-            ):
-                origins.extend(
-                    x for x in base.get_constraint_origins(schema)
-                    if x not in origins
-                )
+        self, schema: s_schema.Schema
+    ) -> List[Constraint]:
+        """
+        Origins of a constraint are the constraints that should actually perform
+        validation on their subjects.
 
-        return [self] if not origins else origins
+        Example:
+        If we have `Baz <: Bar <: Foo` and `Foo` declares some exclusive
+        constraint, this constraint will be inherited by `Bar` and then `Baz`.
+        But this inherited constraint on `Baz` should not validate exclusivity
+        of the property within just `Baz`, but within all `Foo` objects.
+        That's why origin of the constraint on `Baz` and on `Bar` is the
+        constraint on `Foo`.
+
+        Determining which type is that is non-trivial because of:
+        - multiple inheritance
+          (constraint might originate from multiple unrelated ancestors)
+        - delegated exclusive constraints, which are defined on a parent, but
+          should be exclusive within each of the children.
+
+        We validate constraints using triggers, and this function helps drive
+        their generation.
+        """
+
+        # collect origins from all ancestors
+        origins: Set[Constraint] = set()
+        for base in self.get_bases(schema).objects(schema):
+            # abstract bases are not an origin
+            if base.is_non_concrete(schema):
+                continue
+            # delegated bases are not an origin
+            if base.get_delegated(schema):
+                continue
+
+            # recurse
+            origins.update(base.get_constraint_origins(schema))
+
+        # if no ancestors have an origin, I am the origin
+        return [self] if not origins else list(origins)
 
     def is_independent(self, schema: s_schema.Schema) -> bool:
         return (
