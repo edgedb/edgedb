@@ -18,7 +18,24 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    Iterable,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    Set,
+    FrozenSet,
+    cast,
+    TYPE_CHECKING,
+)
 
 import collections
 import decimal

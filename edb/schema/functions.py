@@ -22,7 +22,22 @@ from __future__ import annotations
 import abc
 import types
 import uuid
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    Iterable,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    Set,
+    cast,
+    TYPE_CHECKING,
+)
 
 from edb import errors
 

@@ -105,7 +105,7 @@ class SingleStatement(Nonterm):
 
 class StatementBlock(
     parsing.ListNonterm, element=SingleStatement, separator=commondl.Semicolons
-):  # NOQA, Semicolons are from .ddl
+):
     pass
 
 

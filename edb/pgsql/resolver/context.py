@@ -19,7 +19,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import *
+from typing import Optional, Sequence, List
 from dataclasses import dataclass, field
 import enum
 import uuid

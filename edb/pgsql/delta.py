@@ -18,7 +18,20 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    AbstractSet,
+    Iterable,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    cast,
+    TYPE_CHECKING,
+)
 from copy import copy
 
 import collections.abc
@@ -3875,7 +3888,7 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         # schema is in place.
         if not (
             is_cfg_view(scls, eff_schema)
-            and not scls.get_name(eff_schema).module in VIEW_MODULES
+            and scls.get_name(eff_schema).module not in VIEW_MODULES
         ):
             return
 

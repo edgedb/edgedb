@@ -18,7 +18,20 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    TypeVar,
+    Iterable,
+    Iterator,
+    Mapping,
+    MutableSet,
+    Dict,
+    TYPE_CHECKING,
+)
 
 from collections import defaultdict
 

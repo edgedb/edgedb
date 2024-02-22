@@ -18,8 +18,19 @@
 
 
 from __future__ import annotations
-from typing import *
-from typing import overload
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    Dict,
+    List,
+    cast,
+    overload,
+    TYPE_CHECKING,
+)
 
 from edb import edgeql
 from edb import errors

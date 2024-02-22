@@ -20,7 +20,16 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    Iterator,
+    Mapping,
+    Sequence,
+    TYPE_CHECKING,
+)
 
 import asyncio
 import collections

@@ -1,4 +1,3 @@
-# flake8: noqa: e126, e121, e127, e128
 #
 # This source file is part of the EdgeDB open source project.
 #

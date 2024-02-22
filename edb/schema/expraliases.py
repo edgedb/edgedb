@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Tuple, Dict, List, TYPE_CHECKING
 
 from edb import errors
 from edb.common import parsing
@@ -535,7 +535,6 @@ def define_alias(
     is_global: bool,
     parser_context: Optional[parsing.ParserContext] = None,
 ) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type]]:
-    from edb.ir import ast as irast
     from . import ordering as s_ordering
 
     ir = expr.irast

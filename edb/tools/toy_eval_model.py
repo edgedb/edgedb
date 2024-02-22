@@ -49,13 +49,23 @@ against the real DB.
 
 from __future__ import annotations
 
-from pathlib import Path
-import sys
-EDB_DIR = Path(__file__).parent.parent.parent.resolve()
-sys.path.insert(0, str(EDB_DIR))
-
-from typing import *
-
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Protocol,
+    Tuple,
+    TypeVar,
+    Union,
+    Iterable,
+    Iterator,
+    Sequence,
+    Collection,
+    Dict,
+    List,
+    Set,
+    NamedTuple,
+)
 
 from edb.common import debug
 from edb.common.compiler import SimpleCounter
@@ -66,7 +76,6 @@ from edb.common.compiler import AliasGenerator
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 from edb.edgeql import desugar_group
-
 
 from dataclasses import dataclass, replace, field
 from collections import defaultdict
@@ -82,6 +91,11 @@ import random
 import statistics
 import traceback
 import uuid
+import sys
+from pathlib import Path
+
+EDB_DIR = Path(__file__).parent.parent.parent.resolve()
+sys.path.insert(0, str(EDB_DIR))
 
 
 DESUGARING_GROUP = True

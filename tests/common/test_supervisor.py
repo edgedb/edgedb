@@ -94,7 +94,7 @@ class TestSupervisor(tb.TestCase):
 
         async def foo1():
             await asyncio.sleep(0.1)
-            1 / 0
+            return 1 / 0
 
         async def foo2():
             nonlocal NUM, t2_cancel

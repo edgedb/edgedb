@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Tuple, Mapping, NamedTuple
 
 import asyncio
 import http

@@ -18,7 +18,17 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Callable,
+    Optional,
+    Tuple,
+    Iterable,
+    Mapping,
+    Dict,
+    List,
+    cast,
+    TYPE_CHECKING,
+)
 
 from collections import defaultdict
 import itertools

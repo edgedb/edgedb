@@ -19,8 +19,27 @@
 
 from __future__ import annotations
 
-from typing import *
-from typing import overload
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    Iterable,
+    Iterator,
+    Mapping,
+    Dict,
+    List,
+    Set,
+    FrozenSet,
+    cast,
+    NoReturn,
+    overload,
+    TYPE_CHECKING,
+)
 
 import abc
 import collections

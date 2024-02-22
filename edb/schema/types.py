@@ -45,8 +45,6 @@ from . import schema as s_schema
 from . import utils
 
 if typing.TYPE_CHECKING:
-    # We cannot use `from typing import *` in this file due to name conflict
-    # with local Tuple and Type classes.
     from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional
     from typing import AbstractSet, Sequence, Union, Callable
     from edb.common import parsing

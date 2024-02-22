@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import re
-from typing import *
+from typing import Dict
 
 import edb._edgeql_parser as ql_parser
 

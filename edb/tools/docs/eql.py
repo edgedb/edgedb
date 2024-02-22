@@ -208,7 +208,7 @@ import lxml.etree
 import pygments.lexers
 import pygments.lexers.special
 
-from typing import *
+from typing import Any, Dict
 
 from edb.common import debug
 

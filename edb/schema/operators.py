@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Any, Optional, Type, TYPE_CHECKING
 
 from edb import errors
 from edb.common import checked

@@ -18,7 +18,18 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Union,
+    Mapping,
+    Sequence,
+    List,
+    NamedTuple,
+    TypedDict,
+    cast,
+)
 
 # DO NOT put any imports here other than from stdlib
 # or modules from edb.common that themselves have only stdlib imports.

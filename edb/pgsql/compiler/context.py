@@ -20,7 +20,20 @@
 """IR compiler context."""
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Callable,
+    Optional,
+    Tuple,
+    Union,
+    Mapping,
+    ChainMap,
+    Dict,
+    List,
+    Set,
+    FrozenSet,
+    Generator,
+    TYPE_CHECKING,
+)
 
 import collections
 import contextlib

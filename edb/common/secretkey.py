@@ -17,7 +17,7 @@
 #
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, AbstractSet, Iterable
 
 import pathlib
 import uuid

@@ -17,7 +17,7 @@
 #
 
 
-from typing import *
+from typing import List
 
 import json
 import urllib

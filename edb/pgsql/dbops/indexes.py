@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 import textwrap
-from typing import *
+from typing import Any, Tuple, Iterable, Dict, List
 
 from edb.common import ordered
 

@@ -21,7 +21,17 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    Dict,
+    List,
+    FrozenSet,
+)
 
 import dataclasses
 import decimal

@@ -21,7 +21,20 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Callable,
+    Final,
+    Optional,
+    Protocol,
+    Tuple,
+    Union,
+    Iterable,
+    Sequence,
+    Dict,
+    List,
+    cast,
+    TYPE_CHECKING,
+)
 
 from edb import errors
 from edb.common import parsing

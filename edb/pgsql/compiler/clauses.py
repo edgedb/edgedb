@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Optional, Union, Sequence, List
 
 import random
 

@@ -18,7 +18,16 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    TypeVar,
+    Hashable,
+    Iterable,
+    Iterator,
+    MutableSet,
+    Dict,
+)
 
 import collections
 import collections.abc

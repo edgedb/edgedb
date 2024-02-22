@@ -17,8 +17,28 @@
 #
 
 from __future__ import annotations
-from typing import *
-from typing import overload
+from typing import (
+    Any,
+    ClassVar,
+    Generic,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    AbstractSet,
+    Iterable,
+    Iterator,
+    MutableMapping,
+    MutableSequence,
+    MutableSet,
+    Sequence,
+    Dict,
+    List,
+    Set,
+    cast,
+    overload,
+)
 
 import collections.abc
 import itertools

@@ -18,7 +18,30 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Final,
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    Iterable,
+    Iterator,
+    Mapping,
+    Collection,
+    Dict,
+    List,
+    Set,
+    FrozenSet,
+    NamedTuple,
+    cast,
+    TYPE_CHECKING,
+)
 
 import builtins
 import collections

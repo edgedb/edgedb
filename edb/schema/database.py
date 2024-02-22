@@ -33,7 +33,7 @@ from . import delta as sd
 from . import objects as so
 from . import schema as s_schema
 
-from typing import *
+from typing import cast
 
 
 class Database(

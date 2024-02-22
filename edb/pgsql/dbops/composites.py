@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Iterable, Sequence
 
 from edb.common import ordered
 

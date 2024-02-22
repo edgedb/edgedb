@@ -20,7 +20,7 @@
 """Implementation of DESCRIBE ... CONFIG"""
 
 from __future__ import annotations
-from typing import *
+from typing import Dict, List
 
 import textwrap
 

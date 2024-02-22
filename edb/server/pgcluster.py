@@ -17,7 +17,21 @@
 """PostgreSQL cluster management."""
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    Iterable,
+    Mapping,
+    Sequence,
+    Coroutine,
+    Dict,
+    List,
+    cast,
+    TYPE_CHECKING,
+)
 
 import asyncio
 import functools

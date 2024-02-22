@@ -21,7 +21,18 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Callable,
+    Optional,
+    Tuple,
+    Union,
+    AbstractSet,
+    Iterable,
+    Sequence,
+    List,
+    Set,
+    NamedTuple,
+)
 
 import uuid
 

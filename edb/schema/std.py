@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import pathlib
-from typing import *
+from typing import Tuple
 
 from edb import lib as stdlib
 from edb import errors

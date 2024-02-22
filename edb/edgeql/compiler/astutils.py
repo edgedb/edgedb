@@ -21,7 +21,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Tuple, Dict, List
 
 from edb.common import ast
 from edb.common import view_patterns

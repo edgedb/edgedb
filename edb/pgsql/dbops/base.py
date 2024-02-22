@@ -18,7 +18,18 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Final,
+    Optional,
+    Tuple,
+    Union,
+    Iterable,
+    Mapping,
+    Sequence,
+    List,
+    Set,
+)
 
 import collections
 import enum

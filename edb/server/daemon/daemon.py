@@ -20,7 +20,7 @@
 """Implementation of PEP 3143."""
 
 from __future__ import annotations
-from typing import *
+from typing import Optional
 
 import atexit
 import io

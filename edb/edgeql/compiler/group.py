@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Any, Optional, Sequence, Dict, Set, FrozenSet
 
 from edb.common import ast as ast_visitor
 

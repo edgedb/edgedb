@@ -24,7 +24,19 @@ import collections.abc
 import functools
 import re
 import sys
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    TypeVar,
+    Dict,
+    List,
+    Set,
+    FrozenSet,
+    cast,
+    get_type_hints,
+    TYPE_CHECKING,
+    AbstractSet  # NoQA
+)
 
 from edb.common import debug
 from edb.common import markup

@@ -22,7 +22,16 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Union,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    FrozenSet,
+)
 
 from edb import errors
 

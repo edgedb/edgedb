@@ -22,7 +22,24 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Final,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    AbstractSet,
+    ContextManager,
+    Iterable,
+    Iterator,
+    Sequence,
+    List,
+    NoReturn,
+    TYPE_CHECKING,
+)
 
 import contextlib
 import enum

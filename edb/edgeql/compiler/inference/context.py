@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Tuple, Union, Dict, FrozenSet, NamedTuple
 
 import dataclasses
 

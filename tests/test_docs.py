@@ -6,7 +6,7 @@
 ##
 
 
-from typing import *
+from typing import List
 
 import collections
 import json

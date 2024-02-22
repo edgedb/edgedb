@@ -19,8 +19,19 @@
 """Utilities for IR type descriptors."""
 
 from __future__ import annotations
-from typing import *
-from typing import overload
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    Dict,
+    Set,
+    FrozenSet,
+    cast,
+    overload,
+    TYPE_CHECKING,
+)
 
 import uuid
 

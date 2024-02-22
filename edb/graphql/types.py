@@ -18,7 +18,18 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    ClassVar,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    Dict,
+    List,
+    Set,
+    cast,
+)
 
 from functools import partial
 from graphql import (

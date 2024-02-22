@@ -20,7 +20,19 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    Iterable,
+    Sequence,
+    Dict,
+    List,
+    NamedTuple,
+    TYPE_CHECKING,
+)
 
 import asyncio
 import atexit

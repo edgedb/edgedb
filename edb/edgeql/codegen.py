@@ -18,7 +18,22 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    AbstractSet,
+    Sequence,
+    List,
+    Set,
+    FrozenSet,
+    Match,
+    TYPE_CHECKING,
+)
 
 import itertools
 import re

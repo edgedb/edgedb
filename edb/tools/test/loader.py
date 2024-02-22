@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 import unittest
-from typing import *
+from typing import Callable, Optional, Sequence
 
 
 class TestLoader(unittest.TestLoader):

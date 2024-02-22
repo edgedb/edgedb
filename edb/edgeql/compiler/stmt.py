@@ -21,7 +21,16 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    Sequence,
+    DefaultDict,
+    List,
+)
 
 from collections import defaultdict
 import textwrap

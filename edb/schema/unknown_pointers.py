@@ -28,7 +28,6 @@ ddl.apply_sdl work.
 """
 
 from __future__ import annotations
-from typing import *
 
 
 from edb.common import struct

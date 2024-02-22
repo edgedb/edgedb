@@ -22,7 +22,24 @@ See README.md in this package for more details.
 """
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    AbstractSet,
+    Iterator,
+    Sequence,
+    Counter,
+    Dict,
+    List,
+    Set,
+    NamedTuple,
+    cast,
+    TYPE_CHECKING,
+)
 
 import ast
 import atexit

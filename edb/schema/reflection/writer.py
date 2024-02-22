@@ -19,7 +19,17 @@
 """Schema reflection helpers."""
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    Collection,
+    Dict,
+    List,
+    cast,
+)
 
 import functools
 import json

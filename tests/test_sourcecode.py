@@ -53,21 +53,18 @@ class TestCodeQuality(unittest.TestCase):
                     self.fail(
                         f'{fn} must be an empty file (except Python comments)')
 
-    def test_cqa_flake8(self):
+    def test_cqa_ruff(self):
         edgepath = find_edgedb_root()
-        config_path = os.path.join(edgepath, '.flake8')
-        if not os.path.exists(config_path):
-            raise RuntimeError('could not locate .flake8 file')
 
         try:
-            import flake8  # NoQA
+            import ruff  # NoQA
         except ImportError:
-            raise unittest.SkipTest('flake8 module is missing')
+            raise unittest.SkipTest('ruff module is missing')
 
         for subdir in ['edb', 'tests']:  # ignore any top-level test files
             try:
                 subprocess.run(
-                    [sys.executable, '-m', 'flake8', '--config', config_path],
+                    ['ruff', 'check', '.'],
                     check=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -75,7 +72,7 @@ class TestCodeQuality(unittest.TestCase):
             except subprocess.CalledProcessError as ex:
                 output = ex.output.decode()
                 raise AssertionError(
-                    f'flake8 validation failed:\n{output}') from None
+                    f'ruff validation failed:\n{output}') from None
 
     def test_cqa_mypy(self):
         edgepath = find_edgedb_root()

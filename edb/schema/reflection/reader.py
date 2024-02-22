@@ -17,7 +17,7 @@
 #
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Callable, Tuple, Type, Union, Dict, List
 
 import collections
 import functools

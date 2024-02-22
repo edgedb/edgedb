@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import copy
 import itertools
-from typing import *
+from typing import Any, Optional, Mapping, Dict, List, Set
 
 from edb import errors
 from edb.common import ast

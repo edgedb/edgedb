@@ -22,8 +22,7 @@
 
 from __future__ import annotations
 
-from typing import *
-from typing import overload
+from typing import Optional, Tuple, Sequence, List, Set, cast, overload
 
 from edb import errors
 

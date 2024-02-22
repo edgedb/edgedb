@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import Any, Callable, Tuple, Type, Dict, List, Set, cast
 
 import json
 import logging

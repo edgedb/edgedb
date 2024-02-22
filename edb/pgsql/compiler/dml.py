@@ -32,7 +32,17 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import (
+    Optional,
+    Tuple,
+    Union,
+    Mapping,
+    Sequence,
+    Collection,
+    Dict,
+    List,
+    NamedTuple,
+)
 
 import immutables as immu
 

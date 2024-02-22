@@ -29,7 +29,20 @@ EdgeQL AST visitor.
 """
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Optional,
+    Tuple,
+    Type,
+    AbstractSet,
+    Iterable,
+    Mapping,
+    MutableSet,
+    Dict,
+    List,
+    Set,
+    TypedDict,
+    cast,
+)
 
 import copy
 import functools

@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Type, List, TYPE_CHECKING
 
 from edgedb import scram
 

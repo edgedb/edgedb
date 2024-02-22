@@ -20,7 +20,21 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Type,
+    AbstractSet,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    Set,
+    cast,
+    TYPE_CHECKING,
+)
+
 if TYPE_CHECKING:
     from typing_extensions import TypeGuard
 

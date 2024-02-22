@@ -126,8 +126,21 @@ dispatch.py
 
 
 from __future__ import annotations
-from typing import *
-from typing import overload
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    TypeVar,
+    AbstractSet,
+    Mapping,
+    Dict,
+    List,
+    Set,
+    cast,
+    overload,
+    TYPE_CHECKING,
+)
 
 # WARNING: this package is in a tight import loop with various modules
 # in edb.schema, so no direct imports from either this package or

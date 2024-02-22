@@ -20,7 +20,21 @@
 # See postgres/src/backend/commands/explain.c
 #
 from __future__ import annotations
-from typing import *
+from typing import (
+    Annotated,
+    Any,
+    ClassVar,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    Sequence,
+    get_args,
+    get_origin,
+    get_type_hints,
+    NewType,
+    Text,
+)
 
 import dataclasses
 import enum

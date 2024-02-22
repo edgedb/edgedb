@@ -25,7 +25,17 @@ import contextlib
 import decimal
 import json
 import re
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Union,
+    Mapping,
+    Dict,
+    List,
+    FrozenSet,
+    NamedTuple,
+)
 
 import graphql
 from graphql.language import ast as gql_ast

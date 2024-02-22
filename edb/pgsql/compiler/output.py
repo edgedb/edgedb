@@ -20,7 +20,7 @@
 """Compilation helpers for output formatting and serialization."""
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Tuple, Type, Union, Sequence, List
 
 import itertools
 

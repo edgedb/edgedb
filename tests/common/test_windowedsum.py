@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 from __future__ import annotations
-from typing import *  # NoQA
 
 import unittest
 import unittest.mock

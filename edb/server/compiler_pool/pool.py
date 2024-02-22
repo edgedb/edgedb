@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import Any, Dict, NamedTuple
 
 import asyncio
 import collections

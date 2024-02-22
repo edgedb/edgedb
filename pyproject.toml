@@ -34,10 +34,7 @@ edgedb = "edb.cli:rustcli"
 test = [
     'black~=24.2.0',
     'coverage~=7.4',
-    'flake8~=7.0.0',
-    'flake8-bugbear~=24.2.6',
-    'pycodestyle~=2.11.0',
-    'pyflakes~=3.2.0',
+    'ruff~=0.1.6',
     'asyncpg~=0.29.0',
 
     # Needed for test_docs_sphinx_ext
@@ -213,3 +210,19 @@ ignore_errors = true
 
 # Change the below to invalidate dependency cache in CI
 # CACHE-TAG: 1
+
+[tool.ruff]
+lint.select = ["E", "F", "B"]
+lint.ignore = [
+    "F541",
+    "B008",
+    "B904",
+    "B905",
+    "B019",
+    "E731",
+    "E741",
+]
+line-length = 80
+indent-width = 4
+target-version = "py310"
+exclude = ["postgres", ".github"]

@@ -21,7 +21,19 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    TypeVar,
+    Union,
+    Iterable,
+    Mapping,
+    Collection,
+    NamedTuple,
+    TYPE_CHECKING,
+    TypeGuard,
+)
 
 import immutables
 

@@ -20,7 +20,16 @@
 """Database structure and objects supporting EdgeDB metadata."""
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Callable,
+    Optional,
+    Protocol,
+    Tuple,
+    Iterable,
+    List,
+    Set,
+    cast,
+)
 
 import re
 

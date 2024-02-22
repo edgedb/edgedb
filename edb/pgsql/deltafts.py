@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from typing import *
+from typing import Optional, Tuple, Iterable, Sequence, Collection, Dict, List
 
 from edb import errors
 

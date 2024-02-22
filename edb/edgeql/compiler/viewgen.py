@@ -25,7 +25,22 @@ from __future__ import annotations
 import collections
 import dataclasses
 import functools
-from typing import *
+from typing import (
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    AbstractSet,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    Set,
+    NamedTuple,
+    cast,
+    TYPE_CHECKING,
+)
 
 from edb import errors
 from edb.common import ast

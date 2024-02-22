@@ -18,8 +18,18 @@
 
 
 from __future__ import annotations
-from typing import *
-from typing import overload
+from typing import (
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Iterable,
+    Sequence,
+    List,
+    Set,
+    overload,
+    TYPE_CHECKING,
+)
 
 from . import delta as sd
 from . import indexes

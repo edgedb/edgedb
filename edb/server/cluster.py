@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Mapping, Dict, TYPE_CHECKING
 
 import asyncio
 import json
