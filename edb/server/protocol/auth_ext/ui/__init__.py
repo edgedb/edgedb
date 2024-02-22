@@ -665,6 +665,7 @@ def render_password_reset_email(
     reset_url: str,
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = "#007bff",
 ) -> multipart.MIMEMultipart:
     msg = multipart.MIMEMultipart()
@@ -919,6 +920,7 @@ def render_verification_email(
     verify_url: str,
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = "#007bff",
 ) -> multipart.MIMEMultipart:
     msg = multipart.MIMEMultipart()
@@ -1094,6 +1096,7 @@ def render_magic_link_email(
     link: str,
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = "#007bff",
 ) -> multipart.MIMEMultipart:
     msg = multipart.MIMEMultipart()
