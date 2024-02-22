@@ -194,7 +194,11 @@ async def execute(
                     if debug.flags.func_cache:
                         recompile_requests = await dbv.clear_cache_keys(be_conn)
                     else:
-                        recompile_requests = list(dbv._db._eql_to_compiled)
+                        recompile_requests = [
+                            req
+                            for req, grp in dbv._db._eql_to_compiled.items()
+                            if len(grp) == 1
+                        ]
 
                     ddl_ret = await be_conn.run_ddl(query_unit, state)
                     if ddl_ret and ddl_ret['new_types']:
@@ -355,7 +359,11 @@ async def execute_script(
             if debug.flags.func_cache:
                 recompile_requests = await dbv.clear_cache_keys(conn)
             else:
-                recompile_requests = list(dbv._db._eql_to_compiled)
+                recompile_requests = [
+                    req
+                    for req, grp in dbv._db._eql_to_compiled.items()
+                    if len(grp) == 1
+                ]
 
         if conn.last_state == state:
             # the current status in be_conn is in sync with dbview, skip the

@@ -75,6 +75,12 @@ cdef class StatementsCache:
     def clear(self):
         self._dict.clear()
 
+    def pop(self, key, default=_LRU_MARKER):
+        if default is _LRU_MARKER:
+            return self._dict.pop(key)
+        else:
+            return self._dict.pop(key, default)
+
     def __getitem__(self, key):
         o = self._dict[key]
         self._dict_move_to_end(key)  # last=True

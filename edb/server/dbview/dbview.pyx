@@ -920,13 +920,19 @@ cdef class DatabaseConnectionView:
         self._reset_tx_state()
         return side_effects
 
-    async def clear_cache_keys(self, conn) -> list[bytes]:
+    async def clear_cache_keys(self, conn) -> list[rpc.CompilationRequest]:
         rows = await conn.sql_fetch(b'SELECT "edgedb"."_clear_query_cache"()')
-        self._db._eql_to_compiled.clear()
-        return [row[0] for row in rows or []]
+        rv = []
+        for row in rows:
+            query_req = rpc.CompilationRequest(
+                self.server.compilation_config_serializer
+            ).deserialize(row[0], "<unknown>")
+            rv.append(query_req)
+            self._db._eql_to_compiled.pop(query_req, None)
+        return rv
 
     async def recompile_all(
-        self, conn, requests: typing.Iterable[bytes | rpc.CompilationRequest]
+        self, conn, requests: typing.Iterable[rpc.CompilationRequest]
     ):
         compiler_pool = self.server.get_compiler_pool()
         concurrency = max(1, compiler_pool.get_size_hint() - 1)
@@ -935,13 +941,10 @@ cdef class DatabaseConnectionView:
 
         async def recompile_request():
             while True:
-                request = await i.get()
-                if request is None:
+                query_req = await i.get()
+                if query_req is None:
                     o.put_nowait((None, None))
                     break
-                query_req = None
-                if isinstance(request, rpc.CompilationRequest):
-                    request, query_req = request.serialize(), request
                 try:
                     result = await compiler_pool.compile(
                         self.dbname,
@@ -950,31 +953,29 @@ cdef class DatabaseConnectionView:
                         self.reflection_cache,
                         self.get_database_config(),
                         self.get_compilation_system_config(),
-                        request,
+                        query_req.serialize(),
                         "<unknown>",
                         client_id=self.tenant.client_id,
                     )
                 except Exception:
                     # discard cache entry that cannot be recompiled
+                    o.put_nowait((query_req, None))
                     pass
                 else:
-                    if query_req is None:
-                        query_req = rpc.CompilationRequest(
-                            self.server.compilation_config_serializer)
-                        query_req.deserialize(request, "<unknown>")
                     o.put_nowait((query_req, result[0]))
 
         async def persist_cache_task():
             if not debug.flags.func_cache:
                 # TODO(fantix): sync _query_cache in one implicit tx
                 await conn.sql_fetch(b'SELECT "edgedb"."_clear_query_cache"()')
-                self._db._eql_to_compiled.clear()
 
             count = concurrency
             while count > 0:
                 query_req, query_unit_group = await o.get()
                 if query_req is None:
                     count -= 1
+                elif query_unit_group is None:
+                    self._db._eql_to_compiled.pop(query_req)
                 else:
                     await execute.persist_cache(
                         conn, self, query_req, query_unit_group
