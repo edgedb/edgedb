@@ -1486,8 +1486,8 @@ class Tenant(ha_base.ClusterProtocol):
                 finally:
                     self.release_pgcon(dbname, conn)
 
-                if query_cache:
-                    self.get_db(dbname=dbname).hydrate_cache(query_cache)
+                if query_cache and (db := self.maybe_get_db(dbname=dbname)):
+                    db.hydrate_cache(query_cache)
 
             except Exception:
                 metrics.background_errors.inc(
