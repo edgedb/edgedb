@@ -220,7 +220,7 @@ def compile_in_tx(cstate, _, *args, **kwargs):
         cstate = LAST_STATE
     else:
         cstate = pickle.loads(cstate)
-    units, cstate = COMPILER.compile_in_tx(cstate, *args, **kwargs)
+    units, cstate = COMPILER.compile_in_tx_request(cstate, *args, **kwargs)
     LAST_STATE = cstate
     return units, pickle.dumps(cstate, -1)
 
