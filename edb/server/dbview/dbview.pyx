@@ -34,7 +34,7 @@ import weakref
 import immutables
 
 from edb import errors
-from edb.common import lru, uuidgen
+from edb.common import debug, lru, uuidgen
 from edb import edgeql
 from edb.edgeql import qltypes
 from edb.schema import schema as s_schema
@@ -925,7 +925,9 @@ cdef class DatabaseConnectionView:
         self._db._eql_to_compiled.clear()
         return [row[0] for row in rows or []]
 
-    async def recompile_all(self, conn, requests: typing.Iterable[bytes]):
+    async def recompile_all(
+        self, conn, requests: typing.Iterable[bytes | rpc.CompilationRequest]
+    ):
         compiler_pool = self.server.get_compiler_pool()
         concurrency = max(1, compiler_pool.get_size_hint() - 1)
         i = asyncio.Queue(maxsize=concurrency)
@@ -937,6 +939,9 @@ cdef class DatabaseConnectionView:
                 if request is None:
                     o.put_nowait((None, None))
                     break
+                query_req = None
+                if isinstance(request, rpc.CompilationRequest):
+                    request, query_req = request.serialize(), request
                 try:
                     result = await compiler_pool.compile(
                         self.dbname,
@@ -953,12 +958,18 @@ cdef class DatabaseConnectionView:
                     # discard cache entry that cannot be recompiled
                     pass
                 else:
-                    query_req = rpc.CompilationRequest(
-                        self.server.compilation_config_serializer)
-                    query_req.deserialize(request, "<unknown>")
+                    if query_req is None:
+                        query_req = rpc.CompilationRequest(
+                            self.server.compilation_config_serializer)
+                        query_req.deserialize(request, "<unknown>")
                     o.put_nowait((query_req, result[0]))
 
-        async def persist_cache():
+        async def persist_cache_task():
+            if not debug.flags.func_cache:
+                # TODO(fantix): sync _query_cache in one implicit tx
+                await conn.sql_fetch(b'SELECT "edgedb"."_clear_query_cache"()')
+                self._db._eql_to_compiled.clear()
+
             count = concurrency
             while count > 0:
                 query_req, query_unit_group = await o.get()
@@ -975,7 +986,7 @@ cdef class DatabaseConnectionView:
         async with asyncio.TaskGroup() as g:
             for _ in range(concurrency):
                 g.create_task(recompile_request())
-            g.create_task(persist_cache())
+            g.create_task(persist_cache_task())
             for data in requests:
                 await i.put(data)
             for _ in range(concurrency):
