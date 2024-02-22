@@ -115,6 +115,11 @@ async def persist_cache(
         if (
             isinstance(ex, pgerror.BackendError)
             and ex.code_is(pgerror.ERROR_SERIALIZATION_FAILURE)
+            # If we are in a transaction, we have to let the error
+            # propagate, since we can't do anything else after the error.
+            # Hopefully the client will retry, hit the cache, and
+            # everything will be fine.
+            and not dbv.in_tx()
         ):
             # XXX: Is it OK to just ignore it? Can we rely on the conflict
             # having set it to the same thing?
