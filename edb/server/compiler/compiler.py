@@ -85,6 +85,7 @@ from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pg_compiler
 from edb.pgsql import codegen as pg_codegen
 from edb.pgsql import common as pg_common
+from edb.pgsql import debug as pg_debug
 from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
 from edb.pgsql import patches as pg_patches
@@ -1853,6 +1854,8 @@ def _compile_ql_query(
         expand_inhviews=options.expand_inhviews,
         detach_params=bool(use_persistent_cache and debug.flags.func_cache),
     )
+
+    pg_debug.dump_ast_and_query(sql_res.ast, ir)
 
     if use_persistent_cache:
         if debug.flags.func_cache:
