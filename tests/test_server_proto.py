@@ -2899,6 +2899,9 @@ class TestServerProtoDDL(tb.DDLTestCase):
         class Rollback(Exception):
             pass
 
+        # Cache SELECT 123 so that we don't lock the _query_cache table later
+        await self.con.query('SELECT 123')
+
         with self.assertRaises(Rollback):
             async with self.con.transaction():
                 # make sure the transaction is started
