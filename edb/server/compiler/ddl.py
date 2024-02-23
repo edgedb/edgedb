@@ -1700,3 +1700,31 @@ def administer_prepare_upgrade(
         cacheable=False,
         migration_block_query=True,
     )
+
+
+def validate_schema_equivalence(
+    state: compiler.CompilerState,
+    schema_a: s_schema.FlatSchema,
+    schema_b: s_schema.FlatSchema,
+    global_schema: s_schema.FlatSchema,
+) -> None:
+    schema_a_full = s_schema.ChainedSchema(
+        state.std_schema,
+        schema_a,
+        global_schema,
+    )
+    schema_b_full = s_schema.ChainedSchema(
+        state.std_schema,
+        schema_b,
+        global_schema,
+    )
+
+    diff = s_ddl.delta_schemas(schema_a_full, schema_b_full)
+    complete = not bool(diff.get_subcommands())
+    if not complete:
+        if debug.flags.delta_plan:
+            debug.header('COMPARE SCHEMAS MISMATCH')
+            debug.dump(diff)
+        raise AssertionError(
+            f'schemas did not match after introspection:\n{debug.dumps(diff)}'
+        )

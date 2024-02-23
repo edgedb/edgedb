@@ -1101,6 +1101,21 @@ class Tenant(ha_base.ClusterProtocol):
 
         return extensions
 
+    async def _debug_introspect(
+        self,
+        conn: pgcon.PGConnection,
+        global_schema_pickle,
+    ) -> Any:
+        user_schema_json = (
+            await self._server.introspect_user_schema_json(conn)
+        )
+        db_config_json = await self._server.introspect_db_config(conn)
+
+        compiler_pool = self._server.get_compiler_pool()
+        return (await compiler_pool.parse_user_schema_db_config(
+            user_schema_json, db_config_json, global_schema_pickle,
+        )).user_schema_pickle
+
     async def introspect_db(
         self,
         dbname: str,
