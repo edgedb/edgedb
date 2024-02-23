@@ -666,7 +666,7 @@ def render_password_reset_email(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None,
+    brand_color: Optional[str] = "#007bff",
 ) -> multipart.MIMEMultipart:
     msg = multipart.MIMEMultipart()
     msg["From"] = from_addr
@@ -675,21 +675,236 @@ def render_password_reset_email(
     alternative = multipart.MIMEMultipart('alternative')
     plain_text_msg = mime_text.MIMEText(
         f"""
-        {reset_url}
+Somebody requested a new password for the {app_name or ''} account associated
+with {to_addr}.
+
+Please paste the following URL into your browser address bar to verify your
+email address:
+
+{reset_url}
         """,
         "plain",
         "utf-8",
     )
     alternative.attach(plain_text_msg)
+
+    content = f"""
+<tr>
+  <td
+    style="
+      direction: ltr;
+      font-size: 0px;
+      padding: 20px 0;
+      padding-bottom: 20px;
+      padding-top: 20px;
+      text-align: center;
+    "
+  >
+    <!--[if mso | IE]><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td class="" style="vertical-align:middle;width:600px;" ><![endif]-->
+    <div
+      class="mj-column-per-100 mj-outlook-group-fix"
+      style="
+        font-size: 0px;
+        text-align: left;
+        direction: ltr;
+        display: inline-block;
+        vertical-align: middle;
+        width: 100%;
+      "
+    >
+      <table
+        border="0"
+        cellpadding="0"
+        cellspacing="0"
+        role="presentation"
+        style="vertical-align: middle"
+        width="100%"
+      >
+        <tbody>
+          <tr>
+            <td
+              align="left"
+              style="
+                font-size: 0px;
+                padding: 10px 25px;
+                padding-top: 50px;
+                word-break: break-word;
+              "
+            >
+              <div
+                style="
+                  font-family: open Sans Helvetica, Arial, sans-serif;
+                  font-size: 16px;
+                  line-height: 1;
+                  text-align: left;
+                  color: #000000;
+                "
+              >
+                Somebody requested a new password for the {app_name or ''}
+                account associated with {to_addr}.
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td
+              align="left"
+              style="
+                font-size: 0px;
+                padding: 10px 25px;
+                word-break: break-word;
+              "
+            >
+              <div
+                style="
+                  font-family: open Sans Helvetica, Arial, sans-serif;
+                  font-size: 16px;
+                  line-height: 1;
+                  text-align: left;
+                  color: #000000;
+                "
+              >
+                No changes have been made to your account yet.
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td
+              align="left"
+              style="
+                font-size: 0px;
+                padding: 10px 25px;
+                word-break: break-word;
+              "
+            >
+              <div
+                style="
+                  font-family: open Sans Helvetica, Arial, sans-serif;
+                  font-size: 16px;
+                  line-height: 1;
+                  text-align: left;
+                  color: #000000;
+                "
+              >
+                You can reset your password by clicking the button below:
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td
+              align="center"
+              vertical-align="middle"
+              style="
+                font-size: 0px;
+                padding: 10px 25px;
+                word-break: break-word;
+              "
+            >
+              <table
+                border="0"
+                cellpadding="0"
+                cellspacing="0"
+                role="presentation"
+                style="border-collapse: separate; line-height: 100%"
+              >
+                <tr>
+                  <td
+                    align="center"
+                    bgcolor="{brand_color}"
+                    role="presentation"
+                    style="
+                      border: none;
+                      border-radius: 4px;
+                      cursor: auto;
+                      mso-padding-alt: 10px 25px;
+                      background: {brand_color};
+                    "
+                    valign="middle"
+                  >
+                    <a
+                      href="{reset_url}"
+                      style="
+                        display: inline-block;
+                        background: {brand_color};
+                        color: #ffffff;
+                        font-family: open Sans Helvetica, Arial, sans-serif;
+                        font-size: 18px;
+                        font-weight: bold;
+                        line-height: 120%;
+                        margin: 0;
+                        text-decoration: none;
+                        text-transform: none;
+                        padding: 10px 25px;
+                        mso-padding-alt: 0px;
+                        border-radius: 4px;
+                      "
+                      target="_blank"
+                    >
+                      Reset your password
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td
+              align="left"
+              style="
+                font-size: 0px;
+                padding: 10px 25px;
+                word-break: break-word;
+              "
+            >
+              <div
+                style="
+                  font-family: open Sans Helvetica, Arial, sans-serif;
+                  font-size: 16px;
+                  line-height: 1;
+                  text-align: left;
+                  color: #000000;
+                "
+              >
+                In case the button didn't work, please paste the following URL
+                into your browser address bar:
+                <p style="word-break: break-all">{reset_url}</p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td
+              align="left"
+              style="
+                font-size: 0px;
+                padding: 10px 25px;
+                word-break: break-word;
+              "
+            >
+              <div
+                style="
+                  font-family: open Sans Helvetica, Arial, sans-serif;
+                  font-size: 16px;
+                  line-height: 1;
+                  text-align: left;
+                  color: #000000;
+                "
+              >
+                If you did not request a new password, please let us know
+                immediately by replying to this email.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </td>
+</tr>
+    """ # noqa: E501
     html_msg = mime_text.MIMEText(
-        f"""
-<!DOCTYPE html>
-<html>
-  <body>
-    <a href="{reset_url}">Reset password</a>
-  </body>
-</html>
-        """,
+        render.base_default_email(
+            app_name=app_name,
+            logo_url=logo_url,
+            content=content,
+        ),
         "html",
         "utf-8",
     )
@@ -706,30 +921,166 @@ def render_verification_email(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None,
+    brand_color: Optional[str] = "#007bff",
 ) -> multipart.MIMEMultipart:
     msg = multipart.MIMEMultipart()
     msg["From"] = from_addr
     msg["To"] = to_addr
-    msg["Subject"] = "Verify your email"
+    msg["Subject"] = (
+        f"Verify your email{f' for {app_name}' if app_name else ''}"
+    )
     alternative = multipart.MIMEMultipart('alternative')
     plain_text_msg = mime_text.MIMEText(
         f"""
-        {verify_url}
+Congratulations, you're registered{f' at {app_name}' if app_name else ''}!
+
+Please paste the following URL into your browser address bar to verify your
+email address:
+
+{verify_url}
         """,
         "plain",
         "utf-8",
     )
     alternative.attach(plain_text_msg)
+
+    content = f"""
+<tr>
+  <td
+    align="left"
+    style="
+      font-size: 0px;
+      padding: 10px 25px;
+      padding-top: 50px;
+      word-break: break-word;
+    "
+  >
+    <div
+      style="
+        font-family:
+          open Sans Helvetica,
+          Arial,
+          sans-serif;
+        font-size: 16px;
+        line-height: 1;
+        text-align: left;
+        color: #000000;
+      "
+    >
+      Congratulations, you're registered
+      {f'at {app_name}' if app_name else ''}!
+    </div>
+  </td>
+</tr>
+<tr>
+  <td
+    align="left"
+    style="font-size: 0px; padding: 10px 25px; word-break: break-word"
+  >
+    <div
+      style="
+        font-family:
+          open Sans Helvetica,
+          Arial,
+          sans-serif;
+        font-size: 16px;
+        line-height: 1;
+        text-align: left;
+        color: #000000;
+      "
+    >
+      Please press the button below to verify your email address:
+    </div>
+  </td>
+</tr>
+<tr>
+  <td
+    align="center"
+    vertical-align="middle"
+    style="font-size: 0px; padding: 10px 25px; word-break: break-word"
+  >
+    <table
+      border="0"
+      cellpadding="0"
+      cellspacing="0"
+      role="presentation"
+      style="border-collapse: separate; line-height: 100%"
+    >
+      <tr>
+        <td
+          align="center"
+          bgcolor="{brand_color}"
+          role="presentation"
+          style="
+            border: none;
+            border-radius: 4px;
+            cursor: auto;
+            mso-padding-alt: 10px 25px;
+            background: {brand_color};
+          "
+          valign="middle"
+        >
+          <a
+            href="{verify_url}"
+            style="
+              display: inline-block;
+              background: {brand_color};
+              color: #ffffff;
+              font-family:
+                open Sans Helvetica,
+                Arial,
+                sans-serif;
+              font-size: 18px;
+              font-weight: bold;
+              line-height: 120%;
+              margin: 0;
+              text-decoration: none;
+              text-transform: none;
+              padding: 10px 25px;
+              mso-padding-alt: 0px;
+              border-radius: 4px;
+            "
+            target="_blank"
+          >
+            Verify email address
+          </a>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+<tr>
+  <td
+    align="left"
+    style="font-size: 0px; padding: 10px 25px; word-break: break-word"
+  >
+    <div
+      style="
+        font-family:
+          open Sans Helvetica,
+          Arial,
+          sans-serif;
+        font-size: 16px;
+        line-height: 1;
+        text-align: left;
+        color: #000000;
+      "
+    >
+      In case the button didn't work, please paste the following URL into
+      your browser address bar:
+      <p style="word-break: break-all">{verify_url}</p>
+    </div>
+  </td>
+</tr>
+
+"""
+
     html_msg = mime_text.MIMEText(
-        f"""
-<!DOCTYPE html>
-<html>
-  <body>
-    <a href="{verify_url}">Verify your email</a>
-  </body>
-</html>
-        """,
+        render.base_default_email(
+            app_name=app_name,
+            logo_url=logo_url,
+            content=content,
+        ),
         "html",
         "utf-8",
     )
@@ -746,7 +1097,7 @@ def render_magic_link_email(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None,
+    brand_color: Optional[str] = "#007bff",
 ) -> multipart.MIMEMultipart:
     msg = multipart.MIMEMultipart()
     msg["From"] = from_addr
@@ -755,21 +1106,114 @@ def render_magic_link_email(
     alternative = multipart.MIMEMultipart('alternative')
     plain_text_msg = mime_text.MIMEText(
         f"""
-        {link}
+Please paste the following URL into your browser address bar to be signed into
+your account:
+
+{link}
         """,
         "plain",
         "utf-8",
     )
     alternative.attach(plain_text_msg)
+    content = f"""
+<tr>
+  <td
+    align="left"
+    style="font-size: 0px; padding: 10px 25px; word-break: break-word"
+  >
+    <div
+      style="
+        font-family: open Sans Helvetica, Arial, sans-serif;
+        font-size: 16px;
+        line-height: 1;
+        text-align: left;
+        color: #000000;
+      "
+    >
+      Sign into your {app_name or ""} account by clicking the button below:
+    </div>
+  </td>
+</tr>
+<tr>
+  <td
+    align="center"
+    vertical-align="middle"
+    style="font-size: 0px; padding: 10px 25px; word-break: break-word"
+  >
+    <table
+      border="0"
+      cellpadding="0"
+      cellspacing="0"
+      role="presentation"
+      style="border-collapse: separate; line-height: 100%"
+    >
+      <tr>
+        <td
+          align="center"
+          bgcolor="{brand_color}"
+          role="presentation"
+          style="
+            border: none;
+            border-radius: 4px;
+            cursor: auto;
+            mso-padding-alt: 10px 25px;
+            background: {brand_color};
+          "
+          valign="middle"
+        >
+          <a
+            href="{link}"
+            style="
+              display: inline-block;
+              background: {brand_color};
+              color: #ffffff;
+              font-family: open Sans Helvetica, Arial, sans-serif;
+              font-size: 18px;
+              font-weight: bold;
+              line-height: 120%;
+              margin: 0;
+              text-decoration: none;
+              text-transform: none;
+              padding: 10px 25px;
+              mso-padding-alt: 0px;
+              border-radius: 4px;
+            "
+            target="_blank"
+          >
+            Sign in
+          </a>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+<tr>
+  <td
+    align="left"
+    style="font-size: 0px; padding: 10px 25px; word-break: break-word"
+  >
+    <div
+      style="
+        font-family: open Sans Helvetica, Arial, sans-serif;
+        font-size: 16px;
+        line-height: 1;
+        text-align: left;
+        color: #000000;
+      "
+    >
+      In case the button didn't work, please paste the following URL into your
+      browser address bar:
+      <p style="word-break: break-all">{link}</p>
+    </div>
+  </td>
+</tr>
+    """
     html_msg = mime_text.MIMEText(
-        f"""
-        <!DOCTYPE html>
-        <html>
-          <body>
-            <a href="{link}">Sign in</a>
-          </body>
-        </html>
-        """,
+        render.base_default_email(
+            app_name=app_name,
+            logo_url=logo_url,
+            content=content,
+        ),
         "html",
         "utf-8",
     )
