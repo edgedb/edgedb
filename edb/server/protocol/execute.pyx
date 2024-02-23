@@ -657,6 +657,10 @@ cdef bytes _encode_args(list args):
 
 
 cdef _check_for_ise(exc):
+    # Unwrap ExceptionGroup that has only one Exception
+    if isinstance(exc, BaseExceptionGroup) and len(exc.exceptions) == 1:
+        exc = exc.exceptions[0]
+
     if not isinstance(exc, errors.EdgeDBError):
         nexc = errors.InternalServerError(
             f'{type(exc).__name__}: {exc}',
@@ -670,6 +674,8 @@ cdef _check_for_ise(exc):
         formatted = getattr(exc, '__formatted_error__', None)
         if formatted:
             nexc.__formatted_error__ = formatted
+        if isinstance(exc, BaseExceptionGroup):
+            nexc.__cause__ = exc.with_traceback(None)
         exc = nexc
 
     return exc
