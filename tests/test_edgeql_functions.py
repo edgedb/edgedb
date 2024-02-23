@@ -3289,6 +3289,43 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [''],
         )
 
+    async def test_edgeql_functions_array_join_02(self):
+        await self.assert_query_result(
+            r'''SELECT array_join(['one', 'two', 'three'], {', ', '@!'});''',
+            {'one, two, three', 'one@!two@!three'},
+        )
+
+    async def test_edgeql_functions_array_join_03(self):
+        await self.assert_query_result(
+            r'''SELECT array_join([b'one', b'two', b'three'], b', ');''',
+            [base64.b64encode(b'one, two, three').decode()],
+            [b'one, two, three'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_join([b'one', b'two', b'three'], b'');''',
+            [base64.b64encode(b'onetwothree').decode()],
+            [b'onetwothree'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_join(<array<bytes>>[], b', ');''',
+            [base64.b64encode(b'').decode()],
+            [b''],
+        )
+
+    async def test_edgeql_functions_array_join_04(self):
+        await self.assert_query_result(
+            r'''
+            SELECT array_join([b'one', b'two', b'three'], {b', ', b'@!'});
+            ''',
+            {
+                base64.b64encode(b'one, two, three').decode(),
+                base64.b64encode(b'one@!two@!three').decode(),
+            },
+            {b'one, two, three', b'one@!two@!three'},
+        )
+
     async def test_edgeql_functions_str_split_01(self):
         await self.assert_query_result(
             r'''SELECT str_split('one, two, three', ', ');''',
