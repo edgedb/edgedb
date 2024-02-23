@@ -963,7 +963,7 @@ cdef class DatabaseConnectionView:
                     )
                 except Exception:
                     # discard cache entry that cannot be recompiled
-                    self._db._eql_to_compiled.pop(query_req)
+                    self._db._eql_to_compiled.pop(query_req, None)
                 else:
                     await compiled_queue.put(
                         (query_req, result[0], schema_version)
