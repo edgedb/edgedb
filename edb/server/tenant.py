@@ -22,6 +22,7 @@ from typing import (
     Callable,
     Tuple,
     Iterator,
+    Iterable,
     Mapping,
     Coroutine,
     AsyncGenerator,
@@ -41,6 +42,7 @@ import pickle
 import struct
 import sys
 import time
+import uuid
 
 import immutables
 
@@ -831,7 +833,9 @@ class Tenant(ha_base.ClusterProtocol):
 
         return extensions
 
-    async def introspect_db(self, dbname: str) -> None:
+    async def introspect_db(
+        self, dbname: str, hydrate_cache: bool = False
+    ) -> None:
         """Use this method to (re-)introspect a DB.
 
         If the DB is already registered in self._dbindex, its
@@ -896,6 +900,10 @@ class Tenant(ha_base.ClusterProtocol):
             db_config_json = await self._server.introspect_db_config(conn)
 
             extensions = await self._introspect_extensions(conn)
+
+            query_cache: list[tuple[bytes, ...]] | None = None
+            if hydrate_cache:
+                query_cache = await self._load_query_cache(conn)
         finally:
             self.release_pgcon(dbname, conn)
 
@@ -918,6 +926,8 @@ class Tenant(ha_base.ClusterProtocol):
             parsed_db.protocol_version,
             parsed_db.state_serializer,
         )
+        if query_cache:
+            db.hydrate_cache(query_cache)
 
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.
@@ -1433,6 +1443,68 @@ class Tenant(ha_base.ClusterProtocol):
             except Exception:
                 metrics.background_errors.inc(
                     1.0, self._instance_name, "on_global_schema_change"
+                )
+                raise
+
+        self.create_task(task(), interruptable=True)
+
+    async def _load_query_cache(
+        self, conn: pgcon.PGConnection
+    ) -> list[tuple[bytes, ...]] | None:
+        return await conn.sql_fetch(
+            b'SELECT "schema_version", "input", "output" '
+            b'FROM "edgedb"."_query_cache"',
+            use_prep_stmt=True,
+        )
+
+    async def evict_query_cache(
+        self, dbname: str,
+        keys: Iterable[uuid.UUID],
+    ) -> None:
+        try:
+            conn = await self._acquire_intro_pgcon(dbname)
+            if not conn:
+                return
+
+            try:
+                for key in keys:
+                    await conn.sql_fetch(
+                        b'SELECT "edgedb"."_evict_query_cache"($1)',
+                        args=(key.bytes,),
+                        use_prep_stmt=True,
+                    )
+            finally:
+                self.release_pgcon(dbname, conn)
+
+            await self.signal_sysevent("query-cache-changes", dbname=dbname)
+
+        except Exception:
+            logger.exception("error in evict_query_cache():")
+            metrics.background_errors.inc(
+                1.0, self._instance_name, "evict_query_cache"
+            )
+
+    def on_remote_query_cache_change(self, dbname: str) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        async def task():
+            try:
+                conn = await self._acquire_intro_pgcon(dbname)
+                if not conn:
+                    return
+
+                try:
+                    query_cache = await self._load_query_cache(conn)
+                finally:
+                    self.release_pgcon(dbname, conn)
+
+                if query_cache and (db := self.maybe_get_db(dbname=dbname)):
+                    db.hydrate_cache(query_cache)
+
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, self._instance_name, "on_remote_query_cache_change"
                 )
                 raise
 

@@ -830,8 +830,16 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         query_req, allow_capabilities = self.parse_execute_request()
         query_req.set_modaliases(_dbview.get_modaliases())
         query_req.set_session_config(_dbview.get_session_config())
+        query_req.set_database_config(_dbview.get_database_config())
         query_req.set_system_config(_dbview.get_compilation_system_config())
         compiled = await self._parse(query_req, allow_capabilities)
+        units = compiled.query_unit_group
+        if len(units) == 1 and units[0].cache_sql:
+           conn = await self.get_pgcon()
+           try:
+               await execute.persist_cache(conn, _dbview, [(query_req, units)])
+           finally:
+               self.maybe_release_pgcon(conn)
 
         buf = self.make_command_data_description_msg(compiled)
 
@@ -866,6 +874,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         args = self.buffer.read_len_prefixed_bytes()
         query_req.set_modaliases(_dbview.get_modaliases())
         query_req.set_session_config(_dbview.get_session_config())
+        query_req.set_database_config(_dbview.get_database_config())
         query_req.set_system_config(_dbview.get_compilation_system_config())
         self.buffer.finish_message()
 

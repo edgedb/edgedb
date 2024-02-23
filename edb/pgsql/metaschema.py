@@ -174,6 +174,87 @@ class DMLDummyTable(dbops.Table):
     '''
 
 
+class QueryCacheTable(dbops.Table):
+    def __init__(self) -> None:
+        super().__init__(name=('edgedb', '_query_cache'))
+
+        self.add_columns([
+            dbops.Column(name='key', type='uuid', required=True),
+            dbops.Column(name='schema_version', type='uuid', required=True),
+            dbops.Column(name='input', type='bytea', required=True),
+            dbops.Column(name='output', type='bytea', required=True),
+            dbops.Column(name='evict', type='text', required=True),
+            dbops.Column(
+                name='creation_time',
+                type='timestamp with time zone',
+                required=True,
+                default='current_timestamp',
+            ),
+        ])
+
+        self.add_constraint(
+            dbops.PrimaryKey(
+                table_name=('edgedb', '_query_cache'),
+                columns=['key'],
+            ),
+        )
+
+
+class EvictQueryCacheFunction(dbops.Function):
+
+    text = f'''
+    DECLARE
+        evict_sql text;
+    BEGIN
+        DELETE FROM "edgedb"."_query_cache"
+            WHERE "key" = cache_key
+            RETURNING "evict" INTO evict_sql;
+        IF evict_sql IS NOT NULL THEN
+            EXECUTE evict_sql;
+        END IF;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_evict_query_cache'),
+            args=[("cache_key", ("uuid",))],
+            returns=("void",),
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
+class ClearQueryCacheFunction(dbops.Function):
+
+    # TODO(fantix): this may consume a lot of memory in Postgres
+    text = f'''
+    DECLARE
+        row record;
+    BEGIN
+        FOR row IN
+            DELETE FROM "edgedb"."_query_cache"
+            RETURNING "input", "evict"
+        LOOP
+            EXECUTE row."evict";
+            RETURN NEXT row."input";
+        END LOOP;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_clear_query_cache'),
+            args=[],
+            returns=('bytea',),
+            set_returning=True,
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
 class BigintDomain(dbops.Domain):
     """Bigint: a variant of numeric that enforces zero digits after the dot.
 
@@ -4534,7 +4615,10 @@ async def bootstrap(
         dbops.CreateView(NormalizedPgSettingsView()),
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
+        dbops.CreateTable(QueryCacheTable()),
         dbops.Query(DMLDummyTable.SETUP_QUERY),
+        dbops.CreateFunction(EvictQueryCacheFunction()),
+        dbops.CreateFunction(ClearQueryCacheFunction()),
         dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
         dbops.CreateFunction(UuidGenerateV4Function('edgedbext')),
         dbops.CreateFunction(UuidGenerateV5Function('edgedbext')),

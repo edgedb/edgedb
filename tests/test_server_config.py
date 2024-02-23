@@ -1376,6 +1376,34 @@ class TestServerConfig(tb.QueryTestCase):
                 DROP DATABASE pg_14_7;
             ''')
 
+    async def test_server_proto_recompile_on_db_config(self):
+        await self.con.execute("create type RecompileOnDBConfig;")
+        try:
+            await self.con.execute('''
+                configure current database set allow_user_specified_id := true;
+            ''')
+            await self.con.execute('''
+                insert RecompileOnDBConfig {
+                    id := <uuid>'8c425e34-d1c3-11ee-8c78-8f34556d1111'
+                };
+            ''')
+            await self.con.execute('''
+                configure current database set allow_user_specified_id := false;
+            ''')
+            with self.assertRaisesRegex(
+                edgedb.QueryError, "cannot assign to property 'id'"
+            ):
+                await self.con.execute('''
+                    insert RecompileOnDBConfig {
+                        id := <uuid>'8c425e34-d1c3-11ee-8c78-8f34556d2222'
+                    };
+                ''')
+        finally:
+            await self.con.execute('''
+                configure current database reset allow_user_specified_id;
+            ''')
+            await self.con.execute("drop type RecompileOnDBConfig;")
+
 
 class TestSeparateCluster(tb.TestCase):
 

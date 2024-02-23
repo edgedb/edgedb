@@ -76,6 +76,7 @@ from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
 from edb.server.dbview cimport dbview
+from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport pg_ext
 from edb.server import pgconnparams
 from edb.server import metrics
@@ -774,7 +775,7 @@ cdef class PGConnection:
         cdef bint parse = 1
 
         while self.prep_stmts.needs_cleanup():
-            stmt_name_to_clean = self.prep_stmts.cleanup_one()
+            stmt_name_to_clean, _ = self.prep_stmts.cleanup_one()
             if self.debug:
                 self.debug_print(f"discarding ps {stmt_name_to_clean!r}")
             outbuf.write_buffer(
@@ -1433,10 +1434,7 @@ cdef class PGConnection:
         use_prep_stmt: bool = False,
         state: Optional[bytes] = None,
     ) -> list[tuple[bytes, ...]]:
-        cdef:
-            WriteBuffer bind_data = WriteBuffer.new()
-            int arg_len
-            tuple sql_tuple
+        cdef tuple sql_tuple
 
         if not isinstance(sql, tuple):
             sql_tuple = (sql,)
@@ -1457,26 +1455,9 @@ cdef class PGConnection:
             status=b"",
         )
 
-        if len(args) > 32767:
-            raise AssertionError(
-                'the number of query arguments cannot exceed 32767')
-
-        bind_data.write_int32(0x00010001)
-        bind_data.write_int16(<int16_t>len(args))
-        for arg in args:
-            if arg is None:
-                bind_data.write_int32(-1)
-            else:
-                arg_len = len(arg)
-                if arg_len > 0x7fffffff:
-                    raise ValueError("argument too long")
-                bind_data.write_int32(<int32_t>arg_len)
-                bind_data.write_bytes(arg)
-        bind_data.write_int32(0x00010001)
-
         return await self.parse_execute(
             query=query,
-            bind_data=bind_data,
+            bind_data=args_ser.combine_raw_args(args),
             use_prep_stmt=use_prep_stmt,
             state=state,
         )
@@ -2932,6 +2913,9 @@ cdef class PGConnection:
                 elif event == 'ensure-database-not-used':
                     dbname = event_payload['dbname']
                     self.tenant.on_remote_database_quarantine(dbname)
+                elif event == 'query-cache-changes':
+                    dbname = event_payload['dbname']
+                    self.tenant.on_remote_query_cache_change(dbname)
                 else:
                     raise AssertionError(f'unexpected system event: {event!r}')
 

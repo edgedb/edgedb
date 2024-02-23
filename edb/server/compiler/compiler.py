@@ -84,8 +84,8 @@ from edb.schema import version as s_ver
 from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pg_compiler
 from edb.pgsql import codegen as pg_codegen
-from edb.pgsql import debug as pg_debug
 from edb.pgsql import common as pg_common
+from edb.pgsql import debug as pg_debug
 from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
 from edb.pgsql import patches as pg_patches
@@ -141,6 +141,8 @@ class CompileContext:
     log_ddl_as_migrations: bool = True
     dump_restore_mode: bool = False
     notebook: bool = False
+    persistent_cache: bool = False
+    cache_key: Optional[uuid.UUID] = None
 
     def _assert_not_in_migration_block(
         self,
@@ -867,6 +869,8 @@ class Compiler:
             request.protocol_version,
             request.inline_objectids,
             request.json_parameters,
+            persistent_cache=True,
+            cache_key=request.get_cache_key(),
         )
         return units, cstate
 
@@ -888,6 +892,8 @@ class Compiler:
         protocol_version: defines.ProtocolVersion,
         inline_objectids: bool = True,
         json_parameters: bool = False,
+        persistent_cache: bool = False,
+        cache_key: Optional[uuid.UUID] = None,
     ) -> Tuple[dbstate.QueryUnitGroup,
                Optional[dbstate.CompilerConnectionState]]:
 
@@ -925,6 +931,8 @@ class Compiler:
             json_parameters=json_parameters,
             source=source,
             protocol_version=protocol_version,
+            persistent_cache=persistent_cache,
+            cache_key=cache_key,
         )
 
         unit_group = compile(ctx=ctx, source=source)
@@ -967,6 +975,8 @@ class Compiler:
             request.inline_objectids,
             request.json_parameters,
             expect_rollback=expect_rollback,
+            persistent_cache=True,
+            cache_key=request.get_cache_key(),
         )
         return units, cstate
 
@@ -984,6 +994,8 @@ class Compiler:
         inline_objectids: bool = True,
         json_parameters: bool = False,
         expect_rollback: bool = False,
+        persistent_cache: bool = False,
+        cache_key: Optional[uuid.UUID] = None,
     ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
         if (
             expect_rollback and
@@ -1009,6 +1021,8 @@ class Compiler:
             protocol_version=protocol_version,
             json_parameters=json_parameters,
             expect_rollback=expect_rollback,
+            persistent_cache=persistent_cache,
+            cache_key=cache_key,
         )
 
         return compile(ctx=ctx, source=source), ctx.state
@@ -1822,17 +1836,36 @@ def _compile_ql_query(
 
     result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
+    # This low-hanging-fruit is temporary; persistent cache should cover all
+    # cacheable cases properly in future changes.
+    use_persistent_cache = (
+        ctx.persistent_cache
+        and cacheable
+        and not ctx.bootstrap_mode
+        and script_info is None
+        and ctx.cache_key is not None
+    )
+
     sql_res = pg_compiler.compile_ir_to_sql_tree(
         ir,
         expected_cardinality_one=ctx.expected_cardinality_one,
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
         expand_inhviews=options.expand_inhviews,
+        detach_params=bool(use_persistent_cache and debug.flags.func_cache),
     )
 
-    sql_text = pg_codegen.generate_source(sql_res.ast)
-
     pg_debug.dump_ast_and_query(sql_res.ast, ir)
+
+    if use_persistent_cache:
+        if debug.flags.func_cache:
+            cache_sql, sql_ast = _build_cache_function(ctx, ir, sql_res)
+        else:
+            sql_ast = sql_res.ast
+            cache_sql = (b"", b"")
+    else:
+        sql_ast = sql_res.ast
+        cache_sql = None
 
     if (
         (mstate := current_tx.get_migration_state())
@@ -1845,6 +1878,7 @@ def _compile_ql_query(
 
         return dbstate.NullQuery()
 
+    sql_text = pg_codegen.generate_source(sql_ast)
     sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
     globals = None
@@ -1897,6 +1931,7 @@ def _compile_ql_query(
     return dbstate.Query(
         sql=(sql_bytes,),
         sql_hash=sql_hash,
+        cache_sql=cache_sql,
         cardinality=result_cardinality,
         globals=globals,
         in_type_id=in_type_id.bytes,
@@ -1908,6 +1943,104 @@ def _compile_ql_query(
         has_dml=bool(ir.dml_exprs),
         query_asts=query_asts,
     )
+
+
+def _build_cache_function(
+    ctx: CompileContext,
+    ir: irast.Statement,
+    sql_res: pg_compiler.CompileResult,
+) -> tuple[tuple[bytes, bytes], pgast.Base]:
+    sql_ast = sql_res.ast
+    assert ctx.cache_key is not None
+    key = ctx.cache_key.hex
+    returns_record = False
+    set_returning = True
+    return_type: tuple[str, ...] = ("unknown",)
+    match ctx.output_format:
+        case enums.OutputFormat.NONE:
+            return_type = ("void",)
+
+        case enums.OutputFormat.BINARY:
+            if ir.stype.is_object_type():
+                return_type = ("record",)
+                returns_record = True
+            else:
+                return_type = pg_types.pg_type_from_ir_typeref(
+                    ir.expr.typeref.base_type or ir.expr.typeref
+                )
+
+        case enums.OutputFormat.JSON:
+            return_type = ("json",)
+
+        case enums.OutputFormat.JSON_ELEMENTS:
+            return_type = ("json",)
+    if returns_record:
+        assert isinstance(sql_ast, pgast.ReturningQuery)
+        sql_ast.target_list.append(
+            pgast.ResTarget(
+                name="sentinel",
+                val=pgast.BooleanConstant(val=True),
+            ),
+        )
+    func = pg_dbops.Function(
+        name=("edgedb", f"__qh_{key}"),
+        args=[(None, arg) for arg in sql_res.detached_params or []],
+        returns=return_type,
+        set_returning=set_returning,
+        text=pg_codegen.generate_source(sql_ast),
+    )
+    if not ir.dml_exprs:
+        func.volatility = "stable"
+    cf = pg_dbops.SQLBlock()
+    pg_dbops.CreateFunction(func).generate(cf)
+    df = pg_dbops.SQLBlock()
+    pg_dbops.DropFunction(
+        name=func.name, args=func.args or (), if_exists=True
+    ).generate(df)
+    func_call = pgast.FuncCall(
+        name=("edgedb", f"__qh_{key}"),
+        args=[
+            pgast.TypeCast(
+                arg=pgast.ParamRef(number=i),
+                type_name=pgast.TypeName(name=arg),
+            )
+            for i, arg in enumerate(sql_res.detached_params or [], 1)
+        ],
+        coldeflist=[],
+    )
+    if returns_record:
+        func_call.coldeflist.extend(
+            [
+                pgast.ColumnDef(
+                    name="result",
+                    typename=pgast.TypeName(name=("record",)),
+                ),
+                pgast.ColumnDef(
+                    name="sentinel",
+                    typename=pgast.TypeName(name=("bool",)),
+                ),
+            ]
+        )
+        sql_ast = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(val=pgast.ColumnRef(name=("result",))),
+            ],
+            from_clause=[
+                pgast.RangeFunction(
+                    functions=[func_call],
+                    is_rowsfrom=True,
+                ),
+            ],
+        )
+    else:
+        sql_ast = pgast.SelectStmt(
+            target_list=[pgast.ResTarget(val=func_call)],
+        )
+    cache_sql = (
+        cf.to_string().encode(defines.EDGEDB_ENCODING),
+        df.to_string().encode(defines.EDGEDB_ENCODING),
+    )
+    return cache_sql, sql_ast
 
 
 def describe_params(
@@ -2489,6 +2622,7 @@ def _try_compile(
             cardinality=default_cardinality,
             capabilities=capabilities,
             output_format=stmt_ctx.output_format,
+            cache_key=ctx.cache_key,
         )
 
         if not comp.is_transactional:
@@ -2510,6 +2644,7 @@ def _try_compile(
 
         if isinstance(comp, dbstate.Query):
             unit.sql = comp.sql
+            unit.cache_sql = comp.cache_sql
             unit.globals = comp.globals
             unit.in_type_args = comp.in_type_args
 

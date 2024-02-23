@@ -119,6 +119,12 @@ cdef class CompilationRequest:
         self.cache_key = None
         return self
 
+    def set_database_config(self, value) -> CompilationRequest:
+        self.database_config = value
+        self.serialized_cache = None
+        self.cache_key = None
+        return self
+
     def set_system_config(self, value) -> CompilationRequest:
         self.system_config = value
         self.serialized_cache = None
@@ -186,25 +192,30 @@ cdef class CompilationRequest:
         out.write_bytes(type_id.bytes)
         out.write_len_prefixed_bytes(desc)
 
+        hash_obj = hashlib.blake2b(memoryview(out), digest_size=16)
+        hash_obj.update(self.source.cache_key())
+
+        # Build config that affects compilation: session -> database -> system.
+        # comp_config is only used for calculating cache_key, while session
+        # config itself is separately stored in the serialized format.
+        comp_config = {}
+        if self.system_config is not None:
+            comp_config.update(self.system_config)
+        if self.database_config is not None:
+            comp_config.update(self.database_config)
         if self.session_config is None:
             session_config = b""
         else:
+            comp_config.update(self.session_config)
             session_config = self._serializer.encode(
                 {k: v.value for k, v in self.session_config.items()}
             )
         out.write_len_prefixed_bytes(session_config)
 
-        hash_obj = hashlib.blake2b(memoryview(out), digest_size=16)
-        hash_obj.update(self.source.cache_key())
-
-        # system config only affects the cache key
-        if self.system_config is None:
-            system_config = b""
-        else:
-            system_config = self._serializer.encode(
-                {k: v.value for k, v in self.system_config.items()}
-            )
-        hash_obj.update(system_config)
+        serialized_comp_config = self._serializer.encode(
+            {k: v.value for k, v in comp_config.items()}
+        )
+        hash_obj.update(serialized_comp_config)
 
         cache_key_bytes = hash_obj.digest()
         self.cache_key = uuidgen.from_bytes(cache_key_bytes)
@@ -240,8 +251,10 @@ cdef class CompilationRequest:
         #   string
         # * 16-byte cache key = BLAKE-2b hash of:
         #    * All above serialized,
-        #    * Except that the source is replaced with Source.cache_key()
-        #    * Plus serialized system cache that only affects compilation
+        #    * Except that the source is replaced with Source.cache_key(), and
+        #    * Except that the serialized session config is replaced by
+        #      serialized combined config (session -> database -> system)
+        #      that only affects compilation.
 
         cdef char flags
 

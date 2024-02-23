@@ -57,6 +57,96 @@ cdef object logger = logging.getLogger('edb.server')
 cdef object FMT_NONE = compiler.OutputFormat.NONE
 
 
+async def persist_cache(
+    be_conn: pgcon.PGConnection,
+    dbv: dbview.DatabaseConnectionView,
+    pairs: list[tuple[rpc.CompilationRequest, compiler.QueryUnitGroup]],
+):
+    insert_sql = b'''
+        INSERT INTO "edgedb"."_query_cache"
+        ("key", "schema_version", "input", "output", "evict")
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (key) DO UPDATE SET
+        "schema_version"=$2, "input"=$3, "output"=$4, "evict"=$5
+    '''
+    sql_hash = hashlib.sha1(insert_sql).hexdigest().encode('latin1')
+    no_args = args_ser.combine_raw_args()
+    group = compiler.QueryUnitGroup()
+    bind_datas = []
+    for request, units in pairs:
+        # FIXME: this is temporary; drop this assertion when we support scripts
+        assert len(units) == 1
+        query_unit = units[0]
+
+        assert query_unit.cache_sql is not None
+        persist, evict = query_unit.cache_sql
+
+        serialized_result = units.maybe_get_serialized(0)
+        assert serialized_result is not None
+
+        if evict:
+            group.append(
+                compiler.QueryUnit(sql=(evict,), status=b''), serialize=False
+            )
+            bind_datas.append(no_args)
+        if persist:
+            group.append(
+                compiler.QueryUnit(sql=(persist,), status=b''), serialize=False
+            )
+            bind_datas.append(no_args)
+        group.append(
+            compiler.QueryUnit(
+                sql=(insert_sql,), sql_hash=sql_hash, status=b'',
+            ),
+            serialize=False,
+        )
+        bind_datas.append(
+            args_ser.combine_raw_args((
+                query_unit.cache_key.bytes,
+                dbv.schema_version.bytes,
+                request.serialize(),
+                serialized_result,
+                evict,
+            ))
+        )
+
+    try:
+        async with be_conn.parse_execute_script_context():
+            parse_array = [False] * len(group)
+            be_conn.send_query_unit_group(
+                group,
+                True,  # sync
+                bind_datas,
+                None,  # state
+                0,  # start
+                len(group),  # end
+                dbv.dbver,
+                parse_array,
+            )
+            for i, unit in enumerate(group):
+                await be_conn.wait_for_command(
+                    unit, parse_array[i], dbv.dbver, ignore_data=True
+                )
+    except Exception as ex:
+        if (
+            isinstance(ex, pgerror.BackendError)
+            and ex.code_is(pgerror.ERROR_SERIALIZATION_FAILURE)
+            # If we are in a transaction, we have to let the error
+            # propagate, since we can't do anything else after the error.
+            # Hopefully the client will retry, hit the cache, and
+            # everything will be fine.
+            and not dbv.in_tx()
+        ):
+            # XXX: Is it OK to just ignore it? Can we rely on the conflict
+            # having set it to the same thing?
+            pass
+        else:
+            dbv.on_error()
+            raise
+    else:
+        signal_query_cache_changes(dbv)
+
+
 # TODO: can we merge execute and execute_script?
 async def execute(
     be_conn: pgcon.PGConnection,
@@ -104,8 +194,15 @@ async def execute(
         else:
             config_ops = query_unit.config_ops
 
+            if compiled.request and query_unit.cache_sql:
+                await persist_cache(
+                    be_conn,
+                    dbv,
+                    [(compiled.request, compiled.query_unit_group)],
+                )
+
             if query_unit.sql:
-                if query_unit.ddl_stmt_id:
+                if query_unit.user_schema:
                     ddl_ret = await be_conn.run_ddl(query_unit, state)
                     if ddl_ret and ddl_ret['new_types']:
                         new_types = ddl_ret['new_types']
@@ -219,6 +316,21 @@ async def execute(
                 #   1. An orphan ROLLBACK command without a paring start tx
                 #   2. There was no SQL, so the state can't have been synced.
                 be_conn.last_state = state
+        if (
+            not dbv.in_tx()
+            and not query_unit.tx_rollback
+            and query_unit.user_schema
+        ):
+            # TODO(fantix): recompile first and update cache in tx
+            if debug.flags.func_cache:
+                recompile_requests = await dbv.clear_cache_keys(be_conn)
+            else:
+                recompile_requests = [
+                    req
+                    for req, (grp, _) in dbv._db._eql_to_compiled.items()
+                    if len(grp) == 1
+                ]
+            await dbv.recompile_all(be_conn, recompile_requests)
     finally:
         if query_unit.drop_db:
             tenant.allow_database_connections(query_unit.drop_db)
@@ -403,6 +515,19 @@ async def execute_script(
                 conn.last_state = state
         if unit_group.state_serializer is not None:
             dbv.set_state_serializer(unit_group.state_serializer)
+        if not in_tx:
+            if any(query_unit.user_schema for query_unit in unit_group):
+                # TODO(fantix): recompile first and update cache in tx
+                if debug.flags.func_cache:
+                    recompile_requests = await dbv.clear_cache_keys(conn)
+                else:
+                    recompile_requests = [
+                        req
+                        for req, (grp, _) in dbv._db._eql_to_compiled.items()
+                        if len(grp) == 1
+                    ]
+
+                await dbv.recompile_all(conn, recompile_requests)
 
     finally:
         if sent and not sync:
@@ -500,6 +625,16 @@ def signal_side_effects(dbv, side_effects):
             ),
             interruptable=False,
         )
+
+
+def signal_query_cache_changes(dbv):
+    dbv.tenant.create_task(
+        dbv.tenant.signal_sysevent(
+            'query-cache-changes',
+            dbname=dbv.dbname,
+        ),
+        interruptable=False,
+    )
 
 
 async def parse_execute_json(

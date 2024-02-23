@@ -21,6 +21,8 @@ cimport cython
 
 from libc.stdint cimport uint64_t
 
+from edb.server.cache cimport stmt_cache
+
 cdef DEFAULT_STATE
 
 cpdef enum SideEffects:
@@ -38,6 +40,7 @@ cdef class CompiledQuery:
     cdef public object first_extra  # Optional[int]
     cdef public object extra_counts
     cdef public object extra_blobs
+    cdef public object request
 
 
 cdef class DatabaseIndex:
@@ -59,7 +62,7 @@ cdef class DatabaseIndex:
 cdef class Database:
 
     cdef:
-        object _eql_to_compiled
+        stmt_cache.StatementsCache _eql_to_compiled
         object _sql_to_compiled
         DatabaseIndex _index
         object _views

@@ -28,17 +28,19 @@ import pickle
 import struct
 import time
 import typing
+import uuid
 import weakref
 
 import immutables
 
 from edb import errors
-from edb.common import lru, uuidgen
+from edb.common import debug, lru, uuidgen
 from edb import edgeql
 from edb.edgeql import qltypes
 from edb.schema import schema as s_schema
 from edb.server import compiler, defines, config, metrics
 from edb.server.compiler import dbstate, enums, sertypes
+from edb.server.protocol import execute
 from edb.pgsql import dbops
 from edb.server.compiler_pool import state as compiler_state_mod
 
@@ -81,18 +83,20 @@ cdef class CompiledQuery:
         query_unit_group: dbstate.QueryUnitGroup,
         first_extra: Optional[int]=None,
         extra_counts=(),
-        extra_blobs=()
+        extra_blobs=(),
+        request=None,
     ):
         self.query_unit_group = query_unit_group
         self.first_extra = first_extra
         self.extra_counts = extra_counts
         self.extra_blobs = extra_blobs
+        self.request = request
 
 
 cdef class Database:
 
-    # Global LRU cache of compiled anonymous queries
-    _eql_to_compiled: typing.Mapping[str, dbstate.QueryUnitGroup]
+    # Global LRU cache of compiled queries
+    _eql_to_compiled: stmt_cache.StatementsCache[uuid.UUID, dbstate.QueryUnitGroup]
 
     def __init__(
         self,
@@ -118,8 +122,8 @@ cdef class Database:
 
         self._introspection_lock = asyncio.Lock()
 
-        self._eql_to_compiled = lru.LRUMapping(
-            maxsize=defines._MAX_QUERIES_CACHE)
+        self._eql_to_compiled = stmt_cache.StatementsCache(
+            maxsize=defines._MAX_QUERIES_CACHE_DB)
         self._sql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
 
@@ -174,7 +178,6 @@ cdef class Database:
         self.backend_ids.update(new_types)
 
     cdef _invalidate_caches(self):
-        self._eql_to_compiled.clear()
         self._sql_to_compiled.clear()
         self._index.invalidate_caches()
 
@@ -191,6 +194,16 @@ cdef class Database:
 
         # Store the matching schema version, see also the comments at origin
         self._eql_to_compiled[key] = compiled, schema_version
+        keys = []
+        while self._eql_to_compiled.needs_cleanup():
+            query_req, (unit_group, _) = self._eql_to_compiled.cleanup_one()
+            if len(unit_group) == 1:
+                keys.append(query_req.get_cache_key())
+        if keys:
+            self.tenant.create_task(
+                self.tenant.evict_query_cache(self.name, keys),
+                interruptable=True,
+            )
 
     def cache_compiled_sql(self, key, compiled: list[str], schema_version):
         existing, ver = self._sql_to_compiled.get(key, DICTDEFAULT)
@@ -232,6 +245,26 @@ cdef class Database:
         else:
             return old_serializer
 
+    def hydrate_cache(self, query_cache):
+        new = set()
+        for schema_version, in_data, out_data in query_cache:
+            query_req = rpc.CompilationRequest(
+                self.server.compilation_config_serializer)
+            query_req.deserialize(in_data, "<unknown>")
+            schema_version = uuidgen.from_bytes(schema_version)
+            new.add(query_req)
+
+            _, cached_ver = self._eql_to_compiled.get(query_req, DICTDEFAULT)
+            if cached_ver != schema_version:
+                unit = dbstate.QueryUnit.deserialize(out_data)
+                group = dbstate.QueryUnitGroup()
+                group.append(unit)
+                self._eql_to_compiled[query_req] = group, schema_version
+
+        for query_req in list(self._eql_to_compiled):
+            if query_req not in new:
+                del self._eql_to_compiled[query_req]
+
     def iter_views(self):
         yield from self._views
 
@@ -242,7 +275,9 @@ cdef class Database:
         if self.user_schema_pickle is None:
             async with self._introspection_lock:
                 if self.user_schema_pickle is None:
-                    await self.tenant.introspect_db(self.name)
+                    await self.tenant.introspect_db(
+                        self.name, hydrate_cache=True
+                    )
 
 
 cdef class DatabaseConnectionView:
@@ -887,6 +922,83 @@ cdef class DatabaseConnectionView:
         self._reset_tx_state()
         return side_effects
 
+    async def clear_cache_keys(self, conn) -> list[rpc.CompilationRequest]:
+        rows = await conn.sql_fetch(b'SELECT "edgedb"."_clear_query_cache"()')
+        rv = []
+        for row in rows:
+            query_req = rpc.CompilationRequest(
+                self.server.compilation_config_serializer
+            ).deserialize(row[0], "<unknown>")
+            rv.append(query_req)
+            self._db._eql_to_compiled.pop(query_req, None)
+        execute.signal_query_cache_changes(self)
+        return rv
+
+    async def recompile_all(
+        self, conn, requests: typing.Iterable[rpc.CompilationRequest]
+    ):
+        # Assume the size of compiler pool is 100, we'll issue 50 concurrent
+        # compilation requests at the same time, cache up to 150 results and
+        # persist in one backend round-trip, in parallel.
+        compiler_pool = self.server.get_compiler_pool()
+        compile_concurrency = max(1, compiler_pool.get_size_hint() // 2)
+        concurrency_control = asyncio.Semaphore(compile_concurrency)
+        persist_batch_size = compile_concurrency * 3
+        compiled_queue = asyncio.Queue(persist_batch_size)
+
+        async def recompile_request(query_req: rpc.CompilationRequest):
+            async with concurrency_control:
+                try:
+                    schema_version = self.schema_version
+                    result = await compiler_pool.compile(
+                        self.dbname,
+                        self.get_user_schema_pickle(),
+                        self.get_global_schema_pickle(),
+                        self.reflection_cache,
+                        self.get_database_config(),
+                        self.get_compilation_system_config(),
+                        query_req.serialize(),
+                        "<unknown>",
+                        client_id=self.tenant.client_id,
+                    )
+                except Exception:
+                    # discard cache entry that cannot be recompiled
+                    self._db._eql_to_compiled.pop(query_req, None)
+                else:
+                    await compiled_queue.put(
+                        (query_req, result[0], schema_version)
+                    )
+
+        async def persist_cache_task():
+            if not debug.flags.func_cache:
+                # TODO(fantix): sync _query_cache in one implicit tx
+                await conn.sql_fetch(b'SELECT "edgedb"."_clear_query_cache"()')
+
+            buf = []
+            running = True
+            while running:
+                while len(buf) < persist_batch_size:
+                    item = await compiled_queue.get()
+                    if item is None:
+                        running = False
+                        break
+                    buf.append(item)
+                if buf:
+                    await execute.persist_cache(
+                        conn, self, [item[:2] for item in buf]
+                    )
+                    for query_req, query_unit_group, schema_version in buf:
+                        self._db._cache_compiled_query(
+                            query_req, query_unit_group, schema_version)
+                    buf.clear()
+
+        async with asyncio.TaskGroup() as g:
+            g.create_task(persist_cache_task())
+            async with asyncio.TaskGroup() as compile_group:
+                for req in requests:
+                    compile_group.create_task(recompile_request(req))
+            await compiled_queue.put(None)
+
     async def apply_config_ops(self, conn, ops):
         settings = self.get_config_spec()
 
@@ -1003,6 +1115,7 @@ cdef class DatabaseConnectionView:
             first_extra=source.first_extra(),
             extra_counts=source.extra_counts(),
             extra_blobs=source.extra_blobs(),
+            request=query_req,
         )
 
     async def _compile(
