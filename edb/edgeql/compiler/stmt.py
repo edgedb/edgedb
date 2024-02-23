@@ -180,7 +180,7 @@ def compile_ForQuery(
             if ectx.expr_exposed:
                 ectx.expr_exposed = context.Exposure.BINDING
             iterator_view = stmtctx.declare_view(
-                iterator,
+                astutils.ensure_ql_select(iterator),
                 s_name.UnqualName(qlstmt.iterator_alias),
                 factoring_fence=contains_dml,
                 path_id_namespace=sctx.path_id_namespace,

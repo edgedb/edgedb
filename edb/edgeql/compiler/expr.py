@@ -312,6 +312,36 @@ def compile_Array(
     return setgen.new_array_set(elements, ctx=ctx, srcctx=expr.context)
 
 
+def _move_fenced_anchor(ir: irast.Set, *, ctx: context.ContextLevel) -> None:
+    """Move the scope tree of a fenced anchor to its use site.
+
+    For technical reasons, in _compile_dml_coalesce and
+    _compile_dml_ifelse, we compile the expressions normally and then
+    extract the subcomponents and use them as anchors inside a
+    desugared expression.
+
+    Because of this, the resultant scope tree does not have the right
+    shape, since the scope trees of the fenced subexpressions aren't
+    nested inside the trees of the FOR loops. This results in subtle
+    problems in backend compilation, since the loop iterators are not
+    visible to the loop bodies.
+
+    Fix the trees by finding the scope tree associated with a set used
+    as an anchor, finding where that anchor was used, and moving the
+    scope tree there.
+    """
+    match ir.expr:
+        case irast.SelectStmt(result=irast.Set(path_scope_id=int(id))):
+            node = next(iter(
+                x for x in ctx.path_scope.root.descendants
+                if x.unique_id == id
+            ))
+            target = ctx.path_scope.find_descendant(ir.path_id)
+            assert target and target.parent
+            node.remove()
+            target.parent.attach_child(node)
+
+
 def _compile_dml_coalesce(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
     """Transform a coalesce that contains DML into FOR loops
@@ -355,13 +385,13 @@ def _compile_dml_coalesce(
 
         subctx.anchors = subctx.anchors.copy()
 
-        alias = ctx.aliases.get('b')
+        alias = ctx.aliases.get('_coalesce_x')
         cond_path = qlast.Path(
             steps=[qlast.ObjectRef(name=alias)],
         )
 
         rhs_b = qlast.ForQuery(
-            iterator_alias='__',
+            iterator_alias=ctx.aliases.get('_coalesce_dummy'),
             iterator=qlast.SelectQuery(
                 result=qlast.Tuple(elements=[]),
                 where=qlast.UnaryOp(
@@ -386,6 +416,8 @@ def _compile_dml_coalesce(
         # cardinality/multiplicity.
         assert isinstance(res.expr, irast.SelectStmt)
         res.expr.card_inference_override = ir
+
+        _move_fenced_anchor(rhs_ir, ctx=subctx)
 
         return res
 
@@ -432,7 +464,7 @@ def _compile_dml_ifelse(
 
         subctx.anchors = subctx.anchors.copy()
 
-        alias = ctx.aliases.get('b')
+        alias = ctx.aliases.get('_ifelse_b')
         cond_path = qlast.Path(
             steps=[qlast.ObjectRef(name=alias)],
         )
@@ -441,7 +473,7 @@ def _compile_dml_ifelse(
 
         if not isinstance(irutils.unwrap_set(if_ir), irast.EmptySet):
             if_b = qlast.ForQuery(
-                iterator_alias='__',
+                iterator_alias=ctx.aliases.get('_ifelse_true_dummy'),
                 iterator=qlast.SelectQuery(
                     result=qlast.Tuple(elements=[]),
                     where=cond_path,
@@ -452,7 +484,7 @@ def _compile_dml_ifelse(
 
         if not isinstance(irutils.unwrap_set(else_ir), irast.EmptySet):
             else_b = qlast.ForQuery(
-                iterator_alias='__',
+                iterator_alias=ctx.aliases.get('_ifelse_false_dummy'),
                 iterator=qlast.SelectQuery(
                     result=qlast.Tuple(elements=[]),
                     where=qlast.UnaryOp(op='NOT', operand=cond_path),
@@ -473,6 +505,9 @@ def _compile_dml_ifelse(
         # cardinality/multiplicity.
         assert isinstance(res.expr, irast.SelectStmt)
         res.expr.card_inference_override = ir
+
+        _move_fenced_anchor(if_ir, ctx=subctx)
+        _move_fenced_anchor(else_ir, ctx=subctx)
 
         return res
 

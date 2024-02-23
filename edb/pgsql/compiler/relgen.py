@@ -232,6 +232,7 @@ def get_set_rvar(
 
         # Actually compile the set
         rvars = _get_set_rvar(ir_set, ctx=subctx)
+        relctx.update_scope_masks(ir_set, rvars.main.rvar, ctx=subctx)
 
         if ctx.env.expand_inhviews:
             for srvar in rvars.new:
@@ -242,6 +243,7 @@ def get_set_rvar(
         if optional_wrapping:
             rvars = finalize_optional_rel(ir_set, optrel=optrel,
                                           rvars=rvars, ctx=subctx)
+            relctx.update_scope_masks(ir_set, rvars.main.rvar, ctx=subctx)
         elif not is_optional and is_empty_set:
             # In most cases it is totally fine for us to represent an
             # empty set as an empty relation.
@@ -251,7 +253,6 @@ def get_set_rvar(
                 null_query, (pgast.SelectStmt, pgast.NullRelation))
             null_query.where_clause = pgast.BooleanConstant(val=False)
 
-        relctx.update_scope_masks(ir_set, rvars.main.rvar, ctx=subctx)
         result_rvar = _include_rvars(rvars, scope_stmt=scope_stmt, ctx=subctx)
         for aspect in rvars.main.aspects:
             pathctx.put_path_rvar_if_not_exists(

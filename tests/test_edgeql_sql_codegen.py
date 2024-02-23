@@ -186,12 +186,38 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             "update has unnecessary conflict check"
         )
 
-    def test_codegen_group_simple(self):
+    def test_codegen_group_simple_01(self):
         tree = self._compile_to_tree('''
         select (group Issue by .status) {
             name := .key.status.name,
             num := count(.elements),
         } order by .name
+        ''')
+        child = ast_visitor.find_children(
+            tree,
+            pgast.SelectStmt,
+            lambda x: bool(x.group_clause),
+            terminate_early=True
+        )[0]
+        group_sql = pg_codegen.generate_source(child, pretty=True)
+
+        # We want no array_agg in the group - it should just be able
+        # to do a count
+        self.assertNotIn(
+            "array_agg", group_sql,
+            "group has unnecessary array_agg",
+        )
+
+        # And we want no uuid generation, which is a huge perf killer
+        self.assertNotIn(
+            "uuid_generate", group_sql,
+            "group has unnecessary uuid_generate",
+        )
+
+    def test_codegen_group_simple_02(self):
+        tree = self._compile_to_tree('''
+        for g in (group Issue by .status)
+        select (g.key.status.name, count(g.elements))
         ''')
         child = ast_visitor.find_children(
             tree,

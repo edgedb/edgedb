@@ -1238,3 +1238,15 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [{}],
         )
+
+    async def test_edgeql_for_optional_03(self):
+        Q = '''
+        for dummy in "1"
+        for optional x in (delete Card filter .name = 'Yolanda Swaggins')
+        select x.cost ?? 420;
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [420],
+        )
