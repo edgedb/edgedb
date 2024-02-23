@@ -33,7 +33,7 @@ Arrays
       - Finds the index of an element in the array.
 
     * - :eql:func:`array_join`
-      - Renders an array to a string.
+      - Renders an array to a string or byte-string.
 
     * - :eql:func:`array_fill`
       - :eql:func-desc:`array_fill`
@@ -313,10 +313,12 @@ Reference
 
 
 .. eql:function:: std::array_join(array: array<str>, delimiter: str) -> str
+                  std::array_join(array: array<bytes>, \
+                                  delimiter: bytes) -> bytes
 
     :index: join array_to_string implode
 
-    Renders an array to a string.
+    Renders an array to a string or byte-string.
 
     Join a string array into a single string using a specified *delimiter*:
 
@@ -324,6 +326,14 @@ Reference
 
         db> select array_join(['one', 'two', 'three'], ', ');
         {'one, two, three'}
+
+    Similarly, an array of :eql:type:`bytes` can be joined as a single value
+    using a specified *delimiter*:
+
+    .. code-block:: edgeql-repl
+
+        db> select array_join([b'\x01', b'\x02', b'\x03'], b'\xff');
+        {b'\x01\xff\x02\xff\x03'}
 
 
 ----------
