@@ -169,7 +169,6 @@ async def execute(
     new_types = None
     server = dbv.server
     tenant = dbv.tenant
-    recompile_requests = None
 
     data = None
 
@@ -204,16 +203,6 @@ async def execute(
 
             if query_unit.sql:
                 if query_unit.user_schema:
-                    # TODO(fantix): recompile first and update cache in tx
-                    if debug.flags.func_cache:
-                        recompile_requests = await dbv.clear_cache_keys(be_conn)
-                    else:
-                        recompile_requests = [
-                            req
-                            for req, (grp, _) in dbv._db._eql_to_compiled.items()
-                            if len(grp) == 1
-                        ]
-
                     ddl_ret = await be_conn.run_ddl(query_unit, state)
                     if ddl_ret and ddl_ret['new_types']:
                         new_types = ddl_ret['new_types']
@@ -327,7 +316,20 @@ async def execute(
                 #   1. An orphan ROLLBACK command without a paring start tx
                 #   2. There was no SQL, so the state can't have been synced.
                 be_conn.last_state = state
-        if recompile_requests:
+        if (
+            not dbv.in_tx()
+            and not query_unit.tx_rollback
+            and query_unit.user_schema
+        ):
+            # TODO(fantix): recompile first and update cache in tx
+            if debug.flags.func_cache:
+                recompile_requests = await dbv.clear_cache_keys(be_conn)
+            else:
+                recompile_requests = [
+                    req
+                    for req, (grp, _) in dbv._db._eql_to_compiled.items()
+                    if len(grp) == 1
+                ]
             await dbv.recompile_all(be_conn, recompile_requests)
     finally:
         if query_unit.drop_db:
@@ -365,20 +367,8 @@ async def execute_script(
         orig_state = state = dbv.serialize_state()
 
     data = None
-    recompile_requests = None
 
     try:
-        if any(query_unit.user_schema for query_unit in unit_group):
-            # TODO(fantix): recompile first and update cache in tx
-            if debug.flags.func_cache:
-                recompile_requests = await dbv.clear_cache_keys(conn)
-            else:
-                recompile_requests = [
-                    req
-                    for req, (grp, _) in dbv._db._eql_to_compiled.items()
-                    if len(grp) == 1
-                ]
-
         if conn.last_state == state:
             # the current status in be_conn is in sync with dbview, skip the
             # state restoring
@@ -525,8 +515,19 @@ async def execute_script(
                 conn.last_state = state
         if unit_group.state_serializer is not None:
             dbv.set_state_serializer(unit_group.state_serializer)
-        if recompile_requests:
-            await dbv.recompile_all(conn, recompile_requests)
+        if not in_tx:
+            if any(query_unit.user_schema for query_unit in unit_group):
+                # TODO(fantix): recompile first and update cache in tx
+                if debug.flags.func_cache:
+                    recompile_requests = await dbv.clear_cache_keys(conn)
+                else:
+                    recompile_requests = [
+                        req
+                        for req, (grp, _) in dbv._db._eql_to_compiled.items()
+                        if len(grp) == 1
+                    ]
+
+                await dbv.recompile_all(conn, recompile_requests)
 
     finally:
         if sent and not sync:
