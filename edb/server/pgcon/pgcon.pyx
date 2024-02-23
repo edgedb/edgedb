@@ -775,7 +775,7 @@ cdef class PGConnection:
         cdef bint parse = 1
 
         while self.prep_stmts.needs_cleanup():
-            stmt_name_to_clean = self.prep_stmts.cleanup_one()
+            stmt_name_to_clean, _ = self.prep_stmts.cleanup_one()
             if self.debug:
                 self.debug_print(f"discarding ps {stmt_name_to_clean!r}")
             outbuf.write_buffer(

@@ -60,8 +60,7 @@ cdef class StatementsCache:
         return len(self._dict) > self._maxsize
 
     cpdef cleanup_one(self):
-        k, _ = self._dict.popitem(last=False)
-        return k
+        return self._dict.popitem(last=False)
 
     cpdef resize(self, int maxsize):
         if maxsize <= 0:

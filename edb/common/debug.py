@@ -176,6 +176,7 @@ class flags(metaclass=FlagsMeta):
 
     zombodb = Flag(doc="Enabled zombodb and disables postgres FTS")
 
+    # Function cache is an experimental feature that may not fully work
     func_cache = Flag(doc="Use stored functions for persistent cache")
 
 

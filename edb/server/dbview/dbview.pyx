@@ -196,11 +196,13 @@ cdef class Database:
         self._eql_to_compiled[key] = compiled, schema_version
         keys = []
         while self._eql_to_compiled.needs_cleanup():
-            keys.append(self._eql_to_compiled.cleanup_one().get_cache_key())
+            query_req, (unit_group, _) = self._eql_to_compiled.cleanup_one()
+            if len(unit_group) == 1:
+                keys.append(query_req.get_cache_key())
         if keys:
             self.tenant.create_task(
                 self.tenant.evict_query_cache(self.name, keys),
-                interruptable=False,
+                interruptable=True,
             )
 
     def cache_compiled_sql(self, key, compiled: list[str], schema_version):
@@ -929,23 +931,25 @@ cdef class DatabaseConnectionView:
             ).deserialize(row[0], "<unknown>")
             rv.append(query_req)
             self._db._eql_to_compiled.pop(query_req, None)
+        execute.signal_query_cache_changes(self)
         return rv
 
     async def recompile_all(
         self, conn, requests: typing.Iterable[rpc.CompilationRequest]
     ):
+        # Assume the size of compiler pool is 100, we'll issue 50 concurrent
+        # compilation requests at the same time, cache up to 150 results and
+        # persist in one backend round-trip, in parallel.
         compiler_pool = self.server.get_compiler_pool()
-        concurrency = max(1, compiler_pool.get_size_hint() - 1)
-        i = asyncio.Queue(maxsize=concurrency)
-        o = asyncio.Queue()
+        compile_concurrency = max(1, compiler_pool.get_size_hint() // 2)
+        concurrency_control = asyncio.Semaphore(compile_concurrency)
+        persist_batch_size = compile_concurrency * 3
+        compiled_queue = asyncio.Queue(persist_batch_size)
 
-        async def recompile_request():
-            while True:
-                query_req = await i.get()
-                if query_req is None:
-                    o.put_nowait((None, None))
-                    break
+        async def recompile_request(query_req: rpc.CompilationRequest):
+            async with concurrency_control:
                 try:
+                    schema_version = self.schema_version
                     result = await compiler_pool.compile(
                         self.dbname,
                         self.get_user_schema_pickle(),
@@ -959,39 +963,41 @@ cdef class DatabaseConnectionView:
                     )
                 except Exception:
                     # discard cache entry that cannot be recompiled
-                    o.put_nowait((query_req, None))
-                    pass
+                    self._db._eql_to_compiled.pop(query_req)
                 else:
-                    o.put_nowait((query_req, result[0]))
+                    await compiled_queue.put(
+                        (query_req, result[0], schema_version)
+                    )
 
         async def persist_cache_task():
             if not debug.flags.func_cache:
                 # TODO(fantix): sync _query_cache in one implicit tx
                 await conn.sql_fetch(b'SELECT "edgedb"."_clear_query_cache"()')
 
-            count = concurrency
-            while count > 0:
-                query_req, query_unit_group = await o.get()
-                if query_req is None:
-                    count -= 1
-                elif query_unit_group is None:
-                    self._db._eql_to_compiled.pop(query_req)
-                else:
+            buf = []
+            running = True
+            while running:
+                while len(buf) < persist_batch_size:
+                    item = await compiled_queue.get()
+                    if item is None:
+                        running = False
+                        break
+                    buf.append(item)
+                if buf:
                     await execute.persist_cache(
-                        conn, self, query_req, query_unit_group
+                        conn, self, [item[:2] for item in buf]
                     )
-                    self._db._eql_to_compiled[query_req] = (
-                        query_unit_group, self.schema_version
-                    )
+                    for query_req, query_unit_group, schema_version in buf:
+                        self._db._cache_compiled_query(
+                            query_req, query_unit_group, schema_version)
+                    buf.clear()
 
         async with asyncio.TaskGroup() as g:
-            for _ in range(concurrency):
-                g.create_task(recompile_request())
             g.create_task(persist_cache_task())
-            for data in requests:
-                await i.put(data)
-            for _ in range(concurrency):
-                await i.put(None)
+            async with asyncio.TaskGroup() as compile_group:
+                for req in requests:
+                    compile_group.create_task(recompile_request(req))
+            await compiled_queue.put(None)
 
     async def apply_config_ops(self, conn, ops):
         settings = self.get_config_spec()

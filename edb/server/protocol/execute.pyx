@@ -60,19 +60,8 @@ cdef object FMT_NONE = compiler.OutputFormat.NONE
 async def persist_cache(
     be_conn: pgcon.PGConnection,
     dbv: dbview.DatabaseConnectionView,
-    request: rpc.CompilationRequest,
-    units: compiler.QueryUnitGroup,
+    pairs: list[tuple[rpc.CompilationRequest, compiler.QueryUnitGroup]],
 ):
-    # FIXME: this is temporary; drop this assertion when we support scripts
-    assert len(units) == 1
-    query_unit = units[0]
-
-    assert query_unit.cache_sql is not None
-    persist, evict = query_unit.cache_sql
-
-    serialized_result = units.maybe_get_serialized(0)
-    assert serialized_result is not None
-
     insert_sql = b'''
         INSERT INTO "edgedb"."_query_cache"
         ("key", "schema_version", "input", "output", "evict")
@@ -80,34 +69,61 @@ async def persist_cache(
         ON CONFLICT (key) DO UPDATE SET
         "schema_version"=$2, "input"=$3, "output"=$4, "evict"=$5
     '''
-    bind_datas = [args_ser.combine_raw_args()] * 2
-    bind_datas += [args_ser.combine_raw_args((
-        query_unit.cache_key.bytes,
-        dbv.schema_version.bytes,
-        request.serialize(),
-        serialized_result,
-        evict,
-    ))]
-    units = compiler.QueryUnitGroup()
-    units.append(
-        compiler.QueryUnit(sql=(evict,), status=b''), serialize=False)
-    units.append(
-        compiler.QueryUnit(sql=(persist,), status=b''), serialize=False)
-    units.append(
-        compiler.QueryUnit(
-            sql=(insert_sql,),
-            sql_hash=hashlib.sha1(insert_sql).hexdigest().encode('latin1'),
-            status=b'',
-        ),
-        serialize=False,
-    )
+    sql_hash = hashlib.sha1(insert_sql).hexdigest().encode('latin1')
+    no_args = args_ser.combine_raw_args()
+    group = compiler.QueryUnitGroup()
+    bind_datas = []
+    for request, units in pairs:
+        # FIXME: this is temporary; drop this assertion when we support scripts
+        assert len(units) == 1
+        query_unit = units[0]
+
+        assert query_unit.cache_sql is not None
+        persist, evict = query_unit.cache_sql
+
+        serialized_result = units.maybe_get_serialized(0)
+        assert serialized_result is not None
+
+        if evict:
+            group.append(
+                compiler.QueryUnit(sql=(evict,), status=b''), serialize=False
+            )
+            bind_datas.append(no_args)
+        if persist:
+            group.append(
+                compiler.QueryUnit(sql=(persist,), status=b''), serialize=False
+            )
+            bind_datas.append(no_args)
+        group.append(
+            compiler.QueryUnit(
+                sql=(insert_sql,), sql_hash=sql_hash, status=b'',
+            ),
+            serialize=False,
+        )
+        bind_datas.append(
+            args_ser.combine_raw_args((
+                query_unit.cache_key.bytes,
+                dbv.schema_version.bytes,
+                request.serialize(),
+                serialized_result,
+                evict,
+            ))
+        )
 
     try:
         async with be_conn.parse_execute_script_context():
-            parse_array = [False] * 3
+            parse_array = [False] * len(group)
             be_conn.send_query_unit_group(
-                units, True, bind_datas, None, 0, 3, dbv.dbver, parse_array)
-            for i, unit in enumerate(units):
+                group,
+                True,  # sync
+                bind_datas,
+                None,  # state
+                0,  # start
+                len(group),  # end
+                dbv.dbver,
+                parse_array,
+            )
+            for i, unit in enumerate(group):
                 await be_conn.wait_for_command(
                     unit, parse_array[i], dbv.dbver, ignore_data=True
                 )
@@ -128,13 +144,8 @@ async def persist_cache(
             dbv.on_error()
             raise
     else:
-        dbv.tenant.create_task(
-            dbv.tenant.signal_sysevent(
-                'query-cache-changes',
-                dbname=dbv.dbname,
-            ),
-            interruptable=False,
-        )
+        signal_query_cache_changes(dbv)
+
 
 # TODO: can we merge execute and execute_script?
 async def execute(
@@ -186,7 +197,10 @@ async def execute(
 
             if compiled.request and query_unit.cache_sql:
                 await persist_cache(
-                    be_conn, dbv, compiled.request, compiled.query_unit_group)
+                    be_conn,
+                    dbv,
+                    [(compiled.request, compiled.query_unit_group)],
+                )
 
             if query_unit.sql:
                 if query_unit.user_schema:
@@ -196,7 +210,7 @@ async def execute(
                     else:
                         recompile_requests = [
                             req
-                            for req, grp in dbv._db._eql_to_compiled.items()
+                            for req, (grp, _) in dbv._db._eql_to_compiled.items()
                             if len(grp) == 1
                         ]
 
@@ -361,7 +375,7 @@ async def execute_script(
             else:
                 recompile_requests = [
                     req
-                    for req, grp in dbv._db._eql_to_compiled.items()
+                    for req, (grp, _) in dbv._db._eql_to_compiled.items()
                     if len(grp) == 1
                 ]
 
@@ -610,6 +624,16 @@ def signal_side_effects(dbv, side_effects):
             ),
             interruptable=False,
         )
+
+
+def signal_query_cache_changes(dbv):
+    dbv.tenant.create_task(
+        dbv.tenant.signal_sysevent(
+            'query-cache-changes',
+            dbname=dbv.dbname,
+        ),
+        interruptable=False,
+    )
 
 
 async def parse_execute_json(
