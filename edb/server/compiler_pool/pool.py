@@ -538,15 +538,18 @@ class AbstractPool:
         finally:
             self._release_worker(worker)
 
-    async def interpret_backend_error(
+    # We use a helper function instead of just fully generating the
+    # functions in order to make the backtraces a little better.
+    async def _simple_call(
         self,
+        name,
         *args,
         **kwargs
     ):
         worker = await self._acquire_worker()
         try:
             return await worker.call(
-                'interpret_backend_error',
+                name,
                 *args,
                 **kwargs
             )
@@ -554,117 +557,37 @@ class AbstractPool:
         finally:
             self._release_worker(worker)
 
-    async def parse_global_schema(
-        self,
-        *args,
-        **kwargs,
-    ):
-        worker = await self._acquire_worker()
-        try:
-            return await worker.call(
-                'parse_global_schema',
-                *args,
-                **kwargs
-            )
+    async def interpret_backend_error(self, *args, **kwargs):
+        return await self._simple_call(
+            'interpret_backend_error', *args, **kwargs)
 
-        finally:
-            self._release_worker(worker)
+    async def parse_global_schema(self, *args, **kwargs):
+        return await self._simple_call(
+            'parse_global_schema', *args, **kwargs)
 
-    async def parse_user_schema_db_config(
-        self,
-        *args,
-        **kwargs,
-    ):
-        worker = await self._acquire_worker()
-        try:
-            return await worker.call(
-                'parse_user_schema_db_config',
-                *args,
-                **kwargs,
-            )
+    async def parse_user_schema_db_config(self, *args, **kwargs):
+        return await self._simple_call(
+            'parse_user_schema_db_config', *args, **kwargs)
 
-        finally:
-            self._release_worker(worker)
+    async def make_state_serializer(self, *args, **kwargs):
+        return await self._simple_call(
+            'make_state_serializer', *args, **kwargs)
 
-    async def make_state_serializer(
-        self,
-        *args,
-        **kwargs,
-    ):
-        worker = await self._acquire_worker()
-        try:
-            return await worker.call(
-                'make_state_serializer',
-                *args,
-                **kwargs,
-            )
+    async def make_compilation_config_serializer(self, *args, **kwargs):
+        return await self._simple_call(
+            'make_compilation_config_serializer', *args, **kwargs)
 
-        finally:
-            self._release_worker(worker)
+    async def describe_database_dump(self, *args, **kwargs):
+        return await self._simple_call(
+            'describe_database_dump', *args, **kwargs)
 
-    async def make_compilation_config_serializer(
-        self,
-        *args,
-        **kwargs,
-    ):
-        worker = await self._acquire_worker()
-        try:
-            return await worker.call(
-                'make_compilation_config_serializer',
-                *args,
-                **kwargs,
-            )
+    async def describe_database_restore(self, *args, **kwargs):
+        return await self._simple_call(
+            'describe_database_restore', *args, **kwargs)
 
-        finally:
-            self._release_worker(worker)
-
-    async def describe_database_dump(
-        self,
-        *args,
-        **kwargs
-    ):
-        worker = await self._acquire_worker()
-        try:
-            return await worker.call(
-                'describe_database_dump',
-                *args,
-                **kwargs
-            )
-
-        finally:
-            self._release_worker(worker)
-
-    async def describe_database_restore(
-        self,
-        *args,
-        **kwargs
-    ):
-        worker = await self._acquire_worker()
-        try:
-            return await worker.call(
-                'describe_database_restore',
-                *args,
-                **kwargs
-            )
-
-        finally:
-            self._release_worker(worker)
-
-    async def analyze_explain_output(
-        self,
-        *args,
-        **kwargs
-    ):
-        worker = await self._acquire_worker()
-        try:
-            return await worker.call(
-                'analyze_explain_output',
-                *args,
-                **kwargs
-            )
-
-        finally:
-            self._release_worker(worker)
+    async def analyze_explain_output(self, *args, **kwargs):
+        return await self._simple_call(
+            'analyze_explain_output', *args, **kwargs)
 
     def get_debug_info(self):
         return {}
