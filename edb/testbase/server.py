@@ -949,6 +949,8 @@ class ClusterTestCase(BaseHTTPTestCase):
 class ConnectedTestCase(ClusterTestCase):
 
     BASE_TEST_CLASS = True
+    NO_FACTOR = False
+    WARN_FACTOR = False
 
     con: Any  # XXX: the real type?
 
@@ -988,6 +990,16 @@ class ConnectedTestCase(ClusterTestCase):
                     'CONFIGURE SESSION SET auto_rebuild_query_cache := false;'
                 )
             )
+
+        if self.NO_FACTOR:
+            self.loop.run_until_complete(
+                self.con.execute(
+                    'CONFIGURE SESSION SET simple_scoping := true;'))
+
+        if self.WARN_FACTOR:
+            self.loop.run_until_complete(
+                self.con.execute(
+                    'CONFIGURE SESSION SET warn_old_scoping := true;'))
 
         if self.TRANSACTION_ISOLATION:
             self.xact = self.con.transaction()

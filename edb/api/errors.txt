@@ -67,6 +67,7 @@
 0x_04_03_00_04   UnknownUserError
 0x_04_03_00_05   UnknownDatabaseError
 0x_04_03_00_06   UnknownParameterError
+0x_04_03_00_07   DeprecatedScopingError
 
 0x_04_04_00_00   SchemaError
 

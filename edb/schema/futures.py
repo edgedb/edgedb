@@ -138,5 +138,19 @@ class DeleteFutureBehavior(
     FutureBehaviorCommand,
     sd.DeleteObject[FutureBehavior],
 ):
-
     astnode = qlast.DropFuture
+
+
+# These are registered here because they aren't directly related to
+# any schema elements.
+@register_handler('simple_scoping')
+@register_handler('warn_old_scoping')
+def toggle_scoping_future(
+    cmd: FutureBehaviorCommand,
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    on: bool,
+) -> tuple[s_schema.Schema, sd.Command]:
+    # TODO: Recompile every expression! Wow!
+    group = sd.CommandGroup()
+    return schema, group

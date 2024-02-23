@@ -466,12 +466,13 @@ def _build_object_mutation_shape(
                     WITH
                         orig_json := json_array_unpack(<json>${var_n})
                     SELECT
-                        array_agg(
+                        array_agg((
+                            for orig_json in orig_json union
                             (
                                 name := <str>orig_json['name'],
                                 expr := <str>orig_json['expr']['text'],
                             )
-                        )
+                        ))
                 )
             '''
             if v is not None:
@@ -496,14 +497,15 @@ def _build_object_mutation_shape(
                     WITH
                         orig_json := json_array_unpack(<json>${var_n})
                     SELECT
-                        array_agg(
+                        array_agg((
+                            for orig_json in orig_json union
                             (
                                 name := <str>orig_json['name'],
                                 expr := sys::_expr_from_json(
                                     orig_json['expr']
                                 )
                             )
-                        )
+                        ))
                 )
             '''
 

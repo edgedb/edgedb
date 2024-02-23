@@ -649,7 +649,9 @@ def _cast_json_to_tuple(
 ) -> irast.Set:
 
     with ctx.new() as subctx:
+        subctx.allow_factoring()
         pathctx.register_set_in_scope(ir_set, ctx=subctx)
+
         subctx.anchors = subctx.anchors.copy()
         source_path = subctx.create_anchor(ir_set, 'a')
 
@@ -868,6 +870,7 @@ def _cast_range(
             span=span)
 
     with ctx.new() as subctx:
+        subctx.allow_factoring()
         subctx.anchors = subctx.anchors.copy()
         source_path = subctx.create_anchor(ir_set, 'a')
 
@@ -948,6 +951,7 @@ def _cast_multirange(
         ctx.env.schema, [el_type])
     ql_range_type = typegen.type_to_ql_typeref(new_range_type, ctx=ctx)
     with ctx.new() as subctx:
+        subctx.allow_factoring()
         subctx.anchors = subctx.anchors.copy()
         source_path = subctx.create_anchor(ir_set, 'a')
 
@@ -1222,6 +1226,8 @@ def _cast_array(
             ir_set, el_cast, orig_stype, new_stype, ctx=ctx)
     else:
         with ctx.new() as subctx:
+            subctx.allow_factoring()
+
             subctx.anchors = subctx.anchors.copy()
             source_path = subctx.create_anchor(ir_set, 'a')
 
