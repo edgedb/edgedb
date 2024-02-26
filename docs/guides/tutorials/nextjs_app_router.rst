@@ -622,6 +622,6 @@ The next step is to add a ``/newpost`` page with a form for writing new blog
 posts and saving them into EdgeDB. That's left as an exercise for the reader.
 
 To see the final code for this tutorial, refer to 
-`github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
+`github.com/edgedb/edgedb-examples/tree/main/nextjs-blog-app-router
 <https://github.com/edgedb/edgedb-examples/tree/main/
 nextjs-blog-app-router>`_.
