@@ -218,7 +218,7 @@ class AliasLikeCommand(
             parser_context=parser_context,
         )
 
-        expr = s_expr.Expression.from_ir(expr, ir, schema=schema)            
+        expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
 
         is_global = (self.get_schema_metaclass().
                      get_schema_class_displayname() == 'global')
@@ -501,32 +501,25 @@ def _create_alias_types(
 
     for ty in ir.created_schema_types:
         name = ty.get_name(new_schema)
-        if not isinstance(
-            ty, s_types.Collection
-        ) and not _has_alias_name_prefix(classname, name):
+        if (
+            not isinstance(ty, s_types.Collection)
+            and not _has_alias_name_prefix(classname, name)
+        ):
             # not all created types are visible from the root, so they don't
             # need to be created in the schema
             continue
 
-        new_schema = ty.set_field_value(
-            new_schema, 'alias_is_persistent', True
+        new_schema = ty.update(
+            new_schema,
+            dict(
+                alias_is_persistent=True,
+                expr_type=s_types.ExprType.Select,
+                from_alias=True,
+                from_global=is_global,
+                internal=False,
+                builtin=False,
+            ),
         )
-        new_schema = ty.set_field_value(
-            new_schema, 'expr_type', s_types.ExprType.Select
-        )
-        new_schema = ty.set_field_value(
-            new_schema, 'from_alias', True
-        )
-        new_schema = ty.set_field_value(
-            new_schema, 'from_global', is_global
-        )
-        new_schema = ty.set_field_value(
-            new_schema, 'internal', False
-        )
-        new_schema = ty.set_field_value(
-            new_schema, 'builtin', False
-        )
-
         if isinstance(ty, s_types.Collection):
             new_schema = ty.set_field_value(new_schema, 'is_persistent', True)
 
