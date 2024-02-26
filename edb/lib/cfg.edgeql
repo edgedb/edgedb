@@ -178,7 +178,7 @@ ALTER TYPE cfg::AbstractConfig {
             Access-Control-Allow-Origin HTTP header';
     };
 
-    CREATE PROPERTY enable_recompilation -> std::bool {
+    CREATE PROPERTY auto_rebuild_query_cache -> std::bool {
         SET default := true;
         CREATE ANNOTATION std::description :=
             'Recompile all cached queries on DDL if enabled.';

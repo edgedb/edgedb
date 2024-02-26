@@ -319,7 +319,7 @@ async def execute(
         if (
             not dbv.in_tx()
             and server.config_lookup(
-                "enable_recompilation",
+                "auto_rebuild_query_cache",
                 dbv.get_session_config(),
                 dbv.get_database_config(),
                 dbv.get_system_config(),
@@ -524,7 +524,7 @@ async def execute_script(
         if (
             not in_tx
             and dbv.server.config_lookup(
-                "enable_recompilation",
+                "auto_rebuild_query_cache",
                 dbv.get_session_config(),
                 dbv.get_database_config(),
                 dbv.get_system_config(),
