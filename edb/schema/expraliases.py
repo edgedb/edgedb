@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Any, Optional, Tuple, Dict, List, TYPE_CHECKING, Set
+from typing import Any, Optional, Tuple, List, TYPE_CHECKING, Set
 
 from edb import errors
 from edb.common import parsing
@@ -472,7 +472,7 @@ def define_alias(
 ) -> Tuple[
     sd.Command,
     s_types.TypeShell[s_types.Type],
-    Set[so.ObjectShell[s_types.Type]]
+    Set[so.ObjectShell[s_types.Type]],
 ]:
     from . import ordering as s_ordering
 
@@ -485,10 +485,9 @@ def define_alias(
 
     for ty in ir.created_schema_types:
         name = ty.get_name(new_schema)
-        if (
-            not isinstance(ty, s_types.Collection)
-            and not _has_alias_name_prefix(classname, name)
-        ):
+        if not isinstance(
+            ty, s_types.Collection
+        ) and not _has_alias_name_prefix(classname, name):
             # not all created types are visible from the root, so they don't
             # need to be created in the schema
             continue
@@ -557,4 +556,3 @@ def _has_alias_name_prefix(
         and name.module == alias_name.module
         and name.name.startswith(f'__{alias_name.name}__')
     )
-

@@ -2502,18 +2502,16 @@ def _late_compile_view_shapes_in_array(
 
 
 def _record_created_collection_types(
-    type: s_types.Type,
-    ctx: context.ContextLevel
+    type: s_types.Type, ctx: context.ContextLevel
 ) -> None:
     """
     Record references to implicitly defined collection types,
     so that the alias delta machinery can pick them up.
     """
 
-    if (
-        isinstance(type, s_types.Collection)
-        and not ctx.env.orig_schema.get_by_id(type.id, default=None)
-    ):
+    if isinstance(
+        type, s_types.Collection
+    ) and not ctx.env.orig_schema.get_by_id(type.id, default=None):
         ctx.env.created_schema_objects.add(type)
 
         for sub_type in type.get_subtypes(ctx.env.schema):

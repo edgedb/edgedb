@@ -576,9 +576,11 @@ class RebaseObjectType(
     pass
 
 
-class AlterObjectType(ObjectTypeCommand,
-                      s_types.AlterType[ObjectType],
-                      inheriting.AlterInheritingObject[ObjectType]):
+class AlterObjectType(
+    ObjectTypeCommand,
+    s_types.AlterType[ObjectType],
+    inheriting.AlterInheritingObject[ObjectType],
+):
     astnode = qlast.AlterObjectType
 
     def _alter_begin(
