@@ -68,6 +68,7 @@ class BaseCluster:
         compiler_pool_mode: Optional[
             edgedb_args.CompilerPoolMode
         ] = None,
+        enable_recompilation: bool = False,
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
@@ -113,6 +114,10 @@ class BaseCluster:
                 '--compiler-pool-mode',
                 str(compiler_pool_mode),
             ))
+
+        if not enable_recompilation:
+            env = {} if env is None else dict(env)
+            env["EDGEDB_SERVER_CONFIG_cfg::enable_recompilation"] = "false"
 
         self._log_level = log_level
         self._runstate_dir = runstate_dir

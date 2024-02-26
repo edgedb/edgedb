@@ -318,6 +318,8 @@ async def execute(
                 be_conn.last_state = state
         if (
             not dbv.in_tx()
+            and server.config_lookup(
+                "enable_recompilation", dbv.get_system_config())
             and not query_unit.tx_rollback
             and query_unit.user_schema
         ):
@@ -515,19 +517,23 @@ async def execute_script(
                 conn.last_state = state
         if unit_group.state_serializer is not None:
             dbv.set_state_serializer(unit_group.state_serializer)
-        if not in_tx:
-            if any(query_unit.user_schema for query_unit in unit_group):
-                # TODO(fantix): recompile first and update cache in tx
-                if debug.flags.func_cache:
-                    recompile_requests = await dbv.clear_cache_keys(conn)
-                else:
-                    recompile_requests = [
-                        req
-                        for req, (grp, _) in dbv._db._eql_to_compiled.items()
-                        if len(grp) == 1
-                    ]
+        if (
+            not in_tx
+            and dbv.server.config_lookup(
+                "enable_recompilation", dbv.get_system_config())
+            and any(query_unit.user_schema for query_unit in unit_group)
+        ):
+            # TODO(fantix): recompile first and update cache in tx
+            if debug.flags.func_cache:
+                recompile_requests = await dbv.clear_cache_keys(conn)
+            else:
+                recompile_requests = [
+                    req
+                    for req, (grp, _) in dbv._db._eql_to_compiled.items()
+                    if len(grp) == 1
+                ]
 
-                await dbv.recompile_all(conn, recompile_requests)
+            await dbv.recompile_all(conn, recompile_requests)
 
     finally:
         if sent and not sync:
