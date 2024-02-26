@@ -319,7 +319,11 @@ async def execute(
         if (
             not dbv.in_tx()
             and server.config_lookup(
-                "enable_recompilation", dbv.get_system_config())
+                "enable_recompilation",
+                dbv.get_session_config(),
+                dbv.get_database_config(),
+                dbv.get_system_config(),
+            )
             and not query_unit.tx_rollback
             and query_unit.user_schema
         ):
@@ -520,7 +524,11 @@ async def execute_script(
         if (
             not in_tx
             and dbv.server.config_lookup(
-                "enable_recompilation", dbv.get_system_config())
+                "enable_recompilation",
+                dbv.get_session_config(),
+                dbv.get_database_config(),
+                dbv.get_system_config(),
+            )
             and any(query_unit.user_schema for query_unit in unit_group)
         ):
             # TODO(fantix): recompile first and update cache in tx

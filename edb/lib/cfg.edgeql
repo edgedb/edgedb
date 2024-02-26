@@ -180,7 +180,6 @@ ALTER TYPE cfg::AbstractConfig {
 
     CREATE PROPERTY enable_recompilation -> std::bool {
         SET default := true;
-        CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION std::description :=
             'Recompile all cached queries on DDL if enabled.';
     };
