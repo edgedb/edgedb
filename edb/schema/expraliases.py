@@ -129,7 +129,8 @@ class AliasLikeCommand(
         alter_alias = scls.init_delta_command(schema, sd.AlterObject)
         alter_alias.canonical = True
         alter_alias.set_attribute_value('created_types', set())
-        alter_alias.set_attribute_value(self.TYPE_FIELD_NAME, None)
+        if isinstance(self, AliasCommand):
+            alter_alias.set_attribute_value('type', None)
         cmd.add(alter_alias)
 
         for dep_type in created:
@@ -384,9 +385,9 @@ class AlterAliasLike(
                     self.scls, self.TYPE_FIELD_NAME)
             else:
                 # there is no expr
-                # if this is a global that just had its expr unset,
-                # remove the types
+
                 if is_computable and self.has_attribute_value('expr'):
+                    # this is a global that just had its expr unset
                     self.add(
                         self._delete_alias_types(self.scls, schema, context)
                     )
