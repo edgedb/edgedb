@@ -123,7 +123,7 @@ class GlobalCommand(
         return cls._mangle_name(type_name)
 
     @classmethod
-    def _is_alias(cls, obj: Global, schema: s_schema.Schema) -> bool:
+    def _is_computable(cls, obj: Global, schema: s_schema.Schema) -> bool:
         return obj.is_computable(schema)
 
     def _check_expr(

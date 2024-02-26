@@ -93,7 +93,7 @@ class AliasLikeCommand(
         This is handled by overloading _get_alias_name, which computes
         the name of the alias type (and _classname_from_ast).
       * Also aliases *always* are alias-like, while globals only are when
-        computed. This is handled by overloading _is_alias.
+        computed. This is handled by overloading _is_computable.
 
     Computed globals also have explicit 'required' and 'cardinality' fields,
     which are managed explicitly in the globals code.
@@ -106,13 +106,13 @@ class AliasLikeCommand(
         raise NotImplementedError
 
     @classmethod
-    def _is_alias(
+    def _is_computable(
             cls, obj: so.QualifiedObject_T, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
 
     # Generic code
 
-    def _delete_alias_type(
+    def _delete_alias_types(
         self,
         scls: so.QualifiedObject_T,
         schema: s_schema.Schema,
@@ -195,7 +195,7 @@ class AliasLikeCommand(
         # for compilation of the new alias expr
         drop_old_types_cmd: Optional[sd.Command] = None
         if is_alter:
-            drop_old_types_cmd = self._delete_alias_type(
+            drop_old_types_cmd = self._delete_alias_types(
                 self.scls, schema, context)
             with context.suspend_dep_verification():
                 pschema = drop_old_types_cmd.apply(pschema, context)
@@ -212,7 +212,7 @@ class AliasLikeCommand(
 
         is_global = (self.get_schema_metaclass().
                      get_schema_class_displayname() == 'global')
-        cmd, type_shell, created_types = define_alias(
+        cmd, type_shell, created_types = _create_alias_types(
             expr=expr,
             classname=classname,
             schema=schema,
@@ -238,7 +238,7 @@ class AliasCommand(
         return alias_name
 
     @classmethod
-    def _is_alias(cls, obj: Alias, schema: s_schema.Schema) -> bool:
+    def _is_computable(cls, obj: Alias, schema: s_schema.Schema) -> bool:
         return True
 
     @classmethod
@@ -317,7 +317,7 @@ class RenameAliasLike(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if not context.canonical and self._is_alias(self.scls, schema):
+        if not context.canonical and self._is_computable(self.scls, schema):
             assert isinstance(self.new_name, sn.QualName)
             new_alias_name = self._get_alias_name(self.new_name)
             alias_type = self.get_type(self.scls, schema)
@@ -353,7 +353,7 @@ class AlterAliasLike(
             and not self.from_expr_propagation
         ):
             expr = self.get_attribute_value('expr')
-            is_alias = self._is_alias(self.scls, schema)
+            is_computable = self._is_computable(self.scls, schema)
             if expr:
                 alias_name = self._get_alias_name(self.classname)
                 type_cmd, type_shell, expr, created_tys = self._handle_alias_op(
@@ -361,7 +361,7 @@ class AlterAliasLike(
                     classname=alias_name,
                     schema=schema,
                     context=context,
-                    is_alter=is_alias,
+                    is_alter=is_computable,
                     parser_context=self.get_attribute_source_context('expr'),
                 )
 
@@ -382,8 +382,14 @@ class AlterAliasLike(
                 # with the same name.)
                 schema = schema.unset_obj_field(
                     self.scls, self.TYPE_FIELD_NAME)
-            elif not expr and is_alias and self.has_attribute_value('expr'):
-                self.add(self._delete_alias_type(self.scls, schema, context))
+            else:
+                # there is no expr
+                # if this is a global that just had its expr unset,
+                # remove the types
+                if is_computable and self.has_attribute_value('expr'):
+                    self.add(
+                        self._delete_alias_types(self.scls, schema, context)
+                    )
 
             schema = self._propagate_if_expr_refs(
                 schema,
@@ -412,8 +418,8 @@ class DeleteAliasLike(
         scls: so.QualifiedObject_T,
     ) -> List[sd.Command]:
         ops = super()._canonicalize(schema, context, scls)
-        if self._is_alias(scls, schema):
-            ops.append(self._delete_alias_type(scls, schema, context))
+        if self._is_computable(scls, schema):
+            ops.append(self._delete_alias_types(scls, schema, context))
         return ops
 
 
@@ -462,7 +468,7 @@ def compile_alias_expr(
     return ir
 
 
-def define_alias(
+def _create_alias_types(
     *,
     expr: s_expr.CompiledExpression,
     classname: sn.QualName,
