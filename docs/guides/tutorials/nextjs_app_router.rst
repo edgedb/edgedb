@@ -168,7 +168,7 @@ directory. You'll be presented with a series of prompts.
   Project initialized.
 
 This process has spun up an EdgeDB instance called ``nextjs-blog`` and
-"linked" it with your current directory. As long as you're inside that
+associated it with your current directory. As long as you're inside that
 directory, CLI commands and client libraries will be able to connect to the
 linked instance automatically, without additional configuration.
 
