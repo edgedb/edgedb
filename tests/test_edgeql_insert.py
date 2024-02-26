@@ -6677,3 +6677,49 @@ class TestInsert(tb.QueryTestCase):
             Q,
             [{'subject': {}}],
         )
+
+    async def test_edgeql_insert_coalesce_nulls_08(self):
+        Q = '''
+        with l2 := 420,
+        select (
+          if <bool>$0 then (
+            (delete DerivedTest filter .l2 = l2)
+            ??
+            (insert DerivedTest {l2 := l2})
+          ) else (
+            (update Note filter .name = <str>l2 set { note := "note" })
+            ??
+            (insert Note {name := <str>l2})
+          )
+        );
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{}],
+            variables=(True,),
+        )
+        await self.assert_query_result(
+            Q,
+            [{}],
+            variables=(True,),
+        )
+        await self.assert_query_result(
+            'select DerivedTest',
+            [],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{}],
+            variables=(False,),
+        )
+        await self.assert_query_result(
+            Q,
+            [{}],
+            variables=(False,),
+        )
+        await self.assert_query_result(
+            'select Note { note }',
+            [{'note': "note"}],
+        )
