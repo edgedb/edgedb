@@ -279,7 +279,7 @@ NPM:
   $ npm install edgedb 
   # or yarn add edgedb or pnpm add edgedb or bun add edgedb
 
-Then go to the ``app/page.tsx`` file to replace the static data with a
+Then go to the ``app/page.tsx`` file to replace the static data with
 the blogposts fetched from the database.
 
 To fetch these from the homepage, we'll create an EdgeDB client and use the
