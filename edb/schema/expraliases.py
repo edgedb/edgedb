@@ -73,19 +73,6 @@ class AliasCommandContext(
     pass
 
 
-def _is_view_from_alias(
-    alias_name: sn.QualName,
-    obj: s_types.Type,
-    schema: s_schema.Schema,
-) -> bool:
-    name = obj.get_name(schema)
-    return alias_name == name or (
-        isinstance(name, sn.QualName)
-        and name.module == alias_name.module
-        and name.name.startswith(f'__{alias_name.name}__')
-    )
-
-
 class AliasLikeCommand(
     sd.QualifiedObjectCommand[so.QualifiedObject_T],
 ):
@@ -139,10 +126,11 @@ class AliasLikeCommand(
 
         cmd = sd.CommandGroup()
 
-        wipe_created_types = scls.init_delta_command(schema, sd.AlterObject)
-        wipe_created_types.canonical = True
-        wipe_created_types.set_attribute_value('created_types', set())
-        cmd.add(wipe_created_types)
+        alter_alias = scls.init_delta_command(schema, sd.AlterObject)
+        alter_alias.canonical = True
+        alter_alias.set_attribute_value('created_types', set())
+        alter_alias.set_attribute_value(self.TYPE_FIELD_NAME, None)
+        cmd.add(alter_alias)
 
         for dep_type in created:
             if_unused = isinstance(dep_type, s_types.Collection)
@@ -224,7 +212,7 @@ class AliasLikeCommand(
 
         is_global = (self.get_schema_metaclass().
                      get_schema_class_displayname() == 'global')
-        cmd, type_shell = define_alias(
+        cmd, type_shell, created_types = define_alias(
             expr=expr,
             classname=classname,
             schema=schema,
@@ -234,13 +222,6 @@ class AliasLikeCommand(
         if drop_old_types_cmd:
             cmd.prepend(drop_old_types_cmd)
 
-        created_types: Set[so.ObjectShell[s_types.Type]] = {
-            so.ObjectShell(
-                name=ty.get_name(expr.ir_statement.schema),
-                schemaclass=type(ty),
-            )
-            for ty in expr.ir_statement.created_schema_types
-        }
         return cmd, type_shell, expr, created_types
 
 
@@ -488,13 +469,19 @@ def define_alias(
     schema: s_schema.Schema,
     is_global: bool,
     parser_context: Optional[parsing.ParserContext] = None,
-) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type]]:
+) -> Tuple[
+    sd.Command,
+    s_types.TypeShell[s_types.Type],
+    Set[so.ObjectShell[s_types.Type]]
+]:
     from . import ordering as s_ordering
 
     ir = expr.irast
     new_schema = ir.schema
 
     derived_delta = sd.DeltaRoot()
+
+    created_type_shells: Set[so.ObjectShell[s_types.Type]] = set()
 
     for ty in ir.created_schema_types:            
         new_schema = ty.set_field_value(
@@ -515,17 +502,22 @@ def define_alias(
         new_schema = ty.set_field_value(
             new_schema, 'builtin', False
         )
-        
-        # if isinstance(ty, s_types.Collection):
-        #     derived_delta.add(
-                # ty.as_shell(schema).as_create_delta(schema=new_schema)
-        #     )
-        # else:
+
+        name = ty.get_name(new_schema)
+        if (
+            not isinstance(ty, s_types.Collection)
+            and not _has_alias_name_prefix(classname, name)
+        ):
+            # not all created types are visible from the root, so they don't
+            # need to be created in the schema
+            continue
+
         derived_delta.add(
             ty.as_create_delta(
                 schema=new_schema, context=so.ComparisonContext()
             )
         )
+        created_type_shells.add(so.ObjectShell(name=name, schemaclass=type(ty)))
 
     derived_delta = s_ordering.linearize_delta(
         derived_delta, old_schema=schema, new_schema=new_schema
@@ -550,4 +542,16 @@ def define_alias(
         schemaclass=type_cmd.get_schema_metaclass(),
         sourcectx=parser_context,
     )
-    return result, type_shell
+    return result, type_shell, created_type_shells
+
+
+def _has_alias_name_prefix(
+    alias_name: sn.QualName,
+    name: sn.Name,
+) -> bool:
+    return alias_name == name or (
+        isinstance(name, sn.QualName)
+        and name.module == alias_name.module
+        and name.name.startswith(f'__{alias_name.name}__')
+    )
+

@@ -13899,7 +13899,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 2,
+            orig_count + 1,
         )
 
         await self.con.execute(r"""
@@ -13908,7 +13908,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 2,
+            orig_count + 1,
         )
 
         await self.con.execute(r"""
