@@ -449,7 +449,7 @@ query builder as a single default import ``e`` from the ``dbschema/edgeql-js``
 directory.
 
 Now, when we update our ``selectPosts`` query, the type of our dynamically
-loaded ``posts`` variable will update automatically—no need to keep
+loaded ``posts`` variable will update automatically — no need to keep
 our type definitions in sync with our API logic!
 
 Rendering blog posts
