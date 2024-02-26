@@ -318,14 +318,14 @@ async def execute(
                 be_conn.last_state = state
         if (
             not dbv.in_tx()
+            and not query_unit.tx_rollback
+            and query_unit.user_schema
             and server.config_lookup(
                 "auto_rebuild_query_cache",
                 dbv.get_session_config(),
                 dbv.get_database_config(),
                 dbv.get_system_config(),
             )
-            and not query_unit.tx_rollback
-            and query_unit.user_schema
         ):
             # TODO(fantix): recompile first and update cache in tx
             if debug.flags.func_cache:
@@ -523,13 +523,13 @@ async def execute_script(
             dbv.set_state_serializer(unit_group.state_serializer)
         if (
             not in_tx
+            and any(query_unit.user_schema for query_unit in unit_group)
             and dbv.server.config_lookup(
                 "auto_rebuild_query_cache",
                 dbv.get_session_config(),
                 dbv.get_database_config(),
                 dbv.get_system_config(),
             )
-            and any(query_unit.user_schema for query_unit in unit_group)
         ):
             # TODO(fantix): recompile first and update cache in tx
             if debug.flags.func_cache:
