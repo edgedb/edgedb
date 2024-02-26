@@ -483,7 +483,16 @@ def define_alias(
 
     created_type_shells: Set[so.ObjectShell[s_types.Type]] = set()
 
-    for ty in ir.created_schema_types:            
+    for ty in ir.created_schema_types:
+        name = ty.get_name(new_schema)
+        if (
+            not isinstance(ty, s_types.Collection)
+            and not _has_alias_name_prefix(classname, name)
+        ):
+            # not all created types are visible from the root, so they don't
+            # need to be created in the schema
+            continue
+
         new_schema = ty.set_field_value(
             new_schema, 'alias_is_persistent', True
         )
@@ -503,14 +512,8 @@ def define_alias(
             new_schema, 'builtin', False
         )
 
-        name = ty.get_name(new_schema)
-        if (
-            not isinstance(ty, s_types.Collection)
-            and not _has_alias_name_prefix(classname, name)
-        ):
-            # not all created types are visible from the root, so they don't
-            # need to be created in the schema
-            continue
+        if isinstance(ty, s_types.Collection):
+            new_schema = ty.set_field_value(new_schema, 'is_persistent', True)
 
         derived_delta.add(
             ty.as_create_delta(
