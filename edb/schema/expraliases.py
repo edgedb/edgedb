@@ -126,10 +126,14 @@ class AliasLikeCommand(
 
         cmd = sd.CommandGroup()
 
+        # Unset created_types and type, so the types can be dropped
         alter_alias = scls.init_delta_command(schema, sd.AlterObject)
         alter_alias.canonical = True
         alter_alias.set_attribute_value('created_types', set())
         if isinstance(self, AliasCommand):
+            # HACK: this should be applied to both globals and aliases,
+            # but globals have code in SetGlobalType command that should not be
+            # executing in this case.
             alter_alias.set_attribute_value('type', None)
         cmd.add(alter_alias)
 
