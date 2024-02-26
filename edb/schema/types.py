@@ -706,7 +706,7 @@ class AlterType(sd.AlterObject[TypeT]):
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
-        if self.scls.get_from_alias(schema):
+        if hasattr(self, 'scls') and self.scls.get_from_alias(schema):
             # This is a nested view type, e.g
             # __FooAlias_bar produced by  FooAlias := (SELECT Foo { bar: ... })
             # and should obviously not appear as a top level definition.
