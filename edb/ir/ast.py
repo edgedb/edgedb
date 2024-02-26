@@ -722,7 +722,7 @@ class Statement(Command):
     schema_refs: typing.FrozenSet[so.Object]
     schema_ref_exprs: typing.Optional[
         typing.Dict[so.Object, typing.Set[qlast.Base]]]
-    new_coll_types: typing.FrozenSet[s_types.Collection]
+    created_schema_types: typing.FrozenSet[s_types.Type]
     scope_tree: ScopeTreeNode
     dml_exprs: typing.List[qlast.Base]
     type_rewrites: typing.Dict[typing.Tuple[uuid.UUID, bool], Set]

@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Any, Optional, Tuple, Dict, List, TYPE_CHECKING
+from typing import Any, Optional, Tuple, List, TYPE_CHECKING, Set
 
 from edb import errors
 from edb.common import parsing
@@ -73,19 +73,6 @@ class AliasCommandContext(
     pass
 
 
-def _is_view_from_alias(
-    alias_name: sn.QualName,
-    obj: s_types.Type,
-    schema: s_schema.Schema,
-) -> bool:
-    name = obj.get_name(schema)
-    return alias_name == name or (
-        isinstance(name, sn.QualName)
-        and name.module == alias_name.module
-        and name.name.startswith(f'__{alias_name.name}__')
-    )
-
-
 class AliasLikeCommand(
     sd.QualifiedObjectCommand[so.QualifiedObject_T],
 ):
@@ -106,7 +93,7 @@ class AliasLikeCommand(
         This is handled by overloading _get_alias_name, which computes
         the name of the alias type (and _classname_from_ast).
       * Also aliases *always* are alias-like, while globals only are when
-        computed. This is handled by overloading _is_alias.
+        computed. This is handled by overloading _is_computable.
 
     Computed globals also have explicit 'required' and 'cardinality' fields,
     which are managed explicitly in the globals code.
@@ -119,40 +106,53 @@ class AliasLikeCommand(
         raise NotImplementedError
 
     @classmethod
-    def _is_alias(
+    def _is_computable(
             cls, obj: so.QualifiedObject_T, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
 
     # Generic code
 
-    def _delete_alias_type(
+    def _delete_alias_types(
         self,
         scls: so.QualifiedObject_T,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> sd.CommandGroup:
         from . import globals as s_globals
+        from . import ordering as s_ordering
 
         assert isinstance(scls, (Alias, s_globals.Global))
         types: so.ObjectSet[s_types.Type] = scls.get_created_types(schema)
         created = types.objects(schema)
 
-        cmd = sd.CommandGroup()
+        delta = sd.DeltaRoot()
 
-        wipe_created_types = scls.init_delta_command(schema, sd.AlterObject)
-        wipe_created_types.canonical = True
-        wipe_created_types.set_attribute_value('created_types', set())
-        cmd.add(wipe_created_types)
+        # Unset created_types and type, so the types can be dropped
+        alter_alias = scls.init_delta_command(schema, sd.AlterObject)
+        alter_alias.canonical = True
+        alter_alias.set_attribute_value('created_types', set())
+        if isinstance(self, AliasCommand):
+            # HACK: this should be applied to both globals and aliases,
+            # but globals have code in SetGlobalType command that should not be
+            # executing in this case.
+            alter_alias.set_attribute_value('type', None)
 
         for dep_type in created:
+            if_unused = isinstance(dep_type, s_types.Collection)
+
             drop_dep = dep_type.init_delta_command(
-                schema, sd.DeleteObject, if_exists=True
+                schema, sd.DeleteObject, if_exists=True, if_unused=if_unused
             )
             subcmds = drop_dep._canonicalize(schema, context, dep_type)
             drop_dep.update(subcmds)
 
-            cmd.add(drop_dep)
-        return cmd
+            delta.add(drop_dep)
+
+        delta = s_ordering.linearize_delta(
+            delta, old_schema=schema, new_schema=schema
+        )
+        delta.prepend(alter_alias)
+        return delta
 
     @classmethod
     def get_type(
@@ -193,16 +193,22 @@ class AliasLikeCommand(
         context: sd.CommandContext,
         is_alter: bool = False,
         parser_context: Optional[parsing.ParserContext] = None,
-    ) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type], s_expr.Expression]:
+    ) -> Tuple[
+        sd.Command,
+        s_types.TypeShell[s_types.Type],
+        s_expr.Expression,
+        Set[so.ObjectShell[s_types.Type]],
+    ]:
         pschema = schema
 
-        # On alters, remove all the existing objects from the schema before
-        # trying to compile again.
+        # For alters, drop the alias first, use the schema without the alias
+        # for compilation of the new alias expr
+        drop_old_types_cmd: Optional[sd.Command] = None
         if is_alter:
-            drop_cmd = self._delete_alias_type(
+            drop_old_types_cmd = self._delete_alias_types(
                 self.scls, schema, context)
             with context.suspend_dep_verification():
-                pschema = drop_cmd.apply(pschema, context)
+                pschema = drop_old_types_cmd.apply(pschema, context)
 
         ir = compile_alias_expr(
             expr.qlast,
@@ -214,34 +220,19 @@ class AliasLikeCommand(
 
         expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
 
-        if not is_alter:
-            prev_expr = None
-        else:
-            prev = schema.get(classname, type=s_types.Type)
-            prev_expr_ = prev.get_expr(schema)
-            assert prev_expr_ is not None
-            prev_ir = compile_alias_expr(
-                prev_expr_.qlast,
-                classname,
-                pschema,
-                context,
-                parser_context=parser_context,
-            )
-            prev_expr = s_expr.Expression.from_ir(
-                prev_expr_, prev_ir, schema=schema)
-
         is_global = (self.get_schema_metaclass().
                      get_schema_class_displayname() == 'global')
-        cmd, type_shell = define_alias(
+        cmd, type_shell, created_types = _create_alias_types(
             expr=expr,
-            prev_expr=prev_expr,
             classname=classname,
             schema=schema,
             is_global=is_global,
             parser_context=parser_context,
         )
+        if drop_old_types_cmd:
+            cmd.prepend(drop_old_types_cmd)
 
-        return cmd, type_shell, expr
+        return cmd, type_shell, expr, created_types
 
 
 class AliasCommand(
@@ -257,7 +248,7 @@ class AliasCommand(
         return alias_name
 
     @classmethod
-    def _is_alias(cls, obj: Alias, schema: s_schema.Schema) -> bool:
+    def _is_computable(cls, obj: Alias, schema: s_schema.Schema) -> bool:
         return True
 
     @classmethod
@@ -303,7 +294,7 @@ class CreateAliasLike(
     ) -> s_schema.Schema:
         if not context.canonical and self.get_attribute_value('expr'):
             alias_name = self._get_alias_name(self.classname)
-            type_cmd, type_shell, expr = self._handle_alias_op(
+            type_cmd, type_shell, expr, created_types = self._handle_alias_op(
                 expr=self.get_attribute_value('expr'),
                 classname=alias_name,
                 schema=schema,
@@ -314,18 +305,6 @@ class CreateAliasLike(
             self.set_attribute_value('expr', expr)
             self.set_attribute_value(
                 self.TYPE_FIELD_NAME, type_shell, computed=True)
-
-            created_types = {
-                so.ObjectShell(
-                    name=cmd.classname,
-                    schemaclass=cmd.get_schema_metaclass(),
-                )
-                for cmd in type_cmd.get_subcommands()
-                if (
-                    isinstance(cmd, sd.CreateObject)
-                    and issubclass(cmd.get_schema_metaclass(), s_types.Type)
-                )
-            }
             self.set_attribute_value('created_types', created_types)
 
         return super()._create_begin(schema, context)
@@ -348,7 +327,7 @@ class RenameAliasLike(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if not context.canonical and self._is_alias(self.scls, schema):
+        if not context.canonical and self._is_computable(self.scls, schema):
             assert isinstance(self.new_name, sn.QualName)
             new_alias_name = self._get_alias_name(self.new_name)
             alias_type = self.get_type(self.scls, schema)
@@ -384,26 +363,17 @@ class AlterAliasLike(
             and not self.from_expr_propagation
         ):
             expr = self.get_attribute_value('expr')
-            is_alias = self._is_alias(self.scls, schema)
+            is_computable = self._is_computable(self.scls, schema)
             if expr:
                 alias_name = self._get_alias_name(self.classname)
-                type_cmd, type_shell, expr = self._handle_alias_op(
+                type_cmd, type_shell, expr, created_tys = self._handle_alias_op(
                     expr=expr,
                     classname=alias_name,
                     schema=schema,
                     context=context,
-                    is_alter=is_alias,
+                    is_alter=is_computable,
                     parser_context=self.get_attribute_source_context('expr'),
                 )
-
-                # clear created_types, so type_cmd will be able to drop unneeded
-                # types
-                wipe_created = self.scls.init_delta_command(
-                    schema, sd.AlterObject
-                )
-                wipe_created.canonical = True
-                wipe_created.set_attribute_value('created_types', set())
-                self.add_prerequisite(wipe_created)
 
                 self.add_prerequisite(type_cmd)
 
@@ -411,31 +381,7 @@ class AlterAliasLike(
                 self.set_attribute_value(
                     self.TYPE_FIELD_NAME, type_shell, computed=True)
 
-                # TODO: this code chunk is a bit dodgy and inefficient,
-                # but it is fine since we are changing how alias types are saved
-                # soon.
-                from . import globals as s_globals
-                from . import objtypes as s_objtypes
-                assert isinstance(self.scls, (Alias, s_globals.Global))
-                created_types: Dict[sn.Name, Any] = {
-                    t.get_name(schema): t
-                    for t in self.scls.get_created_types(schema).objects(schema)
-                }
-                for cmd in type_cmd.get_subcommands():
-                    if isinstance(
-                        cmd, (sd.CreateObject, s_objtypes.CreateObjectType)
-                    ) and issubclass(cmd.get_schema_metaclass(), s_types.Type):
-                        created_types[cmd.classname] = so.ObjectShell(
-                            name=cmd.classname,
-                            schemaclass=cmd.get_schema_metaclass(),
-                        )
-                    if isinstance(
-                        cmd, (sd.DeleteObject, s_objtypes.DeleteObjectType)
-                    ) and issubclass(cmd.get_schema_metaclass(), s_types.Type):
-                        del created_types[cmd.classname]
-                self.set_attribute_value(
-                    'created_types', set(created_types.values())
-                )
+                self.set_attribute_value('created_types', created_tys)
 
                 # Clear out the type field in the schema *now*,
                 # before we call the parent _alter_begin, which will
@@ -446,8 +392,14 @@ class AlterAliasLike(
                 # with the same name.)
                 schema = schema.unset_obj_field(
                     self.scls, self.TYPE_FIELD_NAME)
-            elif not expr and is_alias and self.has_attribute_value('expr'):
-                self.add(self._delete_alias_type(self.scls, schema, context))
+            else:
+                # there is no expr
+
+                if is_computable and self.has_attribute_value('expr'):
+                    # this is a global that just had its expr unset
+                    self.add(
+                        self._delete_alias_types(self.scls, schema, context)
+                    )
 
             schema = self._propagate_if_expr_refs(
                 schema,
@@ -476,8 +428,8 @@ class DeleteAliasLike(
         scls: so.QualifiedObject_T,
     ) -> List[sd.Command]:
         ops = super()._canonicalize(schema, context, scls)
-        if self._is_alias(scls, schema):
-            ops.append(self._delete_alias_type(scls, schema, context))
+        if self._is_computable(scls, schema):
+            ops.append(self._delete_alias_types(scls, schema, context))
         return ops
 
 
@@ -526,145 +478,90 @@ def compile_alias_expr(
     return ir
 
 
-def define_alias(
+def _create_alias_types(
     *,
     expr: s_expr.CompiledExpression,
-    prev_expr: Optional[s_expr.CompiledExpression] = None,
     classname: sn.QualName,
     schema: s_schema.Schema,
     is_global: bool,
     parser_context: Optional[parsing.ParserContext] = None,
-) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type]]:
+) -> Tuple[
+    sd.Command,
+    s_types.TypeShell[s_types.Type],
+    Set[so.ObjectShell[s_types.Type]],
+]:
     from . import ordering as s_ordering
 
     ir = expr.irast
     new_schema = ir.schema
 
-    coll_expr_aliases: List[s_types.Collection] = []
-    prev_coll_expr_aliases: List[s_types.Collection] = []
-    expr_aliases: List[s_types.Type] = []
-    prev_expr_aliases: List[s_types.Type] = []
-    prev_ir: Optional[irast.Statement] = None
-    old_schema: Optional[s_schema.Schema] = None
-
-    for vt in ir.views.values():
-        if not _is_view_from_alias(classname, vt, new_schema):
-            continue
-        if isinstance(vt, s_types.Collection):
-            coll_expr_aliases.append(vt)
-        elif prev_expr is not None or not schema.has_object(vt.id):
-            new_schema = vt.set_field_value(
-                new_schema, 'alias_is_persistent', True)
-            new_schema = vt.set_field_value(
-                new_schema, 'from_global', is_global)
-
-            expr_aliases.append(vt)
-
-    if prev_expr is not None:
-        prev_ir = prev_expr.irast
-        old_schema = prev_ir.schema
-        for vt in prev_ir.views.values():
-            if not _is_view_from_alias(classname, vt, old_schema):
-                continue
-            if isinstance(vt, s_types.Collection):
-                prev_coll_expr_aliases.append(vt)
-            else:
-                prev_expr_aliases.append(vt)
-
     derived_delta = sd.DeltaRoot()
 
-    for ref in ir.new_coll_types:
-        colltype_shell = ref.as_shell(new_schema)
-        # not "new_schema", because that already contains this
-        # collection type.
-        derived_delta.add(colltype_shell.as_create_delta(new_schema))
+    created_type_shells: Set[so.ObjectShell[s_types.Type]] = set()
 
-    if prev_expr is not None:
-        assert old_schema is not None
-        derived_delta.add(
-            sd.delta_objects(
-                prev_expr_aliases,
-                expr_aliases,
-                sclass=s_types.Type,
-                old_schema=old_schema,
-                new_schema=new_schema,
-                context=so.ComparisonContext(),
-            )
-        )
-    else:
-        for expr_alias in expr_aliases:
-            derived_delta.add(
-                expr_alias.as_create_delta(
-                    schema=new_schema,
-                    context=so.ComparisonContext(),
-                )
-            )
+    for ty in ir.created_schema_types:
+        name = ty.get_name(new_schema)
+        if (
+            not isinstance(ty, s_types.Collection)
+            and not _has_alias_name_prefix(classname, name)
+        ):
+            # not all created types are visible from the root, so they don't
+            # need to be created in the schema
+            continue
 
-    if prev_ir is not None:
-        assert old_schema
-        for vt in prev_coll_expr_aliases:
-            if dt := vt.as_type_delete_if_unused(old_schema):
-                derived_delta.prepend(dt)
-        for vt in prev_ir.new_coll_types:
-            if dt := vt.as_type_delete_if_unused(old_schema):
-                derived_delta.prepend(dt)
-
-    for vt in coll_expr_aliases:
-        new_schema = vt.set_field_value(new_schema, 'expr', expr)
-        new_schema = vt.set_field_value(
-            new_schema, 'alias_is_persistent', True)
-        ct = vt.as_shell(new_schema).as_create_delta(
-            # not "new_schema", to ensure the nested collection types
-            # are picked up properly.
+        new_schema = ty.update(
             new_schema,
-            view_name=classname,
-            attrs={
-                'expr': expr,
-                'alias_is_persistent': True,
-                'expr_type': s_types.ExprType.Select,
-                'from_alias': True,
-            },
+            dict(
+                alias_is_persistent=True,
+                expr_type=s_types.ExprType.Select,
+                from_alias=True,
+                from_global=is_global,
+                internal=False,
+                builtin=False,
+            ),
         )
-        derived_delta.add(ct)
+        if isinstance(ty, s_types.Collection):
+            new_schema = ty.set_field_value(new_schema, 'is_persistent', True)
+
+        derived_delta.add(
+            ty.as_create_delta(
+                schema=new_schema, context=so.ComparisonContext()
+            )
+        )
+        created_type_shells.add(so.ObjectShell(name=name, schemaclass=type(ty)))
 
     derived_delta = s_ordering.linearize_delta(
-        derived_delta, old_schema=schema, new_schema=new_schema)
+        derived_delta, old_schema=schema, new_schema=new_schema
+    )
 
-    existing_type_cmd = None
+    type_cmd = None
     for op in derived_delta.get_subcommands():
         assert isinstance(op, sd.ObjectCommand)
-        if (
-            op.classname == classname
-            and not isinstance(op, sd.DeleteObject)
-        ):
-            existing_type_cmd = op
+        if op.classname == classname:
+            type_cmd = op
             break
-
-    if existing_type_cmd is not None:
-        type_cmd = existing_type_cmd
-    else:
-        assert prev_expr is not None
-        for expr_alias in expr_aliases:
-            if expr_alias.get_name(new_schema) == classname:
-                type_cmd = expr_alias.init_delta_command(
-                    new_schema,
-                    sd.AlterObject,
-                )
-                derived_delta.add(type_cmd)
-                break
-        else:
-            raise RuntimeError(
-                'view delta does not contain the expected '
-                'view Create/Alter command')
+    assert type_cmd
 
     type_cmd.set_attribute_value('expr', expr)
 
     result = sd.CommandGroup()
     result.update(derived_delta.get_subcommands())
+
     type_shell = s_types.TypeShell(
         name=classname,
         origname=classname,
         schemaclass=type_cmd.get_schema_metaclass(),
         sourcectx=parser_context,
     )
-    return result, type_shell
+    return result, type_shell, created_type_shells
+
+
+def _has_alias_name_prefix(
+    alias_name: sn.QualName,
+    name: sn.Name,
+) -> bool:
+    return alias_name == name or (
+        isinstance(name, sn.QualName)
+        and name.module == alias_name.module
+        and name.name.startswith(f'__{alias_name.name}__')
+    )

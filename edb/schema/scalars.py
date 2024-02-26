@@ -803,6 +803,7 @@ def _prettyprint_enum(elements: Iterable[str]) -> str:
 
 class AlterScalarType(
     ScalarTypeCommand,
+    s_types.AlterType[ScalarType],
     inheriting.AlterInheritingObject[ScalarType],
 ):
     astnode = qlast.AlterScalarType

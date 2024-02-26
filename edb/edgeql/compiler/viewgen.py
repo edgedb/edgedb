@@ -1609,13 +1609,7 @@ def _normalize_view_ptr_expr(
         ptr_cardinality = None
         ptr_required = False
 
-        if (
-            isinstance(ptr_target, s_types.Collection)
-            and not ctx.env.orig_schema.get_by_id(ptr_target.id, default=None)
-        ):
-            # Record references to implicitly defined collection types,
-            # so that the alias delta machinery can pick them up.
-            ctx.env.created_schema_objects.add(ptr_target)
+        _record_created_collection_types(ptr_target, ctx)
 
         generic_type = ptr_target.find_generic(ctx.env.schema)
         if generic_type is not None:
@@ -2505,3 +2499,20 @@ def _late_compile_view_shapes_in_array(
         ctx: context.ContextLevel) -> None:
     for element in expr.elements:
         late_compile_view_shapes(element, ctx=ctx)
+
+
+def _record_created_collection_types(
+    type: s_types.Type, ctx: context.ContextLevel
+) -> None:
+    """
+    Record references to implicitly defined collection types,
+    so that the alias delta machinery can pick them up.
+    """
+
+    if isinstance(
+        type, s_types.Collection
+    ) and not ctx.env.orig_schema.get_by_id(type.id, default=None):
+        ctx.env.created_schema_objects.add(type)
+
+        for sub_type in type.get_subtypes(ctx.env.schema):
+            _record_created_collection_types(sub_type, ctx)
