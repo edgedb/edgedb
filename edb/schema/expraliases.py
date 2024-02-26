@@ -119,12 +119,13 @@ class AliasLikeCommand(
         context: sd.CommandContext,
     ) -> sd.CommandGroup:
         from . import globals as s_globals
+        from . import ordering as s_ordering
 
         assert isinstance(scls, (Alias, s_globals.Global))
         types: so.ObjectSet[s_types.Type] = scls.get_created_types(schema)
         created = types.objects(schema)
 
-        cmd = sd.CommandGroup()
+        delta = sd.DeltaRoot()
 
         # Unset created_types and type, so the types can be dropped
         alter_alias = scls.init_delta_command(schema, sd.AlterObject)
@@ -135,7 +136,6 @@ class AliasLikeCommand(
             # but globals have code in SetGlobalType command that should not be
             # executing in this case.
             alter_alias.set_attribute_value('type', None)
-        cmd.add(alter_alias)
 
         for dep_type in created:
             if_unused = isinstance(dep_type, s_types.Collection)
@@ -146,8 +146,13 @@ class AliasLikeCommand(
             subcmds = drop_dep._canonicalize(schema, context, dep_type)
             drop_dep.update(subcmds)
 
-            cmd.add(drop_dep)
-        return cmd
+            delta.add(drop_dep)
+
+        delta = s_ordering.linearize_delta(
+            delta, old_schema=schema, new_schema=schema
+        )
+        delta.prepend(alter_alias)
+        return delta
 
     @classmethod
     def get_type(
@@ -351,12 +356,7 @@ class AlterAliasLike(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if (
-            not context.canonical
-            # FIXME: This is not really correct, but alias altering is
-            # currently too broken to accept expr propagations.
-            and not self.from_expr_propagation
-        ):
+        if not context.canonical:
             expr = self.get_attribute_value('expr')
             is_computable = self._is_computable(self.scls, schema)
             if expr:
