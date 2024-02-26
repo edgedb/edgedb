@@ -444,7 +444,7 @@ instead.
     }
 
 Instead of writing our query as a plain string, we're now using the query
-builder to declare our query in a code-first way. As you can see we import the
+builder to declare our query in a code-first way. As you can see, we import the
 query builder as a single default import ``e`` from the ``dbschema/edgeql-js``
 directory.
 
