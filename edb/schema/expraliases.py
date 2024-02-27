@@ -301,6 +301,12 @@ class CreateAliasLike(
     ) -> s_schema.Schema:
         if not context.canonical and self.get_attribute_value('expr'):
             alias_name = self._get_alias_name(self.classname)
+
+            # generated types might conflict with existing types
+            if other_obj := schema.get(alias_name, default=None):
+                vn = other_obj.get_verbosename(schema, with_parent=True)
+                raise errors.SchemaError(f'{vn} already exists')
+
             type_cmd, type_shell, expr, created_types = self._handle_alias_op(
                 expr=self.get_attribute_value('expr'),
                 classname=alias_name,
