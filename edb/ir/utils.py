@@ -25,6 +25,7 @@ from typing import (
     Optional,
     Tuple,
     Type,
+    TypeVar,
     AbstractSet,
     Mapping,
     Sequence,
@@ -480,6 +481,12 @@ def as_const(ir: irast.Base) -> Optional[irast.BaseConstant]:
             return ir
         case irast.TypeCast():
             return as_const(ir.expr)
-        case irast.Set() if ir.expr:
+        case irast.SetE() if ir.expr:
             return as_const(ir.expr)
     return None
+
+
+T = TypeVar('T')
+
+def is_set_instance(ir: irast.Set, typ: Type[T]) -> TypeGuard[irast.SetE[T]]:
+    return isinstance(ir.expr, typ)
