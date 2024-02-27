@@ -1,0 +1,380 @@
+====
+v5.0
+====
+
+:edb-alt-title: EdgeDB v5
+
+To play with the new features, install the CLI using `our installation guide
+<https://www.edgedb.com/install>`_.
+
+Make sure to install the 5.0 testing version of CLI by upgrading it:
+
+.. code-block:: bash
+
+  $ edgedb cli upgrade --to-testing
+
+When initializing the project, make sure to also specify version 5.0 as
+pre-release versions are not considered stable and will not be automatically
+suggested:
+
+.. code-block:: bash
+
+  $ edgedb project init --server-version 5.0-alpha.1
+
+
+Upgrading
+=========
+
+**Local and Cloud instances**
+
+To upgrade a local project, first ensure that your CLI is up to date with
+``edgedb cli upgrade``. Then run the following command inside the project
+directory.
+
+.. code-block:: bash
+
+  $ edgedb project upgrade --to-testing
+
+Alternatively, specify an instance name if you aren't using a project.
+
+.. code-block:: bash
+
+  $ edgedb instance upgrade --to-testing -I my_instance
+
+The CLI will first check to see if your schema will migrate cleanly to EdgeDB
+5.0. If the upgrade check finds any problems, it will report them back to you.
+
+**Hosted instances**
+
+To upgrade a remote (hosted) instance, we recommend the following
+dump-and-restore process.
+
+1. EdgeDB v5.0 only supports PostgreSQL 16 (or above). So check the version of
+   PostgreSQL you are using before upgrading EdgeDB. If you're using Postgres
+   15 or below, you should upgrade Postgres first.
+
+2. Spin up an empty 5.0 instance. You can use one of our :ref:`deployment
+   guides <ref_guide_deployment>`.
+
+   Under Debian/Ubuntu, when adding the EdgeDB package repository, use this
+   command instead:
+
+   .. code-block:: bash
+
+       $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
+           https://packages.edgedb.com/apt \
+           $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) main \
+           | sudo tee /etc/apt/sources.list.d/edgedb.list
+
+   Use this command for installation under Debian/Ubuntu:
+
+   .. code-block:: bash
+
+       $ sudo apt-get update && sudo apt-get install edgedb-5
+
+   Under CentOS/RHEL, use this installation command:
+
+   .. code-block:: bash
+
+       $ sudo yum install edgedb-5
+
+   In any required ``systemctl`` commands, replace ``edgedb-server-4`` with
+   ``edgedb-server-5``.
+
+   Under any Docker setups, supply the ``5.0`` tag.
+
+3. Take your application offline, then dump your v4.x database with the CLI
+
+   .. code-block:: bash
+
+       $ edgedb dump --dsn <old dsn> --all --format dir my_database.dump/
+
+   This will dump the schema and contents of your current database to a
+   directory on your local disk called ``my_database.dump``. The directory name
+   isn't important.
+
+4. Restore the empty v5.x instance from the dump
+
+   .. code-block:: bash
+
+       $ edgedb restore --all my_database.dump/ --dsn <new dsn>
+
+   Once the restore is complete, update your application to connect to the new
+   instance.
+
+   This process will involve some downtime, specifically during steps 2 and 3.
+
+
+New features
+============
+
+EdgeDB branches
+---------------
+
+EdgeDB 5.0 adds branching functionality in order to help bridge the gap between
+the code (and schema) managed by version control systems and the actual
+development database.
+
+The first thing to note is that we're updating our terminology and replacing
+the old (and potentially confusing) term ``database`` with ``branch``. This
+means that the old ``create database`` and ``drop database`` commands are
+considered deprecated in favor of ``create empty branch`` and ``drop branch``,
+respectively. However, the new ``branch`` commands provide more options and
+functionality than the old ``database`` commands:
+
+1) ``create empty branch <newbranch>``
+
+   The most basic command creates a new branch with an empty schema
+   (exactly the same as ``create database``).
+
+2) ``create schema branch <newbranch> from <oldbranch>``
+
+   This command creates a new branch and copies the schema of an existing
+   branch to it. Only the schema is copied; the data is still empty and needs
+   to be populated separately.
+
+3) ``create data branch <newbranch> from <oldbranch>``
+
+   This command creates a new branch and copies both the schema and the data
+   of an existing branch to it.
+
+4) ``drop branch <oldbranch>``
+
+   Removes an existing branch from the instance.
+
+5) ``alter branch <oldname> rename to <newname>``
+
+   The command to rename a branch.
+
+The intent is to provide a mechanism that helps developers keep branches of
+the database corresponding to the code branches that introduce certain schema
+changes.
+
+With these new commands, here's how we envision developers using them to
+manage "feature" branches:
+
+1) Create a new "feature" VCS branch (a clone of the "main" branch) and a
+   corresponding "feature" EdgeDB branch.
+
+2) Work on the "feature" branch, add migrations, etc.
+
+3) When it is time to merge the feature work back into the main branch we want
+   to arrange things so that the "feature" branch is in a state that is a
+   simple fast-forward w.r.t the "main" branch.
+
+4) In order to achieve the above state we need to make sure the "main" code
+   branch as well as the EdgeDB branch are both up-to-date.
+
+5) Then we want to rebase the "feature" branch code on top of the "main"
+   branch code.
+
+6) After that we need to replicate the same rebase operation with the EdgeDB
+   branch. Our CLI tools may need to first clone the "main" branch with the
+   data into a "temp" branch. Then we can introspect the migration histories
+   of the "temp" and "feature" branches so that we can establish where they
+   diverge. Take all the divergent migrations from the "feature" branch and
+   apply them to the "temp" branch. If the operation is successful, drop the
+   "feature" branch and rename "temp" to "feature". We now have successfully
+   rebased "feature" branch on top of "main".
+
+7) Since the state of "feature" is now a straightforward fast-forward w.r.t.
+   the "main" branch we can finally merge "feature" back into main in VCS and
+   then merge the EdgeDB branch as well (or rename the "feature" EdgeDB branch
+   to "main", if the old branch is no longer needed).
+
+
+Update pgvector extension
+-------------------------
+
+A new HNSW (Hierarchical Navigable Small Worlds) index has been added to the
+``pgvector`` extension. Just like IVFFlat indexes there are three flavors of
+HNSW corresponding to different operations:
+
+* ``ext::pgvector::hnsw_euclidean``
+* ``ext::pgvector::hnsw_ip``
+* ``ext::pgvector::hnsw_cosine``
+
+We have also updated the mechanism for tuning all of the indexes provided in
+this extension. The ``probes`` (for IVFFlat) and ``ef_search`` (for HNSW)
+parameters can now be accessed via the ``ext::pgvector::Config`` object.
+
+The current config values can be found by examining the ``extensions`` link of
+the ``cfg::Config`` object. Notice that in order to see the specific extension
+config properties you need to use the type filter :eql:op:`[is
+ext::pgvector::Config] <isintersect>`:
+
+.. code-block:: edgeql-repl
+
+    db> select cfg::Config.extensions[is ext::pgvector::Config]{*};
+    {
+      ext::pgvector::Config {
+        id: 12b5c70f-0bb8-508a-845f-ca3d41103b6f,
+        probes: 1,
+        ef_search: 40,
+      },
+    }
+
+Updating the value can be done using the ``configure session`` command:
+
+.. code-block:: edgeql-repl
+
+    db> configure session
+    ... set ext::pgvector::Config::probes := 5;
+    OK: CONFIGURE SESSION
+
+It is also possible to restore the default config value:
+
+.. code-block:: edgeql-repl
+
+    db> configure session reset ext::pgvector::Config::probes;
+    OK: CONFIGURE SESSION
+
+
+Authentication
+--------------
+
+We're bringing two popular "passwordless" authentication schemes to our
+``auth`` extension: the Web Authentication API (commonly known as WebAuthn or
+Passkeys), as well as email-based "magic links".
+
+We've also added two popular chat platforms to our list of supported OAuth
+providers: Slack and Discord.
+
+
+Additional changes
+==================
+
+Performance
+-----------
+
+The query compilation cache is now persisted across restarts, and cached
+queries are automatically recompiled after migrations are applied.
+
+We've also improved processing of large schemas and migrations.
+
+
+EdgeQL
+------
+
+* Allow omitting ``union`` in ``for`` if the body is a statement.
+  (:eql:gh:`#6810`)
+
+  If the ``for`` query body involves a statement such as ``insert``,
+  ``update``, ``delete``, etc., you no longer need to write the ``union``
+  keyword and add parentheses around the statement expression:
+
+  .. code-block:: edgeql-diff
+
+      for name in {'Alice', 'Billie', 'Cameron'}
+    - union (
+      insert User { name := name }
+    - )
+
+* Add ``administer vacuum()`` command.
+  (:eql:gh:`#6663`)
+
+  The command ``administer vacuum()`` can take a list of object types, multi
+  properties, multi links or links with link properties. There is also a named
+  only argument ``full`` that controls how thorough the cleaning will
+  be. All of the arguments can be omitted. In case no target types are
+  specified, everything accessible to the user will be vacuumed.
+
+  The vacuum command will reclaim storage space used by the specified types.
+  Since certain aspects such as multi properties and links as well as links
+  with link properties require additional underlying tables they can be listed
+  separately when reclaiming storage space.
+
+  If the ``full`` option is set to ``true``, vacuuming will potentially
+  reclaim more space, but it can take much longer and will exclusively lock
+  the underlying tables.
+
+  For example, the following command will vacuum the ``User`` type thoroughly:
+
+  .. code-block:: edgeql
+
+    administer vacuum(User, full := true)
+
+* Integer/UUID to bytes conversion.
+  (:eql:gh:`#6553`)
+
+  It is now possible to convert :eql:type:`int16`, :eql:type:`int32`,
+  :eql:type:`int64`, and :eql:type:`uuid` to :eql:type:`bytes` and vice-versa
+  using the corresponding conversion functions.
+
+  Use the :eql:func:`to_bytes` to convert values into :eql:type:`bytes`:
+
+  .. code-block:: edgeql-repl
+
+      db> select to_bytes(<int32>31, Endian.Big);
+      {b'\x00\x00\x00\x1f'}
+      db> select to_int32(b'\x01\x02\x00\x07', Endian.Big);
+      {16908295}
+
+      db> select to_bytes(<uuid>'1d70c86e-cc92-11ee-b4c7-a7aa0a34e2ae');
+      {b'\x1dp\xc8n\xcc\x92\x11\xee\xb4\xc7\xa7\xaa\n4\xe2\xae'}
+      db> select to_uuid(
+      ...   b'\x92\x67\x3a\xfc\
+      ...     \x9c\x4f\
+      ...     \x42\xb3\
+      ...     \x82\x73\
+      ...     \xaf\xe0\x05\x3f\x0f\x48');
+      {92673afc-9c4f-42b3-8273-afe0053f0f48}
+
+
+* Add ``bytes`` option to ``array_join``.
+  (:eql:gh:`#6918`)
+
+  The :eql:func:`array_join` can now operate on :eql:type:`bytes` the same way
+  it operates on :eql:type:`str`:
+
+  .. code-block:: edgeql-repl
+
+      db> select array_join([b'\x01', b'\x02', b'\x03'], b'\xff');
+      {b'\x01\xff\x02\xff\x03'}
+
+* Support closing all connections to a database on ``drop database``.
+  (:eql:gh:`#6780`)
+
+
+Bug fixes
+---------
+
+* Fix issues with empty sets leaking out of optional scopes
+  (:eql:gh:`#6747`)
+
+* Fix an SDL scalar type dependency bug.
+
+* Suppress idle transaction timeout during migrations.
+  (:eql:gh:`#6760`)
+
+* Use a consistent interface for ``ext::auth`` errors.
+  (:eql:gh:`#6751`)
+
+* Stop recording extension version in dumps.
+  (:eql:gh:`#6787`)
+
+* For any index changes don't attempt to update the index, drop and recreate
+  instead.
+  (:eql:gh:`#6797`, :eql:gh:`#6843`)
+
+* Fix duration/memory config in config objects.
+  (:eql:gh:`#6827`)
+
+* Properly report errors involving newly created types.
+  (:eql:gh:`#6852`)
+
+* Changes to vector length in migrations result in suggesting a
+  ``drop``/``create``.
+  (:eql:gh:`#6882`)
+
+* Report topological cycle errors in migrations as real errors.
+  (:eql:gh:`#6883`)
+
+* Make constraint error details contain useful information for developers.
+  (:eql:gh:`#6796`)
+
+* Fix interaction between DML and ``if...then...else``.
+  (:eql:gh:`#6917`)
+
+* Don't leak objects out of access policies when used in a computed global.
+  (:eql:gh:`#6926`)
