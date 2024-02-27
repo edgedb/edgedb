@@ -746,7 +746,15 @@ def declare_view(
 def _declare_view_from_schema(
         viewcls: s_types.Type, *,
         ctx: context.ContextLevel) -> tuple[s_types.Type, irast.Set]:
-    e = ctx.env.schema_view_cache.get(viewcls)
+    # We need to include "security context" things (currently just
+    # access policy state) in the cache key, here.
+    #
+    # FIXME: Could we do better? Sometimes we might compute a single
+    # global twice now, as a result of this. It should be possible to
+    # make some decisions based on whether the alias actually does
+    # touch any access policies...
+    key = viewcls, ctx.get_security_context()
+    e = ctx.env.schema_view_cache.get(key)
     if e is not None:
         return e
 
@@ -771,7 +779,7 @@ def _declare_view_from_schema(
         vs = subctx.aliased_views[viewcls_name]
         assert vs is not None
         vc = setgen.get_set_type(vs, ctx=ctx)
-        ctx.env.schema_view_cache[viewcls] = vc, view_set
+        ctx.env.schema_view_cache[key] = vc, view_set
 
     return vc, view_set
 

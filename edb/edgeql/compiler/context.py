@@ -151,7 +151,10 @@ class Environment:
     path_scope: irast.ScopeTreeNode
     """Overrall expression path scope tree."""
 
-    schema_view_cache: Dict[s_types.Type, tuple[s_types.Type, irast.Set]]
+    schema_view_cache: Dict[
+        tuple[s_types.Type, object],
+        tuple[s_types.Type, irast.Set],
+    ]
     """Type cache used by schema-level views."""
 
     query_parameters: Dict[str, irast.Param]
@@ -763,6 +766,12 @@ class ContextLevel(compiler.ContextLevel):
             return self.create_anchor(ir, name)
         else:
             return ir
+
+    # Return an additional key for any compilation caches that may
+    # vary based on "security contexts" such as whether we are in an
+    # access policy.
+    def get_security_context(self) -> object:
+        return bool(self.suppress_rewrites)
 
 
 class CompilerContext(compiler.CompilerContext[ContextLevel]):
