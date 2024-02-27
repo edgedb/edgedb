@@ -36,7 +36,7 @@ start the development server.
 .. code-block:: bash
 
   $ cd nextjs-blog
-  $ yarn dev # or pnpm dev or npm run dev or bun dev
+  $ npm dev # or yarn dev or pnpm dev or bun run dev
 
 When the dev server starts, it will log out a local URL. 
 Visit that URL to see the default Next.js homepage. At this 
@@ -368,9 +368,9 @@ First, install the generator to your project.
 
 .. code-block:: bash
 
-  $ yarn add --dev @edgedb/generate
+  $ npm install --save-dev @edgedb/generate
+  $ # or yarn add --dev @edgedb/generate
   $ # or pnpm add --dev @edgedb/generate
-  $ # or npm install --save-dev @edgedb/generate
   $ # or bun add --dev @edgedb/generate
 
 Then generate the query builder with the following command.
