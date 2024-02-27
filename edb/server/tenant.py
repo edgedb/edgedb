@@ -48,6 +48,7 @@ import immutables
 
 from edb import errors
 from edb.common import retryloop
+from edb.common import debug
 
 from . import args as srvargs
 from . import config
@@ -1310,7 +1311,9 @@ class Tenant(ha_base.ClusterProtocol):
 
             async with self.use_sys_pgcon() as con:
                 await con.signal_sysevent(event, **kwargs)
-        except Exception:
+        except Exception as ex:
+            print("SYSEVENT ERROR")
+            debug.dump(ex)
             metrics.background_errors.inc(
                 1.0, self._instance_name, "signal_sysevent"
             )
