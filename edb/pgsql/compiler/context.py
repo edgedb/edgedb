@@ -197,6 +197,17 @@ class RelOverlays:
     def copy(self) -> RelOverlays:
         return RelOverlays(type=self.type, ptr=self.ptr)
 
+if TYPE_CHECKING:
+    # external rels entries map to:
+    # - the rel that represents that path id,
+    # - aspects provided by the rel,
+    # - additional path ids and aspects provided
+    ExternalRelsEntry = Tuple[
+        pgast.BaseRelation | pgast.CommonTableExpr,
+        Tuple[str, ...],
+        Tuple[Tuple[irast.PathId, Tuple[str, ...]], ...],
+    ]
+
 
 class CompilerContextLevel(compiler.ContextLevel):
     #: static compilation environment
@@ -303,10 +314,7 @@ class CompilerContextLevel(compiler.ContextLevel):
     rel_overlays: RelOverlays
 
     #: Mapping from path ids to "external" rels given by a particular relation
-    external_rels: Mapping[
-        irast.PathId,
-        Tuple[pgast.BaseRelation | pgast.CommonTableExpr, Tuple[str, ...]]
-    ]
+    external_rels: Mapping[irast.PathId, ExternalRelsEntry]
 
     #: The CTE and some metadata of any enclosing iterator-like
     #: construct (which includes iterators, insert/update, and INSERT

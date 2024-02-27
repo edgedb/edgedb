@@ -67,10 +67,7 @@ def compile_ir_to_sql_tree(
         Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
     ] = None,
     external_rels: Optional[
-        Mapping[
-            irast.PathId,
-            Tuple[pgast.BaseRelation | pgast.CommonTableExpr, Tuple[str, ...]],
-        ]
+        Mapping[irast.PathId, context.ExternalRelsEntry]
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
     detach_params: bool = False,

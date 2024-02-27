@@ -436,6 +436,9 @@ def _get_set_rvar(
         # Named tuple indirection.
         return process_set_as_tuple_indirection(ir_set, ctx=ctx)
 
+    if ir_set.path_id in ctx.external_rels:
+        return process_external_rel(ir_set, ctx=ctx)
+
     if ir_set.rptr is not None:
         # Regular non-computable path step.
         return process_set_as_path(ir_set, ctx=ctx)
@@ -443,9 +446,6 @@ def _get_set_rvar(
     if isinstance(ir_set, irast.EmptySet):
         # {}
         return process_set_as_empty(ir_set, ctx=ctx)
-
-    if ir_set.path_id in ctx.external_rels:
-        return process_external_rel(ir_set, ctx=ctx)
 
     # Regular non-computable path start.
     return process_set_as_root(ir_set, ctx=ctx)
@@ -814,10 +814,17 @@ def process_set_as_empty(
 def process_external_rel(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
-    rel, aspects = ctx.external_rels[ir_set.path_id]
+    rel, aspects, additional_path_ids = ctx.external_rels[ir_set.path_id]
 
     rvar = relctx.rvar_for_rel(rel, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar, aspects)
+
+    main = SetRVar(rvar=rvar, path_id=ir_set.path_id, aspects=aspects)
+
+    additional = [
+        SetRVar(rvar=rvar, path_id=path_id, aspects=asp)
+        for (path_id, asp) in additional_path_ids
+    ]
+    return SetRVars(main=main, new=[main] + additional)
 
 
 def process_set_as_link_property_ref(
@@ -871,6 +878,12 @@ def process_set_as_link_property_ref(
 
         if link_rvar is None:
             src_rvar = get_set_rvar(ir_source, ctx=newctx)
+            assert link_prefix.rptr is not None
+
+            link_rvar = relctx.maybe_get_path_rvar(
+                newctx.rel, link_path_id, aspect='source', ctx=newctx
+            )
+        if link_rvar is None:
             assert link_prefix.rptr is not None
             link_rvar = relctx.new_pointer_rvar(
                 link_prefix.rptr, src_rvar=src_rvar,
