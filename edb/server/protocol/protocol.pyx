@@ -660,6 +660,13 @@ cdef class HttpProtocol:
                 self.tenant,
             )
         elif route == 'server':
+            if not await self._authenticate_for_default_conn_transport(
+                request,
+                response,
+                srvargs.ServerConnTransport.HTTP_HEALTH,
+            ):
+                return
+
             # System API request
             await system_api.handle_request(
                 request,
@@ -669,12 +676,12 @@ cdef class HttpProtocol:
                 self.tenant,
             )
         elif path_parts == ['metrics'] and request.method == b'GET':
-            sslobj = self.transport.get_extra_info('ssl_object')
-            if sslobj is not None:
-                if not sslobj.getpeercert():  # None or empty dict
-                    return self._unauthorized(
-                        request, response, "Valid client certificate required."
-                    )
+            if not await self._authenticate_for_default_conn_transport(
+                request,
+                response,
+                srvargs.ServerConnTransport.HTTP_METRICS,
+            ):
+                return
 
             # Quoting the Open Metrics spec:
             #    Implementers MUST expose metrics in the OpenMetrics
@@ -839,6 +846,13 @@ cdef class HttpProtocol:
                     'authentication failed: '
                     'SCRAM authentication required but not supported for HTTP'
                 )
+            elif authmethod_name == 'mTLS':
+                if (
+                    self.http_endpoint_security
+                    is srvargs.ServerEndpointSecurityMode.Tls
+                    or self.is_tls
+                ):
+                    auth_helpers.auth_mtls_with_user(self.transport, username)
             else:
                 raise errors.AuthenticationError(
                     'authentication failed: wrong method used')
@@ -859,6 +873,39 @@ cdef class HttpProtocol:
 
         return True
 
+    async def _authenticate_for_default_conn_transport(
+        self,
+        HttpRequest request,
+        HttpResponse response,
+        transport: srvargs.ServerConnTransport,
+    ):
+        try:
+            auth_method = self.server.get_default_auth_method(transport)
+
+            # If the auth method and the provided auth information match,
+            # try to resolve the authentication.
+            if auth_method is srvargs.ServerAuthMethod.Trust:
+                pass
+            elif auth_method is srvargs.ServerAuthMethod.mTLS:
+                if (
+                    self.http_endpoint_security
+                    is srvargs.ServerEndpointSecurityMode.Tls
+                    or self.is_tls
+                ):
+                    auth_helpers.auth_mtls(self.transport)
+            else:
+                raise errors.AuthenticationError(
+                    'authentication failed: wrong method used')
+
+        except Exception as ex:
+            if debug.flags.server:
+                markup.dump(ex)
+
+            self._unauthorized(request, response, str(ex))
+
+            return False
+
+        return True
 
 def get_request_url(request, is_tls):
     request_url = request.url
