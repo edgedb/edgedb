@@ -13,9 +13,23 @@ EdgeDB.
 
   * - **Type**
     - **Description**
+  * - :eql:type:`cfg::AbstractConfig`
+    - The abstract base type for all configuration objects. The properties
+      of this type define the set of configuruation settings supported by
+      EdgeDB.
   * - :eql:type:`cfg::Config`
-    - The base type for all configuration objects. The properties of this type
-      define the set of configuruation settings supported by EdgeDB.
+    - The main configuration object. The properties of this object reflect
+      the overall configuration setting from instance level all the way to
+      session level.
+  * - :eql:type:`cfg::DatabaseConfig`
+    - The database branch configuration object. It reflects all the
+      applicable configuration at EdgeDB branch level.
+  * - :eql:type:`cfg::InstanceConfig`
+    - The instance configuration object.
+  * - :eql:type:`cfg::ExtensionConfig`
+    - The abstract base type for all extension configuration objects. Each
+      extension can define the necessary configuration settings by extending
+      this type and adding the extension-specific properties.
   * - :eql:type:`cfg::Auth`
     - An object type representing an authentication profile.
   * - :eql:type:`cfg::ConnectionTransport`
@@ -130,7 +144,7 @@ Query behavior
       the user.
 
       For example, the following is valid input:
-      
+
       ``'{ "type": "QueryError",
       "message": "Did not work",
       "hint": "Try doing something else",
@@ -203,12 +217,106 @@ Client connections
 ----------
 
 
-.. eql:type:: cfg::Config
+.. eql:type:: cfg::AbstractConfig
 
   An abstract type representing the configuration of an instance or database.
 
   The properties of this object type represent the set of configuration
   options supported by EdgeDB (listed above).
+
+
+----------
+
+
+.. eql:type:: cfg::Config
+
+  The main configuration object type.
+
+  This type will have only one object instance. The ``cfg::Config`` object
+  represents the sum total of the current EdgeDB configuration. It reflects
+  the result of applying instance, branch, and session level configuration.
+  Examining this object is the recommended way of determining the current
+  configuration.
+
+  Here's an example of checking and disabling :ref:`access policies
+  <ref_std_cfg_apply_access_policies>`:
+
+  .. code-block:: edgeql-repl
+
+      db> select cfg::Config.apply_access_policies;
+      {true}
+      db> configure session set apply_access_policies := false;
+      OK: CONFIGURE SESSION
+      db> select cfg::Config.apply_access_policies;
+      {false}
+
+
+----------
+
+
+.. eql:type:: cfg::DatabaseConfig
+
+  The database branch-level configuration object type.
+
+  This type will have only one object instance. The ``cfg::DatabaseConfig``
+  object represents the state of branch and instance-level EdgeDB
+  configuration.
+
+  For overall configuraiton state please refer to the :eql:type:`cfg::Config`
+  instead.
+
+
+----------
+
+
+.. eql:type:: cfg::InstanceConfig
+
+  The instance-level configuration object type.
+
+  This type will have only one object instance. The ``cfg::InstanceConfig``
+  object represents the state of only instance-level EdgeDB configuration.
+
+  For overall configuraiton state please refer to the :eql:type:`cfg::Config`
+  instead.
+
+
+----------
+
+
+.. eql:type:: cfg::ExtensionConfig
+
+  .. versionadded:: 5.0
+
+  An abstract type representing extension configuration.
+
+  Every extension is expected to define its own extension-specific config
+  object type extending ``cfg::ExtensionConfig``. Any necessary extension
+  configuration setting should be represented as properties of this concrete
+  config type.
+
+  Up to three instances of the extension-specific config type will be created,
+  each of them with a ``required single link cfg`` to the
+  :eql:type:`cfg::Config`, :eql:type:`cfg::DatabaseConfig`, or
+  :eql:type:`cfg::InstanceConfig` object depending on the configuration level.
+  The :eql:type:`cfg::AbstractConfig` exposes a corresponding computed
+  multi-backlink called ``extensions``.
+
+  For example, :ref:`ext::pgvector <ref_ext_pgvector>` extension exposes
+  ``probes`` as a configurable parameter via ``ext::pgvector::Config`` object:
+
+  .. code-block:: edgeql-repl
+
+    db> configure session
+    ... set ext::pgvector::Config::probes := 5;
+    OK: CONFIGURE SESSION
+    db> select cfg::Config.extensions[is ext::pgvector::Config]{*};
+    {
+      ext::pgvector::Config {
+        id: 12b5c70f-0bb8-508a-845f-ca3d41103b6f,
+        probes: 5,
+        ef_search: 40,
+      },
+    }
 
 
 ----------
@@ -220,8 +328,8 @@ Client connections
 
   .. code-block:: edgeql-repl
 
-    edgedb> configure instance insert
-    .......   Auth {priority := 0, method := (insert Trust)};
+    db> configure instance insert
+    ...   Auth {priority := 0, method := (insert Trust)};
     OK: CONFIGURE INSTANCE
 
   Below are the properties of the ``Auth`` class.
@@ -293,8 +401,8 @@ Client connections
 
   .. code-block:: edgeql-repl
 
-    edgedb> configure instance insert
-    .......   Auth {priority := 0, method := (insert Trust)};
+    db> configure instance insert
+    ...   Auth {priority := 0, method := (insert Trust)};
     OK: CONFIGURE INSTANCE
 
 -------
@@ -311,8 +419,8 @@ Client connections
 
   .. code-block:: edgeql-repl
 
-    edgedb> configure instance insert
-    .......   Auth {priority := 0, method := (insert SCRAM)};
+    db> configure instance insert
+    ...   Auth {priority := 0, method := (insert SCRAM)};
     OK: CONFIGURE INSTANCE
 
 -------
