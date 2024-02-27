@@ -566,7 +566,9 @@ def compile_GlobalExpr(
             # card_inference_override so that we use the real cardinality
             # instead of assuming it is MANY.
             assert isinstance(rewrite_target, irast.Set)
-            target = setgen.new_set_from_set(target, expr=None, ctx=ctx)
+            target = setgen.new_set_from_set(
+                target, expr=irast.TypeRoot(typeref=target.typeref), ctx=ctx
+            )
             wrap = irast.SelectStmt(
                 result=target,
                 card_inference_override=rewrite_target,

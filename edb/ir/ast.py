@@ -508,6 +508,14 @@ class BindingKind(s_enum.StrEnum):
     Select = 'Select'
 
 
+class TypeRoot(Expr):
+    # This will be replicated in the enclosing set.
+    typeref: TypeRef
+
+    # Whether to force this to not select subtypes
+    skip_subtypes: bool = False
+
+
 T_co = typing.TypeVar('T_co', covariant=True)
 
 
@@ -518,7 +526,12 @@ T_co = typing.TypeVar('T_co', covariant=True)
 class SetE(Base, typing.Generic[T_co]):
     '''A somewhat overloaded metadata container for expressions.
 
+    Its primary notional purpose is to be the holder for expression metadata
+    such as path_id.
 
+    It *also*, when rptr is set, represents pointer dereferences.
+
+    Also also, it contains shape applications.
     '''
 
     __ast_frozen_fields__ = frozenset({'typeref'})
@@ -547,11 +560,13 @@ class SetE(Base, typing.Generic[T_co]):
     # card/multi inference.
     is_visible_binding_ref: bool = False
 
-    # Whether to force this to not select subtypes
-    skip_subtypes: bool = False
     # Whether to force this to ignore rewrites. Very dangerous!
-    # Currently only used for preventing duplicate explicit .id
-    # insertions to BaseObject.
+    # Currently for preventing duplicate explicit .id
+    # insertions to BaseObject and for ignoring other access policies
+    # inside access policy expressions.
+    #
+    # N.B: This is defined on Set and not on TypeRoot because we use the Set
+    # to join against target types on links, and to ensure rvars.
     ignore_rewrites: bool = False
 
     def __repr__(self) -> str:

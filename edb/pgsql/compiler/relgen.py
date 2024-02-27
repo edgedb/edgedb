@@ -430,6 +430,10 @@ def _get_set_rvar(
         if irutils.is_set_instance(ir_set, irast.TriggerAnchor):
             return process_set_as_trigger_anchor(ir_set, ctx=ctx)
 
+        # Regular non-computable path start.
+        if irutils.is_set_instance(ir_set, irast.TypeRoot):
+            return process_set_as_root(ir_set, ctx=ctx)
+
         # All other expressions.
         return process_set_as_expr(ir_set, ctx=ctx)
 
@@ -445,11 +449,7 @@ def _get_set_rvar(
         # {}
         return process_set_as_empty(ir_set, ctx=ctx)
 
-    if ir_set.path_id in ctx.external_rels:
-        return process_external_rel(ir_set, ctx=ctx)
-
-    # Regular non-computable path start.
-    return process_set_as_root(ir_set, ctx=ctx)
+    raise AssertionError(f'invalid Set! {ir_set}')
 
 
 def _get_source_rvar(
@@ -795,6 +795,10 @@ def get_set_rel_alias(ir_set: irast.Set, *,
 def process_set_as_root(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
+
+    # TODO(ir): Represent these as something other than TypeRoot?
+    if ir_set.path_id in ctx.external_rels:
+        return process_external_rel(ir_set, ctx=ctx)
 
     assert not ir_set.is_visible_binding_ref, (
         f"Can't compile ref to visible binding {ir_set.path_id}"

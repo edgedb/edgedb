@@ -4980,6 +4980,7 @@ class PointerMetaCommand(
                             path_scope_id=iter_uid,
                             path_id=src_path_id,
                             typeref=src_path_id.target,
+                            expr=irast.TypeRoot(typeref=src_path_id.target),
                         )
                     )
                 ),

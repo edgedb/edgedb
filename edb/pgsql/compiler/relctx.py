@@ -502,14 +502,20 @@ def new_primitive_rvar(
     if not ir_set.path_id.is_objtype_path():
         raise ValueError('cannot create root rvar for non-object path')
 
+    if isinstance(ir_set.expr, irast.TypeRoot):
+        skip_subtypes = ir_set.expr.skip_subtypes
+    else:
+        skip_subtypes = False
+
     typeref = ir_set.typeref
     dml_source = irutils.get_dml_sources(ir_set)
     set_rvar = range_for_typeref(
         typeref, path_id, lateral=lateral, dml_source=dml_source,
-        include_descendants=not ir_set.skip_subtypes,
+        include_descendants=not skip_subtypes,
         ignore_rewrites=ir_set.ignore_rewrites, ctx=ctx)
     pathctx.put_rvar_path_bond(set_rvar, path_id)
 
+    # FIXME: This feels like it should all not be here.
     rptr = ir_set.rptr
     if rptr is not None:
         if (isinstance(rptr.ptrref, irast.TypeIntersectionPointerRef)
@@ -1444,6 +1450,7 @@ def range_for_material_objtype(
             rewrite = irast.Set(
                 path_id=irast.PathId.from_typeref(typeref, namespace={'rw'}),
                 typeref=typeref,
+                expr=irast.TypeRoot(typeref=typeref),
             )
 
         # Don't include overlays in the normal way in trigger mode

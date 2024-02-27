@@ -1193,7 +1193,7 @@ def prepare_rewrite_anchors(
         schema, stype, typename=subject_name, namespace=ctx.path_id_namespace,
         env=ctx.env,
     )
-    subject_set = setgen.new_set(
+    subject_set = setgen.class_set(
         stype=stype, path_id=subject_path_id, ctx=ctx
     )
 
