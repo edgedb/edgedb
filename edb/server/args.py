@@ -127,6 +127,7 @@ class ServerAuthMethod(enum.StrEnum):
     Scram = "SCRAM"
     JWT = "JWT"
     Password = "Password"
+    mTLS = "mTLS"
 
 
 class ServerConnTransport(enum.StrEnum):
@@ -135,6 +136,8 @@ class ServerConnTransport(enum.StrEnum):
     TCP = "TCP"
     TCP_PG = "TCP_PG"
     SIMPLE_HTTP = "SIMPLE_HTTP"
+    HTTP_METRICS = "HTTP_METRICS"
+    HTTP_HEALTH = "HTTP_HEALTH"
 
 
 class ReloadTrigger(enum.StrEnum):
@@ -185,6 +188,8 @@ DEFAULT_AUTH_METHODS = ServerAuthMethods({
     ServerConnTransport.TCP_PG: ServerAuthMethod.Scram,
     ServerConnTransport.HTTP: ServerAuthMethod.JWT,
     ServerConnTransport.SIMPLE_HTTP: ServerAuthMethod.Password,
+    ServerConnTransport.HTTP_METRICS: ServerAuthMethod.Auto,
+    ServerConnTransport.HTTP_HEALTH: ServerAuthMethod.Auto,
 })
 
 

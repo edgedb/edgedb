@@ -39,7 +39,7 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
 CREATE SCALAR TYPE cfg::AllowBareDDL EXTENDING enum<AlwaysAllow, NeverAllow>;
 CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<
-    TCP, TCP_PG, HTTP, SIMPLE_HTTP>;
+    TCP, TCP_PG, HTTP, SIMPLE_HTTP, HTTP_METRICS, HTTP_HEALTH>;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
@@ -65,6 +65,14 @@ CREATE TYPE cfg::JWT EXTENDING cfg::AuthMethod {
 CREATE TYPE cfg::Password EXTENDING cfg::AuthMethod {
     ALTER PROPERTY transports {
         SET default := { cfg::ConnectionTransport.SIMPLE_HTTP };
+    };
+};
+CREATE TYPE cfg::mTLS EXTENDING cfg::AuthMethod {
+    ALTER PROPERTY transports {
+        SET default := {
+            cfg::ConnectionTransport.HTTP_METRICS,
+            cfg::ConnectionTransport.HTTP_HEALTH,
+        };
     };
 };
 
