@@ -571,6 +571,10 @@ class BackLinkExpr:
     subject: Expr
     label: str
 
+@dataclass(frozen=True)
+class IsTpExpr:
+    subject: Expr
+    tp: Tp
 
 @dataclass(frozen=True)
 class TpIntersectExpr:
@@ -796,7 +800,7 @@ Expr = (
     ObjectProjExpr | LinkPropProjExpr | WithExpr | ForExpr | OptionalForExpr |
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
-    FreeObjectExpr | ConditionalDedupExpr | TupleProjExpr | 
+    FreeObjectExpr | ConditionalDedupExpr | TupleProjExpr |  IsTpExpr |
     # ObjectExpr | 
     BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
     ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr

@@ -88,6 +88,8 @@ def map_query(f: Callable[[Expr, QueryLevel],
                     linkprop=linkprop)
             case BackLinkExpr(subject=subject, label=label):
                 return BackLinkExpr(subject=recur(subject), label=label)
+            case e.IsTpExpr(subject=subject, tp=tp):
+                return e.IsTpExpr(subject=recur(subject), tp=tp)
             case TpIntersectExpr(subject=subject, tp=tp_name):
                 return TpIntersectExpr(subject=recur(subject), tp=tp_name)
             case FunAppExpr(fun=fname, args=args, overloading_index=idx, kwargs=kwargs):

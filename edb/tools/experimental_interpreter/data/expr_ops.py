@@ -123,6 +123,8 @@ def map_expr(
                 return e.TupleProjExpr(subject=recur(subject), label=label)
             case BackLinkExpr(subject=subject, label=label):
                 return BackLinkExpr(subject=recur(subject), label=label)
+            case e.IsTpExpr(subject=subject, tp=tp):
+                return e.IsTpExpr(subject=recur(subject), tp=tp)
             case TpIntersectExpr(subject=subject, tp=tp_name):
                 return TpIntersectExpr(subject=recur(subject),
                                        tp=tp_name)

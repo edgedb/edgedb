@@ -2052,7 +2052,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ''',
             )
 
-    # @test.decorators.experimental_interpreter_triaged_pending_feature("Deduplication on non-path projections is not functioning")
     async def test_edgeql_select_nested_redefined_link(self):
         await self.assert_query_result(
             '''
@@ -2154,7 +2153,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    # @test.decorators.experimental_interpreter_triaged_pending_feature("Path factoring on <complex_expr>.label is incorrect")
     async def test_edgeql_select_tvariant_04(self):
         await self.assert_query_result(
             r"""
@@ -7969,6 +7967,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT array_agg((SELECT User {m := 10}))[{1000}].m;
             """)
 
+    @test.decorators.experimental_interpreter_exclude("Not applicable to the interpreter")
     @test.xfail('''
         Publication is empty, and so even if we join in User to the result
         of the array dereference, that all gets optimized out on the pg

@@ -355,6 +355,23 @@ def eval_expr(ctx: EvalEnv,
                            eval_error(v, "expecting references")
                            for v in subjectv.getVals()]
             return db.reverse_project(subject_ids, label)
+        case e.IsTpExpr(subject=subject, tp=tp_name):
+            if not isinstance(tp_name, e.QualifiedName):
+                raise ValueError("Should be updated during tcking")
+            subjectv = eval_expr(ctx, db, subject)
+            after_intersect: List[Val] = []
+            for v in subjectv.getVals():
+                match v:
+                    case RefVal(refid=vid, val=_):
+                        is_subtype = is_nominal_subtype_in_schema(db.get_schema(),
+                                db.get_type_for_an_id(vid), tp_name)
+                    case e.ScalarVal(tp=e.ScalarTp(s_name), val=_):
+                        is_subtype = is_nominal_subtype_in_schema(db.get_schema(),
+                                s_name, tp_name)
+                    case _:
+                        raise ValueError("UnExpected Value Type")
+                after_intersect = [*after_intersect, e.BoolVal(is_subtype)]
+            return e.ResultMultiSetVal(after_intersect)
         case TpIntersectExpr(subject=subject, tp=tp_name):
             if not isinstance(tp_name, e.QualifiedName):
                 raise ValueError("Should be updated during tcking")

@@ -74,9 +74,9 @@ def elab_Introspect(node: qlast.Introspect) -> Expr:
     return e.StrVal("Introspect is not implemented")
 
 @elab.register(qlast.IsOp)
-def elab_TpIntersect(oper: qlast.IsOp) -> TpIntersectExpr:
+def elab_IsTp(oper: qlast.IsOp) -> e.IsTpExpr:
     if oper.op != 'IS':
-        raise ValueError("Unknown Op Name for TpIntersection", oper.op)
+        raise ValueError("Unknown Op Name for IsTp", oper.op)
     if isinstance(oper.right, qlast.TypeName):
         right = elab_TypeName(oper.right)
         # if not isinstance(right, e.UncheckedTypeName):
@@ -84,7 +84,7 @@ def elab_TpIntersect(oper: qlast.IsOp) -> TpIntersectExpr:
     else:
         raise ValueError("Expecting a type name here")
     left = elab(oper.left)
-    return TpIntersectExpr(left, right)
+    return e.IsTpExpr(left, right)
 
 
 @elab.register(qlast.Path)

@@ -237,6 +237,10 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
             return append_path_element(
                 reverse_elab(subject),
                 label_path_component)
+        case e.IsTpExpr(subject=subject, tp=tp_name):
+            return qlast.IsOp(left=reverse_elab(subject),
+                              op="IS",
+                              right=qlast.TypeName(maintype=reverse_elab_raw_name(tp_name)))
         case TpIntersectExpr(subject=subject, tp=tp_name):
             tp_path_component = qlast.TypeIntersection(
                 type=qlast.TypeName(maintype=reverse_elab_raw_name(tp_name)))

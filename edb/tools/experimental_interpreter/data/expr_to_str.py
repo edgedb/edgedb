@@ -162,6 +162,8 @@ def show_expr(expr: e.Expr) -> str:
             return show_expr(subject) + ".<" + label
         case e.TpIntersectExpr(subject=subject, tp=tp):
             return show_expr(subject) + " [is " + show_tp(tp) + "]"
+        case e.IsTpExpr(subject=subject, tp=tp):
+            return show_expr(subject) + " is " + show_tp(tp)
         case e.SubqueryExpr(expr=subject):
             return "select " + show_expr(subject)
         case e.FilterOrderExpr(subject=subject, filter=filter, order=order):
