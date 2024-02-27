@@ -272,7 +272,7 @@ class InternalGroup(Nonterm):
         r"%reduce FOR GROUP OptionallyAliasedExpr \
                   UsingClause \
                   ByClause \
-                  INTO Identifier OptGroupingAlias \
+                  IN Identifier OptGroupingAlias \
                   UNION OptionallyAliasedExpr \
                   OptFilterClause OptSortClause \
         "

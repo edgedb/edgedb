@@ -403,7 +403,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.visit_GroupQuery(node, no_paren=True)
         self._block_ws(0)
-        self._write_keywords('INTO ')
+        self._write_keywords('IN ')
         self.write(ident_to_str(node.group_alias))
         if node.grouping_alias:
             self.write(', ')
