@@ -1330,3 +1330,23 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             }
             ''' + clan_and_global
         )
+
+    async def test_edgeql_policies_global_02(self):
+        await self.con.execute('''
+            create type T {
+                create access policy ok allow all;
+                create access policy no deny select;
+            };
+            insert T;
+            create global foo := (select T limit 1);
+            create type S {
+                create access policy ok allow all using (exists global foo)
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select { s := S, foo := global foo };
+            ''',
+            [{"s": [], "foo": None}]
+        )
