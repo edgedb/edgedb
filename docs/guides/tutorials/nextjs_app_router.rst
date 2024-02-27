@@ -20,6 +20,15 @@ app and choose project options. For this tutorial, we'll go with the
 recommended settings including TypeScript, App Router, and 
 **opt-ing out** of the ``src/`` directory.
 
+.. code-block:: bash
+
+  ✔ Would you like to use TypeScript? … No / **Yes**
+  ✔ Would you like to use ESLint? … No / **Yes**
+  ✔ Would you like to use Tailwind CSS? … No / **Yes**
+  ✔ Would you like to use src/ directory? … **No** / Yes
+  ✔ Would you like to use App Router? (recommended) … No / **Yes**
+  ✔ Would you like to customize the default import alias (@/*)? … No / **Yes**
+
 The scaffolding tool will create a simple Next.js app and install its 
 dependencies. Once it's done, you can navigate to the app's directory and 
 start the development server.
@@ -29,8 +38,9 @@ start the development server.
   $ cd nextjs-blog
   $ yarn dev # or pnpm dev or npm run dev or bun dev
 
-Open `localhost:3000 <http://localhost:3000>`_ to see the default Next.js
-homepage. At this point the app's file structure looks like this:
+When the dev server starts, it will log out a local URL. 
+Visit that URL to see the default Next.js homepage. At this 
+point the app's file structure looks like this:
 
 .. code-block::
 
@@ -67,7 +77,7 @@ static data. Replace the contents of ``app/page.tsx`` with the following.
 
 .. code-block:: tsx
 
-  // app/page.tsx
+  :caption: app/page.tsx
 
   import Link from 'next/link'
 
@@ -114,8 +124,9 @@ static data. Replace the contents of ``app/page.tsx`` with the following.
   }
 
 
-After saving, Next.js should hot-reload, and you should see the updated
-homepage in your browser.
+After saving, you can refresh the page to see the blog posts. Clicking on a
+post title will take you to a page that doesn't exist yet. We'll create that
+page later in the tutorial.
 
 Initializing EdgeDB
 -------------------
@@ -148,10 +159,10 @@ directory. You'll be presented with a series of prompts.
   Do you want to initialize a new project? [Y/n]
   > Y
   Specify the name of EdgeDB instance to use with this project [default:
-  nextjs-blog]:
-  > nextjs-blog
+  nextjs_blog]:
+  > nextjs_blog
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 2.x]:
+  Specify the version of EdgeDB to use with this project [default: x.x]:
   >
   ┌─────────────────────┬──────────────────────────────────────────────┐
   │ Project directory   │ ~/nextjs-blog                                │
@@ -159,15 +170,15 @@ directory. You'll be presented with a series of prompts.
   │ Schema dir (empty)  │ ~/nextjs-blog/dbschema                       │
   │ Installation method │ portable package                             │
   │ Start configuration │ manual                                       │
-  │ Version             │ 2.x                                          │
-  │ Instance name       │ nextjs-blog                                  │
+  │ Version             │ x.x                                          │
+  │ Instance name       │ nextjs_blog                                  │
   └─────────────────────┴──────────────────────────────────────────────┘
   Initializing EdgeDB instance...
   Applying migrations...
   Everything is up to date. Revision initial.
   Project initialized.
 
-This process has spun up an EdgeDB instance called ``nextjs-blog`` and
+This process has spun up an EdgeDB instance called ``nextjs_blog`` and
 associated it with your current directory. As long as you're inside that
 directory, CLI commands and client libraries will be able to connect to the
 linked instance automatically, without additional configuration.
@@ -177,7 +188,7 @@ To test this, run the ``edgedb`` command to open a REPL to the linked instance.
 .. code-block:: bash
 
   $ edgedb
-  EdgeDB 2.x (repl 2.x)
+  EdgeDB x.x (repl x.x)
   Type \help for help, \quit to quit.
   edgedb> select 2 + 2;
   {4}
@@ -203,7 +214,7 @@ update the contents of ``default.esdl`` with the following simple blog schema.
 
 .. code-block:: sdl
 
-  # dbschema/default.esdl
+  :caption: dbschema/default.esdl
 
   module default {
     type BlogPost {
@@ -288,7 +299,7 @@ To fetch these from the homepage, we'll create an EdgeDB client and use the
 
 .. code-block:: tsx-diff
 
-    // app/page.tsx
+    :caption: app/page.tsx
 
     import Link from 'next/link'
   + import { createClient } from 'edgedb';
@@ -394,7 +405,7 @@ instead.
 
 .. code-block:: typescript-diff
     
-    // app/page.tsx
+    :caption: app/page.tsx
 
     import Link from 'next/link'
     import { createClient } from 'edgedb';
@@ -466,6 +477,8 @@ appropriate post from the database.
 Add the following code in ``app/post/[id]/page.tsx``:
 
 .. code-block:: tsx
+
+  :caption: app/post/[id]/page.tsx
   
   import { createClient } from 'edgedb'
   import e from '@/dbschema/edgeql-js'
@@ -554,7 +567,7 @@ database. Open a REPL and ``insert`` some blog posts:
 .. code-block:: bash
 
   $ edgedb --dsn <your-instance-dsn> --tls-security insecure
-  EdgeDB 2.x (repl 2.x)
+  EdgeDB x.x (repl x.x)
   Type \help for help, \quit to quit.
   edgedb> insert BlogPost { title := "Test post" };
   {default::BlogPost {id: c00f2c9a-cbf5-11ec-8ecb-4f8e702e5789}}
@@ -622,6 +635,6 @@ The next step is to add a ``/newpost`` page with a form for writing new blog
 posts and saving them into EdgeDB. That's left as an exercise for the reader.
 
 To see the final code for this tutorial, refer to 
-`github.com/edgedb/edgedb-examples/tree/main/nextjs-blog-app-router
+`github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
 <https://github.com/edgedb/edgedb-examples/tree/main/
 nextjs-blog-app-router>`_.
