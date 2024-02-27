@@ -178,6 +178,12 @@ ALTER TYPE cfg::AbstractConfig {
             Access-Control-Allow-Origin HTTP header';
     };
 
+    CREATE PROPERTY auto_rebuild_query_cache -> std::bool {
+        SET default := true;
+        CREATE ANNOTATION std::description :=
+            'Recompile all cached queries on DDL if enabled.';
+    };
+
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value

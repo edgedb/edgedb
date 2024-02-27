@@ -678,6 +678,9 @@ class ClusterTestCase(BaseHTTPTestCase):
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
 
+    # Turns off query cache recompilation on DDL
+    ENABLE_RECOMPILATION = False
+
     # Setup and teardown commands that run per test
     PER_TEST_SETUP: Sequence[str] = ()
     PER_TEST_TEARDOWN: Sequence[str] = ()
@@ -850,6 +853,13 @@ class ConnectedTestCase(ClusterTestCase):
             self.loop.run_until_complete(
                 self.con.execute(
                     'CONFIGURE SESSION SET __internal_testmode := true;'))
+
+        if not self.ENABLE_RECOMPILATION:
+            self.loop.run_until_complete(
+                self.con.execute(
+                    'CONFIGURE SESSION SET auto_rebuild_query_cache := false;'
+                )
+            )
 
         if self.TRANSACTION_ISOLATION:
             self.xact = self.con.transaction()
@@ -1167,9 +1177,13 @@ class DatabaseTestCase(ConnectedTestCase):
     def get_setup_script(cls):
         script = ''
 
-        # allow the setup script to also run in test mode
+        # allow the setup script to also run in test mode and no recompilation
         if cls.INTERNAL_TESTMODE:
             script += '\nCONFIGURE SESSION SET __internal_testmode := true;'
+        if not cls.ENABLE_RECOMPILATION:
+            script += (
+                '\nCONFIGURE SESSION SET auto_rebuild_query_cache := false;'
+            )
 
         if getattr(cls, 'BACKEND_SUPERUSER', False):
             is_superuser = getattr(cls, 'is_superuser', True)
@@ -1228,6 +1242,8 @@ class DatabaseTestCase(ConnectedTestCase):
         # allow the setup script to also run in test mode
         if cls.INTERNAL_TESTMODE:
             script += '\nCONFIGURE SESSION SET __internal_testmode := false;'
+        if not cls.ENABLE_RECOMPILATION:
+            script += '\nCONFIGURE SESSION RESET auto_rebuild_query_cache;'
 
         return script.strip(' \n')
 
