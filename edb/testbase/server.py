@@ -857,7 +857,9 @@ class ConnectedTestCase(ClusterTestCase):
         if not self.ENABLE_RECOMPILATION:
             self.loop.run_until_complete(
                 self.con.execute(
-                    'CONFIGURE SESSION SET auto_rebuild_query_cache := false;'))
+                    'CONFIGURE SESSION SET auto_rebuild_query_cache := false;'
+                )
+            )
 
         if self.TRANSACTION_ISOLATION:
             self.xact = self.con.transaction()
@@ -1179,7 +1181,9 @@ class DatabaseTestCase(ConnectedTestCase):
         if cls.INTERNAL_TESTMODE:
             script += '\nCONFIGURE SESSION SET __internal_testmode := true;'
         if not cls.ENABLE_RECOMPILATION:
-            script += '\nCONFIGURE SESSION SET auto_rebuild_query_cache := false;'
+            script += (
+                '\nCONFIGURE SESSION SET auto_rebuild_query_cache := false;'
+            )
 
         if getattr(cls, 'BACKEND_SUPERUSER', False):
             is_superuser = getattr(cls, 'is_superuser', True)
