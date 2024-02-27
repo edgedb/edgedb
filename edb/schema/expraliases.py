@@ -117,6 +117,8 @@ class AliasLikeCommand(
         scls: so.QualifiedObject_T,
         schema: s_schema.Schema,
         context: sd.CommandContext,
+        *,
+        unset_type: bool = True
     ) -> sd.CommandGroup:
         from . import globals as s_globals
         from . import ordering as s_ordering
@@ -127,15 +129,20 @@ class AliasLikeCommand(
 
         delta = sd.DeltaRoot()
 
-        # Unset created_types and type, so the types can be dropped
+        # Unset created_types and type/target, so the types can be dropped
         alter_alias = scls.init_delta_command(schema, sd.AlterObject)
         alter_alias.canonical = True
+        # This would usually not be needed, as both Alias.type and
+        # Global.target have ON TARGET DELETE DEFERRED RESTRICT.
+        # But because we are using "if_unused", we want to delete references
+        # to these types so they get dropped if had been the only ref.
+        if unset_type:
+            # (there are cases when we don't need to unset the type, such as
+            # when a computed global has been converted to a non-computed one)
+            alter_alias.add(sd.AlterObjectProperty(
+                property=self.TYPE_FIELD_NAME, new_value=None
+            ))
         alter_alias.set_attribute_value('created_types', set())
-        if isinstance(self, AliasCommand):
-            # HACK: this should be applied to both globals and aliases,
-            # but globals have code in SetGlobalType command that should not be
-            # executing in this case.
-            alter_alias.set_attribute_value('type', None)
 
         for dep_type in created:
             if_unused = isinstance(dep_type, s_types.Collection)
@@ -398,7 +405,9 @@ class AlterAliasLike(
                 if is_computable and self.has_attribute_value('expr'):
                     # this is a global that just had its expr unset
                     self.add(
-                        self._delete_alias_types(self.scls, schema, context)
+                        self._delete_alias_types(
+                            self.scls, schema, context, unset_type=False
+                        )
                     )
 
             schema = self._propagate_if_expr_refs(
