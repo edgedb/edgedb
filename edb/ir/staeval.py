@@ -270,6 +270,8 @@ def _evaluate_union(
     elements: List[irast.BaseConstant] = []
     for arg in opcall.args:
         val = evaluate(arg.expr, schema=schema)
+        if isinstance(val, irast.TypeCast):
+            val = evaluate(val.expr, schema=schema)
         if isinstance(val, irast.ConstantSet):
             for el in val.elements:
                 if isinstance(el, irast.Parameter):
@@ -281,8 +283,6 @@ def _evaluate_union(
             empty_set = val
         elif isinstance(val, irast.BaseConstant):
             elements.append(val)
-        elif isinstance(val, irast.TypeCast):
-            elements.append(evaluate(val.expr, schema=schema))
         else:
             raise UnsupportedExpressionError(
                 f'{val!r} not supported in UNION',
