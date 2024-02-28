@@ -117,6 +117,25 @@ You can only ``insert`` instances of concrete (non-abstract) object types.
   ... };
   error: QueryError: cannot insert into abstract object type 'default::Person'
 
+By default, ``insert`` returns only the inserted object's ``id`` as seen in the
+examples above. If you want to get additional data back, you may wrap your
+``insert`` with a ``select`` and apply a shape specifying any properties and
+links you want returned:
+
+.. code-block:: edgeql-repl
+
+  db> select (insert Hero {
+  ...   name := "Spider-Man"
+  ...   # secret_identity is omitted
+  ... }) {id, name};
+  {
+    default::Hero {
+      id: b0fbe9de-3e90-11ec-8c12-ffa2d5f0176a,
+      name: "Spider-Man"
+    }
+  }
+
+
 .. _ref_eql_insert_links:
 
 Inserting links
