@@ -567,6 +567,7 @@ class Cluster(BaseCluster):
             # `max_connections` scenarios.
             'max_locks_per_transaction': 1024,
             'max_pred_locks_per_transaction': 1024,
+            'log_autovacuum_min_duration': 0,
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
