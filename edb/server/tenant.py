@@ -1337,8 +1337,20 @@ class Tenant(ha_base.ClusterProtocol):
                 # in flight.
                 return
 
+            rloop = retryloop.RetryLoop(
+                iterations=3,
+                ignore=pgcon.BackendError,
+                backoff=retryloop.const_backoff(0.0),
+            )
             async with self.use_sys_pgcon() as con:
-                await con.signal_sysevent(event, **kwargs)
+                async for iteration in rloop:
+                    async with iteration:
+                        try:
+                            await con.signal_sysevent(event, **kwargs)
+                        except Exception as ex:
+                            print("=== YES IT IS FUCKED", ex)
+                            raise
+
         except Exception as ex:
             print("SYSEVENT ERROR")
             debug.dump(ex)

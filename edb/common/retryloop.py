@@ -52,14 +52,18 @@ class RetryLoop:
         self,
         *,
         backoff: Callable[[int], float] = const_backoff(0.5),
-        timeout: float,
+        timeout: float | None = None,
+        iterations: int | None = None,
         ignore: Type[Exception] | Tuple[Type[Exception], ...] | None = None,
         wait_for: Type[Exception] | Tuple[Type[Exception], ...] | None = None,
         retry_cb: Callable[[Optional[BaseException]], None] | None = None,
     ) -> None:
+        assert timeout is not None or iterations is not None
+
         self._iteration = 0
         self._backoff = backoff
         self._timeout = timeout
+        self._max_iterations = iterations
         self._ignore = ignore
         self._wait_for = wait_for
         self._started_at = 0.0
@@ -113,8 +117,17 @@ class RetryIteration:
                 # Propagate, it's not the error we expected.
                 return False
 
-            if elapsed > self._loop._timeout:
+            if (
+                self._loop._timeout is not None
+                and elapsed > self._loop._timeout
+            ):
                 # Propagate -- we've run it enough times.
+                return False
+
+            if (
+                self._loop._max_iterations is not None
+                and self._loop._iteration >= self._loop._max_iterations
+            ):
                 return False
 
             if self._loop._retry_cb is not None:
@@ -137,10 +150,22 @@ class RetryIteration:
                     # Propagate, it's not the error we expected.
                     return False
 
-            if elapsed > self._loop._timeout:
+            if (
+                self._loop._timeout is not None
+                and elapsed > self._loop._timeout
+            ):
                 raise TimeoutError(
                     f'exception matching {self._loop._wait_for!r} '
-                    f'has not happen in {self._loop._timeout} seconds')
+                    f'has not happened in {self._loop._timeout} seconds')
+
+            if (
+                self._loop._max_iterations is not None
+                and self._loop._iteration >= self._loop._max_iterations
+            ):
+                raise TimeoutError(
+                    f'exception matching {self._loop._wait_for!r} '
+                    f'has not happened in {self._loop._max_iterations} '
+                    f'iterations')
 
             # Ignore the exception until next run.
             return True
