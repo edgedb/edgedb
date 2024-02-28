@@ -699,11 +699,14 @@ cdef class PGConnection:
     async def signal_sysevent(self, event, **kwargs):
         if self.tenant.get_backend_runtime_params().has_create_database:
             assert defines.EDGEDB_SYSTEM_DB in self.dbname
+        print("SIGNAL", event, self.tenant._signal_ctr)
         event = json.dumps({
             'event': event,
             'server_id': self.server._server_id,
             'args': kwargs,
+            'num': self.tenant._signal_ctr,
         })
+        self.tenant._signal_ctr += 1
         query = f"""
             SELECT pg_notify(
                 '__edgedb_sysevent__',
@@ -711,6 +714,7 @@ cdef class PGConnection:
             )
         """.encode()
         await self.sql_execute(query)
+        print('DONE SIGNAL')
 
     async def sync(self):
         if self.waiting_for_sync:
@@ -2888,6 +2892,7 @@ cdef class PGConnection:
                 event = event_data.get('event')
 
                 server_id = event_data.get('server_id')
+                print("GOT   ", event, event_data.get('num'))
                 if server_id == self.server._server_id:
                     # We should only react to notifications sent
                     # by other edgedb servers. Reacting to events
