@@ -22,12 +22,12 @@ recommended settings including TypeScript, App Router, and
 
 .. code-block:: bash
 
-  ✔ Would you like to use TypeScript? … No / **Yes**
-  ✔ Would you like to use ESLint? … No / **Yes**
-  ✔ Would you like to use Tailwind CSS? … No / **Yes**
-  ✔ Would you like to use src/ directory? … **No** / Yes
-  ✔ Would you like to use App Router? (recommended) … No / **Yes**
-  ✔ Would you like to customize the default import alias (@/*)? … No / **Yes**
+  ✔ Would you like to use TypeScript? Yes
+  ✔ Would you like to use ESLint? Yes
+  ✔ Would you like to use Tailwind CSS? Yes
+  ✔ Would you like to use src/ directory? No
+  ✔ Would you like to use App Router? (recommended) Yes
+  ✔ Would you like to customize the default import alias (@/*) Yes
 
 The scaffolding tool will create a simple Next.js app and install its 
 dependencies. Once it's done, you can navigate to the app's directory and 
@@ -541,6 +541,16 @@ and create a new instance. Create and make note of a secret key for your EdgeDB 
 can create a new secret key from the "Secret Keys" tab in the EdgeDB Cloud 
 console. We'll need this later to connect to the database from Vercel.
 
+.. note::
+
+  If you want to restore your data from a local instance to the cloud, you 
+  can use the ``edgedb dump`` and ``edgedb restore`` commands.
+
+.. code-block:: bash
+
+  $ edgedb dump <your-dump.dump>
+  $ edgedb restore -I <org>/<instance-name> <your-dump.dump>
+
 As we've already initialized a local project, we need to unlink it from the 
 local directory. Run the following command to unlink the project:
 
@@ -552,11 +562,11 @@ Then run the following command to link the project to the EdgeDB Cloud:
 
 .. code-block:: bash
 
-  $ edgedb project init --server-instance "<org>/<instance-name>"
+  $ edgedb project init --server-instance <org>/<instance-name>
 
 The migrations and schema will be automatically uploaded to the cloud.
 
-**#2 Set up a ``prebuild`` script**
+**#2 Set up a `prebuild` script**
 
 Add the following ``prebuild`` script to your ``package.json``. When Vercel
 initializes the build, it will trigger this script which will generate the
@@ -591,10 +601,10 @@ this app to Vercel with the button below.
 
 In "Configure Project," expand "Environment Variables" to add two variables:
 
-   - ``EDGEDB_INSTANCE`` containing your EdgeDB Cloud instance name (in
-     ``<org>/<instance-name>`` format)
-   - ``EDGEDB_SECRET_KEY`` containing the secret key you created and noted
-     previously.
+- ``EDGEDB_INSTANCE`` containing your EdgeDB Cloud instance name (in
+  ``<org>/<instance-name>`` format)
+- ``EDGEDB_SECRET_KEY`` containing the secret key you created and noted
+  previously.
 
 **#4 View the application**
 
