@@ -575,6 +575,7 @@ class Cluster(BaseCluster):
                 ]
             ),
             "edb_stat_statements.track_planning": "true",
+            'log_autovacuum_min_duration': 0,
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
