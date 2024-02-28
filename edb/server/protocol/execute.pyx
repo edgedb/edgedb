@@ -642,18 +642,17 @@ def signal_side_effects(dbv, side_effects):
 
 
 def signal_query_cache_changes(dbv):
-    return
-    # if dbv.tenant._sending_cache_changes_update:
-    #     return
-    # dbv.tenant._sending_cache_changes_update = True
-    # dbv.tenant._pending_cache_changes += 1
-    # dbv.tenant.create_task(
-    #     dbv.tenant.signal_sysevent(
-    #         'query-cache-changes',
-    #         dbname=dbv.dbname,
-    #     ),
-    #     interruptable=False,
-    # )
+    if dbv.tenant._sending_cache_changes_update:
+        return
+    dbv.tenant._sending_cache_changes_update = True
+    dbv.tenant._pending_cache_changes += 1
+    dbv.tenant.create_task(
+        dbv.tenant.signal_sysevent(
+            'query-cache-changes',
+            dbname=dbv.dbname,
+        ),
+        interruptable=False,
+    )
 
 
 async def parse_execute_json(
