@@ -407,14 +407,6 @@ class Tenant(ha_base.ClusterProtocol):
                 print("======== WAITED TOO LONG!!!!!!!!!!!", t1 - t0)
                 sys.stdout.flush()
 
-    async def hazer(self) -> None:
-        while True:
-            await self.signal_sysevent(
-                'query-cache-changes',
-                dbname='edgedb',
-            )
-            await asyncio.sleep(0.1)
-
     def _start_watching_files(self):
         if self._readiness_state_file is not None:
 
@@ -435,7 +427,6 @@ class Tenant(ha_base.ClusterProtocol):
         await self._cluster.start_watching(self.on_switch_over)
 
         self.create_task(self.watcher(), interruptable=True)
-        self.create_task(self.hazer(), interruptable=True)
 
     def start_running(self) -> None:
         self._running = True
