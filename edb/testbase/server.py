@@ -2372,7 +2372,10 @@ class _EdgeDBServer:
             await asyncio.wait(pending, timeout=10)
 
         if self.proc.returncode is not None:
-            output = (await self.proc.stdout.read()).decode().strip()
+            if self.debug:
+                output = ''
+            else:
+                output = (await self.proc.stdout.read()).decode().strip()
             raise edgedb_cluster.ClusterError(output)
         else:
             assert status_task.done()
@@ -2422,7 +2425,7 @@ def start_edgedb_server(
     compiler_pool_size: int=2,
     compiler_pool_mode: Optional[edgedb_args.CompilerPoolMode] = None,
     adjacent_to: Optional[tconn.Connection]=None,
-    debug: bool=debug.flags.server,
+    debug: bool=False,
     backend_dsn: Optional[str] = None,
     runstate_dir: Optional[str] = None,
     data_dir: Optional[str] = None,
