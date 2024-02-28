@@ -528,9 +528,86 @@ you to ``/post/<uuid>``.
 Deploying to Vercel
 -------------------
 
+You can deploy an EdgeDB instance on the EdgeDB Cloud or 
+on your preferred cloud provider. We'll cover both options here.
+
+With EdgeDB Cloud
+=================
+
 **#1 Deploy EdgeDB**
 
-First deploy an EdgeDB instance on your preferred cloud provider:
+First, sign up for an account at `cloud.edgedb.com <https://cloud.edgedb.com>`_ 
+and create a new instance. Create and make note of a secret key for your EdgeDB Cloud instance. You 
+can create a new secret key from the "Secret Keys" tab in the EdgeDB Cloud 
+console. We'll need this later to connect to the database from Vercel.
+
+As we've already initialized a local project, we need to unlink it from the 
+local directory. Run the following command to unlink the project:
+
+.. code-block:: bash
+
+  $ edgedb project unlink
+
+Then run the following command to link the project to the EdgeDB Cloud:
+
+.. code-block:: bash
+
+  $ edgedb project init --server-instance "<org>/<instance-name>"
+
+The migrations and schema will be automatically uploaded to the cloud.
+
+**#2 Set up a ``prebuild`` script**
+
+Add the following ``prebuild`` script to your ``package.json``. When Vercel
+initializes the build, it will trigger this script which will generate the
+query builder. The ``npx @edgedb/generate edgeql-js`` command will read the
+value of the ``EDGEDB_SECRET_KEY`` and ``EDGEDB_INSTANCE`` variables, 
+connect to the database, and generate the query builder before Vercel 
+starts building the project.
+
+.. code-block:: javascript-diff
+
+    // package.json
+    "scripts": {
+      "dev": "next dev",
+      "build": "next build",
+      "start": "next start",
+      "lint": "next lint",
+  +   "prebuild": "npx @edgedb/generate edgeql-js"
+    },
+
+**#3 Deploy to Vercel**
+
+Push your project to GitHub or some other Git remote repository. Then deploy 
+this app to Vercel with the button below.
+
+.. lint-off
+
+.. image:: https://vercel.com/button
+  :width: 150px
+  :target: https://vercel.com/new/git/external?repository-url=https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog&project-name=nextjs-edgedb-blog&repository-name=nextjs-edgedb-blog&env=EDGEDB_DSN,EDGEDB_CLIENT_TLS_SECURITY
+
+.. lint-on
+
+In "Configure Project," expand "Environment Variables" to add two variables:
+
+   - ``EDGEDB_INSTANCE`` containing your EdgeDB Cloud instance name (in
+     ``<org>/<instance-name>`` format)
+   - ``EDGEDB_SECRET_KEY`` containing the secret key you created and noted
+     previously.
+
+**#4 View the application**
+
+Once deployment has completed, view the application at the deployment URL
+supplied by Vercel.
+
+With other cloud providers
+===========================
+
+**#1 Deploy EdgeDB**
+
+Check out the following guides for deploying EdgeDB to your preferred cloud 
+provider:
 
 - `AWS <https://www.edgedb.com/docs/guides/deployment/aws_aurora_ecs>`_
 - `Google Cloud <https://www.edgedb.com/docs/guides/deployment/gcp>`_
@@ -540,8 +617,7 @@ First deploy an EdgeDB instance on your preferred cloud provider:
 - `Docker <https://www.edgedb.com/docs/guides/deployment/docker>`_
   (cloud-agnostic)
 
-
-**#2. Find your instance's DSN**
+**#2 Find your instance's DSN**
 
 The DSN is also known as a connection string. It will have the format
 ``edgedb://username:password@hostname:port``. The exact instructions for this
