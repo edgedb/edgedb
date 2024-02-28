@@ -390,6 +390,16 @@ class Tenant(ha_base.ClusterProtocol):
         self._start_watching_files()
         self._initing = False
 
+    async def watcher(self) -> None:
+        import time
+        print("=== MONITORING")
+        while True:
+            t0 = time.time()
+            await asyncio.sleep(0.1)
+            t1 = time.time()
+            if t1 - t0 > 0.5:
+                print("======== WAITED TOO LONG!!!!!!!!!!!", t1 - t0)
+
     def _start_watching_files(self):
         if self._readiness_state_file is not None:
 
@@ -408,6 +418,8 @@ class Tenant(ha_base.ClusterProtocol):
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
         await self._cluster.start_watching(self.on_switch_over)
+
+        self.create_task(self.watcher(), interruptable=True)
 
     def start_running(self) -> None:
         self._running = True
