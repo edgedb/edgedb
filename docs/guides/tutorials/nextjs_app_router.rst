@@ -76,7 +76,6 @@ Let's start by implementing a simple homepage for our blog application using
 static data. Replace the contents of ``app/page.tsx`` with the following.
 
 .. code-block:: tsx
-
   :caption: app/page.tsx
 
   import Link from 'next/link'
@@ -213,7 +212,6 @@ directory is currently empty, but will contain our migration files. Let's
 update the contents of ``default.esdl`` with the following simple blog schema.
 
 .. code-block:: sdl
-
   :caption: dbschema/default.esdl
 
   module default {
@@ -297,7 +295,6 @@ To fetch these from the homepage, we'll create an EdgeDB client and use the
 ``select`` statement.
 
 .. code-block:: tsx-diff
-
     :caption: app/page.tsx
 
     import Link from 'next/link'
@@ -403,7 +400,6 @@ Back in ``app/page.tsx``, let's update our code to use the query builder
 instead.
 
 .. code-block:: typescript-diff
-    
     :caption: app/page.tsx
 
     import Link from 'next/link'
@@ -476,7 +472,6 @@ appropriate post from the database.
 Add the following code in ``app/post/[id]/page.tsx``:
 
 .. code-block:: tsx
-
   :caption: app/post/[id]/page.tsx
   
   import { createClient } from 'edgedb'
