@@ -225,7 +225,6 @@ update the contents of ``default.esdl`` with the following simple blog schema.
     }
   }
 
-
 .. note::
 
   EdgeDB lets you split up your schema into different ``modules`` but it's
