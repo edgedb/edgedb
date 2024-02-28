@@ -642,13 +642,23 @@ def signal_side_effects(dbv, side_effects):
 
 
 def signal_query_cache_changes(dbv):
-    dbv.tenant.create_task(
-        dbv.tenant.signal_sysevent(
-            'query-cache-changes',
-            dbname=dbv.dbname,
-        ),
-        interruptable=False,
-    )
+    # FIXME: This is disabled because the increased sysevent traffic
+    # caused by doing this was causing test failures on aarch64 when
+    # sometimes the signals failed due to a failure to look up
+    # transactions. We need to figure out what is going on with that
+    # and restore it. We also probably want to rate limit
+    # query-cache-changes, or include a more detailed payload, since
+    # it can force pretty aggressive amounts of cache reloading work
+    # on the targets.
+
+    # dbv.tenant.create_task(
+    #     dbv.tenant.signal_sysevent(
+    #         'query-cache-changes',
+    #         dbname=dbv.dbname,
+    #     ),
+    #     interruptable=False,
+    # )
+    pass
 
 
 async def parse_execute_json(
