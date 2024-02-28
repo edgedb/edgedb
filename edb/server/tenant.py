@@ -130,6 +130,7 @@ class Tenant(ha_base.ClusterProtocol):
     ):
         self._pending_cache_changes = 0
         self._signal_ctr = 0
+        self._signals_received = 0
 
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
