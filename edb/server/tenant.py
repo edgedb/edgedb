@@ -398,12 +398,14 @@ class Tenant(ha_base.ClusterProtocol):
     async def watcher(self) -> None:
         import time
         print("=== MONITORING")
+        sys.stdout.flush()
         while True:
             t0 = time.time()
             await asyncio.sleep(0.1)
             t1 = time.time()
             if t1 - t0 > 0.5:
                 print("======== WAITED TOO LONG!!!!!!!!!!!", t1 - t0)
+                sys.stdout.flush()
 
     def _start_watching_files(self):
         if self._readiness_state_file is not None:
@@ -1340,6 +1342,7 @@ class Tenant(ha_base.ClusterProtocol):
         except Exception as ex:
             print("SYSEVENT ERROR")
             debug.dump(ex)
+            sys.stdout.flush()
             metrics.background_errors.inc(
                 1.0, self._instance_name, "signal_sysevent"
             )

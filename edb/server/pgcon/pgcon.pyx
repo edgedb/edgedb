@@ -34,6 +34,7 @@ import os.path
 import socket
 import ssl as ssl_mod
 import struct
+import sys
 import textwrap
 import time
 from collections import deque
@@ -699,12 +700,13 @@ cdef class PGConnection:
     async def signal_sysevent(self, event, **kwargs):
         if self.tenant.get_backend_runtime_params().has_create_database:
             assert defines.EDGEDB_SYSTEM_DB in self.dbname
-        # print("SIGNAL", event, self.tenant._signal_ctr)
+        cnt = self.tenant._signal_ctr
+        print("SIGNAL", event, cnt)
         event = json.dumps({
             'event': event,
             'server_id': self.server._server_id,
             'args': kwargs,
-            'num': self.tenant._signal_ctr,
+            'num': cnt,
         })
         self.tenant._signal_ctr += 1
         query = f"""
@@ -718,7 +720,8 @@ cdef class PGConnection:
         await self.sql_execute(query)
         assert self.tenant._signals_received > num, (
             self.tenant._signals_received, num, event)
-        # print('DONE SIGNAL')
+        print('DONE SIGNAL', self.tenant._signals_received - num, cnt)
+        sys.stdout.flush()
 
     async def sync(self):
         if self.waiting_for_sync:
@@ -2896,7 +2899,7 @@ cdef class PGConnection:
                 event = event_data.get('event')
 
                 server_id = event_data.get('server_id')
-                # print("GOT   ", event, event_data.get('num'))
+                print("GOT   ", event, event_data.get('num'))
                 if server_id == self.server._server_id:
                     self.tenant._signals_received += 1
                     # We should only react to notifications sent
