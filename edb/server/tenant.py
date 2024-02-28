@@ -128,6 +128,8 @@ class Tenant(ha_base.ClusterProtocol):
         max_backend_connections: int,
         backend_adaptive_ha: bool = False,
     ):
+        self._pending_cache_changes = 0
+
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
         self._instance_name = instance_name
@@ -1313,6 +1315,11 @@ class Tenant(ha_base.ClusterProtocol):
             self.release_pgcon(dbname, con, discard=True)
 
     async def signal_sysevent(self, event: str, **kwargs) -> None:
+        if event == 'query-cache-changes' and self._pending_cache_changes > 10:
+            print(
+                "=== query-cache-changes backlog!!",
+                self._pending_cache_changes
+            )
         try:
             if not self._initing and not self._running:
                 # This is very likely if we are doing
@@ -1330,6 +1337,9 @@ class Tenant(ha_base.ClusterProtocol):
                 1.0, self._instance_name, "signal_sysevent"
             )
             raise
+        finally:
+            if event == 'query-cache-changes':
+                self._pending_cache_changes -= 1
 
     def on_remote_database_quarantine(self, dbname: str) -> None:
         if not self._accept_new_tasks:

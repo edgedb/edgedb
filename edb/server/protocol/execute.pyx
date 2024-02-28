@@ -642,6 +642,7 @@ def signal_side_effects(dbv, side_effects):
 
 
 def signal_query_cache_changes(dbv):
+    dbv.tenant._pending_cache_changes += 1
     dbv.tenant.create_task(
         dbv.tenant.signal_sysevent(
             'query-cache-changes',
