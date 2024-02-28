@@ -716,8 +716,8 @@ cdef class PGConnection:
 
         num = self.tenant._signals_received
         await self.sql_execute(query)
-        assert self.tenant._signals_received == num + 1, (
-            self.tenant._signals_received, num + 1, event)
+        assert self.tenant._signals_received > num, (
+            self.tenant._signals_received, num, event)
         # print('DONE SIGNAL')
 
     async def sync(self):
