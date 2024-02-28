@@ -377,6 +377,7 @@ APP_NAME = "Test App"
 LOGO_URL = "http://example.com/logo.png"
 DARK_LOGO_URL = "http://example.com/darklogo.png"
 BRAND_COLOR = "f0f8ff"
+SENDER = f"sender@example.com"
 
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
@@ -410,7 +411,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         }};
 
         CONFIGURE CURRENT DATABASE SET
-        ext::auth::SMTPConfig::sender := 'noreply@example.com';
+        ext::auth::SMTPConfig::sender := '{SENDER}';
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::allowed_redirect_urls := {{
@@ -2336,10 +2337,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "local_emailpassword"
             )
             provider_name = provider_config.name
+            email = f"{uuid.uuid4()}@example.com"
 
             form_data = {
                 "provider": provider_name,
-                "email": "test@example.com",
+                "email": email,
                 "password": "test_password",
                 "redirect_to": "https://example.com/some/path",
                 "challenge": str(uuid.uuid4()),
@@ -2359,8 +2361,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """
                 SELECT ext::auth::LocalIdentity
                 FILTER .<identity[is ext::auth::EmailPasswordFactor]
-                       .email = 'test@example.com';
-                """
+                       .email = <str>$email;
+                """,
+                email=email,
             )
 
             self.assertEqual(len(identity), 1)
@@ -2512,10 +2515,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "local_emailpassword"
             )
             provider_name = provider_config.name
+            email = f"{uuid.uuid4()}@example.com"
 
             form_data = {
                 "provider": provider_name,
-                "email": "test@example.com",
+                "email": email,
                 "password": "test_password",
                 "redirect_to": "https://not-on-the-allow-list.com/some/path",
                 "challenge": str(uuid.uuid4()),
@@ -2536,10 +2540,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_local_password_register_json_02(self):
         with self.http_con() as http_con:
             provider_name = "builtin::local_emailpassword"
+            email = f"{uuid.uuid4()}@example.com"
 
             json_data = {
                 "provider": provider_name,
-                "email": "test2@example.com",
+                "email": email,
                 "password": "test_password2",
                 "challenge": str(uuid.uuid4()),
             }
@@ -2556,15 +2561,17 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(status, 201)
 
-            identity = await self.con.query(
+            identity = await self.con.query_single(
                 """
-                SELECT ext::auth::LocalIdentity
-                FILTER .<identity[is ext::auth::EmailPasswordFactor]
-                       .email = 'test2@example.com';
-                """
+                with module ext::auth
+                select assert_single((
+                    select LocalIdentity
+                    filter .<identity[is EmailPasswordFactor]
+                        .email = <str>$email
+                ));
+                """,
+                email=email,
             )
-
-            self.assertEqual(len(identity), 1)
 
             pkce_challenge = await self.con.query_single(
                 """
@@ -2573,7 +2580,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 AND .identity.id = <uuid>$identity_id
                 """,
                 challenge=json_data["challenge"],
-                identity_id=identity[0].id,
+                identity_id=identity.id,
             )
 
             self.assertEqual(
@@ -2589,7 +2596,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 SELECT ext::auth::EmailPasswordFactor { password_hash }
                 FILTER .identity.id = <uuid>$identity
                 """,
-                identity=identity[0].id,
+                identity=identity.id,
             )
             self.assertTrue(
                 ph.verify(
@@ -2601,8 +2608,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         self,
     ):
         with self.http_con() as http_con:
+            email = f"{uuid.uuid4()}@example.com"
             form_data = {
-                "email": "test@example.com",
+                "email": email,
                 "password": "test_password",
                 "challenge": str(uuid.uuid4()),
             }
@@ -2627,10 +2635,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "local_emailpassword"
             )
             provider_name = provider_config.name
+            email = f"{uuid.uuid4()}@example.com"
 
             form_data = {
                 "provider": provider_name,
-                "email": "test@example.com",
+                "email": email,
                 "challenge": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -2679,11 +2688,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "local_emailpassword"
             )
             provider_name = provider_config.name
+            email = f"{uuid.uuid4()}@example.com"
 
             # Register a new user
             form_data = {
                 "provider": provider_name,
-                "email": "test_auth@example.com",
+                "email": email,
                 "password": "test_auth_password",
                 "challenge": str(uuid.uuid4()),
             }
@@ -2721,8 +2731,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """
                 SELECT ext::auth::LocalIdentity
                 FILTER .<identity[is ext::auth::EmailPasswordFactor]
-                       .email = 'test_auth@example.com';
-                """
+                       .email = <str>$email;
+                """,
+                email=email,
             )
 
             self.assertEqual(len(identity), 1)
@@ -2767,7 +2778,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(wrong_password_status, 403)
 
             # Attempt to authenticate with a random email
-            random_email = f"{str(uuid.uuid4())}@example.com"
+            random_email = f"{uuid.uuid4()}@example.com"
             auth_data_random_handle = {
                 "provider": form_data["provider"],
                 "email": random_email,
@@ -2891,7 +2902,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "local_emailpassword"
             )
             provider_name = provider_config.name
-            email = "test_resend@example.com"
+            email = f"{uuid.uuid4()}@example.com"
             form_data = {
                 "provider": provider_name,
                 "email": email,
@@ -2910,12 +2921,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             # Get the verification token from email
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
             test_file = os.environ.get(
-                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
             )
             with open(test_file, "rb") as f:
                 email_args = pickle.load(f)
-            self.assertEqual(email_args["sender"], "noreply@example.com")
+            self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], form_data["email"])
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
@@ -3096,12 +3111,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_local_password_forgot_form_01(self):
         with self.http_con() as http_con:
             provider_name = "builtin::local_emailpassword"
+            email = f"{uuid.uuid4()}@example.com"
 
             # Register a new user
             form_data = {
                 "provider": provider_name,
-                "email": f"{uuid.uuid4()}@example.com",
-                "password": "test_auth_password",
+                "email": email,
+                "password": uuid.uuid4(),
                 "challenge": uuid.uuid4(),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -3119,7 +3135,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_name,
                 "reset_url": "https://example.com/reset-password",
-                "email": form_data['email'],
+                "email": email,
                 "challenge": uuid.uuid4(),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -3141,7 +3157,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 SELECT LocalIdentity
                 FILTER .<identity[is EmailPasswordFactor].email = <str>$email
                 """,
-                email=form_data["email"],
+                email=email,
             )
             self.assertEqual(len(identity), 1)
 
@@ -3150,18 +3166,22 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             assert_data_shape.assert_data_shape(
                 data,
                 {
-                    "email_sent": form_data["email"],
+                    "email_sent": email,
                 },
                 self.fail,
             )
 
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
             test_file = os.environ.get(
-                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
             )
             with open(test_file, "rb") as f:
                 email_args = pickle.load(f)
-            self.assertEqual(email_args["sender"], "noreply@example.com")
-            self.assertEqual(email_args["recipients"], form_data["email"])
+            self.assertEqual(email_args["sender"], SENDER)
+            self.assertEqual(email_args["recipients"], email)
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
@@ -3235,7 +3255,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             assert_data_shape.assert_data_shape(
                 parsed_query,
                 {
-                    "email_sent": [form_data["email"]],
+                    "email_sent": [email],
                 },
                 self.fail,
             )
@@ -3282,11 +3302,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_local_password_reset_form_01(self):
         with self.http_con() as http_con:
             provider_name = 'builtin::local_emailpassword'
+            email = f"{uuid.uuid4()}@example.com"
 
             # Register a new user
             form_data = {
                 "provider": provider_name,
-                "email": f"{uuid.uuid4()}@example.com",
+                "email": email,
                 "password": "test_auth_password",
                 "challenge": uuid.uuid4(),
             }
@@ -3303,10 +3324,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             email_password_factor = await self.con.query_single(
                 """
                 with module ext::auth
-                SELECT EmailPasswordFactor { verified_at }
-                FILTER .email = <str>$email
+                select assert_single((
+                    select EmailPasswordFactor { verified_at }
+                    filter .email = <str>$email
+                ))
                 """,
-                email=form_data["email"],
+                email=email,
             )
             self.assertIsNone(email_password_factor.verified_at)
 
@@ -3320,7 +3343,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_name,
                 "reset_url": "https://example.com/reset-password",
-                "email": form_data['email'],
+                "email": email,
                 "challenge": challenge,
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -3335,13 +3358,17 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(status, 200)
 
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
             test_file = os.environ.get(
-                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
             )
             with open(test_file, "rb") as f:
                 email_args = pickle.load(f)
-            self.assertEqual(email_args["sender"], "noreply@example.com")
-            self.assertEqual(email_args["recipients"], form_data["email"])
+            self.assertEqual(email_args["sender"], SENDER)
+            self.assertEqual(email_args["recipients"], email)
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
@@ -3381,7 +3408,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 FILTER .<identity[is EmailPasswordFactor].email
                         = <str>$email
                 """,
-                email=form_data["email"],
+                email=email,
             )
 
             self.assertEqual(len(identity), 1)
@@ -3518,7 +3545,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_webauthn_register_options(self):
         with self.http_con() as http_con:
-            email = "user@example.com"
+            email = f"{uuid.uuid4()}@example.com"
             query_params = urllib.parse.urlencode({"email": email})
 
             body, _, status = self.http_con_request(
@@ -3589,7 +3616,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
     async def test_http_auth_ext_webauthn_register_options_existing_user(self):
-        email = "existing@example.com"
+        email = f"{uuid.uuid4()}@example.com"
         existing_user_handle = uuid.uuid4().bytes
 
         # Insert two existing WebAuthnFactors for the email
@@ -3650,7 +3677,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(user_id_decoded, existing_user_handle)
 
     async def test_http_auth_ext_webauthn_emails_share_user_handle(self):
-        email = "test@example.com"
+        email = f"{uuid.uuid4()}@example.com"
 
         user_handle_one = uuid.uuid4().bytes
         credential_id_one = uuid.uuid4().bytes
@@ -3700,7 +3727,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_webauthn_authenticate_options(self):
         with self.http_con() as http_con:
-            email = "test@example.com"
+            email = f"{uuid.uuid4()}@example.com"
             user_handle = uuid.uuid4().bytes
             credential_id = uuid.uuid4().bytes
             public_key = uuid.uuid4().bytes
@@ -3778,7 +3805,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
     async def test_http_auth_ext_magic_link_01(self):
-        email = "test@example.com"
+        email = f"{uuid.uuid4()}@example.com"
         challenge = "test_challenge"
         callback_url = "https://example.com/auth/callback"
         redirect_on_failure = "https://example.com/auth/magic-link-failure"
@@ -3802,12 +3829,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 200)
 
             # Get the token from email
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
             test_file = os.environ.get(
-                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
             )
             with open(test_file, "rb") as f:
                 email_args = pickle.load(f)
-            self.assertEqual(email_args["sender"], "noreply@example.com")
+            self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
