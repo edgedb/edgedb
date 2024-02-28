@@ -770,7 +770,8 @@ class ClusterTestCase(BaseHTTPTestCase):
         errors = _extract_background_errors(metrics)
         if errors:
             raise AssertionError(
-                f'{self._testMethodName!r}:\n\n{errors}'
+                f'{self._testMethodName!r}:\n\n{errors}\n\n'
+                f'All metrics:\n{metrics}'
             )
 
     @contextlib.asynccontextmanager
