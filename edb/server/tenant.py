@@ -128,6 +128,7 @@ class Tenant(ha_base.ClusterProtocol):
         max_backend_connections: int,
         backend_adaptive_ha: bool = False,
     ):
+        self._sending_cache_changes_update = False
         self._pending_cache_changes = 0
         self._signal_ctr = 0
         self._signals_received = 0
@@ -1324,6 +1325,9 @@ class Tenant(ha_base.ClusterProtocol):
                 self._pending_cache_changes,
             )
         try:
+            if event == 'query-cache-changes':
+                self._sending_cache_changes_update = False
+
             if not self._initing and not self._running:
                 # This is very likely if we are doing
                 # "run_startup_script_and_exit()", but is also possible if the
