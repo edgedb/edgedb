@@ -20,8 +20,10 @@ from typing import Any, Optional, Union, Sequence
 
 import asyncio
 import email
+import email.message
 import os
 import pickle
+import hashlib
 
 import aiosmtplib
 
@@ -52,10 +54,13 @@ async def send_email(
             int(os.environ.get("EDGEDB_SERVER_AUTH_SMTP_CONCURRENCY", 5))
         )
 
-    host = util.maybe_get_config(
-        db,
-        "ext::auth::SMTPConfig::host",
-    ) or "localhost"
+    host = (
+        util.maybe_get_config(
+            db,
+            "ext::auth::SMTPConfig::host",
+        )
+        or "localhost"
+    )
     port = util.maybe_get_config(
         db,
         "ext::auth::SMTPConfig::port",
@@ -141,8 +146,22 @@ async def send_email(
                     validate_certs=validate_certs,
                 )
                 if test_mode:
+                    recipients_list: list[str]
+                    if isinstance(recipients, str):
+                        recipients_list = [recipients]
+                    elif recipients is None:
+                        recipients_list = []
+                    else:
+                        recipients_list = list(recipients)
+
+                    hash_input = f"{sender}{','.join(recipients_list)}"
+                    file_name_hash = hashlib.sha256(
+                        hash_input.encode()
+                    ).hexdigest()
+                    file_name = f"/tmp/edb-test-email-{file_name_hash}.pickle"
                     test_file = os.environ.get(
-                        "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+                        "EDGEDB_TEST_EMAIL_FILE",
+                        file_name,
                     )
                     if os.path.exists(test_file):
                         os.unlink(test_file)
