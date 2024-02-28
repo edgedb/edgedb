@@ -245,7 +245,7 @@ cdef class Database:
         else:
             return old_serializer
 
-    def hydrate_cache(self, query_cache):
+    async def hydrate_cache(self, query_cache):
         new = set()
         for schema_version, in_data, out_data in query_cache:
             query_req = rpc.CompilationRequest(
@@ -253,6 +253,7 @@ cdef class Database:
             query_req.deserialize(in_data, "<unknown>")
             schema_version = uuidgen.from_bytes(schema_version)
             new.add(query_req)
+            await asyncio.sleep(0)  # yield to avoid long blocking
 
             _, cached_ver = self._eql_to_compiled.get(query_req, DICTDEFAULT)
             if cached_ver != schema_version:
@@ -260,6 +261,7 @@ cdef class Database:
                 group = dbstate.QueryUnitGroup()
                 group.append(unit)
                 self._eql_to_compiled[query_req] = group, schema_version
+                await asyncio.sleep(0)  # yield to avoid long blocking
 
         for query_req in list(self._eql_to_compiled):
             if query_req not in new:

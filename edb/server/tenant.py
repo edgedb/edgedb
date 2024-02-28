@@ -940,7 +940,7 @@ class Tenant(ha_base.ClusterProtocol):
             parsed_db.state_serializer,
         )
         if query_cache:
-            db.hydrate_cache(query_cache)
+            await db.hydrate_cache(query_cache)
 
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.
@@ -1515,7 +1515,7 @@ class Tenant(ha_base.ClusterProtocol):
                     self.release_pgcon(dbname, conn)
 
                 if query_cache and (db := self.maybe_get_db(dbname=dbname)):
-                    db.hydrate_cache(query_cache)
+                    await db.hydrate_cache(query_cache)
 
             except Exception:
                 metrics.background_errors.inc(
