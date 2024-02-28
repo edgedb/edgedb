@@ -204,7 +204,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("IS …  is not differentiated from [IS …]")
     async def test_edgeql_select_computable_06(self):
         await self.assert_query_result(
             r'''
@@ -298,7 +297,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("IS …  is not differentiated from [IS …]")
     async def test_edgeql_select_computable_09(self):
         await self.assert_query_result(
             r"""
@@ -1597,6 +1595,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     @test.decorators.experimental_interpreter_triaged_pending_feature("Unchecked Type Name in FuncCall")
+    ### Unchecked type name is probably a result of during ddl processing, elaboration produces unchecked types in type components, and by default ddl processed statements are not type checked
     async def test_edgeql_select_polymorphic_10(self):
         await self.assert_query_result(
             r'''
@@ -2411,7 +2410,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Unchecked Type Name in FuncCall, SUSPECTED REASON: TP INTERSECTION")
     async def test_edgeql_select_instance_01(self):
         await self.assert_query_result(
             r'''
@@ -2425,7 +2423,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersectExpr with IS NOT")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("Negative IS expression: .. IS NOT .. not implemented")
     async def test_edgeql_select_instance_02(self):
         await self.assert_query_result(
             r'''
@@ -2439,7 +2437,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Unchecked Type Name in FuncCall, SUSPECTED REASON: TP INTERSECTION")
     async def test_edgeql_select_instance_03(self):
         await self.assert_query_result(
             r'''
@@ -5006,7 +5003,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Function call mysteriously returns UncheckedTypeName")
     async def test_edgeql_select_subqueries_08(self):
         await self.assert_query_result(
             r"""
@@ -6880,7 +6876,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_01(self):
         await self.assert_query_result(
             r'''SELECT 5 IS int64;''',
@@ -6927,7 +6922,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_02(self):
         await self.assert_query_result(
             r'''SELECT 5.5 IS int64;''',
@@ -6974,7 +6968,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_03(self):
 
         await self.assert_query_result(
@@ -7022,7 +7015,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_04(self):
 
         await self.assert_query_result(
@@ -7070,7 +7062,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("IS Object not implemented: difficult to implement (interpreter views objects differently than stdlib)")
     async def test_edgeql_select_is_05(self):
 
         await self.assert_query_result(
@@ -7118,7 +7110,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_06(self):
         await self.assert_query_result(
             r'''
@@ -7127,7 +7118,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_07(self):
         await self.assert_query_result(
             r'''
@@ -7136,7 +7126,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_08(self):
         await self.assert_query_result(
             r'''
@@ -7145,7 +7134,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on scalar types")
     async def test_edgeql_select_is_09(self):
         await self.assert_query_result(
             r'''
@@ -7154,7 +7142,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on composite type")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("IsTp on composite type")
     async def test_edgeql_select_is_10(self):
         await self.assert_query_result(
             r'''
@@ -7163,7 +7151,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on composite type")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("IsTp on composite type")
     async def test_edgeql_select_is_11(self):
         await self.assert_query_result(
             r'''
@@ -7172,7 +7160,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on composite type")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("IsTp on composite type")
     async def test_edgeql_select_is_12(self):
         await self.assert_query_result(
             r'''
@@ -7400,7 +7388,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
     
-    @test.decorators.experimental_interpreter_triaged_pending_feature("IS …  is not differentiated from [IS …]")
     async def test_edgeql_select_expr_objects_04(self):
         await self.assert_query_result(
             r'''

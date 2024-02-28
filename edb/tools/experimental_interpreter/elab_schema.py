@@ -218,7 +218,8 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> [ObjectTp, Sequ
 
 def add_bases_for_name(schema: e.DBSchema, 
                        current_module_name: Tuple[str, ...] ,
-                       current_type_name: str, bases: List[qlast.TypeName]) -> None:
+                       current_type_name: str, bases: List[qlast.TypeName], 
+                       add_object_type=False) -> None:
     base_tps = [elab_single_type_expr(base) for base in bases]
     base_tps_ck : List[Tuple[Tuple[str, ...], e.RawName]] = []
     this_type_name = e.QualifiedName([*current_module_name, current_type_name])
@@ -228,6 +229,11 @@ def add_bases_for_name(schema: e.DBSchema,
                 base_tps_ck.append((current_module_name,raw_name))
             case _:
                 raise ValueError("TODO", base_tp)
+    if add_object_type:
+        raise ValueError("TODO")
+        # you cannot do this for std Object becuase the way id projection is treated is differnt in the interpreter,
+        # default id generation is not treated as properties in the interpter but rather a builtin concept
+        # base_tps_ck.append((current_module_name, e.QualifiedName(["std", "Object"])))
     assert this_type_name not in schema.unchecked_subtyping_relations
     schema.unchecked_subtyping_relations[this_type_name] = base_tps_ck
 

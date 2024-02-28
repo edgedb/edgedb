@@ -296,7 +296,10 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             # intersect_tp = check_type_valid(ctx, intersect_tp)
             if isinstance(intersect_tp, e.UncheckedTypeName):
                 intersect_tp = intersect_tp.name
-            intersect_tp_name , _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp)
+            if isinstance(intersect_tp, e.AnyTp):
+                intersect_tp_name = e.QualifiedName(["std", "any"+intersect_tp.specifier])
+            else:
+                intersect_tp_name , _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp)
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.IsTpExpr(subject_ck, intersect_tp_name)
             result_card = subject_tp.mode

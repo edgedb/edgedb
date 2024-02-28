@@ -8,6 +8,7 @@ from typing import List, Dict, Tuple, Optional, Callable
 from . import module_ops as mops
 from ..data import expr_to_str as pp
 from functools import reduce
+from ..schema import subtyping_resolution
 
 import edgedb
 
@@ -60,7 +61,9 @@ def is_nominal_subtype_in_schema(ctx: e.TcCtx | e.DBSchema,
     else:
         schema = ctx.schema if isinstance(ctx, e.TcCtx) else ctx
         if subtype in schema.subtyping_relations:
-            return supertype in schema.subtyping_relations[subtype]
+            if supertype == e.QualifiedName(["std", "anytype"]):
+                return True
+            return supertype in subtyping_resolution.find_all_supertypes_of_tp_in_schema(schema, subtype)
         else:
             return False
 
