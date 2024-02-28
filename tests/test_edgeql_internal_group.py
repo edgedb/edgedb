@@ -45,7 +45,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP User
                 USING _ := User.name
                 BY _
-                INTO User
+                IN User
                 UNION count(User.<owner);
             ''',
             {4, 2},
@@ -59,7 +59,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 # but that's a valid grouping
                 USING _ := Issue.time_estimate
                 BY _
-                INTO Issue
+                IN Issue
                 # count using a property
                 UNION count(Issue.id);
             ''',
@@ -72,7 +72,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING _ := Issue.time_estimate
                 BY _
-                INTO Issue
+                IN Issue
                 # count Issue directly
                 UNION count(Issue);
             ''',
@@ -85,7 +85,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING _ := Issue.time_estimate
                 BY _
-                INTO Issue
+                IN Issue
                 # count Issue name, which should be same as counting
                 # Issues, since the name property is *1
                 UNION count(Issue.name);
@@ -99,7 +99,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING _ := Issue.time_estimate
                 BY _
-                INTO Issue
+                IN Issue
                 # count Issue statuses, which is not the same as counting
                 # Issues, since multiple Issues can point to the same Status
                 UNION count(Issue.status);
@@ -113,7 +113,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING _ := Issue.time_estimate
                 BY _
-                INTO Issue
+                IN Issue
                 # unusual qualifier for 'count', but should be the same as
                 # counting the statuses directly
                 UNION count(DISTINCT Issue.status.id);
@@ -128,7 +128,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card
                 USING _ := .cost//2
                 BY _
-                INTO Card
+                IN Card
                 UNION count(DISTINCT Card.element);
             ''',
             tb.bag([3, 2, 3]),
@@ -141,7 +141,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             FOR GROUP Card
             USING _ := .cost//2
             BY _
-            INTO Card
+            IN Card
             UNION count(array_agg(Card.element));
             ''',
             [1, 1, 1],
@@ -154,7 +154,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             FOR GROUP Card { name }
             USING element := .element
             BY element
-            INTO g
+            IN g
             UNION { elements := array_agg(g) };
             ''',
             tb.bag([
@@ -178,7 +178,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             FOR GROUP Card
             USING element := .element
             BY element
-            INTO g
+            IN g
             UNION { elements := g };
             ''',
             tb.bag([
@@ -196,7 +196,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             FOR GROUP Card
             USING element := .element
             BY element
-            INTO g
+            IN g
             UNION { elements := array_agg(g) };
             ''',
             tb.bag([
@@ -213,7 +213,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING B :=  Issue.status.name
                 BY B
-                INTO Issue
+                IN Issue
                 UNION (
                     sum := sum(<int64>Issue.number),
                     status := B,
@@ -238,7 +238,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING B :=  Issue.status.name
                 BY B
-                INTO Issue
+                IN Issue
                 UNION (
                     sum := sum(<int64>Issue.number),
                     status := B,
@@ -258,7 +258,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING _ :=  Issue.time_estimate
                 BY _
-                INTO Issue
+                IN Issue
                 UNION _ := (
                     count := count(Issue.status.id),
                     te := array_agg(DISTINCT Issue.time_estimate > 0),
@@ -272,7 +272,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING _ :=  Issue.time_estimate
                 BY _
-                INTO Issue
+                IN Issue
                 UNION _ := (
                     count := count(Issue.status.id),
                     te := array_agg(DISTINCT Issue.time_estimate > 0),
@@ -287,7 +287,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING _ :=  Issue.time_estimate
                 BY _
-                INTO Issue
+                IN Issue
                 UNION _ := (
                     count := count(Issue.status.id),
                     # confusing, but legal usage of '_' to refer to BY
@@ -312,7 +312,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                                    UserIssue := User.<owner[IS Issue]
                                 USING B :=  UserIssue.status.name
                                 BY B
-                                INTO UserIssue
+                                IN UserIssue
                                 UNION (
                                     status := B,
                                     count := count(UserIssue),
@@ -353,7 +353,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING _ :=  Issue.time_estimate
                 BY _
-                INTO Issue
+                IN Issue
                 # The issues should be partitioned into 2 sub-sets by
                 # Issue.time_estimate (with values {} and 3000). Therefore
                 # we expect 2 results combined via UNION.
@@ -368,7 +368,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING B := Issue.time_estimate
                 BY B
-                INTO Issue
+                IN Issue
                 # No reason to restrict the above example to doing a
                 # UNION of singletons.
                 UNION _ := {42, count(Issue)}
@@ -383,7 +383,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING B := Issue.status
                 BY B
-                INTO Issue
+                IN Issue
                 # The result should be a set of status objects,
                 # augmented with Issue.numbers corresponding to the
                 # status.
@@ -411,7 +411,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Issue
                 USING _ := Issue.status
                 BY _
-                INTO Issue
+                IN Issue
                 # Identical to the previous example, but expressed
                 # slightly differently.
                 UNION (
@@ -447,7 +447,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card
                 USING _ :=  Card.element
                 BY _
-                INTO Card
+                IN Card
                 UNION _ := Card.name
                 ORDER BY _;
             ''',
@@ -473,7 +473,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card
                 USING _ :=  Card.element
                 BY _
-                INTO Card
+                IN Card
                 UNION Card {name}
                 ORDER BY
                     .name;
@@ -501,7 +501,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card
                 USING _ :=  Card.element
                 BY _
-                INTO Card
+                IN Card
                 UNION Card {name}
                 )
                 ORDER BY
@@ -536,7 +536,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                         FOR GROUP Card
                         USING _ :=  Card.element
                         BY _
-                        INTO Card
+                        IN Card
                         UNION array_agg(Card)
                     )
                 SELECT _ := (
@@ -624,7 +624,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                         FOR GROUP Card
                         USING _ :=  Card.element
                         BY _
-                        INTO Card
+                        IN Card
                         UNION array_agg(Card)
                     )
                 SELECT _ := (
@@ -712,7 +712,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                         # partition cards by element
                         Card.element
                 BY Element
-                INTO Card
+                IN Card
                 UNION (
                     # for every partition, compute the "leader"
                     SELECT C2 {
@@ -791,7 +791,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 # - {}
                 # - ('Open', 3000)
                 BY B
-                INTO Issue
+                IN Issue
                 UNION (
                     sum := sum(<int64>Issue.number),
                     # don't forget to coalesce the {} or else the whole
@@ -823,7 +823,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 # - 'Open', {}
                 # - 'Open', 3000
                 BY Stat, Est
-                INTO Issue
+                IN Issue
                 UNION _ := (
                     sum := sum(<int64>Issue.number),
                     # Stat is never {}, so coalescing is not needed
@@ -854,7 +854,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                     Stat := Issue.status.name,
                     Est := Issue.time_estimate
                 BY Stat, Est
-                INTO Issue
+                IN Issue
                 UNION (
                     sum := sum(<int64>Issue.number),
                     status := Stat,
@@ -884,7 +884,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                     Stat := Issue.status.name,
                     Est := Issue.time_estimate
                 BY Stat, Est
-                INTO Issue
+                IN Issue
                 UNION (
                     # array_agg with ordering instead of sum
                     numbers := array_agg(
@@ -922,7 +922,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                     Stat := Issue.status.name,
                     Est := Issue.time_estimate
                 BY Stat, Est
-                INTO Issue
+                IN Issue
                 UNION (
                     # a couple of array_agg
                     numbers := array_agg(
@@ -969,7 +969,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                     # group by computable
                     X := Issue.less_than_four
                 BY Stat, X
-                INTO Issue
+                IN Issue
                 UNION (
                     numbers := array_agg(
                         Issue.number ORDER BY Issue.number),
@@ -1010,7 +1010,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                     # group by some non-trivial expression
                     X := <int64>Issue.number < 4
                 BY Stat, X
-                INTO Issue
+                IN Issue
                 UNION (
                     numbers := array_agg(
                         <int64>Issue.number ORDER BY Issue.number),
@@ -1051,7 +1051,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP C := Card
                 USING x := C.cost
                 BY x
-                INTO C
+                IN C
                 UNION (
                     array_agg(C.name ORDER BY C.name),
                     # At this point C is a subset of Card. So the below
@@ -1079,7 +1079,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card
                 USING x := .cost
                 BY x
-                INTO C
+                IN C
                 UNION (
                     array_agg(C.name ORDER BY C.name),
                     # At this point C is a subset of Card. So the below
@@ -1106,7 +1106,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 USING El :=
                         Card.element
                 BY El
-                INTO Card
+                IN Card
                 UNION _ := (
                     cards := array_agg(
                         Card.name ORDER BY Card.name),
@@ -1150,7 +1150,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                     FILTER User.<friends[IS User].name = 'Alice'
                 ))
                 BY B
-                INTO F
+                IN F
                 UNION _ := (
                     nickname := B,
                     # the tuple without nickname will be missing from the
@@ -1189,7 +1189,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                         FOR GROUP U.deck
                         USING B :=  U.deck.element
                         BY B
-                        INTO D
+                        IN D
                         UNION _ := (
                             name := B,
                             count := sum(D.count),
@@ -1256,7 +1256,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                     El := U.deck.element,
                     Count := U.deck.count
                 BY El, Count
-                INTO D
+                IN D
                 UNION (
                     cards := array_agg(D.name ORDER BY D.name),
                     element := El,
@@ -1301,7 +1301,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP I
                 USING _ :=  I % 2 = 0
                 BY _
-                INTO I
+                IN I
                 UNION _r := (
                     values := array_agg(I ORDER BY I)
                 ) ORDER BY _r.values;
@@ -1320,7 +1320,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP I
                 USING _ :=  I % 2 = 0
                 BY _
-                INTO I
+                IN I
                 UNION _r := (
                     values := array_agg((SELECT _ := I ORDER BY _))
                 ) ORDER BY _r.values;
@@ -1338,7 +1338,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card { name }
                 USING e := .element,
                 BY e
-                INTO g UNION { z := g };
+                IN g UNION { z := g };
             """,
             tb.bag([
                 {"z": tb.bag(
@@ -1361,7 +1361,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 SELECT (FOR GROUP Card { name }
                 USING e := .element,
                 BY e
-                INTO g UNION { z := g });
+                IN g UNION { z := g });
             """,
             tb.bag([
                 {"z": tb.bag(
@@ -1384,7 +1384,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card { name }
                 USING e := .element,
                 BY e
-                INTO g UNION { n := count(g) };
+                IN g UNION { n := count(g) };
             """,
             tb.bag([{"n": 2}, {"n": 2}, {"n": 2}, {"n": 3}]),
         )
@@ -1396,7 +1396,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 SELECT (FOR GROUP Card { name }
                 USING e := .element,
                 BY e
-                INTO g UNION { n := count(g) });
+                IN g UNION { n := count(g) });
             """,
             tb.bag([{"n": 2}, {"n": 2}, {"n": 2}, {"n": 3}]),
         )
@@ -1408,7 +1408,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card
                 USING e := .element
                 BY e
-                INTO g
+                IN g
                 UNION
                 (WITH z := e, SELECT z);
             """,
@@ -1422,7 +1422,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card
                 USING e := .element
                 BY e
-                INTO g
+                IN g
                 UNION
                 { key := e } {z := .key};
 
@@ -1439,7 +1439,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card
                 USING e := .element
                 BY e
-                INTO g
+                IN g
                 UNION
                 { key := { e := e } } {z := .key.e};
 
@@ -1456,7 +1456,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 SELECT (FOR GROUP Card { name }
                 USING e := .element,
                 BY e
-                INTO g UNION (
+                IN g UNION (
                     SELECT { key := {e := e}, z := g } FILTER e != 'Air')
                 );
             """,
@@ -1480,7 +1480,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 SELECT (FOR GROUP Card { name }
                 USING e := .element,
                 BY e
-                INTO g UNION (
+                IN g UNION (
                     SELECT { key := {e := e}, z := g } FILTER .key.e != 'Air')
                 );
             """,
@@ -1504,7 +1504,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card
                 USING e := .element
                 BY e
-                INTO g
+                IN g
                 UNION
                 { key := e, elements := g } {
                     element := .key,
@@ -1526,7 +1526,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 FOR GROUP Card
                 USING e := .element
                 BY e
-                INTO g
+                IN g
                 UNION
                 { key := { e := e }, elements := g } {
                     element := .key.e,
