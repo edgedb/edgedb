@@ -536,8 +536,9 @@ With EdgeDB Cloud
 
 **#1 Deploy EdgeDB**
 
-First, sign up for an account at `cloud.edgedb.com <https://cloud.edgedb.com>`_ 
-and create a new instance. Create and make note of a secret key for your EdgeDB Cloud instance. You 
+First, sign up for an account at 
+`cloud.edgedb.com <https://cloud.edgedb.com>`_ and create a new instance. 
+Create and make note of a secret key for your EdgeDB Cloud instance. You 
 can create a new secret key from the "Secret Keys" tab in the EdgeDB Cloud 
 console. We'll need this later to connect to the database from Vercel.
 
