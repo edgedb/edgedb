@@ -16,47 +16,25 @@ jobs:
       branch: ${{ steps.whichver.outputs.branch }}
 
 
-      if_debian_buster_x86_64: ${{ steps.scm.outputs.if_debian_buster_x86_64 }}
-
       if_debian_buster_aarch64: ${{ steps.scm.outputs.if_debian_buster_aarch64 }}
-
-      if_debian_bullseye_x86_64: ${{ steps.scm.outputs.if_debian_bullseye_x86_64 }}
 
       if_debian_bullseye_aarch64: ${{ steps.scm.outputs.if_debian_bullseye_aarch64 }}
 
-      if_debian_bookworm_x86_64: ${{ steps.scm.outputs.if_debian_bookworm_x86_64 }}
-
       if_debian_bookworm_aarch64: ${{ steps.scm.outputs.if_debian_bookworm_aarch64 }}
-
-      if_ubuntu_bionic_x86_64: ${{ steps.scm.outputs.if_ubuntu_bionic_x86_64 }}
 
       if_ubuntu_bionic_aarch64: ${{ steps.scm.outputs.if_ubuntu_bionic_aarch64 }}
 
-      if_ubuntu_focal_x86_64: ${{ steps.scm.outputs.if_ubuntu_focal_x86_64 }}
-
       if_ubuntu_focal_aarch64: ${{ steps.scm.outputs.if_ubuntu_focal_aarch64 }}
-
-      if_ubuntu_jammy_x86_64: ${{ steps.scm.outputs.if_ubuntu_jammy_x86_64 }}
 
       if_ubuntu_jammy_aarch64: ${{ steps.scm.outputs.if_ubuntu_jammy_aarch64 }}
 
-      if_centos_8_x86_64: ${{ steps.scm.outputs.if_centos_8_x86_64 }}
-
       if_centos_8_aarch64: ${{ steps.scm.outputs.if_centos_8_aarch64 }}
-
-      if_rockylinux_9_x86_64: ${{ steps.scm.outputs.if_rockylinux_9_x86_64 }}
 
       if_rockylinux_9_aarch64: ${{ steps.scm.outputs.if_rockylinux_9_aarch64 }}
 
-      if_linux_x86_64: ${{ steps.scm.outputs.if_linux_x86_64 }}
-
       if_linux_aarch64: ${{ steps.scm.outputs.if_linux_aarch64 }}
 
-      if_linuxmusl_x86_64: ${{ steps.scm.outputs.if_linuxmusl_x86_64 }}
-
       if_linuxmusl_aarch64: ${{ steps.scm.outputs.if_linuxmusl_aarch64 }}
-
-      if_macos_x86_64: ${{ steps.scm.outputs.if_macos_x86_64 }}
 
       if_macos_aarch64: ${{ steps.scm.outputs.if_macos_aarch64 }}
 
@@ -85,20 +63,6 @@ jobs:
         if [ ! -e "/tmp/$idx_file" ]; then
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing debian-buster-x86_64'
-          val=false
-        fi
-
-        echo if_debian_buster_x86_64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        idx_file=buster.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
-        fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing debian-buster-aarch64'
@@ -106,20 +70,6 @@ jobs:
         fi
 
         echo if_debian_buster_aarch64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        idx_file=bullseye.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
-        fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing debian-bullseye-x86_64'
-          val=false
-        fi
-
-        echo if_debian_bullseye_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
@@ -141,20 +91,6 @@ jobs:
         if [ ! -e "/tmp/$idx_file" ]; then
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing debian-bookworm-x86_64'
-          val=false
-        fi
-
-        echo if_debian_bookworm_x86_64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        idx_file=bookworm.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
-        fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing debian-bookworm-aarch64'
@@ -162,20 +98,6 @@ jobs:
         fi
 
         echo if_debian_bookworm_aarch64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        idx_file=bionic.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
-        fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing ubuntu-bionic-x86_64'
-          val=false
-        fi
-
-        echo if_ubuntu_bionic_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
@@ -197,20 +119,6 @@ jobs:
         if [ ! -e "/tmp/$idx_file" ]; then
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing ubuntu-focal-x86_64'
-          val=false
-        fi
-
-        echo if_ubuntu_focal_x86_64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        idx_file=focal.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
-        fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing ubuntu-focal-aarch64'
@@ -218,20 +126,6 @@ jobs:
         fi
 
         echo if_ubuntu_focal_aarch64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        idx_file=jammy.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
-        fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
-          val=false
-        fi
-
-        echo if_ubuntu_jammy_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
@@ -253,20 +147,6 @@ jobs:
         if [ ! -e "/tmp/$idx_file" ]; then
           curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing centos-8-x86_64'
-          val=false
-        fi
-
-        echo if_centos_8_x86_64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        idx_file=el8.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
-        fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing centos-8-aarch64'
@@ -274,20 +154,6 @@ jobs:
         fi
 
         echo if_centos_8_aarch64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        idx_file=el9.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
-        fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing rockylinux-9-x86_64'
-          val=false
-        fi
-
-        echo if_rockylinux_9_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
@@ -305,16 +171,6 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing linux-x86_64'
-          val=false
-        fi
-
-        echo if_linux_x86_64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
         out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing linux-aarch64'
@@ -322,16 +178,6 @@ jobs:
         fi
 
         echo if_linux_aarch64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing linuxmusl-x86_64'
-          val=false
-        fi
-
-        echo if_linuxmusl_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
@@ -346,16 +192,6 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing macos-x86_64'
-          val=false
-        fi
-
-        echo if_macos_x86_64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
         out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing macos-aarch64'
@@ -365,30 +201,6 @@ jobs:
         echo if_macos_aarch64="$val" >> $GITHUB_OUTPUT
 
 
-
-  build-debian-buster-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_debian_buster_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "buster"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-debian-buster-x86_64
-        path: artifacts/debian-buster
 
   build-debian-buster-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -414,30 +226,6 @@ jobs:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
 
-  build-debian-bullseye-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_debian_bullseye_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "bullseye"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-debian-bullseye-x86_64
-        path: artifacts/debian-bullseye
-
   build-debian-bullseye-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
@@ -461,30 +249,6 @@ jobs:
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
-
-  build-debian-bookworm-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_debian_bookworm_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "bookworm"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-debian-bookworm-x86_64
-        path: artifacts/debian-bookworm
 
   build-debian-bookworm-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -510,30 +274,6 @@ jobs:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm
 
-  build-ubuntu-bionic-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_ubuntu_bionic_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "bionic"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-ubuntu-bionic-x86_64
-        path: artifacts/ubuntu-bionic
-
   build-ubuntu-bionic-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
@@ -557,30 +297,6 @@ jobs:
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
-
-  build-ubuntu-focal-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_ubuntu_focal_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "focal"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-ubuntu-focal-x86_64
-        path: artifacts/ubuntu-focal
 
   build-ubuntu-focal-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -606,30 +322,6 @@ jobs:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
 
-  build-ubuntu-jammy-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_ubuntu_jammy_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "jammy"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-ubuntu-jammy-x86_64
-        path: artifacts/ubuntu-jammy
-
   build-ubuntu-jammy-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
@@ -653,30 +345,6 @@ jobs:
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
-
-  build-centos-8-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_centos_8_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "8"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-centos-8-x86_64
-        path: artifacts/centos-8
 
   build-centos-8-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -702,30 +370,6 @@ jobs:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
 
-  build-rockylinux-9-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_rockylinux_9_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "rockylinux"
-        PKG_PLATFORM_VERSION: "9"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-rockylinux-9-x86_64
-        path: artifacts/rockylinux-9
-
   build-rockylinux-9-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
@@ -749,31 +393,6 @@ jobs:
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9
-
-  build-linux-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_linux_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "linux"
-        PKG_PLATFORM_VERSION: "x86_64"
-        EXTRA_OPTIMIZATIONS: "true"
-        BUILD_GENERIC: true
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-linux-x86_64
-        path: artifacts/linux-x86_64
 
   build-linux-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -800,32 +419,6 @@ jobs:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
 
-  build-linuxmusl-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_linuxmusl_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "linux"
-        PKG_PLATFORM_VERSION: "x86_64"
-        EXTRA_OPTIMIZATIONS: "true"
-        BUILD_GENERIC: true
-        PKG_PLATFORM_LIBC: "musl"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-linuxmusl-x86_64
-        path: artifacts/linuxmusl-x86_64
-
   build-linuxmusl-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
@@ -851,64 +444,6 @@ jobs:
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
-
-  build-macos-x86_64:
-    runs-on: ['macos-14']
-    needs: prep
-
-    if: needs.prep.outputs.if_macos_x86_64 == 'true'
-
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        repository: edgedb/edgedb-pkg
-        ref: master
-        path: edgedb-pkg
-
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
-      if: true
-      with:
-        components: "cargo,rustc,rust-std"
-        toolchain: "stable"
-        targets: "x86_64-apple-darwin"
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      if: true
-      with:
-        python-version: "3.x"
-
-    - name: Set up NodeJS
-      uses: actions/setup-node@v4
-      if: true
-      with:
-        node-version: '20'
-
-    - name: Install dependencies
-      if: true
-      run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
-
-    - name: Build
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "macos"
-        PKG_PLATFORM_VERSION: "x86_64"
-        PKG_PLATFORM_ARCH: "x86_64"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-        BUILD_GENERIC: true
-      run: |
-        edgedb-pkg/integration/macos/build.sh
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: builds-macos-x86_64
-        path: artifacts/macos-x86_64
 
   build-macos-aarch64:
     runs-on: ['macos-14']
@@ -968,27 +503,6 @@ jobs:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
 
-  test-debian-buster-x86_64:
-    needs: [build-debian-buster-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-debian-buster-x86_64
-        path: artifacts/debian-buster
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-buster@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "buster"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
   test-debian-buster-aarch64:
     needs: [build-debian-buster-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -1005,27 +519,6 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
-  test-debian-bullseye-x86_64:
-    needs: [build-debian-bullseye-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-debian-bullseye-x86_64
-        path: artifacts/debian-bullseye
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-bullseye@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
@@ -1052,27 +545,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-  test-debian-bookworm-x86_64:
-    needs: [build-debian-bookworm-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-debian-bookworm-x86_64
-        path: artifacts/debian-bookworm
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-bookworm@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "bookworm"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
   test-debian-bookworm-aarch64:
     needs: [build-debian-bookworm-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -1089,27 +561,6 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
-  test-ubuntu-bionic-x86_64:
-    needs: [build-ubuntu-bionic-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-bionic-x86_64
-        path: artifacts/ubuntu-bionic
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-bionic@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
@@ -1136,27 +587,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-  test-ubuntu-focal-x86_64:
-    needs: [build-ubuntu-focal-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-focal-x86_64
-        path: artifacts/ubuntu-focal
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-focal@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "focal"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
   test-ubuntu-focal-aarch64:
     needs: [build-ubuntu-focal-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -1173,27 +603,6 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
-  test-ubuntu-jammy-x86_64:
-    needs: [build-ubuntu-jammy-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-jammy-x86_64
-        path: artifacts/ubuntu-jammy
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-jammy@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
@@ -1220,27 +629,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-  test-centos-8-x86_64:
-    needs: [build-centos-8-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-centos-8-x86_64
-        path: artifacts/centos-8
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/centos-8@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "8"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
   test-centos-8-aarch64:
     needs: [build-centos-8-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -1257,27 +645,6 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
-  test-rockylinux-9-x86_64:
-    needs: [build-rockylinux-9-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-rockylinux-9-x86_64
-        path: artifacts/rockylinux-9
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/rockylinux-9@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "rockylinux"
-        PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
@@ -1304,27 +671,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-  test-linux-x86_64:
-    needs: [build-linux-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-linux-x86_64
-        path: artifacts/linux-x86_64
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "linux"
-        PKG_PLATFORM_VERSION: "x86_64"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
   test-linux-aarch64:
     needs: [build-linux-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -1342,27 +688,6 @@ jobs:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
-  test-linuxmusl-x86_64:
-    needs: [build-linuxmusl-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-linuxmusl-x86_64
-        path: artifacts/linuxmusl-x86_64
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/linuxmusl-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "linux"
-        PKG_PLATFORM_VERSION: "x86_64"
-        PKG_PLATFORM_LIBC: "musl"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -1388,30 +713,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-  test-macos-x86_64:
-    needs: [build-macos-x86_64]
-    runs-on: ['macos-14']
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        repository: edgedb/edgedb-pkg
-        ref: master
-        path: edgedb-pkg
-
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-macos-x86_64
-        path: artifacts/macos-x86_64
-
-    - name: Test
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "macos"
-        PKG_PLATFORM_VERSION: "x86_64"
-      run: |
-        edgedb-pkg/integration/macos/test.sh
-
   test-macos-aarch64:
     needs: [build-macos-aarch64]
     runs-on: ['macos-14']
@@ -1435,58 +736,6 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
       run: |
         edgedb-pkg/integration/macos/test.sh
-
-  publish-debian-buster-x86_64:
-    needs: [test-debian-buster-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-debian-buster-x86_64
-        path: artifacts/debian-buster
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "buster"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-debian-buster-x86_64:
-    needs: [publish-debian-buster-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-debian-buster-x86_64
-        path: artifacts/debian-buster
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: debian-buster
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "buster"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
   publish-debian-buster-aarch64:
     needs: [test-debian-buster-aarch64]
@@ -1532,58 +781,6 @@ jobs:
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-  publish-debian-bullseye-x86_64:
-    needs: [test-debian-bullseye-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-debian-bullseye-x86_64
-        path: artifacts/debian-bullseye
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "bullseye"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-debian-bullseye-x86_64:
-    needs: [publish-debian-bullseye-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-debian-bullseye-x86_64
-        path: artifacts/debian-bullseye
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: debian-bullseye
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
@@ -1644,58 +841,6 @@ jobs:
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
-  publish-debian-bookworm-x86_64:
-    needs: [test-debian-bookworm-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-debian-bookworm-x86_64
-        path: artifacts/debian-bookworm
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "bookworm"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-debian-bookworm-x86_64:
-    needs: [publish-debian-bookworm-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-debian-bookworm-x86_64
-        path: artifacts/debian-bookworm
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: debian-bookworm
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "bookworm"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
   publish-debian-bookworm-aarch64:
     needs: [test-debian-bookworm-aarch64]
     runs-on: ubuntu-latest
@@ -1740,58 +885,6 @@ jobs:
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-  publish-ubuntu-bionic-x86_64:
-    needs: [test-ubuntu-bionic-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-bionic-x86_64
-        path: artifacts/ubuntu-bionic
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "bionic"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-ubuntu-bionic-x86_64:
-    needs: [publish-ubuntu-bionic-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-bionic-x86_64
-        path: artifacts/ubuntu-bionic
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: ubuntu-bionic
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
@@ -1852,58 +945,6 @@ jobs:
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
-  publish-ubuntu-focal-x86_64:
-    needs: [test-ubuntu-focal-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-focal-x86_64
-        path: artifacts/ubuntu-focal
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "focal"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-ubuntu-focal-x86_64:
-    needs: [publish-ubuntu-focal-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-focal-x86_64
-        path: artifacts/ubuntu-focal
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: ubuntu-focal
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "focal"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
   publish-ubuntu-focal-aarch64:
     needs: [test-ubuntu-focal-aarch64]
     runs-on: ubuntu-latest
@@ -1948,58 +989,6 @@ jobs:
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-  publish-ubuntu-jammy-x86_64:
-    needs: [test-ubuntu-jammy-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-jammy-x86_64
-        path: artifacts/ubuntu-jammy
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "jammy"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-ubuntu-jammy-x86_64:
-    needs: [publish-ubuntu-jammy-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-jammy-x86_64
-        path: artifacts/ubuntu-jammy
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: ubuntu-jammy
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
@@ -2060,58 +1049,6 @@ jobs:
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
-  publish-centos-8-x86_64:
-    needs: [test-centos-8-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-centos-8-x86_64
-        path: artifacts/centos-8
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "8"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-centos-8-x86_64:
-    needs: [publish-centos-8-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-centos-8-x86_64
-        path: artifacts/centos-8
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: centos-8
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "8"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
   publish-centos-8-aarch64:
     needs: [test-centos-8-aarch64]
     runs-on: ubuntu-latest
@@ -2156,58 +1093,6 @@ jobs:
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-  publish-rockylinux-9-x86_64:
-    needs: [test-rockylinux-9-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-rockylinux-9-x86_64
-        path: artifacts/rockylinux-9
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "rockylinux"
-        PKG_PLATFORM_VERSION: "9"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-rockylinux-9-x86_64:
-    needs: [publish-rockylinux-9-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-rockylinux-9-x86_64
-        path: artifacts/rockylinux-9
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: rockylinux-9
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "rockylinux"
-        PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
@@ -2268,58 +1153,6 @@ jobs:
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
-  publish-linux-x86_64:
-    needs: [test-linux-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-linux-x86_64
-        path: artifacts/linux-x86_64
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "linux"
-        PKG_PLATFORM_VERSION: "x86_64"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-linux-x86_64:
-    needs: [publish-linux-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-linux-x86_64
-        path: artifacts/linux-x86_64
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: linux-x86_64
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "linux"
-        PKG_PLATFORM_VERSION: "x86_64"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
   publish-linux-aarch64:
     needs: [test-linux-aarch64]
     runs-on: ubuntu-latest
@@ -2364,58 +1197,6 @@ jobs:
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-  publish-linuxmusl-x86_64:
-    needs: [test-linuxmusl-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-linuxmusl-x86_64
-        path: artifacts/linuxmusl-x86_64
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "linux"
-        PKG_PLATFORM_VERSION: "x86_64"
-        PKG_PLATFORM_LIBC: "musl"
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-linuxmusl-x86_64:
-    needs: [publish-linuxmusl-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-linuxmusl-x86_64
-        path: artifacts/linuxmusl-x86_64
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: linuxmusl-x86_64
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "linux"
-        PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
@@ -2476,36 +1257,6 @@ jobs:
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
-  publish-macos-x86_64:
-    needs: [test-macos-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-macos-x86_64
-        path: artifacts/macos-x86_64
-
-    - uses: actions/checkout@v4
-      with:
-        repository: edgedb/edgedb-pkg
-        ref: master
-        path: edgedb-pkg
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: macos-x86_64
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "macos"
-        PKG_PLATFORM_VERSION: "x86_64"
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
   publish-macos-aarch64:
     needs: [test-macos-aarch64]
     runs-on: ubuntu-latest
@@ -2538,7 +1289,6 @@ jobs:
 
   publish-docker:
     needs:
-      - check-published-debian-buster-x86_64
       - check-published-debian-buster-aarch64
     runs-on: ubuntu-latest
 
@@ -2550,8 +1300,8 @@ jobs:
         path: dockerfile
 
     - env:
-        VERSION_SLOT: "${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}"
-        VERSION_CORE: "${{ needs.check-published-debian-buster-x86_64.outputs.version-core }}"
+        VERSION_SLOT: "${{ needs.check-published-debian-buster-aarch64.outputs.version-slot }}"
+        VERSION_CORE: "${{ needs.check-published-debian-buster-aarch64.outputs.version-core }}"
         PKG_SUBDIST: "nightly"
       id: tags
       run: |
@@ -2601,10 +1351,10 @@ jobs:
         name: edgedb/edgedb
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        tags: "nightly,nightly_${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}_cv${{ needs.check-published-debian-buster-x86_64.outputs.catalog-version }}"
+        tags: "nightly,nightly_${{ needs.check-published-debian-buster-aarch64.outputs.version-slot }}_cv${{ needs.check-published-debian-buster-aarch64.outputs.catalog-version }}"
         workdir: dockerfile
-        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=nightly
-        platforms: linux/amd64,linux/arm64
+        buildargs: version=${{ needs.check-published-debian-buster-aarch64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-aarch64.outputs.version-core }},subdist=nightly
+        platforms: linux/arm64
 
     - name: Publish Docker Image (ghcr.io)
       uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
@@ -2613,10 +1363,10 @@ jobs:
         name: ${{ github.repository }}
         username: "edgedb-ci"
         password: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
-        tags: "nightly,nightly_${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}_cv${{ needs.check-published-debian-buster-x86_64.outputs.catalog-version }}"
+        tags: "nightly,nightly_${{ needs.check-published-debian-buster-aarch64.outputs.version-slot }}_cv${{ needs.check-published-debian-buster-aarch64.outputs.catalog-version }}"
         workdir: dockerfile
-        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=nightly
-        platforms: linux/amd64,linux/arm64
+        buildargs: version=${{ needs.check-published-debian-buster-aarch64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-aarch64.outputs.version-core }},subdist=nightly
+        platforms: linux/arm64
 
   workflow-notifications:
     if: failure() && github.event_name != 'pull_request'
@@ -2624,89 +1374,46 @@ jobs:
 
     needs:
       - prep
-      - build-debian-buster-x86_64
-      - test-debian-buster-x86_64
-      - publish-debian-buster-x86_64
-      - check-published-debian-buster-x86_64
       - build-debian-buster-aarch64
       - test-debian-buster-aarch64
       - publish-debian-buster-aarch64
       - check-published-debian-buster-aarch64
-      - build-debian-bullseye-x86_64
-      - test-debian-bullseye-x86_64
-      - publish-debian-bullseye-x86_64
-      - check-published-debian-bullseye-x86_64
       - build-debian-bullseye-aarch64
       - test-debian-bullseye-aarch64
       - publish-debian-bullseye-aarch64
       - check-published-debian-bullseye-aarch64
-      - build-debian-bookworm-x86_64
-      - test-debian-bookworm-x86_64
-      - publish-debian-bookworm-x86_64
-      - check-published-debian-bookworm-x86_64
       - build-debian-bookworm-aarch64
       - test-debian-bookworm-aarch64
       - publish-debian-bookworm-aarch64
       - check-published-debian-bookworm-aarch64
-      - build-ubuntu-bionic-x86_64
-      - test-ubuntu-bionic-x86_64
-      - publish-ubuntu-bionic-x86_64
-      - check-published-ubuntu-bionic-x86_64
       - build-ubuntu-bionic-aarch64
       - test-ubuntu-bionic-aarch64
       - publish-ubuntu-bionic-aarch64
       - check-published-ubuntu-bionic-aarch64
-      - build-ubuntu-focal-x86_64
-      - test-ubuntu-focal-x86_64
-      - publish-ubuntu-focal-x86_64
-      - check-published-ubuntu-focal-x86_64
       - build-ubuntu-focal-aarch64
       - test-ubuntu-focal-aarch64
       - publish-ubuntu-focal-aarch64
       - check-published-ubuntu-focal-aarch64
-      - build-ubuntu-jammy-x86_64
-      - test-ubuntu-jammy-x86_64
-      - publish-ubuntu-jammy-x86_64
-      - check-published-ubuntu-jammy-x86_64
       - build-ubuntu-jammy-aarch64
       - test-ubuntu-jammy-aarch64
       - publish-ubuntu-jammy-aarch64
       - check-published-ubuntu-jammy-aarch64
-      - build-centos-8-x86_64
-      - test-centos-8-x86_64
-      - publish-centos-8-x86_64
-      - check-published-centos-8-x86_64
       - build-centos-8-aarch64
       - test-centos-8-aarch64
       - publish-centos-8-aarch64
       - check-published-centos-8-aarch64
-      - build-rockylinux-9-x86_64
-      - test-rockylinux-9-x86_64
-      - publish-rockylinux-9-x86_64
-      - check-published-rockylinux-9-x86_64
       - build-rockylinux-9-aarch64
       - test-rockylinux-9-aarch64
       - publish-rockylinux-9-aarch64
       - check-published-rockylinux-9-aarch64
-      - build-linux-x86_64
-      - test-linux-x86_64
-      - publish-linux-x86_64
-      - check-published-linux-x86_64
       - build-linux-aarch64
       - test-linux-aarch64
       - publish-linux-aarch64
       - check-published-linux-aarch64
-      - build-linuxmusl-x86_64
-      - test-linuxmusl-x86_64
-      - publish-linuxmusl-x86_64
-      - check-published-linuxmusl-x86_64
       - build-linuxmusl-aarch64
       - test-linuxmusl-aarch64
       - publish-linuxmusl-aarch64
       - check-published-linuxmusl-aarch64
-      - build-macos-x86_64
-      - test-macos-x86_64
-      - publish-macos-x86_64
       - build-macos-aarch64
       - test-macos-aarch64
       - publish-macos-aarch64
