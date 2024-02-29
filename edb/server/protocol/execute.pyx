@@ -47,7 +47,6 @@ from edb.server.compiler cimport rpc
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport frontend
-from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
@@ -55,6 +54,55 @@ from edb.server.pgcon import errors as pgerror
 cdef object logger = logging.getLogger('edb.server')
 
 cdef object FMT_NONE = compiler.OutputFormat.NONE
+cdef WriteBuffer NO_ARGS = args_ser.combine_raw_args()
+
+
+cdef class ExecutionGroup:
+    def __cinit__(self):
+        self.group = compiler.QueryUnitGroup()
+        self.bind_datas = []
+
+    cdef append(self, object query_unit, WriteBuffer bind_data=NO_ARGS):
+        self.group.append(query_unit, serialize=False)
+        self.bind_datas.append(bind_data)
+
+    async def execute(
+        self,
+        pgcon.PGConnection be_conn,
+        dbview.DatabaseConnectionView dbv,
+        fe_conn: frontend.AbstractFrontendConnection = None,
+    ):
+        cdef int dbver
+
+        rv = None
+        async with be_conn.parse_execute_script_context():
+            dbver = dbv.dbver
+            parse_array = [False] * len(self.group)
+            be_conn.send_query_unit_group(
+                self.group,
+                True,  # sync
+                self.bind_datas,
+                None,  # state
+                0,  # start
+                len(self.group),  # end
+                dbver,
+                parse_array,
+            )
+            for i, unit in enumerate(self.group):
+                if unit.output_format == FMT_NONE:
+                    for sql in unit.sql:
+                        await be_conn.wait_for_command(
+                            unit, parse_array[i], dbver, ignore_data=True
+                        )
+                        rv = None
+                else:
+                    for sql in unit.sql:
+                        rv = await be_conn.wait_for_command(
+                            unit, parse_array[i], dbver,
+                            ignore_data=False,
+                            fe_conn=fe_conn,
+                        )
+        return rv
 
 
 async def persist_cache(
@@ -70,9 +118,7 @@ async def persist_cache(
         "schema_version"=$2, "input"=$3, "output"=$4, "evict"=$5
     '''
     sql_hash = hashlib.sha1(insert_sql).hexdigest().encode('latin1')
-    no_args = args_ser.combine_raw_args()
-    group = compiler.QueryUnitGroup()
-    bind_datas = []
+    group = ExecutionGroup()
     for request, units in pairs:
         # FIXME: this is temporary; drop this assertion when we support scripts
         assert len(units) == 1
@@ -85,48 +131,24 @@ async def persist_cache(
         assert serialized_result is not None
 
         if evict:
-            group.append(
-                compiler.QueryUnit(sql=(evict,), status=b''), serialize=False
-            )
-            bind_datas.append(no_args)
+            group.append(compiler.QueryUnit(sql=(evict,), status=b''))
         if persist:
-            group.append(
-                compiler.QueryUnit(sql=(persist,), status=b''), serialize=False
-            )
-            bind_datas.append(no_args)
+            group.append(compiler.QueryUnit(sql=(persist,), status=b''))
         group.append(
             compiler.QueryUnit(
                 sql=(insert_sql,), sql_hash=sql_hash, status=b'',
             ),
-            serialize=False,
-        )
-        bind_datas.append(
             args_ser.combine_raw_args((
                 query_unit.cache_key.bytes,
                 query_unit.user_schema_version.bytes,
                 request.serialize(),
                 serialized_result,
                 evict,
-            ))
+            )),
         )
 
     try:
-        async with be_conn.parse_execute_script_context():
-            parse_array = [False] * len(group)
-            be_conn.send_query_unit_group(
-                group,
-                True,  # sync
-                bind_datas,
-                None,  # state
-                0,  # start
-                len(group),  # end
-                dbv.dbver,
-                parse_array,
-            )
-            for i, unit in enumerate(group):
-                await be_conn.wait_for_command(
-                    unit, parse_array[i], dbv.dbver, ignore_data=True
-                )
+        await group.execute(be_conn, dbv)
     except Exception as ex:
         if (
             isinstance(ex, pgerror.BackendError)
