@@ -25,7 +25,6 @@ from typing import (
 import json
 import logging
 import os
-import sys
 import types
 
 import parsing
@@ -46,12 +45,8 @@ class Token(parsing.Token):
     _token: str = ""
 
     def __init_subclass__(
-            cls, *, token=None, lextoken=None, precedence_class=None,
-            is_internal=False, **kwargs):
+            cls, *, token=None, lextoken=None, is_internal=False, **kwargs):
         super().__init_subclass__(**kwargs)
-
-        if precedence_class is not None:
-            cls._precedence_class = precedence_class
 
         if is_internal:
             return
@@ -72,18 +67,7 @@ class Token(parsing.Token):
         if not cls.__doc__:
             doc = '%%token %s' % token
 
-            pcls = getattr(cls, '_precedence_class', None)
-            if pcls is None:
-                try:
-                    pcls = sys.modules[Token.__module__].Precedence
-                except (KeyError, AttributeError):
-                    pass
-
-            if pcls is None:
-                msg = 'Precedence class is not set for {!r}'.format(Token)
-                raise TypeError(msg)
-
-            prec = pcls.for_token(token)
+            prec = Precedence.for_token(token)
             if prec:
                 doc += ' [%s]' % prec.__name__
 
