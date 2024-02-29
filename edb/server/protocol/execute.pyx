@@ -103,7 +103,7 @@ async def persist_cache(
         bind_datas.append(
             args_ser.combine_raw_args((
                 query_unit.cache_key.bytes,
-                dbv.schema_version.bytes,
+                query_unit.user_schema_version.bytes,
                 request.serialize(),
                 serialized_result,
                 evict,

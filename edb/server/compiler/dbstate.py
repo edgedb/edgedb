@@ -319,7 +319,10 @@ class QueryUnit:
     # If present, represents the future schema state after
     # the command is run. The schema is pickled.
     user_schema: Optional[bytes] = None
-    user_schema_version: Optional[uuid.UUID] = None
+    # Unlike user_schema, user_schema_version usually exist, pointing to the
+    # latest user schema, which is self.user_schema if changed, or the user
+    # schema this QueryUnit was compiled upon.
+    user_schema_version: uuid.UUID | None = None
     cached_reflection: Optional[bytes] = None
     extensions: Optional[set[str]] = None
     ext_config_settings: Optional[list[config.Setting]] = None
