@@ -114,6 +114,9 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required link factor: ext::auth::WebAuthnFactor {
             create constraint exclusive;
         };
+        create required multi link factors: ext::auth::WebAuthnFactor {
+            create constraint exclusive;
+        };
     };
 
     create type ext::auth::PKCEChallenge extending ext::auth::Auditable {
