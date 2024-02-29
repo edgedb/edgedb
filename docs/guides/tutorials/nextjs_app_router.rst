@@ -536,30 +536,24 @@ Create and make note of a secret key for your EdgeDB Cloud instance. You
 can create a new secret key from the "Secret Keys" tab in the EdgeDB Cloud 
 console. We'll need this later to connect to the database from Vercel.
 
+Run the following command to migrate the project to the EdgeDB Cloud:
+
+.. code-block:: bash
+
+  $ edgedb migrate -I <org>/<instance-name>
+
 .. note::
 
-  If you want to restore your data from a local instance to the cloud, you 
-  can use the ``edgedb dump`` and ``edgedb restore`` commands.
+  Alternatively, if you want to restore your data from a local instance to 
+  the cloud, you can use the ``edgedb dump`` and ``edgedb restore`` commands.
 
 .. code-block:: bash
 
   $ edgedb dump <your-dump.dump>
   $ edgedb restore -I <org>/<instance-name> <your-dump.dump>
 
-As we've already initialized a local project, we need to unlink it from the 
-local directory. Run the following command to unlink the project:
-
-.. code-block:: bash
-
-  $ edgedb project unlink
-
-Then run the following command to link the project to the EdgeDB Cloud:
-
-.. code-block:: bash
-
-  $ edgedb project init --server-instance <org>/<instance-name>
-
-The migrations and schema will be automatically uploaded to the cloud.
+The migrations and schema will be automatically applied to the 
+cloud instance.
 
 **#2 Set up a `prebuild` script**
 
