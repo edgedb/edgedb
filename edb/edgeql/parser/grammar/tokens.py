@@ -34,7 +34,7 @@ clean_string = re.compile(r"'(?:\s|\n)+'")
 string_quote = re.compile(r'\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$')
 
 
-class Token(parsing.Token, precedence_class=precedence.PrecedenceMeta,
+class Token(parsing.Token, precedence_class=precedence.Precedence,
             is_internal=True):
     pass
 

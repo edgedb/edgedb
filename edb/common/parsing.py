@@ -75,7 +75,7 @@ class Token(parsing.Token):
             pcls = getattr(cls, '_precedence_class', None)
             if pcls is None:
                 try:
-                    pcls = sys.modules[Token.__module__].PrecedenceMeta
+                    pcls = sys.modules[Token.__module__].Precedence
                 except (KeyError, AttributeError):
                     pass
 
@@ -235,55 +235,44 @@ def precedence(precedence):
     return decorator
 
 
-class PrecedenceMeta(type):
-    token_prec_map: Dict[Tuple[Any, Any], Any] = {}
-    last: Dict[Tuple[Any, Any], Any] = {}
+class Precedence(parsing.Precedence):
+    token_prec_map: Dict[Any, Any] = {}
+    last: Dict[Any, Any] = {}
 
-    def __new__(
-            mcls, name, bases, dct, *, assoc, tokens=None, prec_group=None,
-            rel_to_last='>'):
-        result = super().__new__(mcls, name, bases, dct)
+    def __init_subclass__(
+            cls, *, assoc, tokens=None, prec_group=None, rel_to_last='>',
+            is_internal=False, **kwargs):
+        super().__init_subclass__(**kwargs)
 
-        if name == 'Precedence':
-            return result
+        if is_internal:
+            return
 
-        if not result.__doc__:
+        if not cls.__doc__:
             doc = '%%%s' % assoc
 
-            last = mcls.last.get((mcls, prec_group))
+            last = Precedence.last.get(prec_group)
             if last:
                 doc += ' %s%s' % (rel_to_last, last.__name__)
 
-            result.__doc__ = doc
+            cls.__doc__ = doc
 
         if tokens:
             for token in tokens:
                 existing = None
                 try:
-                    existing = mcls.token_prec_map[mcls, token]
+                    existing = Precedence.token_prec_map[token]
                 except KeyError:
-                    mcls.token_prec_map[mcls, token] = result
+                    Precedence.token_prec_map[token] = cls
                 else:
                     raise Exception(
                         'token {} has already been set precedence {}'.format(
                             token, existing))
 
-        mcls.last[mcls, prec_group] = result
-
-        return result
-
-    def __init__(
-            cls, name, bases, dct, *, assoc, tokens=None, prec_group=None,
-            rel_to_last='>'):
-        super().__init__(name, bases, dct)
+        Precedence.last[prec_group] = cls
 
     @classmethod
-    def for_token(mcls, token_name):
-        return mcls.token_prec_map.get((mcls, token_name))
-
-
-class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
-    pass
+    def for_token(cls, token_name):
+        return Precedence.token_prec_map.get(token_name)
 
 
 def load_parser_spec(
