@@ -1090,17 +1090,16 @@ class Router:
 
         user_handle_cookie = request.cookies.get(
             "edgedb-webauthn-registration-user-handle"
-        ).value
+        ).value or data.get("user_handle")
         if user_handle_cookie is None:
             raise errors.InvalidData(
-                "Missing 'edgedb-webauthn-registration-user-handle' cookie"
+                "Missing user_handle from cookie or request body"
             )
         try:
             user_handle = base64.urlsafe_b64decode(user_handle_cookie)
         except Exception as e:
             raise errors.InvalidData(
-                "Failed to decode 'edgedb-webauthn-registration-user-handle'"
-                " cookie"
+                "Failed to decode user_handle"
             ) from e
 
         require_verification = webauthn_client.provider.require_verification
@@ -1194,17 +1193,16 @@ class Router:
 
         user_handle_cookie = request.cookies.get(
             "edgedb-webauthn-authentication-user-handle"
-        ).value
+        ).value or data.get("user_handle")
         if user_handle_cookie is None:
             raise errors.InvalidData(
-                "Missing 'edgedb-webauthn-authentication-user-handle' cookie"
+                "Missing user_handle from cookie or request body"
             )
         try:
             user_handle = base64.urlsafe_b64decode(user_handle_cookie)
         except Exception as e:
             raise errors.InvalidData(
-                "Failed to decode 'edgedb-webauthn-authentication-user-handle'"
-                " cookie"
+                "Failed to decode user_handle"
             ) from e
 
         identity = await webauthn_client.authenticate(
