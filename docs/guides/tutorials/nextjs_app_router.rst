@@ -295,7 +295,7 @@ To fetch these from the homepage, we'll create an EdgeDB client and use the
 ``select`` statement.
 
 .. code-block:: tsx-diff
-    :caption: app/page.tsx
+  :caption: app/page.tsx
 
     import Link from 'next/link'
   + import { createClient } from 'edgedb';
@@ -400,7 +400,7 @@ Back in ``app/page.tsx``, let's update our code to use the query builder
 instead.
 
 .. code-block:: typescript-diff
-    :caption: app/page.tsx
+  :caption: app/page.tsx
 
     import Link from 'next/link'
     import { createClient } from 'edgedb';
