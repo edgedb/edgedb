@@ -39,66 +39,53 @@ class ParserSpecIncompatibleError(Exception):
     pass
 
 
-class TokenMeta(type):
-    token_map: Dict[Tuple[Any, Any], Any] = {}
+class Token(parsing.Token):
+    token_map: Dict[Any, Any] = {}
 
-    def __new__(
-            mcls, name, bases, dct, *, token=None, lextoken=None,
-            precedence_class=None):
-        result = super().__new__(mcls, name, bases, dct)
+    def __init_subclass__(
+            cls, token=None, lextoken=None, precedence_class=None,
+            is_internal=False, **kwargs):
+        super().__init_subclass__(**kwargs)
 
         if precedence_class is not None:
-            result._precedence_class = precedence_class
+            cls._precedence_class = precedence_class
 
-        if name == 'Token' or name == 'GrammarToken':
-            return result
+        if is_internal:
+            return
 
         if token is None:
-            if not name.startswith('T_'):
+            if not cls.__name__.startswith('T_'):
                 raise Exception(
                     'Token class names must either start with T_ or have '
                     'a token parameter')
-            token = name[2:]
+            token = cls.__name__[2:]
 
         if lextoken is None:
             lextoken = token
 
-        result._token = token
-        mcls.token_map[mcls, lextoken] = result
+        cls._token = token
+        Token.token_map[lextoken] = cls
 
-        if not result.__doc__:
+        if not cls.__doc__:
             doc = '%%token %s' % token
 
-            pcls = getattr(result, '_precedence_class', None)
+            pcls = getattr(cls, '_precedence_class', None)
             if pcls is None:
                 try:
-                    pcls = sys.modules[mcls.__module__].PrecedenceMeta
+                    pcls = sys.modules[Token.__module__].PrecedenceMeta
                 except (KeyError, AttributeError):
                     pass
 
             if pcls is None:
-                msg = 'Precedence class is not set for {!r}'.format(mcls)
+                msg = 'Precedence class is not set for {!r}'.format(Token)
                 raise TypeError(msg)
 
             prec = pcls.for_token(token)
             if prec:
                 doc += ' [%s]' % prec.__name__
 
-            result.__doc__ = doc
+            cls.__doc__ = doc
 
-        return result
-
-    def __init__(
-            cls, name, bases, dct, *, token=None, lextoken=None,
-            precedence_class=None):
-        super().__init__(name, bases, dct)
-
-    @classmethod
-    def for_lex_token(mcls, token):
-        return mcls.token_map[mcls, token]
-
-
-class Token(parsing.Token, metaclass=TokenMeta):
     def __init__(self, val, clean_value, context=None):
         super().__init__()
         self.val = val
@@ -167,7 +154,7 @@ class Nonterm(parsing.Nonterm, metaclass=NontermMeta):
 class ListNontermMeta(NontermMeta):
     def __new__(mcls, name, bases, dct, *, element, separator=None):
         if name != 'ListNonterm':
-            if isinstance(separator, TokenMeta):
+            if issubclass(separator, Token):
                 separator = separator._token
             elif isinstance(separator, NontermMeta):
                 separator = separator.__name__
@@ -176,7 +163,7 @@ class ListNontermMeta(NontermMeta):
             if separator:
                 tokens.append(separator)
 
-            if isinstance(element, TokenMeta):
+            if issubclass(element, Token):
                 element = element._token
             elif isinstance(element, NontermMeta):
                 element = element.__name__
@@ -321,7 +308,7 @@ def spec_to_json(spec: parsing.Spec) -> str:
     assert spec.pureLR
 
     token_map: Dict[str, str] = {
-        v._token: c for (_, c), v in TokenMeta.token_map.items()
+        v._token: c for c, v in Token.token_map.items()
     }
 
     # productions
