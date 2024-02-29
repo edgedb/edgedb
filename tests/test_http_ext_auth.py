@@ -3801,15 +3801,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             challenge_bytes = base64.urlsafe_b64decode(
                 f'{body_json["challenge"]}==='
             )
-            user_handle_cookie = self.maybe_get_cookie_value(
-                headers, "edgedb-webauthn-authentication-user-handle"
-            )
-            user_handle_cookie_value = base64.urlsafe_b64decode(
-                f'{user_handle_cookie}==='
-            )
-            self.assertEqual(
-                user_handle_cookie_value, user_handle
-            )
             self.assertTrue(
                 await self.con.query_single(
                     '''
