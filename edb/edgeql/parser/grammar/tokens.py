@@ -22,6 +22,7 @@ from __future__ import annotations
 import re
 import sys
 import types
+import typing
 
 from edb.common import parsing
 
@@ -284,6 +285,9 @@ class T_SUBSTITUTION(Token):
 class T_EOF(Token):
     pass
 
+
+# explicitly define tokens which are referenced elsewhere
+T_THEN: typing.Optional[Token] = None
 
 def _gen_keyword_tokens():
     # Define keyword tokens

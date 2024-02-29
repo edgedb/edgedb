@@ -42,6 +42,7 @@ class ParserSpecIncompatibleError(Exception):
 
 class Token(parsing.Token):
     token_map: Dict[Any, Any] = {}
+    _token: str = ""
 
     def __init_subclass__(
             cls, token=None, lextoken=None, precedence_class=None,
