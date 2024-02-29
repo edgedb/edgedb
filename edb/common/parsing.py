@@ -109,17 +109,19 @@ def inline(argument_index: int):
     return decorator
 
 
-class NontermMeta(type):
-    def __new__(mcls, name, bases, dct):
-        result = super().__new__(mcls, name, bases, dct)
 
-        if name == 'Nonterm' or name == 'ListNonterm':
-            return result
+class Nonterm(parsing.Nonterm):
 
-        if not result.__doc__:
-            result.__doc__ = '%nonterm'
+    def __init_subclass__(cls, is_internal=False, **kwargs):
+        super().__init_subclass__(**kwargs)
 
-        for name, attr in result.__dict__.items():
+        if is_internal:
+            return
+
+        if not cls.__doc__:
+            cls.__doc__ = '%nonterm'
+
+        for name, attr in cls.__dict__.items():
             if (name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType)):
                 inline_index = getattr(attr, 'inline_index', None)
@@ -142,21 +144,16 @@ class NontermMeta(type):
 
                 a.__doc__ = attr.__doc__
                 a.inline_index = inline_index
-                setattr(result, name, a)
-
-        return result
+                setattr(cls, name, a)
 
 
-class Nonterm(parsing.Nonterm, metaclass=NontermMeta):
-    pass
-
-
-class ListNontermMeta(NontermMeta):
-    def __new__(mcls, name, bases, dct, *, element, separator=None):
+class ListNontermMeta(type):
+    def __new__(mcls, name, bases, dct, *, element, separator=None,
+                is_internal=False):
         if name != 'ListNonterm':
             if issubclass(separator, Token):
                 separator = separator._token
-            elif isinstance(separator, NontermMeta):
+            elif issubclass(separator, Nonterm):
                 separator = separator.__name__
 
             tokens = [name]
@@ -165,7 +162,7 @@ class ListNontermMeta(NontermMeta):
 
             if issubclass(element, Token):
                 element = element._token
-            elif isinstance(element, NontermMeta):
+            elif issubclass(element, Nonterm):
                 element = element.__name__
 
             tokens.append(element)
@@ -180,11 +177,13 @@ class ListNontermMeta(NontermMeta):
         cls = super().__new__(mcls, name, bases, dct)
         return cls
 
-    def __init__(cls, name, bases, dct, *, element, separator=None):
+    def __init__(cls, name, bases, dct, *, element, separator=None,
+                 is_internal=False):
         super().__init__(name, bases, dct)
 
 
-class ListNonterm(Nonterm, metaclass=ListNontermMeta, element=None):
+class ListNonterm(Nonterm, is_internal=True, metaclass=ListNontermMeta,
+                  element=None):
 
     def _reduce_list(self, lst, el):
         if el.val is None:
