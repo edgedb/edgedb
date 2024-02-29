@@ -605,14 +605,14 @@ def _new_inline_pointer_rvar(
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     ptr_rel = pgast.SelectStmt()
     ptr_rvar = rvar_for_rel(ptr_rel, lateral=lateral, ctx=ctx)
-    ptr_rvar.query.path_id = ir_ptr.target.path_id.ptr_path()
+    ptr_rvar.query.path_id = ir_ptr.target_path_id.ptr_path()
 
     is_inbound = ir_ptr.direction == s_pointers.PointerDirection.Inbound
 
     if is_inbound:
         far_pid = ir_ptr.source.path_id
     else:
-        far_pid = ir_ptr.target.path_id
+        far_pid = ir_ptr.target_path_id
 
     far_ref = pathctx.get_rvar_path_identity_var(
         src_rvar, far_pid, env=ctx.env)
@@ -649,7 +649,7 @@ def _new_mapped_pointer_rvar(
         far_ref = target_ref
 
     src_pid = ir_ptr.source.path_id
-    tgt_pid = ir_ptr.target.path_id
+    tgt_pid = ir_ptr.target_path_id
     ptr_pid = tgt_pid.ptr_path()
 
     ptr_rvar.query.path_id = ptr_pid
@@ -2086,7 +2086,7 @@ def range_for_pointer(
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
-    path_id = pointer.target.path_id.ptr_path()
+    path_id = pointer.target_path_id.ptr_path()
     external_rvar = ctx.env.external_rvars.get((path_id, 'source'))
     if external_rvar is not None:
         return external_rvar

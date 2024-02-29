@@ -579,7 +579,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             path_tip = new_set_from_set(
                 path_tip, path_id=mapped.path_id, ctx=ctx)
             if path_tip.rptr:
-                path_tip.rptr = path_tip.rptr.replace(target=path_tip)
+                path_tip.rptr = path_tip.rptr.replace(
+                    target_path_id=path_tip.path_id)
             # If we are remapping a source path, then we know that
             # the path is visible, so we shouldn't recompile it
             # if it is a computable path.
@@ -1031,7 +1032,7 @@ def extend_path(
 
     ptr = irast.Pointer(
         source=source_set,
-        target=target_set,
+        target_path_id=path_id,
         direction=direction,
         ptrref=typegen.ptr_to_ptrref(ptrcls, ctx=ctx),
         is_definition=False,
@@ -1218,7 +1219,7 @@ def tuple_indirection_set(
 
     ptr = irast.TupleIndirectionPointer(
         source=path_tip,
-        target=ti_set,
+        target_path_id=ti_set.path_id,
         ptrref=downcast(irast.TupleIndirectionPointerRef, path_id.rptr()),
         direction=not_none(path_id.rptr_dir()),
     )
@@ -1308,7 +1309,7 @@ def type_intersection_set(
 
     ptr = irast.TypeIntersectionPointer(
         source=source_set,
-        target=poly_set,
+        target_path_id=poly_set.path_id,
         ptrref=downcast(irast.TypeIntersectionPointerRef, ptrref),
         direction=not_none(poly_set.path_id.rptr_dir()),
         optional=optional,
@@ -1491,7 +1492,6 @@ def fixup_computable_source_set(
             if source_rptrref.base_ptr is not None:
                 source_rptrref = source_rptrref.base_ptr
             source_set.rptr = source_set.rptr.replace(
-                target=source_set,
                 ptrref=source_rptrref,
                 is_definition=True,
             )
@@ -1625,20 +1625,6 @@ def computable_ptr_set(
             qlctx=qlctx,
             ctx=ctx)
 
-    if ptrcls.is_link_property(ctx.env.schema):
-        source_path_id = rptr.source.path_id.ptr_path()
-    else:
-        src_path = rptr.target.path_id.src_path()
-        assert src_path is not None
-        source_path_id = src_path
-
-    result_path_id = pathctx.extend_path_id(
-        source_path_id,
-        ptrcls=ptrcls,
-        ns=ctx.path_id_namespace,
-        ctx=ctx,
-    )
-
     result_stype = ptrcls.get_target(ctx.env.schema)
     base_object = ctx.env.schema.get('std::BaseObject', type=s_types.Type)
     with newctx() as subctx:
@@ -1666,11 +1652,9 @@ def computable_ptr_set(
         comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
     comp_ir_set = new_set_from_set(
-        comp_ir_set, path_id=result_path_id, rptr=rptr, context=srcctx,
+        comp_ir_set, path_id=rptr.target_path_id, rptr=rptr, context=srcctx,
         merge_current_ns=True,
         ctx=ctx)
-
-    rptr.target = comp_ir_set
 
     maybe_materialize(ptrcls, comp_ir_set, ctx=ctx)
 

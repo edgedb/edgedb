@@ -452,7 +452,7 @@ class TypeIntersectionPointerRef(BasePointerRef):
 class Pointer(Base):
 
     source: Set
-    target: Set
+    target_path_id: PathId
     ptrref: BasePointerRef
     direction: s_pointers.PointerDirection
     is_definition: bool

@@ -884,7 +884,7 @@ def process_set_as_link_property_ref(
             # (FIXME: Would it be better to pass this in to new_pointer_rvar?)
             pathctx.put_path_bond(link_rvar.query, link_path_id.tgt_path())
             var = pathctx.get_rvar_path_identity_var(
-                link_rvar, link_prefix.rptr.target.path_id, env=ctx.env)
+                link_rvar, link_prefix.rptr.target_path_id, env=ctx.env)
             pathctx.put_rvar_path_output(
                 link_rvar, link_path_id.tgt_path(), 'identity', var)
 
