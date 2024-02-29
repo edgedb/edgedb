@@ -18,7 +18,8 @@
 
 
 from __future__ import annotations
-from typing import Any, Callable, Tuple, Type, Dict, List, Set, cast
+from typing import Any, Callable, Tuple, Type, Dict, List, Set, \
+                   Optional, cast
 
 import json
 import logging
@@ -147,43 +148,44 @@ class Nonterm(parsing.Nonterm):
                 setattr(cls, name, a)
 
 
-class ListNontermMeta(type):
-    def __new__(mcls, name, bases, dct, *, element, separator=None,
-                is_internal=False):
-        if name != 'ListNonterm':
-            if issubclass(separator, Token):
-                separator = separator._token
-            elif issubclass(separator, Nonterm):
-                separator = separator.__name__
+class ListNonterm(Nonterm, is_internal=True):
+    def __init_subclass__(cls, element, separator=None, is_internal=False,
+                          **kwargs):
 
-            tokens = [name]
-            if separator:
-                tokens.append(separator)
+        if not is_internal:
+            element_name = ListNonterm._component_name(element)
+            separator_name = ListNonterm._component_name(separator)
 
-            if issubclass(element, Token):
-                element = element._token
-            elif issubclass(element, Nonterm):
-                element = element.__name__
-
-            tokens.append(element)
-
-            if separator:
-                prod = lambda self, lst, sep, el: self._reduce_list(lst, el)
+            if separator_name:
+                tail_prod = \
+                    lambda self, lst, sep, el: self._reduce_list(lst, el)
+                tail_prod_name = 'reduce_{}_{}_{}'.format(
+                    cls.__name__, separator_name, element_name)
+                setattr(cls, tail_prod_name, tail_prod)
             else:
-                prod = lambda self, lst, el: self._reduce_list(lst, el)
-            dct['reduce_' + '_'.join(tokens)] = prod
-            dct['reduce_' + element] = lambda self, el: self._reduce_el(el)
+                tail_prod = \
+                    lambda self, lst, el: self._reduce_list(lst, el)
+                tail_prod_name = 'reduce_{}_{}'.format(
+                    cls.__name__, element_name)
+                setattr(cls, tail_prod_name, tail_prod)
 
-        cls = super().__new__(mcls, name, bases, dct)
-        return cls
+            setattr(cls, 'reduce_' + element_name,
+                lambda self, el: self._reduce_el(el))
 
-    def __init__(cls, name, bases, dct, *, element, separator=None,
-                 is_internal=False):
-        super().__init__(name, bases, dct)
+        # reduce functions must be present before calling superclass
+        super().__init_subclass__(is_internal=is_internal, **kwargs)
 
-
-class ListNonterm(Nonterm, is_internal=True, metaclass=ListNontermMeta,
-                  element=None):
+    @staticmethod
+    def _component_name(component: type) -> Optional[str]:
+        if component is None:
+            return None
+        elif issubclass(component, Token):
+            return component._token
+        elif issubclass(component, Nonterm):
+            return component.__name__
+        else:
+            raise Exception(
+                'List component must be a Token or Nonterm')
 
     def _reduce_list(self, lst, el):
         if el.val is None:
