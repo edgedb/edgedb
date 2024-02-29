@@ -578,9 +578,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if mapped := get_view_map_remapping(path_tip.path_id, ctx):
             path_tip = new_set_from_set(
                 path_tip, path_id=mapped.path_id, ctx=ctx)
-            if path_tip.rptr:
-                path_tip.rptr = path_tip.rptr.replace(
-                    target_path_id=path_tip.path_id)
             # If we are remapping a source path, then we know that
             # the path is visible, so we shouldn't recompile it
             # if it is a computable path.
@@ -618,7 +615,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             subctx.path_scope = scope
             assert ir_set.rptr is not None
             comp_ir_set = computable_ptr_set(
-                ir_set.rptr, srcctx=ir_set.context, ctx=subctx)
+                ir_set.rptr, ir_set.path_id, srcctx=ir_set.context, ctx=subctx)
             i = path_sets.index(ir_set)
             if i != len(path_sets) - 1:
                 prptr = path_sets[i + 1].rptr
@@ -1032,7 +1029,6 @@ def extend_path(
 
     ptr = irast.Pointer(
         source=source_set,
-        target_path_id=path_id,
         direction=direction,
         ptrref=typegen.ptr_to_ptrref(ptrcls, ctx=ctx),
         is_definition=False,
@@ -1043,6 +1039,7 @@ def extend_path(
     if not ignore_computable and is_computable:
         target_set = computable_ptr_set(
             ptr,
+            path_id,
             same_computable_scope=same_computable_scope,
             srcctx=srcctx,
             ctx=ctx,
@@ -1219,7 +1216,6 @@ def tuple_indirection_set(
 
     ptr = irast.TupleIndirectionPointer(
         source=path_tip,
-        target_path_id=ti_set.path_id,
         ptrref=downcast(irast.TupleIndirectionPointerRef, path_id.rptr()),
         direction=not_none(path_id.rptr_dir()),
     )
@@ -1309,7 +1305,6 @@ def type_intersection_set(
 
     ptr = irast.TypeIntersectionPointer(
         source=source_set,
-        target_path_id=poly_set.path_id,
         ptrref=downcast(irast.TypeIntersectionPointerRef, ptrref),
         direction=not_none(poly_set.path_id.rptr_dir()),
         optional=optional,
@@ -1500,6 +1495,7 @@ def fixup_computable_source_set(
 
 def computable_ptr_set(
     rptr: irast.Pointer,
+    path_id: irast.PathId,
     *,
     same_computable_scope: bool=False,
     srcctx: Optional[parsing.ParserContext]=None,
@@ -1652,7 +1648,7 @@ def computable_ptr_set(
         comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
     comp_ir_set = new_set_from_set(
-        comp_ir_set, path_id=rptr.target_path_id, rptr=rptr, context=srcctx,
+        comp_ir_set, path_id=path_id, rptr=rptr, context=srcctx,
         merge_current_ns=True,
         ctx=ctx)
 

@@ -465,9 +465,6 @@ def _rewrite_weak_namespaces(
             # in temporary scopes, so we need to just skip those.
             if scope := ctx.env.scope_tree_nodes.get(path_scope_id):
                 ir_set.path_id = _try_namespace_fix(scope, ir_set.path_id)
-                if ir_set.rptr:
-                    ir_set.rptr.target_path_id = (
-                        _try_namespace_fix(scope, ir_set.rptr.target_path_id))
 
 
 def _fixup_schema_view(

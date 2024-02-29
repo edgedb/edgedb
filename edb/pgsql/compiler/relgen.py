@@ -878,13 +878,13 @@ def process_set_as_link_property_ref(
             src_rvar = get_set_rvar(ir_source, ctx=newctx)
             assert link_prefix.rptr is not None
             link_rvar = relctx.new_pointer_rvar(
-                link_prefix.rptr, src_rvar=src_rvar,
+                link_prefix, src_rvar=src_rvar,
                 link_bias=True, ctx=newctx)
             # Make sure the link rvar understands the path_id we are using.
             # (FIXME: Would it be better to pass this in to new_pointer_rvar?)
             pathctx.put_path_bond(link_rvar.query, link_path_id.tgt_path())
             var = pathctx.get_rvar_path_identity_var(
-                link_rvar, link_prefix.rptr.target_path_id, env=ctx.env)
+                link_rvar, link_prefix.path_id, env=ctx.env)
             pathctx.put_rvar_path_output(
                 link_rvar, link_path_id.tgt_path(), 'identity', var)
 
@@ -1224,7 +1224,7 @@ def process_set_as_path(
 
         assert ir_set.rptr is not None
         map_rvar = SetRVar(
-            relctx.new_pointer_rvar(ir_set.rptr, src_rvar=src_rvar, ctx=ctx),
+            relctx.new_pointer_rvar(ir_set, src_rvar=src_rvar, ctx=ctx),
             path_id=ir_set.path_id.ptr_path(),
             aspects=aspects
         )

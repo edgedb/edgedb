@@ -965,7 +965,7 @@ def process_insert_rewrites(
         handled.add(ext_ir.rptr.ptrref.shortname.name)
         with ctx.subrel() as ectx:
             ext_rvar = relctx.new_pointer_rvar(
-                ext_ir.rptr, link_bias=True, src_rvar=iterator_rvar, ctx=ectx)
+                ext_ir, link_bias=True, src_rvar=iterator_rvar, ctx=ectx)
             relctx.include_rvar(ectx.rel, ext_rvar, ext_ir.path_id, ctx=ectx)
             # Make the subquery output the target
             pathctx.get_path_value_output(
@@ -1946,7 +1946,7 @@ def process_update_rewrites(
                 typeref, ext_ir.rptr.ptrref)
             with rctx.subrel() as ectx:
                 ext_rvar = relctx.new_pointer_rvar(
-                    ext_ir.rptr, link_bias=True, src_rvar=contents_rvar,
+                    ext_ir, link_bias=True, src_rvar=contents_rvar,
                     ctx=ectx)
                 relctx.include_rvar(
                     ectx.rel, ext_rvar, ext_ir.path_id, ctx=ectx)

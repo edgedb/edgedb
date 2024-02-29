@@ -40,6 +40,8 @@ import immutables as immu
 
 from edb import errors
 
+from edb.common.typeutils import not_none
+
 from edb.edgeql import qltypes
 from edb.edgeql import ast as qlast
 
@@ -578,11 +580,11 @@ def new_root_rvar(
 
 
 def new_pointer_rvar(
-        ir_ptr: irast.Pointer, *,
+        ir_set: irast.Set, *,
         link_bias: bool=False,
         src_rvar: pgast.PathRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-
+    ir_ptr = not_none(ir_set.rptr)
     ptrref = ir_ptr.ptrref
 
     ptr_info = pg_types.get_ptrref_storage_info(
@@ -591,28 +593,30 @@ def new_pointer_rvar(
     if ptr_info and ptr_info.table_type == 'ObjectType':
         # Inline link
         return _new_inline_pointer_rvar(
-            ir_ptr, ptr_info=ptr_info,
+            ir_set, ptr_info=ptr_info,
             src_rvar=src_rvar, ctx=ctx)
     else:
-        return _new_mapped_pointer_rvar(ir_ptr, ctx=ctx)
+        return _new_mapped_pointer_rvar(ir_set, ctx=ctx)
 
 
 def _new_inline_pointer_rvar(
-        ir_ptr: irast.Pointer, *,
+        ir_set: irast.Set, *,
         lateral: bool=True,
         ptr_info: pg_types.PointerStorageInfo,
         src_rvar: pgast.PathRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    ir_ptr = not_none(ir_set.rptr)
+
     ptr_rel = pgast.SelectStmt()
     ptr_rvar = rvar_for_rel(ptr_rel, lateral=lateral, ctx=ctx)
-    ptr_rvar.query.path_id = ir_ptr.target_path_id.ptr_path()
+    ptr_rvar.query.path_id = ir_set.path_id.ptr_path()
 
     is_inbound = ir_ptr.direction == s_pointers.PointerDirection.Inbound
 
     if is_inbound:
         far_pid = ir_ptr.source.path_id
     else:
-        far_pid = ir_ptr.target_path_id
+        far_pid = ir_set.path_id
 
     far_ref = pathctx.get_rvar_path_identity_var(
         src_rvar, far_pid, env=ctx.env)
@@ -624,11 +628,13 @@ def _new_inline_pointer_rvar(
 
 
 def _new_mapped_pointer_rvar(
-        ir_ptr: irast.Pointer, *,
+        ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    ir_ptr = not_none(ir_set.rptr)
+
     ptrref = ir_ptr.ptrref
     dml_source = irutils.get_dml_sources(ir_ptr.source)
-    ptr_rvar = range_for_pointer(ir_ptr, dml_source=dml_source, ctx=ctx)
+    ptr_rvar = range_for_pointer(ir_set, dml_source=dml_source, ctx=ctx)
 
     src_col = 'source'
     source_ref = pgast.ColumnRef(name=[src_col], nullable=False)
@@ -649,7 +655,7 @@ def _new_mapped_pointer_rvar(
         far_ref = target_ref
 
     src_pid = ir_ptr.source.path_id
-    tgt_pid = ir_ptr.target_path_id
+    tgt_pid = ir_set.path_id
     ptr_pid = tgt_pid.ptr_path()
 
     ptr_rvar.query.path_id = ptr_pid
@@ -712,7 +718,7 @@ def semi_join(
     else:
         far_pid = ir_set.path_id
         # Link range.
-        map_rvar = new_pointer_rvar(rptr, src_rvar=src_rvar, ctx=ctx)
+        map_rvar = new_pointer_rvar(ir_set, src_rvar=src_rvar, ctx=ctx)
         include_rvar(
             ctx.rel, map_rvar,
             path_id=ir_set.path_id.ptr_path(), ctx=ctx)
@@ -2080,13 +2086,14 @@ def range_for_ptrref(
 
 
 def range_for_pointer(
-    pointer: irast.Pointer,
+    ir_set: irast.Set,
     *,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
+    pointer = not_none(ir_set.rptr)
 
-    path_id = pointer.target_path_id.ptr_path()
+    path_id = ir_set.path_id.ptr_path()
     external_rvar = ctx.env.external_rvars.get((path_id, 'source'))
     if external_rvar is not None:
         return external_rvar
