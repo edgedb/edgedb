@@ -376,14 +376,14 @@ select (factor.verified_at <= std::datetime_current()) ?? false;""",
     async def _get_authentication_challenge(
         self,
         email: str,
-        user_handle: bytes,
+        credential_id: bytes,
     ):
         result = await execute.parse_execute_json(
             self.db,
             """
 with
     email := <str>$email,
-    user_handle := <bytes>$user_handle,
+    credential_id := <bytes>$credential_id,
 select ext::auth::WebAuthnAuthenticationChallenge {
     id,
     created_at,
@@ -407,10 +407,10 @@ select ext::auth::WebAuthnAuthenticationChallenge {
         }
     },
 }
-filter .factor.email = email and .factor.user_handle = user_handle;""",
+filter .factor.email = email and .factor.credential_id = credential_id;""",
             variables={
                 "email": email,
-                "user_handle": user_handle,
+                "credential_id": credential_id,
             },
             cached_globally=True,
         )
@@ -428,19 +428,19 @@ filter .factor.email = email and .factor.user_handle = user_handle;""",
     async def _delete_authentication_challenges(
         self,
         email: str,
-        user_handle: bytes,
+        credential_id: bytes,
     ):
         await execute.parse_execute_json(
             self.db,
             """
 with
     email := <str>$email,
-    user_handle := <bytes>$user_handle,
+    credential_id := <bytes>$credential_id,
 delete ext::auth::WebAuthnAuthenticationChallenge
-filter .factor.email = email and .factor.user_handle = user_handle;""",
+filter .factor.email = email and .factor.credential_id = credential_id;""",
             variables={
                 "email": email,
-                "user_handle": user_handle,
+                "credential_id": credential_id,
             },
         )
 
@@ -448,21 +448,22 @@ filter .factor.email = email and .factor.user_handle = user_handle;""",
         self,
         *,
         email: str,
-        user_handle: bytes,
         assertion: str,
     ) -> data.LocalIdentity:
+        credential = parse_authentication_credential_json(assertion)
+
         authentication_challenge = await self._get_authentication_challenge(
             email=email,
-            user_handle=user_handle,
+            credential_id=credential.raw_id,
         )
         await self._delete_authentication_challenges(
             email=email,
-            user_handle=user_handle,
+            credential_id=credential.raw_id,
         )
 
         try:
             webauthn.verify_authentication_response(
-                credential=assertion,
+                credential=credential,
                 expected_challenge=authentication_challenge.challenge,
                 credential_public_key=(
                     authentication_challenge.factor.public_key
