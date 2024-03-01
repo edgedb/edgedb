@@ -2255,7 +2255,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     for key, value in cmd.get_resolved_attributes(
                             schema, context).items():
                         cmd.set_attribute_value(key, value)
-                    self.add(delta)
+                    self.add_caused(delta)
             except errors.QueryError as e:
                 orig_schema = context.current().original_schema
                 desc = self.get_friendly_description(schema=orig_schema)
