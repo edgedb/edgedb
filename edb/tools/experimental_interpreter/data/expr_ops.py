@@ -204,7 +204,8 @@ def map_expr(
                     cast_tp=cast_tp,
                     cast_spec=cast_spec,
                     arg=recur(arg))
-
+            case e.ParameterExpr(name=name, tp=tp, is_required=is_required):
+                return e.ParameterExpr(name=name, tp=recur_tp(tp), is_required=is_required)
             case _:
                 return map_tp(f, expr)
     raise ValueError("Not Implemented: map_expr ", expr)

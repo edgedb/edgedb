@@ -71,6 +71,7 @@ def run_statement(db: EdgeDatabaseInterface,
                   stmt: qlast.Expr, dbschema: DBSchema,
                   should_print: bool,
                   logs: Optional[List[Any]],
+                  variables: Dict[str, Val] = {},
                   skip_type_checking: bool = False,
                   ) -> Tuple[MultiSetVal, e.ResultTp]:
 
@@ -128,7 +129,7 @@ def run_statement(db: EdgeDatabaseInterface,
         debug.dump_edgeql(reverse_elabed)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
 
-    result = eval_expr_toplevel(db, deduped, logs=logs)
+    result = eval_expr_toplevel(db, deduped, variables=variables, logs=logs)
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
         debug.print(pp.show_multiset_val(result))
@@ -191,6 +192,7 @@ def run_str(
 def run_single_str(
     dbschema_and_db: Tuple[DBSchema, EdgeDatabaseInterface],
     s: str,
+    variables: Dict[str, Val] = {},
     print_asts: bool = False
 ) -> Tuple[MultiSetVal, ResultTp]:
     q = parse_ql(s)
@@ -198,7 +200,9 @@ def run_single_str(
         raise ValueError("Not a single query")
     dbschema, db = dbschema_and_db
     (res, tp) = run_statement(
-        db, q[0], dbschema, print_asts,
+        db, q[0], dbschema, 
+        print_asts,
+        variables=variables,
         logs=None)
     return (res, tp)
 
@@ -206,10 +210,12 @@ def run_single_str(
 def run_single_str_get_json(
     dbschema_and_db: Tuple[DBSchema, EdgeDatabaseInterface],
     s: str,
+    variables: Optional[Dict[str, Any] | Tuple[Any, ...]],
     print_asts: bool = False
 ) -> json_like:
-    (res, tp) = run_single_str(dbschema_and_db,
-                                        s, print_asts=print_asts)
+    (res, tp) = run_single_str(dbschema_and_db, 
+                                        s, variables=variables,
+                                        print_asts=print_asts)
     return typed_multi_set_val_to_json_like(
                 tp, res, dbschema_and_db[0], top_level=True)
 

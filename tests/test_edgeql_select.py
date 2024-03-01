@@ -1339,7 +1339,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OFFSET <int64>.<owner[IS Issue].number;
             """)
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Negative Limit should throw an exception")
+    # @test.decorators.experimental_interpreter_triaged_pending_feature("Negative Limit should throw an exception")
     async def test_edgeql_select_limit_10(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
@@ -5703,7 +5703,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters like $0 not handled")
+    @test.decorators.experimental_interpreter_triaged_pending_feature("con.query return format error")
     async def test_edgeql_select_slice_04(self):
 
         await self.assert_query_result(
@@ -8355,17 +8355,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         (DELETE User filter .name = 't1')
             ''')
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters")
+    # @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters")
+    @test.decorators.experimental_interpreter_exclude("Expected Query Error")
     async def test_edgeql_select_params_01(self):
         with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
             await self.con.query("select ($0, $1)")
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters")
+    # @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters")
+    @test.decorators.experimental_interpreter_exclude("Expected Query Error")
     async def test_edgeql_select_params_02(self):
         with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
             await self.con.query("select ($0, 5)")
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters")
+    # @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters")
+    @test.decorators.experimental_interpreter_exclude("Expected Query Error")
     async def test_edgeql_select_params_03(self):
         with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
             await self.con.query("select ($0, <std::int64>$0)")

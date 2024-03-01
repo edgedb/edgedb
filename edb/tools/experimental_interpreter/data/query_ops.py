@@ -198,6 +198,8 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 return e.DeleteExpr(subject=recur(subject))
             case e.FreeObjectExpr():
                 return e.FreeObjectExpr()
+            case e.ParameterExpr(_):
+                return expr
 
     raise ValueError("Not Implemented: map_query ", expr)
 

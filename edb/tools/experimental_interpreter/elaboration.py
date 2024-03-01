@@ -4,6 +4,8 @@ from functools import singledispatch
 from typing import Any, Dict, Optional, Sequence, Tuple, cast
 
 from edb import errors
+# import edb as edgedb
+# import edgedb
 from edb.common import debug, parsing
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as qltypes
@@ -67,6 +69,11 @@ def elab_Shape(elements: Sequence[qlast.ShapeElement]) -> ShapeExpr:
 @singledispatch
 def elab(node: qlast.Base) -> Expr:
     return elab_not_implemented(node)
+
+
+@elab.register(qlast.Parameter)
+def elab_Parameter(node: qlast.Parameter) -> None:
+    raise errors.QueryError("missing a type cast", context=node.context)
 
 @elab.register(qlast.Introspect)
 def elab_Introspect(node: qlast.Introspect) -> Expr:

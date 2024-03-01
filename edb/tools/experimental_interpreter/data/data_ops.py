@@ -802,7 +802,7 @@ Expr = (
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
     FreeObjectExpr | ConditionalDedupExpr | TupleProjExpr |  IsTpExpr |
     # ObjectExpr | 
-    BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
+    BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr | ParameterExpr |
     ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr
     #   | SingularExpr
     | IfElseExpr | DeleteExpr| QualifiedName)

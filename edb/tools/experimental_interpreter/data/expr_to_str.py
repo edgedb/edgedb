@@ -203,6 +203,8 @@ def show_expr(expr: e.Expr) -> str:
             return "cond_dedup(" + show_expr(inner) + ")"
         case e.FreeObjectExpr():
             return "{<free>}"
+        case e.ParameterExpr(name=name):
+            return "${name}"
         case _:
             raise ValueError('Unimplemented', expr)
 

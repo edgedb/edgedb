@@ -336,5 +336,13 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
             return qlast.TypeCast(
                 type=reverse_elab_type_name(target_tp),
                 expr=reverse_elab(arg))
+        case e.ParameterExpr(name=name,
+                             tp=tp,
+                             is_required=is_required):
+            return qlast.TypeCast(
+                type=reverse_elab_type_name(tp),
+                expr=qlast.Parameter(name=name),
+                is_required=is_required
+            )
         case _:
             raise ValueError("Unimplemented", ir_expr)

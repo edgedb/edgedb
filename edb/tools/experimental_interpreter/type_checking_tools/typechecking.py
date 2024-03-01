@@ -204,6 +204,11 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                         arg=arg_v)
                 else:
                     raise ValueError("Cannot cast", arg_tp, tp_ck)
+        case e.ParameterExpr(name=name, tp=tp, is_required=is_required):
+            result_tp = check_type_valid(ctx, tp)
+            result_card = e.CardOne if is_required else e.CardAtMostOne
+            result_expr = e.ParameterExpr(name=name, tp=result_tp, is_required=is_required)
+
         case e.ShapedExprExpr(expr=subject, shape=shape):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_tp, shape_ck = check_shape_transform(

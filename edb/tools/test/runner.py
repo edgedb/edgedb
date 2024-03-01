@@ -453,7 +453,7 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
 
                 async def query(self, query):
                     return model.run_single_str_get_json(
-                        (dbschema, db), query,
+                        (dbschema, db), query, variables=None,
                         print_asts=False)
                 async def _fetchall(self, query, __typenames__=False):
                     return await self.query(query)

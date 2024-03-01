@@ -27,6 +27,9 @@ from .data.type_ops import is_nominal_subtype_in_schema
 from .db_interface import *
 from .evaluation_tools.storage_coercion import coerce_to_storage
 
+def get_param_reserved_name(param: str | int) -> str:
+    return f"__edgedb_reserved_param_name_{param}_"
+
 def eval_error(expr: Val | Expr | Sequence[Val], msg: str = "") -> Any:
     raise ValueError("Eval Error", msg, expr)
 
@@ -514,18 +517,43 @@ def eval_expr(ctx: EvalEnv,
             else:
                 new_ctx, next_body = ctx_extend(ctx, next, e.ResultMultiSetVal([]))
                 return eval_expr(new_ctx, db, next_body)
+        case e.ParameterExpr(name=name, tp=_, is_required=_):
+            param_name = get_param_reserved_name(name)
+            if param_name in ctx.keys():
+                return ctx[param_name]
+            else:
+                raise ValueError("Parameter not found", name, param_name)
 
     raise ValueError("Not Implemented", expr)
 
+def eval_ctx_from_variables(variables) -> EvalEnv:
+    def get_prim_param_value(v) -> MultiSetVal:
+        if v is None:
+            return e.ResultMultiSetVal([])
+        elif isinstance(v, str):
+            return e.ResultMultiSetVal([e.StrVal(v)])
+        else:
+            raise ValueError("Unimplemented")
+    if isinstance(variables, dict):
+        raise ValueError("Expecting a list of variables")
+    elif isinstance(variables, tuple):
+        return {(get_param_reserved_name(i)): get_prim_param_value(v) for i, v in enumerate(variables)}
+    else:
+        raise ValueError("")
 
-def eval_expr_toplevel(db: EdgeDatabaseInterface, expr: Expr, logs: Optional[Any] = None) -> MultiSetVal:
+
+def eval_expr_toplevel(db: EdgeDatabaseInterface, expr: Expr,
+                       variables: Dict[str, Val] | Tuple[Val] = None,
+                       logs: Optional[Any] = None) -> MultiSetVal:
 
     # on exception, this is not none
     # assert eval_logs_wrapper.logs is None
     if logs is not None:
         eval_logs_wrapper.reset_logs(logs)
 
-    final_v = eval_expr({}, db, expr)
+    initial_ctx = eval_ctx_from_variables(variables) if variables else {}
+
+    final_v = eval_expr(initial_ctx, db, expr)
     # commit DML after evaluation
     db.commit_dml()
 

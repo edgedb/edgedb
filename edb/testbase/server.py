@@ -994,6 +994,7 @@ class ConnectedTestCase(ClusterTestCase):
                     self.use_experimental_interpreter):
                 result = model.run_single_str_get_json(
                     self.experimental_interpreter_dbschema_and_db, query,
+                    variables=variables,
                     print_asts=False)
                 res = result
                 # Uncomment this for debugging.

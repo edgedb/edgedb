@@ -13,6 +13,12 @@ std::`_[_:]`(array: array<anytype>, idx: std::int64) -> array<anytype>
 };
 
 CREATE FUNCTION
+std::`_[_:]`(array: json, idx: std::int64) -> json
+{
+    USING SQL EXPRESSION;
+};
+
+CREATE FUNCTION
 std::`_[:_]`(array: array<anytype>, idx: std::int64) -> array<anytype>
 {
     USING SQL EXPRESSION;
