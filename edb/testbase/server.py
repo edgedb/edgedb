@@ -1089,22 +1089,24 @@ class DatabaseTestCase(ConnectedTestCase):
 
             base_db_name, _, _ = dbname.rpartition('_')
 
+            if cls.get_setup_script():
+                create_command = (
+                    f'CREATE DATA BRANCH {qlquote.quote_ident(dbname)}'
+                    f' FROM {qlquote.quote_ident(base_db_name)}'
+                )
+            else:
+                create_command = (
+                    f'CREATE EMPTY BRANCH {qlquote.quote_ident(dbname)}')
+
             # The retry here allows the test to survive a concurrent testing
             # EdgeDB server (e.g. async with tb.start_edgedb_server()) whose
             # introspection holds a lock on the base_db here
-            async def create_db():
-                async for tr in cls.try_until_succeeds(
-                    ignore=edgedb.ExecutionError,
-                    timeout=30,
-                ):
-                    async with tr:
-                        await admin_conn.execute(
-                            f'''
-                                CREATE DATABASE {qlquote.quote_ident(dbname)}
-                                FROM {qlquote.quote_ident(base_db_name)}
-                            ''',
-                        )
-            await create_db()
+            async for tr in cls.try_until_succeeds(
+                ignore=edgedb.ExecutionError,
+                timeout=30,
+            ):
+                async with tr:
+                    await admin_conn.execute(create_command)
 
             if not orig_testmode:
                 await admin_conn.execute(
@@ -1176,6 +1178,7 @@ class DatabaseTestCase(ConnectedTestCase):
     @classmethod
     def get_setup_script(cls):
         script = ''
+        has_nontrivial_script = False
 
         # allow the setup script to also run in test mode and no recompilation
         if cls.INTERNAL_TESTMODE:
@@ -1215,6 +1218,8 @@ class DatabaseTestCase(ConnectedTestCase):
                     schema.append(f'\nmodule {module_name} {{ {module} }}')
 
         if schema:
+            has_nontrivial_script = True
+
             script += f'\nSTART MIGRATION'
             script += f' TO {{ {"".join(schema)} }};'
             script += f'\nPOPULATE MIGRATION;'
@@ -1227,6 +1232,8 @@ class DatabaseTestCase(ConnectedTestCase):
                 scripts = cls.SETUP
 
             for scr in scripts:
+                has_nontrivial_script = True
+
                 if '\n' not in scr and os.path.exists(scr):
                     with open(scr, 'rt') as f:
                         setup = f.read()
@@ -1245,7 +1252,7 @@ class DatabaseTestCase(ConnectedTestCase):
         if not cls.ENABLE_RECOMPILATION:
             script += '\nCONFIGURE SESSION RESET auto_rebuild_query_cache;'
 
-        return script.strip(' \n')
+        return script.strip(' \n') if has_nontrivial_script else ''
 
     async def migrate(self, migration, *, module: str = 'default'):
         async with self.con.transaction():
@@ -1838,9 +1845,6 @@ def get_test_cases_setup(
         except unittest.SkipTest:
             continue
 
-        if not setup_script:
-            continue
-
         dbname = case.get_database_name()
         result.append((case, dbname, setup_script))
 
@@ -1936,9 +1940,10 @@ async def _setup_database(
         database=dbname, **default_args
     )
     try:
-        async for tx in dbconn.retrying_transaction():
-            async with tx:
-                await dbconn.execute(setup_script)
+        if setup_script:
+            async for tx in dbconn.retrying_transaction():
+                async with tx:
+                    await dbconn.execute(setup_script)
     except Exception as ex:
         raise RuntimeError(
             f'exception during initialization of {dbname!r} test DB: '

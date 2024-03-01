@@ -437,6 +437,9 @@ class BaseRenderer:
     def report(self, test, marker, description=None, *, currently_running):
         raise NotImplementedError
 
+    def report_start(self, test, *, currently_running):
+        return
+
 
 class SimpleRenderer(BaseRenderer):
     def report(self, test, marker, description=None, *, currently_running):
@@ -471,10 +474,10 @@ class VerboseRenderer(BaseRenderer):
 class MultiLineRenderer(BaseRenderer):
 
     FT_LABEL = 'First few failed: '
-    FT_MAX_LINES = 3
+    FT_MAX_LINES = 6
 
     R_LABEL = 'Running: '
-    R_MAX_LINES = 3
+    R_MAX_LINES = 6
 
     def __init__(self, *, tests, stream):
         super().__init__(tests=tests, stream=stream)
@@ -503,6 +506,9 @@ class MultiLineRenderer(BaseRenderer):
 
         self.buffer[test.__class__.__module__] += marker.value
         self.completed_tests += 1
+        self._render(currently_running)
+
+    def report_start(self, test, *, currently_running):
         self._render(currently_running)
 
     def _render_modname(self, name):
@@ -627,7 +633,7 @@ class MultiLineRenderer(BaseRenderer):
                 running_tests.append('...')
 
             _render_test_list(
-                self.R_LABEL,
+                self.R_LABEL + f'({len(currently_running)})',
                 self.R_MAX_LINES,
                 running_tests,
                 styles.marker_passed
@@ -726,6 +732,8 @@ class ParallelTextTestResult(unittest.result.TestResult):
     def startTest(self, test):
         super().startTest(test)
         self.currently_running[test] = True
+        self.ren.report_start(
+            test, currently_running=list(self.currently_running))
 
     def addSuccess(self, test):
         super().addSuccess(test)
