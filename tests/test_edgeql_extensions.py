@@ -984,17 +984,8 @@ class TestDDLExtensions(tb.DDLTestCase):
             };
         ''')
         try:
-            # XXX what
-            from edb.common import retryloop
-            rloop = retryloop.RetryLoop(
-                backoff=retryloop.const_backoff(0.0),
-                iterations=3,
-                ignore=edgedb.TransactionSerializationError,
-            )
-            async for iteration in rloop:
-                async with iteration:
-                    async with self._run_and_rollback():
-                        await self._extension_test_06b()
+            async with self._run_and_rollback():
+                await self._extension_test_06b()
         finally:
             await self.con.execute('''
                 drop extension package bar VERSION '1.0';
