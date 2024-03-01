@@ -417,21 +417,20 @@ def _find_visible_binding_refs(
 
 def _try_namespace_fix(
     scope: irast.ScopeTreeNode,
-    obj: Union[irast.ScopeTreeNode, irast.Set],
-) -> None:
-    if obj.path_id is None:
-        return
-    for prefix in obj.path_id.iter_prefixes():
+    path_id: irast.PathId,
+) -> irast.PathId:
+    for prefix in path_id.iter_prefixes():
         replacement = scope.find_visible(prefix, allow_group=True)
         if (
             replacement and replacement.path_id
             and prefix != replacement.path_id
         ):
             new = irtyputils.replace_pathid_prefix(
-                obj.path_id, prefix, replacement.path_id)
+                path_id, prefix, replacement.path_id)
 
-            obj.path_id = new
-            break
+            return new
+
+    return path_id
 
 
 def _rewrite_weak_namespaces(
@@ -454,7 +453,8 @@ def _rewrite_weak_namespaces(
     tree = ctx.path_scope
 
     for node in tree.strict_descendants:
-        _try_namespace_fix(node, node)
+        if node.path_id:
+            node.path_id = _try_namespace_fix(node, node.path_id)
 
     scopes = irutils.find_path_scopes(irs)
 
@@ -464,7 +464,7 @@ def _rewrite_weak_namespaces(
             # Some entries in set_types are from compiling views
             # in temporary scopes, so we need to just skip those.
             if scope := ctx.env.scope_tree_nodes.get(path_scope_id):
-                _try_namespace_fix(scope, ir_set)
+                ir_set.path_id = _try_namespace_fix(scope, ir_set.path_id)
 
 
 def _fixup_schema_view(

@@ -137,6 +137,14 @@ def __infer_type_introspection(
 
 
 @_infer_volatility_inner.register
+def __infer_type_root(
+    ir: irast.TypeRoot,
+    env: context.Environment,
+) -> InferredVolatility:
+    return STABLE
+
+
+@_infer_volatility_inner.register
 def __infer_set(
     ir: irast.Set,
     env: context.Environment,

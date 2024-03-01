@@ -537,7 +537,6 @@ def _process_view(
             )
             ptr_set.rptr = irast.Pointer(
                 source=ir_set,
-                target=ptr_set,
                 direction=s_pointers.PointerDirection.Outbound,
                 ptrref=not_none(ptr_set.path_id.rptr()),
                 is_definition=True,
@@ -825,7 +824,8 @@ def _gen_pointers_from_defaults(
         assert irset
         dep_pointers = ast.find_children(irset, irast.Pointer)
         dep_rptrs = (
-            pointer.target.path_id.rptr() for pointer in dep_pointers
+            # pointer.target_path_id.rptr() for pointer in dep_pointers
+            pointer.ptrref for pointer in dep_pointers
             if pointer.source.typeref.id == stype.id
         )
         deps = {
@@ -970,7 +970,6 @@ def _compile_rewrites(
             # construct a new set with correct path_id
             ptr_set.rptr = irast.Pointer(
                 source=ir_set,
-                target=ptr_set,
                 direction=s_pointers.PointerDirection.Outbound,
                 ptrref=actual_ptrref,
                 is_definition=True,
@@ -1193,7 +1192,7 @@ def prepare_rewrite_anchors(
         schema, stype, typename=subject_name, namespace=ctx.path_id_namespace,
         env=ctx.env,
     )
-    subject_set = setgen.new_set(
+    subject_set = setgen.class_set(
         stype=stype, path_id=subject_path_id, ctx=ctx
     )
 

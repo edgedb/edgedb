@@ -332,6 +332,19 @@ def __infer_type_introspection(
     return ONE
 
 
+@_infer_cardinality.register
+def __infer_type_root(
+    ir: irast.TypeRoot,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    if typeutils.is_exactly_free_object(ir.typeref):
+        return ONE
+    else:
+        return MANY
+
+
 def _infer_pointer_cardinality(
     *,
     ptrcls: s_pointers.Pointer,
@@ -656,9 +669,12 @@ def _infer_set_inner(
         card = AT_MOST_ONE
     elif ir.expr is not None:
         card = expr_card
-    elif typeutils.is_free_object(ir.typeref) and not ir.is_binding:
-        card = ONE
     else:
+        # The only things that should be here without an expression or
+        # an rptr are certain visible_binding_refs (typically from
+        # GROUP). We report them as MANY, but that might be refined
+        # based on the scope tree in the enclosing context.
+        assert ir.is_visible_binding_ref
         card = MANY
 
     # If this node is an optional argument bound at this location,

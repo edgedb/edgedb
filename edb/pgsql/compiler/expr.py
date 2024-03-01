@@ -777,45 +777,50 @@ def _compile_set_in_singleton_mode(
     elif node.expr is not None:
         return dispatch.compile(node.expr, ctx=ctx)
     else:
-        if node.rptr:
-            ptrref = node.rptr.ptrref
-            source = node.rptr.source
+        assert node.rptr
+        ptrref = node.rptr.ptrref
+        source = node.rptr.source
 
-            if isinstance(ptrref, irast.TupleIndirectionPointerRef):
-                tuple_val = dispatch.compile(source, ctx=ctx)
-                set_expr = astutils.tuple_getattr(
-                    tuple_val,
-                    source.typeref,
-                    ptrref.shortname.name,
-                )
-                return set_expr
+        if isinstance(ptrref, irast.TupleIndirectionPointerRef):
+            tuple_val = dispatch.compile(source, ctx=ctx)
+            set_expr = astutils.tuple_getattr(
+                tuple_val,
+                source.typeref,
+                ptrref.shortname.name,
+            )
+            return set_expr
 
-            if ptrref.source_ptr is None and source.rptr is not None:
-                raise errors.UnsupportedFeatureError(
-                    'unexpectedly long path in simple expr')
+        if ptrref.source_ptr is None and source.rptr is not None:
+            raise errors.UnsupportedFeatureError(
+                'unexpectedly long path in simple expr')
 
-            # In most cases, we don't need to reference the rvar (since there
-            # will be only one in scope), but sometimes we do (for example NEW
-            # in trigger functions).
-            rvar_name = []
-            if src := ctx.env.external_rvars.get((source.path_id, 'source')):
-                rvar_name = [src.alias.aliasname]
+        # In most cases, we don't need to reference the rvar (since there
+        # will be only one in scope), but sometimes we do (for example NEW
+        # in trigger functions).
+        rvar_name = []
+        if src := ctx.env.external_rvars.get((source.path_id, 'source')):
+            rvar_name = [src.alias.aliasname]
 
-            # compile column name
-            ptr_stor_info = pg_types.get_ptrref_storage_info(
-                ptrref, resolve_type=False)
+        # compile column name
+        ptr_stor_info = pg_types.get_ptrref_storage_info(
+            ptrref, resolve_type=False)
 
-            colref = pgast.ColumnRef(
-                name=rvar_name + [ptr_stor_info.column_name],
-                nullable=node.rptr.dir_cardinality.can_be_zero())
-        else:
-            name = [common.edgedb_name_to_pg_name(str(node.typeref.id))]
-            if node.path_id.is_objtype_path():
-                name.append('id')
-
-            colref = pgast.ColumnRef(name=name)
+        colref = pgast.ColumnRef(
+            name=rvar_name + [ptr_stor_info.column_name],
+            nullable=node.rptr.dir_cardinality.can_be_zero())
 
         return colref
+
+
+@dispatch.compile.register
+def compile_TypeRoot(
+    expr: irast.TypeRoot, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+    name = [common.edgedb_name_to_pg_name(str(expr.typeref.id))]
+    if irtyputils.is_object(expr.typeref):
+        name.append('id')
+
+    return pgast.ColumnRef(name=name)
 
 
 @dispatch.compile.register(irast.FTSDocument)

@@ -25,6 +25,7 @@ from typing import (
     Optional,
     Tuple,
     Type,
+    TypeVar,
     AbstractSet,
     Mapping,
     Sequence,
@@ -76,10 +77,9 @@ def get_parameters(ir: irast.Base) -> Set[irast.Parameter]:
 
 def is_const(ir: irast.Base) -> bool:
     """Return True if the given *ir* expression is constant."""
-    flt = lambda n: n.expr is None and n is not ir
-    ir_sets = ast.find_children(ir, irast.Set, flt)
+    roots = ast.find_children(ir, irast.TypeRoot)
     variables = get_parameters(ir)
-    return not ir_sets and not variables
+    return not roots and not variables
 
 
 def is_union_expr(ir: irast.Base) -> bool:
@@ -226,7 +226,10 @@ def is_type_intersection_reference(ir_expr: irast.Base) -> bool:
 
 def is_trivial_free_object(ir: irast.Set) -> bool:
     ir = unwrap_set(ir)
-    return not ir.expr and typeutils.is_exactly_free_object(ir.typeref)
+    return (
+        isinstance(ir.expr, irast.TypeRoot)
+        and typeutils.is_exactly_free_object(ir.typeref)
+    )
 
 
 def collapse_type_intersection(
@@ -480,6 +483,12 @@ def as_const(ir: irast.Base) -> Optional[irast.BaseConstant]:
             return ir
         case irast.TypeCast():
             return as_const(ir.expr)
-        case irast.Set() if ir.expr:
+        case irast.SetE() if ir.expr:
             return as_const(ir.expr)
     return None
+
+
+T = TypeVar('T')
+
+def is_set_instance(ir: irast.Set, typ: Type[T]) -> TypeGuard[irast.SetE[T]]:
+    return isinstance(ir.expr, typ)

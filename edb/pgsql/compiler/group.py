@@ -24,6 +24,7 @@ from typing import Optional, AbstractSet, List
 from edb.edgeql import ast as qlast
 from edb.edgeql import desugar_group
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 from edb.pgsql import ast as pgast
 
 from . import astutils
@@ -232,6 +233,7 @@ def _compile_group(
             with groupctx.subrel() as hoistctx:
                 hoistctx.skippable_sources |= skippable
 
+                assert irutils.is_set_instance(group_use, irast.FunctionCall)
                 relgen.process_set_as_agg_expr_inner(
                     group_use,
                     aspect='value', wrapper=None, for_group_by=True,

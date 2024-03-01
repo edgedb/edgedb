@@ -452,7 +452,6 @@ class TypeIntersectionPointerRef(BasePointerRef):
 class Pointer(Base):
 
     source: Set
-    target: Set
     ptrref: BasePointerRef
     direction: s_pointers.PointerDirection
     is_definition: bool
@@ -508,7 +507,31 @@ class BindingKind(s_enum.StrEnum):
     Select = 'Select'
 
 
-class Set(Base):
+class TypeRoot(Expr):
+    # This will be replicated in the enclosing set.
+    typeref: TypeRef
+
+    # Whether to force this to not select subtypes
+    skip_subtypes: bool = False
+
+
+T_co = typing.TypeVar('T_co', covariant=True)
+
+
+# SetE is the base 'Set' type, and it is parameterized over what kind
+# of expression it might hold. Most code uses the Set alias below, which
+# instantiates it with Optional[Expr].
+# irutils.is_set_instance can be used to refine the type.
+class SetE(Base, typing.Generic[T_co]):
+    '''A somewhat overloaded metadata container for expressions.
+
+    Its primary notional purpose is to be the holder for expression metadata
+    such as path_id.
+
+    It *also*, when rptr is set, represents pointer dereferences.
+
+    Also also, it contains shape applications.
+    '''
 
     __ast_frozen_fields__ = frozenset({'typeref'})
 
@@ -517,11 +540,12 @@ class Set(Base):
     path_id: PathId
     path_scope_id: typing.Optional[int] = None
     typeref: TypeRef
-    expr: typing.Optional[Expr] = None
+    expr: T_co = None  # type: ignore
     rptr: typing.Optional[Pointer] = None
+    shape: typing.Tuple[typing.Tuple[Set, qlast.ShapeOp], ...] = ()
+
     anchor: typing.Optional[str] = None
     show_as_anchor: typing.Optional[str] = None
-    shape: typing.Tuple[typing.Tuple[Set, qlast.ShapeOp], ...] = ()
     # A pointer to a set nested within this one has a shape and the same
     # typeref, if such a set exists.
     shape_source: typing.Optional[Set] = None
@@ -535,15 +559,25 @@ class Set(Base):
     # card/multi inference.
     is_visible_binding_ref: bool = False
 
-    # Whether to force this to not select subtypes
-    skip_subtypes: bool = False
     # Whether to force this to ignore rewrites. Very dangerous!
-    # Currently only used for preventing duplicate explicit .id
-    # insertions to BaseObject.
+    # Currently for preventing duplicate explicit .id
+    # insertions to BaseObject and for ignoring other access policies
+    # inside access policy expressions.
+    #
+    # N.B: This is defined on Set and not on TypeRoot because we use the Set
+    # to join against target types on links, and to ensure rvars.
     ignore_rewrites: bool = False
 
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
+
+# We set its name to Set because that's what we want visitors to use.
+SetE.__name__ = 'Set'
+
+if typing.TYPE_CHECKING:
+    Set = SetE[typing.Optional[Expr]]
+else:
+    Set = SetE
 
 
 class Command(Base):
