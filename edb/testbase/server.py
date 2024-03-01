@@ -1841,9 +1841,6 @@ def get_test_cases_setup(
         except unittest.SkipTest:
             continue
 
-        if setup_script is None:
-            continue
-
         dbname = case.get_database_name()
         result.append((case, dbname, setup_script))
 
