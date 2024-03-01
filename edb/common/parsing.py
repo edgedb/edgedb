@@ -229,7 +229,7 @@ class ListNonterm(Nonterm, is_internal=True):
         The inner class is added to the same module as the class.
         """
         if not is_internal:
-            if not allow_trailing:
+            if not allow_trailing_separator:
                 # directly handle the list
                 ListHelper.add_list_reductions(
                     cls, element=element, separator=separator
