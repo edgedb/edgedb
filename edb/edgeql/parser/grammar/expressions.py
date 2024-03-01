@@ -100,7 +100,7 @@ class OptionallyAliasedExpr(Nonterm):
 
 
 class AliasedExprList(ListNonterm, element=AliasedExpr,
-                      separator=tokens.T_COMMA):
+                      separator=tokens.T_COMMA, allow_trailing_separator=True):
     pass
 
 
@@ -229,10 +229,6 @@ class ByClause(Nonterm):
 class UsingClause(Nonterm):
     @parsing.inline(1)
     def reduce_USING_AliasedExprList(self, *kids):
-        pass
-
-    @parsing.inline(1)
-    def reduce_USING_AliasedExprList_COMMA(self, *kids):
         pass
 
 
@@ -379,12 +375,6 @@ class WithBlock(Nonterm):
             aliases.append(w)
         self.val = WithBlockData(aliases=aliases)
 
-    def reduce_WITH_WithDeclList_COMMA(self, *kids):
-        aliases = []
-        for w in kids[1].val:
-            aliases.append(w)
-        self.val = WithBlockData(aliases=aliases)
-
 
 class AliasDecl(Nonterm):
     def reduce_MODULE_ModuleName(self, *kids):
@@ -408,7 +398,7 @@ class WithDecl(Nonterm):
 
 
 class WithDeclList(ListNonterm, element=WithDecl,
-                   separator=tokens.T_COMMA):
+                   separator=tokens.T_COMMA, allow_trailing_separator=True):
     pass
 
 
@@ -418,10 +408,6 @@ class Shape(Nonterm):
 
     @parsing.inline(1)
     def reduce_LBRACE_ShapeElementList_RBRACE(self, *kids):
-        pass
-
-    @parsing.inline(1)
-    def reduce_LBRACE_ShapeElementList_COMMA_RBRACE(self, *kids):
         pass
 
 
@@ -452,9 +438,6 @@ class FreeShape(Nonterm):
     def reduce_LBRACE_FreeComputableShapePointerList_RBRACE(self, *kids):
         self.val = qlast.Shape(elements=kids[1].val)
 
-    def reduce_LBRACE_FreeComputableShapePointerList_COMMA_RBRACE(self, *kids):
-        self.val = qlast.Shape(elements=kids[1].val)
-
 
 class OptAnySubShape(Nonterm):
     @parsing.inline(1)
@@ -483,7 +466,7 @@ class ShapeElement(Nonterm):
 
 
 class ShapeElementList(ListNonterm, element=ShapeElement,
-                       separator=tokens.T_COMMA):
+                       separator=tokens.T_COMMA, allow_trailing_separator=True):
     pass
 
 
@@ -1004,7 +987,8 @@ class FreeComputableShapePointer(Nonterm):
 
 class FreeComputableShapePointerList(ListNonterm,
                                      element=FreeComputableShapePointer,
-                                     separator=tokens.T_COMMA):
+                                     separator=tokens.T_COMMA,
+                                     allow_trailing_separator=True):
     pass
 
 
@@ -1507,9 +1491,6 @@ class NamedTuple(Nonterm):
     def reduce_LPAREN_NamedTupleElementList_RPAREN(self, *kids):
         self.val = qlast.NamedTuple(elements=kids[1].val)
 
-    def reduce_LPAREN_NamedTupleElementList_COMMA_RPAREN(self, *kids):
-        self.val = qlast.NamedTuple(elements=kids[1].val)
-
 
 class NamedTupleElement(Nonterm):
     def reduce_ShortNodeName_ASSIGN_Expr(self, *kids):
@@ -1520,7 +1501,8 @@ class NamedTupleElement(Nonterm):
 
 
 class NamedTupleElementList(ListNonterm, element=NamedTupleElement,
-                            separator=tokens.T_COMMA):
+                            separator=tokens.T_COMMA,
+                            allow_trailing_separator=True):
     pass
 
 
@@ -1537,10 +1519,6 @@ class Collection(Nonterm):
 
 class OptExprList(Nonterm):
     @parsing.inline(0)
-    def reduce_ExprList_COMMA(self, *kids):
-        pass
-
-    @parsing.inline(0)
     def reduce_ExprList(self, *kids):
         pass
 
@@ -1548,7 +1526,8 @@ class OptExprList(Nonterm):
         self.val = []
 
 
-class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA):
+class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA,
+               allow_trailing_separator=True):
     pass
 
 
@@ -1821,15 +1800,12 @@ class FuncCallArg(Nonterm):
             self.val = (self.val[0], self.val[1], qry)
 
 
-class FuncArgList(ListNonterm, element=FuncCallArg, separator=tokens.T_COMMA):
+class FuncArgList(ListNonterm, element=FuncCallArg, separator=tokens.T_COMMA,
+                  allow_trailing_separator=True):
     pass
 
 
 class OptFuncArgList(Nonterm):
-    @parsing.inline(0)
-    def reduce_FuncArgList_COMMA(self, *kids):
-        pass
-
     @parsing.inline(0)
     def reduce_FuncArgList(self, *kids):
         pass
@@ -2022,13 +1998,6 @@ class CollectionTypeName(Nonterm):
             subtypes=kids[2].val,
         )
 
-    def reduce_NodeName_LANGBRACKET_SubtypeList_COMMA_RANGBRACKET(self, *kids):
-        self.validate_subtype_list(kids[2])
-        self.val = qlast.TypeName(
-            maintype=kids[0].val,
-            subtypes=kids[2].val,
-        )
-
 
 class TypeName(Nonterm):
     @parsing.inline(0)
@@ -2128,7 +2097,8 @@ class Subtype(Nonterm):
         )
 
 
-class SubtypeList(ListNonterm, element=Subtype, separator=tokens.T_COMMA):
+class SubtypeList(ListNonterm, element=Subtype, separator=tokens.T_COMMA,
+                  allow_trailing_separator=True):
     pass
 
 
