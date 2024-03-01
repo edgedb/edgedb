@@ -17171,27 +17171,35 @@ class TestDDLExtensions(tb.DDLTestCase):
             create module test;
             create type test::Bar extending Foo;
         ''')
-        await self.con.execute('''
-            administer reindex(Foo)
-        ''')
-        await self.con.execute('''
-            administer reindex(Foo.foo)
-        ''')
-        await self.con.execute('''
-            administer reindex(Foo.bar)
-        ''')
-        await self.con.execute('''
-            administer reindex(Foo.tgt)
-        ''')
-        await self.con.execute('''
-            administer reindex(Foo.tgts)
-        ''')
-        await self.con.execute('''
-            administer reindex(test::Bar)
-        ''')
-        await self.con.execute('''
-            administer reindex(Object)
-        ''')
+        try:
+            await self.con.execute('''
+                administer reindex(Foo)
+            ''')
+            await self.con.execute('''
+                administer reindex(Foo.foo)
+            ''')
+            await self.con.execute('''
+                administer reindex(Foo.bar)
+            ''')
+            await self.con.execute('''
+                administer reindex(Foo.tgt)
+            ''')
+            await self.con.execute('''
+                administer reindex(Foo.tgts)
+            ''')
+            await self.con.execute('''
+                administer reindex(test::Bar)
+            ''')
+            await self.con.execute('''
+                administer reindex(Object)
+            ''')
+        finally:
+            await self.con.execute('''
+                drop type test::Bar;
+                drop type Foo;
+                drop type Tgt;
+                drop module test;
+            ''')
 
     async def _deadlock_tester(self, setup, teardown, modification, query):
         """Deadlock test helper.
