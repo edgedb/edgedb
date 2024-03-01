@@ -1004,7 +1004,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-        EDGEDB_DEBUG_SERVER: 1
 
   test-debian-bullseye-x86_64:
     needs: [build-debian-bullseye-x86_64]
@@ -1047,7 +1046,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-        EDGEDB_DEBUG_SERVER: 1
 
   test-debian-bookworm-x86_64:
     needs: [build-debian-bookworm-x86_64]
@@ -1090,7 +1088,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-        EDGEDB_DEBUG_SERVER: 1
 
   test-ubuntu-bionic-x86_64:
     needs: [build-ubuntu-bionic-x86_64]
@@ -1133,7 +1130,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-        EDGEDB_DEBUG_SERVER: 1
 
   test-ubuntu-focal-x86_64:
     needs: [build-ubuntu-focal-x86_64]
@@ -1176,7 +1172,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-        EDGEDB_DEBUG_SERVER: 1
 
   test-ubuntu-jammy-x86_64:
     needs: [build-ubuntu-jammy-x86_64]
@@ -1219,7 +1214,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-        EDGEDB_DEBUG_SERVER: 1
 
   test-centos-8-x86_64:
     needs: [build-centos-8-x86_64]
@@ -1262,7 +1256,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-        EDGEDB_DEBUG_SERVER: 1
 
   test-rockylinux-9-x86_64:
     needs: [build-rockylinux-9-x86_64]
@@ -1305,7 +1298,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-        EDGEDB_DEBUG_SERVER: 1
 
   test-linux-x86_64:
     needs: [build-linux-x86_64]
@@ -1348,7 +1340,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-        EDGEDB_DEBUG_SERVER: 1
 
   test-linuxmusl-x86_64:
     needs: [build-linuxmusl-x86_64]
@@ -1391,7 +1382,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-        EDGEDB_DEBUG_SERVER: 1
 
   test-macos-x86_64:
     needs: [build-macos-x86_64]
