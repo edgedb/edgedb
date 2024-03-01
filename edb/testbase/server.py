@@ -2461,8 +2461,8 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     # Prepare the source heaps
     setup_count = 0
     for case, tests in cases.items():
-        setup_script = getattr(case, 'get_setup_script', lambda: None)()
-        if setup_script and tests:
+        setup_script_getter = getattr(case, 'get_setup_script', None)
+        if setup_script_getter and tests:
             tests_per_setup = []
             est_per_setup = setup_est = stats.get(
                 'setup::' + case.get_database_name(), (new_setup_est, 0),
