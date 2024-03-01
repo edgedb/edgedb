@@ -18,8 +18,9 @@
 
 
 from __future__ import annotations
-from typing import Any, Callable, Tuple, Type, Dict, List, Set, \
-                   Optional, cast
+from typing import (
+    Any, Callable, Tuple, Type, Dict, List, Set, Optional, cast
+)
 
 import json
 import logging
@@ -45,7 +46,7 @@ class Token(parsing.Token):
     _token: str = ""
 
     def __init_subclass__(
-            cls, token=None, lextoken=None, precedence_class=None,
+            cls, *, token=None, lextoken=None, precedence_class=None,
             is_internal=False, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -114,7 +115,20 @@ def inline(argument_index: int):
 
 class Nonterm(parsing.Nonterm):
 
-    def __init_subclass__(cls, is_internal=False, **kwargs):
+    def __init_subclass__(cls, *, is_internal=False, **kwargs):
+        """Add docstrings to class and reduce functions
+
+        If no class docstring is present, set it to '%nonterm'.
+
+        If any reduce function (ie. of the form `reduce(_\\w+)+` does not
+        have a docstring, a new one is generated based on the function name.
+
+        See https://github.com/MagicStack/parsing for more information.
+
+        Keyword arguments:
+        is_internal -- internal classes do not need docstrings and processing
+                       can be skipped
+        """
         super().__init_subclass__(**kwargs)
 
         if is_internal:
@@ -150,7 +164,7 @@ class Nonterm(parsing.Nonterm):
 
 
 class ListNonterm(Nonterm, is_internal=True):
-    def __init_subclass__(cls, element, separator=None, is_internal=False,
+    def __init_subclass__(cls, *, element, separator=None, is_internal=False,
                           **kwargs):
 
         if not is_internal:
@@ -158,17 +172,18 @@ class ListNonterm(Nonterm, is_internal=True):
             separator_name = ListNonterm._component_name(separator)
 
             if separator_name:
-                tail_prod = \
+                tail_prod = (
                     lambda self, lst, sep, el: self._reduce_list(lst, el)
+                )
                 tail_prod_name = 'reduce_{}_{}_{}'.format(
                     cls.__name__, separator_name, element_name)
-                setattr(cls, tail_prod_name, tail_prod)
             else:
-                tail_prod = \
+                tail_prod = (
                     lambda self, lst, el: self._reduce_list(lst, el)
+                )
                 tail_prod_name = 'reduce_{}_{}'.format(
                     cls.__name__, element_name)
-                setattr(cls, tail_prod_name, tail_prod)
+            setattr(cls, tail_prod_name, tail_prod)
 
             setattr(cls, 'reduce_' + element_name,
                 lambda self, el: self._reduce_el(el))

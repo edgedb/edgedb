@@ -2221,7 +2221,7 @@ class AnyNodeName(Nonterm):
 
 class Keyword(parsing.Nonterm):
     def __init_subclass__(
-            cls, type, is_internal=False, **kwargs):
+            cls, *, type, is_internal=False, **kwargs):
         super().__init_subclass__(is_internal=is_internal, **kwargs)
 
         if is_internal:
