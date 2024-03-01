@@ -11,7 +11,7 @@ base32 = "0.4.0"
 bigdecimal = { version = "0.3.0", features = ["serde"] }
 num-bigint = { version = "0.3.0", features = ["serde"] }
 sha2 = "0.10.2"
-snafu = "0.7.0"
+snafu = "0.8.1"
 memchr = "2.5.0"
 wasm-bindgen = { version = "0.2", features = [
     "serde-serialize"
