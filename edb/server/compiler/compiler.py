@@ -2608,6 +2608,15 @@ def _try_compile(
 
         _check_force_database_error(stmt_ctx, stmt)
 
+        # Initialize user_schema_version with the version this query is
+        # going to be compiled upon. This can be overwritten later by DDLs.
+        try:
+            schema_version = _get_schema_version(
+                stmt_ctx.state.current_tx().get_user_schema()
+            )
+        except errors.InvalidReferenceError:
+            schema_version = None
+
         comp, capabilities = _compile_dispatch_ql(
             stmt_ctx,
             stmt,
@@ -2623,6 +2632,7 @@ def _try_compile(
             capabilities=capabilities,
             output_format=stmt_ctx.output_format,
             cache_key=ctx.cache_key,
+            user_schema_version=schema_version,
         )
 
         if not comp.is_transactional:
