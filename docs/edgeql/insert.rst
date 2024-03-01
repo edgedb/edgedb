@@ -135,6 +135,25 @@ links you want returned:
     }
   }
 
+You can use :ref:`ref_eql_with` to tidy this up if you prefer:
+
+.. code-block:: edgeql-repl
+
+  db> with NewHero := (insert Hero {
+  ...   name := "Spider-Man"
+  ...   # secret_identity is omitted
+  ... })
+  ... select NewHero {
+  ...   id,
+  ...   name,
+  ... }
+  {
+    default::Hero {
+      id: b0fbe9de-3e90-11ec-8c12-ffa2d5f0176a,
+      name: "Spider-Man"
+    }
+  }
+
 
 .. _ref_eql_insert_links:
 
