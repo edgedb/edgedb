@@ -324,7 +324,6 @@ with
     )
 insert ext::auth::WebAuthnAuthenticationChallenge {
     challenge := challenge,
-    factor := assert_exists(assert_single((select factors limit 1))),
     factors := factors,
 }
 unless conflict on .factors
