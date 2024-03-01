@@ -31,7 +31,7 @@ import pickle
 import re
 import hashlib
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from jwcrypto import jwt, jwk
 
 from edgedb import QueryAssertionError
@@ -567,14 +567,19 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         claims = json.loads(jwt_token.claims)
         return claims
 
-    def maybe_get_auth_token(self, headers: dict[str, str]) -> str | None:
+    def maybe_get_cookie_value(
+        self, headers: dict[str, str], name: str
+    ) -> Optional[str]:
         set_cookie = headers.get("set-cookie")
         if set_cookie is not None:
-            (k, v) = set_cookie.split(";")[0].split("=")
-            if k == "edgedb-session":
+            (k, v) = set_cookie.split(";", 1)[0].split("=", 1)
+            if k == name:
                 return v
 
         return None
+
+    def maybe_get_auth_token(self, headers: dict[str, str]) -> Optional[str]:
+        return self.maybe_get_cookie_value(headers, "edgedb-session")
 
     async def extract_session_claims(self, headers: dict[str, str]):
         maybe_token = self.maybe_get_auth_token(headers)
@@ -3548,7 +3553,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             email = f"{uuid.uuid4()}@example.com"
             query_params = urllib.parse.urlencode({"email": email})
 
-            body, _, status = self.http_con_request(
+            body, headers, status = self.http_con_request(
                 http_con,
                 path=f"webauthn/register/options?{query_params}",
             )
@@ -3599,6 +3604,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             user_handle = base64.urlsafe_b64decode(
                 f'{body_json["user"]["id"]}==='
             )
+            user_handle_cookie = self.maybe_get_cookie_value(
+                headers, "edgedb-webauthn-registration-user-handle"
+            )
+            user_handle_cookie_value = base64.urlsafe_b64decode(
+                f'{user_handle_cookie}==='
+            )
+            self.assertEqual(user_handle_cookie_value, user_handle)
+
             self.assertTrue(
                 await self.con.query_single(
                     '''
@@ -3752,7 +3765,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 public_key=public_key,
             )
 
-            body, _, status = self.http_con_request(
+            body, headers, status = self.http_con_request(
                 http_con,
                 path=f"webauthn/authenticate/options?email={email}",
             )

@@ -947,9 +947,8 @@ class Router:
                     "Error redirect URL does not match any allowed URLs.",
                 )
 
-            if (
-                maybe_redirect_to and
-                not self._is_url_allowed(maybe_redirect_to)
+            if maybe_redirect_to and not self._is_url_allowed(
+                maybe_redirect_to
             ):
                 raise errors.InvalidData(
                     "Redirect URL does not match any allowed URLs.",
@@ -1090,18 +1089,22 @@ class Router:
 
         user_handle_cookie = request.cookies.get(
             "edgedb-webauthn-registration-user-handle"
-        ).value
-        if user_handle_cookie is None:
+        )
+        user_handle_base64url: Optional[str] = (
+            user_handle_cookie.value
+            if user_handle_cookie
+            else data.get("user_handle")
+        )
+        if user_handle_base64url is None:
             raise errors.InvalidData(
-                "Missing 'edgedb-webauthn-registration-user-handle' cookie"
+                "Missing user_handle from cookie or request body"
             )
         try:
-            user_handle = base64.urlsafe_b64decode(user_handle_cookie)
+            user_handle = base64.urlsafe_b64decode(
+                f"{user_handle_base64url}==="
+            )
         except Exception as e:
-            raise errors.InvalidData(
-                "Failed to decode 'edgedb-webauthn-registration-user-handle'"
-                " cookie"
-            ) from e
+            raise errors.InvalidData("Failed to decode user_handle") from e
 
         require_verification = webauthn_client.provider.require_verification
         pkce_code: Optional[str] = None
@@ -1163,18 +1166,12 @@ class Router:
             )
         webauthn_client = webauthn.Client(self.db)
 
-        (user_handle, registration_options) = (
+        (_, registration_options) = (
             await webauthn_client.create_authentication_options_for_email(
                 email=email, webauthn_provider=webauthn_provider
             )
         )
 
-        _set_cookie(
-            response,
-            "edgedb-webauthn-authentication-user-handle",
-            user_handle,
-            path="/",
-        )
         response.status = http.HTTPStatus.OK
         response.content_type = b"application/json"
         response.body = registration_options
@@ -1192,25 +1189,9 @@ class Router:
         assertion: str = data["assertion"]
         pkce_challenge: str = data["challenge"]
 
-        user_handle_cookie = request.cookies.get(
-            "edgedb-webauthn-authentication-user-handle"
-        ).value
-        if user_handle_cookie is None:
-            raise errors.InvalidData(
-                "Missing 'edgedb-webauthn-authentication-user-handle' cookie"
-            )
-        try:
-            user_handle = base64.urlsafe_b64decode(user_handle_cookie)
-        except Exception as e:
-            raise errors.InvalidData(
-                "Failed to decode 'edgedb-webauthn-authentication-user-handle'"
-                " cookie"
-            ) from e
-
         identity = await webauthn_client.authenticate(
             assertion=assertion,
             email=email,
-            user_handle=user_handle,
         )
 
         require_verification = webauthn_client.provider.require_verification
@@ -1226,12 +1207,6 @@ class Router:
             self.db, identity.id, pkce_challenge
         )
 
-        _set_cookie(
-            response,
-            "edgedb-webauthn-authentication-user-handle",
-            "",
-            path="/",
-        )
         response.status = http.HTTPStatus.OK
         response.content_type = b"application/json"
         response.body = json.dumps(
