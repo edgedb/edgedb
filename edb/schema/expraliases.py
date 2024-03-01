@@ -304,8 +304,16 @@ class CreateAliasLike(
 
             # generated types might conflict with existing types
             if other_obj := schema.get(alias_name, default=None):
-                vn = other_obj.get_verbosename(schema, with_parent=True)
-                raise errors.SchemaError(f'{vn} already exists')
+                # special case:
+                # conversion from an actual type into an alias is allowed
+                allowed = (
+                    isinstance(other_obj, s_types.Type) and
+                    not other_obj.get_from_alias(schema)
+                )
+
+                if not allowed:
+                    vn = other_obj.get_verbosename(schema, with_parent=True)
+                    raise errors.SchemaError(f'{vn} already exists')
 
             type_cmd, type_shell, expr, created_types = self._handle_alias_op(
                 expr=self.get_attribute_value('expr'),
