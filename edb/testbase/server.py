@@ -1091,7 +1091,7 @@ class DatabaseTestCase(ConnectedTestCase):
 
             if cls.get_setup_script():
                 create_command = (
-                    f'CREATE SCHEMA BRANCH {qlquote.quote_ident(dbname)}'
+                    f'CREATE DATA BRANCH {qlquote.quote_ident(dbname)}'
                     f' FROM {qlquote.quote_ident(base_db_name)}'
                 )
             else:
