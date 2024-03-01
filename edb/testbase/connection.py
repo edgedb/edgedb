@@ -222,7 +222,7 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
         self._options = retry._options.transaction_options
         self.__retry = retry
         self.__iteration = iteration
-        self.__started = False
+        self._started = False
 
     async def __aenter__(self):
         if self._managed:
@@ -233,7 +233,7 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def __aexit__(self, extype, ex, tb):
         self._managed = False
-        if not self.__started:
+        if not self._started:
             return False
 
         try:
@@ -283,8 +283,8 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
                 "Only managed retriable transactions are supported. "
                 "Use `async with transaction:`"
             )
-        if not self.__started:
-            self.__started = True
+        if not self._started:
+            self._started = True
             if self._connection.is_closed():
                 await self._connection.connect(
                     single_attempt=self.__iteration != 0
@@ -292,13 +292,20 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
             await self.start()
 
 
+class RawIteration(RawTransaction, Iteration):
+    async def _ensure_transaction(self):
+        self._started = True
+        await super()._ensure_transaction()
+
+
 class Retry:
-    def __init__(self, connection):
+    def __init__(self, connection, raw=False):
         self._connection = connection
         self._iteration = 0
         self._done = False
         self._next_backoff = 0
         self._options = connection._options
+        self._raw = raw
 
     def _retry(self, exc):
         self._last_exception = exc
@@ -320,7 +327,8 @@ class Retry:
         if self._next_backoff:
             await asyncio.sleep(self._next_backoff)
         self._done = True
-        iteration = Iteration(self, self._connection, self._iteration)
+        cls = RawIteration if self._raw else Iteration
+        iteration = cls(self, self._connection, self._iteration)
         self._iteration += 1
         return iteration
 
@@ -597,6 +605,9 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
 
     def retrying_transaction(self) -> Retry:
         return Retry(self)
+
+    def raw_retrying_transaction(self) -> Retry:
+        return Retry(self, raw=True)
 
     def transaction(self) -> RawTransaction:
         return RawTransaction(self)
