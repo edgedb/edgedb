@@ -1091,20 +1091,6 @@ class DatabaseTestCase(ConnectedTestCase):
         elif cls.uses_database_copies():
             admin_conn = await cls.connect()
 
-            orig_testmode = await admin_conn.query(
-                'SELECT cfg::Config.__internal_testmode',
-            )
-            if not orig_testmode:
-                orig_testmode = False
-            else:
-                orig_testmode = orig_testmode[0]
-
-            # Enable testmode to unblock the template database syntax below.
-            if not orig_testmode:
-                await admin_conn.execute(
-                    'CONFIGURE SESSION SET __internal_testmode := true;',
-                )
-
             base_db_name, _, _ = dbname.rpartition('_')
 
             # The retry here allows the test to survive a concurrent testing
@@ -1123,11 +1109,6 @@ class DatabaseTestCase(ConnectedTestCase):
                             ''',
                         )
             await create_db()
-
-            if not orig_testmode:
-                await admin_conn.execute(
-                    'CONFIGURE SESSION SET __internal_testmode := false;',
-                )
 
             await admin_conn.aclose()
 
