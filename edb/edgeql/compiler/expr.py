@@ -331,7 +331,7 @@ def _move_fenced_anchor(ir: irast.Set, *, ctx: context.ContextLevel) -> None:
     scope tree there.
     """
     match ir.expr:
-        case irast.SelectStmt(result=irast.Set(path_scope_id=int(id))):
+        case irast.SelectStmt(result=irast.SetE(path_scope_id=int(id))):
             node = next(iter(
                 x for x in ctx.path_scope.root.descendants
                 if x.unique_id == id
@@ -566,7 +566,9 @@ def compile_GlobalExpr(
             # card_inference_override so that we use the real cardinality
             # instead of assuming it is MANY.
             assert isinstance(rewrite_target, irast.Set)
-            target = setgen.new_set_from_set(target, expr=None, ctx=ctx)
+            target = setgen.new_set_from_set(
+                target, expr=irast.TypeRoot(typeref=target.typeref), ctx=ctx
+            )
             wrap = irast.SelectStmt(
                 result=target,
                 card_inference_override=rewrite_target,

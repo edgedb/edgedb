@@ -175,6 +175,16 @@ def __infer_type_introspection(
     return UNIQUE
 
 
+@_infer_multiplicity.register
+def __infer_type_root(
+    ir: irast.TypeRoot,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    return UNIQUE
+
+
 def _infer_shape(
     ir: irast.Set,
     *,
@@ -304,7 +314,7 @@ def _infer_set_inner(
         path_mult = dataclasses.replace(path_mult, disjoint_union=True)
 
     # Mark free object roots
-    if irtyputils.is_free_object(ir.typeref) and not ir.expr:
+    if irutils.is_trivial_free_object(ir):
         path_mult = dataclasses.replace(path_mult, fresh_free_object=True)
 
     # Remove free object freshness when we see them through a binding

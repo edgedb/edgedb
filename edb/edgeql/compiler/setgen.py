@@ -101,8 +101,13 @@ def new_set(
     constructor.
     """
 
-    skip_subtypes: bool = kwargs.get('skip_subtypes', False)
     ignore_rewrites: bool = kwargs.get('ignore_rewrites', False)
+
+    expr: Optional[irast.Expr] = kwargs.get('expr', None)
+    skip_subtypes = False
+    if isinstance(expr, irast.TypeRoot):
+        skip_subtypes = expr.skip_subtypes
+
     rw_key = (stype, skip_subtypes)
 
     if not ignore_rewrites and ctx.suppress_rewrites:
@@ -173,7 +178,6 @@ def new_set_from_set(
         is_schema_alias: Optional[bool]=None,
         is_materialized_ref: Optional[bool]=None,
         is_visible_binding_ref: Optional[bool]=None,
-        skip_subtypes: Optional[bool]=None,
         ignore_rewrites: Optional[bool]=None,
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
@@ -206,8 +210,6 @@ def new_set_from_set(
         is_materialized_ref = ir_set.is_materialized_ref
     if is_visible_binding_ref is None:
         is_visible_binding_ref = ir_set.is_visible_binding_ref
-    if skip_subtypes is None:
-        skip_subtypes = ir_set.skip_subtypes
     if ignore_rewrites is None:
         ignore_rewrites = ir_set.ignore_rewrites
     return new_set(
@@ -221,7 +223,6 @@ def new_set_from_set(
         is_schema_alias=is_schema_alias,
         is_materialized_ref=is_materialized_ref,
         is_visible_binding_ref=is_visible_binding_ref,
-        skip_subtypes=skip_subtypes,
         ignore_rewrites=ignore_rewrites,
         ircls=type(ir_set),
         ctx=ctx,
@@ -577,8 +578,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if mapped := get_view_map_remapping(path_tip.path_id, ctx):
             path_tip = new_set_from_set(
                 path_tip, path_id=mapped.path_id, ctx=ctx)
-            if path_tip.rptr:
-                path_tip.rptr = path_tip.rptr.replace(target=path_tip)
             # If we are remapping a source path, then we know that
             # the path is visible, so we shouldn't recompile it
             # if it is a computable path.
@@ -616,7 +615,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             subctx.path_scope = scope
             assert ir_set.rptr is not None
             comp_ir_set = computable_ptr_set(
-                ir_set.rptr, srcctx=ir_set.context, ctx=subctx)
+                ir_set.rptr, ir_set.path_id, srcctx=ir_set.context, ctx=subctx)
             i = path_sets.index(ir_set)
             if i != len(path_sets) - 1:
                 prptr = path_sets[i + 1].rptr
@@ -1030,7 +1029,6 @@ def extend_path(
 
     ptr = irast.Pointer(
         source=source_set,
-        target=target_set,
         direction=direction,
         ptrref=typegen.ptr_to_ptrref(ptrcls, ctx=ctx),
         is_definition=False,
@@ -1041,6 +1039,7 @@ def extend_path(
     if not ignore_computable and is_computable:
         target_set = computable_ptr_set(
             ptr,
+            path_id,
             same_computable_scope=same_computable_scope,
             srcctx=srcctx,
             ctx=ctx,
@@ -1217,7 +1216,6 @@ def tuple_indirection_set(
 
     ptr = irast.TupleIndirectionPointer(
         source=path_tip,
-        target=ti_set,
         ptrref=downcast(irast.TupleIndirectionPointerRef, path_id.rptr()),
         direction=not_none(path_id.rptr_dir()),
     )
@@ -1307,7 +1305,6 @@ def type_intersection_set(
 
     ptr = irast.TypeIntersectionPointer(
         source=source_set,
-        target=poly_set,
         ptrref=downcast(irast.TypeIntersectionPointerRef, ptrref),
         direction=not_none(poly_set.path_id.rptr_dir()),
         optional=optional,
@@ -1324,12 +1321,27 @@ def class_set(
         skip_subtypes: bool=False,
         ignore_rewrites: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
+    """Nominally, create a set representing selecting some type.
+
+    That is, create a set with a TypeRoot expr.
+
+    TODO(ir): In practice, a lot of call sites really want some kind
+    of handle to something that will be bound elsewhere, and we should
+    clean those up to use a different node.
+    """
 
     if path_id is None:
         path_id = pathctx.get_path_id(stype, ctx=ctx)
     return new_set(
-        path_id=path_id, stype=stype,
-        skip_subtypes=skip_subtypes, ignore_rewrites=ignore_rewrites, ctx=ctx)
+        path_id=path_id,
+        stype=stype,
+        ignore_rewrites=ignore_rewrites,
+        expr=irast.TypeRoot(
+            typeref=typegen.type_to_typeref(stype, env=ctx.env),
+            skip_subtypes=skip_subtypes,
+        ),
+        ctx=ctx,
+    )
 
 
 def expression_set(
@@ -1475,7 +1487,6 @@ def fixup_computable_source_set(
             if source_rptrref.base_ptr is not None:
                 source_rptrref = source_rptrref.base_ptr
             source_set.rptr = source_set.rptr.replace(
-                target=source_set,
                 ptrref=source_rptrref,
                 is_definition=True,
             )
@@ -1484,6 +1495,7 @@ def fixup_computable_source_set(
 
 def computable_ptr_set(
     rptr: irast.Pointer,
+    path_id: irast.PathId,
     *,
     same_computable_scope: bool=False,
     srcctx: Optional[parsing.ParserContext]=None,
@@ -1609,20 +1621,6 @@ def computable_ptr_set(
             qlctx=qlctx,
             ctx=ctx)
 
-    if ptrcls.is_link_property(ctx.env.schema):
-        source_path_id = rptr.source.path_id.ptr_path()
-    else:
-        src_path = rptr.target.path_id.src_path()
-        assert src_path is not None
-        source_path_id = src_path
-
-    result_path_id = pathctx.extend_path_id(
-        source_path_id,
-        ptrcls=ptrcls,
-        ns=ctx.path_id_namespace,
-        ctx=ctx,
-    )
-
     result_stype = ptrcls.get_target(ctx.env.schema)
     base_object = ctx.env.schema.get('std::BaseObject', type=s_types.Type)
     with newctx() as subctx:
@@ -1650,11 +1648,9 @@ def computable_ptr_set(
         comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
     comp_ir_set = new_set_from_set(
-        comp_ir_set, path_id=result_path_id, rptr=rptr, context=srcctx,
+        comp_ir_set, path_id=path_id, rptr=rptr, context=srcctx,
         merge_current_ns=True,
         ctx=ctx)
-
-    rptr.target = comp_ir_set
 
     maybe_materialize(ptrcls, comp_ir_set, ctx=ctx)
 
