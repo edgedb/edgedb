@@ -27,15 +27,13 @@ import typing
 from edb.common import parsing
 
 from . import keywords
-from . import precedence
 
 
 clean_string = re.compile(r"'(?:\s|\n)+'")
 string_quote = re.compile(r'\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$')
 
 
-class Token(parsing.Token, precedence_class=precedence.PrecedenceMeta,
-            is_internal=True):
+class Token(parsing.Token, is_internal=True):
     pass
 
 
