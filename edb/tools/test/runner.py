@@ -437,6 +437,9 @@ class BaseRenderer:
     def report(self, test, marker, description=None, *, currently_running):
         raise NotImplementedError
 
+    def report_start(self, test, *, currently_running):
+        return
+
 
 class SimpleRenderer(BaseRenderer):
     def report(self, test, marker, description=None, *, currently_running):
@@ -503,6 +506,9 @@ class MultiLineRenderer(BaseRenderer):
 
         self.buffer[test.__class__.__module__] += marker.value
         self.completed_tests += 1
+        self._render(currently_running)
+
+    def report_start(self, test, *, currently_running):
         self._render(currently_running)
 
     def _render_modname(self, name):
@@ -726,7 +732,8 @@ class ParallelTextTestResult(unittest.result.TestResult):
     def startTest(self, test):
         super().startTest(test)
         self.currently_running[test] = True
-        self.ren._render(list(self.currently_running))
+        self.ren.report_start(
+            test, currently_running=list(self.currently_running))
 
     def addSuccess(self, test):
         super().addSuccess(test)

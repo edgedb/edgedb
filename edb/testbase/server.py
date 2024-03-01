@@ -1089,14 +1089,18 @@ class DatabaseTestCase(ConnectedTestCase):
 
             base_db_name, _, _ = dbname.rpartition('_')
 
+            if cls.get_setup_script():
+                create_command = (
+                    f'CREATE SCHEMA BRANCH {qlquote.quote_ident(dbname)}'
+                    f' FROM {qlquote.quote_ident(base_db_name)}'
+                )
+            else:
+                create_command = (
+                    f'CREATE EMPTY BRANCH {qlquote.quote_ident(dbname)}')
+
             # The retry here allows the test to survive a concurrent testing
             # EdgeDB server (e.g. async with tb.start_edgedb_server()) whose
             # introspection holds a lock on the base_db here
-            create_command = (
-                f'CREATE SCHEMA BRANCH {qlquote.quote_ident(dbname)}')
-            if cls.get_setup_script():
-                create_command += f' FROM {qlquote.quote_ident(base_db_name)}'
-
             async for tr in cls.try_until_succeeds(
                 ignore=edgedb.ExecutionError,
                 timeout=30,
