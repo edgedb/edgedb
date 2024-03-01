@@ -959,12 +959,13 @@ class ConnectedTestCase(ClusterTestCase):
         async def cm(tx):
             try:
                 async with tx:
+                    await tx._ensure_transaction()
                     yield tx
                     raise RollbackException
             except RollbackException:
                 pass
 
-        async for tx in self.con.raw_retrying_transaction():
+        async for tx in self.con.retrying_transaction():
             yield cm(tx)
 
     def assert_data_shape(self, data, shape, message=None):

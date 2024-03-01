@@ -92,7 +92,10 @@ class BaseTransaction(abc.ABC):
         if self._state is TransactionState.STARTED:
             raise errors.InterfaceError(
                 'cannot start; the transaction is already started')
-        return self._make_start_query_inner()
+        qry = self._make_start_query_inner()
+        if self._connection._top_xact is None:
+            self._connection._top_xact = self
+        return qry
 
     @abc.abstractmethod
     def _make_start_query_inner(self):
@@ -100,6 +103,9 @@ class BaseTransaction(abc.ABC):
 
     def _make_commit_query(self):
         self.__check_state('commit')
+
+        if self._connection._top_xact is self:
+            self._connection._top_xact = None
 
         return 'COMMIT;'
 
@@ -163,9 +169,7 @@ class RawTransaction(BaseTransaction):
     def _make_start_query_inner(self):
         con = self._connection
 
-        if con._top_xact is None:
-            con._top_xact = self
-        else:
+        if con._top_xact is not None:
             # Nested transaction block
             self._nested = True
 
@@ -179,9 +183,6 @@ class RawTransaction(BaseTransaction):
     def _make_commit_query(self):
         query = super()._make_commit_query()
 
-        if self._connection._top_xact is self:
-            self._connection._top_xact = None
-
         if self._nested:
             query = f'RELEASE SAVEPOINT {self._id};'
 
@@ -189,9 +190,6 @@ class RawTransaction(BaseTransaction):
 
     def _make_rollback_query(self):
         query = super()._make_rollback_query()
-
-        if self._connection._top_xact is self:
-            self._connection._top_xact = None
 
         if self._nested:
             query = f'ROLLBACK TO SAVEPOINT {self._id};'
@@ -222,7 +220,7 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
         self._options = retry._options.transaction_options
         self.__retry = retry
         self.__iteration = iteration
-        self._started = False
+        self.__started = False
 
     async def __aenter__(self):
         if self._managed:
@@ -233,7 +231,7 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def __aexit__(self, extype, ex, tb):
         self._managed = False
-        if not self._started:
+        if not self.__started:
             return False
 
         try:
@@ -283,19 +281,13 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
                 "Only managed retriable transactions are supported. "
                 "Use `async with transaction:`"
             )
-        if not self._started:
-            self._started = True
+        if not self.__started:
+            self.__started = True
             if self._connection.is_closed():
                 await self._connection.connect(
                     single_attempt=self.__iteration != 0
                 )
             await self.start()
-
-
-class RawIteration(RawTransaction, Iteration):
-    async def _ensure_transaction(self):
-        self._started = True
-        await super()._ensure_transaction()
 
 
 class Retry:
@@ -305,7 +297,6 @@ class Retry:
         self._done = False
         self._next_backoff = 0
         self._options = connection._options
-        self._raw = raw
 
     def _retry(self, exc):
         self._last_exception = exc
@@ -327,8 +318,7 @@ class Retry:
         if self._next_backoff:
             await asyncio.sleep(self._next_backoff)
         self._done = True
-        cls = RawIteration if self._raw else Iteration
-        iteration = cls(self, self._connection, self._iteration)
+        iteration = Iteration(self, self._connection, self._iteration)
         self._iteration += 1
         return iteration
 
@@ -605,9 +595,6 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
 
     def retrying_transaction(self) -> Retry:
         return Retry(self)
-
-    def raw_retrying_transaction(self) -> Retry:
-        return Retry(self, raw=True)
 
     def transaction(self) -> RawTransaction:
         return RawTransaction(self)
