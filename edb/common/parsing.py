@@ -18,7 +18,9 @@
 
 
 from __future__ import annotations
-from typing import Any, Callable, Tuple, Type, Dict, List, Set, cast
+from typing import (
+    Any, Callable, Tuple, Type, Dict, List, Set, Optional, cast
+)
 
 import json
 import logging
@@ -41,9 +43,10 @@ class ParserSpecIncompatibleError(Exception):
 
 class Token(parsing.Token):
     token_map: Dict[Any, Any] = {}
+    _token: str = ""
 
     def __init_subclass__(
-            cls, token=None, lextoken=None, precedence_class=None,
+            cls, *, token=None, lextoken=None, precedence_class=None,
             is_internal=False, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -109,17 +112,32 @@ def inline(argument_index: int):
     return decorator
 
 
-class NontermMeta(type):
-    def __new__(mcls, name, bases, dct):
-        result = super().__new__(mcls, name, bases, dct)
 
-        if name == 'Nonterm' or name == 'ListNonterm':
-            return result
+class Nonterm(parsing.Nonterm):
 
-        if not result.__doc__:
-            result.__doc__ = '%nonterm'
+    def __init_subclass__(cls, *, is_internal=False, **kwargs):
+        """Add docstrings to class and reduce functions
 
-        for name, attr in result.__dict__.items():
+        If no class docstring is present, set it to '%nonterm'.
+
+        If any reduce function (ie. of the form `reduce(_\\w+)+` does not
+        have a docstring, a new one is generated based on the function name.
+
+        See https://github.com/MagicStack/parsing for more information.
+
+        Keyword arguments:
+        is_internal -- internal classes do not need docstrings and processing
+                       can be skipped
+        """
+        super().__init_subclass__(**kwargs)
+
+        if is_internal:
+            return
+
+        if not cls.__doc__:
+            cls.__doc__ = '%nonterm'
+
+        for name, attr in cls.__dict__.items():
             if (name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType)):
                 inline_index = getattr(attr, 'inline_index', None)
@@ -142,49 +160,48 @@ class NontermMeta(type):
 
                 a.__doc__ = attr.__doc__
                 a.inline_index = inline_index
-                setattr(result, name, a)
-
-        return result
+                setattr(cls, name, a)
 
 
-class Nonterm(parsing.Nonterm, metaclass=NontermMeta):
-    pass
+class ListNonterm(Nonterm, is_internal=True):
+    def __init_subclass__(cls, *, element, separator=None, is_internal=False,
+                          **kwargs):
 
+        if not is_internal:
+            element_name = ListNonterm._component_name(element)
+            separator_name = ListNonterm._component_name(separator)
 
-class ListNontermMeta(NontermMeta):
-    def __new__(mcls, name, bases, dct, *, element, separator=None):
-        if name != 'ListNonterm':
-            if issubclass(separator, Token):
-                separator = separator._token
-            elif isinstance(separator, NontermMeta):
-                separator = separator.__name__
-
-            tokens = [name]
-            if separator:
-                tokens.append(separator)
-
-            if issubclass(element, Token):
-                element = element._token
-            elif isinstance(element, NontermMeta):
-                element = element.__name__
-
-            tokens.append(element)
-
-            if separator:
-                prod = lambda self, lst, sep, el: self._reduce_list(lst, el)
+            if separator_name:
+                tail_prod = (
+                    lambda self, lst, sep, el: self._reduce_list(lst, el)
+                )
+                tail_prod_name = 'reduce_{}_{}_{}'.format(
+                    cls.__name__, separator_name, element_name)
             else:
-                prod = lambda self, lst, el: self._reduce_list(lst, el)
-            dct['reduce_' + '_'.join(tokens)] = prod
-            dct['reduce_' + element] = lambda self, el: self._reduce_el(el)
+                tail_prod = (
+                    lambda self, lst, el: self._reduce_list(lst, el)
+                )
+                tail_prod_name = 'reduce_{}_{}'.format(
+                    cls.__name__, element_name)
+            setattr(cls, tail_prod_name, tail_prod)
 
-        cls = super().__new__(mcls, name, bases, dct)
-        return cls
+            setattr(cls, 'reduce_' + element_name,
+                lambda self, el: self._reduce_el(el))
 
-    def __init__(cls, name, bases, dct, *, element, separator=None):
-        super().__init__(name, bases, dct)
+        # reduce functions must be present before calling superclass
+        super().__init_subclass__(is_internal=is_internal, **kwargs)
 
-
-class ListNonterm(Nonterm, metaclass=ListNontermMeta, element=None):
+    @staticmethod
+    def _component_name(component: type) -> Optional[str]:
+        if component is None:
+            return None
+        elif issubclass(component, Token):
+            return component._token
+        elif issubclass(component, Nonterm):
+            return component.__name__
+        else:
+            raise Exception(
+                'List component must be a Token or Nonterm')
 
     def _reduce_list(self, lst, el):
         if el.val is None:

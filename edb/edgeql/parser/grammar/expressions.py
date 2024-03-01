@@ -37,11 +37,11 @@ from .precedence import *  # NOQA
 from .tokens import *  # NOQA
 
 
-class Nonterm(parsing.Nonterm):
+class Nonterm(parsing.Nonterm, is_internal=True):
     pass
 
 
-class ListNonterm(parsing.ListNonterm, element=None):
+class ListNonterm(parsing.ListNonterm, element=None, is_internal=True):
     pass
 
 
@@ -2231,9 +2231,13 @@ class AnyNodeName(Nonterm):
             name=kids[0].val)
 
 
-class KeywordMeta(parsing.NontermMeta):
-    def __new__(mcls, name, bases, dct, *, type):
-        result = super().__new__(mcls, name, bases, dct)
+class Keyword(parsing.Nonterm):
+    def __init_subclass__(
+            cls, *, type, is_internal=False, **kwargs):
+        super().__init_subclass__(is_internal=is_internal, **kwargs)
+
+        if is_internal:
+            return
 
         assert type in keywords.keyword_types
 
@@ -2243,25 +2247,20 @@ class KeywordMeta(parsing.NontermMeta):
             method = span.wrap_function_to_infer_spans(method)
             method.__doc__ = "%%reduce %s" % token
             method.__name__ = 'reduce_%s' % token
-            setattr(result, method.__name__, method)
-
-        return result
-
-    def __init__(cls, name, bases, dct, *, type):
-        super().__init__(name, bases, dct)
+            setattr(cls, method.__name__, method)
 
 
-class UnreservedKeyword(Nonterm, metaclass=KeywordMeta,
+class UnreservedKeyword(Keyword,
                         type=keywords.UNRESERVED_KEYWORD):
     pass
 
 
-class PartialReservedKeyword(Nonterm, metaclass=KeywordMeta,
+class PartialReservedKeyword(Keyword,
                              type=keywords.PARTIAL_RESERVED_KEYWORD):
     pass
 
 
-class ReservedKeyword(Nonterm, metaclass=KeywordMeta,
+class ReservedKeyword(Keyword,
                       type=keywords.RESERVED_KEYWORD):
     pass
 
