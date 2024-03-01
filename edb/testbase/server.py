@@ -1000,6 +1000,8 @@ class ConnectedTestCase(ClusterTestCase):
                 # Uncomment this for debugging.
                 # Otherwise the error message is obscure.
                 # try:
+                if sort is not None:
+                    assert_data_shape.sort_results(res, sort)
                 assert_data_shape.assert_data_shape(
                     res, exp_result_json, self.fail, message=msg)
                 # except AssertionError as e:

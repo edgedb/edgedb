@@ -11,6 +11,7 @@ from .expr_ops import (
     iterative_subst_expr_for_expr, map_expr, operate_under_binding)
 from .query_ops import QueryLevel, map_query, map_sub_and_semisub_queries
 from . import path_optimize as popt
+from . import expr_to_str as pp
 
 
 def all_prefixes_of_a_path(expr: Expr) -> List[Expr]:
@@ -87,17 +88,20 @@ def get_all_proper_top_level_paths(
     definite_top_paths: List[Expr] = []
     semi_sub_paths: List[List[Expr]] = []
     sub_paths: List[Expr] = []
+    sub_sub_paths: List[List[Expr]] = []
 
     def populate(sub: Expr, level: QueryLevel) -> Optional[Expr]:
-        nonlocal definite_top_paths, semi_sub_paths, sub_paths
+        nonlocal definite_top_paths, semi_sub_paths, sub_paths, sub_sub_paths
         if isinstance(sub, DetachedExpr):  # skip detached
             return sub
         if level == QueryLevel.TOP_LEVEL and is_path(sub):
             definite_top_paths = [*definite_top_paths, sub]
             return sub
         elif level == QueryLevel.SEMI_SUBQUERY:
-            semi_sub_paths = [*semi_sub_paths,
-                              get_all_pre_top_level_paths(sub, dbschema)]
+            this_semi_sub_paths = get_all_pre_top_level_paths(sub, dbschema)
+            semi_sub_paths = [*semi_sub_paths, this_semi_sub_paths]
+            this_sub_paths = [p for p in get_all_paths(sub) if p not in this_semi_sub_paths]
+            sub_sub_paths = [*sub_sub_paths, this_sub_paths]
             return sub  # also cut off here
         elif level == QueryLevel.SUBQUERY:
             sub_paths = [*sub_paths, *get_all_paths(sub)]
@@ -105,9 +109,10 @@ def get_all_proper_top_level_paths(
         else:
             return None
     map_query(populate, e, dbschema)
-    # print("Querying", type(e))
+    # print("Querying", pp.show(e))
     # print("Definite paths are", definite_top_paths)
     # print("Semi sub paths are", semi_sub_paths)
+    # print("Sub paths are", sub_paths)   
 
     selected_semi_sub_paths = []
     for (i, cluster) in enumerate(semi_sub_paths):
@@ -116,7 +121,10 @@ def get_all_proper_top_level_paths(
             to_check = (definite_top_paths + sub_paths +
                         [p for spl in
                          (semi_sub_paths[:i] + semi_sub_paths[i + 1:])
-                         for p in spl])
+                         for p in spl] + 
+                         [p for spl in (sub_sub_paths[:i] + sub_sub_paths[i + 1:]) for p in spl]
+                          )
+            # print("Checking", candidate, "prefixes", prefixes, "against", to_check)
             if any([appears_in_expr(prefix, ck)
                     for prefix in prefixes
                     for ck in to_check]):
@@ -125,7 +133,9 @@ def get_all_proper_top_level_paths(
     # all top_paths will show up finally,
     # we need to filter out those paths in semi_sub
     # whose prefixes (including itself) appears solely in the same subquery
+    # print("Definite top paths are", definite_top_paths)
     # print("Selected semi sub paths are", selected_semi_sub_paths)
+    # print("Candidate semi sub paths are", semi_sub_paths)
     return definite_top_paths + selected_semi_sub_paths
 
 
@@ -244,7 +254,7 @@ def trace_input_output(func):
     return wrapper
 
 
-def sub_select_hoist(e: Expr, dbschema: e.TcCtx) -> Expr:
+def sub_select_hoist(top_e: Expr, dbschema: e.TcCtx) -> Expr:
     def sub_select_hoist_map_func(e: Expr) -> Expr:
         if isinstance(e, BindingExpr):
             new_fresh_name = next_name()
@@ -258,7 +268,7 @@ def sub_select_hoist(e: Expr, dbschema: e.TcCtx) -> Expr:
         else:
             return select_hoist(e, dbschema)
     return map_sub_and_semisub_queries(
-        sub_select_hoist_map_func, e, dbschema)
+        sub_select_hoist_map_func, top_e, dbschema)
 
 # @trace_input_output
 
