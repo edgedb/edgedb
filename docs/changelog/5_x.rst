@@ -183,8 +183,8 @@ manage "feature" branches:
    to "main", if the old branch is no longer needed).
 
 
-Update pgvector extension
--------------------------
+Updated pgvector extension
+--------------------------
 
 A new HNSW (Hierarchical Navigable Small Worlds) index has been added to the
 ``pgvector`` extension. Just like IVFFlat indexes there are three flavors of
