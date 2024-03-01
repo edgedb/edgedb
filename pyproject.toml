@@ -224,5 +224,4 @@ lint.ignore = [
 ]
 line-length = 80
 indent-width = 4
-target-version = "py310"
 exclude = ["postgres", ".github"]
