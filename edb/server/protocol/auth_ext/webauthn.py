@@ -390,7 +390,7 @@ select ext::auth::WebAuthnAuthenticationChallenge {
     created_at,
     modified_at,
     challenge,
-    factors: {
+    factors := (distinct (.factors union .factor)) {
         id,
         created_at,
         modified_at,
