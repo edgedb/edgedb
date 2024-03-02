@@ -117,8 +117,9 @@ class TestDDLExtensions(tb.DDLTestCase):
         };
         ''')
         try:
-            async with self._run_and_rollback():
-                await self._extension_test_01()
+            async for tx in self._run_and_rollback_retrying():
+                async with tx:
+                    await self._extension_test_01()
         finally:
             await self.con.execute('''
                 drop extension package ltree VERSION '1.0'
@@ -314,10 +315,12 @@ class TestDDLExtensions(tb.DDLTestCase):
         };
         ''')
         try:
-            async with self._run_and_rollback():
-                await self._extension_test_02a()
-            async with self._run_and_rollback():
-                await self._extension_test_02b()
+            async for tx in self._run_and_rollback_retrying():
+                async with tx:
+                    await self._extension_test_02a()
+            async for tx in self._run_and_rollback_retrying():
+                async with tx:
+                    await self._extension_test_02b()
         finally:
             await self.con.execute('''
                 drop extension package varchar VERSION '1.0'
@@ -842,8 +845,9 @@ class TestDDLExtensions(tb.DDLTestCase):
         ''')
 
         try:
-            async with self._run_and_rollback():
-                await self._extension_test_05(in_tx=True)
+            async for tx in self._run_and_rollback_retrying():
+                async with tx:
+                    await self._extension_test_05(in_tx=True)
             try:
                 await self._extension_test_05(in_tx=False)
             finally:
@@ -984,8 +988,9 @@ class TestDDLExtensions(tb.DDLTestCase):
             };
         ''')
         try:
-            async with self._run_and_rollback():
-                await self._extension_test_06b()
+            async for tx in self._run_and_rollback_retrying():
+                async with tx:
+                    await self._extension_test_06b()
         finally:
             await self.con.execute('''
                 drop extension package bar VERSION '1.0';

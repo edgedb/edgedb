@@ -359,6 +359,10 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         }
 
 
+class RollbackException(Exception):
+    pass
+
+
 class RollbackChanges:
     def __init__(self, test):
         self._conn = test.con
@@ -949,6 +953,20 @@ class ConnectedTestCase(ClusterTestCase):
 
     def _run_and_rollback(self):
         return RollbackChanges(self)
+
+    async def _run_and_rollback_retrying(self):
+        @contextlib.asynccontextmanager
+        async def cm(tx):
+            try:
+                async with tx:
+                    await tx._ensure_transaction()
+                    yield tx
+                    raise RollbackException
+            except RollbackException:
+                pass
+
+        async for tx in self.con.retrying_transaction():
+            yield cm(tx)
 
     def assert_data_shape(self, data, shape, message=None):
         assert_data_shape.assert_data_shape(
