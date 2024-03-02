@@ -25,12 +25,10 @@ from edb.testbase import server as tb
 class DumpTestCaseMixin:
 
     async def ensure_schema_data_integrity(self):
-        tx = self.con.transaction()
-        await tx.start()
-        try:
+        # We can't use _retrying here, since the sequences won't get reset.
+        # Hopefully this won't be a problem.
+        async with self._run_and_rollback():
             await self._ensure_schema_data_integrity()
-        finally:
-            await tx.rollback()
 
     async def _ensure_schema_data_integrity(self):
         await self.assert_query_result(

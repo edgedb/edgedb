@@ -27,14 +27,11 @@ from edb.testbase import server as tb
 class DumpTestCaseMixin:
 
     async def ensure_schema_data_integrity(self, include_data=True):
-        tx = self.con.transaction()
-        await tx.start()
-        try:
-            await self._ensure_schema_integrity()
-            if include_data:
-                await self._ensure_data_integrity()
-        finally:
-            await tx.rollback()
+        async for tx in self._run_and_rollback_retrying():
+            async with tx:
+                await self._ensure_schema_integrity()
+                if include_data:
+                    await self._ensure_data_integrity()
 
     async def _ensure_schema_integrity(self):
         # Validate access policies
