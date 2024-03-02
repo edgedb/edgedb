@@ -276,15 +276,11 @@ class FuncDeclArg(Nonterm):
 
 
 class FuncDeclArgList(parsing.ListNonterm, element=FuncDeclArg,
-                      separator=tokens.T_COMMA):
+                      separator=tokens.T_COMMA, allow_trailing_separator=True):
     pass
 
 
 class FuncDeclArgs(Nonterm):
-    @parsing.inline(0)
-    def reduce_FuncDeclArgList_COMMA(self, list, _):
-        pass
-
     @parsing.inline(0)
     def reduce_FuncDeclArgList(self, list):
         pass
@@ -701,15 +697,11 @@ class IndexArg(Nonterm):
 
 
 class IndexArgList(parsing.ListNonterm, element=IndexArg,
-                   separator=tokens.T_COMMA):
+                   separator=tokens.T_COMMA, allow_trailing_separator=True):
     pass
 
 
 class OptIndexArgList(Nonterm):
-    @parsing.inline(0)
-    def reduce_IndexArgList_COMMA(self, list, _):
-        pass
-
     @parsing.inline(0)
     def reduce_IndexArgList(self, list):
         pass

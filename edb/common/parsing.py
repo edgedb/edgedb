@@ -25,6 +25,7 @@ from typing import (
 import json
 import logging
 import os
+import sys
 import types
 
 import parsing
@@ -149,34 +150,95 @@ class Nonterm(parsing.Nonterm):
 
 class ListNonterm(Nonterm, is_internal=True):
     def __init_subclass__(cls, *, element, separator=None, is_internal=False,
-                          **kwargs):
+                          allow_trailing_separator=False, **kwargs):
+        """Create reductions for list classes.
 
+        If trailing separator is not allowed, the class can handle all
+        reductions directly.
+
+            L := E
+            L := L S E
+
+        If trailing separator is allowed, create an inner class to handle
+        all non-trailing reductions. Then the class handles the trailing
+        separator.
+
+            I := E
+            I := I S E
+            L := I
+            L := I S
+
+        The inner class is added to the same module as the class.
+        """
         if not is_internal:
-            element_name = ListNonterm._component_name(element)
-            separator_name = ListNonterm._component_name(separator)
-
-            if separator_name:
-                tail_prod = (
-                    lambda self, lst, sep, el: self._reduce_list(lst, el)
+            if not allow_trailing_separator:
+                # directly handle the list
+                ListNonterm.add_list_reductions(
+                    cls, element=element, separator=separator
                 )
-                tail_prod_name = 'reduce_{}_{}_{}'.format(
-                    cls.__name__, separator_name, element_name)
+
             else:
-                tail_prod = (
-                    lambda self, lst, el: self._reduce_list(lst, el)
-                )
-                tail_prod_name = 'reduce_{}_{}'.format(
-                    cls.__name__, element_name)
-            setattr(cls, tail_prod_name, tail_prod)
+                # create inner list class and add to same module
+                mod = sys.modules[cls.__module__]
 
-            setattr(cls, 'reduce_' + element_name,
-                lambda self, el: self._reduce_el(el))
+                def inner_cls_exec(ns):
+                    ns['__module__'] = mod.__name__
+                    return ns
+
+                inner_cls_name = cls.__name__ + 'Inner'
+                inner_cls_kwds = dict(element=element, separator=separator)
+                inner_cls = types.new_class(inner_cls_name, (ListNonterm,),
+                                            inner_cls_kwds, inner_cls_exec)
+                setattr(mod, inner_cls_name, inner_cls)
+
+                # create reduce_inner function
+                separator_name = ListNonterm.component_name(separator)
+
+                setattr(cls,
+                    'reduce_{}'.format(inner_cls_name),
+                    lambda self, inner: (
+                        ListNonterm._reduce_inner(self, inner)
+                    ))
+                setattr(cls,
+                    'reduce_{}_{}'.format(inner_cls_name, separator_name),
+                    lambda self, inner, sep: (
+                        ListNonterm._reduce_inner(self, inner)
+                    ))
+
 
         # reduce functions must be present before calling superclass
         super().__init_subclass__(is_internal=is_internal, **kwargs)
 
+    def __iter__(self):
+        return iter(self.val)
+
+    def __len__(self):
+        return len(self.val)
+
     @staticmethod
-    def _component_name(component: type) -> Optional[str]:
+    def add_list_reductions(cls, *, element, separator=None):
+        element_name = ListNonterm.component_name(element)
+        separator_name = ListNonterm.component_name(separator)
+
+        if separator_name:
+            tail_prod = lambda self, lst, sep, el: (
+                ListNonterm._reduce_list(self, lst, el)
+            )
+            tail_prod_name = 'reduce_{}_{}_{}'.format(
+                cls.__name__, separator_name, element_name)
+        else:
+            tail_prod = lambda self, lst, el: (
+                ListNonterm._reduce_list(self, lst, el)
+            )
+            tail_prod_name = 'reduce_{}_{}'.format(
+                cls.__name__, element_name)
+        setattr(cls, tail_prod_name, tail_prod)
+
+        setattr(cls, 'reduce_' + element_name,
+            lambda self, el: ListNonterm._reduce_el(self, el))
+
+    @staticmethod
+    def component_name(component: type) -> Optional[str]:
         if component is None:
             return None
         elif issubclass(component, Token):
@@ -187,6 +249,7 @@ class ListNonterm(Nonterm, is_internal=True):
             raise Exception(
                 'List component must be a Token or Nonterm')
 
+    @staticmethod
     def _reduce_list(self, lst, el):
         if el.val is None:
             tail = []
@@ -195,6 +258,7 @@ class ListNonterm(Nonterm, is_internal=True):
 
         self.val = lst.val + tail
 
+    @staticmethod
     def _reduce_el(self, el):
         if el.val is None:
             tail = []
@@ -203,11 +267,9 @@ class ListNonterm(Nonterm, is_internal=True):
 
         self.val = tail
 
-    def __iter__(self):
-        return iter(self.val)
-
-    def __len__(self):
-        return len(self.val)
+    @staticmethod
+    def _reduce_inner(self, inner):
+        self.val = inner.val
 
 
 def precedence(precedence):
