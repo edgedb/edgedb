@@ -9878,13 +9878,12 @@ type default::Foo {
             await self.con.execute(r"""
                 create alias X := 2;
             """)
-        async with self.assertRaisesRegexTx(
-            edgedb.SchemaError,
-            "type 'default::Y' already exists"
-        ):
-            await self.con.execute(r"""
-                create alias Y := 2;
-            """)
+
+        # this is allowed: it converts the type into an alias
+        await self.con.execute(r"""
+            create alias Y := 2;
+        """)
+
         async with self.assertRaisesRegexTx(
             edgedb.SchemaError,
             "global 'default::Z' already exists"
