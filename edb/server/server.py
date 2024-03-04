@@ -187,6 +187,7 @@ class BaseServer:
         self._system_compile_cache = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE
         )
+        self._system_compile_cache_locks: dict[Any, Any] = {}
 
         self._listen_sockets = listen_sockets
         if listen_sockets:
@@ -443,6 +444,10 @@ class BaseServer:
         ):
             if conn.dbname == dbname:
                 conn.request_stop()
+
+    @property
+    def system_compile_cache_locks(self):
+        return self._system_compile_cache_locks
 
     def _idle_gc_collector(self):
         try:
