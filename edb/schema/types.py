@@ -173,6 +173,7 @@ class Type(
         inheritance_merge: bool = True,
         transient: bool = False,
         inheritance_refdicts: Optional[AbstractSet[str]] = None,
+        stdmode: bool = False,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, TypeT]:
 
@@ -202,6 +203,7 @@ class Type(
         context = sd.CommandContext(
             modaliases={},
             schema=schema,
+            stdmode=stdmode,
         )
 
         delta = sd.DeltaRoot()

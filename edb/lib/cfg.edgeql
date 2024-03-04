@@ -264,6 +264,7 @@ ALTER TYPE cfg::AbstractConfig {
 CREATE TYPE cfg::Config EXTENDING cfg::AbstractConfig;
 CREATE TYPE cfg::InstanceConfig EXTENDING cfg::AbstractConfig;
 CREATE TYPE cfg::DatabaseConfig EXTENDING cfg::AbstractConfig;
+CREATE ALIAS cfg::BranchConfig := cfg::DatabaseConfig;
 
 
 CREATE FUNCTION
