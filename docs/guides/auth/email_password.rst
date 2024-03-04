@@ -6,7 +6,7 @@ Email and password
 
 :edb-alt-title: Integrating EdgeDB Auth's email and password provider
 
-Along with using the `Built-in UI <ref_guide_auth_built_in_ui>`_, you can also
+Along with using the :ref:`built-in UI <ref_guide_auth_built_in_ui>`, you can also
 create your own UI that calls to your own web application backend.
 
 UI considerations
