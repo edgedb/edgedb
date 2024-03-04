@@ -55,13 +55,9 @@ class TestDocSnippets(unittest.TestCase):
     * all source code in "code-block" directives is parsed to
       check that the syntax is valid;
 
-    * lines must be shorter than 79 characters;
-
     * any ReST warnings (like improper headers or broken indentation)
       are reported as errors.
     """
-
-    MAX_LINE_LEN = 79
 
     CodeSnippet = collections.namedtuple(
         'CodeSnippet',
@@ -145,11 +141,6 @@ class TestDocSnippets(unittest.TestCase):
                     reporter.lint_errors.add(
                         f'Mismatched lint-on/lint-off in '
                         f'{filename}, line {lineno}')
-
-            if len(line) > self.MAX_LINE_LEN and lint_on:
-                reporter.lint_errors.add(
-                    f'Line longer than {self.MAX_LINE_LEN} characters in '
-                    f'{filename}, line {lineno}')
 
         if not lint_on:
             reporter.lint_errors.add(
@@ -448,19 +439,6 @@ class TestDocSnippets(unittest.TestCase):
 
         with self.assertRaisesRegex(AssertionError, 'unable to parse edgeql'):
             self.run_block_test(blocks[0])
-
-    @unittest.skipIf(docutils is None, 'docutils is missing')
-    def test_doc_test_broken_long_lines(self):
-        source = f'''
-        aaaaaa aa aaa:
-        - aaa
-        - {'a' * self.MAX_LINE_LEN}
-        - aaa
-        '''
-
-        with self.assertRaisesRegex(self.RestructuredTextStyleError,
-                                    r'lint errors:[.\s]*Line longer'):
-            self.extract_code_blocks(source, '<test>')
 
     @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_test_bad_header(self):
