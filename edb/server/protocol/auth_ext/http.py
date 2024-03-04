@@ -873,7 +873,7 @@ class Router:
             test_mode=self.test_mode,
         )
 
-        request_accepts_json: bool = request.accept == "application/json"
+        request_accepts_json: bool = request.accept == b"application/json"
 
         if not request_accepts_json and not maybe_redirect_to:
             raise errors.InvalidData(
