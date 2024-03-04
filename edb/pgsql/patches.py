@@ -77,4 +77,14 @@ The current kinds are:
  * sql-introspection - refresh all sql introspection views
 """
 PATCHES: list[tuple[str, str]] = _setup_patches([
+    # === 5.0b2
+    ('ext-pkg', 'auth'),
+    ('edgeql+user_ext+config|auth', '''
+alter type ext::auth::WebAuthnAuthenticationChallenge {
+    create required multi link factors: ext::auth::WebAuthnFactor {
+        create constraint exclusive;
+    };
+    drop link factor;
+}
+'''),
 ])

@@ -111,7 +111,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property challenge: std::bytes {
             create constraint exclusive;
         };
-        create required link factor: ext::auth::WebAuthnFactor {
+        create required multi link factors: ext::auth::WebAuthnFactor {
             create constraint exclusive;
         };
     };
