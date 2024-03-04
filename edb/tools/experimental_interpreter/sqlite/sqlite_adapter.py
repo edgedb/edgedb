@@ -211,13 +211,13 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
 
 
                 
-    def get_type_for_an_id(self, id: EdgeID) -> str:
-        self.cursor.execute("SELECT tp FROM objects WHERE id=?", (id,))
-        tp_row = self.cursor.fetchone()
-        if tp_row is None:
-            raise ValueError(f"ID {id} not found in database")
-        else:
-            return tp_row[0]
+    # def get_type_for_an_id(self, id: EdgeID) -> str:
+    #     self.cursor.execute("SELECT tp FROM objects WHERE id=?", (id,))
+    #     tp_row = self.cursor.fetchone()
+    #     if tp_row is None:
+    #         raise ValueError(f"ID {id} not found in database")
+    #     else:
+    #         return tp_row[0]
     
     def is_projectable(self, id: EdgeID, prop: str) -> bool:
         tp_name = self.get_type_for_an_id(id)

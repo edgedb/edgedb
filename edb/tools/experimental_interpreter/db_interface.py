@@ -10,9 +10,6 @@ class EdgeDatabaseInterface:
     def query_ids_for_a_type(self, tp: e.QualifiedName) -> List[EdgeID]:
         raise NotImplementedError()
 
-    def get_type_for_an_id(self, id: EdgeID) -> e.QualifiedName:
-        raise NotImplementedError()
-
     def get_props_for_id(self, id: EdgeID) -> Dict[str, MultiSetVal]:
         raise NotImplementedError()
 
@@ -119,14 +116,14 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
             raise ValueError(f"ID {id} not found in database")
 
     
-    def get_type_for_an_id(self, id: EdgeID) -> e.QualifiedName:
-        if id in self.db.dbdata.keys():
-            return self.db.dbdata[id].tp
-        elif id in self.to_insert.dbdata.keys():
-            return self.to_insert.dbdata[id].tp
-        # updates and deletes are all in db or to_insert
-        else:
-            raise ValueError(f"ID {id} not found in database")
+    # def get_type_for_an_id(self, id: EdgeID) -> e.QualifiedName:
+    #     if id in self.db.dbdata.keys():
+    #         return self.db.dbdata[id].tp
+    #     elif id in self.to_insert.dbdata.keys():
+    #         return self.to_insert.dbdata[id].tp
+    #     # updates and deletes are all in db or to_insert
+    #     else:
+    #         raise ValueError(f"ID {id} not found in database")
     
     def is_projectable(self, id: EdgeID, prop: str) -> bool:
         return prop in self.get_props_for_id(id).keys()
@@ -158,6 +155,7 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
                                 *results,
                                 RefVal(
                                     refid=id,
+                                    tpname=obj.tp,
                                     val=obj_linkprop_val)]
         return e.ResultMultiSetVal(results)
 

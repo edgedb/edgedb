@@ -9,11 +9,11 @@ from ..data import expr_to_str as pp
 def make_storage_atomic(val: Val, tp: Tp) -> Val:
     def do_coerce_value_to_linkprop_tp(tp_linkprop: ObjectTp) -> Val:
         match val:
-            case RefVal(id, obj):
+            case RefVal(refid=id, tpname=tpname, val=obj):
                 obj_link_prop = eops.remove_unless_link_props(obj)
                 temp_obj = eops.link_prop_obj_to_obj(obj_link_prop)
                 after_obj = coerce_to_storage(temp_obj, tp_linkprop)
-                return RefVal(id, ObjectVal({LinkPropLabel(k):(Visible(), v) for (k,v) in after_obj.items()}))
+                return RefVal(id, tpname, ObjectVal({LinkPropLabel(k):(Visible(), v) for (k,v) in after_obj.items()}))
             # case LinkPropVal(refid=id,
             #                  linkprop=linkprop):
             #     after_obj = coerce_to_storage(linkprop, tp_linkprop)

@@ -120,7 +120,7 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
                 return v
             else:
                 raise ValueError("not implemented")
-        case RefVal(refid, object):
+        case RefVal(refid, tpname, object):
             if not isinstance(tp, e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp | e.UnionTp | e.IntersectTp):
                 raise ValueError("Expecing objecttp", tp)
             object_val_result =  typed_objectval_to_json_like(object, tp, dbschema)

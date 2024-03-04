@@ -500,9 +500,9 @@ def object_dedup(val: Sequence[Val]) -> Sequence[Val]:
     temp: Dict[int, RefVal] = {}
     for v in val:
         match v:
-            case RefVal(refid=id, val=_):
+            case RefVal(refid=id, tpname=tpname, val=_):
                 if id in temp:
-                    temp[id] = RefVal(refid=id, val=combine_object_val(temp[id].val, v.val))
+                    temp[id] = RefVal(refid=id, tpname=tpname, val=combine_object_val(temp[id].val, v.val))
                 else:
                     temp[id] = v
             # case FreeVal(_):

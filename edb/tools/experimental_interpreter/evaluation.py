@@ -95,9 +95,11 @@ def apply_shape(ctx: EvalEnv, db : EdgeDatabaseInterface, shape: ShapeExpr, valu
         return ObjectVal(result)
 
     match value:
-        case RefVal(refid=id, val=dictval):
+        case RefVal(refid=id, tpname=tpname, val=dictval):
             return RefVal(
-                refid=id, val=apply_shape_to_prodval(shape, dictval))
+                refid=id, 
+                tpname=tpname,
+                val=apply_shape_to_prodval(shape, dictval))
         case _:
             return eval_error(value, "Cannot apply shape to value")
 
@@ -233,7 +235,7 @@ def eval_expr(ctx: EvalEnv,
         case ScalarVal(_):
             return e.ResultMultiSetVal([expr])
         case e.FreeObjectExpr():
-            return e.ResultMultiSetVal([e.RefVal(next_id(), val=e.ObjectVal(val={}))])
+            return e.ResultMultiSetVal([e.RefVal(next_id(), tpname=e.QualifiedName(["std", "FreeObject"]), val=e.ObjectVal(val={}))])
         case e.ConditionalDedupExpr(expr=inner):
             inner_val = eval_expr(ctx, db, inner)
             return do_conditional_dedup(inner_val)
@@ -253,7 +255,7 @@ def eval_expr(ctx: EvalEnv,
                 new_object = coerce_to_storage(
                     arg_object, tops.get_storage_tp(type_def))
                 db.update(id, {k : v  for k, v in new_object.items() })
-                return e.ResultMultiSetVal([RefVal(id, ObjectVal({}))])
+                return e.ResultMultiSetVal([RefVal(id, tname, ObjectVal({}))])
             else:
                 raise ValueError("Cannot insert into scalar types")
             # inserts return empty dict
@@ -295,7 +297,7 @@ def eval_expr(ctx: EvalEnv,
                 raise ValueError("Variable not found", name)
         case e.QualifiedName(names=names):
                 all_ids: Sequence[Val] = [
-                    RefVal(id, ObjectVal({}))
+                    RefVal(id, e.QualifiedName(names=names), ObjectVal({}))
                     for id in db.query_ids_for_a_type(expr)]
                 return e.ResultMultiSetVal(all_ids)
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):
@@ -365,9 +367,9 @@ def eval_expr(ctx: EvalEnv,
             after_intersect: List[Val] = []
             for v in subjectv.getVals():
                 match v:
-                    case RefVal(refid=vid, val=_):
+                    case RefVal(refid=vid, tpname=val_tp, val=_):
                         is_subtype = is_nominal_subtype_in_schema(db.get_schema(),
-                                db.get_type_for_an_id(vid), tp_name)
+                                val_tp, tp_name)
                     case e.ScalarVal(tp=e.ScalarTp(s_name), val=_):
                         is_subtype = is_nominal_subtype_in_schema(db.get_schema(),
                                 s_name, tp_name)
@@ -382,9 +384,9 @@ def eval_expr(ctx: EvalEnv,
             after_intersect: List[Val] = []
             for v in subjectv.getVals():
                 match v:
-                    case RefVal(refid=vid, val=_):
+                    case RefVal(refid=vid, tpname=val_tp, val=_):
                         if is_nominal_subtype_in_schema(db.get_schema(),
-                                db.get_type_for_an_id(vid), tp_name):
+                                val_tp, tp_name):
                             after_intersect = [*after_intersect, v]
                     case _:
                         raise ValueError("Expecting References")
@@ -437,7 +439,7 @@ def eval_expr(ctx: EvalEnv,
                 updated: Sequence[Val] = [apply_shape(ctx, db, shape, v)
                             for v in subjectv.getVals()]  # type: ignore[misc]
                 for u in cast(Sequence[RefVal], updated):
-                    full_tp = tops.dereference_var_tp(db.get_schema(), db.get_type_for_an_id(u.refid))
+                    full_tp = tops.dereference_var_tp(db.get_schema(), u.tpname)
                     cut_tp = {k : v for (k,v) in full_tp.val.items() if StrLabel(k) in u.val.val.keys()}
                     db.update(
                         u.refid,

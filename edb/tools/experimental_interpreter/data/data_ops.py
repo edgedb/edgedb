@@ -720,6 +720,7 @@ class ObjectVal:
 @dataclass(frozen=True)
 class RefVal:
     refid: int
+    tpname: QualifiedName
     val: ObjectVal
 
 # @dataclass(frozen=True)
