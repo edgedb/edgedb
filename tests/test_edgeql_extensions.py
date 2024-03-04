@@ -554,7 +554,7 @@ class TestDDLExtensions(tb.DDLTestCase):
             edgedb.ConstraintViolationError, ""
         ):
             await self.con.execute('''
-                CONFIGURE CURRENT DATABASE INSERT ext::_conf::SingleObj {
+                CONFIGURE CURRENT BRANCH INSERT ext::_conf::SingleObj {
                     name := 'fail',
                     value := '',
                 };
@@ -712,42 +712,42 @@ class TestDDLExtensions(tb.DDLTestCase):
             )
 
         val = await self.con.query_single('''
-            describe current database config
+            describe current branch config
         ''')
         test_expected = textwrap.dedent('''\
-        CONFIGURE CURRENT DATABASE SET ext::_conf::Config::config_name := \
+        CONFIGURE CURRENT BRANCH SET ext::_conf::Config::config_name := \
 'ready';
-        CONFIGURE CURRENT DATABASE INSERT ext::_conf::SingleObj {
+        CONFIGURE CURRENT BRANCH INSERT ext::_conf::SingleObj {
             name := 'single',
             value := 'val',
         };
-        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+        CONFIGURE CURRENT BRANCH INSERT ext::_conf::Obj {
             name := '1',
             value := 'foo',
         };
-        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+        CONFIGURE CURRENT BRANCH INSERT ext::_conf::Obj {
             name := '2',
             opt_value := 'opt.',
             value := 'bar',
         };
-        CONFIGURE CURRENT DATABASE INSERT ext::_conf::SecretObj {
+        CONFIGURE CURRENT BRANCH INSERT ext::_conf::SecretObj {
             name := '4',
             secret := {},  # REDACTED
             value := 'foo',
         };
-        CONFIGURE CURRENT DATABASE INSERT ext::_conf::SecretObj {
+        CONFIGURE CURRENT BRANCH INSERT ext::_conf::SecretObj {
             name := '5',
             secret := {},  # REDACTED
             value := 'quux',
         };
-        CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
+        CONFIGURE CURRENT BRANCH INSERT ext::_conf::SubObj {
             duration_config := <std::duration>'PT10M',
             extra := 42,
             name := '3',
             value := 'baz',
         };
-        CONFIGURE CURRENT DATABASE SET ext::_conf::Config::opt_value := 'opt!';
-        CONFIGURE CURRENT DATABASE SET ext::_conf::Config::secret := \
+        CONFIGURE CURRENT BRANCH SET ext::_conf::Config::opt_value := 'opt!';
+        CONFIGURE CURRENT BRANCH SET ext::_conf::Config::secret := \
 {};  # REDACTED
         ''')
         self.assertEqual(val, test_expected)
@@ -808,7 +808,7 @@ class TestDDLExtensions(tb.DDLTestCase):
             try:
                 await con2.query('select 1')
                 await self.con.execute('''
-                    CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+                    CONFIGURE CURRENT BRANCH INSERT ext::_conf::Obj {
                         name := 'fail',
                         value := '',
                     };
@@ -819,7 +819,7 @@ class TestDDLExtensions(tb.DDLTestCase):
                     edgedb.ConstraintViolationError, ""
                 ):
                     await self.con.execute('''
-                        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+                        CONFIGURE CURRENT BRANCH INSERT ext::_conf::Obj {
                             name := 'fail',
                             value := '',
                         };

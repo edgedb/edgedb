@@ -1083,7 +1083,7 @@ class TestServerConfig(tb.QueryTestCase):
     async def test_server_proto_configure_describe_database_config(self):
         try:
             conf1 = (
-                "CONFIGURE CURRENT DATABASE "
+                "CONFIGURE CURRENT BRANCH "
                 "SET singleprop := '1337';"
             )
             await self.con.execute(conf1)
