@@ -1,4 +1,6 @@
 
+from __future__ import annotations
+
 import sqlite3
 import pickle
 from typing import List
@@ -6,6 +8,7 @@ from typing import List
 from ..db_interface import EdgeID
 
 from ..data.data_ops import *
+from ..data import data_ops as e
 from typing import *
 # from ..basis.built_ins import all_builtin_funcs
 from ..db_interface import EdgeDatabaseInterface
@@ -15,6 +18,55 @@ import copy
 
 # def sqlite_dbschema(sqlite_dbschema: Dict[str, ObjectTp]) -> DBSchema:
 #     return DBSchema(sqlite_dbschema, all_builtin_funcs)
+
+@dataclass(frozen=True)
+class PropertyTypeView:
+    is_primitive: bool
+    is_optional: bool
+    is_singular: bool
+    target_type_name: Optional[e.QualifiedName]
+    link_props: Dict[str, PropertyTypeView]
+
+def get_property_type_view(result_tp: e.ResultTp) -> PropertyTypeView:
+    tp = result_tp.tp
+    mode = result_tp.mode
+    is_optional = mode.lower == e.CardNumZero
+    is_singular = mode.upper == e.CardNumOne
+
+    match tp:
+        case e.NamedNominalLinkTp(name=name, linkprop=link_props):
+            assert isinstance(name, e.QualifiedName)
+            lp_view = {lpname : get_property_type_view(t) for (lpname, t) in link_props.items()}
+            return PropertyTypeView(is_primitive=False, is_optional=is_optional, is_singular=is_singular, target_type_name=name, link_props=lp_view)
+        case _:
+            raise ValueError(f"Unimplemented type {tp}")
+
+            
+    
+    
+
+
+
+def get_schema_property_view(schema: e.DBSchema) -> Dict[str # type name
+                                                        , Dict[str, #property name
+                                                                PropertyTypeView]]:
+    if ("default",) not in schema.modules:
+        raise ValueError("Default module not found in schema")
+    default_module = schema.modules[("default",)]
+    result = {}
+    for name, mdef in default_module.defs.items():
+        match mdef:
+            case e.ModuleEntityTypeDef(typedef=e.ObjectTp(_), is_abstract=False, constraints=_):
+                type_def_view = {pname : get_property_type_view(t) for (pname, t) in mdef.typedef.items()}
+                result[name] = type_def_view
+            case _:
+                pass
+    return result
+
+def create_or_populate_schema_table(conn: sqlite3.Connection, schema: e.DBSchema) -> None:
+    pass
+
+    
 
 
 def compute_projection(cursor: sqlite3.Cursor,
