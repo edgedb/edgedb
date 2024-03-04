@@ -1479,20 +1479,17 @@ class Router:
                         case _:
                             maybe_pkce_code = None
 
-                    match maybe_redirect_to:
-                        case str(rt):
-                            redirect_to = (
-                                _with_appended_qs(
-                                    rt,
-                                    {
-                                        "code": [maybe_pkce_code],
-                                    },
-                                )
-                                if maybe_pkce_code
-                                else rt
-                            )
-                        case _:
-                            redirect_to = cast(str, ui_config.redirect_to)
+                    redirect_to = maybe_redirect_to or redirect_to
+                    redirect_to = (
+                        _with_appended_qs(
+                            redirect_to,
+                            {
+                                "code": [maybe_pkce_code],
+                            },
+                        )
+                        if maybe_pkce_code
+                        else redirect_to
+                    )
 
                 except errors.VerificationTokenExpired:
                     app_details_config = self._get_app_details_config()
