@@ -315,18 +315,18 @@ with
     challenge := <bytes>$challenge,
     user_handle := <bytes>$user_handle,
     email := <str>$email,
-    factor := (
-        assert_exists(assert_single((
+    factors := (
+        assert_exists((
             select ext::auth::WebAuthnFactor
             filter .user_handle = user_handle
             and .email = email
-        )))
+        ))
     )
 insert ext::auth::WebAuthnAuthenticationChallenge {
     challenge := challenge,
-    factor := factor,
+    factors := factors,
 }
-unless conflict on .factor
+unless conflict on .factors
 else (
     update ext::auth::WebAuthnAuthenticationChallenge
     set {
@@ -389,7 +389,7 @@ select ext::auth::WebAuthnAuthenticationChallenge {
     created_at,
     modified_at,
     challenge,
-    factor: {
+    factors: {
         id,
         created_at,
         modified_at,
@@ -407,7 +407,7 @@ select ext::auth::WebAuthnAuthenticationChallenge {
         }
     },
 }
-filter .factor.email = email and .factor.credential_id = credential_id;""",
+filter .factors.email = email and .factors.credential_id = credential_id;""",
             variables={
                 "email": email,
                 "credential_id": credential_id,
@@ -437,7 +437,7 @@ with
     email := <str>$email,
     credential_id := <bytes>$credential_id,
 delete ext::auth::WebAuthnAuthenticationChallenge
-filter .factor.email = email and .factor.credential_id = credential_id;""",
+filter .factors.email = email and .factors.credential_id = credential_id;""",
             variables={
                 "email": email,
                 "credential_id": credential_id,
@@ -461,13 +461,21 @@ filter .factor.email = email and .factor.credential_id = credential_id;""",
             credential_id=credential.raw_id,
         )
 
+        factor = next(
+            (
+                f
+                for f in authentication_challenge.factors
+                if f.credential_id == credential.raw_id
+            ),
+            None,
+        )
+        assert factor is not None, "Missing factor for the given credential."
+
         try:
             webauthn.verify_authentication_response(
                 credential=credential,
                 expected_challenge=authentication_challenge.challenge,
-                credential_public_key=(
-                    authentication_challenge.factor.public_key
-                ),
+                credential_public_key=factor.public_key,
                 credential_current_sign_count=0,
                 expected_rp_id=self.provider.relying_party_id,
                 expected_origin=self.provider.relying_party_origin,
@@ -477,4 +485,4 @@ filter .factor.email = email and .factor.credential_id = credential_id;""",
                 "Invalid authentication response. Please retry authentication."
             )
 
-        return authentication_challenge.factor.identity
+        return factor.identity
