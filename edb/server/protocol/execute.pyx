@@ -738,7 +738,7 @@ async def parse_execute_json(
         protocol_version=edbdef.CURRENT_PROTOCOL,
         input_format=compiler.InputFormat.JSON,
         output_format=output_format,
-    )
+    ).set_schema_version(dbv.schema_version)
 
     compiled = await dbv.parse(
         query_req,

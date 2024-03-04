@@ -966,6 +966,16 @@ cdef class DatabaseConnectionView:
                     # discard cache entry that cannot be recompiled
                     self._db._eql_to_compiled.pop(query_req, None)
                 else:
+                    # schema_version, database_config and system_config are not
+                    # serialized but they affect the cache key. We only update
+                    # these values *after* the compilation because 1) they are
+                    # not needed for compilation, and 2) we can evict the in-
+                    # memory cache by the same key when recompilation fails.
+                    query_req.set_schema_version(schema_version)
+                    query_req.set_database_config(self.get_database_config())
+                    query_req.set_system_config(
+                        self.get_compilation_system_config())
+
                     await compiled_queue.put(
                         (query_req, result[0], schema_version)
                     )

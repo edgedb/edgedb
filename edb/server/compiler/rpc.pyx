@@ -131,6 +131,12 @@ cdef class CompilationRequest:
         self.cache_key = None
         return self
 
+    def set_schema_version(self, version: uuid.UUID) -> CompilationRequest:
+        self.schema_version = version
+        self.serialized_cache = None
+        self.cache_key = None
+        return self
+
     def deserialize(self, bytes data, str query_text) -> CompilationRequest:
         if data[0] == 0:
             self._deserialize_v0(data, query_text)
@@ -216,6 +222,10 @@ cdef class CompilationRequest:
             {k: v.value for k, v in comp_config.items()}
         )
         hash_obj.update(serialized_comp_config)
+
+        # Must set_schema_version() before serializing compilation request
+        assert self.schema_version is not None
+        hash_obj.update(self.schema_version.bytes)
 
         cache_key_bytes = hash_obj.digest()
         self.cache_key = uuidgen.from_bytes(cache_key_bytes)

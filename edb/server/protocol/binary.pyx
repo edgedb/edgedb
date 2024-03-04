@@ -758,6 +758,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             object output_format
             bint expect_one = False
             bytes query
+            dbview.DatabaseConnectionView _dbview
 
         allow_capabilities = <uint64_t>self.buffer.read_int64()
         compilation_flags = <uint64_t>self.buffer.read_int64()
@@ -790,10 +791,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
+        _dbview = self.get_dbview()
         state_tid = self.buffer.read_bytes(16)
         state_data = self.buffer.read_len_prefixed_bytes()
         try:
-            self.get_dbview().decode_state(state_tid, state_data)
+            _dbview.decode_state(state_tid, state_data)
         except errors.StateMismatchError:
             self.write(self.make_state_data_description_msg())
             raise
@@ -808,7 +810,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-        )
+        ).set_schema_version(_dbview.schema_version)
+        rv.set_modaliases(_dbview.get_modaliases())
+        rv.set_session_config(_dbview.get_session_config())
+        rv.set_database_config(_dbview.get_database_config())
+        rv.set_system_config(_dbview.get_compilation_system_config())
         return rv, allow_capabilities
 
     async def parse(self):
@@ -828,10 +834,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if _dbview.get_state_serializer() is None:
             await _dbview.reload_state_serializer()
         query_req, allow_capabilities = self.parse_execute_request()
-        query_req.set_modaliases(_dbview.get_modaliases())
-        query_req.set_session_config(_dbview.get_session_config())
-        query_req.set_database_config(_dbview.get_database_config())
-        query_req.set_system_config(_dbview.get_compilation_system_config())
         compiled = await self._parse(query_req, allow_capabilities)
         units = compiled.query_unit_group
         if len(units) == 1 and units[0].cache_sql:
@@ -872,10 +874,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         args = self.buffer.read_len_prefixed_bytes()
-        query_req.set_modaliases(_dbview.get_modaliases())
-        query_req.set_session_config(_dbview.get_session_config())
-        query_req.set_database_config(_dbview.get_database_config())
-        query_req.set_system_config(_dbview.get_compilation_system_config())
         self.buffer.finish_message()
 
         if (
@@ -1430,16 +1428,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self.flush()
 
     async def _execute_utility_stmt(self, eql: str, pgcon):
-        cdef dbview.DatabaseConnectionView _dbview
+        cdef dbview.DatabaseConnectionView _dbview = self.get_dbview()
 
         query_req = rpc.CompilationRequest(
             self.server.compilation_config_serializer
         )
         query_req.update(
             edgeql.Source.from_string(eql), self.protocol_version
-        )
-
-        _dbview = self.get_dbview()
+        ).set_schema_version(_dbview.schema_version)
 
         compiled = await _dbview.parse(query_req)
         query_unit_group = compiled.query_unit_group
@@ -1825,17 +1821,19 @@ async def run_script(
     cdef:
         EdgeConnection conn
         dbview.CompiledQuery compiled
+        dbview.DatabaseConnectionView _dbview
     conn = new_edge_connection(server, tenant)
     await conn._start_connection(database)
     try:
-        compiled = await conn.get_dbview().parse(
+        _dbview = conn.get_dbview()
+        compiled = await _dbview.parse(
             rpc.CompilationRequest(
                 server.compilation_config_serializer
             ).update(
                 edgeql.Source.from_string(script),
                 conn.protocol_version,
                 output_format=FMT_NONE,
-            )
+            ).set_schema_version(_dbview.schema_version)
         )
         if len(compiled.query_unit_group) > 1:
             await conn._execute_script(compiled, b'')
