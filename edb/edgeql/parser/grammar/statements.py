@@ -214,6 +214,14 @@ class DescribeStmt(Nonterm):
             options=kids[4].val.options,
         )
 
+    def reduce_DESCRIBE_CURRENT_BRANCH_CONFIG(self, *kids):
+        """%reduce DESCRIBE CURRENT BRANCH CONFIG DescribeFormat"""
+        self.val = qlast.DescribeStmt(
+            object=qlast.DescribeGlobal.DatabaseConfig,
+            language=kids[4].val.language,
+            options=kids[4].val.options,
+        )
+
     def reduce_DESCRIBE_INSTANCE_CONFIG(self, *kids):
         """%reduce DESCRIBE INSTANCE CONFIG DescribeFormat"""
         self.val = qlast.DescribeStmt(
