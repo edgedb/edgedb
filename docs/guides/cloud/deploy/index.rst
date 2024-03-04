@@ -23,3 +23,6 @@ platform-specific instructions:
 
     vercel
     netlify
+    fly
+    railway
+    render
