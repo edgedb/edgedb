@@ -481,5 +481,12 @@ class TestCompilerPool(tbs.TestCase):
             self.assertEqual(hash(request1), hash(request2))
             self.assertEqual(request1, request2)
 
+            # schema_version affects the cache_key, hence the hash.
+            # But, it's not serialized so the 2 requests are still equal.
+            # This makes request2 a new key as being used in dicts.
+            request2.set_schema_version(uuid.uuid4())
+            self.assertNotEqual(hash(request1), hash(request2))
+            self.assertEqual(request1, request2)
+
         test(edgeql.Source.from_string("SELECT 42"))
         test(edgeql.NormalizedSource.from_string("SELECT 42"))

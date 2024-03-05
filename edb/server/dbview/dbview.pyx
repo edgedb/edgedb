@@ -1081,10 +1081,9 @@ cdef class DatabaseConnectionView:
                     )
                 else:
                     query_unit_group = self.lookup_compiled_query(query_req)
-
-            if query_unit_group is not None:
-                return self.as_compiled(
-                    query_req, query_unit_group, use_metrics)
+                if query_unit_group is not None:
+                    return self.as_compiled(
+                        query_req, query_unit_group, use_metrics)
 
             try:
                 query_unit_group = await self._compile(query_req)
