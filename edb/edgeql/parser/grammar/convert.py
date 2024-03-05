@@ -32,17 +32,56 @@ class EBNF_NonTerm(EBNF_Production):
     def __init__(self, name: str):
         super().__init__(name)
 
-class EBNF_OptionalList(EBNF_NonTerm):
+class EBNF_NonTermSequence(EBNF_Production):
     def __init__(self, name: str, item_lists: List[List[str]]):
         super().__init__(name)
         self.item_lists = item_lists
 
-class EBNF_RequiredList(EBNF_NonTerm):
+class EBNF_OptionalSequence(EBNF_NonTermSequence):
     def __init__(self, name: str, item_lists: List[List[str]]):
-        super().__init__(name)
-        self.item_lists = item_lists
+        super().__init__(name, item_lists)
+
+class EBNF_RequiredSequence(EBNF_NonTermSequence):
+    def __init__(self, name: str, item_lists: List[List[str]]):
+        super().__init__(name, item_lists)
+
+def inline_single_optionals(productions: List[EBNF_Production]
+        ) -> List[EBNF_Production]:
+
+    def is_single_optional(production):
+        return (
+            isinstance(production, EBNF_OptionalSequence) and
+            len(production.item_lists) == 1 and
+            len(production.item_lists[0]) == 1
+        )
+
+    single_optionals: Dict[str, str] = {
+        production.name: production.item_lists[0][0]
+        for production in productions
+        if is_single_optional(production)
+    }
+
+    productions = [
+        production
+        for production in productions
+        if not is_single_optional(production)
+    ]
+
+    for production in productions:
+        if isinstance(production, EBNF_NonTermSequence):
+            production.item_lists = [
+                [
+                    item if item not in single_optionals else single_optionals[item] + '?'
+                    for item in item_list
+                ]
+                for item_list in production.item_lists
+            ]
+
+    return productions
 
 def to_iso_ebnf(productions: List[EBNF_Production]) -> List[str]:
+    productions = inline_single_optionals(productions)
+
     result = []
 
     for production in productions:
@@ -50,14 +89,14 @@ def to_iso_ebnf(productions: List[EBNF_Production]) -> List[str]:
             result.append(
                 production.name + ' = ' + '"' + production.name + '"' + ';'
             )
-        elif isinstance(production, EBNF_OptionalList):
+        elif isinstance(production, EBNF_OptionalSequence):
             result.append(
                 production.name + ' = ' + ' | '.join(
                     '[' + ', '.join(item_list) + ']'
                     for item_list in production.item_lists
                 ) + ';'
             )
-        elif isinstance(production, EBNF_RequiredList):
+        elif isinstance(production, EBNF_RequiredSequence):
             result.append(
                 production.name + ' = ' + ' | '.join(
                     '(' + ', '.join(item_list) + ')'
@@ -68,6 +107,8 @@ def to_iso_ebnf(productions: List[EBNF_Production]) -> List[str]:
     return result
 
 def to_w3c_ebnf(productions: List[EBNF_Production]) -> List[str]:
+    productions = inline_single_optionals(productions)
+
     result = []
 
     for production in productions:
@@ -75,14 +116,14 @@ def to_w3c_ebnf(productions: List[EBNF_Production]) -> List[str]:
             result.append(
                 production.name + ' ::= ' + '"' + production.name + '"'
             )
-        elif isinstance(production, EBNF_OptionalList):
+        elif isinstance(production, EBNF_OptionalSequence):
             result.append(
                 production.name + ' ::= ' + ' | '.join(
                     '(' + ' '.join(item_list) + ')'
                     for item_list in production.item_lists
                 ) + '?'
             )
-        elif isinstance(production, EBNF_RequiredList):
+        elif isinstance(production, EBNF_RequiredSequence):
             result.append(
                 production.name + ' ::= ' + ' | '.join(
                     '(' + ' '.join(item_list) + ')'
@@ -149,7 +190,7 @@ def to_ebnf(spec: parsing.Spec, path: pathlib.Path):
         if [] in item_lists:
             # optional nonterm
             ebnf_productions.append(
-                EBNF_OptionalList(prod_name, [
+                EBNF_OptionalSequence(prod_name, [
                     item_list
                     for item_list in item_lists
                     if item_list != []
@@ -157,7 +198,7 @@ def to_ebnf(spec: parsing.Spec, path: pathlib.Path):
             )
         else:
             ebnf_productions.append(
-                EBNF_RequiredList(prod_name, item_lists)
+                EBNF_RequiredSequence(prod_name, item_lists)
             )
 
     # output
