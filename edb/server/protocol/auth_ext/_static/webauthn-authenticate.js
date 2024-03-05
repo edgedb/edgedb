@@ -150,10 +150,12 @@ async function authenticateAssertion(props) {
   // Assertion includes raw bytes, so need to be encoded as base64url
   // for transmission
   const encodedAssertion = {
-    ...props.assertion,
+    type: props.assertion.type,
+    id: props.assertion.id,
+    authenticatorAttachment: props.assertion.authenticatorAttachment,
+    clientExtensionResults: props.assertion.getClientExtensionResults(),
     rawId: encodeBase64Url(new Uint8Array(props.assertion.rawId)),
     response: {
-      ...props.assertion.response,
       authenticatorData: encodeBase64Url(
         new Uint8Array(props.assertion.response.authenticatorData)
       ),

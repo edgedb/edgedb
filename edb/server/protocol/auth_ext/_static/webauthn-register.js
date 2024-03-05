@@ -164,10 +164,12 @@ async function registerCredentials(props) {
   // Credentials include raw bytes, so need to be encoded as base64url
   // for transmission
   const encodedCredentials = {
-    ...props.credentials,
+    type: props.credentials.type,
+    authenticatorAttachment: props.credentials.authenticatorAttachment,
+    clientExtensionResults: props.credentials.getClientExtensionResults(),
+    id: props.credentials.id,
     rawId: encodeBase64Url(new Uint8Array(props.credentials.rawId)),
     response: {
-      ...props.credentials.response,
       attestationObject: encodeBase64Url(
         new Uint8Array(props.credentials.response.attestationObject)
       ),
