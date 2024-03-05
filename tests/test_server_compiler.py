@@ -26,6 +26,7 @@ import sys
 import tempfile
 import time
 import unittest.mock
+import uuid
 
 import immutables
 
@@ -442,7 +443,7 @@ class TestCompilerPool(tbs.TestCase):
                     source=edgeql.Source.from_string(orig_query),
                     protocol_version=(1, 0),
                     implicit_limit=101,
-                )
+                ).set_schema_version(uuid.uuid4())
 
                 await asyncio.gather(*(pool_.compile_in_tx(
                     context.state.current_tx().id,
@@ -473,11 +474,18 @@ class TestCompilerPool(tbs.TestCase):
             ).update(
                 source=source,
                 protocol_version=(1, 0),
-            )
+            ).set_schema_version(uuid.uuid4())
             request2 = rpc.CompilationRequest(
                 compiler.state.compilation_config_serializer
             ).deserialize(request1.serialize(), "<unknown>")
             self.assertEqual(hash(request1), hash(request2))
+            self.assertEqual(request1, request2)
+
+            # schema_version affects the cache_key, hence the hash.
+            # But, it's not serialized so the 2 requests are still equal.
+            # This makes request2 a new key as being used in dicts.
+            request2.set_schema_version(uuid.uuid4())
+            self.assertNotEqual(hash(request1), hash(request2))
             self.assertEqual(request1, request2)
 
         test(edgeql.Source.from_string("SELECT 42"))
