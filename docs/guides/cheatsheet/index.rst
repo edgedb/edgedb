@@ -12,7 +12,8 @@ After familiarizing yourself with them, feel free to dive into more EdgeDB
 via our longer `interactive tutorial </tutorial>`_ and
 **much** longer `Easy EdgeDB textbook </easy-edgedb>`_.
 
-EdgeQL:
+EdgeQL
+======
 
 * :ref:`select <ref_cheatsheet_select>` -- Retrieve or compute a set of values.
 * :ref:`insert <ref_cheatsheet_insert>` -- Create new database objects.
@@ -21,7 +22,8 @@ EdgeQL:
 * :ref:`GraphQL <ref_cheatsheet_graphql>` -- GraphQL queries supported natively
   out of the box.
 
-Schema:
+Schema
+======
 
 * :ref:`Object Types <ref_cheatsheet_object_types>` -- Make your own object
   and abstract types on top of existing system types.
@@ -32,7 +34,8 @@ Schema:
 * :ref:`Schema Annotations <ref_cheatsheet_annotations>` -- Add human readable
   descriptions to items in your schema.
 
-CLI/Admin:
+CLI/Admin
+=========
 
 * :ref:`CLI Usage <ref_cheatsheet_cli>` -- Getting your database started.
 * :ref:`Interactive Shell <ref_cheatsheet_repl>` -- Shortcuts for
