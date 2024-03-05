@@ -30,5 +30,5 @@ Fly.io
 
    .. code-block:: bash
 
-    $ flyctl deploy --secrets EDGEDB_INSTANCE="<EDGEDB_INSTANCE>" \
-        --secrets EDGEDB_SECRET_KEY="<EDGEDB_SECRET_KEY>"
+    $ flyctl deploy --build-secret EDGEDB_INSTANCE="<EDGEDB_INSTANCE>" \
+        --build-secret EDGEDB_SECRET_KEY="<EDGEDB_SECRET_KEY>"
