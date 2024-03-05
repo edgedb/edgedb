@@ -277,7 +277,7 @@ cdef class Database:
             async with self._introspection_lock:
                 if self.user_schema_pickle is None:
                     await self.tenant.introspect_db(
-                        self.name, hydrate_cache=True
+                        self.name, hydrate_cache=debug.flags.persistent_cache
                     )
 
 
