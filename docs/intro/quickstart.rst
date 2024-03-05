@@ -483,5 +483,3 @@ and used a client library.
   <ref_rust_index>`, `C# and F# </libraries/dotnet>`__, :ref:`Java
   <edgedb-java-intro>`, `Dart </libraries/dart>`__, and :ref:`Elixir
   <edgedb-elixir-intro>`.
-
-- Or just jump into the :ref:`docs <index_toplevel>`!
