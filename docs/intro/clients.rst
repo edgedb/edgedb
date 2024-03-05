@@ -468,7 +468,7 @@ DSNs can also contain the following query parameters.
       necessary when attempting to connect via TLS to a remote instance with a
       self-signed certificate.
 
-These parameters can be added to any DSN using Web-standard query string
+These parameters can be added to any DSN using web-standard query string
 notation.
 
 .. code-block::
