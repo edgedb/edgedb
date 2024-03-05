@@ -182,22 +182,19 @@ cdef class Database:
         self._sql_to_compiled.clear()
         self._index.invalidate_caches()
 
-    cdef _cache_compiled_query(
-        self, key, compiled: dbstate.QueryUnitGroup, schema_version
-    ):
+    cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
         # `dbver` must be the schema version `compiled` was compiled upon
         assert compiled.cacheable
 
-        existing, existing_ver = self._eql_to_compiled.get(key, DICTDEFAULT)
-        if existing is not None and existing_ver == self.schema_version:
-            # We already have a cached query for a more recent DB version.
+        if key in self._eql_to_compiled:
+            # We already have a cached query for the current user schema
             return
 
-        # Store the matching schema version, see also the comments at origin
-        self._eql_to_compiled[key] = compiled, schema_version
+        self._eql_to_compiled[key] = compiled
+        # TODO(fantix): merge in-memory cleanup into the task below
         keys = []
         while self._eql_to_compiled.needs_cleanup():
-            query_req, (unit_group, _) = self._eql_to_compiled.cleanup_one()
+            query_req, unit_group = self._eql_to_compiled.cleanup_one()
             if len(unit_group) == 1:
                 keys.append(query_req.get_cache_key())
         if keys:
@@ -248,19 +245,17 @@ cdef class Database:
 
     def hydrate_cache(self, query_cache):
         new = set()
-        for schema_version, in_data, out_data in query_cache:
+        for _, in_data, out_data in query_cache:
             query_req = rpc.CompilationRequest(
                 self.server.compilation_config_serializer)
             query_req.deserialize(in_data, "<unknown>")
-            schema_version = uuidgen.from_bytes(schema_version)
             new.add(query_req)
 
-            _, cached_ver = self._eql_to_compiled.get(query_req, DICTDEFAULT)
-            if cached_ver != schema_version:
+            if query_req not in self._eql_to_compiled:
                 unit = dbstate.QueryUnit.deserialize(out_data)
                 group = dbstate.QueryUnitGroup()
                 group.append(unit)
-                self._eql_to_compiled[query_req] = group, schema_version
+                self._eql_to_compiled[query_req] = group
 
         for query_req in list(self._eql_to_compiled):
             if query_req not in new:
@@ -710,15 +705,11 @@ cdef class DatabaseConnectionView:
     cpdef in_tx_error(self):
         return self._tx_error
 
-    cdef cache_compiled_query(
-        self, object key, object query_unit_group, schema_version
-    ):
+    cdef cache_compiled_query(self, object key, object query_unit_group):
         assert query_unit_group.cacheable
 
         if not self._in_tx_with_ddl:
-            self._db._cache_compiled_query(
-                key, query_unit_group, schema_version
-            )
+            self._db._cache_compiled_query(key, query_unit_group)
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
@@ -726,12 +717,7 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_ddl):
             return None
 
-        query_unit_group, qu_ver = self._db._eql_to_compiled.get(
-            key, DICTDEFAULT)
-        if query_unit_group is not None and qu_ver != self._db.schema_version:
-            query_unit_group = None
-
-        return query_unit_group
+        return self._db._eql_to_compiled.get(key, None)
 
     cdef tx_error(self):
         if self._in_tx:
@@ -951,13 +937,15 @@ cdef class DatabaseConnectionView:
             async with concurrency_control:
                 try:
                     schema_version = self.schema_version
+                    database_config = self.get_database_config()
+                    system_config = self.get_compilation_system_config()
                     result = await compiler_pool.compile(
                         self.dbname,
                         self.get_user_schema_pickle(),
                         self.get_global_schema_pickle(),
                         self.reflection_cache,
-                        self.get_database_config(),
-                        self.get_compilation_system_config(),
+                        database_config,
+                        system_config,
                         query_req.serialize(),
                         "<unknown>",
                         client_id=self.tenant.client_id,
@@ -966,9 +954,16 @@ cdef class DatabaseConnectionView:
                     # discard cache entry that cannot be recompiled
                     self._db._eql_to_compiled.pop(query_req, None)
                 else:
-                    await compiled_queue.put(
-                        (query_req, result[0], schema_version)
-                    )
+                    # schema_version, database_config and system_config are not
+                    # serialized but only affect the cache key. We only update
+                    # these values *after* the compilation so that we can evict
+                    # the in-memory cache by the right key when recompilation
+                    # fails in the `except` branch above.
+                    query_req.set_schema_version(schema_version)
+                    query_req.set_database_config(database_config)
+                    query_req.set_system_config(system_config)
+
+                    await compiled_queue.put((query_req, result[0]))
 
         async def persist_cache_task():
             if not debug.flags.func_cache:
@@ -988,9 +983,9 @@ cdef class DatabaseConnectionView:
                     await execute.persist_cache(
                         conn, self, [item[:2] for item in buf]
                     )
-                    for query_req, query_unit_group, schema_version in buf:
+                    for query_req, query_unit_group in buf:
                         self._db._cache_compiled_query(
-                            query_req, query_unit_group, schema_version)
+                            query_req, query_unit_group)
                     buf.clear()
 
         async with asyncio.TaskGroup() as g:
@@ -1030,108 +1025,99 @@ cdef class DatabaseConnectionView:
         self,
         query_req: rpc.CompilationRequest,
         cached_globally=False,
-        use_metrics=True,
-        # allow passing in the query_unit_group, in case the call site needs
-        # to make decisions based on whether the cache is hit
-        query_unit_group=None,
+        bint use_metrics=True,
         uint64_t allow_capabilities = <uint64_t>compiler.Capability.ALL,
     ) -> CompiledQuery:
-        source = query_req.source
-        if cached_globally:
-            # WARNING: only set cached_globally to True when the query is
-            # strictly referring to only shared stable objects in user schema
-            # or anything from std schema, for example:
-            #     YES:  select ext::auth::UIConfig { ... }
-            #     NO:   select default::User { ... }
-            query_unit_group = (
-                self.server.system_compile_cache.get(query_req)
-                if self._query_cache_enabled
-                else None
-            )
-        elif query_unit_group is None:
-            query_unit_group = self.lookup_compiled_query(query_req)
+        query_unit_group = None
+        if self._query_cache_enabled:
+            if cached_globally:
+                # WARNING: only set cached_globally to True when the query is
+                # strictly referring to only shared stable objects in user
+                # schema or anything from std schema, for example:
+                #     YES:  select ext::auth::UIConfig { ... }
+                #     NO:   select default::User { ... }
+                query_unit_group = (
+                    self.server.system_compile_cache.get(query_req)
+                )
+            else:
+                query_unit_group = self.lookup_compiled_query(query_req)
+
+            # Fast-path to skip all the locks if it's a cache HIT
+            if query_unit_group is not None:
+                return self.as_compiled(
+                    query_req, query_unit_group, use_metrics)
 
         lock = None
-        cached = True
+        schema_version = self.schema_version
 
-        if query_unit_group is None:
-            # Lock on the query compilation to avoid other coroutines running
-            # the same compile and waste computational resources
-            if cached_globally:
-                lock_table = self.server.system_compile_cache_locks
-            else:
-                lock_table = self._db._cache_locks
+        # Lock on the query compilation to avoid other coroutines running
+        # the same compile and waste computational resources
+        if cached_globally:
+            lock_table = self.server.system_compile_cache_locks
+        else:
+            lock_table = self._db._cache_locks
+        while True:
+            # We need a loop here because schema_version is a part of the key,
+            # there could be a DDL while we're waiting for the lock.
             lock = lock_table.get(query_req)
             if lock is None:
                 lock = asyncio.Lock()
                 lock_table[query_req] = lock
             await lock.acquire()
+            if self.schema_version == schema_version:
+                break
+            else:
+                lock.release()
+                if not lock._waiters:
+                    del lock_table[query_req]
+                schema_version = self.schema_version
+                # Updating the schema_version will make query_req a new key
+                query_req.set_schema_version(schema_version)
 
         try:
             # Check the cache again with the lock acquired
-            if query_unit_group is None and self._query_cache_enabled:
+            if self._query_cache_enabled:
                 if cached_globally:
                     query_unit_group = (
                         self.server.system_compile_cache.get(query_req)
                     )
                 else:
                     query_unit_group = self.lookup_compiled_query(query_req)
+                if query_unit_group is not None:
+                    return self.as_compiled(
+                        query_req, query_unit_group, use_metrics)
 
-            if query_unit_group is None:
-                # Cache miss; need to compile this query.
-                cached = False
-                # Remember the schema version we are compiling on, so that we
-                # can cache the result with the matching version. In case of
-                # concurrent schema update, we're only storing an outdated
-                # cache entry, and the next identical query could get
-                # recompiled on the new schema.
-                schema_version = self.schema_version
-
-                try:
-                    query_unit_group = await self._compile(query_req)
-                except (errors.EdgeQLSyntaxError, errors.InternalServerError):
-                    raise
-                except errors.EdgeDBError:
-                    if self.in_tx_error():
-                        # Because we are in an error state it's more reasonable
-                        # to fail with TransactionError("commands ignored")
-                        # rather than with a potentially more cryptic error.
-                        # An exception from this rule are syntax errors and
-                        # ISEs, because these could arise while the user is
-                        # trying to properly rollback this failed transaction.
-                        self.raise_in_tx_error()
-                    else:
-                        raise
-
-                self.check_capabilities(
-                    query_unit_group.capabilities,
-                    allow_capabilities,
-                    errors.DisabledCapabilityError,
-                    "disabled by the client",
-                )
-
-            if self.in_tx_error():
-                # The current transaction is aborted, so we must fail
-                # all commands except ROLLBACK or ROLLBACK TO SAVEPOINT.
-                first = query_unit_group[0]
-                if (
-                    not (
-                        first.tx_rollback
-                        or first.tx_savepoint_rollback
-                        or first.tx_abort_migration
-                    ) or len(query_unit_group) > 1
-                ):
+            try:
+                query_unit_group = await self._compile(query_req)
+            except (errors.EdgeQLSyntaxError, errors.InternalServerError):
+                raise
+            except errors.EdgeDBError:
+                if self.in_tx_error():
+                    # Because we are in an error state it's more reasonable
+                    # to fail with TransactionError("commands ignored")
+                    # rather than with a potentially more cryptic error.
+                    # An exception from this rule are syntax errors and
+                    # ISEs, because these could arise while the user is
+                    # trying to properly rollback this failed transaction.
                     self.raise_in_tx_error()
+                else:
+                    raise
 
-            if not cached and query_unit_group.cacheable:
+            self.check_capabilities(
+                query_unit_group.capabilities,
+                allow_capabilities,
+                errors.DisabledCapabilityError,
+                "disabled by the client",
+            )
+            self._check_in_tx_error(query_unit_group)
+
+            if self._query_cache_enabled and query_unit_group.cacheable:
                 if cached_globally:
                     self.server.system_compile_cache[query_req] = (
                         query_unit_group
                     )
                 else:
-                    self.cache_compiled_query(
-                        query_req, query_unit_group, schema_version
-                    )
+                    self.cache_compiled_query(query_req, query_unit_group)
         finally:
             if lock is not None:
                 lock.release()
@@ -1140,17 +1126,45 @@ cdef class DatabaseConnectionView:
 
         if use_metrics:
             metrics.edgeql_query_compilations.inc(
-                1.0,
-                self.tenant.get_instance_name(),
-                'cache' if cached else 'compiler',
+                1.0, self.tenant.get_instance_name(), 'compiler'
             )
 
+        source = query_req.source
         return CompiledQuery(
             query_unit_group=query_unit_group,
             first_extra=source.first_extra(),
             extra_counts=source.extra_counts(),
             extra_blobs=source.extra_blobs(),
             request=query_req,
+        )
+
+    cdef inline _check_in_tx_error(self, query_unit_group):
+        if self.in_tx_error():
+            # The current transaction is aborted, so we must fail
+            # all commands except ROLLBACK or ROLLBACK TO SAVEPOINT.
+            first = query_unit_group[0]
+            if (
+                not (
+                    first.tx_rollback
+                    or first.tx_savepoint_rollback
+                    or first.tx_abort_migration
+                ) or len(query_unit_group) > 1
+            ):
+                self.raise_in_tx_error()
+
+    cdef as_compiled(self, query_req, query_unit_group, bint use_metrics=True):
+        self._check_in_tx_error(query_unit_group)
+        if use_metrics:
+            metrics.edgeql_query_compilations.inc(
+                1.0, self.tenant.get_instance_name(), 'cache'
+            )
+
+        source = query_req.source
+        return CompiledQuery(
+            query_unit_group=query_unit_group,
+            first_extra=source.first_extra(),
+            extra_counts=source.extra_counts(),
+            extra_blobs=source.extra_blobs(),
         )
 
     async def _compile(

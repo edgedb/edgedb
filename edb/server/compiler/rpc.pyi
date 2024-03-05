@@ -80,6 +80,9 @@ class CompilationRequest:
     ) -> CompilationRequest:
         ...
 
+    def set_schema_version(self, version: uuid.UUID) -> CompilationRequest:
+        ...
+
     def serialize(self) -> bytes:
         ...
 

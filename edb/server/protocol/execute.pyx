@@ -375,7 +375,7 @@ async def execute(
             else:
                 recompile_requests = [
                     req
-                    for req, (grp, _) in dbv._db._eql_to_compiled.items()
+                    for req, grp in dbv._db._eql_to_compiled.items()
                     if len(grp) == 1
                 ]
             await dbv.recompile_all(be_conn, recompile_requests)
@@ -579,7 +579,7 @@ async def execute_script(
             else:
                 recompile_requests = [
                     req
-                    for req, (grp, _) in dbv._db._eql_to_compiled.items()
+                    for req, grp in dbv._db._eql_to_compiled.items()
                     if len(grp) == 1
                 ]
 
@@ -738,7 +738,7 @@ async def parse_execute_json(
         protocol_version=edbdef.CURRENT_PROTOCOL,
         input_format=compiler.InputFormat.JSON,
         output_format=output_format,
-    )
+    ).set_schema_version(dbv.schema_version)
 
     compiled = await dbv.parse(
         query_req,
