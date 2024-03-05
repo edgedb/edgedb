@@ -872,6 +872,7 @@ class build_parsers(setuptools.Command):
 
     def run(self, *args, **kwargs):
         # load grammar definitions and build the parser
+        from edb.common import context as pctx, debug
         from edb.common import parsing
         from edb.edgeql.parser import grammar as qlgrammar
         spec = parsing.load_parser_spec(qlgrammar.start)
@@ -884,6 +885,9 @@ class build_parsers(setuptools.Command):
         # serialize
         import edb._edgeql_parser as rust_parser
         rust_parser.save_spec(spec_json, str(dst))
+
+        if debug.flags.edgeql_parser:
+            qlgrammar.convert.to_ebnf(spec, self.target_root / 'edb' / 'edgeql')
 
 
 class build_rust(setuptools_rust.build.build_rust):
