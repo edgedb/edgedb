@@ -83,7 +83,7 @@ cdef class Database:
     cdef schedule_config_update(self)
 
     cdef _invalidate_caches(self)
-    cdef _cache_compiled_query(self, key, compiled, schema_version)
+    cdef _cache_compiled_query(self, key, compiled)
     cdef _new_view(self, query_cache, protocol_version)
     cdef _remove_view(self, view)
     cdef _update_backend_ids(self, new_types)
@@ -152,6 +152,7 @@ cdef class DatabaseConnectionView:
         object __weakref__
 
     cdef _reset_tx_state(self)
+    cdef inline _check_in_tx_error(self, query_unit_group)
 
     cdef clear_tx_error(self)
     cdef rollback_tx_to_savepoint(self, name)
@@ -162,10 +163,9 @@ cdef class DatabaseConnectionView:
     cpdef in_tx(self)
     cpdef in_tx_error(self)
 
-    cdef cache_compiled_query(
-        self, object key, object query_unit_group, schema_version
-    )
+    cdef cache_compiled_query(self, object key, object query_unit_group)
     cdef lookup_compiled_query(self, object key)
+    cdef as_compiled(self, query_req, query_unit_group, bint use_metrics=?)
 
     cdef tx_error(self)
 

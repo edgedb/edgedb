@@ -40,6 +40,7 @@ cdef class CompilationRequest:
         readonly object session_config
         object database_config
         object system_config
+        object schema_version
 
         bytes serialized_cache
         object cache_key
