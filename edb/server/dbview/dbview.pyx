@@ -191,6 +191,7 @@ cdef class Database:
             return
 
         self._eql_to_compiled[key] = compiled
+        # TODO(fantix): merge in-memory cleanup into the task below
         keys = []
         while self._eql_to_compiled.needs_cleanup():
             query_req, unit_group = self._eql_to_compiled.cleanup_one()
@@ -936,13 +937,15 @@ cdef class DatabaseConnectionView:
             async with concurrency_control:
                 try:
                     schema_version = self.schema_version
+                    database_config = self.get_database_config()
+                    system_config = self.get_compilation_system_config()
                     result = await compiler_pool.compile(
                         self.dbname,
                         self.get_user_schema_pickle(),
                         self.get_global_schema_pickle(),
                         self.reflection_cache,
-                        self.get_database_config(),
-                        self.get_compilation_system_config(),
+                        database_config,
+                        system_config,
                         query_req.serialize(),
                         "<unknown>",
                         client_id=self.tenant.client_id,
@@ -952,14 +955,13 @@ cdef class DatabaseConnectionView:
                     self._db._eql_to_compiled.pop(query_req, None)
                 else:
                     # schema_version, database_config and system_config are not
-                    # serialized but they affect the cache key. We only update
-                    # these values *after* the compilation because 1) they are
-                    # not needed for compilation, and 2) we can evict the in-
-                    # memory cache by the same key when recompilation fails.
+                    # serialized but only affect the cache key. We only update
+                    # these values *after* the compilation so that we can evict
+                    # the in-memory cache by the right key when recompilation
+                    # fails in the `except` branch above.
                     query_req.set_schema_version(schema_version)
-                    query_req.set_database_config(self.get_database_config())
-                    query_req.set_system_config(
-                        self.get_compilation_system_config())
+                    query_req.set_database_config(database_config)
+                    query_req.set_system_config(system_config)
 
                     await compiled_queue.put((query_req, result[0]))
 
