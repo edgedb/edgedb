@@ -160,6 +160,60 @@ def to_w3c_ebnf(productions: List[EBNF_Production]) -> List[str]:
 def simplify_productions(productions: List[EBNF_Production]
         ) -> List[EBNF_Production]:
 
+    def replace_references(
+                item: EBNF_Item,
+                references: Dict[str, EBNF_Item]
+            ) -> Tuple[EBNF_Item, bool]:
+
+        if isinstance(item, EBNF_Reference):
+            if item.name in references:
+                return EBNF_Optional(references[item.name]), True
+
+        elif isinstance(item, EBNF_Single):
+            item.inner = replace_inlines(item.inner)
+            return item, False
+
+        elif isinstance(item, EBNF_Multiple):
+            item.inner = [
+                replace_inlines(inner_item)
+                for inner_item in item.inner
+            ]
+            return item, False
+
+        return item, False
+
+    # inline single references
+
+    def is_single_reference(item: EBNF_Item) -> bool:
+        return isinstance(item, EBNF_Reference) or (
+                isinstance(item, EBNF_Multiple) and
+                len(item.inner) == 1 and
+                is_single_reference(item.inner[0])
+            )
+    def get_single_reference_inner(item: EBNF_Item) -> EBNF_Item:
+        if isinstance(item, EBNF_Reference):
+            return item
+        elif isinstance(item, EBNF_Multiple):
+            return get_single_reference_inner(item.inner[0])
+        else:
+            raise NotImplementedError
+
+    single_references: Dict[str, EBNF_Item] = {
+        production.name: get_single_reference_inner(production.item)
+        for production in productions
+        if is_single_reference(production.item)
+    }
+
+    productions = [
+        production
+        for production in productions
+        if not is_single_reference(production.item)
+    ]
+
+    def replace_single_optional_references(item: EBNF_Item
+            ) -> Tuple[EBNF_Item, bool]:
+        return replace_references(item, single_references)
+
     # inline single optionals
 
     def is_single_optional(item: EBNF_Item) -> bool:
@@ -190,23 +244,7 @@ def simplify_productions(productions: List[EBNF_Production]
 
     def replace_single_optional_references(item: EBNF_Item
             ) -> Tuple[EBNF_Item, bool]:
-
-        if isinstance(item, EBNF_Reference):
-            if item.name in single_optionals:
-                return EBNF_Optional(single_optionals[item.name]), True
-
-        elif isinstance(item, EBNF_Single):
-            item.inner = replace_inlines(item.inner)
-            return item, False
-
-        elif isinstance(item, EBNF_Multiple):
-            item.inner = [
-                replace_inlines(inner_item)
-                for inner_item in item.inner
-            ]
-            return item, False
-
-        return item, False
+        return replace_references(item, single_optionals)
 
     # replace choices of optionals with optional of choice
 
