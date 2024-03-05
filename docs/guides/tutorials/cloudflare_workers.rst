@@ -27,11 +27,10 @@ Prerequisites
 Ensure you have the following installed:
 
 - `Node.js`_
-- `EdgeDB CLI`_
+- :ref:`EdgeDB CLI <ref_intro_cli>`
 
 .. _Sign up for a Cloudflare account: https://dash.cloudflare.com/sign-up
 .. _Node.js: https://nodejs.org/en/
-.. _EdgeDB CLI: https://www.edgedb.com/docs/intro/cli
 
 Setup and configuration
 -----------------------

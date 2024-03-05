@@ -478,8 +478,8 @@ and used a client library.
   concepts.
 
 - To start building an application using the language of your choice, check out
-  our client libraries: :ref:`JavaScript/TypeScript <edgedb-js-intro>`, `Go
-  </libraries/go>`__, :ref:`Python <edgedb-python-intro>`, :ref:`Rust
-  <ref_rust_index>`, `C# and F# </libraries/dotnet>`__, :ref:`Java
-  <edgedb-java-intro>`, `Dart </libraries/dart>`__, and :ref:`Elixir
+  our client libraries: :ref:`JavaScript/TypeScript <edgedb-js-intro>`, :ref:`Go
+  <edgedb-go-intro>`, :ref:`Python <edgedb-python-intro>`, :ref:`Rust
+  <ref_rust_index>`, :ref:`C# and F# <edgedb-dotnet-intro>`, :ref:`Java
+  <edgedb-java-intro>`, :ref:`Dart <edgedb-dart-intro>`, and :ref:`Elixir
   <edgedb-elixir-intro>`.
