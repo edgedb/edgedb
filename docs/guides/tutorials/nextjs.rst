@@ -560,14 +560,17 @@ Deploying to Vercel
 
 First deploy an EdgeDB instance on your preferred cloud provider:
 
-- `AWS <https://www.edgedb.com/docs/guides/deployment/aws_aurora_ecs>`_
-- `Google Cloud <https://www.edgedb.com/docs/guides/deployment/gcp>`_
-- `Azure <https://www.edgedb.com/docs/guides/deployment/azure_flexibleserver>`_
-- `DigitalOcean <https://www.edgedb.com/docs/guides/deployment/digitalocean>`_
-- `Fly.io <https://www.edgedb.com/docs/guides/deployment/fly_io>`_
-- `Docker <https://www.edgedb.com/docs/guides/deployment/docker>`_
-  (cloud-agnostic)
+- :ref:`AWS <ref_guide_deployment_aws_aurora_ecs>`
+- :ref:`Azure <ref_guide_deployment_azure_flexibleserver>`
+- :ref:`DigitalOcean <ref_guide_deployment_digitalocean>`
+- :ref:`Fly.io <ref_guide_deployment_fly_io>`
+- :ref:`Google Cloud <ref_guide_deployment_gcp>`
+- :ref:`Heroku <ref_guide_deployment_heroku>`
 
+or use a cloud-agnostic deployment method:
+
+- :ref:`Docker <ref_guide_deployment_docker>`
+- :ref:`Bare metal <ref_guide_deployment_bare_metal>`
 
 **#2. Find your instance's DSN**
 
