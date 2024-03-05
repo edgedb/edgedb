@@ -872,6 +872,14 @@ class Router:
             tenant=self.tenant,
             test_mode=self.test_mode,
         )
+
+        request_accepts_json: bool = request.accept == b"application/json"
+
+        if not request_accepts_json and not maybe_redirect_to:
+            raise errors.InvalidData(
+                "Request must accept JSON or provide a redirect URL."
+            )
+
         try:
             await magic_link_client.register(
                 email=email,
@@ -888,34 +896,33 @@ class Router:
                 "email_sent": email,
             }
 
-            if maybe_redirect_to:
+            if request_accepts_json:
+                response.status = http.HTTPStatus.OK
+                response.content_type = b"application/json"
+                response.body = json.dumps(return_data).encode()
+            elif maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
                 response.custom_headers["Location"] = util.join_url_params(
                     maybe_redirect_to, return_data
                 )
             else:
-                response.status = http.HTTPStatus.OK
-                response.content_type = b"application/json"
-                response.body = json.dumps(return_data).encode()
-        except Exception as ex:
-            redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
-            )
-            if redirect_on_failure is None:
-                raise ex
-            else:
-                if not self._is_url_allowed(redirect_on_failure):
-                    raise errors.InvalidData(
-                        "Redirect URL does not match any allowed URLs.",
-                    )
-                response.status = http.HTTPStatus.FOUND
-                redirect_params = {
-                    "error": str(ex),
-                    "email": data.get('email', ''),
-                }
-                response.custom_headers["Location"] = util.join_url_params(
-                    redirect_on_failure, redirect_params
+                # This should not happen since we check earlier for this case
+                # but this seems safer than a cast
+                raise errors.InvalidData(
+                    "Request must accept JSON or provide a redirect URL."
                 )
+        except Exception as ex:
+            if request_accepts_json:
+                raise ex
+
+            response.status = http.HTTPStatus.FOUND
+            redirect_params = {
+                "error": str(ex),
+                "email": data.get('email', ''),
+            }
+            response.custom_headers["Location"] = util.join_url_params(
+                redirect_on_failure, redirect_params
+            )
 
     async def handle_magic_link_email(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
