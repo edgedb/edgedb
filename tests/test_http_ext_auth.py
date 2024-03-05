@@ -3837,7 +3837,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         "redirect_on_failure": redirect_on_failure,
                     }
                 ).encode(),
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
             )
             self.assertEqual(status, 200)
 
