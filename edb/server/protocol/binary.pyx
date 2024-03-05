@@ -547,24 +547,21 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                              'after', source.first_extra())
 
         query_unit_group = dbv.lookup_compiled_query(query_req)
-
-        # If we have to do a compile within a transaction, suppress
-        # the idle_in_transaction_session_timeout.
-        suppress_timeout = (
-            dbv.in_tx() and not dbv.in_tx_error() and query_unit_group is None
-        )
-        if suppress_timeout:
-            await self._suppress_tx_timeout()
-
-        try:
-            return await dbv.parse(
-                query_req,
-                query_unit_group=query_unit_group,
-                allow_capabilities=allow_capabilities,
-            )
-        finally:
+        if query_unit_group is None:
+            # If we have to do a compile within a transaction, suppress
+            # the idle_in_transaction_session_timeout.
+            suppress_timeout = dbv.in_tx() and not dbv.in_tx_error()
             if suppress_timeout:
-                await self._restore_tx_timeout(dbv)
+                await self._suppress_tx_timeout()
+            try:
+                return await dbv.parse(
+                    query_req, allow_capabilities=allow_capabilities
+                )
+            finally:
+                if suppress_timeout:
+                    await self._restore_tx_timeout(dbv)
+        else:
+            return dbv.as_compiled(query_req, query_unit_group)
 
     cdef parse_cardinality(self, bytes card):
         if card[0] == CARD_MANY.value:

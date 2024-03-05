@@ -152,6 +152,7 @@ cdef class DatabaseConnectionView:
         object __weakref__
 
     cdef _reset_tx_state(self)
+    cdef inline _check_in_tx_error(self, query_unit_group)
 
     cdef clear_tx_error(self)
     cdef rollback_tx_to_savepoint(self, name)
@@ -166,6 +167,7 @@ cdef class DatabaseConnectionView:
         self, object key, object query_unit_group, schema_version
     )
     cdef lookup_compiled_query(self, object key)
+    cdef as_compiled(self, query_req, query_unit_group, bint use_metrics=?)
 
     cdef tx_error(self)
 
