@@ -152,7 +152,7 @@ async function authenticateAssertion(props) {
   const encodedAssertion = {
     type: props.assertion.type,
     id: props.assertion.id,
-    authenticatorAttachments: props.assertion.authenticatorAttachment,
+    authenticatorAttachment: props.assertion.authenticatorAttachment,
     clientExtensionResults: props.assertion.getClientExtensionResults(),
     rawId: encodeBase64Url(new Uint8Array(props.assertion.rawId)),
     response: {
