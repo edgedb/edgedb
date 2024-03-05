@@ -4,18 +4,9 @@ v5.0
 
 :edb-alt-title: EdgeDB v5
 
-To play with the new features, install the CLI using `our installation guide
-<https://www.edgedb.com/install>`_.
-
-Make sure to install the 5.0 testing version of CLI by upgrading it:
-
-.. code-block:: bash
-
-  $ edgedb cli upgrade --to-testing
-
-When initializing the project, make sure to also specify version 5.0 as
-pre-release versions are not considered stable and will not be automatically
-suggested:
+To play with the new features, make sure to specify version 5.0 when 
+initializing the project as pre-release versions are not considered stable 
+and will not be automatically suggested:
 
 .. code-block:: bash
 
