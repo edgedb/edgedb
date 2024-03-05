@@ -157,8 +157,10 @@ def to_w3c_ebnf(productions: List[EBNF_Production]) -> List[str]:
     ]
 
 
-def inline_single_optionals(productions: List[EBNF_Production]
+def simplify_productions(productions: List[EBNF_Production]
         ) -> List[EBNF_Production]:
+
+    # inline single optionals
 
     def is_single_optional(item: EBNF_Item) -> bool:
         return isinstance(item, EBNF_Optional) or (
@@ -180,14 +182,11 @@ def inline_single_optionals(productions: List[EBNF_Production]
         if is_single_optional(production.item)
     }
 
-    def replace_repeatedly(
-            item: EBNF_Item,
-            func: Callable[[EBNF_Item], Tuple[EBNF_Item, bool]]):
-
-        replacing = True
-        while replacing:
-            item, replacing = func(item)
-        return item
+    productions = [
+        production
+        for production in productions
+        if not is_single_optional(production.item)
+    ]
 
     def replace_single_optional_references(item: EBNF_Item
             ) -> Tuple[EBNF_Item, bool]:
@@ -197,31 +196,67 @@ def inline_single_optionals(productions: List[EBNF_Production]
                 return EBNF_Optional(single_optionals[item.name]), True
 
         elif isinstance(item, EBNF_Single):
-            item.inner = replace_repeatedly(
-                item.inner, replace_single_optional_references
-            )
+            item.inner = replace_inlines(item.inner)
             return item, False
 
         elif isinstance(item, EBNF_Multiple):
             item.inner = [
-                replace_repeatedly(
-                    inner_item, replace_single_optional_references
-                )
+                replace_inlines(inner_item)
                 for inner_item in item.inner
             ]
             return item, False
 
         return item, False
 
+    # replace choices of optionals with optional of choice
+
+    def replace_choice_of_options(item: EBNF_Item
+            ) -> Tuple[EBNF_Item, bool]:
+
+        if isinstance(item, EBNF_Choice):
+            inner_options = [
+                inner_item
+                for inner_item in item.inner
+                if isinstance(inner_item, EBNF_Optional)
+            ]
+
+            if len(inner_options) == len(item.inner):
+                return EBNF_Optional(EBNF_Choice([
+                    inner_option.inner
+                    for inner_option in inner_options
+                ])), True
+
+        return item, False
+
+    # apply replacements until no changes are made
+
+    def replace_repeatedly(
+                item: EBNF_Item,
+                funcs: List[Callable[[EBNF_Item], Tuple[EBNF_Item, bool]]]
+            ) -> EBNF_Item:
+
+        changed = True
+        while changed:
+            changed = False
+            for func in funcs:
+                item, curr_changed = func(item)
+                changed = changed or curr_changed
+        return item
+
+    def replace_inlines(item: EBNF_Item) -> EBNF_Item:
+        return replace_repeatedly(
+                item, [
+                    replace_single_optional_references,
+                    replace_choice_of_options,
+                ]
+            )
+
     return [
         EBNF_Production(
             production.name,
-            replace_repeatedly(
-                production.item, replace_single_optional_references
-            )
+            replace_inlines(production.item)
         )
         for production in productions
-        if not is_single_optional(production.item)
     ]
 
 
@@ -301,7 +336,12 @@ def to_ebnf(spec: parsing.Spec, path: pathlib.Path):
                 ]))
             )
 
-    ebnf_productions = inline_single_optionals(ebnf_productions)
+    # repeatedly simplify until no simplifications are made
+    while True:
+        count = len(ebnf_productions)
+        ebnf_productions = simplify_productions(ebnf_productions)
+        if count == len(ebnf_productions):
+            break
 
     # output
     with open(path / 'grammar.iso.ebnf', 'w') as file:
