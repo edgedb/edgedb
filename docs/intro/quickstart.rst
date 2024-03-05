@@ -437,11 +437,15 @@ will look something like this:
 EdgeDB UI is a useful development tool, but in practice your application will
 likely be using one of EdgeDB's *client libraries* to execute queries. EdgeDB
 provides official libraries for
-`JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__,
-`Go <https://github.com/edgedb/edgedb-go>`__,
-`Python <https://github.com/edgedb/edgedb-python>`__,
-`Rust <https://github.com/edgedb/edgedb-rust>`__, and
-`C# and F# <https://github.com/edgedb/edgedb-net>`_.
+:ref:`JavaScript/TypeScript <edgedb-js-intro>`,
+`Go </libraries/go>`__,
+:ref:`Python <edgedb-python-intro>`,
+:ref:`Rust <ref_rust_index>`,
+`C# and F# </libraries/dotnet>`__,
+:ref:`Java <edgedb-java-intro>`,
+`Dart </libraries/dart>`__, and
+:ref:`Elixir <edgedb-elixir-intro>`.
+
 Check out the :ref:`Clients
 <ref_intro_clients>` guide to get started with the language of your choice.
 
