@@ -30,20 +30,32 @@ async function onAuthenticateSubmit(form) {
   const redirectOnFailure = formData.get("redirect_on_failure");
   const redirectTo = formData.get("redirect_to");
 
-  if (redirectTo === null) {
-    throw new Error("Missing redirect_to parameter");
+  const missingFields = Object.entries({
+    email,
+    challenge,
+    redirectTo,
+  }).filter(([k, v]) => !v);
+  if (missingFields.length > 0) {
+    throw new Error(
+      "Missing required parameters: " + missingFields.map(([k]) => k).join(", ")
+    );
   }
 
   try {
-    const maybeCode = await authenticate({
+    const response = await authenticate({
       email,
       provider,
       challenge,
     });
 
     const redirectUrl = new URL(redirectTo);
-    if (maybeCode !== null) {
-      redirectUrl.searchParams.append("code", maybeCode);
+    if ("code" in response) {
+      redirectUrl.searchParams.append("code", response.code);
+    } else if ("verification_email_sent_at" in response) {
+      redirectUrl.searchParams.append(
+        "verification_email_sent_at",
+        response.verification_email_sent_at
+      );
     }
 
     window.location.href = redirectUrl.href;
@@ -72,8 +84,7 @@ const WEBAUTHN_AUTHENTICATE_URL = new URL(
  * @param {string} props.email - Email address to register
  * @param {string} props.provider - WebAuthn provider
  * @param {string} props.challenge - PKCE challenge
- * @returns {Promise<string | null>} - The PKCE code or null if the application
- *   requires email verification
+ * @returns {Promise<object>} - The server response
  */
 export async function authenticate({ email, provider, challenge }) {
   // Check if WebAuthn is supported
@@ -98,13 +109,11 @@ export async function authenticate({ email, provider, challenge }) {
   });
 
   // Register the credentials on the server
-  const registerResult = await authenticateAssertion({
+  return await authenticateAssertion({
     email,
     assertion,
     challenge,
   });
-
-  return registerResult.code ?? null;
 }
 
 /**
