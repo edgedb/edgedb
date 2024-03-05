@@ -464,9 +464,10 @@ and used a client library.
   the other pages in the Getting Started section, which will cover important
   topics like migrations, the schema language, and EdgeQL in greater detail.
 
-- For guided tours of major concepts, check out the
-  showcase pages for `Data Modeling </showcase/data-modeling>`_,
-  `EdgeQL </showcase/edgeql>`_, and `Migrations </showcase/migrations>`_.
+- For guided tours of major concepts, check out the showcase pages for `Data
+  Modeling <https://www.edgedb.com/showcase/data-modeling>`_, `EdgeQL
+  <https://www.edgedb.comshowcase/edgeql>`_, and `Migrations
+  <https://www.edgedb.comshowcase/migrations>`_.
 
 - For a deep dive into the EdgeQL query language, check out the
   `Interactive Tutorial </tutorial>`_.
