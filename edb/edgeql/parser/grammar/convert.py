@@ -160,6 +160,35 @@ def to_w3c_ebnf(productions: List[EBNF_Production]) -> List[str]:
 def simplify_productions(productions: List[EBNF_Production]
         ) -> List[EBNF_Production]:
 
+    # remove unused productions
+
+    reference_counts: Dict[str, int] = {
+        production.name: 0
+        for production in productions
+    }
+
+    def update_reference_count(prod_name: str, item: EBNF_Item):
+        if isinstance(item, EBNF_Reference):
+            if prod_name != item.name:
+                # don't count recursive references
+                reference_counts[item.name] += 1
+        elif isinstance(item, EBNF_Single):
+            update_reference_count(prod_name, item.inner)
+        elif isinstance(item, EBNF_Multiple):
+            for inner_item in item.inner:
+                update_reference_count(prod_name, inner_item)
+
+    for production in productions:
+        update_reference_count(production.name, production.item)
+
+    productions = [
+        production
+        for production in productions
+        if reference_counts[production.name] > 0
+    ]
+
+    # utility to help inlining
+
     def replace_references(
                 item: EBNF_Item,
                 references: Dict[str, EBNF_Item]
@@ -182,7 +211,7 @@ def simplify_productions(productions: List[EBNF_Production]
 
         return item, False
 
-    # inline single references
+    # inline direct references
 
     def is_single_reference(item: EBNF_Item) -> bool:
         return isinstance(item, EBNF_Reference) or (
@@ -210,7 +239,7 @@ def simplify_productions(productions: List[EBNF_Production]
         if not is_single_reference(production.item)
     ]
 
-    def replace_single_optional_references(item: EBNF_Item
+    def replace_direct_references(item: EBNF_Item
             ) -> Tuple[EBNF_Item, bool]:
         return replace_references(item, single_references)
 
@@ -284,6 +313,7 @@ def simplify_productions(productions: List[EBNF_Production]
     def replace_inlines(item: EBNF_Item) -> EBNF_Item:
         return replace_repeatedly(
                 item, [
+                    replace_direct_references,
                     replace_single_optional_references,
                     replace_choice_of_options,
                 ]
