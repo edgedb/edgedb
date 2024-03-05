@@ -34,14 +34,14 @@ Available libraries
 To execute queries from your application code, use one of EdgeDB's *client
 libraries* for the following languages.
 
-
-- `JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`_
-- `Go <https://github.com/edgedb/edgedb-go>`_
-- `Python <https://github.com/edgedb/edgedb-python>`_
-- `Rust <https://github.com/edgedb/edgedb-rust>`_
-- `.NET <https://github.com/edgedb/edgedb-net>`_
-- `Java <https://github.com/edgedb/edgedb-java>`_
-- `Elixir <https://github.com/edgedb/edgedb-elixir>`_
+- :ref:`JavaScript/TypeScript <edgedb-js-intro>`
+- `Go </libraries/go>`__
+- :ref:`Python <edgedb-python-intro>`
+- :ref:`Rust <ref_rust_index>`
+- `C# and F# </libraries/dotnet>`__
+- :ref:`Java <edgedb-java-intro>`
+- `Dart </libraries/dart>`__
+- :ref:`Elixir <edgedb-elixir-intro>`
 
 Usage
 =====
