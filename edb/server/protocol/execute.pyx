@@ -375,7 +375,7 @@ async def execute(
             else:
                 recompile_requests = [
                     req
-                    for req, (grp, _) in dbv._db._eql_to_compiled.items()
+                    for req, grp in dbv._db._eql_to_compiled.items()
                     if len(grp) == 1
                 ]
             await dbv.recompile_all(be_conn, recompile_requests)
@@ -579,7 +579,7 @@ async def execute_script(
             else:
                 recompile_requests = [
                     req
-                    for req, (grp, _) in dbv._db._eql_to_compiled.items()
+                    for req, grp in dbv._db._eql_to_compiled.items()
                     if len(grp) == 1
                 ]
 

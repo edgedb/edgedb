@@ -182,22 +182,18 @@ cdef class Database:
         self._sql_to_compiled.clear()
         self._index.invalidate_caches()
 
-    cdef _cache_compiled_query(
-        self, key, compiled: dbstate.QueryUnitGroup, schema_version
-    ):
+    cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
         # `dbver` must be the schema version `compiled` was compiled upon
         assert compiled.cacheable
 
-        existing, existing_ver = self._eql_to_compiled.get(key, DICTDEFAULT)
-        if existing is not None and existing_ver == self.schema_version:
-            # We already have a cached query for a more recent DB version.
+        if key in self._eql_to_compiled:
+            # We already have a cached query for the current user schema
             return
 
-        # Store the matching schema version, see also the comments at origin
-        self._eql_to_compiled[key] = compiled, schema_version
+        self._eql_to_compiled[key] = compiled
         keys = []
         while self._eql_to_compiled.needs_cleanup():
-            query_req, (unit_group, _) = self._eql_to_compiled.cleanup_one()
+            query_req, unit_group = self._eql_to_compiled.cleanup_one()
             if len(unit_group) == 1:
                 keys.append(query_req.get_cache_key())
         if keys:
@@ -248,19 +244,17 @@ cdef class Database:
 
     def hydrate_cache(self, query_cache):
         new = set()
-        for schema_version, in_data, out_data in query_cache:
+        for _, in_data, out_data in query_cache:
             query_req = rpc.CompilationRequest(
                 self.server.compilation_config_serializer)
             query_req.deserialize(in_data, "<unknown>")
-            schema_version = uuidgen.from_bytes(schema_version)
             new.add(query_req)
 
-            _, cached_ver = self._eql_to_compiled.get(query_req, DICTDEFAULT)
-            if cached_ver != schema_version:
+            if query_req not in self._eql_to_compiled:
                 unit = dbstate.QueryUnit.deserialize(out_data)
                 group = dbstate.QueryUnitGroup()
                 group.append(unit)
-                self._eql_to_compiled[query_req] = group, schema_version
+                self._eql_to_compiled[query_req] = group
 
         for query_req in list(self._eql_to_compiled):
             if query_req not in new:
@@ -710,15 +704,11 @@ cdef class DatabaseConnectionView:
     cpdef in_tx_error(self):
         return self._tx_error
 
-    cdef cache_compiled_query(
-        self, object key, object query_unit_group, schema_version
-    ):
+    cdef cache_compiled_query(self, object key, object query_unit_group):
         assert query_unit_group.cacheable
 
         if not self._in_tx_with_ddl:
-            self._db._cache_compiled_query(
-                key, query_unit_group, schema_version
-            )
+            self._db._cache_compiled_query(key, query_unit_group)
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
@@ -726,12 +716,7 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_ddl):
             return None
 
-        query_unit_group, qu_ver = self._db._eql_to_compiled.get(
-            key, DICTDEFAULT)
-        if query_unit_group is not None and qu_ver != self._db.schema_version:
-            query_unit_group = None
-
-        return query_unit_group
+        return self._db._eql_to_compiled.get(key, None)
 
     cdef tx_error(self):
         if self._in_tx:
@@ -976,9 +961,7 @@ cdef class DatabaseConnectionView:
                     query_req.set_system_config(
                         self.get_compilation_system_config())
 
-                    await compiled_queue.put(
-                        (query_req, result[0], schema_version)
-                    )
+                    await compiled_queue.put((query_req, result[0]))
 
         async def persist_cache_task():
             if not debug.flags.func_cache:
@@ -998,9 +981,9 @@ cdef class DatabaseConnectionView:
                     await execute.persist_cache(
                         conn, self, [item[:2] for item in buf]
                     )
-                    for query_req, query_unit_group, schema_version in buf:
+                    for query_req, query_unit_group in buf:
                         self._db._cache_compiled_query(
-                            query_req, query_unit_group, schema_version)
+                            query_req, query_unit_group)
                     buf.clear()
 
         async with asyncio.TaskGroup() as g:
@@ -1133,9 +1116,7 @@ cdef class DatabaseConnectionView:
                         query_unit_group
                     )
                 else:
-                    self.cache_compiled_query(
-                        query_req, query_unit_group, schema_version
-                    )
+                    self.cache_compiled_query(query_req, query_unit_group)
         finally:
             if lock is not None:
                 lock.release()
