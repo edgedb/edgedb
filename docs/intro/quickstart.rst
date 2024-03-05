@@ -466,8 +466,8 @@ and used a client library.
 
 - For guided tours of major concepts, check out the showcase pages for `Data
   Modeling <https://www.edgedb.com/showcase/data-modeling>`_, `EdgeQL
-  <https://www.edgedb.comshowcase/edgeql>`_, and `Migrations
-  <https://www.edgedb.comshowcase/migrations>`_.
+  <https://www.edgedb.com/showcase/edgeql>`_, and `Migrations
+  <https://www.edgedb.com/showcase/migrations>`_.
 
 - For a deep dive into the EdgeQL query language, check out the
   `Interactive Tutorial </tutorial>`_.
