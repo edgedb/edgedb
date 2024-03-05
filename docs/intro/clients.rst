@@ -394,6 +394,8 @@ projects <ref_guide_using_projects>` guide to get started.
 Using environment variables
 ---------------------------
 
+.. _ref_intro_clients_connection_cloud:
+
 For EdgeDB Cloud
 ^^^^^^^^^^^^^^^^
 
@@ -513,8 +515,13 @@ Other mechanisms
       "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
     }
 
-``EDGEDB_INSTANCE`` (local only)
-  The name of a local instance. Only useful in development.
+``EDGEDB_INSTANCE`` (local/EdgeDB Cloud only)
+  The name of an instance. Useful only for local or EdgeDB Cloud instances.
+
+  .. note::
+
+      For more on EdgeDB Cloud instances, see the :ref:`EdgeDB Cloud instance
+      connection section <ref_intro_clients_connection_cloud>` above.
 
 Reference
 ---------
