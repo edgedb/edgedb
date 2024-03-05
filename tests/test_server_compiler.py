@@ -26,6 +26,7 @@ import sys
 import tempfile
 import time
 import unittest.mock
+import uuid
 
 import immutables
 
@@ -442,7 +443,7 @@ class TestCompilerPool(tbs.TestCase):
                     source=edgeql.Source.from_string(orig_query),
                     protocol_version=(1, 0),
                     implicit_limit=101,
-                )
+                ).set_schema_version(uuid.uuid4())
 
                 await asyncio.gather(*(pool_.compile_in_tx(
                     context.state.current_tx().id,
@@ -473,7 +474,7 @@ class TestCompilerPool(tbs.TestCase):
             ).update(
                 source=source,
                 protocol_version=(1, 0),
-            )
+            ).set_schema_version(uuid.uuid4())
             request2 = rpc.CompilationRequest(
                 compiler.state.compilation_config_serializer
             ).deserialize(request1.serialize(), "<unknown>")
