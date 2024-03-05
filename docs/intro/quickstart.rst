@@ -477,10 +477,11 @@ and used a client library.
   total beginner through EdgeDB, from the basics all the way through advanced
   concepts.
 
-- To start building an application using the language of your choice, check
-  out our client libraries for
-  `JavaScript/TypeScript </docs/clients/01_js/index>`__,
-  `Python </docs/clients/00_python/index>`__, and
-  `Go </docs/clients/02_go/index>`__.
+- To start building an application using the language of your choice, check out
+  our client libraries: :ref:`JavaScript/TypeScript <edgedb-js-intro>`, `Go
+  </libraries/go>`__, :ref:`Python <edgedb-python-intro>`, :ref:`Rust
+  <ref_rust_index>`, `C# and F# </libraries/dotnet>`__, :ref:`Java
+  <edgedb-java-intro>`, `Dart </libraries/dart>`__, and :ref:`Elixir
+  <edgedb-elixir-intro>`.
 
 - Or just jump into the :ref:`docs <index_toplevel>`!
