@@ -1170,6 +1170,6 @@ Discord <https://discord.gg/umUueND6ag>`_. It's a great community of helpful
 folks, all passionate about being part of the next generation of databases.
 
 If you like what you see and want to dive deeper into EdgeDB and what it can
-do, check out our `Easy EdgeDB book <https://www.edgedb.com/easy-edgedb>`_. In
+do, check out our `Easy EdgeDB book </easy-edgedb>`_. In
 it, you'll get to learn more about EdgeDB as we build an imaginary role-playing
 game based on Bram Stoker's Dracula.
