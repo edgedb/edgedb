@@ -35,12 +35,12 @@ To execute queries from your application code, use one of EdgeDB's *client
 libraries* for the following languages.
 
 - :ref:`JavaScript/TypeScript <edgedb-js-intro>`
-- `Go </libraries/go>`__
+- :ref:`Go <edgedb-go-intro>`
 - :ref:`Python <edgedb-python-intro>`
 - :ref:`Rust <ref_rust_index>`
-- `C# and F# </libraries/dotnet>`__
+- :ref:`C# and F# <edgedb-dotnet-intro>`
 - :ref:`Java <edgedb-java-intro>`
-- `Dart </libraries/dart>`__
+- :ref:`Dart <edgedb-dart-intro>`
 - :ref:`Elixir <edgedb-elixir-intro>`
 
 Usage

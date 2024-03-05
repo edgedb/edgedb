@@ -438,12 +438,12 @@ EdgeDB UI is a useful development tool, but in practice your application will
 likely be using one of EdgeDB's *client libraries* to execute queries. EdgeDB
 provides official libraries for
 :ref:`JavaScript/TypeScript <edgedb-js-intro>`,
-`Go </libraries/go>`__,
+:ref:`Go <edgedb-go-intro>`,
 :ref:`Python <edgedb-python-intro>`,
 :ref:`Rust <ref_rust_index>`,
-`C# and F# </libraries/dotnet>`__,
+:ref:`C# and F# <edgedb-dotnet-intro>`,
 :ref:`Java <edgedb-java-intro>`,
-`Dart </libraries/dart>`__, and
+:ref:`Dart <edgedb-dart-intro>`, and
 :ref:`Elixir <edgedb-elixir-intro>`.
 
 Check out the :ref:`Clients
