@@ -164,6 +164,7 @@ to Postgres:
     ...
     ALTER ROLE
 
+.. _ref_guide_deployment_fly_io_start_edgedb:
 
 Start EdgeDB
 ============
@@ -293,10 +294,10 @@ something like this:
             restart_limit = 0
             timeout = "2s"
 
-In the same directory, `redeploy the EdgeDB app <#start-edgedb>`_.
-This makes the EdgeDB port available to the outside world. You can now
-access the instance from any host via the following public DSN:
-``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev``.
+In the same directory, :ref:`redeploy the EdgeDB app
+<ref_guide_deployment_fly_io_start_edgedb>`. This makes the EdgeDB port
+available to the outside world. You can now access the instance from any host
+via the following public DSN: ``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev``.
 
 To secure communication between the server and the client, you will also
 need to set the ``EDGEDB_TLS_CA`` environment secret in your application.
