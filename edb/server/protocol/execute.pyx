@@ -359,7 +359,8 @@ async def execute(
                 #   2. There was no SQL, so the state can't have been synced.
                 be_conn.last_state = state
         if (
-            not dbv.in_tx()
+            debug.flags.persistent_cache
+            and not dbv.in_tx()
             and not query_unit.tx_rollback
             and query_unit.user_schema
             and server.config_lookup(
@@ -564,7 +565,8 @@ async def execute_script(
         if unit_group.state_serializer is not None:
             dbv.set_state_serializer(unit_group.state_serializer)
         if (
-            not in_tx
+            debug.flags.persistent_cache
+            and not in_tx
             and any(query_unit.user_schema for query_unit in unit_group)
             and dbv.server.config_lookup(
                 "auto_rebuild_query_cache",

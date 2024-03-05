@@ -869,7 +869,7 @@ class Compiler:
             request.protocol_version,
             request.inline_objectids,
             request.json_parameters,
-            persistent_cache=True,
+            persistent_cache=bool(debug.flags.persistent_cache),
             cache_key=request.get_cache_key(),
         )
         return units, cstate
@@ -975,7 +975,7 @@ class Compiler:
             request.inline_objectids,
             request.json_parameters,
             expect_rollback=expect_rollback,
-            persistent_cache=True,
+            persistent_cache=bool(debug.flags.persistent_cache),
             cache_key=request.get_cache_key(),
         )
         return units, cstate
