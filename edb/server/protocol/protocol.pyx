@@ -496,7 +496,7 @@ cdef class HttpProtocol:
         path_parts_len = len(path_parts)
         route = path_parts[0]
 
-        if self.tenant is None and route in ['db', 'auth']:
+        if self.tenant is None and route in ['db', 'auth', 'branch']:
             self.tenant = self.server.get_default_tenant()
             self.check_readiness()
             if self.tenant.is_accepting_connections():
@@ -510,7 +510,7 @@ cdef class HttpProtocol:
                     b'The server is closing.',
                 )
 
-        if route == 'db' or route == 'branch':
+        if route in ['db', 'branch']:
             if path_parts_len < 2:
                 return self._not_found(request, response)
 
