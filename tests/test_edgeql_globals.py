@@ -40,6 +40,9 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
             create required global def_cur_user -> str {
                 set default := 'Alice'
             };
+            create global def_cur_user_excited := (
+                global def_cur_user ++ '!'
+            );
             create global cur_card -> str {
                 set default := 'Dragon'
             };
@@ -119,9 +122,10 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                select (global cur_user, global def_cur_user)
+                select (global cur_user, global def_cur_user,
+                        global def_cur_user_excited)
             ''',
-            [['Bob', 'Dave']],
+            [['Bob', 'Dave', 'Dave!']],
         )
 
     async def test_edgeql_globals_03(self):

@@ -501,9 +501,6 @@ def new_primitive_rvar(
     lateral: bool,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
-    if not ir_set.path_id.is_objtype_path():
-        raise ValueError('cannot create root rvar for non-object path')
-
     if isinstance(ir_set.expr, irast.TypeRoot):
         skip_subtypes = ir_set.expr.skip_subtypes
     else:
@@ -1430,6 +1427,9 @@ def range_for_material_objtype(
     ):
         typeref = typeref.material_type
     is_global = typeref.material_type is not None
+
+    if not is_global and not path_id.is_objtype_path():
+        raise ValueError('cannot create root rvar for non-object path')
 
     relation: Union[pgast.Relation, pgast.CommonTableExpr]
 
