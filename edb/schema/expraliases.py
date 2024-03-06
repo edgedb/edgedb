@@ -118,7 +118,7 @@ class AliasLikeCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        unset_type: bool = True
+        unset_type: bool = True,
     ) -> sd.CommandGroup:
         from . import globals as s_globals
         from . import ordering as s_ordering
@@ -139,9 +139,11 @@ class AliasLikeCommand(
         if unset_type:
             # (there are cases when we don't need to unset the type, such as
             # when a computed global has been converted to a non-computed one)
-            alter_alias.add(sd.AlterObjectProperty(
-                property=self.TYPE_FIELD_NAME, new_value=None
-            ))
+            alter_alias.add(
+                sd.AlterObjectProperty(
+                    property=self.TYPE_FIELD_NAME, new_value=None
+                )
+            )
         alter_alias.set_attribute_value('created_types', set())
 
         for dep_type in created:

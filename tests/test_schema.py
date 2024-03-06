@@ -4448,7 +4448,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    @test.xerror('''
+    @test.xerror(
+        '''
         This wants to transmute an object type into an alias. It
         produces DDL, but the DDL doesn't really make any sense. We
         are going to probably need to add DDL syntax to accomplish
@@ -4465,7 +4466,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
           alter object type 'default::Alias01' of
             object type 'default::Alias01' depends on
           create alias 'default::Base'
-    ''')
+        '''
+    )
     def test_schema_migrations_equivalence_23(self):
         self._assert_migration_equivalence([r"""
             type Child {
@@ -5416,17 +5418,22 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 required property name -> str;
                 index pg::spgist on (.name);
             };
-        """, r"""
+        """,
+                r"""
             type User {
                 required property name -> str;
                 index pg::spgist on (.name) {
                     annotation description := 'test';
                 };
             };
-        """])
+        """,
+            ]
+        )
 
     def test_schema_migrations_equivalence_61(self):
-        self._assert_migration_equivalence([r"""
+        self._assert_migration_equivalence(
+            [
+            r"""
             type Child {
                 property foo -> str;
             }
@@ -5434,7 +5441,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base {
                 link bar -> Child;
             }
-        """, r"""
+            """,
+            r"""
             type Child {
                 property foo -> str;
             }
@@ -5446,7 +5454,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     bar := Child
                 }
             );
-        """])
+            """,
+            ]
+        )
 
     def test_schema_migrations_equivalence_compound_01(self):
         # Check that union types can be referenced in computables

@@ -108,7 +108,7 @@ class Type(
         bool,
         default=False,
         # cannot alter type from being produced by an alias into an actual type
-        compcoef=0.0
+        compcoef=0.0,
     )
 
     # True when from a global. The purpose of this is to ensure that
