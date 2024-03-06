@@ -22,6 +22,9 @@ interface nearly identical to the :ref:`EdgeDB UI <ref_cli_edgedb_ui>`.
     deploy/index
     deploy/vercel
     deploy/netlify
+    deploy/fly
+    deploy/render
+    deploy/railway
 
 
 Questions? Problems? Bugs?
