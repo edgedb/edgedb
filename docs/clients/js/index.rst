@@ -7,8 +7,3 @@ JavaScript
 The documentation for the JavaScript client is automatically pulled
 from https://github.com/edgedb/edgedb-js/tree/master/docs by the
 build pipeline of the edgedb.com website.
-
-.. Following are a list of references from the actual docs to keep CI happy
-
-.. _edgedb-js-api-transaction:
-.. _edgedb-js-qb:
