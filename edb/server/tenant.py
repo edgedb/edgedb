@@ -186,7 +186,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._jwt_revocation_list = None
 
         # If it isn't stored in instdata, it is the old default.
-        self._default_database = defines.EDGEDB_OLD_DEFAULT_DB
+        self.default_database = defines.EDGEDB_OLD_DEFAULT_DB
 
     def set_reloadable_files(
         self,
@@ -365,7 +365,7 @@ class Tenant(ha_base.ClusterProtocol):
                 """
             )
             if default_database:
-                self._default_database = default_database.decode('utf-8')
+                self.default_database = default_database.decode('utf-8')
 
         if data is not None:
             logger.debug("parsing global schema")
@@ -1042,7 +1042,7 @@ class Tenant(ha_base.ClusterProtocol):
     def resolve_branch_name(
         self, database: str | None, branch: str | None
     ) -> str:
-        default = self._default_database
+        default = self.default_database
         if branch == '__default__':
             return default
         elif branch is not None:
