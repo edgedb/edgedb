@@ -10,7 +10,8 @@ Render
 2. Create and make note of a secret key for your EdgeDB Cloud instance
 3. From Render's dashboard, click "New > Web Service"
 4. Import your project's repository
-5. In your new project's page, click "Environment" to add two variables:
+5. In the setup page, scroll down to the "Environment Variables" section and 
+   add the following environment variables:
 
    - ``EDGEDB_INSTANCE`` containing your EdgeDB Cloud instance name (in
      ``<org>/<instance-name>`` format)
