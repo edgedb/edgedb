@@ -135,8 +135,9 @@ class GroupingAtom(Nonterm):
         self.val = qlast.GroupingIdentList(elements=kids[1].val)
 
 
-class GroupingAtomList(ListNonterm, element=GroupingAtom,
-                       separator=tokens.T_COMMA):
+class GroupingAtomList(
+        ListNonterm, element=GroupingAtom, separator=tokens.T_COMMA,
+        allow_trailing_separator=True):
     pass
 
 
@@ -155,7 +156,8 @@ class GroupingElement(Nonterm):
 
 
 class GroupingElementList(
-        ListNonterm, element=GroupingElement, separator=tokens.T_COMMA):
+        ListNonterm, element=GroupingElement, separator=tokens.T_COMMA,
+        allow_trailing_separator=True):
     pass
 
 
