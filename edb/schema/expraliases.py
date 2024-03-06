@@ -563,17 +563,8 @@ def _create_alias_types(
         if op.classname == classname:
             type_cmd = op
             break
-    if not type_cmd:
-        # create type command does not exist, because the type already exists
-        # (this happens when converting a type into an alias)
-        ty = schema.get(classname, type=s_types.Type)
-        assert ty
-        type_cmd = ty.init_delta_command(schema, sd.AlterObject)
-        type_cmd.canonical = True
-        type_cmd.set_attribute_value('alias_is_persistent', True)
-        type_cmd.set_attribute_value('expr_type', s_types.ExprType.Select)
-        type_cmd.set_attribute_value('from_alias', True)
-        type_cmd.set_attribute_value('from_global', is_global)
+    assert type_cmd
+
     type_cmd.set_attribute_value('expr', expr)
 
     result = sd.CommandGroup()
