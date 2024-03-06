@@ -1090,7 +1090,6 @@ cdef class DatabaseConnectionView:
             #  * Issued a DDL or committing a tx with DDL (recompilation
             #    before in-tx DDL needs to fix _in_tx_with_ddl caching 1st)
             #  * Config.auto_rebuild_query_cache is turned on
-            #  * TODO: Modified `Config.apply_access_policies`?
             #
             # Ideally we should compute the proper user_schema, database_config
             # and system_config for recompilation from server/compiler.py with

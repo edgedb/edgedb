@@ -165,6 +165,7 @@ async def execute(
         bytes state = None, orig_state = None
         WriteBuffer bound_args_buf
         ExecutionGroup group
+        bint persist_cache, persist_recompiled_query_cache
 
     query_unit = compiled.query_unit_group[0]
 
@@ -174,6 +175,16 @@ async def execute(
     new_types = None
     server = dbv.server
     tenant = dbv.tenant
+
+    # If we have both the compilation request and a pair of SQLs for the cache
+    # (persist, evict), we should follow the persistent cache route.
+    persist_cache = bool(compiled.request and query_unit.cache_sql)
+
+    # Recompilation is a standalone feature than persistent cache.
+    # This flag indicates both features are in use, and we actually have
+    # recompiled the query cache to persist.
+    persist_recompiled_query_cache = bool(
+        not debug.flags.disable_persistent_cache and compiled.recompiled_cache)
 
     data = None
 
@@ -201,10 +212,11 @@ async def execute(
 
             if query_unit.sql:
                 if query_unit.user_schema:
-                    if (
-                        not debug.flags.disable_persistent_cache
-                        and compiled.recompiled_cache
-                    ):
+                    if persist_recompiled_query_cache:
+                        # If we have recompiled the query cache, writeback to
+                        # the cache table here in an implicit transaction (if
+                        # not in one already), so that whenever the transaction
+                        # commits, we flip to using the new cache at once.
                         group = build_cache_persistence_units(
                             compiled.recompiled_cache)
                         group.append(query_unit)
@@ -231,7 +243,10 @@ async def execute(
                     read_data = (
                         query_unit.needs_readback or query_unit.is_explain)
 
-                    if compiled.request and query_unit.cache_sql:
+                    if persist_cache:
+                        # Persistent cache needs to happen before the actual
+                        # query because the query may depend on the function
+                        # created persisting the cache entry.
                         group = build_cache_persistence_units(
                             [(compiled.request, compiled.query_unit_group)]
                         )
@@ -347,12 +362,7 @@ async def execute(
         if compiled.recompiled_cache:
             for req, qu_group in compiled.recompiled_cache:
                 dbv.cache_compiled_query(req, qu_group)
-        if (
-            not debug.flags.disable_persistent_cache
-            and compiled.recompiled_cache
-            or compiled.request
-            and query_unit.cache_sql
-        ):
+        if persist_cache or persist_recompiled_query_cache:
             signal_query_cache_changes(dbv)
     finally:
         if query_unit.drop_db:
