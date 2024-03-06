@@ -44,7 +44,7 @@ class BaseHttpExtensionTest(server.QueryTestCase):
     def get_api_prefix(cls):
         extpath = cls.get_extension_path()
         dbname = cls.get_database_name()
-        return f'/db/{dbname}/{extpath}'
+        return f'/branch/{dbname}/{extpath}'
 
     @classmethod
     def tearDownClass(cls):
