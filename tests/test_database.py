@@ -37,7 +37,7 @@ class TestDatabase(tb.ConnectedTestCase):
         try:
             conn = await self.connect(database='mytestdb')
 
-            dbname = await conn.query('SELECT sys::get_current_database();')
+            dbname = await conn.query('SELECT sys::get_current_branch();')
             self.assertEqual(dbname, ['mytestdb'])
 
             with self.assertRaisesRegex(
