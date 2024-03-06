@@ -2255,7 +2255,18 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     for key, value in cmd.get_resolved_attributes(
                             schema, context).items():
                         cmd.set_attribute_value(key, value)
-                    self.add_caused(delta)
+
+                    # HACK: Apply constraint of pointers in innards, because
+                    # when converting a pointer to a computed pointer,
+                    # constraints need to be adjusted before the column is
+                    # dropped. We cannot drop the column later because we need
+                    # mainain the ordering of drops of any children pointers.
+                    from . import constraints as s_constraints
+                    if isinstance(cmd, s_constraints.ConstraintCommand):
+                        self.add(delta)
+                    else:
+                        # base case
+                        self.add_caused(delta)
             except errors.QueryError as e:
                 orig_schema = context.current().original_schema
                 desc = self.get_friendly_description(schema=orig_schema)
