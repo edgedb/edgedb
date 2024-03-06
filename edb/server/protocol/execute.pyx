@@ -202,7 +202,7 @@ async def execute(
             if query_unit.sql:
                 if query_unit.user_schema:
                     if (
-                        debug.flags.persistent_cache
+                        not debug.flags.disable_persistent_cache
                         and compiled.recompiled_cache
                     ):
                         group = build_cache_persistence_units(
@@ -348,7 +348,7 @@ async def execute(
             for req, qu_group in compiled.recompiled_cache:
                 dbv.cache_compiled_query(req, qu_group)
         if (
-            debug.flags.persistent_cache
+            not debug.flags.disable_persistent_cache
             and compiled.recompiled_cache
             or compiled.request
             and query_unit.cache_sql
