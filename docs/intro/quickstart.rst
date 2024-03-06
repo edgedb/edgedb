@@ -436,15 +436,16 @@ will look something like this:
 
 EdgeDB UI is a useful development tool, but in practice your application will
 likely be using one of EdgeDB's *client libraries* to execute queries. EdgeDB
-provides official libraries for
-:ref:`JavaScript/TypeScript <edgedb-js-intro>`,
-:ref:`Go <edgedb-go-intro>`,
-:ref:`Python <edgedb-python-intro>`,
-:ref:`Rust <ref_rust_index>`,
-:ref:`C# and F# <edgedb-dotnet-intro>`,
-:ref:`Java <edgedb-java-intro>`,
-:ref:`Dart <edgedb-dart-intro>`, and
-:ref:`Elixir <edgedb-elixir-intro>`.
+provides official libraries for many langauges:
+
+- :ref:`JavaScript/TypeScript <edgedb-js-intro>`
+- :ref:`Go <edgedb-go-intro>`
+- :ref:`Python <edgedb-python-intro>`
+- :ref:`Rust <ref_rust_index>`
+- :ref:`C# and F# <edgedb-dotnet-intro>`
+- :ref:`Java <edgedb-java-intro>`
+- :ref:`Dart <edgedb-dart-intro>`
+- :ref:`Elixir <edgedb-elixir-intro>`
 
 Check out the :ref:`Clients
 <ref_intro_clients>` guide to get started with the language of your choice.
@@ -478,8 +479,13 @@ and used a client library.
   concepts.
 
 - To start building an application using the language of your choice, check out
-  our client libraries: :ref:`JavaScript/TypeScript <edgedb-js-intro>`, :ref:`Go
-  <edgedb-go-intro>`, :ref:`Python <edgedb-python-intro>`, :ref:`Rust
-  <ref_rust_index>`, :ref:`C# and F# <edgedb-dotnet-intro>`, :ref:`Java
-  <edgedb-java-intro>`, :ref:`Dart <edgedb-dart-intro>`, and :ref:`Elixir
-  <edgedb-elixir-intro>`.
+  our client libraries:
+
+  - :ref:`JavaScript/TypeScript <edgedb-js-intro>`
+  - :ref:`Go <edgedb-go-intro>`
+  - :ref:`Python <edgedb-python-intro>`
+  - :ref:`Rust <ref_rust_index>`
+  - :ref:`C# and F# <edgedb-dotnet-intro>`
+  - :ref:`Java <edgedb-java-intro>`
+  - :ref:`Dart <edgedb-dart-intro>`
+  - :ref:`Elixir <edgedb-elixir-intro>`
