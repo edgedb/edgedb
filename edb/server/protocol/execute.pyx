@@ -92,7 +92,7 @@ cdef class ExecutionGroup:
             if state is not None:
                 await be_conn.wait_for_state_resp(state, state_sync=0)
             for i, unit in enumerate(self.group):
-                if unit.output_format == FMT_NONE:
+                if unit.output_format == FMT_NONE and unit.ddl_stmt_id is None:
                     for sql in unit.sql:
                         await be_conn.wait_for_command(
                             unit, parse_array[i], dbver, ignore_data=True
