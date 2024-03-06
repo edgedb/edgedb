@@ -955,7 +955,14 @@ class AlterInheritingObjectOrFragment(
         scls: so.InheritingObject,
         props: Tuple[str, ...],
     ) -> None:
-        for descendant in scls.ordered_descendants(schema):
+        descendant_names = [
+            d.get_name(schema) for d in scls.ordered_descendants(schema)
+        ]
+
+        for descendant_name in descendant_names:
+            descendant = schema.get(descendant_name, type=so.InheritingObject)
+            assert descendant, '.inherit_fields caused a drop of a descendant?'
+
             d_root_cmd, d_alter_cmd, ctx_stack = descendant.init_delta_branch(
                 schema, context, sd.AlterObject)
 
