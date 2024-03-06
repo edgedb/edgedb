@@ -117,7 +117,7 @@ something like this.
 
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/basic_home.png
+    /docs/tutorials/nextjs/basic_home.png
     :alt: Basic blog homepage with static content
     :width: 100%
 
@@ -441,7 +441,7 @@ We're also using a utility called ``$infer`` to extract the inferred type of
 this query. In VSCode you can hover over ``Posts`` to see what this type is.
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/inference.png
+    /docs/tutorials/nextjs/inference.png
     :alt: Inferred type of posts query
     :width: 100%
 
@@ -549,7 +549,7 @@ Now, click on one of the blog post links on the homepage. This should bring
 you to ``/post/<uuid>``, which should display something like this:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/post.png
+    /docs/tutorials/nextjs/post.png
     :alt: Basic blog homepage with static content
     :width: 100%
 
@@ -643,7 +643,7 @@ When prompted:
   tutorial.
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/env.png
+    /docs/tutorials/nextjs/env.png
     :alt: Setting environment variables in Vercel
     :width: 100%
 

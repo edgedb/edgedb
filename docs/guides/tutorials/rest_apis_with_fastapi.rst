@@ -1133,7 +1133,7 @@ your browser and head over to
 API navigator like this:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/fastapi/openapi.png
+    /docs/tutorials/fastapi/openapi.png
     :alt: FastAPI docs navigator
     :width: 100%
 
@@ -1143,7 +1143,7 @@ and then click on the **Try it out** button. You can do it in the UI as
 follows:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/fastapi/put.png
+    /docs/tutorials/fastapi/put.png
     :alt: FastAPI docs PUT events API
     :width: 100%
 
@@ -1151,7 +1151,7 @@ Clicking the **execute** button will make the request and return the following
 payload:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/fastapi/put_result.png
+    /docs/tutorials/fastapi/put_result.png
     :alt: FastAPI docs PUT events API result
     :width: 100%
 

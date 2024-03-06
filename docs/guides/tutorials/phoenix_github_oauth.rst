@@ -9,8 +9,8 @@ Phoenix
 
 In this tutorial, we'll look at
 how you can create an application with authorization through GitHub using
-`Phoenix <https://phoenixframework.org/>`_ and `the official EdgeDB Elixir
-driver </libraries/elixir>`_.
+`Phoenix <https://phoenixframework.org/>`_ and :ref:`the official EdgeDB Elixir
+driver <edgedb-elixir-intro>`.
 
 This tutorial is a simplified version of the `LiveBeats
 <https://github.com/fly-apps/live_beats>`_ application from

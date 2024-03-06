@@ -148,7 +148,7 @@ Let's dig into each of these a bit more.
   instance's credentials, and connect automatically.
 
   For more information on how this works, check out the `release post
-  </blog/introducing-edgedb-projects>`_ for ``edgedb project``.
+  <https://www.edgedb.com/blog/introducing-edgedb-projects>`_ for ``edgedb project``.
 
 .. _ref_reference_connection_priority:
 

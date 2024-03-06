@@ -85,13 +85,12 @@ find it alongside the client itself. These clients will also have documentation
 stubs inside the edgedb repository directing you to the documentation's
 location.
 
-The `EdgeDB tutorial <https://www.edgedb.com/tutorial>`_ is part of `our web
+The `EdgeDB tutorial </tutorial>`_ is part of `our web
 site repository <https://github.com/edgedb/website>`_. You'll find it in `the
 tutorial directory <https://github.com/edgedb/website/tree/main/tutorial>`_.
 
-Finally, our book for beginners titled `Easy EdgeDB
-<https://www.edgedb.com/easy-edgedb>`_ lives in `its own repo
-<https://github.com/edgedb/easy-edgedb>`_.
+Finally, our book for beginners titled `Easy EdgeDB </easy-edgedb>`_ lives in
+`its own repo <https://github.com/edgedb/easy-edgedb>`_.
 
 
 How to Build It
