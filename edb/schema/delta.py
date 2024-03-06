@@ -2079,6 +2079,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         filter: Type[so.Object] | Tuple[Type[so.Object], ...] | None = None,
         metadata_only: bool=False,
     ) -> s_schema.Schema:
+        from . import types as s_types
 
         # If we are a rename or contain a rename, we need to fix up expressions
         if (
@@ -2096,6 +2097,13 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 expr_refs.update(s_expr.get_expr_referrers(schema, anc))
         if extra_refs:
             expr_refs.update(extra_refs)
+
+        # never propage into types created from aliases
+        expr_refs = {
+            k: v for k, v in expr_refs.items()
+            if not (isinstance(k, s_types.Type) and k.get_from_alias(schema))
+        }
+
         if filter is not None:
             expr_refs = {
                 k: v for k, v in expr_refs.items() if isinstance(k, filter)}
