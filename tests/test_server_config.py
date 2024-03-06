@@ -854,7 +854,7 @@ class TestServerConfig(tb.QueryTestCase):
 
         await self.assert_query_result(
             '''
-            SELECT cfg::DatabaseConfig.__internal_sess_testvalue
+            SELECT cfg::BranchConfig.__internal_sess_testvalue
             ''',
             [
                 3
