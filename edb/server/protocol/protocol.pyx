@@ -496,7 +496,7 @@ cdef class HttpProtocol:
         path_parts_len = len(path_parts)
         route = path_parts[0]
 
-        if self.tenant is None and route in ['db', 'auth']:
+        if self.tenant is None and route in ['db', 'auth', 'branch']:
             self.tenant = self.server.get_default_tenant()
             self.check_readiness()
             if self.tenant.is_accepting_connections():
@@ -510,7 +510,7 @@ cdef class HttpProtocol:
                     b'The server is closing.',
                 )
 
-        if route == 'db':
+        if route in ['db', 'branch']:
             if path_parts_len < 2:
                 return self._not_found(request, response)
 
@@ -635,7 +635,7 @@ cdef class HttpProtocol:
                             else request_url.host.decode()
                     )
                     extension_base_path = f"{request_url.schema.decode()}://" \
-                                          f"{netloc}/db/{dbname}/ext/auth"
+                                          f"{netloc}/{route}/{dbname}/ext/auth"
                     handler = auth_ext.http.Router(
                         db=db,
                         base_path=extension_base_path,
@@ -738,7 +738,7 @@ cdef class HttpProtocol:
         bint allow_credentials = False
     ):
         db = self.tenant.maybe_get_db(dbname=dbname) if dbname else None
-        
+
         config = None
         if db is not None:
             if db.db_config is None:
@@ -774,7 +774,7 @@ cdef class HttpProtocol:
                 if allow_credentials:
                     response.custom_headers['Access-Control-Allow-Credentials'] = (
                         'true')
-                
+
             return True
 
         return False
