@@ -271,11 +271,13 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             )
 
         database = params.get('database')
-        if not database:
+        branch = params.get('branch')
+        if not database and not branch:
             raise errors.BinaryProtocolError(
                 f'missing required connection parameter in ClientHandshake '
-                f'message: "database"'
+                f'message: "branch" (or "database")'
             )
+        database = self.tenant.resolve_branch_name(database, branch)
 
         logger.debug('received connection request by %s to database %s',
                      user, database)

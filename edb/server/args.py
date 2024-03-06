@@ -227,6 +227,7 @@ class ServerConfig(NamedTuple):
     bootstrap_only: bool
     bootstrap_command: str
     bootstrap_command_file: pathlib.Path
+    default_branch: Optional[str]
     default_database: Optional[str]
     default_database_user: Optional[str]
     devmode: bool
@@ -653,6 +654,9 @@ _server_options = [
         '--bootstrap-only', is_flag=True,
         envvar="EDGEDB_SERVER_BOOTSTRAP_ONLY", cls=EnvvarResolver,
         help='bootstrap the database cluster and exit'),
+    click.option(
+        '--default-branch', type=str,
+        help='the name of the default branch to create'),
     click.option(
         '--default-database', type=str, hidden=True,
         help='[DEPRECATED] the name of the default database to create'),
@@ -1400,6 +1404,7 @@ def parse_args(**kwargs: Any):
         startup_script = StartupScript(
             text=bootstrap_script_text,
             database=(
+                kwargs['default_branch'] or
                 kwargs['default_database'] or
                 defines.EDGEDB_SUPERUSER_DB
             ),

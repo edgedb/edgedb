@@ -500,7 +500,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     await con.execute(f'CREATE DATABASE {tenant}')
                     await con.execute(f'CREATE SUPERUSER ROLE {tenant}')
                     databases = await con.query('SELECT sys::Database.name')
-                    self.assertEqual(set(databases), {'edgedb', tenant})
+                    self.assertEqual(set(databases), {'main', tenant})
                     roles = await con.query('SELECT sys::Role.name')
                     self.assertEqual(set(roles), {'edgedb', tenant})
                 finally:

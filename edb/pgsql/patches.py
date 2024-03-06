@@ -87,4 +87,7 @@ alter type ext::auth::WebAuthnAuthenticationChallenge {
     drop link factor;
 }
 '''),
+    ('edgeql', '''
+CREATE ALIAS cfg::BranchConfig := cfg::DatabaseConfig;
+'''),
 ])

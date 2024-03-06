@@ -53,7 +53,7 @@ jobs:
       run: |
         wget -q "$EDGEDB_URL"
         tar xzf edgedb-server-$EDGEDB_VERSION.tar.gz
-        edgedb-server-$EDGEDB_VERSION/bin/edgedb-server -D test-dir --bootstrap-only --testmode
+        edgedb-server-$EDGEDB_VERSION/bin/edgedb-server -D test-dir --bootstrap-only --testmode --default-database main
 
     - name: Create databases on the older version
       env:
