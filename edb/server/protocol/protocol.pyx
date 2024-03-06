@@ -515,6 +515,10 @@ cdef class HttpProtocol:
                 return self._not_found(request, response)
 
             dbname = path_parts[1]
+            dbname = self.tenant.resolve_branch_name(
+                database=dbname if route == 'db' else None,
+                branch=dbname if route == 'branch' else None,
+            )
             extname = path_parts[2] if path_parts_len > 2 else None
 
             # Binary proto tunnelled through HTTP

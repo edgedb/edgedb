@@ -242,6 +242,7 @@ def derive_view(
                 mark_derived=True,
                 transient=True,
                 attrs=attrs,
+                stdmode=ctx.env.options.bootstrap_mode,
             )
 
         if (

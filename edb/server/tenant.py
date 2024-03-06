@@ -185,6 +185,9 @@ class Tenant(ha_base.ClusterProtocol):
         self._jwt_revocation_list_file = None
         self._jwt_revocation_list = None
 
+        # If it isn't stored in instdata, it is the old default.
+        self.default_database = defines.EDGEDB_OLD_DEFAULT_DB
+
     def set_reloadable_files(
         self,
         readiness_state_file: str | pathlib.Path | None = None,
@@ -307,7 +310,7 @@ class Tenant(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.get_db(dbname)
 
-    def maybe_get_db(self, *, dbname: str) -> dbview.Database:
+    def maybe_get_db(self, *, dbname: str) -> dbview.Database | None:
         assert self._dbindex is not None
         return self._dbindex.maybe_get_db(dbname)
 
@@ -354,6 +357,15 @@ class Tenant(ha_base.ClusterProtocol):
                 # Multi-tenant server defers the parsing into the compiler
                 data = await self._server.introspect_global_schema_json(syscon)
                 compiler_pool = self._server.get_compiler_pool()
+
+            default_database = await syscon.sql_fetch_val(
+                b"""\
+                    SELECT text::text FROM edgedbinstdata.instdata
+                    WHERE key = 'default_branch';
+                """
+            )
+            if default_database:
+                self.default_database = default_database.decode('utf-8')
 
         if data is not None:
             logger.debug("parsing global schema")
@@ -1026,6 +1038,23 @@ class Tenant(ha_base.ClusterProtocol):
         cfg = self._dbindex.get_sys_config()
         auth = self._server.config_lookup("auth", cfg) or ()
         self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
+
+    def resolve_branch_name(
+        self, database: str | None, branch: str | None
+    ) -> str:
+        default = self.default_database
+        if branch == '__default__':
+            return default
+        elif branch is not None:
+            return branch
+        elif (
+            database == defines.EDGEDB_OLD_DEFAULT_DB
+            and self.maybe_get_db(dbname=defines.EDGEDB_OLD_DEFAULT_DB) is None
+        ):
+            return default
+        else:
+            assert database is not None
+            return database
 
     async def get_auth_method(
         self,

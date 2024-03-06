@@ -463,6 +463,7 @@ def compile_alias_expr(
             modaliases=context.modaliases,
             schema_view_mode=True,
             in_ddl_context_name='alias definition',
+            bootstrap_mode=context.stdmode,
         ),
     )
 
