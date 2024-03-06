@@ -11,8 +11,21 @@ Fly.io
 3. Run ``flyctl launch`` to create a new app on Fly.io and configure it.
    It will ask you to select a region and a name for your app. When done it will 
    create a ``fly.toml`` file and a ``Dockerfile`` in your project directory.
-4. Open the ``Dockefile`` and add modify the ``build`` step to mount the EdgeDB 
-   Cloud secret key and instance name as environment variables:
+4. Set ``EDGEDB_INSTANCE`` and ``EDGEDB_SECRET_KEY`` as secrets in your Fly.io 
+   app. 
+   
+   For **runtime secrets**, you can do this by running the following commands:
+
+   .. code-block:: bash
+
+    $ flyctl secrets set EDGEDB_INSTANCE <EDGEDB_INSTANCE>
+    $ flyctl secrets set EDGEDB_SECRET_KEY <EDGEDB_SECRET_KEY>
+
+   `Read more about Fly.io runtime secrets 
+   <https://fly.io/docs/reference/secrets/>`_.
+
+   For **build secrets**, you can do this by modifying the ``Dockerfile`` to 
+   mount the secrets as environment variables.
 
    .. code-block:: dockerfile-diff
     :caption: Dockerfile
@@ -25,10 +38,19 @@ Fly.io
     +      EDGEDB_SECRET_KEY="$(cat /run/secrets/EDGEDB_SECRET_KEY)" \
     +      pnpm run build
 
-5. Run ``flyctl deploy`` to deploy your app to Fly.io. You need to pass the 
-   secrets to the deployment command:
+   `Read more about Fly.io build secrets 
+   <https://fly.io/docs/reference/build-secrets/>`_.
+
+5. Deploy your app to Fly.io
 
    .. code-block:: bash
 
-    $ flyctl deploy --secrets EDGEDB_INSTANCE="<EDGEDB_INSTANCE>" \
-        --secrets EDGEDB_SECRET_KEY="<EDGEDB_SECRET_KEY>"
+    $ flyctl deploy
+
+   If your app requires build secrets, you can pass them as arguments 
+   to the ``deploy`` command:
+
+   .. code-block:: bash
+
+    $ flyctl deploy --build-secret EDGEDB_INSTANCE="<EDGEDB_INSTANCE>" \
+        --build-secret EDGEDB_SECRET_KEY="<EDGEDB_SECRET_KEY>"
