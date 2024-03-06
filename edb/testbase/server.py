@@ -2043,6 +2043,7 @@ class _EdgeDBServer:
         jwt_sub_allowlist_file: Optional[os.PathLike] = None,
         jwt_revocation_list_file: Optional[os.PathLike] = None,
         multitenant_config: Optional[str] = None,
+        default_branch: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
         extra_args: Optional[List[str]] = None,
     ) -> None:
@@ -2075,6 +2076,7 @@ class _EdgeDBServer:
         self.jwt_sub_allowlist_file = jwt_sub_allowlist_file
         self.jwt_revocation_list_file = jwt_revocation_list_file
         self.multitenant_config = multitenant_config
+        self.default_branch = default_branch
         self.env = env
         self.extra_args = extra_args
 
@@ -2189,6 +2191,9 @@ class _EdgeDBServer:
 
         if bootstrap_command:
             cmd += ['--bootstrap-command', bootstrap_command]
+
+        if self.default_branch is not None:
+            cmd += ['--default-branch', self.default_branch]
 
         if self.auto_shutdown_after is not None:
             cmd += ['--auto-shutdown-after', str(self.auto_shutdown_after)]
@@ -2368,6 +2373,7 @@ def start_edgedb_server(
     multitenant_config: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
     extra_args: Optional[List[str]] = None,
+    default_branch: Optional[str] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if backend_dsn or adjacent_to:
@@ -2433,6 +2439,7 @@ def start_edgedb_server(
         multitenant_config=multitenant_config,
         env=env,
         extra_args=extra_args,
+        default_branch=default_branch,
     )
 
 

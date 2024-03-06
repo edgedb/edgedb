@@ -2418,6 +2418,13 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
             json.dumps(stdlib.num_patches),
         )
 
+        default_branch = args.default_branch or edbdef.EDGEDB_SUPERUSER_DB
+        await _store_static_text_cache(
+            tpl_ctx,
+            'default_branch',
+            default_branch,
+        )
+
         schema = s_schema.EMPTY_SCHEMA
         schema = await _init_defaults(schema, compiler, tpl_ctx.conn)
 
@@ -2484,13 +2491,13 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
     if backend_params.has_create_database:
         await _create_edgedb_database(
             ctx,
-            edbdef.EDGEDB_SUPERUSER_DB,
-            edbdef.EDGEDB_SUPERUSER,
+            default_branch,
+            args.default_database_user or edbdef.EDGEDB_SUPERUSER,
         )
     else:
         await _set_edgedb_database_metadata(
             ctx,
-            edbdef.EDGEDB_SUPERUSER_DB,
+            default_branch,
         )
 
     if (
@@ -2510,7 +2517,7 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
     if (
         backend_params.has_create_database
         and args.default_database
-        and args.default_database != edbdef.EDGEDB_SUPERUSER_DB
+        and args.default_database != default_branch
     ):
         await _create_edgedb_database(
             ctx,
