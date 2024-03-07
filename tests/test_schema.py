@@ -5409,24 +5409,27 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """])
 
     def test_schema_migrations_equivalence_60(self):
-        self._assert_migration_equivalence([r"""
-            type User {
-                required property name -> str;
-            };
-        """, r"""
-            type User {
-                required property name -> str;
-                index pg::spgist on (.name);
-            };
-        """,
+        self._assert_migration_equivalence(
+            [
                 r"""
-            type User {
-                required property name -> str;
-                index pg::spgist on (.name) {
-                    annotation description := 'test';
+                type User {
+                    required property name -> str;
                 };
-            };
-        """,
+                """,
+                r"""
+                type User {
+                    required property name -> str;
+                    index pg::spgist on (.name);
+                };
+                """,
+                r"""
+                type User {
+                    required property name -> str;
+                    index pg::spgist on (.name) {
+                        annotation description := 'test';
+                    };
+                };
+                """,
             ]
         )
 
