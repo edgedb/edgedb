@@ -272,7 +272,11 @@ async def _run_server(
             return
 
         ss.init_tls(
-            args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
+            args.tls_cert_file,
+            args.tls_key_file,
+            tls_cert_newly_generated,
+            args.tls_client_ca_file,
+        )
 
         ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
 
@@ -290,7 +294,11 @@ async def _run_server(
             try:
                 if args.readiness_state_file:
                     tenant.reload_readiness_state()
-                ss.reload_tls(args.tls_cert_file, args.tls_key_file)
+                ss.reload_tls(
+                    args.tls_cert_file,
+                    args.tls_key_file,
+                    args.tls_client_ca_file,
+                )
                 ss.load_jwcrypto(args.jws_key_file)
             except Exception:
                 logger.critical(

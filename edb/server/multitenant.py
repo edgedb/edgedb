@@ -417,7 +417,10 @@ async def run_server(
             tls_cert_newly_generated, jws_keys_newly_generated
         ) = await ss.maybe_generate_pki(args, ss)
         ss.init_tls(
-            args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated
+            args.tls_cert_file,
+            args.tls_key_file,
+            tls_cert_newly_generated,
+            args.tls_client_ca_file,
         )
         ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
 
@@ -433,7 +436,11 @@ async def run_server(
 
             logger.info("reloading configuration")
             try:
-                ss.reload_tls(args.tls_cert_file, args.tls_key_file)
+                ss.reload_tls(
+                    args.tls_cert_file,
+                    args.tls_key_file,
+                    args.tls_client_ca_file,
+                )
                 ss.load_jwcrypto(args.jws_key_file)
                 ss.reload_tenants()
             except Exception:
