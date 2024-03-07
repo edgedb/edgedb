@@ -308,7 +308,7 @@ class SimpleInsert(Nonterm):
             shape = []
 
         if isinstance(subj_path, qlast.Path) and \
-                len(subj_path.steps) == 1 and  \
+                len(subj_path.steps) == 1 and \
                 isinstance(subj_path.steps[0], qlast.ObjectRef):
             objtype = subj_path.steps[0]
         elif isinstance(subj_path, qlast.IfElse):

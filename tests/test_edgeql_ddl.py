@@ -9865,7 +9865,7 @@ type default::Foo {
     async def test_edgeql_ddl_alias_12(self):
         await self.con.execute(
             r"""
-            create alias X := 1;      
+            create alias X := 1;
             create type Y;
             create global Z -> int64;
             """

@@ -330,7 +330,7 @@ def _dataclass_from_dict(cls: typing.Type | None, data: typing.Any):
     if not cls:
         return data
 
-    if typing_inspect.get_origin(cls) == list:
+    if typing_inspect.get_origin(cls) is list:
         args = typing_inspect.get_args(cls)
         return [_dataclass_from_dict(args[0], e) for e in data]
 

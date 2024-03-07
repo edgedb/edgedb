@@ -183,7 +183,7 @@ class TestHttpAuth(BaseTestHttpAuth):
             (msize,) = uint32_unpack(content[1:5])
             msg = protocol.ServerMessage.parse(mtype, content[5 : msize + 1])
             msgs.append(msg)
-            content = content[msize + 1 :]
+            content = content[msize + 1:]
         self.assertIsInstance(msgs[0], protocol.CommandDataDescription)
         self.assertIsInstance(msgs[1], protocol.Data)
         self.assertEqual(bytes(msgs[1].data[0].data), b"42")

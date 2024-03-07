@@ -1944,7 +1944,7 @@ def should_materialize_type(
 
 
 def get_global_param(
-        glob: s_globals.Global, * , ctx: context.ContextLevel) -> irast.Global:
+        glob: s_globals.Global, *, ctx: context.ContextLevel) -> irast.Global:
     name = glob.get_name(ctx.env.schema)
 
     if name not in ctx.env.query_globals:
