@@ -241,6 +241,11 @@ cdef auth_mtls(transport):
             "mTLS authentication is not supported over plaintext transport")
     cert_data = sslobj.getpeercert()
     if not cert_data:  # None or empty dict
+        # If --tls-client-ca-file is specified, the SSLContext used here would
+        # have done load_verify_locations() in `server/server.py`, and we will
+        # have a valid client certificate (non-empty dict) now if one was
+        # provided by the client and passed validation; empty dict otherwise.
+        # `None` just means the peer didn't send a client certificate.
         raise errors.AuthenticationError(
             "valid client certificate required")
     return cert_data
