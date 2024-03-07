@@ -80,6 +80,26 @@ cdef class CompilationRequest:
     ):
         self._serializer = compilation_config_serializer
 
+    def __copy__(self):
+        cdef CompilationRequest rv = CompilationRequest(self._serializer)
+        rv.source = self.source
+        rv.protocol_version = self.protocol_version
+        rv.output_format = self.output_format
+        rv.json_parameters = self.json_parameters
+        rv.expect_one = self.expect_one
+        rv.implicit_limit = self.implicit_limit
+        rv.inline_typeids = self.inline_typeids
+        rv.inline_typenames = self.inline_typenames
+        rv.inline_objectids = self.inline_objectids
+        rv.modaliases = self.modaliases
+        rv.session_config = self.session_config
+        rv.database_config = self.database_config
+        rv.system_config = self.system_config
+        rv.schema_version = self.schema_version
+        rv.serialized_cache = self.serialized_cache
+        rv.cache_key = self.cache_key
+        return rv
+
     def update(
         self,
         source: edgeql.Source,
