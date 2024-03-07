@@ -9862,6 +9862,41 @@ type default::Foo {
             create alias Z := (with lol := X, select count(lol));
         """)
 
+    async def test_edgeql_ddl_alias_12(self):
+        await self.con.execute(
+            r"""
+            create alias X := 1;      
+            create type Y;
+            create global Z -> int64;
+            """
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError, "scalar type 'default::X' already exists"
+        ):
+            # this should ideally say "alias X", but this is better than ISE
+            await self.con.execute(
+                r"""
+                create alias X := 2;
+                """
+            )
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError, "type 'default::Y' already exists"
+        ):
+            await self.con.execute(
+                r"""
+                create alias Y := 2;
+                """
+            )
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError, "global 'default::Z' already exists"
+        ):
+            await self.con.execute(
+                r"""
+                create alias Z := 2;
+                """
+            )
+
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE InhTest01 {

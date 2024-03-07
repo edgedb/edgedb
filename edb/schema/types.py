@@ -106,7 +106,10 @@ class Type(
     # schema without revealing weird internals.
     from_alias = so.SchemaField(
         bool,
-        default=False, compcoef=1.0)
+        default=False,
+        # cannot alter type from being produced by an alias into an actual type
+        compcoef=0.0,
+    )
 
     # True when from a global. The purpose of this is to ensure that
     # the types from globals and aliases can't be migrated between
