@@ -45,7 +45,7 @@ export async function onRegisterSubmit(form) {
       );
     }
 
-    const maybeCode = await register({
+    const response = await register({
       email,
       provider,
       challenge,
@@ -54,8 +54,13 @@ export async function onRegisterSubmit(form) {
 
     const redirectUrl = new URL(redirectTo);
     redirectUrl.searchParams.append("isSignUp", "true");
-    if (maybeCode !== null) {
-      redirectUrl.searchParams.append("code", maybeCode);
+    if ("code" in response) {
+      redirectUrl.searchParams.append("code", response.code);
+    } else if ("verification_email_sent_at" in response) {
+      redirectUrl.searchParams.append(
+        "verification_email_sent_at",
+        response.verification_email_sent_at
+      );
     }
 
     window.location.href = redirectUrl.href;
@@ -83,8 +88,7 @@ const WEBAUTHN_REGISTER_URL = new URL("../webauthn/register", window.location);
  * @param {string} props.provider - WebAuthn provider
  * @param {string} props.challenge - PKCE challenge
  * @param {string} props.verifyUrl - URL to verify email after registration
- * @returns {Promise<string | null>} - The PKCE code or null if the application
- *   requires email verification
+ * @returns {Promise<object>} - The server response
  */
 export async function register({ email, provider, challenge, verifyUrl }) {
   // Check if WebAuthn is supported
@@ -109,15 +113,13 @@ export async function register({ email, provider, challenge, verifyUrl }) {
   });
 
   // Register the credentials on the server
-  const registerResult = await registerCredentials({
+  return await registerCredentials({
     email,
     credentials,
     provider,
     challenge,
     verifyUrl,
   });
-
-  return registerResult.code ?? null;
 }
 
 /**
