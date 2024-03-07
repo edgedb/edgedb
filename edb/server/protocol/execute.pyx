@@ -92,7 +92,7 @@ cdef class ExecutionGroup:
             if state is not None:
                 await be_conn.wait_for_state_resp(state, state_sync=0)
             for i, unit in enumerate(self.group):
-                if unit.output_format == FMT_NONE:
+                if unit.output_format == FMT_NONE and unit.ddl_stmt_id is None:
                     for sql in unit.sql:
                         await be_conn.wait_for_command(
                             unit, parse_array[i], dbver, ignore_data=True
@@ -108,7 +108,7 @@ cdef class ExecutionGroup:
         return rv
 
 
-cdef ExecutionGroup build_cache_persistence_units(
+cpdef ExecutionGroup build_cache_persistence_units(
     pairs: list[tuple[rpc.CompilationRequest, compiler.QueryUnitGroup]],
     ExecutionGroup group = None,
 ):
@@ -118,8 +118,7 @@ cdef ExecutionGroup build_cache_persistence_units(
         INSERT INTO "edgedb"."_query_cache"
         ("key", "schema_version", "input", "output", "evict")
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (key) DO UPDATE SET
-        "schema_version"=$2, "input"=$3, "output"=$4, "evict"=$5
+        ON CONFLICT (key) DO NOTHING
     '''
     sql_hash = hashlib.sha1(insert_sql).hexdigest().encode('latin1')
     for request, units in pairs:
@@ -152,35 +151,6 @@ cdef ExecutionGroup build_cache_persistence_units(
     return group
 
 
-async def persist_cache(
-    be_conn: pgcon.PGConnection,
-    dbv: dbview.DatabaseConnectionView,
-    pairs: list[tuple[rpc.CompilationRequest, compiler.QueryUnitGroup]],
-):
-    cdef group = build_cache_persistence_units(pairs)
-
-    try:
-        await group.execute(be_conn, dbv)
-    except Exception as ex:
-        if (
-            isinstance(ex, pgerror.BackendError)
-            and ex.code_is(pgerror.ERROR_SERIALIZATION_FAILURE)
-            # If we are in a transaction, we have to let the error
-            # propagate, since we can't do anything else after the error.
-            # Hopefully the client will retry, hit the cache, and
-            # everything will be fine.
-            and not dbv.in_tx()
-        ):
-            # XXX: Is it OK to just ignore it? Can we rely on the conflict
-            # having set it to the same thing?
-            pass
-        else:
-            dbv.on_error()
-            raise
-    else:
-        signal_query_cache_changes(dbv)
-
-
 # TODO: can we merge execute and execute_script?
 async def execute(
     be_conn: pgcon.PGConnection,
@@ -195,6 +165,7 @@ async def execute(
         bytes state = None, orig_state = None
         WriteBuffer bound_args_buf
         ExecutionGroup group
+        bint persist_cache, persist_recompiled_query_cache
 
     query_unit = compiled.query_unit_group[0]
 
@@ -204,6 +175,16 @@ async def execute(
     new_types = None
     server = dbv.server
     tenant = dbv.tenant
+
+    # If we have both the compilation request and a pair of SQLs for the cache
+    # (persist, evict), we should follow the persistent cache route.
+    persist_cache = bool(compiled.request and query_unit.cache_sql)
+
+    # Recompilation is a standalone feature than persistent cache.
+    # This flag indicates both features are in use, and we actually have
+    # recompiled the query cache to persist.
+    persist_recompiled_query_cache = bool(
+        debug.flags.persistent_cache and compiled.recompiled_cache)
 
     data = None
 
@@ -231,7 +212,24 @@ async def execute(
 
             if query_unit.sql:
                 if query_unit.user_schema:
-                    ddl_ret = await be_conn.run_ddl(query_unit, state)
+                    if persist_recompiled_query_cache:
+                        # If we have recompiled the query cache, writeback to
+                        # the cache table here in an implicit transaction (if
+                        # not in one already), so that whenever the transaction
+                        # commits, we flip to using the new cache at once.
+                        group = build_cache_persistence_units(
+                            compiled.recompiled_cache)
+                        group.append(query_unit)
+                        if query_unit.ddl_stmt_id is None:
+                            await group.execute(be_conn, dbv)
+                            ddl_ret = None
+                        else:
+                            ddl_ret = be_conn.load_ddl_return(
+                                query_unit,
+                                await group.execute(be_conn, dbv, state=state),
+                            )
+                    else:
+                        ddl_ret = await be_conn.run_ddl(query_unit, state)
                     if ddl_ret and ddl_ret['new_types']:
                         new_types = ddl_ret['new_types']
                 else:
@@ -245,7 +243,10 @@ async def execute(
                     read_data = (
                         query_unit.needs_readback or query_unit.is_explain)
 
-                    if compiled.request and query_unit.cache_sql:
+                    if persist_cache:
+                        # Persistent cache needs to happen before the actual
+                        # query because the query may depend on the function
+                        # created persisting the cache entry.
                         group = build_cache_persistence_units(
                             [(compiled.request, compiled.query_unit_group)]
                         )
@@ -358,28 +359,11 @@ async def execute(
                 #   1. An orphan ROLLBACK command without a paring start tx
                 #   2. There was no SQL, so the state can't have been synced.
                 be_conn.last_state = state
-        if (
-            debug.flags.persistent_cache
-            and not dbv.in_tx()
-            and not query_unit.tx_rollback
-            and query_unit.user_schema
-            and server.config_lookup(
-                "auto_rebuild_query_cache",
-                dbv.get_session_config(),
-                dbv.get_database_config(),
-                dbv.get_system_config(),
-            )
-        ):
-            # TODO(fantix): recompile first and update cache in tx
-            if debug.flags.func_cache:
-                recompile_requests = await dbv.clear_cache_keys(be_conn)
-            else:
-                recompile_requests = [
-                    req
-                    for req, grp in dbv._db._eql_to_compiled.items()
-                    if len(grp) == 1
-                ]
-            await dbv.recompile_all(be_conn, recompile_requests)
+        if compiled.recompiled_cache:
+            for req, qu_group in compiled.recompiled_cache:
+                dbv.cache_compiled_query(req, qu_group)
+        if persist_cache or persist_recompiled_query_cache:
+            signal_query_cache_changes(dbv)
     finally:
         if query_unit.drop_db:
             tenant.allow_database_connections(query_unit.drop_db)
@@ -564,28 +548,6 @@ async def execute_script(
                 conn.last_state = state
         if unit_group.state_serializer is not None:
             dbv.set_state_serializer(unit_group.state_serializer)
-        if (
-            debug.flags.persistent_cache
-            and not in_tx
-            and any(query_unit.user_schema for query_unit in unit_group)
-            and dbv.server.config_lookup(
-                "auto_rebuild_query_cache",
-                dbv.get_session_config(),
-                dbv.get_database_config(),
-                dbv.get_system_config(),
-            )
-        ):
-            # TODO(fantix): recompile first and update cache in tx
-            if debug.flags.func_cache:
-                recompile_requests = await dbv.clear_cache_keys(conn)
-            else:
-                recompile_requests = [
-                    req
-                    for req, grp in dbv._db._eql_to_compiled.items()
-                    if len(grp) == 1
-                ]
-
-            await dbv.recompile_all(conn, recompile_requests)
 
     finally:
         if sent and not sync:
