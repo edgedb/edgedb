@@ -1317,3 +1317,34 @@ class TestTriggers(tb.QueryTestCase):
                   );
                 };
             ''')
+
+    async def test_edgeql_triggers_cached_global_01(self):
+        # Install FOR ALL triggers for everything
+        await self.con.execute('''
+            create alias CA := count(InsertTest);
+            create global CG := count(InsertTest);
+            create type X {
+                create access policy asdf allow all using (global CG > 0)
+            };
+            alter type InsertTest {
+              create trigger log after insert for each
+              do (
+                insert Note {
+                    name := <str>assert_single(CA),
+                    note := <str>(global CG),
+                }
+              );
+            };
+        ''')
+
+        await self.con.execute('''
+            insert InsertTest { name := <str>((global CG)) };
+        ''')
+        await self.assert_query_result(
+            '''
+            select Note { name, note }
+            ''',
+            [
+                {'name': '1', 'note': '1'},
+            ],
+        )

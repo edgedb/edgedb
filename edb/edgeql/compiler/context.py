@@ -767,10 +767,16 @@ class ContextLevel(compiler.ContextLevel):
         else:
             return ir
 
-    # Return an additional key for any compilation caches that may
-    # vary based on "security contexts" such as whether we are in an
-    # access policy.
     def get_security_context(self) -> object:
+        '''Compute an additional compilation cache key.
+
+        Return an additional key for any compilation caches that may
+        vary based on "security contexts" such as whether we are in an
+        access policy.
+        '''
+        # N.B: Whether we are compiling a trigger is not included here
+        # since we clear cached rewrites when compiling them in the
+        # *pgsql* compiler.
         return bool(self.suppress_rewrites)
 
 
