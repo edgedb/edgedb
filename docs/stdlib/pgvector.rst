@@ -191,6 +191,48 @@ by multi-statement queries:
   """, vector=vector)
 
 
+.. versionadded:: 5.0
+
+    We have updated the mechanism for tuning all of the indexes provided in
+    this extension. The ``probes`` (for IVFFlat) and ``ef_search`` (for HNSW)
+    parameters can now be accessed via the ``ext::pgvector::Config`` object.
+
+    Examine the ``extensions`` link of the ``cfg::Config`` object to check the
+    current config values:
+
+    .. code-block:: edgeql-repl
+
+        db> select cfg::Config.extensions[is ext::pgvector::Config]{*};
+        {
+          ext::pgvector::Config {
+            id: 12b5c70f-0bb8-508a-845f-ca3d41103b6f,
+            probes: 1,
+            ef_search: 40,
+          },
+        }
+
+    .. note::
+
+        In order to see the specific extension config properties you need to
+        use the type filter :eql:op:`[is ext::pgvector::Config] <isintersect>`
+
+    Update the value using the ``configure session`` command:
+
+    .. code-block:: edgeql-repl
+
+        db> configure session
+        ... set ext::pgvector::Config::probes := 5;
+        OK: CONFIGURE SESSION
+
+    You may also restore the default config value using ``configure session
+    reset``:
+
+    .. code-block:: edgeql-repl
+
+        db> configure session reset ext::pgvector::Config::probes;
+        OK: CONFIGURE SESSION
+
+
 
 .. _pgvector:
     https://github.com/pgvector/pgvector
