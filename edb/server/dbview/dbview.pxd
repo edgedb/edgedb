@@ -41,6 +41,7 @@ cdef class CompiledQuery:
     cdef public object extra_counts
     cdef public object extra_blobs
     cdef public object request
+    cdef public object recompiled_cache
 
 
 cdef class DatabaseIndex:
