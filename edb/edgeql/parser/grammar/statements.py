@@ -280,15 +280,6 @@ class DescribeStmt(Nonterm):
         )
 
 
-class OptAnalyze(Nonterm):
-
-    def reduce_ANALYZE(self, *kids):
-        self.val = True
-
-    def reduce_empty(self, *kids):
-        self.val = False
-
-
 class AnalyzeStmt(Nonterm):
 
     def reduce_ANALYZE_NamedTuple_ExprStmt(self, *kids):
