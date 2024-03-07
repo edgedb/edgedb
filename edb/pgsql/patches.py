@@ -89,5 +89,14 @@ alter type ext::auth::WebAuthnAuthenticationChallenge {
 '''),
     ('edgeql', '''
 CREATE ALIAS cfg::BranchConfig := cfg::DatabaseConfig;
+CREATE FUNCTION
+sys::get_current_branch() -> str
+{
+    CREATE ANNOTATION std::description :=
+        'Return the name of the current database branch as a string.';
+    # The results won't change within a single statement.
+    SET volatility := 'Stable';
+    USING SQL FUNCTION 'edgedb.get_current_database';
+};
 '''),
 ])
