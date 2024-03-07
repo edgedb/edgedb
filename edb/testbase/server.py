@@ -2026,7 +2026,7 @@ class _EdgeDBServer:
         runstate_dir: Optional[str] = None,
         reset_auth: Optional[bool] = None,
         tenant_id: Optional[str] = None,
-        security: Optional[edgedb_args.ServerSecurityMode] = None,
+        security: edgedb_args.ServerSecurityMode,
         default_auth_method: Optional[edgedb_args.ServerAuthMethod] = None,
         binary_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode] = None,
@@ -2354,7 +2354,8 @@ def start_edgedb_server(
     data_dir: Optional[str] = None,
     reset_auth: Optional[bool] = None,
     tenant_id: Optional[str] = None,
-    security: Optional[edgedb_args.ServerSecurityMode] = None,
+    security: edgedb_args.ServerSecurityMode = (
+        edgedb_args.ServerSecurityMode.Strict),
     default_auth_method: Optional[edgedb_args.ServerAuthMethod] = None,
     binary_endpoint_security: Optional[
         edgedb_args.ServerEndpointSecurityMode] = None,
