@@ -82,28 +82,29 @@ def ebnf_single_or_choice(items: Sequence[EBNF_Item]) -> EBNF_Item:
 
 
 def expand_iso_ebnf(item: EBNF_Item) -> str:
-    if isinstance(item, EBNF_Literal):
-        return '"' + item.token + '"'
-    elif isinstance(item, EBNF_Reference):
-        return item.name
-    elif isinstance(item, EBNF_Optional):
-        return '[' + expand_iso_ebnf(item.inner) + ']'
-    elif isinstance(item, EBNF_Sequence):
-        return (
-            '('
-            + ', '.join(expand_iso_ebnf(inner) for inner in item.inner)
-            + ')'
-        )
-    elif isinstance(item, EBNF_Choice):
-        return (
-            '('
-            + ' | '.join(
-                expand_iso_ebnf(inner_item) for inner_item in item.inner
+    match item:
+        case EBNF_Literal():
+            return '"' + item.token + '"'
+        case EBNF_Reference():
+            return item.name
+        case EBNF_Optional():
+            return '[' + expand_iso_ebnf(item.inner) + ']'
+        case EBNF_Sequence():
+            return (
+                '('
+                + ', '.join(expand_iso_ebnf(inner) for inner in item.inner)
+                + ')'
             )
-            + ')'
-        )
-    else:
-        raise NotImplementedError
+        case EBNF_Choice():
+            return (
+                '('
+                + ' | '.join(
+                    expand_iso_ebnf(inner_item) for inner_item in item.inner
+                )
+                + ')'
+            )
+        case _:
+            raise NotImplementedError
 
 
 def to_iso_ebnf(productions: List[EBNF_Production]) -> List[str]:
@@ -114,28 +115,31 @@ def to_iso_ebnf(productions: List[EBNF_Production]) -> List[str]:
 
 
 def expand_w3c_ebnf(item: EBNF_Item) -> str:
-    if isinstance(item, EBNF_Literal):
-        return '"' + item.token + '"'
-    elif isinstance(item, EBNF_Reference):
-        return item.name
-    elif isinstance(item, EBNF_Optional):
-        return expand_w3c_ebnf(item.inner) + '?'
-    elif isinstance(item, EBNF_Sequence):
-        return (
-            '('
-            + ' '.join(expand_w3c_ebnf(inner_item) for inner_item in item.inner)
-            + ')'
-        )
-    elif isinstance(item, EBNF_Choice):
-        return (
-            '('
-            + ' | '.join(
-                expand_w3c_ebnf(inner_item) for inner_item in item.inner
+    match item:
+        case EBNF_Literal():
+            return '"' + item.token + '"'
+        case EBNF_Reference():
+            return item.name
+        case EBNF_Optional():
+            return expand_w3c_ebnf(item.inner) + '?'
+        case EBNF_Sequence():
+            return (
+                '('
+                + ' '.join(
+                    expand_w3c_ebnf(inner_item) for inner_item in item.inner
+                )
+                + ')'
             )
-            + ')'
-        )
-    else:
-        raise NotImplementedError
+        case EBNF_Choice():
+            return (
+                '('
+                + ' | '.join(
+                    expand_w3c_ebnf(inner_item) for inner_item in item.inner
+                )
+                + ')'
+            )
+        case _:
+            raise NotImplementedError
 
 
 def to_w3c_ebnf(productions: List[EBNF_Production]) -> List[str]:
@@ -176,15 +180,16 @@ def simplify_productions(
     }
 
     def update_reference_count(prod_name: str, item: EBNF_Item):
-        if isinstance(item, EBNF_Reference):
-            if prod_name != item.name:
-                # don't count recursive references
-                reference_counts[item.name] += 1
-        elif isinstance(item, EBNF_Single):
-            update_reference_count(prod_name, item.inner)
-        elif isinstance(item, EBNF_Multiple):
-            for inner_item in item.inner:
-                update_reference_count(prod_name, inner_item)
+        match item:
+            case EBNF_Reference():
+                if prod_name != item.name:
+                    # don't count recursive references
+                    reference_counts[item.name] += 1
+            case EBNF_Single():
+                update_reference_count(prod_name, item.inner)
+            case EBNF_Multiple():
+                for inner_item in item.inner:
+                    update_reference_count(prod_name, inner_item)
 
     for production in productions:
         update_reference_count(production.name, production.item)
