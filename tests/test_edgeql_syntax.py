@@ -2881,6 +2881,30 @@ aa';
             .age,
             .rank,
             .status;
+        GROUP
+            User
+        BY
+            .name,
+            .age,
+            .rank,
+            .status,;
+
+% OK %
+
+        GROUP
+            User
+        BY
+            .name,
+            .age,
+            .rank,
+            .status;
+        GROUP
+            User
+        BY
+            .name,
+            .age,
+            .rank,
+            .status;
         """
 
     def test_edgeql_syntax_group_07(self):
@@ -2915,6 +2939,24 @@ aa';
         USING
             letter := (.name)[0]
         BY {letter, .age, ROLLUP(.rank, .status)};
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status),};
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status)};
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status)};
         """
 
     def test_edgeql_syntax_group_09(self):
@@ -2924,10 +2966,46 @@ aa';
         USING
             letter := (.name)[0]
         BY CUBE(letter, .age, .rank, .status);
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status,);
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status);
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status);
         """
 
     def test_edgeql_syntax_group_10(self):
         """
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status)}};
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status,)},};
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status)}};
         GROUP
             User
         USING
@@ -2949,10 +3027,40 @@ aa';
             User
         BY
             {(.name, .age), (.rank, .status)};
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status),};
+
+% OK %
+
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status)};
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status)};
         """
 
     def test_edgeql_syntax_group_13(self):
         """
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status));
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status),);
+
+% OK %
+
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status));
         GROUP
             User
         BY

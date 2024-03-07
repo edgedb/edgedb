@@ -147,10 +147,19 @@ class GroupingElement(Nonterm):
     def reduce_LBRACE_GroupingElementList_RBRACE(self, *kids):
         self.val = qlast.GroupingSets(sets=kids[1].val)
 
+    def reduce_LBRACE_GroupingElementList_COMMA_RBRACE(self, *kids):
+        self.val = qlast.GroupingSets(sets=kids[1].val)
+
     def reduce_ROLLUP_LPAREN_GroupingAtomList_RPAREN(self, *kids):
         self.val = qlast.GroupingOperation(oper='rollup', elements=kids[2].val)
 
+    def reduce_ROLLUP_LPAREN_GroupingAtomList_COMMA_RPAREN(self, *kids):
+        self.val = qlast.GroupingOperation(oper='rollup', elements=kids[2].val)
+
     def reduce_CUBE_LPAREN_GroupingAtomList_RPAREN(self, *kids):
+        self.val = qlast.GroupingOperation(oper='cube', elements=kids[2].val)
+
+    def reduce_CUBE_LPAREN_GroupingAtomList_COMMA_RPAREN(self, *kids):
         self.val = qlast.GroupingOperation(oper='cube', elements=kids[2].val)
 
 
@@ -214,6 +223,9 @@ class ByClause(Nonterm):
     def reduce_BY_GroupingElementList(self, *kids):
         pass
 
+    @parsing.inline(1)
+    def reduce_BY_GroupingElementList_COMMA(self, *kids):
+        pass
 
 class UsingClause(Nonterm):
     @parsing.inline(1)
