@@ -30,9 +30,10 @@ Cleans and reclaims storage by removing obsolete data.
 
 :eql:synopsis:`full := {true | false}`
     If set to ``true``, an exclusive lock is obtained and reclaimed space is
-    returned to the operating system. If set to ``false`` or unspecified, the
+    returned to the operating system. If set to ``false`` or if not set, the
     command can operate alongside normal reading and writing of the database
-    and reclaimed space is kept available for reuse in the database.
+    and reclaimed space is kept available for reuse in the database, reducing
+    the rate of growth of the database.
 
 
 Examples
