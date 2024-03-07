@@ -1723,9 +1723,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
 @cython.final
 cdef class VirtualTransport:
-    def __init__(self):
+    def __init__(self, transport):
         self.buf = WriteBuffer.new()
         self.closed = False
+        self.transport = transport
 
     def write(self, data):
         self.buf.write_bytes(bytes(data))
@@ -1742,6 +1743,9 @@ cdef class VirtualTransport:
     def abort(self):
         self.closed = True
 
+    def get_extra_info(self, name, default=None):
+        return self.transport.get_extra_info(name, default)
+
 
 async def eval_buffer(
     server,
@@ -1752,12 +1756,13 @@ async def eval_buffer(
     protocol_version: edbdef.ProtocolVersion,
     auth_data: bytes,
     transport: srvargs.ServerConnTransport,
+    tcp_transport: asyncio.Transport,
 ):
     cdef:
         VirtualTransport vtr
         EdgeConnection proto
 
-    vtr = VirtualTransport()
+    vtr = VirtualTransport(tcp_transport)
 
     proto = new_edge_connection(
         server,

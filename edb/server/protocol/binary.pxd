@@ -109,3 +109,4 @@ cdef class VirtualTransport:
     cdef:
         WriteBuffer buf
         bint closed
+        object transport

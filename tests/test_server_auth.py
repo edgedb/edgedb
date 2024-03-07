@@ -20,15 +20,19 @@ import asyncio
 import os
 import pathlib
 import signal
+import ssl
 import tempfile
 import unittest
 import urllib.error
 import urllib.request
 
+import asyncpg
 import jwcrypto.jwk
 
 import edgedb
 
+from edb import errors
+from edb import protocol
 from edb.common import secretkey
 from edb.server import args
 from edb.server import cluster as edbcluster
@@ -303,21 +307,38 @@ class TestServerAuth(tb.ConnectedTestCase):
         resp_status = resp.status
         return resp_body, resp_status
 
-    async def _jwt_http_request(
-        self, server, sk, username='edgedb', db='edgedb', proto='edgeql'
+    async def _http_request(
+        self,
+        server,
+        sk=None,
+        username='edgedb',
+        db='edgedb',
+        proto='edgeql',
+        client_cert_file=None,
+        client_key_file=None,
     ):
-        with self.http_con(server, keep_alive=False) as con:
+        with self.http_con(
+            server,
+            keep_alive=False,
+            client_cert_file=client_cert_file,
+            client_key_file=client_key_file,
+        ) as con:
+            headers = {'X-EdgeDB-User': username}
+            if sk is not None:
+                headers['Authorization'] = f'bearer {sk}'
             return self.http_con_request(
                 con,
                 path=f'/db/{db}/{proto}',
                 # ... the graphql ones will produce an error, but that's
                 # still a 200
                 params=dict(query='select 1'),
-                headers={
-                    'Authorization': f'bearer {sk}',
-                    'X-EdgeDB-User': username,
-                },
+                headers=headers,
             )
+
+    async def _jwt_http_request(
+        self, server, sk, username='edgedb', db='edgedb', proto='edgeql'
+    ):
+        return await self._http_request(server, sk, username, db, proto)
 
     def _jwt_gql_request(self, server, sk):
         return self._jwt_http_request(server, sk, proto='graphql')
@@ -560,3 +581,139 @@ class TestServerAuth(tb.ConnectedTestCase):
             await self.con.query('''
                 DROP ROLE foo;
             ''')
+
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
+    async def test_server_auth_mtls(self):
+        if not self.has_create_role:
+            self.skipTest('create role is not supported by the backend')
+
+        certs = pathlib.Path(__file__).parent / 'certs'
+        client_ca_cert_file = certs / 'client_ca.cert.pem'
+        client_ssl_cert_file = certs / 'client.cert.pem'
+        client_ssl_key_file = certs / 'client.key.pem'
+        async with tb.start_edgedb_server(
+            tls_client_ca_file=client_ca_cert_file,
+            security=args.ServerSecurityMode.Strict,
+        ) as sd:
+            # Setup mTLS and extensions
+            conn = await sd.connect()
+            try:
+                await conn.query("CREATE SUPERUSER ROLE ssl_user;")
+                await conn.query("CREATE EXTENSION edgeql_http;")
+                await self._test_mtls(
+                    sd, client_ssl_cert_file, client_ssl_key_file, False)
+                await conn.query("""
+                    CONFIGURE INSTANCE INSERT Auth {
+                        comment := 'test',
+                        priority := 0,
+                        method := (INSERT mTLS {
+                            transports := {
+                                cfg::ConnectionTransport.TCP,
+                                cfg::ConnectionTransport.TCP_PG,
+                                cfg::ConnectionTransport.HTTP,
+                                cfg::ConnectionTransport.SIMPLE_HTTP,
+                            },
+                        }),
+                    }
+                """)
+                await self._test_mtls(
+                    sd, client_ssl_cert_file, client_ssl_key_file, True)
+            finally:
+                await conn.aclose()
+
+    async def _test_mtls(
+        self, sd, client_ssl_cert_file, client_ssl_key_file, granted
+    ):
+        # Verifies mTLS authentication on edgeql_http
+        if granted:
+            body, _, code = await self._http_request(sd, username="ssl_user")
+            self.assertEqual(code, 401, f"Wrong result: {body}")
+        body, _, code = await self._http_request(
+            sd,
+            username="ssl_user",
+            client_cert_file=client_ssl_cert_file,
+            client_key_file=client_ssl_key_file,
+        )
+        if granted:
+            self.assertEqual(code, 200, f"Wrong result: {body}")
+        else:
+            self.assertEqual(code, 401, f"Wrong result: {body}")
+
+        # Verifies mTLS authentication on the binary protocol
+        if granted:
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'client certificate required',
+            ):
+                await sd.connect()
+        # FIXME: add mTLS support in edgedb-python
+
+        # Verifies mTLS authentication on binary protocol over HTTP
+        if granted:
+            with self.http_con(
+                sd,
+                keep_alive=False,
+            ) as con:
+                msgs, _, status = self.http_con_binary_request(
+                    con, "select 42", user="ssl_user")
+            self.assertEqual(status, 200)
+            self.assertIsInstance(msgs[0], protocol.ErrorResponse)
+            self.assertEqual(
+                msgs[0].error_code, errors.AuthenticationError.get_code())
+        with self.http_con(
+            sd,
+            keep_alive=False,
+            client_cert_file=client_ssl_cert_file,
+            client_key_file=client_ssl_key_file,
+        ) as con:
+            msgs, _, status = self.http_con_binary_request(
+                con, "select 42", user="ssl_user")
+        if granted:
+            self.assertEqual(status, 200)
+            self.assertIsInstance(msgs[0], protocol.CommandDataDescription)
+            self.assertIsInstance(msgs[1], protocol.Data)
+            self.assertEqual(bytes(msgs[1].data[0].data), b"42")
+            self.assertIsInstance(msgs[2], protocol.CommandComplete)
+            self.assertEqual(msgs[2].status, "SELECT")
+            self.assertIsInstance(msgs[3], protocol.ReadyForCommand)
+        else:
+            self.assertEqual(status, 200)
+            self.assertIsInstance(msgs[0], protocol.ErrorResponse)
+            self.assertEqual(
+                msgs[0].error_code, errors.AuthenticationError.get_code())
+
+        # Verifies mTLS authentication on emulated Postgres protocol
+        conargs = sd.get_connect_args()
+        tls_context = ssl.create_default_context(
+            ssl.Purpose.SERVER_AUTH,
+            cafile=conargs["tls_ca_file"],
+        )
+        tls_context.check_hostname = False
+        conargs = dict(
+            host=conargs['host'],
+            port=conargs['port'],
+            user="ssl_user",
+            database=conargs.get('database', 'main'),
+            ssl=tls_context,
+        )
+        if granted:
+            with self.assertRaisesRegex(
+                asyncpg.InvalidAuthorizationSpecificationError,
+                'client certificate required',
+            ):
+                await asyncpg.connect(**conargs)
+        tls_context.load_cert_chain(
+            client_ssl_cert_file, client_ssl_key_file)
+        if granted:
+            conn = await asyncpg.connect(**conargs)
+            self.assertEqual(await conn.fetchval("select 42"), 42)
+            await conn.close()
+        else:
+            with self.assertRaisesRegex(
+                asyncpg.InvalidAuthorizationSpecificationError,
+                'authentication failed',
+            ):
+                await asyncpg.connect(**conargs)
