@@ -666,9 +666,11 @@ def ptrref_from_ptrcls(
             schema, material_comp = component.material_type(schema)
             union_ptrs.add(material_comp)
 
-        non_overlapping, union_is_exhaustive = s_utils.get_non_overlapping_union(
-            schema,
-            union_ptrs,
+        non_overlapping, union_is_exhaustive = (
+            s_utils.get_non_overlapping_union(
+                schema,
+                union_ptrs,
+            )
         )
 
         union_components = {
@@ -740,25 +742,27 @@ def ptrref_from_ptrcls(
     else:
         children = frozenset()
 
-    kwargs.update(dict(
-        out_source=out_source,
-        out_target=out_target,
-        name=ptrcls.get_name(schema),
-        shortname=ptrcls.get_shortname(schema),
-        std_parent_name=std_parent_name,
-        source_ptr=source_ptr,
-        base_ptr=base_ptr,
-        material_ptr=material_ptr,
-        children=children,
-        is_derived=ptrcls.get_is_derived(schema),
-        is_computable=ptrcls.get_computable(schema),
-        union_components=union_components,
-        intersection_components=intersection_components,
-        union_is_exhaustive=union_is_exhaustive,
-        has_properties=ptrcls.has_user_defined_properties(schema),
-        in_cardinality=in_cardinality,
-        out_cardinality=out_cardinality,
-    ))
+    kwargs.update(
+        dict(
+            out_source=out_source,
+            out_target=out_target,
+            name=ptrcls.get_name(schema),
+            shortname=ptrcls.get_shortname(schema),
+            std_parent_name=std_parent_name,
+            source_ptr=source_ptr,
+            base_ptr=base_ptr,
+            material_ptr=material_ptr,
+            children=children,
+            is_derived=ptrcls.get_is_derived(schema),
+            is_computable=ptrcls.get_computable(schema),
+            union_components=union_components,
+            intersection_components=intersection_components,
+            union_is_exhaustive=union_is_exhaustive,
+            has_properties=ptrcls.has_user_defined_properties(schema),
+            in_cardinality=in_cardinality,
+            out_cardinality=out_cardinality,
+        )
+    )
 
     ptrref = ircls(**kwargs)
 
