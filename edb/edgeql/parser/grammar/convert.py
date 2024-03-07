@@ -17,86 +17,43 @@
 #
 
 
-from dataclasses import dataclass
 import parsing
 import pathlib
 from typing import List, Sequence, Tuple, Dict, Callable
 
 
-class EBNF_Item:
-    pass
+from . import ebnf
 
 
-@dataclass(eq=False, match_args=False)
-class EBNF_Literal(EBNF_Item):
-    token: str
-
-
-@dataclass(eq=False, match_args=False)
-class EBNF_Reference(EBNF_Item):
-    name: str
-
-
-@dataclass(eq=False, match_args=False)
-class EBNF_Single(EBNF_Item):
-    inner: EBNF_Item
-
-
-@dataclass(eq=False, match_args=False)
-class EBNF_Optional(EBNF_Single):
-    pass
-
-
-@dataclass(eq=False, match_args=False)
-class EBNF_Multiple(EBNF_Item):
-    inner: Sequence[EBNF_Item]
-
-
-@dataclass(eq=False, match_args=False)
-class EBNF_Sequence(EBNF_Multiple):
-    pass
-
-
-@dataclass(eq=False, match_args=False)
-class EBNF_Choice(EBNF_Multiple):
-    pass
-
-
-@dataclass(eq=False, match_args=False)
-class EBNF_Production:
-    name: str
-    item: EBNF_Item
-
-
-def ebnf_single_or_sequence(items: Sequence[EBNF_Item]) -> EBNF_Item:
+def ebnf_single_or_sequence(items: Sequence[ebnf.Item]) -> ebnf.Item:
     if len(items) == 1:
         return items[0]
     else:
-        return EBNF_Sequence(items)
+        return ebnf.Sequence(items)
 
 
-def ebnf_single_or_choice(items: Sequence[EBNF_Item]) -> EBNF_Item:
+def ebnf_single_or_choice(items: Sequence[ebnf.Item]) -> ebnf.Item:
     if len(items) == 1:
         return items[0]
     else:
-        return EBNF_Choice(items)
+        return ebnf.Choice(items)
 
 
-def expand_iso_ebnf(item: EBNF_Item) -> str:
+def expand_iso_ebnf(item: ebnf.Item) -> str:
     match item:
-        case EBNF_Literal():
+        case ebnf.Literal():
             return '"' + item.token + '"'
-        case EBNF_Reference():
+        case ebnf.Reference():
             return item.name
-        case EBNF_Optional():
+        case ebnf.Optional():
             return '[' + expand_iso_ebnf(item.inner) + ']'
-        case EBNF_Sequence():
+        case ebnf.Sequence():
             return (
                 '('
                 + ', '.join(expand_iso_ebnf(inner) for inner in item.inner)
                 + ')'
             )
-        case EBNF_Choice():
+        case ebnf.Choice():
             return (
                 '('
                 + ' | '.join(
@@ -108,22 +65,22 @@ def expand_iso_ebnf(item: EBNF_Item) -> str:
             raise NotImplementedError
 
 
-def to_iso_ebnf(productions: List[EBNF_Production]) -> List[str]:
+def to_iso_ebnf(productions: List[ebnf.Production]) -> List[str]:
     return [
         production.name + ' = ' + expand_iso_ebnf(production.item) + ';'
         for production in productions
     ]
 
 
-def expand_w3c_ebnf(item: EBNF_Item) -> str:
+def expand_w3c_ebnf(item: ebnf.Item) -> str:
     match item:
-        case EBNF_Literal():
+        case ebnf.Literal():
             return '"' + item.token + '"'
-        case EBNF_Reference():
+        case ebnf.Reference():
             return item.name
-        case EBNF_Optional():
+        case ebnf.Optional():
             return expand_w3c_ebnf(item.inner) + '?'
-        case EBNF_Sequence():
+        case ebnf.Sequence():
             return (
                 '('
                 + ' '.join(
@@ -131,7 +88,7 @@ def expand_w3c_ebnf(item: EBNF_Item) -> str:
                 )
                 + ')'
             )
-        case EBNF_Choice():
+        case ebnf.Choice():
             return (
                 '('
                 + ' | '.join(
@@ -143,7 +100,7 @@ def expand_w3c_ebnf(item: EBNF_Item) -> str:
             raise NotImplementedError
 
 
-def to_w3c_ebnf(productions: List[EBNF_Production]) -> List[str]:
+def to_w3c_ebnf(productions: List[ebnf.Production]) -> List[str]:
     return [
         production.name + ' ::= ' + expand_w3c_ebnf(production.item)
         for production in productions
@@ -151,27 +108,27 @@ def to_w3c_ebnf(productions: List[EBNF_Production]) -> List[str]:
 
 
 def simplify_productions(
-    productions: List[EBNF_Production],
-) -> List[EBNF_Production]:
+    productions: List[ebnf.Production],
+) -> List[ebnf.Production]:
 
-    productions_by_name: Dict[str, EBNF_Production] = {
+    productions_by_name: Dict[str, ebnf.Production] = {
         production.name: production for production in productions
     }
 
-    def referenced_item(reference: EBNF_Reference) -> EBNF_Item:
+    def referenced_item(reference: ebnf.Reference) -> ebnf.Item:
         return productions_by_name[reference.name].item
 
-    def is_reference_to(item: EBNF_Item, name: str) -> bool:
-        return isinstance(item, EBNF_Reference) and item.name == name
+    def is_reference_to(item: ebnf.Item, name: str) -> bool:
+        return isinstance(item, ebnf.Reference) and item.name == name
 
-    def is_literal_reference(item: EBNF_Item) -> bool:
-        return isinstance(item, EBNF_Reference) and isinstance(
-            referenced_item(item), EBNF_Literal
+    def is_literal_reference(item: ebnf.Item) -> bool:
+        return isinstance(item, ebnf.Reference) and isinstance(
+            referenced_item(item), ebnf.Literal
         )
 
-    def is_non_literal_reference(item: EBNF_Item) -> bool:
-        return isinstance(item, EBNF_Reference) and not isinstance(
-            referenced_item(item), EBNF_Literal
+    def is_non_literal_reference(item: ebnf.Item) -> bool:
+        return isinstance(item, ebnf.Reference) and not isinstance(
+            referenced_item(item), ebnf.Literal
         )
 
     # remove unused productions
@@ -180,15 +137,15 @@ def simplify_productions(
         production.name: 0 for production in productions
     }
 
-    def update_reference_count(prod_name: str, item: EBNF_Item):
+    def update_reference_count(prod_name: str, item: ebnf.Item):
         match item:
-            case EBNF_Reference():
+            case ebnf.Reference():
                 if prod_name != item.name:
                     # don't count recursive references
                     reference_counts[item.name] += 1
-            case EBNF_Single():
+            case ebnf.Single():
                 update_reference_count(prod_name, item.inner)
-            case EBNF_Multiple():
+            case ebnf.Multiple():
                 for inner_item in item.inner:
                     update_reference_count(prod_name, inner_item)
 
@@ -204,10 +161,10 @@ def simplify_productions(
     # utilities to help inlining
 
     def separate_references_to_inline(
-        productions: Sequence[EBNF_Production],
-        is_inlined: Callable[[EBNF_Item], bool],
+        productions: Sequence[ebnf.Production],
+        is_inlined: Callable[[ebnf.Item], bool],
     ):
-        inlined_references: Dict[str, EBNF_Item] = {
+        inlined_references: Dict[str, ebnf.Item] = {
             production.name: production.item
             for production in productions
             if is_inlined(production.item)
@@ -221,10 +178,10 @@ def simplify_productions(
         return productions, inlined_references
 
     def inline_references(
-        item: EBNF_Item, references: Dict[str, EBNF_Item]
-    ) -> Tuple[EBNF_Item, bool]:
+        item: ebnf.Item, references: Dict[str, ebnf.Item]
+    ) -> Tuple[ebnf.Item, bool]:
 
-        if isinstance(item, EBNF_Reference):
+        if isinstance(item, ebnf.Reference):
             if item.name in references:
                 return references[item.name], True
 
@@ -233,26 +190,26 @@ def simplify_productions(
     # inline direct references
 
     productions, direct_references = separate_references_to_inline(
-        productions, lambda item: isinstance(item, EBNF_Reference)
+        productions, lambda item: isinstance(item, ebnf.Reference)
     )
 
-    def inline_direct_references(item: EBNF_Item) -> Tuple[EBNF_Item, bool]:
+    def inline_direct_references(item: ebnf.Item) -> Tuple[ebnf.Item, bool]:
         return inline_references(item, direct_references)
 
     # inline direct optionals
 
     productions, direct_optionals = separate_references_to_inline(
-        productions, lambda item: isinstance(item, EBNF_Optional)
+        productions, lambda item: isinstance(item, ebnf.Optional)
     )
 
-    def inline_direct_optionals(item: EBNF_Item) -> Tuple[EBNF_Item, bool]:
+    def inline_direct_optionals(item: ebnf.Item) -> Tuple[ebnf.Item, bool]:
         return inline_references(item, direct_optionals)
 
     # inline choice of 3 or fewer references to literals
 
-    def is_short_choice_of_literals(item: EBNF_Item) -> bool:
+    def is_short_choice_of_literals(item: ebnf.Item) -> bool:
         return (
-            isinstance(item, EBNF_Choice)
+            isinstance(item, ebnf.Choice)
             and len(item.inner) <= 3
             and all(
                 is_literal_reference(inner_item) for inner_item in item.inner
@@ -264,15 +221,15 @@ def simplify_productions(
     )
 
     def inline_short_choice_of_literals(
-        item: EBNF_Item,
-    ) -> Tuple[EBNF_Item, bool]:
+        item: ebnf.Item,
+    ) -> Tuple[ebnf.Item, bool]:
         return inline_references(item, short_choice_of_literals)
 
     # inline sequence of 2 with at least 1 literal
 
-    def is_short_sequence_with_literal(item: EBNF_Item) -> bool:
+    def is_short_sequence_with_literal(item: ebnf.Item) -> bool:
         return (
-            isinstance(item, EBNF_Sequence)
+            isinstance(item, ebnf.Sequence)
             and len(item.inner) <= 2
             and sum(
                 is_literal_reference(inner_item) for inner_item in item.inner
@@ -285,15 +242,15 @@ def simplify_productions(
     )
 
     def inline_short_sequence_with_literal(
-        item: EBNF_Item,
-    ) -> Tuple[EBNF_Item, bool]:
+        item: ebnf.Item,
+    ) -> Tuple[ebnf.Item, bool]:
         return inline_references(item, short_sequence_with_literal)
 
     # inline paren sequences
 
-    def is_paren_reference(item: EBNF_Item) -> bool:
+    def is_paren_reference(item: ebnf.Item) -> bool:
         return (
-            isinstance(item, EBNF_Sequence)
+            isinstance(item, ebnf.Sequence)
             and len(item.inner) <= 4
             and (
                 (
@@ -315,33 +272,33 @@ def simplify_productions(
         productions, is_paren_reference
     )
 
-    def inline_paren_references(item: EBNF_Item) -> Tuple[EBNF_Item, bool]:
+    def inline_paren_references(item: ebnf.Item) -> Tuple[ebnf.Item, bool]:
         return inline_references(item, paren_references)
 
     # substitute multi-items with a single item
 
-    def substitute_multi_item_single(item: EBNF_Item) -> Tuple[EBNF_Item, bool]:
+    def substitute_multi_item_single(item: ebnf.Item) -> Tuple[ebnf.Item, bool]:
 
-        if isinstance(item, EBNF_Multiple) and len(item.inner) == 1:
+        if isinstance(item, ebnf.Multiple) and len(item.inner) == 1:
             return item.inner[0], True
 
         return item, False
 
     # substitute choices of optionals with optional of choice
 
-    def substitute_choice_of_options(item: EBNF_Item) -> Tuple[EBNF_Item, bool]:
+    def substitute_choice_of_options(item: ebnf.Item) -> Tuple[ebnf.Item, bool]:
 
-        if isinstance(item, EBNF_Choice):
+        if isinstance(item, ebnf.Choice):
             inner_options = [
                 inner_item
                 for inner_item in item.inner
-                if isinstance(inner_item, EBNF_Optional)
+                if isinstance(inner_item, ebnf.Optional)
             ]
 
             if len(inner_options) == len(item.inner):
                 return (
-                    EBNF_Optional(
-                        EBNF_Choice(
+                    ebnf.Optional(
+                        ebnf.Choice(
                             [
                                 inner_option.inner
                                 for inner_option in inner_options
@@ -356,9 +313,9 @@ def simplify_productions(
     # apply replacements until no changes are made
 
     def replace_repeatedly_helper(
-        item: EBNF_Item,
-        funcs: List[Callable[[EBNF_Item], Tuple[EBNF_Item, bool]]],
-    ) -> EBNF_Item:
+        item: ebnf.Item,
+        funcs: List[Callable[[ebnf.Item], Tuple[ebnf.Item, bool]]],
+    ) -> ebnf.Item:
 
         changed = True
         while changed:
@@ -368,7 +325,7 @@ def simplify_productions(
                 changed = changed or curr_changed
         return item
 
-    def replace_repeatedly(item: EBNF_Item) -> EBNF_Item:
+    def replace_repeatedly(item: ebnf.Item) -> ebnf.Item:
         return replace_repeatedly_helper(
             item,
             [
@@ -382,16 +339,16 @@ def simplify_productions(
             ],
         )
 
-    def replace_recursively(item: EBNF_Item) -> EBNF_Item:
+    def replace_recursively(item: ebnf.Item) -> ebnf.Item:
         # replace parent before and after children
         # before children handles recursive inlining
         # after children handles recursive substitution
         item = replace_repeatedly(item)
 
-        if isinstance(item, EBNF_Single):
+        if isinstance(item, ebnf.Single):
             item.inner = replace_recursively(item.inner)
             item = replace_repeatedly(item)
-        elif isinstance(item, EBNF_Multiple):
+        elif isinstance(item, ebnf.Multiple):
             item.inner = [
                 replace_recursively(inner_item) for inner_item in item.inner
             ]
@@ -400,22 +357,22 @@ def simplify_productions(
         return item
 
     return [
-        EBNF_Production(production.name, replace_recursively(production.item))
+        ebnf.Production(production.name, replace_recursively(production.item))
         for production in productions
     ]
 
 
 def to_ebnf(spec: parsing.Spec, path: pathlib.Path):
-    ebnf_productions: List[EBNF_Production] = []
+    ebnf_productions: List[ebnf.Production] = []
 
     # add token productions
-    for token, token_spec in spec._tokens.items():
+    for token in spec._tokens:
         if token in ['<e>', '<$>']:
             continue
-        ebnf_productions.append(EBNF_Production(token, EBNF_Literal(token)))
+        ebnf_productions.append(ebnf.Production(token, ebnf.Literal(token)))
 
     # add nonterm productions
-    nonterm_productions: Dict[str, List[List[EBNF_Reference]]] = {}
+    nonterm_productions: Dict[str, List[List[ebnf.Reference]]] = {}
 
     has_production = {
         **{token: True for token in spec._tokens},
@@ -427,8 +384,8 @@ def to_ebnf(spec: parsing.Spec, path: pathlib.Path):
         if prod_name == '<S>':
             continue
 
-        item_list: List[EBNF_Reference] = [
-            EBNF_Reference(item.name) for item in production.rhs
+        item_list: List[ebnf.Reference] = [
+            ebnf.Reference(item.name) for item in production.rhs
         ]
 
         has_production[prod_name] = True
@@ -458,11 +415,11 @@ def to_ebnf(spec: parsing.Spec, path: pathlib.Path):
                 item_list for item_list in item_lists if item_list != []
             ]
             ebnf_productions.append(
-                EBNF_Production(
+                ebnf.Production(
                     prod_name,
                     ebnf_single_or_choice(
                         [
-                            EBNF_Optional(ebnf_single_or_sequence(item_list))
+                            ebnf.Optional(ebnf_single_or_sequence(item_list))
                             for item_list in item_lists
                         ]
                     ),
@@ -470,7 +427,7 @@ def to_ebnf(spec: parsing.Spec, path: pathlib.Path):
             )
         else:
             ebnf_productions.append(
-                EBNF_Production(
+                ebnf.Production(
                     prod_name,
                     ebnf_single_or_choice(
                         [
