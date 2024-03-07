@@ -572,6 +572,7 @@ cdef class HttpProtocol:
                         protocol_version=proto_ver,
                         auth_data=self.current_request.authorization,
                         transport=srvargs.ServerConnTransport.HTTP,
+                        tcp_transport=self.transport,
                     )
                     response.status = http.HTTPStatus.OK
                     response.content_type = PROTO_MIME
