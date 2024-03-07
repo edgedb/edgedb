@@ -885,6 +885,7 @@ class SimpleAdaptivePool(BaseLocalPool):
         self._expected_num_workers = 0
         self._scale_down_handle = None
         self._max_num_workers = pool_size
+        self._cleanups = {}
 
     async def _start(self):
         async with asyncio.TaskGroup() as g:
@@ -897,6 +898,8 @@ class SimpleAdaptivePool(BaseLocalPool):
         for transport in transports.values():
             await transport._wait()
             transport.close()
+        for cleanup in list(self._cleanups.values()):
+            await cleanup
 
     async def _acquire_worker(
         self, *, condition=None, weighter=None, **compiler_args
@@ -940,12 +943,21 @@ class SimpleAdaptivePool(BaseLocalPool):
                 self._scale_down,
             )
 
+    async def _wait_on_dying(self, pid, trans):
+        await trans._wait()
+        self._cleanups.pop(pid)
+
     def worker_disconnected(self, pid):
         num_workers_before = len(self._workers)
         super().worker_disconnected(pid)
         trans = self._worker_transports.pop(pid, None)
         if trans:
             trans.close()
+            # amsg.Server notifies us when the *pipe* to the worker closes,
+            # so we need to fire off a task to make sure that we wait for
+            # the worker to exit, in order to avoid a warning.
+            self._cleanups[pid] = (
+                self._loop.create_task(self._wait_on_dying(pid, trans)))
         if not self._running:
             return
         if len(self._workers) < self._pool_size:
