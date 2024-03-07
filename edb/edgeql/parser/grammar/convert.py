@@ -17,6 +17,7 @@
 #
 
 
+from dataclasses import dataclass
 import parsing
 import pathlib
 from typing import List, Sequence, Tuple, Dict, Callable
@@ -26,45 +27,45 @@ class EBNF_Item:
     pass
 
 
+@dataclass(eq=False, match_args=False)
 class EBNF_Literal(EBNF_Item):
-    def __init__(self, token: str):
-        self.token = token
+    token: str
 
 
+@dataclass(eq=False, match_args=False)
 class EBNF_Reference(EBNF_Item):
-    def __init__(self, name: str):
-        self.name = name
+    name: str
 
 
+@dataclass(eq=False, match_args=False)
 class EBNF_Single(EBNF_Item):
-    def __init__(self, inner: EBNF_Item):
-        self.inner = inner
+    inner: EBNF_Item
 
 
+@dataclass(eq=False, match_args=False)
 class EBNF_Optional(EBNF_Single):
-    def __init__(self, inner: EBNF_Item):
-        super().__init__(inner)
+    pass
 
 
+@dataclass(eq=False, match_args=False)
 class EBNF_Multiple(EBNF_Item):
-    def __init__(self, inner: Sequence[EBNF_Item]):
-        self.inner = inner
+    inner: Sequence[EBNF_Item]
 
 
+@dataclass(eq=False, match_args=False)
 class EBNF_Sequence(EBNF_Multiple):
-    def __init__(self, inner: Sequence[EBNF_Item]):
-        super().__init__(inner)
+    pass
 
 
+@dataclass(eq=False, match_args=False)
 class EBNF_Choice(EBNF_Multiple):
-    def __init__(self, inner: Sequence[EBNF_Item]):
-        super().__init__(inner)
+    pass
 
 
+@dataclass(eq=False, match_args=False)
 class EBNF_Production:
-    def __init__(self, name: str, item: EBNF_Item):
-        self.name = name
-        self.item = item
+    name: str
+    item: EBNF_Item
 
 
 def ebnf_single_or_sequence(items: Sequence[EBNF_Item]) -> EBNF_Item:
