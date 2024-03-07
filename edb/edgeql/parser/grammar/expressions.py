@@ -413,29 +413,6 @@ class Shape(Nonterm):
         pass
 
 
-class OptShape(Nonterm):
-    @parsing.inline(0)
-    def reduce_Shape(self, *kids):
-        pass
-
-    def reduce_empty(self, *kids):
-        self.val = []
-
-
-class TypedShape(Nonterm):
-    def reduce_NodeName_OptShape(self, *kids):
-        self.val = qlast.Shape(
-            expr=qlast.Path(
-                steps=[qlast.ObjectRef(
-                    name=kids[0].val.name,
-                    module=kids[0].val.module,
-                    context=kids[0].context)
-                ]
-            ),
-            elements=kids[1].val
-        )
-
-
 class FreeShape(Nonterm):
     def reduce_LBRACE_FreeComputableShapePointerList_RBRACE(self, *kids):
         self.val = qlast.Shape(elements=kids[1].val)
@@ -2115,10 +2092,6 @@ class NodeName(Nonterm):
             name=base_name.val[-1])
 
 
-class NodeNameList(ListNonterm, element=NodeName, separator=tokens.T_COMMA):
-    pass
-
-
 class PtrNodeName(Nonterm):
     # NOTE: Generic short of fully-qualified name.
     #
@@ -2192,6 +2165,10 @@ class AnyNodeName(Nonterm):
 
 
 class Keyword(parsing.Nonterm):
+    """Base class for the different classes of keywords.
+
+    Not a real nonterm on its own.
+    """
     def __init_subclass__(
             cls, *, type, is_internal=False, **kwargs):
         super().__init_subclass__(is_internal=is_internal, **kwargs)

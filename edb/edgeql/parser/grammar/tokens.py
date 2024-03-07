@@ -208,10 +208,6 @@ class T_NAMEDONLY(Token, lextoken='named only'):
     pass
 
 
-class T_SETANNOTATION(Token, lextoken='set annotation'):
-    pass
-
-
 class T_SETTYPE(Token, lextoken='set type'):
     pass
 
@@ -248,10 +244,6 @@ class T_SCONST(Token):
     pass
 
 
-class T_RSCONST(Token):
-    pass
-
-
 class T_DISTINCTFROM(Token, lextoken="?!="):
     pass
 
@@ -273,10 +265,6 @@ class T_NOTEQ(Token, lextoken="!="):
 
 
 class T_IDENT(Token):
-    pass
-
-
-class T_SUBSTITUTION(Token):
     pass
 
 

@@ -1277,15 +1277,6 @@ class LinkDeclarationShort(Nonterm):
         )
 
 
-class OptPtrKind(Nonterm):
-    @parsing.inline(0)
-    def reduce_LINK(self, *kids):
-        pass
-
-    def reduce_empty(self):
-        self.val = None
-
-
 sdl_commands_block(
     'CreateConcreteLink',
     Using,
