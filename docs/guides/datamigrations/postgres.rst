@@ -146,7 +146,7 @@ for now. Incidentally, even if the ``id`` was specified as a ``uuid`` value
 the recommended process is to record it as ``app_id`` as opposed to try and
 replicate it as the main object ``id``. It is, however, also possible to bring
 it over as the main ``id`` by adjusting certain :ref:`client connection
-<ref_std_cfg_client_connections>` settings. The column ``client_settings``
+settings <ref_std_cfg_client_connections>`. The column ``client_settings``
 would become a :eql:type:`json` property. The columns ``badge_name`` and
 ``status_id`` reference ``badges`` and ``statuses`` respectively and will
 become *links* in EdgeDB instead of *properties*, even though a property would

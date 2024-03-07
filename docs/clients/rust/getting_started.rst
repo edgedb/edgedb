@@ -120,14 +120,14 @@ the `blog post introducing the EdgeDB projects CLI`_.
     and ``edgedb migrate``.
 
   - a ``/migrations`` folder with ``.edgeql`` files named starting at 
-    ``00001``. These hold the `ddl`_ commands that were used to migrate your
-    schema. A new file shows up in this directory every time your schema 
-    is migrated.
+    ``00001``. These hold the :ref:`ddl <ref_eql_ddl>` commands that were used
+    to migrate your schema. A new file shows up in this directory every time
+    your schema is migrated.
 
 If you are running EdgeDB 3.0 and above, you also have the option of using 
-the `edgedb watch`_ command. Doing so starts a long-running process that 
-keeps an eye on changes in ``/dbschema``, automatically applying these 
-changes in real time.
+the :ref:`edgedb watch <ref_cli_edgedb_watch>` command. Doing so starts a
+long-running process that keeps an eye on changes in ``/dbschema``,
+automatically applying these changes in real time.
 
 Now that you have the right dependencies and an EdgeDB instance, 
 you can create a client.
@@ -135,9 +135,7 @@ you can create a client.
 .. _`blog post introducing the EdgeDB projects CLI`:
     https://www.edgedb.com/blog/introducing-edgedb-projects
 .. _`bridging methods`: https://tokio.rs/tokio/topics/bridging
-.. _`ddl`: https://www.edgedb.com/docs/reference/ddl/index
 .. _`edgedb-derive`: https://docs.rs/edgedb-derive/latest/edgedb_derive/
 .. _`edgedb-protocol`: https://docs.rs/edgedb-protocol/latest/edgedb_protocol
 .. _`edgedb-tokio`: https://docs.rs/edgedb-tokio/latest/edgedb_tokio
-.. _`edgedb watch`: https://www.edgedb.com/docs/cli/edgedb_watch
 .. _`examples repo`: https://github.com/Dhghomon/edgedb_rust_client_examples

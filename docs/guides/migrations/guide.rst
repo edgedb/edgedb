@@ -612,7 +612,7 @@ require appending ``--allow-empty`` to the command. Just do the following:
    schema file manually, copy the suggested name into the migration hash
    and type ``edgedb migrate`` again.
 
-The `EdgeDB tutorial <tutorial_>`_ is a good example of a database 
+The `EdgeDB tutorial </tutorial>`_ is a good example of a database 
 set up with both a schema migration and a data migration. Setting 
 up a database with `schema changes in one file and default data in 
 a second file <tutorial_files_>`_ is a nice way to separate the two operations
@@ -1204,7 +1204,7 @@ want to accept all of the suggestions provided by the server. This
 process is in fact still used to migrate even today; the CLI just 
 facilitates it by making it easy to respond to the generated suggestions.
 
-`Early EdgeDB migrations took place inside a transaction <transaction_>`_ 
+:ref:`Early EdgeDB migrations took place inside a transaction <ref_eql_ddl_migrations>`
 handled by the user that essentially went like this: 
 
 .. code-block::
@@ -1353,11 +1353,5 @@ migration and give it a proper ``.edgeql`` file in the same way we
 did above in the "So you really wanted to use DDL but now regret it?"
 section.
 
-.. lint-off
-
 .. _rfc: https://github.com/edgedb/rfcs/blob/master/text/1000-migrations.rst
-.. _transaction: https://www.edgedb.com/docs/reference/ddl/migrations
-.. _tutorial: https://www.edgedb.com/tutorial
 .. _tutorial_files: https://github.com/edgedb/website/tree/main/content/tutorial/dbschema/migrations
-
-.. lint-on

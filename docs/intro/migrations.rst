@@ -300,5 +300,5 @@ Further reading
 
 Further information can be found in the :ref:`CLI
 reference <ref_cli_edgedb_migration>` or the `Beta 1 blog post
-</blog/edgedb-1-0-beta-1-sirius#built-in-database-migrations-in-use>`_, which
-describes the design of the migration system.
+<https://www.edgedb.com/blog/edgedb-1-0-beta-1-sirius#built-in-database-migrations-in-use>`_,
+which describes the design of the migration system.

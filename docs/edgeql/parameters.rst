@@ -91,6 +91,8 @@ Refer to the Datatypes page of your preferred :ref:`client library
 language-native types.
 
 
+.. _ref_eql_params_types:
+
 Parameter types and JSON
 ------------------------
 

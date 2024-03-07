@@ -542,8 +542,8 @@ known as a *backlink* and it has special syntax.
     }));
     // {name: string; acted_in: {title: string}[];}[]
 
-See :ref:`Docs > EdgeQL > Select > Computed <ref_eql_select>` and
-:ref:`Docs > EdgeQL > Select > Backlinks <ref_eql_select>`.
+See :ref:`Docs > EdgeQL > Select > Computed fields <ref_eql_select_computeds>` and
+:ref:`Docs > EdgeQL > Select > Backlinks <ref_eql_select_backlinks>`.
 
 Update objects
 ^^^^^^^^^^^^^^

@@ -4,7 +4,7 @@ Transactions
 ------------
 
 The client also has a ``.transaction()`` method that
-allows for atomic `transactions`_.
+allows for atomic :ref:`transactions <ref_eql_transactions>`.
 
 Wikipedia has a good example of a scenario requiring a transaction which we
 can then implement:
@@ -63,11 +63,9 @@ another's would look like this:
 .. note::
 
     What often may seem to require an atomic transaction can instead be
-    achieved with links and `backlinks`_ which are both idiomatic and easy to
-    use in EdgeDB. For example, if one object holds a ``required link`` to two
+    achieved with links and :ref:`backlinks <ref_eql_paths_backlinks>` which
+    are both idiomatic and easy to use in EdgeDB.
+    For example, if one object holds a ``required link`` to two
     other objects and each of these two objects has a single backlink to the
     first one, simply updating the first object will effectively change the
     state of the other two instantaneously.
-
-.. _`backlinks`: https://www.edgedb.com/docs/edgeql/paths#backlinks
-.. _`transactions`: https://www.edgedb.com/docs/edgeql/transactions
