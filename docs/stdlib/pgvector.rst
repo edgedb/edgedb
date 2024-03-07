@@ -35,6 +35,15 @@ of the vector distance functions:
 * ``index ivfflat_ip(named only lists: int64)``
 * ``index ivfflat_cosine(named only lists: int64)``
 
+.. versionadded:: 5.0
+
+    ``ext::pgvector`` now also includes Hierarchical Navigable Small Worlds
+    (HNSW) indexes:
+
+    * ``index hnsw_euclidean``
+    * ``index hnsw_ip``
+    * ``index hnsw_cosine``
+
 When defining a new type, you can now add vector properties. However, in order
 to be able to use indexes, the vectors in question need to be of fixed
 length. This can be achieved by creating a custom scalar ``extending`` the
