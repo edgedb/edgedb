@@ -58,6 +58,7 @@ cdef class DatabaseIndex:
         object _cached_compiler_args
 
     cdef invalidate_caches(self)
+    cdef inline set_current_branches(self)
 
 
 cdef class Database:
@@ -87,6 +88,7 @@ cdef class Database:
     cdef _cache_compiled_query(self, key, compiled)
     cdef _new_view(self, query_cache, protocol_version)
     cdef _remove_view(self, view)
+    cdef _observe_auth_ext_config(self)
     cdef _update_backend_ids(self, new_types)
     cdef _set_and_signal_new_user_schema(
         self,

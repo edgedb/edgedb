@@ -32,6 +32,12 @@ current_compiler_processes = registry.new_gauge(
     'Current number of active compiler processes.'
 )
 
+current_branches = registry.new_labeled_gauge(
+    'branches_current',
+    'Current number of branches.',
+    labels=('tenant',),
+)
+
 total_backend_connections = registry.new_labeled_counter(
     'backend_connections_total',
     'Total number of backend connections established.',
@@ -88,6 +94,13 @@ idle_client_connections = registry.new_labeled_counter(
     labels=('tenant',),
 )
 
+client_connection_duration = registry.new_labeled_histogram(
+    'client_connection_duration',
+    'Time a client connection is open.',
+    unit=prom.Unit.SECONDS,
+    labels=('tenant', 'interface'),
+)
+
 edgeql_query_compilations = registry.new_labeled_counter(
     'edgeql_query_compilations_total',
     'Number of compiled/cached queries or scripts.',
@@ -101,14 +114,88 @@ edgeql_query_compilation_duration = registry.new_labeled_histogram(
     labels=('tenant',),
 )
 
+graphql_query_compilations = registry.new_labeled_counter(
+    'graphql_query_compilations_total',
+    'Number of compiled/cached GraphQL queries.',
+    labels=('tenant', 'path')
+)
+
+query_compilation_duration = registry.new_labeled_histogram(
+    'query_compilation_duration',
+    'Time it takes to compile a query or script.',
+    unit=prom.Unit.SECONDS,
+    labels=('tenant', 'interface'),
+)
+
+sql_queries = registry.new_labeled_counter(
+    'sql_queries_total',
+    'Number of SQL queries.',
+    labels=('tenant',)
+)
+
+sql_compilations = registry.new_labeled_counter(
+    'sql_compilations_total',
+    'Number of SQL compilations.',
+    labels=('tenant',)
+)
+
+queries_per_connection = registry.new_labeled_histogram(
+    'queries_per_connection',
+    'Number of queries per connection.',
+    labels=('tenant', 'interface'),
+)
+
+query_size = registry.new_labeled_histogram(
+    'query_size',
+    'The size of a query.',
+    unit=prom.Unit.BYTES,
+    labels=('tenant', 'interface'),
+)
+
 background_errors = registry.new_labeled_counter(
     'background_errors_total',
     'Number of unhandled errors in background server routines.',
     labels=('tenant', 'source')
 )
 
+transaction_serialization_errors = registry.new_labeled_counter(
+    'transaction_serialization_errors_total',
+    'Number of transaction serialization errors.',
+    labels=('tenant',)
+)
+
+connection_errors = registry.new_labeled_counter(
+    'connection_errors_total',
+    'Number of network connection errors.',
+    labels=('tenant',)
+)
+
 ha_events_total = registry.new_labeled_counter(
     "ha_events_total",
     "Number of each high-availability watch event.",
     labels=("dsn", "event"),
+)
+
+auth_api_calls = registry.new_labeled_counter(
+    "auth_api_calls_total",
+    "Number of API calls to the Auth extension.",
+    labels=("tenant",),
+)
+
+auth_ui_renders = registry.new_labeled_counter(
+    "auth_ui_renders_total",
+    "Number of UI pages rendered by the Auth extension.",
+    labels=("tenant",),
+)
+
+auth_providers = registry.new_labeled_gauge(
+    'auth_providers',
+    'Number of Auth providers configured.',
+    labels=('tenant', 'branch'),
+)
+
+auth_successful_logins = registry.new_labeled_counter(
+    "auth_successful_logins_total",
+    "Number of successful logins in the Auth extension.",
+    labels=("tenant",),
 )

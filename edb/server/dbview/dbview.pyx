@@ -138,6 +138,7 @@ cdef class Database:
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
         self.extensions = extensions
+        self._observe_auth_ext_config()
 
     @property
     def server(self):
@@ -176,7 +177,26 @@ cdef class Database:
             self.reflection_cache = reflection_cache
         if db_config is not None:
             self.db_config = db_config
+            self._observe_auth_ext_config()
         self._invalidate_caches()
+
+    cdef _observe_auth_ext_config(self):
+        key = "ext::auth::AuthConfig::providers"
+        if (
+            self.db_config is not None and
+            self.user_config_spec is not None and
+            key in self.user_config_spec
+        ):
+            providers = config.lookup(
+                key,
+                self.db_config,
+                spec=self.user_config_spec,
+            )
+            metrics.auth_providers.set(
+                len(providers),
+                self.tenant.get_instance_name(),
+                self.name,
+            )
 
     cdef _update_backend_ids(self, new_types):
         self.backend_ids.update(new_types)
@@ -1192,6 +1212,11 @@ cdef class DatabaseConnectionView:
                 time.monotonic() - started_at,
                 self.tenant.get_instance_name(),
             )
+            metrics.query_compilation_duration.observe(
+                time.monotonic() - started_at,
+                self.tenant.get_instance_name(),
+                "edgeql",
+            )
 
         unit_group, self._last_comp_state, self._last_comp_state_id = result
 
@@ -1352,10 +1377,22 @@ cdef class DatabaseIndex:
                 ext_config_settings=ext_config_settings,
             )
             self._dbs[dbname] = db
+        self.set_current_branches()
         return db
 
     def unregister_db(self, dbname):
         self._dbs.pop(dbname)
+        self.set_current_branches()
+
+    cdef inline set_current_branches(self):
+        metrics.current_branches.set(
+            sum(
+                1
+                for dbname in self._dbs
+                if dbname != defines.EDGEDB_SYSTEM_DB
+            ),
+            self._tenant.get_instance_name(),
+        )
 
     def iter_dbs(self):
         return iter(self._dbs.values())

@@ -46,6 +46,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         object _transport
         WriteBuffer _write_buf
         object _write_waiter
+        object connection_made_at
+        int _query_count
 
         ReadBuffer buffer
         object _msg_take_waiter
