@@ -34,6 +34,9 @@ link in the left column to jump to the associated section.
   * - :ref:`Durations <ref_eql_literal_durations>`
     - ``duration`` ``cal::relative_duration`` ``cal::date_duration``
 
+  * - :ref:`Ranges <ref_eql_ranges>`
+    - ``range<x>``
+
   * - :ref:`Bytes <ref_eql_literal_bytes>`
     - ``bytes``
 
