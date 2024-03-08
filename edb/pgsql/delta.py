@@ -2679,7 +2679,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 pass
 
             if prop.get_default(schema):
-                delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
+                delta_alter, cmd_alter, _alter_context = prop.init_delta_branch(
                     schema, context, cmdtype=sd.AlterObject)
                 cmd_alter.set_attribute_value('default', None)
                 cmd.add(delta_alter)
@@ -2716,7 +2716,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             elif isinstance(obj, s_props.Property):
                 new_typ = props[obj]
 
-                delta_alter, cmd_alter, alter_context = obj.init_delta_branch(
+                delta_alter, cmd_alter, _alter_context = obj.init_delta_branch(
                     schema, context, cmdtype=sd.AlterObject)
                 cmd_alter.set_attribute_value('target', new_typ)
                 cmd_alter.set_attribute_value('default', None)

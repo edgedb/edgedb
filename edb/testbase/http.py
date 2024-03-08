@@ -68,7 +68,7 @@ class BaseHttpExtensionTest(server.QueryTestCase):
                     (
                         rdata,
                         _headers,
-                        status,
+                        _status,
                     ) = cls.http_con_request(
                         http_con,
                         prefix="",

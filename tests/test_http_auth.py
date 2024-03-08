@@ -117,8 +117,8 @@ class BaseTestHttpAuth(
             content,
             headers,
             status,
-            sid,
-            expected_server_sig,
+            _sid,
+            _expected_server_sig,
         ) = self._scram_auth(user, password)
         self.assertEqual(status, 401)
         self.assertEqual(content, b"Authentication failed")

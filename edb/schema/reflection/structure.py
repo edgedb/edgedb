@@ -524,7 +524,7 @@ def generate_structure(
                     read_ptr = f'{read_ptr}[IS {rschema_name}]'
 
                 if field.reflection_proxy:
-                    proxy_type, proxy_link = field.reflection_proxy
+                    _proxy_type, proxy_link = field.reflection_proxy
                     read_ptr = (
                         f'{read_ptr}: {{name, value := .{proxy_link}.id}}'
                     )

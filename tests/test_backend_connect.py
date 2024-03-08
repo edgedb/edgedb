@@ -183,7 +183,7 @@ class ClusterTestCase(tb.TestCase):
         conn_spec = cls.cluster.get_connection_spec()
         conn_spec['host'] = 'localhost'
         if kwargs.get('dsn'):
-            addrs, params = pgconnparams.parse_dsn(kwargs['dsn'])
+            _addrs, params = pgconnparams.parse_dsn(kwargs['dsn'])
             for k in (
                 'user',
                 'password',

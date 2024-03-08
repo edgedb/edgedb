@@ -221,9 +221,6 @@ lint.ignore = [
     "E731",  # Do not assign a lambda expression, use a def
     "E741",  # Ambiguous variable name: l or i or I
     "E252",  # Missing whitespace around parameter equals
-    
-             # TODO: enable this
-    "F841",  # unused variable
 
              # TODO: enable this
     "B905",  # zip() without an explicit strict= parameter
@@ -238,4 +235,3 @@ exclude = ["postgres", ".github"]
 lint.flake8-bugbear.extend-immutable-calls = [
     "immutables.Map"
 ]
-

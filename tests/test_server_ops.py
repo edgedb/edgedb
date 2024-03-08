@@ -1316,7 +1316,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         ) as http_con:
             async for tr in self.try_until_succeeds(ignore=AssertionError):
                 async with tr:
-                    response, _, status = self.http_con_json_request(
+                    _response, _, status = self.http_con_json_request(
                         http_con,
                         path=f"/db/{conn.dbname}/ext/auth/register",
                         body={
