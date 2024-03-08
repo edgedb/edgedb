@@ -1677,14 +1677,14 @@ def range_for_typeref(
         for child in typeref.union:
             mat_child = child.material_type or child
             if mat_child.id in seen:
-                assert typeref.union_is_concrete
+                assert typeref.union_is_exhaustive
                 continue
             seen.add(mat_child.id)
 
             c_rvar = range_for_typeref(
                 child,
                 path_id=path_id,
-                include_descendants=not typeref.union_is_concrete,
+                include_descendants=not typeref.union_is_exhaustive,
                 for_mutation=for_mutation,
                 dml_source=dml_source,
                 lateral=lateral,
@@ -1957,7 +1957,7 @@ def range_for_ptrref(
         overlays = get_ptr_rel_overlays(
             ptrref, dml_source=dml_source, ctx=ctx)
 
-    include_descendants = not ptrref.union_is_concrete
+    include_descendants = not ptrref.union_is_exhaustive
 
     assert isinstance(ptrref.out_source.name_hint, sn.QualName)
     # expand_inhviews helps support EXPLAIN. see

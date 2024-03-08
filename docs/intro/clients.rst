@@ -34,14 +34,14 @@ Available libraries
 To execute queries from your application code, use one of EdgeDB's *client
 libraries* for the following languages.
 
-
-- `JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`_
-- `Go <https://github.com/edgedb/edgedb-go>`_
-- `Python <https://github.com/edgedb/edgedb-python>`_
-- `Rust <https://github.com/edgedb/edgedb-rust>`_
-- `.NET <https://github.com/edgedb/edgedb-net>`_
-- `Java <https://github.com/edgedb/edgedb-java>`_
-- `Elixir <https://github.com/edgedb/edgedb-elixir>`_
+- :ref:`JavaScript/TypeScript <edgedb-js-intro>`
+- :ref:`Go <edgedb-go-intro>`
+- :ref:`Python <edgedb-python-intro>`
+- :ref:`Rust <ref_rust_index>`
+- :ref:`C# and F# <edgedb-dotnet-intro>`
+- :ref:`Java <edgedb-java-intro>`
+- :ref:`Dart <edgedb-dart-intro>`
+- :ref:`Elixir <edgedb-elixir-intro>`
 
 Usage
 =====
@@ -394,6 +394,8 @@ projects <ref_guide_using_projects>` guide to get started.
 Using environment variables
 ---------------------------
 
+.. _ref_intro_clients_connection_cloud:
+
 For EdgeDB Cloud
 ^^^^^^^^^^^^^^^^
 
@@ -466,7 +468,7 @@ DSNs can also contain the following query parameters.
       necessary when attempting to connect via TLS to a remote instance with a
       self-signed certificate.
 
-These parameters can be added to any DSN using Web-standard query string
+These parameters can be added to any DSN using web-standard query string
 notation.
 
 .. code-block::
@@ -513,8 +515,13 @@ Other mechanisms
       "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
     }
 
-``EDGEDB_INSTANCE`` (local only)
-  The name of a local instance. Only useful in development.
+``EDGEDB_INSTANCE`` (local/EdgeDB Cloud only)
+  The name of an instance. Useful only for local or EdgeDB Cloud instances.
+
+  .. note::
+
+      For more on EdgeDB Cloud instances, see the :ref:`EdgeDB Cloud instance
+      connection section <ref_intro_clients_connection_cloud>` above.
 
 Reference
 ---------

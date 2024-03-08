@@ -74,6 +74,8 @@ cdef class HttpProtocol:
                     str message = ?)
     cdef _bad_request(self, HttpRequest request, HttpResponse response,
                       str message)
+    cdef _unauthorized(self, HttpRequest request, HttpResponse response,
+                       str message)
     cdef _return_binary_error(self, binary.EdgeConnection proto)
     cdef _write(self, bytes req_version, bytes resp_status,
                 bytes content_type, dict custom_headers, bytes body,

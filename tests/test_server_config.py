@@ -1631,6 +1631,7 @@ class TestSeparateCluster(tb.BaseHTTPTestCase):
         DBNAME = 'asdf'
         async with tb.start_edgedb_server(
             http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
+            security=args.ServerSecurityMode.InsecureDevMode,
             default_branch=DBNAME,
         ) as sd:
             def check(mode, name, current, ok=True):

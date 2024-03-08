@@ -183,15 +183,6 @@ class OptOnExpr(Nonterm):
         pass
 
 
-class OptOnTypeExpr(Nonterm):
-    def reduce_empty(self):
-        self.val = None
-
-    @parsing.inline(1)
-    def reduce_ON_FullTypeExpr(self, _, expr):
-        pass
-
-
 class OptExceptExpr(Nonterm):
     def reduce_empty(self):
         self.val = None
@@ -780,38 +771,3 @@ class ProcessIndexMixin(ProcessFunctionParamsMixin):
             props['commands'] = commands
 
         return props
-
-
-class IndexType(Nonterm, ProcessIndexMixin):
-
-    def reduce_NodeName_LPAREN_OptIndexArgList_RPAREN(
-        self, name, _l, args, _r
-    ):
-        kwargs = self._process_arguments(args.val)
-        self.val = qlast.IndexType(name=name, kwargs=kwargs)
-
-    def reduce_NodeName(self, name):
-        self.val = qlast.IndexType(name=name, kwargs={})
-
-
-class IndexTypeList(parsing.ListNonterm, element=IndexType,
-                    separator=tokens.T_COMMA):
-    pass
-
-
-class OptIndexTypeList(Nonterm):
-
-    @parsing.inline(1)
-    def reduce_USING_IndexTypeList(self, _, list):
-        pass
-
-    def reduce_empty(self):
-        self.val = []
-
-
-class UsingSQLIndex(Nonterm):
-
-    def reduce_USING_Identifier_BaseStringConstant(self, _, ident, const):
-        lang = _parse_language(ident)
-        code = const.val.value
-        self.val = qlast.IndexCode(language=lang, code=code)

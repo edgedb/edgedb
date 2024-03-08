@@ -154,7 +154,7 @@ class TypeRef(ImmutableBase):
     union: typing.Optional[typing.FrozenSet[TypeRef]] = None
     # Whether the union is specified by an exhaustive list of
     # types, and type inheritance should not be considered.
-    union_is_concrete: bool = False
+    union_is_exhaustive: bool = False
     # If this is an intersection type, this would be a set of
     # intersection elements.
     intersection: typing.Optional[typing.FrozenSet[TypeRef]] = None
@@ -239,7 +239,7 @@ class BasePointerRef(ImmutableBase):
     children: typing.FrozenSet[BasePointerRef] = frozenset()
     union_components: typing.Optional[typing.Set[BasePointerRef]] = None
     intersection_components: typing.Optional[typing.Set[BasePointerRef]] = None
-    union_is_concrete: bool = False
+    union_is_exhaustive: bool = False
     has_properties: bool = False
     is_derived: bool = False
     is_computable: bool = False

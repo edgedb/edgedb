@@ -19,8 +19,8 @@ Get Started
     clients
 
 EdgeDB is a next-generation `graph-relational database
-</blog/the-graph-relational-database-defined>`_ designed as a spiritual
-successor to the relational database.
+<https://www.edgedb.com/blog/the-graph-relational-database-defined>`_ designed
+as a spiritual successor to the relational database.
 
 It inherits the strengths of SQL databases: type safety, performance,
 reliability, and transactionality. But instead of modeling data in a

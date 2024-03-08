@@ -42,9 +42,10 @@ completes, you may need to **restart your terminal** before you can use the
 .. note::
 
   Check out our additional installation methods `for various Linux distros\
-  </install#linux-debianubuntults>`_, `via Homebrew on macOS\
-  </install#macos-homebrew>`_, and `for the Windows Command Prompt\
-  </install#windows-commandprompt>`_.
+  <https://www.edgedb.com/install#linux-debianubuntults>`_, `via Homebrew on
+  macOS\ <https://www.edgedb.com/install#macos-homebrew>`_, and `for the
+  Windows Command Prompt\
+  <https://www.edgedb.com/install#windows-commandprompt>`_.
 
 Now let's set up your EdgeDB project.
 
@@ -435,12 +436,17 @@ will look something like this:
 
 EdgeDB UI is a useful development tool, but in practice your application will
 likely be using one of EdgeDB's *client libraries* to execute queries. EdgeDB
-provides official libraries for
-`JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__,
-`Go <https://github.com/edgedb/edgedb-go>`__,
-`Python <https://github.com/edgedb/edgedb-python>`__,
-`Rust <https://github.com/edgedb/edgedb-rust>`__, and
-`C# and F# <https://github.com/edgedb/edgedb-net>`_.
+provides official libraries for many langauges:
+
+- :ref:`JavaScript/TypeScript <edgedb-js-intro>`
+- :ref:`Go <edgedb-go-intro>`
+- :ref:`Python <edgedb-python-intro>`
+- :ref:`Rust <ref_rust_index>`
+- :ref:`C# and F# <edgedb-dotnet-intro>`
+- :ref:`Java <edgedb-java-intro>`
+- :ref:`Dart <edgedb-dart-intro>`
+- :ref:`Elixir <edgedb-elixir-intro>`
+
 Check out the :ref:`Clients
 <ref_intro_clients>` guide to get started with the language of your choice.
 
@@ -459,9 +465,10 @@ and used a client library.
   the other pages in the Getting Started section, which will cover important
   topics like migrations, the schema language, and EdgeQL in greater detail.
 
-- For guided tours of major concepts, check out the
-  showcase pages for `Data Modeling </showcase/data-modeling>`_,
-  `EdgeQL </showcase/edgeql>`_, and `Migrations </showcase/migrations>`_.
+- For guided tours of major concepts, check out the showcase pages for `Data
+  Modeling <https://www.edgedb.com/showcase/data-modeling>`_, `EdgeQL
+  <https://www.edgedb.com/showcase/edgeql>`_, and `Migrations
+  <https://www.edgedb.com/showcase/migrations>`_.
 
 - For a deep dive into the EdgeQL query language, check out the
   `Interactive Tutorial </tutorial>`_.
@@ -471,10 +478,14 @@ and used a client library.
   total beginner through EdgeDB, from the basics all the way through advanced
   concepts.
 
-- To start building an application using the language of your choice, check
-  out our client libraries for
-  `JavaScript/TypeScript </docs/clients/01_js/index>`__,
-  `Python </docs/clients/00_python/index>`__, and
-  `Go </docs/clients/02_go/index>`__.
+- To start building an application using the language of your choice, check out
+  our client libraries:
 
-- Or just jump into the :ref:`docs <index_toplevel>`!
+  - :ref:`JavaScript/TypeScript <edgedb-js-intro>`
+  - :ref:`Go <edgedb-go-intro>`
+  - :ref:`Python <edgedb-python-intro>`
+  - :ref:`Rust <ref_rust_index>`
+  - :ref:`C# and F# <edgedb-dotnet-intro>`
+  - :ref:`Java <edgedb-java-intro>`
+  - :ref:`Dart <edgedb-dart-intro>`
+  - :ref:`Elixir <edgedb-elixir-intro>`

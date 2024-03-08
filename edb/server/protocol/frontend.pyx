@@ -591,6 +591,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 'Simple password authentication required but it is only '
                 'supported for HTTP endpoints'
             )
+        elif authmethod_name == 'mTLS':
+            auth_helpers.auth_mtls_with_user(self._transport, user)
         else:
             raise errors.InternalServerError(
                 f'unimplemented auth method: {authmethod_name}')

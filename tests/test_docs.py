@@ -465,7 +465,6 @@ class TestDocSnippets(unittest.TestCase):
                     sys.executable,
                     '-m', 'sphinx',
                     '-n',
-                    '-W',  # fail on warnings
                     '-b', 'xml',
                     '-q',
                     '-D', 'master_doc=index',
@@ -482,4 +481,20 @@ class TestDocSnippets(unittest.TestCase):
                 f'Unable to build docs with Sphinx.\n\n'
                 f'STDOUT:\n{proc.stdout}\n\n'
                 f'STDERR:\n{proc.stderr}\n'
+            )
+        
+        errors = []
+        ignored_errors = re.compile(
+            r'^.* WARNING: undefined label: edgedb-'
+            r'(python|js|go|dart|dotnet|elixir|java)-.*$'
+        )
+        for line in proc.stderr.splitlines():
+            if not ignored_errors.match(line):
+                errors.append(line)
+
+        if len(errors) > 0:
+            errors = '\n'.join(errors)
+            raise AssertionError(
+                f'Unable to build docs with Sphinx.\n\n'
+                f'{errors}\n\n'
             )

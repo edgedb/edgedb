@@ -271,11 +271,6 @@ class InnerDDLStmt(Nonterm):
         pass
 
 
-class InnerDDLStmtBlock(parsing.ListNonterm, element=InnerDDLStmt,
-                        separator=Semicolons):
-    pass
-
-
 class PointerName(Nonterm):
     @parsing.inline(0)
     def reduce_PtrNodeName(self, *kids):
@@ -810,12 +805,6 @@ class BranchStmt(Nonterm):
 #
 # CREATE BRANCH
 #
-
-
-commands_block(
-    'CreateBranch',
-    SetFieldStmt,
-)
 
 
 class CreateBranchStmt(Nonterm):

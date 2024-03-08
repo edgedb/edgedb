@@ -838,7 +838,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if len(units) == 1 and units[0].cache_sql:
            conn = await self.get_pgcon()
            try:
-               await execute.persist_cache(conn, _dbview, [(query_req, units)])
+               g = execute.build_cache_persistence_units([(query_req, units)])
+               await g.execute(conn, _dbview)
            finally:
                self.maybe_release_pgcon(conn)
 
@@ -1722,9 +1723,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
 @cython.final
 cdef class VirtualTransport:
-    def __init__(self):
+    def __init__(self, transport):
         self.buf = WriteBuffer.new()
         self.closed = False
+        self.transport = transport
 
     def write(self, data):
         self.buf.write_bytes(bytes(data))
@@ -1741,6 +1743,9 @@ cdef class VirtualTransport:
     def abort(self):
         self.closed = True
 
+    def get_extra_info(self, name, default=None):
+        return self.transport.get_extra_info(name, default)
+
 
 async def eval_buffer(
     server,
@@ -1751,12 +1756,13 @@ async def eval_buffer(
     protocol_version: edbdef.ProtocolVersion,
     auth_data: bytes,
     transport: srvargs.ServerConnTransport,
+    tcp_transport: asyncio.Transport,
 ):
     cdef:
         VirtualTransport vtr
         EdgeConnection proto
 
-    vtr = VirtualTransport()
+    vtr = VirtualTransport(tcp_transport)
 
     proto = new_edge_connection(
         server,

@@ -258,6 +258,7 @@ class ServerConfig(NamedTuple):
     tls_cert_file: pathlib.Path
     tls_key_file: pathlib.Path
     tls_cert_mode: ServerTlsCertMode
+    tls_client_ca_file: Optional[pathlib.Path]
 
     jws_key_file: pathlib.Path
     jose_key_mode: JOSEKeyMode
@@ -501,8 +502,21 @@ def _validate_default_auth_method(
         if method in {ServerAuthMethod.Auto, ServerAuthMethod.Scram}:
             pass
         else:
-            for m in methods:
-                methods[m] = method
+            for t in methods:
+                # HTTP_METRICS and HTTP_HEALTH support only mTLS, but for
+                # backward compatibility, default them to `auto` if unsupported
+                # method is passed explicitly.
+                if t in (
+                    ServerConnTransport.HTTP_METRICS,
+                    ServerConnTransport.HTTP_HEALTH,
+                ):
+                    if method not in (
+                        ServerAuthMethod.Trust,
+                        ServerAuthMethod.mTLS,
+                    ):
+                        continue
+
+                methods[t] = method
     elif "," not in value and ":" not in value:
         raise click.BadParameter(
             f"invalid authentication method: {value}, "
@@ -815,6 +829,18 @@ _server_options = [
              '"require_file" when the --security option is set to "strict", '
              'and "generate_self_signed" when the --security option is set to '
              '"insecure_dev_mode"'),
+    click.option(
+        '--tls-client-ca-file',
+        type=PathPath(),
+        envvar='EDGEDB_SERVER_TLS_CLIENT_CA_FILE',
+        help='Specifies a path to a file containing a TLS CA certificate to '
+             'verify client certificates on demand. When set, the default '
+             'authentication method of HTTP_METRICS(/metrics) and HTTP_HEALTH'
+             '(/server/*) will also become "mTLS", unless explicitly set in '
+             '--default-auth-method. Note, the protection of such HTTP '
+             'endpoints is only complete if --http-endpoint-security is also '
+             'set to `tls`, or they are still accessible in plaintext HTTP.'
+    ),
     click.option(
         '--generate-self-signed-cert', type=bool, default=False, is_flag=True,
         help='DEPRECATED.\n\n'
@@ -1174,15 +1200,46 @@ def parse_args(**kwargs: Any):
         if kwargs['http_endpoint_security'] == 'default':
             kwargs['http_endpoint_security'] = 'optional'
         if not kwargs['default_auth_method']:
-            kwargs['default_auth_method'] = {
+            kwargs['default_auth_method'] = ServerAuthMethods({
                 t: ServerAuthMethod.Trust
                 for t in ServerConnTransport.__members__.values()
-            }
+            })
         if kwargs['tls_cert_mode'] == 'default':
             kwargs['tls_cert_mode'] = 'generate_self_signed'
 
     elif not kwargs['default_auth_method']:
         kwargs['default_auth_method'] = DEFAULT_AUTH_METHODS
+
+    methods = dict(kwargs['default_auth_method'].items())
+    for transport in ServerConnTransport.__members__.values():
+        method = methods[transport]
+        if method is ServerAuthMethod.Auto:
+            if transport in (
+                ServerConnTransport.HTTP_METRICS,
+                ServerConnTransport.HTTP_HEALTH,
+            ):
+                if kwargs['tls_client_ca_file'] is None:
+                    method = ServerAuthMethod.Trust
+                else:
+                    method = ServerAuthMethod.mTLS
+            else:
+                method = DEFAULT_AUTH_METHODS.get(transport)
+            methods[transport] = method
+        elif transport in (
+            ServerConnTransport.HTTP_METRICS,
+            ServerConnTransport.HTTP_HEALTH,
+        ):
+            if method is ServerAuthMethod.mTLS:
+                if kwargs['tls_client_ca_file'] is None:
+                    abort('--tls-client-ca-file is required '
+                          'for mTLS authentication')
+            elif method is not ServerAuthMethod.Trust:
+                abort(
+                    f'--default-auth-method of {transport} can only be one '
+                    f'of: {ServerAuthMethod.Trust}, {ServerAuthMethod.mTLS} '
+                    f'or {ServerAuthMethod.Auto}'
+                )
+    kwargs['default_auth_method'] = ServerAuthMethods(methods)
 
     if kwargs['binary_endpoint_security'] == 'default':
         kwargs['binary_endpoint_security'] = 'tls'

@@ -117,7 +117,7 @@ something like this.
 
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/basic_home.png
+    /docs/tutorials/nextjs/basic_home.png
     :alt: Basic blog homepage with static content
     :width: 100%
 
@@ -441,7 +441,7 @@ We're also using a utility called ``$infer`` to extract the inferred type of
 this query. In VSCode you can hover over ``Posts`` to see what this type is.
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/inference.png
+    /docs/tutorials/nextjs/inference.png
     :alt: Inferred type of posts query
     :width: 100%
 
@@ -549,7 +549,7 @@ Now, click on one of the blog post links on the homepage. This should bring
 you to ``/post/<uuid>``, which should display something like this:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/post.png
+    /docs/tutorials/nextjs/post.png
     :alt: Basic blog homepage with static content
     :width: 100%
 
@@ -560,14 +560,17 @@ Deploying to Vercel
 
 First deploy an EdgeDB instance on your preferred cloud provider:
 
-- `AWS <https://www.edgedb.com/docs/guides/deployment/aws_aurora_ecs>`_
-- `Google Cloud <https://www.edgedb.com/docs/guides/deployment/gcp>`_
-- `Azure <https://www.edgedb.com/docs/guides/deployment/azure_flexibleserver>`_
-- `DigitalOcean <https://www.edgedb.com/docs/guides/deployment/digitalocean>`_
-- `Fly.io <https://www.edgedb.com/docs/guides/deployment/fly_io>`_
-- `Docker <https://www.edgedb.com/docs/guides/deployment/docker>`_
-  (cloud-agnostic)
+- :ref:`AWS <ref_guide_deployment_aws_aurora_ecs>`
+- :ref:`Azure <ref_guide_deployment_azure_flexibleserver>`
+- :ref:`DigitalOcean <ref_guide_deployment_digitalocean>`
+- :ref:`Fly.io <ref_guide_deployment_fly_io>`
+- :ref:`Google Cloud <ref_guide_deployment_gcp>`
+- :ref:`Heroku <ref_guide_deployment_heroku>`
 
+or use a cloud-agnostic deployment method:
+
+- :ref:`Docker <ref_guide_deployment_docker>`
+- :ref:`Bare metal <ref_guide_deployment_bare_metal>`
 
 **#2. Find your instance's DSN**
 
@@ -640,7 +643,7 @@ When prompted:
   tutorial.
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/env.png
+    /docs/tutorials/nextjs/env.png
     :alt: Setting environment variables in Vercel
     :width: 100%
 
