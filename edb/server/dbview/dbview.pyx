@@ -220,7 +220,7 @@ cdef class Database:
             query_req, unit_group = self._eql_to_compiled.cleanup_one()
             if len(unit_group) == 1:
                 keys.append(query_req.get_cache_key())
-        if keys and debug.flags.persistent_cache:
+        if keys and not debug.flags.disable_persistent_cache:
             self.tenant.create_task(
                 self.tenant.evict_query_cache(self.name, keys),
                 interruptable=True,
@@ -295,7 +295,8 @@ cdef class Database:
             async with self._introspection_lock:
                 if self.user_schema_pickle is None:
                     await self.tenant.introspect_db(
-                        self.name, hydrate_cache=debug.flags.persistent_cache
+                        self.name,
+                        hydrate_cache=not debug.flags.disable_persistent_cache,
                     )
 
 
