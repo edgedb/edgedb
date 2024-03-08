@@ -717,6 +717,7 @@ cdef class HttpProtocol:
             await metrics.handle_request(
                 request,
                 response,
+                self.tenant,
             )
         elif (path_parts == ['server-info'] and
             request.method == b'GET' and
