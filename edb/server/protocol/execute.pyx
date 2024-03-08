@@ -184,7 +184,7 @@ async def execute(
     # This flag indicates both features are in use, and we actually have
     # recompiled the query cache to persist.
     persist_recompiled_query_cache = bool(
-        debug.flags.persistent_cache and compiled.recompiled_cache)
+        not debug.flags.disable_persistent_cache and compiled.recompiled_cache)
 
     data = None
 

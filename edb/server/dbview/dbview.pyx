@@ -200,7 +200,7 @@ cdef class Database:
             query_req, unit_group = self._eql_to_compiled.cleanup_one()
             if len(unit_group) == 1:
                 keys.append(query_req.get_cache_key())
-        if keys and debug.flags.persistent_cache:
+        if keys and not debug.flags.disable_persistent_cache:
             self.tenant.create_task(
                 self.tenant.evict_query_cache(self.name, keys),
                 interruptable=True,
@@ -275,7 +275,8 @@ cdef class Database:
             async with self._introspection_lock:
                 if self.user_schema_pickle is None:
                     await self.tenant.introspect_db(
-                        self.name, hydrate_cache=debug.flags.persistent_cache
+                        self.name,
+                        hydrate_cache=not debug.flags.disable_persistent_cache,
                     )
 
 
@@ -713,7 +714,7 @@ cdef class DatabaseConnectionView:
 
         if not self._in_tx:
             self._db._cache_compiled_query(key, query_unit_group)
-        elif not self._in_tx_with_ddl and not debug.flags.persistent_cache:
+        elif not self._in_tx_with_ddl and debug.flags.disable_persistent_cache:
             self._db._cache_compiled_query(key, query_unit_group)
         # Query compiled in transaction is not yet cached when persistent_cache
         # is turned on, because eviction of such query would fail if the tx
