@@ -1507,7 +1507,10 @@ class Tenant(ha_base.ClusterProtocol):
             finally:
                 self.release_pgcon(dbname, conn)
 
-            await self.signal_sysevent("query-cache-changes", dbname=dbname)
+            # XXX: TODO: We don't need to signal here in the
+            # non-function version, but in the function caching
+            # situation this will be fraught.
+            # await self.signal_sysevent("query-cache-changes", dbname=dbname)
 
         except Exception:
             logger.exception("error in evict_query_cache():")
