@@ -50,6 +50,16 @@ Remove a database.
 
     drop database <name> ;
 
+.. versionadded:: 5.0
+
+    You may now drop a branch, even if it has active connections by adding
+    ``force``:
+
+    .. eql:synopsis::
+
+        drop branch <name> [force] ;
+
+
 Description
 -----------
 

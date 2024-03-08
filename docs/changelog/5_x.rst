@@ -324,7 +324,7 @@ EdgeQL
       {b'\x01\xff\x02\xff\x03'}
 
 * Support closing all connections to a database on ``drop database``.
-  (:eql:gh:`#6780`)
+  (:eql:gh:`#6780`, :eql:gh:`#6862`)
 
 
 Bug fixes
