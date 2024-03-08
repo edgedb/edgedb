@@ -173,6 +173,8 @@ You can also enable providers via query. We'll demonstrate how in each section
 below.
 
 
+.. _ref_guide_auth_overview_email_password:
+
 Email and password
 ------------------
 
@@ -297,6 +299,18 @@ to one of the other providers:
 - ``AppleOAuthProvider``
 - ``GitHubOAuthProvider``
 - ``GoogleOAuthProvider``
+
+
+Magic link
+----------
+
+Magic link offers only one setting: ``token_time_to_live``. This determines how
+long after sending the magic link is valid.
+
+You will also need to configure SMTP so that the magic link emails can be sent.
+For local testing, you can use the same method used for SMTP previously for
+:ref:`the email and password provider
+<ref_guide_auth_overview_email_password>`.
 
 
 Integrating your application
