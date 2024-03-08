@@ -22,9 +22,22 @@ are merged into a single output set.
 
 .. note::
 
-  The ``union`` keyword is a required part of the ``for`` statement syntax; it
-  is intended to indicate explicitly that the results of each loop execution
-  are ultimately merged.
+  The ``union`` keyword is required prior to EdgeDB 5.0 and is intended to
+  indicate explicitly that the results of each loop execution are ultimately
+  merged.
+
+.. versionadded: 5.0
+
+    If the body of ``for`` is a statement — ``select``, ``insert``, ``update``,
+    ``delete``, ``group``, or ``with`` — ``union`` and the parentheses
+    surrounding the statement are no longer required:
+
+    .. code-block:: edgeql-repl
+
+      db> for number in {0, 1, 2, 3}
+      ... select { number, number + 0.5 }
+      {0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5}
+
 
 Bulk inserts
 ------------
