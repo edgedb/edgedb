@@ -42,6 +42,7 @@ from edb.edgeql import qltypes
 from edb.server import compiler
 from edb.server import config
 from edb.server import defines as edbdef
+from edb.server import metrics
 from edb.server.compiler import errormech
 from edb.server.compiler cimport rpc
 from edb.server.dbview cimport dbview
@@ -694,6 +695,10 @@ async def parse_execute_json(
         query_cache=query_cache_enabled,
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
+    if use_metrics:
+        metrics.query_size.observe(
+            len(query.encode('utf-8')), tenant.get_instance_name(), 'edgeql'
+        )
 
     query_req = rpc.CompilationRequest(
         db.server.compilation_config_serializer

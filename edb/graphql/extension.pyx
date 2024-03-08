@@ -29,6 +29,7 @@ import cython
 import http
 import json
 import logging
+import time
 import urllib.parse
 
 from graphql.language import lexer as gql_lexer
@@ -37,7 +38,7 @@ from edb import _graphql_rewrite
 from edb import errors
 from edb.graphql import errors as gql_errors
 from edb.server.dbview cimport dbview
-from edb.server import compiler
+from edb.server import compiler, metrics
 from edb.server import defines as edbdef
 from edb.server.pgcon import errors as pgerrors
 from edb.server.protocol import execute
@@ -96,6 +97,7 @@ async def handle_request(
     globals = None
     deprecated_globals = None
     query = None
+    query_bytes_len = 0
 
     try:
         if request.method == b'POST':
@@ -105,10 +107,12 @@ async def handle_request(
                     raise TypeError(
                         'the body of the request must be a JSON object')
                 query = body.get('query')
+                query_bytes_len = len(query.encode('utf-8'))
                 operation_name = body.get('operationName')
                 variables = body.get('variables')
                 deprecated_globals = body.get('globals')
             elif request.content_type == 'application/graphql':
+                query_bytes_len = len(request.body)
                 query = request.body.decode('utf-8')
             else:
                 raise TypeError(
@@ -122,6 +126,7 @@ async def handle_request(
                 query = qs.get('query')
                 if query is not None:
                     query = query[0]
+                    query_bytes_len = len(query.encode('utf-8'))
 
                 operation_name = qs.get('operationName')
                 if operation_name is not None:
@@ -148,6 +153,9 @@ async def handle_request(
 
         if not query:
             raise TypeError('invalid GraphQL request: query is missing')
+        metrics.query_size.observe(
+            query_bytes_len, tenant.get_instance_name(), 'graphql'
+        )
 
         if (operation_name is not None and
                 not isinstance(operation_name, str)):
@@ -234,21 +242,28 @@ async def compile(
 ):
     server = tenant.server
     compiler_pool = server.get_compiler_pool()
-    return await compiler_pool.compile_graphql(
-        db.name,
-        db.user_schema_pickle,
-        tenant.get_global_schema_pickle(),
-        db.reflection_cache,
-        db.db_config,
-        db._index.get_compilation_system_config(),
-        query,
-        tokens,
-        substitutions,
-        operation_name,
-        variables,
-        client_id=tenant.client_id,
-    )
-
+    started_at = time.monotonic()
+    try:
+        return await compiler_pool.compile_graphql(
+            db.name,
+            db.user_schema_pickle,
+            tenant.get_global_schema_pickle(),
+            db.reflection_cache,
+            db.db_config,
+            db._index.get_compilation_system_config(),
+            query,
+            tokens,
+            substitutions,
+            operation_name,
+            variables,
+            client_id=tenant.client_id,
+        )
+    finally:
+        metrics.query_compilation_duration.observe(
+            time.monotonic() - started_at,
+            tenant.get_instance_name(),
+            "graphql",
+        )
 
 async def _execute(db, tenant, query, operation_name, variables, globals):
     dbver = db.dbver
@@ -348,11 +363,17 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
             query_cache[cache_key2] = qug, gql_op
         else:
             query_cache[cache_key] = qug, gql_op
+        metrics.graphql_query_compilations.inc(
+            1.0, tenant.get_instance_name(), 'compiler'
+        )
     else:
         qug, gql_op = entry
         # This is at least the second time this query is used
         # and it's safe to cache.
         use_prep_stmt = True
+        metrics.graphql_query_compilations.inc(
+            1.0, tenant.get_instance_name(), 'cache'
+        )
 
     compiled = dbview.CompiledQuery(query_unit_group=qug)
 

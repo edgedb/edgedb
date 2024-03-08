@@ -27,6 +27,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 from collections import deque
 
 cimport cython
@@ -37,7 +38,7 @@ from edb import errors
 from edb.common import debug
 from edb.pgsql.parser import exceptions as parser_errors
 from edb.server import args as srvargs
-from edb.server import defines
+from edb.server import defines, metrics
 from edb.server.compiler import dbstate
 from edb.server.pgcon import errors as pgerror
 from edb.server.pgcon.pgcon cimport PGAction, PGMessage
@@ -340,6 +341,8 @@ cdef class ConnectionView:
 
 
 cdef class PgConnection(frontend.FrontendConnection):
+    interface = "sql"
+
     def __init__(self, server, sslctx, endpoint_security, **kwargs):
         super().__init__(server, None, **kwargs)
         self._dbview = ConnectionView()
@@ -393,7 +396,10 @@ cdef class PgConnection(frontend.FrontendConnection):
         buf = WriteBuffer.new_message(b'E')
 
         if isinstance(exc, pgerror.BackendError):
-            pass
+            if exc.code_is(pgerror.ERROR_SERIALIZATION_FAILURE):
+                metrics.transaction_serialization_errors.inc(
+                    1.0, self.get_tenant_label()
+                )
         elif isinstance(exc, parser_errors.PSqlUnsupportedError):
             exc = pgerror.FeatureNotSupported(str(exc))
         elif isinstance(exc, parser_errors.PSqlParseError):
@@ -423,6 +429,10 @@ cdef class PgConnection(frontend.FrontendConnection):
                 str(exc),
                 **args,
             )
+            if isinstance(exc, errors.TransactionSerializationError):
+                metrics.transaction_serialization_errors.inc(
+                    1.0, self.get_tenant_label()
+                )
         else:
             exc = pgerror.new(
                 pgerror.ERROR_INTERNAL_ERROR,
@@ -806,11 +816,16 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         elif mtype == b'Q':  # Query
             try:
-                query_str = self.buffer.read_null_str().decode("utf8")
+                query = self.buffer.read_null_str()
+                metrics.query_size.observe(
+                    len(query), self.get_tenant_label(), 'sql'
+                )
+                query_str = query.decode("utf8")
                 self.buffer.finish_message()
                 if self.debug:
                     self.debug_print("Query", query_str)
                 actions = await self.simple_query(query_str)
+                del query_str, query
             except Exception as ex:
                 self.write_error(ex)
                 self.write(self.ready_for_query())
@@ -882,6 +897,10 @@ cdef class PgConnection(frontend.FrontendConnection):
         dbv = self._dbview
         query_units = await self.compile(query_str, dbv)
         already_in_implicit_tx = dbv._in_tx_implicit
+        metrics.sql_queries.inc(
+            len(query_units), self.tenant.get_instance_name()
+        )
+        self._query_count += len(query_units)
 
         if not already_in_implicit_tx:
             actions.append(PGMessage(PGAction.START_IMPLICIT_TX))
@@ -991,6 +1010,9 @@ cdef class PgConnection(frontend.FrontendConnection):
                 data = self.buffer.consume_message()
                 if self.debug:
                     self.debug_print("Parse", repr(stmt_name), query_str, data)
+                metrics.query_size.observe(
+                    len(query_bytes), self.get_tenant_label(), 'sql'
+                )
 
                 with managed_error():
                     if (
@@ -1088,6 +1110,8 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Execute", repr(portal_name), max_rows)
 
+                metrics.sql_queries.inc(1.0, self.tenant.get_instance_name())
+                self._query_count += 1
                 with managed_error():
                     unit = dbv.find_portal(portal_name)
                     actions.append(
@@ -1433,21 +1457,32 @@ cdef class PgConnection(frontend.FrontendConnection):
         # the next identical query could get recompiled on the new schema.
         schema_version = self.database.schema_version
         compiler_pool = self.server.get_compiler_pool()
-        result = await compiler_pool.compile_sql(
-            self.dbname,
-            self.database.user_schema_pickle,
-            self.database._index._global_schema_pickle,
-            self.database.reflection_cache,
-            self.database.db_config,
-            self.database._index.get_compilation_system_config(),
-            query_str,
-            dbv.fe_transaction_state(),
-            self.sql_prepared_stmts_map,
-            self.dbname,
-            self.username,
-            client_id=self.tenant.client_id,
-        )
+        started_at = time.monotonic()
+        try:
+            result = await compiler_pool.compile_sql(
+                self.dbname,
+                self.database.user_schema_pickle,
+                self.database._index._global_schema_pickle,
+                self.database.reflection_cache,
+                self.database.db_config,
+                self.database._index.get_compilation_system_config(),
+                query_str,
+                dbv.fe_transaction_state(),
+                self.sql_prepared_stmts_map,
+                self.dbname,
+                self.username,
+                client_id=self.tenant.client_id,
+            )
+        finally:
+            metrics.query_compilation_duration.observe(
+                time.monotonic() - started_at,
+                self.tenant.get_instance_name(),
+                "sql",
+                )
         self.database.cache_compiled_sql(key, result, schema_version)
+        metrics.sql_compilations.inc(
+            len(result), self.tenant.get_instance_name()
+        )
         if self.debug:
             self.debug_print("Compile result", result)
         return result
@@ -1491,7 +1526,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         return qu
 
 
-def new_pg_connection(server, sslctx, endpoint_security):
+def new_pg_connection(server, sslctx, endpoint_security, connection_made_at):
     return PgConnection(
         server,
         sslctx,
@@ -1499,4 +1534,5 @@ def new_pg_connection(server, sslctx, endpoint_security):
         passive=False,
         transport=srvargs.ServerConnTransport.TCP_PG,
         external_auth=False,
+        connection_made_at=connection_made_at,
     )

@@ -148,6 +148,7 @@ cdef inline bint parse_boolean(value: bytes, header: str):
 
 
 cdef class EdgeConnection(frontend.FrontendConnection):
+    interface = "edgeql"
 
     def __init__(
         self,
@@ -790,6 +791,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
+        metrics.query_size.observe(
+            len(query), self.get_tenant_label(), 'edgeql'
+        )
+
         _dbview = self.get_dbview()
         state_tid = self.buffer.read_bytes(16)
         state_data = self.buffer.read_len_prefixed_bytes()
@@ -904,6 +909,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     extra_counts=query_req.source.extra_counts(),
                     extra_blobs=query_req.source.extra_blobs(),
                 )
+
+        self._query_count += 1
 
         # Clear the _last_anon_compiled so that the next Execute - if
         # identical - will always lookup in the cache and honor the
@@ -1138,6 +1145,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         fields = {}
         if isinstance(exc, errors.EdgeDBError):
             fields.update(exc._attrs)
+            if isinstance(exc, errors.TransactionSerializationError):
+                metrics.transaction_serialization_errors.inc(
+                    1.0, self.get_tenant_label()
+                )
 
         try:
             formatted_error = exc.__formatted_error__
@@ -1803,6 +1814,7 @@ def new_edge_connection(
     auth_data: bytes = b'',
     protocol_version: edbdef.ProtocolVersion = edbdef.CURRENT_PROTOCOL,
     conn_params: dict[str, str] | None = None,
+    connection_made_at: float | None = None,
 ):
     return EdgeConnection(
         server,
@@ -1813,6 +1825,7 @@ def new_edge_connection(
         auth_data=auth_data,
         protocol_version=protocol_version,
         conn_params=conn_params,
+        connection_made_at=connection_made_at,
     )
 
 
