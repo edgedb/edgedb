@@ -863,7 +863,7 @@ def initialize_static_cfg(
         except KeyError:
             continue
         choices = setting.enum_values
-        if setting.type == bool:
+        if setting.type is bool:
             choices = ['true', 'false']
         env_value = env_value.lower()
         if choices is not None and env_value not in choices:
@@ -871,7 +871,7 @@ def initialize_static_cfg(
                 f"Environment variable {env_name!r} can only be one of: " +
                 ", ".join(choices)
             )
-        if setting.type == bool:
+        if setting.type is bool:
             env_value = env_value == 'true'
         elif not issubclass(setting.type, statypes.ScalarType):  # type: ignore
             env_value = setting.type(env_value)  # type: ignore

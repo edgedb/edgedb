@@ -462,7 +462,7 @@ def concretify(
         return get_union_type(ts, ctx=ctx)
     if els := t.get_intersection_of(ctx.env.schema):
         ts = [concretify(e, ctx=ctx) for e in els.objects(ctx.env.schema)]
-        return get_intersection_type(ts , ctx=ctx)
+        return get_intersection_type(ts, ctx=ctx)
     return t
 
 

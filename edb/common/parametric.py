@@ -103,7 +103,7 @@ class ParametricType:
             assert len(args) == 1
 
             arg = args[0]
-            if typing_inspect.get_origin(arg) != type:
+            if typing_inspect.get_origin(arg) is not type:
                 continue
 
             arg_args = typing_inspect.get_args(arg)

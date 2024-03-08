@@ -550,7 +550,7 @@ class BaseHTTPTestCase(TestCase):
             (msize,) = uint32_unpack(content[1:5])
             msg = protocol.ServerMessage.parse(mtype, content[5: msize + 1])
             msgs.append(msg)
-            content = content[msize + 1 :]
+            content = content[msize + 1:]
         return msgs, headers, status
 
 

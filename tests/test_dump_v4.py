@@ -98,7 +98,7 @@ class DumpTestCaseMixin:
             '''
             select ext::_conf::get_top_secret()
             ''',
-            ['secret'] if include_secrets else [] ,
+            ['secret'] if include_secrets else [],
         )
 
         # We took a version snapshot for 4.0, but then needed to

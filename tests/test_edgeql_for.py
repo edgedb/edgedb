@@ -378,9 +378,9 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 } FILTER .name = 'Alice'
             """,
             [{
-                "select_deck" : [
-                    {"name" : "Imp", "count" : 1},
-                    {"name" : "Dragon", "count" : 2},
+                "select_deck": [
+                    {"name": "Imp", "count": 1},
+                    {"name": "Dragon", "count": 2},
                 ],
             }],
         )

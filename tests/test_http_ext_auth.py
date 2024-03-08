@@ -2555,7 +2555,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             }
             json_data_encoded = json.dumps(json_data).encode()
 
-            body, headers, status = self.http_con_request(
+            body, _headers, status = self.http_con_request(
                 http_con,
                 None,
                 path="register",
@@ -2721,7 +2721,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             }
             auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
 
-            body, headers, status = self.http_con_request(
+            body, _headers, status = self.http_con_request(
                 http_con,
                 None,
                 path="authenticate",
@@ -3765,7 +3765,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 public_key=public_key,
             )
 
-            body, headers, status = self.http_con_request(
+            body, _headers, status = self.http_con_request(
                 http_con,
                 path=f"webauthn/authenticate/options?email={email}",
             )

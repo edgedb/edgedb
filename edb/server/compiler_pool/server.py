@@ -381,12 +381,12 @@ class MultiSchemaPool(pool_mod.FixedPool):
             if status == 0:
                 worker.set_client_schema(client_id, client_schema)
                 if method_name == "compile":
-                    units, new_pickled_state = data[0]
+                    _units, new_pickled_state = data[0]
                     if new_pickled_state:
                         sid = worker._last_pickled_state = next_tx_state_id()
                         resp = pickle.dumps((0, (*data[0], sid)), -1)
             elif status == 1:
-                exc, tb = data
+                exc, _tb = data
                 if not isinstance(exc, state_mod.FailedStateSync):
                     worker.set_client_schema(client_id, client_schema)
             else:

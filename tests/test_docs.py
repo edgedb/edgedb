@@ -482,7 +482,7 @@ class TestDocSnippets(unittest.TestCase):
                 f'STDOUT:\n{proc.stdout}\n\n'
                 f'STDERR:\n{proc.stderr}\n'
             )
-        
+
         errors = []
         ignored_errors = re.compile(
             r'^.* WARNING: undefined label: edgedb-'

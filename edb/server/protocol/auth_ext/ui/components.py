@@ -444,7 +444,7 @@ def base_default_email(
         </table>
       </div>
       <!--[if mso | IE]></td></tr></table><table align="center" border="0" cellpadding="0" cellspacing="0" class="" style="width:600px;" width="600" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-""" if logo_url else "" # noqa: E501
+""" if logo_url else ""  # noqa: E501
 
     return f"""
 <!doctype html>
@@ -601,4 +601,4 @@ def base_default_email(
     </div>
   </body>
 </html>
-""" # noqa: E501
+"""  # noqa: E501

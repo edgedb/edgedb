@@ -339,7 +339,7 @@ class BaseCluster:
         pg_restore = self._find_pg_binary('pg_restore')
 
         src_conn_args, src_env = self._dump_restore_conn_args(src_dbname)
-        tgt_conn_args, tgt_env = self._dump_restore_conn_args(tgt_dbname)
+        tgt_conn_args, _tgt_env = self._dump_restore_conn_args(tgt_dbname)
 
         dump_args = [
             pg_dump, '--verbose', '--format=c', *src_conn_args, *src_args

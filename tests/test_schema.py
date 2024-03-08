@@ -4454,7 +4454,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         produces DDL, but the DDL doesn't really make any sense. We
         are going to probably need to add DDL syntax to accomplish
         this.
-                 
+
         Before we do that, we could just improve the error:
         cannot produce migration because of a dependency cycle:
           create alias 'default::Base' depends on

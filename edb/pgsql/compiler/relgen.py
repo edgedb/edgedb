@@ -1817,7 +1817,7 @@ def process_set_as_coalesce(
     with ctx.new() as newctx:
         newctx.expr_exposed = False
         left_ir, right_ir = (a.expr for a in expr.args)
-        left_card, right_card = (a.cardinality for a in expr.args)
+        _left_card, right_card = (a.cardinality for a in expr.args)
         is_object = (
             ir_set.path_id.is_objtype_path()
             or ir_set.path_id.is_tuple_path()

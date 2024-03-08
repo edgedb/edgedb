@@ -668,7 +668,7 @@ class TestDDLExtensions(tb.DDLTestCase):
             async for tr in self.try_until_succeeds(ignore=AssertionError):
                 async with tr:
                     with self.http_con() as http_con:
-                        rdata, _headers, status = self.http_con_request(
+                        rdata, _headers, _status = self.http_con_request(
                             http_con,
                             prefix="",
                             path="server-info",

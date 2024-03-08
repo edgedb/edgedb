@@ -134,7 +134,7 @@ class TestAmsg(tbs.TestCase):
 
     async def test_server_compiler_pool_restart(self):
         pids = []
-        async with self.compiler_pool(2) as (server, proto, proc, sn):
+        async with self.compiler_pool(2) as (server, proto, _proc, _sn):
             # Make sure both compiler workers are up and ready
             pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
             pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
@@ -177,7 +177,7 @@ class TestAmsg(tbs.TestCase):
                 os.kill(pid, 0)
 
     async def test_server_compiler_pool_template_proc_exit(self):
-        async with self.compiler_pool(2) as (server, proto, proc, sn):
+        async with self.compiler_pool(2) as (server, proto, proc, _sn):
             # Make sure both compiler workers are up and ready
             pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
             pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
@@ -214,7 +214,7 @@ class TestAmsg(tbs.TestCase):
                     os.kill(pid, 0)
 
     async def test_server_compiler_pool_server_exit(self):
-        async with self.compiler_pool(2) as (server, proto, proc, sn):
+        async with self.compiler_pool(2) as (server, proto, proc, _sn):
             # Make sure both compiler workers are up and ready
             pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
             pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
