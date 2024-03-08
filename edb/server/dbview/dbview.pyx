@@ -711,8 +711,14 @@ cdef class DatabaseConnectionView:
     cdef cache_compiled_query(self, object key, object query_unit_group):
         assert query_unit_group.cacheable
 
-        if not self._in_tx_with_ddl:
+        if not self._in_tx:
             self._db._cache_compiled_query(key, query_unit_group)
+        elif not self._in_tx_with_ddl and not debug.flags.persistent_cache:
+            self._db._cache_compiled_query(key, query_unit_group)
+        # Query compiled in transaction is not yet cached when persistent_cache
+        # is turned on, because eviction of such query would fail if the tx
+        # ended up rolling back, or simply committed after the eviction.
+        # TODO(fantix): handle in-tx cache properly
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
