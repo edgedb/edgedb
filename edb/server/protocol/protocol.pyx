@@ -660,9 +660,10 @@ cdef class HttpProtocol:
                     await handler.handle_request(request, response, args)
                     if args:
                         if args[0] == 'ui':
-                            srv_metrics.auth_ui_renders.inc(
-                                1.0, self.get_tenant_label()
-                            )
+                            if not (len(args) > 1 and args[1] == "_static"):
+                                srv_metrics.auth_ui_renders.inc(
+                                    1.0, self.get_tenant_label()
+                                )
                         else:
                             srv_metrics.auth_api_calls.inc(
                                 1.0, self.get_tenant_label()
