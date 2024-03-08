@@ -229,16 +229,17 @@ great for testing in development:
 OAuth
 -----
 
-We currently support four different OAuth providers (with a few more
-coming soon):
+We currently support six different OAuth providers:
 
 .. lint-off
 
 -  `Apple <https://developer.apple.com/documentation/sign_in_with_apple/sign_in_with_apple_rest_api/authenticating_users_with_sign_in_with_apple>`__
 -  `Azure
    (Microsoft) <https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc>`__
+-  `Discord <https://discord.com/developers/docs/topics/oauth2>`__
 -  `GitHub <https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app>`__
 -  `Google <https://developers.google.com/identity/protocols/oauth2>`__
+-  `Slack <https://api.slack.com/authentication/oauth-v2>`__
 
 .. lint-on
 
@@ -297,8 +298,10 @@ To enable any of the others, change ``AzureOAuthProvider`` in the example above
 to one of the other providers:
 
 - ``AppleOAuthProvider``
+- ``DiscordOAuthProvider``
 - ``GitHubOAuthProvider``
 - ``GoogleOAuthProvider``
+- ``SlackOAuthProvider``
 
 
 Magic link
