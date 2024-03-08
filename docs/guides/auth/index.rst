@@ -47,6 +47,33 @@ schema change, you will see the "Auth Admin" icon in the left-hand toolbar.
 The auth admin UI exposes these values:
 
 
+app_name
+--------
+
+The name of your application to be shown on the login screen when using the
+built-in UI.
+
+
+logo_url
+--------
+
+A URL to an image of your logo. This is also used to customize the built-in UI.
+
+
+logo_url
+--------
+
+A URL to an image of your logo for use with a dark theme. This is also used to
+customize the built-in UI.
+
+
+brand_color
+-----------
+
+Your brand color as a hex string. This will be used as the accent color in the
+built-in UI.
+
+
 auth_signing_key
 ----------------
 
