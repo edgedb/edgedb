@@ -339,9 +339,10 @@ class AnonymousEnumTypeShell(s_types.TypeShell[ScalarType]):
     def __init__(
         self,
         *,
-        name: s_name.Name = s_name.QualName(module='std', name='anyenum'),
+        name: Optional[s_name.Name] = None,
         elements: Iterable[str],
     ) -> None:
+        name = name or s_name.QualName(module='std', name='anyenum')
         super().__init__(name=name, schemaclass=ScalarType)
         self.elements = list(elements)
 

@@ -287,8 +287,7 @@ def new_compiler_context(
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
     protocol_version: defines.ProtocolVersion = defines.CURRENT_PROTOCOL,
-    backend_runtime_params: pg_params.BackendRuntimeParams = (
-        pg_params.get_default_runtime_params()),
+    backend_runtime_params: Optional[pg_params.BackendRuntimeParams] = None,
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
 
@@ -312,7 +311,9 @@ def new_compiler_context(
         bootstrap_mode=bootstrap_mode,
         internal_schema_mode=internal_schema_mode,
         protocol_version=protocol_version,
-        backend_runtime_params=backend_runtime_params,
+        backend_runtime_params=(
+            backend_runtime_params or pg_params.get_default_runtime_params()
+        ),
     )
 
     return ctx

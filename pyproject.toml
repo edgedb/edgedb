@@ -231,12 +231,11 @@ lint.ignore = [
              # TODO: enable this (this was tried before - it is non-trivial)
     "B019",  # Use of functools.lru_cache or functools.cache on methods can lead
              # to memory leaks
-
-             # TODO: enable this
-    "B008",  # Do not perform function call {name} in argument defaults;
-             # instead, perform the call within the function, or read the
-             # default from a module-level singleton variable
 ]
 line-length = 80
 indent-width = 4
 exclude = ["postgres", ".github"]
+lint.flake8-bugbear.extend-immutable-calls = [
+    "immutables.Map"
+]
+
