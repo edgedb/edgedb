@@ -298,8 +298,10 @@ To enable any of the others, change ``AzureOAuthProvider`` in the example above
 to one of the other providers:
 
 - ``AppleOAuthProvider``
+- ``DiscordOAuthProvider``
 - ``GitHubOAuthProvider``
 - ``GoogleOAuthProvider``
+- ``SlackOAuthProvider``
 
 
 Magic link
