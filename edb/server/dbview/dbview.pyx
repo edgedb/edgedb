@@ -1303,7 +1303,7 @@ cdef class DatabaseIndex:
             return self._dbs[dbname]
         except KeyError:
             raise errors.UnknownDatabaseError(
-                f'database {dbname!r} does not exist')
+                f'database branch {dbname!r} does not exist')
 
     def maybe_get_db(self, dbname):
         return self._dbs.get(dbname)
