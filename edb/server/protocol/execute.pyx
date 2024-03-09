@@ -309,17 +309,8 @@ async def execute(
             dbv.set_state_serializer(state_serializer)
         if side_effects:
             signal_side_effects(dbv, side_effects)
-        if not dbv.in_tx() and not query_unit.tx_rollback and query_unit.sql:
-            state = dbv.serialize_state()
-            if state is not orig_state:
-                # In 3 cases the state is changed:
-                #   1. The non-tx query changed the state
-                #   2. The state is synced with dbview (orig_state is None)
-                #   3. We came out from a transaction (orig_state is None)
-                # Excluding two special case when the state is NOT changed:
-                #   1. An orphan ROLLBACK command without a paring start tx
-                #   2. There was no SQL, so the state can't have been synced.
-                be_conn.last_state = state
+        if query_unit.tx_rollback:
+            be_conn.last_state = None
         if compiled.recompiled_cache:
             for req, qu_group in compiled.recompiled_cache:
                 dbv.cache_compiled_query(req, qu_group)
@@ -502,9 +493,6 @@ async def execute_script(
             )
             if side_effects:
                 signal_side_effects(dbv, side_effects)
-            state = dbv.serialize_state()
-            if state is not orig_state:
-                conn.last_state = state
         if unit_group.state_serializer is not None:
             dbv.set_state_serializer(unit_group.state_serializer)
 
