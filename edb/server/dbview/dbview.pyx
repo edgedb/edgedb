@@ -179,7 +179,7 @@ cdef class Database:
                 await asyncio.sleep(0.1)
 
     async def _cache_worker(self):
-        added_since_signal = 0
+        added_since_signal = []
 
         i = 0
         while True:
@@ -216,8 +216,7 @@ cdef class Database:
 
                 for _, units in ops:
                     units.cache_state = CacheState.Present
-
-                added_since_signal += len(ops)
+                    added_since_signal.append(str(units[0].cache_key))
 
             # Only signal query-cache-changes if we are quiescent or
             # we have a lot that have updated since the last send.
@@ -230,14 +229,15 @@ cdef class Database:
                 added_since_signal
                 and (
                     self._cache_queue.empty()
-                    or added_since_signal > 100
+                    or len(added_since_signal) > 100
                 )
             ):
                 await self.tenant.signal_sysevent(
                     'query-cache-changes',
                     dbname=self.name,
+                    keys=added_since_signal,
                 )
-                added_since_signal = 0
+                added_since_signal.clear()
 
     cdef schedule_config_update(self):
         self._index._tenant.on_local_database_config_change(self.name)
@@ -350,12 +350,10 @@ cdef class Database:
             return old_serializer
 
     def hydrate_cache(self, query_cache):
-        new = set()
         for _, in_data, out_data in query_cache:
             query_req = rpc.CompilationRequest(
                 self.server.compilation_config_serializer)
             query_req.deserialize(in_data, "<unknown>")
-            new.add(query_req)
 
             if query_req not in self._eql_to_compiled:
                 unit = dbstate.QueryUnit.deserialize(out_data)
@@ -363,10 +361,6 @@ cdef class Database:
                 group.append(unit)
                 group.cache_state = CacheState.Present
                 self._eql_to_compiled[query_req] = group
-
-        for query_req in list(self._eql_to_compiled):
-            if query_req not in new:
-                del self._eql_to_compiled[query_req]
 
     def iter_views(self):
         yield from self._views
