@@ -1,5 +1,8 @@
 # Instructions for releasing a new version
 
+Deprecates release instruction from
+[RFC 2](https://github.com/edgedb/rfcs/blob/master/text/0002-edgedb-release-process.rst).
+
 EdgeDB packages are published on https://packages.edgedb.com.
 They are build in GitHub Actions pipelines, using
 https://github.com/edgedb/edgedb-pkg.
