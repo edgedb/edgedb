@@ -75,6 +75,8 @@ cdef class Database:
 
         object _cache_worker_task
         object _cache_queue
+        object _cache_notify_task
+        object _cache_notify_queue
 
         readonly str name
         readonly object schema_version

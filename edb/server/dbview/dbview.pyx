@@ -148,9 +148,12 @@ cdef class Database:
         self._observe_auth_ext_config()
 
         self._cache_worker_task = self._cache_queue = None
+        self._cache_notify_task = self._cache_notify_queue = None
         if not debug.flags.disable_persistent_cache:
             self._cache_queue = asyncio.Queue()
             self._cache_worker_task = asyncio.create_task(self.cache_worker())
+            self._cache_notify_queue = asyncio.Queue()
+            self._cache_notify_task = asyncio.create_task(self.cache_notifier())
 
     @property
     def server(self):
@@ -179,9 +182,6 @@ cdef class Database:
                 await asyncio.sleep(0.1)
 
     async def _cache_worker(self):
-        added_since_signal = []
-
-        i = 0
         while True:
             # First, handle any evictions
             keys = []
@@ -205,18 +205,28 @@ cdef class Database:
                 and units[0].cache_sql
                 and units.cache_state == CacheState.Pending
             ]
-            # TODO: Should we do any sort of error handling here?
-            if ops:
-                g = execute.build_cache_persistence_units(ops)
-                conn = await self.tenant.acquire_pgcon(self.name)
-                try:
-                    await g.execute(conn, self)
-                finally:
-                    self.tenant.release_pgcon(self.name, conn)
+            if not ops:
+                continue
 
-                for _, units in ops:
-                    units.cache_state = CacheState.Present
-                    added_since_signal.append(str(units[0].cache_key))
+            # TODO: Should we do any sort of error handling here?
+            g = execute.build_cache_persistence_units(ops)
+            conn = await self.tenant.acquire_pgcon(self.name)
+            try:
+                await g.execute(conn, self)
+            finally:
+                self.tenant.release_pgcon(self.name, conn)
+
+            for _, units in ops:
+                units.cache_state = CacheState.Present
+                self._cache_notify_queue.put_nowait(units[0].cache_key)
+
+    async def cache_notifier(self):
+        added_since_signal = []
+
+        while True:
+            key = await self._cache_notify_queue.get()
+
+            added_since_signal.append(str(key))
 
             # Only signal query-cache-changes if we are quiescent or
             # we have a lot that have updated since the last send.
@@ -226,11 +236,8 @@ cdef class Database:
             # to rate-limit more and/or include a detailed payload.
             await asyncio.sleep(0)
             if (
-                added_since_signal
-                and (
-                    self._cache_queue.empty()
-                    or len(added_since_signal) > 100
-                )
+                self._cache_notify_queue.empty()
+                or len(added_since_signal) > 100
             ):
                 await self.tenant.signal_sysevent(
                     'query-cache-changes',
