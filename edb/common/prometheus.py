@@ -206,10 +206,10 @@ class Registry:
         self._add_metric(hist)
         return hist
 
-    def generate(self) -> str:
+    def generate(self, **label_filters: str) -> str:
         buffer: list[str] = []
         for metric in self._metrics:
-            metric._generate(buffer)
+            metric._generate(buffer, **label_filters)
         buffer.append('')
         return '\n'.join(buffer)
 
@@ -286,7 +286,31 @@ class BaseMetric:
             if not val:
                 raise ValueError(f'empty value for label {name!r}')
 
-    def _generate(self, buffer: list[str]) -> None:
+    def _make_label_filter(
+        self,
+        labels: tuple[str, ...],
+        label_filters: dict[str, str],
+    ) -> typing.Callable[[tuple[str, ...]], bool]:
+        if not label_filters:
+            return lambda _: True
+
+        try:
+            label_by_idx = [
+                (labels.index(label), label_val)
+                for label, label_val in label_filters.items()
+            ]
+        except ValueError:
+            return lambda _: False
+
+        def label_filter(label_values: tuple[str, ...]) -> bool:
+            for idx, label_val in label_by_idx:
+                if label_values[idx] != label_val:
+                    return False
+            return True
+
+        return label_filter
+
+    def _generate(self, buffer: list[str], **label_filters: str) -> None:
         raise NotImplementedError
 
 
@@ -308,7 +332,10 @@ class Info(BaseMetric):
         self._validate_label_names(tuple(labels.keys()))
         self._labels = labels
 
-    def _generate(self, buffer: list[str]) -> None:
+    def _generate(self, buffer: list[str], **label_filters: str) -> None:
+        if label_filters:
+            return
+
         desc = _format_desc(self._desc)
 
         buffer.append(f'# HELP {self._name}_info {desc}')
@@ -340,7 +367,10 @@ class BaseCounter(BaseMetric):
                 'counter cannot be incremented with a negative value')
         self._value += value
 
-    def _generate(self, buffer: list[str]) -> None:
+    def _generate(self, buffer: list[str], **label_filters: str) -> None:
+        if label_filters:
+            return
+
         desc = _format_desc(self._desc)
 
         buffer.append(f'# HELP {self._name}{self._suffix} {desc}')
@@ -382,16 +412,20 @@ class BaseLabeledCounter(BaseMetric):
             self._metric_values[labels] = value
             self._metric_created[labels] = self._registry.now()
 
-    def _generate(self, buffer: list[str]) -> None:
+    def _generate(self, buffer: list[str], **label_filters: str) -> None:
         desc = _format_desc(self._desc)
 
         buffer.append(f'# HELP {self._name}{self._suffix} {desc}')
         buffer.append(f'# TYPE {self._name}{self._suffix} {self._type}')
 
+        filter_func = self._make_label_filter(self._labels, label_filters)
         for labels, value in self._metric_values.items():
+            if not filter_func(labels):
+                continue
             fmt_label = ','.join(
                 f'{label}="{_format_label_val(label_val)}"'
                 for label, label_val in zip(self._labels, labels)
+                if label not in label_filters
             )
             buffer.append(
                 f'{self._name}{self._suffix}{{{fmt_label}}} {float(value)}'
@@ -402,9 +436,12 @@ class BaseLabeledCounter(BaseMetric):
             buffer.append(f'# TYPE {self._name}_created gauge')
 
             for labels, value in self._metric_created.items():
+                if not filter_func(labels):
+                    continue
                 fmt_label = ','.join(
                     f'{label}="{_format_label_val(label_val)}"'
                     for label, label_val in zip(self._labels, labels)
+                    if label not in label_filters
                 )
                 buffer.append(
                     f'{self._name}_created{{{fmt_label}}} {float(value)}'
@@ -526,7 +563,10 @@ class Histogram(BaseHistogram):
         self._values[idx] += 1.0
         self._sum += value
 
-    def _generate(self, buffer: list[str]) -> None:
+    def _generate(self, buffer: list[str], **label_filters: str) -> None:
+        if label_filters:
+            return
+
         desc = _format_desc(self._desc)
 
         buffer.append(f'# HELP {self._name} {desc}')
@@ -585,16 +625,20 @@ class LabeledHistogram(BaseHistogram):
         metric[1][idx] += 1.0  # type: ignore
         metric[0] += value  # type: ignore
 
-    def _generate(self, buffer: list[str]) -> None:
+    def _generate(self, buffer: list[str], **label_filters: str) -> None:
         desc = _format_desc(self._desc)
 
         buffer.append(f'# HELP {self._name} {desc}')
         buffer.append(f'# TYPE {self._name} histogram')
 
+        filter_func = self._make_label_filter(self._labels, label_filters)
         for labels, values in self._metric_values.items():
+            if not filter_func(labels):
+                continue
             fmt_label = ','.join(
                 f'{label}="{_format_label_val(label_val)}"'
                 for label, label_val in zip(self._labels, labels)
+                if label not in label_filters
             )
             accum = 0.0
             for buck, val in zip(self._buckets, values[1]):  # type: ignore
@@ -619,9 +663,12 @@ class LabeledHistogram(BaseHistogram):
             buffer.append(f'# HELP {self._name}_created {desc}')
             buffer.append(f'# TYPE {self._name}_created gauge')
             for labels, value in self._metric_created.items():
+                if not filter_func(labels):
+                    continue
                 fmt_label = ','.join(
                     f'{label}="{_format_label_val(label_val)}"'
                     for label, label_val in zip(self._labels, labels)
+                    if label not in label_filters
                 )
                 buffer.append(
                     f'{self._name}_created{{{fmt_label}}} {float(value)}'
