@@ -30,6 +30,10 @@ from typing import (
     TYPE_CHECKING,
 )
 
+from edb.common.log import early_setup
+# ruff: noqa: E402
+early_setup()
+
 import asyncio
 import contextlib
 import dataclasses
@@ -48,10 +52,6 @@ import click
 import setproctitle
 import uvloop
 
-from . import logsetup
-# ruff: noqa: E402
-logsetup.early_setup()
-
 from edb import buildmeta
 from edb.ir import statypes
 from edb.common import exceptions
@@ -64,6 +64,7 @@ from . import args as srvargs
 from . import compiler as edbcompiler
 from . import daemon
 from . import defines
+from . import logsetup
 from . import pgconnparams
 from . import pgcluster
 from . import service_manager

@@ -36,6 +36,7 @@ from libc.stdint cimport int32_t, int16_t, uint32_t
 
 from edb import errors
 from edb.common import debug
+from edb.common.log import current_tenant
 from edb.pgsql.parser import exceptions as parser_errors
 from edb.server import args as srvargs
 from edb.server import defines, metrics
@@ -493,6 +494,8 @@ cdef class PgConnection(frontend.FrontendConnection):
                     self.tenant = self.server.retrieve_tenant(
                         self._transport.get_extra_info("ssl_object")
                     )
+                    if self.tenant is not None:
+                        current_tenant.set(self.tenant.get_instance_name())
                     self.is_tls = True
 
                 elif proto_ver_minor == 5680:  # GSSENCRequest
