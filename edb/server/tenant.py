@@ -48,6 +48,7 @@ import immutables
 
 from edb import errors
 from edb.common import retryloop
+from edb.common.log import current_tenant
 
 from . import args as srvargs
 from . import config
@@ -441,6 +442,7 @@ class Tenant(ha_base.ClusterProtocol):
         # Therefore, it is an error trying to create a task while the server is
         # not expecting one, so always couple the call with an additional check
         if self._accept_new_tasks and self._task_group is not None:
+            current_tenant.set(self.get_instance_name())
             if interruptable:
                 rv = self.__loop.create_task(coro)
             else:

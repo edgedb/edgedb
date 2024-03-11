@@ -55,6 +55,7 @@ from edb.common import devmode
 from edb.common import lru
 from edb.common import secretkey
 from edb.common import windowedsum
+from edb.common.log import current_tenant
 
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
@@ -462,9 +463,9 @@ class BaseServer:
             for conn in self._binary_conns:
                 try:
                     if conn.is_idle(expiry_time):
-                        metrics.idle_client_connections.inc(
-                            1.0, conn.get_tenant_label()
-                        )
+                        label = conn.get_tenant_label()
+                        metrics.idle_client_connections.inc(1.0, label)
+                        current_tenant.set(label)
                         conn.close_for_idling()
                     elif conn.is_alive():
                         # We are sorting connections in
