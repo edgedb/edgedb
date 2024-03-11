@@ -174,6 +174,9 @@ cdef class Database:
                 metrics.background_errors.inc(
                     1.0, self.tenant._instance_name, "cache_worker"
                 )
+                # Give things time to recover, since the likely
+                # failure mode here is a failover or some such.
+                await asyncio.sleep(0.1)
 
     async def _cache_worker(self):
         added_since_signal = 0
@@ -191,26 +194,35 @@ cdef class Database:
                 await self.tenant.evict_query_cache(self.name, keys)
 
             # Now, populate the cache
-            query_req, units = await self._cache_queue.get()
-            # TODO: Should we do any sort of error handling here?
-            if (
-                len(units) == 1
+            # Empty the queue, for batching reasons.
+            ops = [await self._cache_queue.get()]
+            while not self._cache_queue.empty():
+                ops.append(self._cache_queue.get_nowait())
+            # Filter ops for only what we need
+            ops = [
+                (query_req, units) for query_req, units in ops
+                if len(units) == 1
                 and units[0].cache_sql
                 and units.cache_state == CacheState.Pending
-            ):
-                g = execute.build_cache_persistence_units([(query_req, units)])
+            ]
+            # TODO: Should we do any sort of error handling here?
+            if ops:
+                g = execute.build_cache_persistence_units(ops)
                 conn = await self.tenant.acquire_pgcon(self.name)
                 try:
                     await g.execute(conn, self)
                 finally:
                     self.tenant.release_pgcon(self.name, conn)
 
-                units.cache_state = CacheState.Present
+                for _, units in ops:
+                    units.cache_state = CacheState.Present
 
-                added_since_signal += 1
+                added_since_signal += len(ops)
 
             # Only signal query-cache-changes if we are quiescent or
             # we have a lot that have updated since the last send.
+            # The sleep(0) is to give a chance for more things to
+            # queue up. It's not critical but does let this hit more.
             # TODO: Is this good enough? Should we be smarter and try
             # to rate-limit more and/or include a detailed payload.
             await asyncio.sleep(0)
