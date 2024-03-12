@@ -37,6 +37,7 @@ git log hash_of_that_commit..master > ../to-backport.txt
 Now, one can go trough the list and see if the commits are worth back-porting.
 A few pointers:
 
+- Don't backport new features, unless it is high-priority for some reason.
 - Don't backport docs, since the website is built from master.
 - Don't backport refactors, since they might introduce bugs and there is no
   point in improving the codebase of a branch we are not developing on anymore.
@@ -45,11 +46,17 @@ A few pointers:
   on.
 - Don't backport "build" commits (updating of build deps, refactoring of the
   release pipeline), since that might trigger problems in the release process.
-- If a PR changes any of the schema objects (i.e. adding a field to
-  `s_types.Type`) or metaschema (i.e. changing a pg function
-  `edgedb.range_to_jsonb`), a "patch" needs to be added into `pgsql/patches.py`.
-  This is needed, because minor releases don't require a "dump and restore", so
-  we must apply these changes to existing user databases.
+- If a PR changes:
+
+  - any of the schema objects (i.e. adding a field to `s_types.Type`) or
+  - a std library object (i.e. changing implementation of `std::round`),
+  - metaschema (i.e. changing a pg function `edgedb.range_to_jsonb`),
+    ... a "patch" needs to be added into `pgsql/patches.py`.
+    This is needed, because minor releases don't require a "dump and restore",
+    so we must apply these changes to existing user databases.
+
+  Patches can be tested using this GHA workflow:
+  https://github.com/edgedb/edgedb/actions/workflows/tests-patches.yml
 
 A helper shell script to cherry-pick a commit using it's PR number:
 
