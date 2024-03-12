@@ -22,6 +22,7 @@ import http
 import json
 import uuid
 import unittest
+import time
 
 import edgedb
 

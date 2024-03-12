@@ -214,7 +214,7 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
     def test_codegen_group_simple_02(self):
         tree = self._compile_to_tree('''
         for g in (group Issue by .status)
-        select (g.key.status.name, count(g.elements))
+        union (g.key.status.name, count(g.elements))
         ''')
         child = ast_visitor.find_children(
             tree,

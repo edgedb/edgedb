@@ -227,6 +227,7 @@ class ByClause(Nonterm):
     def reduce_BY_GroupingElementList_COMMA(self, *kids):
         pass
 
+
 class UsingClause(Nonterm):
     @parsing.inline(1)
     def reduce_USING_AliasedExprList(self, *kids):

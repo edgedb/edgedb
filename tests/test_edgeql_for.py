@@ -1246,6 +1246,9 @@ class TestEdgeQLFor(tb.QueryTestCase):
             [{}],
         )
 
+    @test.xerror(
+        "'FOR OPTIONAL' doesn't work with object-type iterators in 4.x yet"
+    )
     async def test_edgeql_for_optional_03(self):
         Q = '''
         for dummy in "1"
