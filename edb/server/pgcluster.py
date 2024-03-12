@@ -342,7 +342,7 @@ class BaseCluster:
         tgt_conn_args, _tgt_env = self._dump_restore_conn_args(tgt_dbname)
 
         dump_args = [
-            pg_dump, '--verbose', *src_conn_args, *src_args
+            pg_dump, *src_conn_args, *src_args
         ]
         restore_args = [
             pg_restore, *tgt_conn_args, *tgt_args
