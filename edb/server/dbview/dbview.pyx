@@ -289,11 +289,12 @@ cdef class Database:
             ):
                 continue
 
-            await self.tenant.signal_sysevent(
-                'query-cache-changes',
-                dbname=self.name,
-                keys=pending_keys,
-            )
+            # FUCK!
+            # await self.tenant.signal_sysevent(
+            #     'query-cache-changes',
+            #     dbname=self.name,
+            #     keys=pending_keys,
+            # )
             pending_keys.clear()
             last_signal = t
             target_time = None
