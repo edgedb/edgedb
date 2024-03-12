@@ -674,12 +674,6 @@ Bug fixes
 4.6
 ===
 
-* Add Discord OAuth provider
-  (:eql:gh:`#6708`)
-
-* Add Slack OpenID Connect provider
-  (:eql:gh:`#6720`)
-
 * Fix issues with empty sets leaking out of optional scopes
   (:eql:gh:`#6747`)
 
