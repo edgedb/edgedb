@@ -209,6 +209,7 @@
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: << 0 if tgt.runs_on and 'self-hosted' in tgt.runs_on else 1 >>
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 <%- endfor %>
 
 <%- for tgt in targets.macos %>

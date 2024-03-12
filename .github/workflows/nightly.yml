@@ -524,6 +524,7 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 
   test-debian-bullseye-aarch64:
     needs: [build-debian-bullseye-aarch64]
@@ -546,6 +547,7 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 
   test-debian-bookworm-aarch64:
     needs: [build-debian-bookworm-aarch64]
@@ -568,6 +570,7 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 
   test-ubuntu-bionic-aarch64:
     needs: [build-ubuntu-bionic-aarch64]
@@ -590,6 +593,7 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 
   test-ubuntu-focal-aarch64:
     needs: [build-ubuntu-focal-aarch64]
@@ -612,6 +616,7 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 
   test-ubuntu-jammy-aarch64:
     needs: [build-ubuntu-jammy-aarch64]
@@ -634,6 +639,7 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 
   test-centos-8-aarch64:
     needs: [build-centos-8-aarch64]
@@ -656,6 +662,7 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 
   test-rockylinux-9-aarch64:
     needs: [build-rockylinux-9-aarch64]
@@ -678,6 +685,7 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 
   test-linux-aarch64:
     needs: [build-linux-aarch64]
@@ -700,6 +708,7 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 
   test-linuxmusl-aarch64:
     needs: [build-linuxmusl-aarch64]
@@ -722,6 +731,7 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
         EDGEDB_DEBUG_SERVER: 1
+        EDGEDB_DEBUG_PGSERVER: 1
 
   test-macos-aarch64:
     needs: [build-macos-aarch64]
