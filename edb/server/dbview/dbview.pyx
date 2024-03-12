@@ -151,9 +151,11 @@ cdef class Database:
         self._cache_notify_task = self._cache_notify_queue = None
         if not debug.flags.disable_persistent_cache:
             self._cache_queue = asyncio.Queue()
-            self._cache_worker_task = asyncio.create_task(self.cache_worker())
+            self._cache_worker_task = asyncio.create_task(
+                self.monitor(self.cache_worker, 'cache_worker'))
             self._cache_notify_queue = asyncio.Queue()
-            self._cache_notify_task = asyncio.create_task(self.cache_notifier())
+            self._cache_notify_task = asyncio.create_task(
+                self.monitor(self.cache_notifier, 'cache_notifier'))
 
     @property
     def server(self):
@@ -167,21 +169,24 @@ cdef class Database:
         if self._cache_worker_task:
             self._cache_worker_task.cancel()
             self._cache_worker_task = None
+        if self._cache_notify_task:
+            self._cache_notify_task.cancel()
+            self._cache_notify_task = None
 
-    async def cache_worker(self):
+    async def monitor(self, worker, name):
         while True:
             try:
-                await self._cache_worker()
+                await worker()
             except Exception as ex:
                 debug.dump(ex)
                 metrics.background_errors.inc(
-                    1.0, self.tenant._instance_name, "cache_worker"
+                    1.0, self.tenant._instance_name, name
                 )
                 # Give things time to recover, since the likely
                 # failure mode here is a failover or some such.
                 await asyncio.sleep(0.1)
 
-    async def _cache_worker(self):
+    async def cache_worker(self):
         while True:
             # First, handle any evictions
             keys = []
@@ -223,29 +228,19 @@ cdef class Database:
                 self._cache_notify_queue.put_nowait(str(units[0].cache_key))
 
     async def cache_notifier(self):
-        while True:
-            try:
-                await asyncutil.debounce(
-                    lambda: self._cache_notify_queue.get(),
-                    lambda keys: self.tenant.signal_sysevent(
-                        'query-cache-changes',
-                        dbname=self.name,
-                        keys=keys,
-                    ),
-                    max_wait=1.0,
-                    delay_amt=0.2,
-                    # 100 keys will take up about 4000 bytes, which
-                    # fits in the 8000 allowed in events.
-                    max_batch_size=100,
-                )
-            except Exception as ex:
-                debug.dump(ex)
-                metrics.background_errors.inc(
-                    1.0, self.tenant._instance_name, "cache_notifier"
-                )
-                # Give things time to recover, since the likely
-                # failure mode here is a failover or some such.
-                await asyncio.sleep(0.1)
+        await asyncutil.debounce(
+            lambda: self._cache_notify_queue.get(),
+            lambda keys: self.tenant.signal_sysevent(
+                'query-cache-changes',
+                dbname=self.name,
+                keys=keys,
+            ),
+            max_wait=1.0,
+            delay_amt=0.2,
+            # 100 keys will take up about 4000 bytes, which
+            # fits in the 8000 allowed in events.
+            max_batch_size=100,
+        )
 
     cdef schedule_config_update(self):
         self._index._tenant.on_local_database_config_change(self.name)

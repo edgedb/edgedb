@@ -91,23 +91,22 @@ async def debounce(
     # the argument list, so reassign them.
     MAX_WAIT, DELAY_AMT, MAX_BATCH_SIZE = max_wait, delay_amt, max_batch_size
 
+    loop = asyncio.get_running_loop()
+
     batch = []
     last_signal = 0.0
     target_time = None
 
     while True:
-        target_delta = target_time and target_time - time.monotonic()
         try:
-            v = await asyncio.wait_for(
-                input(),
-                timeout=target_delta,
-            )
+            async with asyncio.timeout_at(target_time):
+                v = await input()
         except TimeoutError:
-            t = time.monotonic()
+            t = loop.time()
         else:
             batch.append(v)
 
-            t = time.monotonic()
+            t = loop.time()
 
             # If we aren't current waiting, and we got a
             # notification recently, arrange to wait some before
@@ -134,6 +133,6 @@ async def debounce(
             continue
 
         await output(batch)
-        batch.clear()
+        batch = []
         last_signal = t
         target_time = None

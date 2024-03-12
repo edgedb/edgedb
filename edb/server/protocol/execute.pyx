@@ -166,7 +166,6 @@ async def execute(
         bytes state = None, orig_state = None
         WriteBuffer bound_args_buf
         ExecutionGroup group
-        bint persist_cache, persist_recompiled_query_cache
 
     query_unit = compiled.query_unit_group[0]
 
@@ -176,10 +175,6 @@ async def execute(
     new_types = None
     server = dbv.server
     tenant = dbv.tenant
-
-    # If we have both the compilation request and a pair of SQLs for the cache
-    # (persist, evict), we should follow the persistent cache route.
-    persist_cache = bool(compiled.request and query_unit.cache_sql)
 
     data = None
 
