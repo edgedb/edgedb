@@ -221,30 +221,82 @@ cdef class Database:
                 self._cache_notify_queue.put_nowait(units[0].cache_key)
 
     async def cache_notifier(self):
-        added_since_signal = []
+        while True:
+            try:
+                await self._cache_notifier()
+            except Exception as ex:
+                debug.dump(ex)
+                metrics.background_errors.inc(
+                    1.0, self.tenant._instance_name, "cache_notifier"
+                )
+                # Give things time to recover, since the likely
+                # failure mode here is a failover or some such.
+                await asyncio.sleep(0.1)
+
+    async def _cache_notifier(self):
+        MAX_WAIT = 1.0
+        DELAY_AMT = 0.2
+        # 100 keys will take up about 4000 bytes, which fits in the 8000
+        # allowed in events.
+        MAX_KEYS = 100
+
+        pending_keys = []
+        last_signal = 0
+        target_time = None
 
         while True:
-            key = await self._cache_notify_queue.get()
-
-            added_since_signal.append(str(key))
-
-            # Only signal query-cache-changes if we are quiescent or
-            # we have a lot that have updated since the last send.
-            # The sleep(0) is to give a chance for more things to
-            # queue up. It's not critical but does let this hit more.
-            # TODO: Is this good enough? Should we be smarter and try
-            # to rate-limit more and/or include a detailed payload.
-            await asyncio.sleep(0)
-            if (
-                self._cache_notify_queue.empty()
-                or len(added_since_signal) > 100
-            ):
-                await self.tenant.signal_sysevent(
-                    'query-cache-changes',
-                    dbname=self.name,
-                    keys=added_since_signal,
+            # "Debounce" and batch query-cache-change notifications.
+            # The basic algorithm is that if a notification comes in
+            # less than DELAY_AMT since we triggered the previous one,
+            # then instead of sending it immediately, we wait an
+            # additional DELAY_AMT from then. If we are already waiting,
+            # any message also extends the wait, up to MAX_WAIT.
+            # Also, cap the batch size to MAX_KEYS, since
+            target_delta = target_time and target_time - time.time()
+            try:
+                key = await asyncio.wait_for(
+                    self._cache_notify_queue.get(),
+                    timeout=target_delta,
                 )
-                added_since_signal.clear()
+            except TimeoutError:
+                t = time.time()
+            else:
+                pending_keys.append(str(key))
+
+                t = time.time()
+
+                # If we aren't current waiting, and we got a
+                # notification recently, arrange to wait some before
+                # sending it.
+                if (
+                    target_time is None
+                    and t - last_signal < DELAY_AMT
+                ):
+                    target_time = t + DELAY_AMT
+                # If we were already waiting, wait a little longer, though
+                # not longer than MAX_WAIT.
+                elif (
+                    target_time is not None
+                    and target_time < last_signal + MAX_WAIT
+                ):
+                    target_time = max(t + DELAY_AMT, target_time)
+
+            # Skip sending the event if we need to wait longer.
+            if (
+                target_time is not None
+                and t < target_time
+                and len(pending_keys) < MAX_KEYS
+            ):
+                continue
+
+            await self.tenant.signal_sysevent(
+                'query-cache-changes',
+                dbname=self.name,
+                keys=pending_keys,
+            )
+            pending_keys.clear()
+            last_signal = t
+            target_time = None
 
     cdef schedule_config_update(self):
         self._index._tenant.on_local_database_config_change(self.name)
