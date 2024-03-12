@@ -388,8 +388,8 @@ class Router:
             request.url.query.decode("ascii") if request.url.query else ""
         )
         code = _get_search_param(query, "code")
-        verifier = _get_search_param(query, "verifier") or _get_search_param(
-            query, "code_verifier"
+        verifier = _get_search_param(
+            query, "verifier", fallback_keys=["code_verifier"]
         )
 
         verifier_size = len(verifier)

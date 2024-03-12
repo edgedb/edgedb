@@ -3042,7 +3042,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 http_con,
                 {
                     "code": pkce.id,
-                    "verifier": base64.urlsafe_b64encode(os.urandom(43))
+                    "code_verifier": base64.urlsafe_b64encode(os.urandom(43))
                     .rstrip(b"=")
                     .decode(),
                 },
