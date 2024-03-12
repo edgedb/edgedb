@@ -195,6 +195,8 @@ cdef class Database:
 
             # Now, populate the cache
             # Empty the queue, for batching reasons.
+            # N.B: This empty/get_nowait loop is safe because this is
+            # an asyncio Queue. If it was threaded, it would be racy.
             ops = [await self._cache_queue.get()]
             while not self._cache_queue.empty():
                 ops.append(self._cache_queue.get_nowait())
@@ -218,7 +220,7 @@ cdef class Database:
 
             for _, units in ops:
                 units.cache_state = CacheState.Present
-                self._cache_notify_queue.put_nowait(units[0].cache_key)
+                self._cache_notify_queue.put_nowait(str(units[0].cache_key))
 
     async def cache_notifier(self):
         while True:
@@ -252,18 +254,18 @@ cdef class Database:
             # additional DELAY_AMT from then. If we are already waiting,
             # any message also extends the wait, up to MAX_WAIT.
             # Also, cap the batch size to MAX_KEYS, since
-            target_delta = target_time and target_time - time.time()
+            target_delta = target_time and target_time - time.monotonic()
             try:
                 key = await asyncio.wait_for(
                     self._cache_notify_queue.get(),
                     timeout=target_delta,
                 )
             except TimeoutError:
-                t = time.time()
+                t = time.monotonic()
             else:
-                pending_keys.append(str(key))
+                pending_keys.append(key)
 
-                t = time.time()
+                t = time.monotonic()
 
                 # If we aren't current waiting, and we got a
                 # notification recently, arrange to wait some before
