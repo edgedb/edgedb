@@ -253,7 +253,9 @@ class Router:
             raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
-        challenge = _get_search_param(query, "challenge")
+        challenge = _get_search_param(
+            query, "challenge", fallback_keys=["code_challenge"]
+        )
         oauth_client = oauth.Client(
             db=self.db, provider_name=provider_name, base_url=self.test_url
         )
@@ -386,7 +388,9 @@ class Router:
             request.url.query.decode("ascii") if request.url.query else ""
         )
         code = _get_search_param(query, "code")
-        verifier = _get_search_param(query, "verifier")
+        verifier = _get_search_param(
+            query, "verifier", fallback_keys=["code_verifier"]
+        )
 
         verifier_size = len(verifier)
 
@@ -1338,7 +1342,9 @@ class Router:
             query = urllib.parse.parse_qs(
                 request.url.query.decode("ascii") if request.url.query else ""
             )
-            challenge = _get_search_param(query, "challenge")
+            challenge = _get_search_param(
+                query, "challenge", fallback_keys=["code_challenge"]
+            )
             app_details_config = self._get_app_details_config()
 
             response.status = http.HTTPStatus.OK
@@ -1660,9 +1666,7 @@ class Router:
             claims=claims,
         )
         session_token.make_signed_token(signing_key)
-        metrics.auth_successful_logins.inc(
-            1.0, self.tenant.get_instance_name()
-        )
+        metrics.auth_successful_logins.inc(1.0, self.tenant.get_instance_name())
         return session_token.serialize()
 
     def _get_from_claims(self, state: str, key: str) -> str:
@@ -1987,8 +1991,18 @@ def _maybe_get_search_param(
     return params[0] if params else None
 
 
-def _get_search_param(query_dict: dict[str, list[str]], key: str) -> str:
+def _get_search_param(
+    query_dict: dict[str, list[str]],
+    key: str,
+    *,
+    fallback_keys: Optional[list[str]] = None,
+) -> str:
     val = _maybe_get_search_param(query_dict, key)
+    if val is None and fallback_keys is not None:
+        for fallback_key in fallback_keys:
+            val = _maybe_get_search_param(query_dict, fallback_key)
+            if val is not None:
+                break
     if val is None:
         raise errors.InvalidData(f"Missing query parameter: {key}")
     return val
@@ -2010,7 +2024,9 @@ def _get_pkce_challenge(
     query_dict: dict[str, list[str]],
 ) -> str | None:
     cookie_name = 'edgedb-pkce-challenge'
-    challenge: str | None = _maybe_get_search_param(query_dict, 'challenge')
+    challenge: str | None = _maybe_get_search_param(
+        query_dict, 'challenge'
+    ) or _maybe_get_search_param(query_dict, "code_challenge")
     if challenge is not None:
         _set_cookie(response, cookie_name, challenge)
     else:

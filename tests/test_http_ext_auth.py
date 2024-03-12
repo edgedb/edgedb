@@ -1071,7 +1071,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             query = {
                 "provider": provider_name,
                 "redirect_to": redirect_to,
-                "challenge": challenge,
+                "code_challenge": challenge,
             }
 
             _, headers, status = self.http_con_request(
@@ -3042,7 +3042,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 http_con,
                 {
                     "code": pkce.id,
-                    "verifier": base64.urlsafe_b64encode(os.urandom(43))
+                    "code_verifier": base64.urlsafe_b64encode(os.urandom(43))
                     .rstrip(b"=")
                     .decode(),
                 },
