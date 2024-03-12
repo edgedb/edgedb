@@ -35,7 +35,7 @@ import weakref
 import immutables
 
 from edb import errors
-from edb.common import debug, lru, uuidgen
+from edb.common import debug, lru, uuidgen, asyncutil
 from edb import edgeql
 from edb.edgeql import qltypes
 from edb.schema import schema as s_schema
@@ -225,7 +225,19 @@ cdef class Database:
     async def cache_notifier(self):
         while True:
             try:
-                await self._cache_notifier()
+                await asyncutil.debounce(
+                    lambda: self._cache_notify_queue.get(),
+                    lambda keys: self.tenant.signal_sysevent(
+                        'query-cache-changes',
+                        dbname=self.name,
+                        keys=keys,
+                    ),
+                    max_wait=1.0,
+                    delay_amt=0.2,
+                    # 100 keys will take up about 4000 bytes, which
+                    # fits in the 8000 allowed in events.
+                    max_batch_size=100,
+                )
             except Exception as ex:
                 debug.dump(ex)
                 metrics.background_errors.inc(
@@ -234,71 +246,6 @@ cdef class Database:
                 # Give things time to recover, since the likely
                 # failure mode here is a failover or some such.
                 await asyncio.sleep(0.1)
-
-    async def _cache_notifier(self):
-        MAX_WAIT = 1.0
-        DELAY_AMT = 0.2
-        # 100 keys will take up about 4000 bytes, which fits in the 8000
-        # allowed in events.
-        MAX_KEYS = 100
-
-        pending_keys = []
-        last_signal = 0
-        target_time = None
-
-        while True:
-            # "Debounce" and batch query-cache-change notifications.
-            # The basic algorithm is that if a notification comes in
-            # less than DELAY_AMT since we triggered the previous one,
-            # then instead of sending it immediately, we wait an
-            # additional DELAY_AMT from then. If we are already waiting,
-            # any message also extends the wait, up to MAX_WAIT.
-            # Also, cap the batch size to MAX_KEYS, since
-            target_delta = target_time and target_time - time.monotonic()
-            try:
-                key = await asyncio.wait_for(
-                    self._cache_notify_queue.get(),
-                    timeout=target_delta,
-                )
-            except TimeoutError:
-                t = time.monotonic()
-            else:
-                pending_keys.append(key)
-
-                t = time.monotonic()
-
-                # If we aren't current waiting, and we got a
-                # notification recently, arrange to wait some before
-                # sending it.
-                if (
-                    target_time is None
-                    and t - last_signal < DELAY_AMT
-                ):
-                    target_time = t + DELAY_AMT
-                # If we were already waiting, wait a little longer, though
-                # not longer than MAX_WAIT.
-                elif (
-                    target_time is not None
-                    and target_time < last_signal + MAX_WAIT
-                ):
-                    target_time = max(t + DELAY_AMT, target_time)
-
-            # Skip sending the event if we need to wait longer.
-            if (
-                target_time is not None
-                and t < target_time
-                and len(pending_keys) < MAX_KEYS
-            ):
-                continue
-
-            await self.tenant.signal_sysevent(
-                'query-cache-changes',
-                dbname=self.name,
-                keys=pending_keys,
-            )
-            pending_keys.clear()
-            last_signal = t
-            target_time = None
 
     cdef schedule_config_update(self):
         self._index._tenant.on_local_database_config_change(self.name)
