@@ -2247,10 +2247,10 @@ cdef class PGConnection:
         object query_unit,
         bytes state=None
     ):
+        data = await self.sql_fetch(query_unit.sql, state=state)
         if query_unit.ddl_stmt_id is None:
-            return await self.sql_execute(query_unit.sql)
+            return
         else:
-            data = await self.sql_fetch(query_unit.sql, state=state)
             return self.load_ddl_return(query_unit, data)
 
     def load_ddl_return(self, object query_unit, data):
