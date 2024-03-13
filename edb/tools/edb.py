@@ -19,6 +19,10 @@
 
 from __future__ import annotations
 
+from edb.common.log import early_setup
+# ruff: noqa: E402
+early_setup()
+
 import os
 import sys
 
