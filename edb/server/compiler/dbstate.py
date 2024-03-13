@@ -398,6 +398,8 @@ class QueryUnitGroup:
 
     state_serializer: Optional[sertypes.StateSerializer] = None
 
+    cache_state: int = 0
+
     @property
     def units(self) -> List[QueryUnit]:
         if self._unpacked_units is None:
