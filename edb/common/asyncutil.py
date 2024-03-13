@@ -21,7 +21,6 @@ from __future__ import annotations
 from typing import Callable, TypeVar, Awaitable
 
 import asyncio
-import time
 
 
 _T = TypeVar('_T')
@@ -94,7 +93,7 @@ async def debounce(
     loop = asyncio.get_running_loop()
 
     batch = []
-    last_signal = 0.0
+    last_signal = -MAX_WAIT
     target_time = None
 
     while True:
@@ -120,9 +119,11 @@ async def debounce(
             # not longer than MAX_WAIT.
             elif (
                 target_time is not None
-                and target_time < last_signal + MAX_WAIT
             ):
-                target_time = max(t + DELAY_AMT, target_time)
+                target_time = min(
+                    max(t + DELAY_AMT, target_time),
+                    last_signal + MAX_WAIT,
+                )
 
         # Skip sending the event if we need to wait longer.
         if (
