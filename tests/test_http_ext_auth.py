@@ -2900,7 +2900,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 auth_data_redirect_on_failure["redirect_on_failure"],
             )
 
-    async def test_http_auth_ext_resend_verification_email_with_token(self):
+    async def test_http_auth_ext_resend_verification_email(self):
         with self.http_con() as http_con:
             # Register a new user
             provider_config = await self.get_builtin_provider_config_by_name(
@@ -2984,6 +2984,40 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
+            self.assertEqual(status, 200)
+
+            # Resend verification email with email and challenge
+            resend_data = {
+                "provider": form_data["provider"],
+                "email": email,
+                "challenge": form_data["challenge"],
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            self.assertEqual(status, 200)
+
+            # Resend verification email with email and code_challenge
+            resend_data = {
+                "provider": form_data["provider"],
+                "email": email,
+                "code_challenge": form_data["challenge"],
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
             self.assertEqual(status, 200)
 
             # Resend verification email with no email or token
