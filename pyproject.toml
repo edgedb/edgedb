@@ -37,6 +37,9 @@ test = [
     'ruff~=0.1.6',
     'asyncpg~=0.29.0',
 
+    # Needed for testing asyncutil
+    'async_solipsism==0.5.0',
+
     # Needed for test_docs_sphinx_ext
     'requests-xml~=0.2.3',
 

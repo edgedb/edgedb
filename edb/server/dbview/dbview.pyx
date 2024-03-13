@@ -35,7 +35,7 @@ import weakref
 import immutables
 
 from edb import errors
-from edb.common import debug, lru, uuidgen
+from edb.common import debug, lru, uuidgen, asyncutil
 from edb import edgeql
 from edb.edgeql import qltypes
 from edb.schema import schema as s_schema
@@ -74,6 +74,13 @@ cdef next_dbver():
     global VER_COUNTER
     VER_COUNTER += 1
     return VER_COUNTER
+
+
+
+cdef enum CacheState:
+    Pending = 0,
+    Present,
+    Evicted
 
 
 @cython.final
@@ -140,6 +147,16 @@ cdef class Database:
         self.extensions = extensions
         self._observe_auth_ext_config()
 
+        self._cache_worker_task = self._cache_queue = None
+        self._cache_notify_task = self._cache_notify_queue = None
+        if not debug.flags.disable_persistent_cache:
+            self._cache_queue = asyncio.Queue()
+            self._cache_worker_task = asyncio.create_task(
+                self.monitor(self.cache_worker, 'cache_worker'))
+            self._cache_notify_queue = asyncio.Queue()
+            self._cache_notify_task = asyncio.create_task(
+                self.monitor(self.cache_notifier, 'cache_notifier'))
+
     @property
     def server(self):
         return self._index._server
@@ -147,6 +164,83 @@ cdef class Database:
     @property
     def tenant(self):
         return self._index._tenant
+
+    def stop(self):
+        if self._cache_worker_task:
+            self._cache_worker_task.cancel()
+            self._cache_worker_task = None
+        if self._cache_notify_task:
+            self._cache_notify_task.cancel()
+            self._cache_notify_task = None
+
+    async def monitor(self, worker, name):
+        while True:
+            try:
+                await worker()
+            except Exception as ex:
+                debug.dump(ex)
+                metrics.background_errors.inc(
+                    1.0, self.tenant._instance_name, name
+                )
+                # Give things time to recover, since the likely
+                # failure mode here is a failover or some such.
+                await asyncio.sleep(0.1)
+
+    async def cache_worker(self):
+        while True:
+            # First, handle any evictions
+            keys = []
+            while self._eql_to_compiled.needs_cleanup():
+                query_req, unit_group = self._eql_to_compiled.cleanup_one()
+                if len(unit_group) == 1 and unit_group.cache_state == 1:
+                    keys.append(query_req.get_cache_key())
+                unit_group.cache_state = CacheState.Evicted
+            if keys:
+                await self.tenant.evict_query_cache(self.name, keys)
+
+            # Now, populate the cache
+            # Empty the queue, for batching reasons.
+            # N.B: This empty/get_nowait loop is safe because this is
+            # an asyncio Queue. If it was threaded, it would be racy.
+            ops = [await self._cache_queue.get()]
+            while not self._cache_queue.empty():
+                ops.append(self._cache_queue.get_nowait())
+            # Filter ops for only what we need
+            ops = [
+                (query_req, units) for query_req, units in ops
+                if len(units) == 1
+                and units[0].cache_sql
+                and units.cache_state == CacheState.Pending
+            ]
+            if not ops:
+                continue
+
+            # TODO: Should we do any sort of error handling here?
+            g = execute.build_cache_persistence_units(ops)
+            conn = await self.tenant.acquire_pgcon(self.name)
+            try:
+                await g.execute(conn, self)
+            finally:
+                self.tenant.release_pgcon(self.name, conn)
+
+            for _, units in ops:
+                units.cache_state = CacheState.Present
+                self._cache_notify_queue.put_nowait(str(units[0].cache_key))
+
+    async def cache_notifier(self):
+        await asyncutil.debounce(
+            lambda: self._cache_notify_queue.get(),
+            lambda keys: self.tenant.signal_sysevent(
+                'query-cache-changes',
+                dbname=self.name,
+                keys=keys,
+            ),
+            max_wait=1.0,
+            delay_amt=0.2,
+            # 100 keys will take up about 4000 bytes, which
+            # fits in the 8000 allowed in events.
+            max_batch_size=100,
+        )
 
     cdef schedule_config_update(self):
         self._index._tenant.on_local_database_config_change(self.name)
@@ -214,17 +308,9 @@ cdef class Database:
             return
 
         self._eql_to_compiled[key] = compiled
-        # TODO(fantix): merge in-memory cleanup into the task below
-        keys = []
-        while self._eql_to_compiled.needs_cleanup():
-            query_req, unit_group = self._eql_to_compiled.cleanup_one()
-            if len(unit_group) == 1:
-                keys.append(query_req.get_cache_key())
-        if keys and debug.flags.persistent_cache:
-            self.tenant.create_task(
-                self.tenant.evict_query_cache(self.name, keys),
-                interruptable=True,
-            )
+
+        if self._cache_queue is not None:
+            self._cache_queue.put_nowait((key, compiled))
 
     def cache_compiled_sql(self, key, compiled: list[str], schema_version):
         existing, ver = self._sql_to_compiled.get(key, DICTDEFAULT)
@@ -267,22 +353,17 @@ cdef class Database:
             return old_serializer
 
     def hydrate_cache(self, query_cache):
-        new = set()
         for _, in_data, out_data in query_cache:
             query_req = rpc.CompilationRequest(
                 self.server.compilation_config_serializer)
             query_req.deserialize(in_data, "<unknown>")
-            new.add(query_req)
 
             if query_req not in self._eql_to_compiled:
                 unit = dbstate.QueryUnit.deserialize(out_data)
                 group = dbstate.QueryUnitGroup()
                 group.append(unit)
+                group.cache_state = CacheState.Present
                 self._eql_to_compiled[query_req] = group
-
-        for query_req in list(self._eql_to_compiled):
-            if query_req not in new:
-                del self._eql_to_compiled[query_req]
 
     def iter_views(self):
         yield from self._views
@@ -295,7 +376,8 @@ cdef class Database:
             async with self._introspection_lock:
                 if self.user_schema_pickle is None:
                     await self.tenant.introspect_db(
-                        self.name, hydrate_cache=debug.flags.persistent_cache
+                        self.name,
+                        hydrate_cache=not debug.flags.disable_persistent_cache,
                     )
 
 
@@ -731,8 +813,7 @@ cdef class DatabaseConnectionView:
     cdef cache_compiled_query(self, object key, object query_unit_group):
         assert query_unit_group.cacheable
 
-        if not self._in_tx_with_ddl:
-            self._db._cache_compiled_query(key, query_unit_group)
+        self._db._cache_compiled_query(key, query_unit_group)
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
@@ -1381,7 +1462,8 @@ cdef class DatabaseIndex:
         return db
 
     def unregister_db(self, dbname):
-        self._dbs.pop(dbname)
+        db = self._dbs.pop(dbname)
+        db.stop()
         self.set_current_branches()
 
     cdef inline set_current_branches(self):

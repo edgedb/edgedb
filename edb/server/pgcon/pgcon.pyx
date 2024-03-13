@@ -2932,7 +2932,8 @@ cdef class PGConnection:
                     self.tenant.on_remote_database_quarantine(dbname)
                 elif event == 'query-cache-changes':
                     dbname = event_payload['dbname']
-                    self.tenant.on_remote_query_cache_change(dbname)
+                    keys = event_payload.get('keys')
+                    self.tenant.on_remote_query_cache_change(dbname, keys=keys)
                 else:
                     raise AssertionError(f'unexpected system event: {event!r}')
 
