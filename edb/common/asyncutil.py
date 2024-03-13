@@ -98,8 +98,11 @@ async def debounce(
 
     while True:
         try:
-            async with asyncio.timeout_at(target_time):
+            if target_time is None:
                 v = await input()
+            else:
+                async with asyncio.timeout_at(target_time):
+                    v = await input()
         except TimeoutError:
             t = loop.time()
         else:
