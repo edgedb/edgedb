@@ -1363,6 +1363,15 @@ class Expr(Nonterm):
         )
 
     @parsing.precedence(precedence.P_TYPECAST)
+    def reduce_LANGBRACKET_FullTypeExpr_RANGBRACKET_ParameterOptType(
+            self, *kids):
+        self.val = qlast.TypeCast(
+            expr=kids[3].val,
+            type=kids[1].val,
+            cardinality_mod=None,
+        )
+
+    @parsing.precedence(precedence.P_TYPECAST)
     def reduce_LANGBRACKET_OPTIONAL_FullTypeExpr_RANGBRACKET_Expr(
             self, *kids):
         self.val = qlast.TypeCast(
@@ -1372,7 +1381,25 @@ class Expr(Nonterm):
         )
 
     @parsing.precedence(precedence.P_TYPECAST)
+    def reduce_LANGBRACKET_OPTIONAL_FullTypeExpr_RANGBRACKET_ParameterOptType(
+            self, *kids):
+        self.val = qlast.TypeCast(
+            expr=kids[4].val,
+            type=kids[2].val,
+            cardinality_mod=qlast.CardinalityModifier.Optional,
+        )
+
+    @parsing.precedence(precedence.P_TYPECAST)
     def reduce_LANGBRACKET_REQUIRED_FullTypeExpr_RANGBRACKET_Expr(
+            self, *kids):
+        self.val = qlast.TypeCast(
+            expr=kids[4].val,
+            type=kids[2].val,
+            cardinality_mod=qlast.CardinalityModifier.Required,
+        )
+
+    @parsing.precedence(precedence.P_TYPECAST)
+    def reduce_LANGBRACKET_REQUIRED_FullTypeExpr_RANGBRACKET_ParameterOptType(
             self, *kids):
         self.val = qlast.TypeCast(
             expr=kids[4].val,
@@ -1404,6 +1431,24 @@ class Expr(Nonterm):
     def reduce_Expr_INTERSECT_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op='INTERSECT',
                                right=kids[2].val)
+
+
+class ParameterOptType(Nonterm):
+    def reduce_PARAMETER(self, param):
+        self.val = qlast.Parameter(name=param.val[1:])
+
+    def reduce_PARAMETERANDTYPE(self, param):
+        assert param.val.startswith('<lit ')
+        type_name, param_name = param.val.removeprefix('<lit ').split('>$')
+        self.val = qlast.TypeCast(
+            type=qlast.TypeName(
+                maintype=qlast.ObjectRef(
+                    name=type_name,
+                    module='__std__'
+                )
+            ),
+            expr=qlast.Parameter(name=param_name),
+        )
 
 
 class IfThenElseExpr(Nonterm):
@@ -1511,27 +1556,10 @@ class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA,
 
 
 class Constant(Nonterm):
-    # PARAMETER
-    # | BaseNumberConstant
+    # BaseNumberConstant
     # | BaseStringConstant
     # | BaseBooleanConstant
     # | BaseBytesConstant
-
-    def reduce_PARAMETER(self, param):
-        self.val = qlast.Parameter(name=param.val[1:])
-
-    def reduce_PARAMETERANDTYPE(self, param):
-        assert param.val.startswith('<lit ')
-        type_name, param_name = param.val.removeprefix('<lit ').split('>$')
-        self.val = qlast.TypeCast(
-            type=qlast.TypeName(
-                maintype=qlast.ObjectRef(
-                    name=type_name,
-                    module='__std__'
-                )
-            ),
-            expr=qlast.Parameter(name=param_name),
-        )
 
     @parsing.inline(0)
     def reduce_BaseNumberConstant(self, *kids):
