@@ -846,19 +846,19 @@ def preprocess_script(
     Doing this in advance makes it easy to check that they have
     consistent types.
     """
-    param_lists = [
+    params_lists = [
         astutils.find_parameters(stmt, ctx.modaliases)
         for stmt in stmts
     ]
 
     if loose_params := [
-        loose for _, loose_list in param_lists
-        for loose in loose_list
+        loose for params in params_lists
+        for loose in params.loose_list
     ]:
         throw_on_loose_param(loose_params[0], ctx)
 
     casts = [
-        cast for cast_lists, _ in param_lists for cast in cast_lists
+        cast for cast_lists, _ in params_lists for cast in cast_lists
     ]
     params = {}
     for cast, modaliases in casts:
