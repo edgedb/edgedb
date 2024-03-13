@@ -230,11 +230,7 @@ cdef class Database:
     async def cache_notifier(self):
         await asyncutil.debounce(
             lambda: self._cache_notify_queue.get(),
-            lambda keys: self.tenant.signal_sysevent(
-                'query-cache-changes',
-                dbname=self.name,
-                keys=keys,
-            ),
+            lambda keys: asyncio.sleep(0),
             max_wait=1.0,
             delay_amt=0.2,
             # 100 keys will take up about 4000 bytes, which
