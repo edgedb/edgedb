@@ -1404,6 +1404,32 @@ class TestServerConfig(tb.QueryTestCase):
             ''')
             await self.con.execute("drop type RecompileOnDBConfig;")
 
+    async def test_server_proto_remember_pgcon_state(self):
+        query = 'SELECT assert_single(cfg::Config.__internal_sess_testvalue)'
+        con1 = await self.connect(database=self.con.dbname)
+        con2 = await self.connect(database=self.con.dbname)
+        try:
+            # make sure the default state is remembered in a pgcon
+            async with con1.transaction():
+                # `transaction()` is used as a fail-safe to store the state in
+                # pgcon, in case the query itself failed to do so by mistake
+                default = await con1.query_single(query)
+
+            # update the state in most-likely the same pgcon
+            await con2.execute(f'''
+                CONFIGURE SESSION
+                SET __internal_sess_testvalue := {default + 1};
+            ''')
+
+            # verify the state is successfully updated
+            self.assertEqual(await con2.query_single(query), default + 1)
+
+            # now switch back to the default state in con1 with the same pgcon
+            self.assertEqual(await con1.query_single(query), default)
+        finally:
+            await con1.aclose()
+            await con2.aclose()
+
 
 class TestSeparateCluster(tb.BaseHTTPTestCase):
 
