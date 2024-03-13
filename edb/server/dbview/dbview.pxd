@@ -73,6 +73,11 @@ cdef class Database:
         object _state_serializers
         readonly object user_config_spec
 
+        object _cache_worker_task
+        object _cache_queue
+        object _cache_notify_task
+        object _cache_notify_queue
+
         readonly str name
         readonly object schema_version
         readonly object dbver

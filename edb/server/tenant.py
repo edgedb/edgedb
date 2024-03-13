@@ -28,6 +28,7 @@ from typing import (
     AsyncGenerator,
     Dict,
     Set,
+    Optional,
     TypedDict,
     TYPE_CHECKING,
 )
@@ -1480,16 +1481,35 @@ class Tenant(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     async def _load_query_cache(
-        self, conn: pgcon.PGConnection
+        self,
+        conn: pgcon.PGConnection,
+        keys: Optional[Iterable[uuid.UUID]] = None,
     ) -> list[tuple[bytes, ...]] | None:
-        return await conn.sql_fetch(
-            b'SELECT "schema_version", "input", "output" '
-            b'FROM "edgedb"."_query_cache"',
-            use_prep_stmt=True,
-        )
+        if keys is None:
+            return await conn.sql_fetch(
+                b'''
+                SELECT "schema_version", "input", "output"
+                FROM "edgedb"."_query_cache"
+                ''',
+                use_prep_stmt=True,
+            )
+        else:
+            # If keys were specified, just load those keys.
+            # TODO: Or should we do something time based?
+            return await conn.sql_fetch(
+                b'''
+                SELECT "schema_version", "input", "output"
+                ROWS FROM json_array_elements($1) j(ikey)
+                INNER JOIN "edgedb"."_query_cache"
+                ON (to_jsonb(ARRAY[ikey])->>0)::uuid = key
+                ''',
+                args=(json.dumps(keys).encode('utf-8'),),
+                use_prep_stmt=True,
+            )
 
     async def evict_query_cache(
-        self, dbname: str,
+        self,
+        dbname: str,
         keys: Iterable[uuid.UUID],
     ) -> None:
         try:
@@ -1507,7 +1527,10 @@ class Tenant(ha_base.ClusterProtocol):
             finally:
                 self.release_pgcon(dbname, conn)
 
-            await self.signal_sysevent("query-cache-changes", dbname=dbname)
+            # XXX: TODO: We don't need to signal here in the
+            # non-function version, but in the function caching
+            # situation this will be fraught.
+            # await self.signal_sysevent("query-cache-changes", dbname=dbname)
 
         except Exception:
             logger.exception("error in evict_query_cache():")
@@ -1515,7 +1538,9 @@ class Tenant(ha_base.ClusterProtocol):
                 1.0, self._instance_name, "evict_query_cache"
             )
 
-    def on_remote_query_cache_change(self, dbname: str) -> None:
+    def on_remote_query_cache_change(
+        self, dbname: str, keys: Optional[list[str]],
+    ) -> None:
         if not self._accept_new_tasks:
             return
 
@@ -1526,7 +1551,7 @@ class Tenant(ha_base.ClusterProtocol):
                     return
 
                 try:
-                    query_cache = await self._load_query_cache(conn)
+                    query_cache = await self._load_query_cache(conn, keys=keys)
                 finally:
                     self.release_pgcon(dbname, conn)
 
