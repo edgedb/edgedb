@@ -623,7 +623,7 @@ class Router:
             email = await local_client.get_email_by_identity_id(identity_id)
         elif "email" in data:
             email = data["email"]
-            maybe_challenge = None
+            maybe_challenge = data.get("challenge", data.get("code_challenge"))
             maybe_redirect_to = data.get("redirect_to")
             if maybe_redirect_to and not self._is_url_allowed(
                 maybe_redirect_to
