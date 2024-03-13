@@ -1413,18 +1413,19 @@ class TestServerConfig(tb.QueryTestCase):
             async with con1.transaction():
                 # `transaction()` is used as a fail-safe to store the state in
                 # pgcon, in case the query itself failed to do so by mistake
-                self.assertEqual(await con1.query_single(query), 0)
+                default = await con1.query_single(query)
 
             # update the state in most-likely the same pgcon
-            await con2.execute('''
-                CONFIGURE SESSION SET __internal_sess_testvalue := 2;
+            await con2.execute(f'''
+                CONFIGURE SESSION
+                SET __internal_sess_testvalue := {default + 1};
             ''')
 
             # verify the state is successfully updated
-            self.assertEqual(await con2.query_single(query), 2)
+            self.assertEqual(await con2.query_single(query), default + 1)
 
             # now switch back to the default state in con1 with the same pgcon
-            self.assertEqual(await con1.query_single(query), 0)
+            self.assertEqual(await con1.query_single(query), default)
         finally:
             await con1.aclose()
             await con2.aclose()
