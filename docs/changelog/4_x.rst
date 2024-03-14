@@ -670,3 +670,39 @@ Bug fixes
 
 * Make overloading a link when omitting ``link`` keyword work
   (:eql:gh:`#6718`)
+
+4.6
+===
+
+* Fix issues with empty sets leaking out of optional scopes
+  (:eql:gh:`#6747`)
+
+* Fix empty array literals in SQL adapter
+  (:eql:gh:`#6806`)
+
+* Fix duration/memory config in config objects
+  (:eql:gh:`#6827`)
+
+* Fix hanging backend pool with fast connect
+  (:eql:gh:`#6813`)
+
+* Fix changing index expressions in migrations
+  (:eql:gh:`#6843`)
+
+* Properly report errors involving newly created types
+  (:eql:gh:`#6852`)
+
+* Make constraint error details contain useful information for developers
+  (:eql:gh:`#6796`)
+
+* Fix DML coalesce inside of IF/ELSE
+  (:eql:gh:`#6917`)
+
+* Allow trailing comma for GROUP's BY clause
+  (:eql:gh:`#7002`)
+
+* Fix computed single scalar globals
+  (:eql:gh:`#6999`)
+
+* Fix query cache dbver issue with concurrent DDL 
+  (:eql:gh:`#6819`)
