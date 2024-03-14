@@ -677,9 +677,6 @@ Bug fixes
 * Fix issues with empty sets leaking out of optional scopes
   (:eql:gh:`#6747`)
 
-* Fix some major issues with the error context printer
-  (:eql:gh:`#6772`)
-
 * Fix empty array literals in SQL adapter
   (:eql:gh:`#6806`)
 
@@ -706,3 +703,6 @@ Bug fixes
 
 * Fix computed single scalar globals
   (:eql:gh:`#6999`)
+
+* Fix query cache dbver issue with concurrent DDL 
+  (:eql:gh:`#6819`)
