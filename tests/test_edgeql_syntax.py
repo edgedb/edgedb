@@ -207,15 +207,6 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT FALSE;
         """
 
-    def test_edgeql_syntax_constants_06(self):
-        """
-        SELECT $1;
-        SELECT $123;
-        SELECT $somevar;
-        SELECT $select;
-        SELECT (($SELECT + $TRUE) + $WITH);
-        """
-
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "leading zeros are not allowed in numbers",
                   line=2, col=16)
@@ -480,11 +471,6 @@ aa';
     def test_edgeql_syntax_constants_41(self):
         r"""
         SELECT 'aaa \(aaa) bbb';
-        """
-
-    def test_edgeql_syntax_constants_42(self):
-        """
-        SELECT $select;
         """
 
     def test_edgeql_syntax_constants_43(self):
@@ -1386,16 +1372,6 @@ aa';
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':='", line=4, col=23)
-    def test_edgeql_syntax_shape_29(self):
-        """
-        SELECT Issue{
-            name,
-            related_to *$var,
-        };
-        """
-
     def test_edgeql_syntax_shape_30(self):
         """
         SELECT Named {
@@ -2259,26 +2235,6 @@ aa';
         SELECT TUP.1.1;
         """
 
-    def test_edgeql_syntax_path_29(self):
-        # legal when `$0`, `$1`, `$a` and `$abc` are tuples
-        """
-        SELECT $0.0;
-        SELECT $0.0.name;
-        SELECT $0.0.1.name;
-        SELECT $0.0.1.n;
-        SELECT $abc.0;
-        SELECT $abc.0.name;
-        SELECT $abc.0.1.name;
-        SELECT $abc.0.1.n;
-        """
-
-    def test_edgeql_syntax_path_30(self):
-        # legal when `$0`, `$1`, `$a` and `$abc` are tuples
-        """
-        SELECT $1.1.1;
-        SELECT $a.1.1;
-        """
-
     @tb.must_fail(errors.EdgeQLSyntaxError, r"bare \$ is not allowed",
                   line=2, col=16)
     def test_edgeql_syntax_path_31(self):
@@ -2548,6 +2504,13 @@ aa';
         SELECT <tuple<>>$1;
         """
 
+    def test_edgeql_syntax_cast_11(self):
+        """
+        SELECT <int64>$var;
+        SELECT <std::str>$var;
+        SELECT <std::array<std::str>>$var;
+        """
+
     def test_edgeql_syntax_with_01(self):
         """
         WITH
@@ -2799,13 +2762,6 @@ aa';
         """
         SELECT Issue {name} ORDER BY Issue.priority.name ASC EMPTY FIRST;
         SELECT Issue {name} ORDER BY Issue.priority.name DESC EMPTY LAST;
-        """
-
-    def test_edgeql_syntax_select_10(self):
-        """
-        SELECT User.name OFFSET $1;
-        SELECT User.name LIMIT $2;
-        SELECT User.name OFFSET $1 LIMIT $2;
         """
 
     def test_edgeql_syntax_select_11(self):
@@ -4587,7 +4543,7 @@ aa';
             EXTENDING std::constraint
         {
             SET errmessage := '{subject} must be one of: {p}.';
-            USING (contains($p, __subject__));
+            USING (contains(p, __subject__));
         };
         """
 
@@ -4595,7 +4551,7 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC p: anytype) {
             SET errmessage := '{subject} must be one of: {$p}.';
-            USING (contains($p, __subject__));
+            USING (contains(p, __subject__));
         };
         """
 
@@ -4603,7 +4559,7 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
-            USING (contains($param, __subject__));
+            USING (contains(param, __subject__));
         };
         """
 
@@ -4611,14 +4567,14 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum() {
             SET errmessage := '{subject} must be one of: {param}.';
-            USING (contains($param, __subject__));
+            USING (contains(param, __subject__));
         };
 
 % OK %
 
         CREATE ABSTRACT CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
-            USING (contains($param, __subject__));
+            USING (contains(param, __subject__));
         };
         """
 
@@ -6449,7 +6405,7 @@ class TestEdgeQLNormalization(EdgeQLSyntaxTest):
     ) -> None:
         pass
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=25)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=26)
     def test_edgeql_normalization_01(self):
         '''
         select count(foo 1);
