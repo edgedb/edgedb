@@ -1372,6 +1372,16 @@ class Expr(Nonterm):
         )
 
     @parsing.precedence(precedence.P_TYPECAST)
+    def reduce_TypeCast_with_shape(
+            self, *kids):
+        r"%reduce LANGBRACKET FullTypeExpr \
+                  RANGBRACKET ParameterOptType Shape"
+
+        raise errors.EdgeQLSyntaxError(
+            f"cannot apply a shape to the parameter",
+            context=kids[-2].context)
+
+    @parsing.precedence(precedence.P_TYPECAST)
     def reduce_LANGBRACKET_OPTIONAL_FullTypeExpr_RANGBRACKET_Expr(
             self, *kids):
         self.val = qlast.TypeCast(
@@ -1390,6 +1400,16 @@ class Expr(Nonterm):
         )
 
     @parsing.precedence(precedence.P_TYPECAST)
+    def reduce_Optional_TypeCast_with_shape(
+            self, *kids):
+        r"%reduce LANGBRACKET OPTIONAL FullTypeExpr \
+                  RANGBRACKET ParameterOptType Shape"
+
+        raise errors.EdgeQLSyntaxError(
+            f"cannot apply a shape to the parameter",
+            context=kids[-2].context)
+
+    @parsing.precedence(precedence.P_TYPECAST)
     def reduce_LANGBRACKET_REQUIRED_FullTypeExpr_RANGBRACKET_Expr(
             self, *kids):
         self.val = qlast.TypeCast(
@@ -1406,6 +1426,16 @@ class Expr(Nonterm):
             type=kids[2].val,
             cardinality_mod=qlast.CardinalityModifier.Required,
         )
+
+    @parsing.precedence(precedence.P_TYPECAST)
+    def reduce_Required_TypeCast_with_shape(
+            self, *kids):
+        r"%reduce LANGBRACKET REQUIRED FullTypeExpr \
+                  RANGBRACKET ParameterOptType Shape"
+
+        raise errors.EdgeQLSyntaxError(
+            f"cannot apply a shape to the parameter",
+            context=kids[-2].context)
 
     def reduce_Expr_IF_Expr_ELSE_Expr(self, *kids):
         if_expr, _, condition, _, else_expr = kids

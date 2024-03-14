@@ -2511,6 +2511,14 @@ aa';
         SELECT <std::array<std::str>>$var;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "cannot apply a shape to the parameter",
+                  line=2, col=22)
+    def test_edgeql_syntax_cast_12(self):
+        """
+        SELECT <uuid>$var { id };
+        """
+
     def test_edgeql_syntax_with_01(self):
         """
         WITH
