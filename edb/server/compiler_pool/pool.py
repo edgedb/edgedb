@@ -389,7 +389,13 @@ class AbstractPool:
             self._release_worker(worker)
 
     async def compile_in_tx(
-        self, txid, pickled_state, state_id, *compile_args
+        self,
+        dbname,
+        user_schema_pickle,
+        txid,
+        pickled_state,
+        state_id,
+        *compile_args,
     ):
         # When we compile a query, the compiler returns a tuple:
         # a QueryUnit and the state the compiler is in if it's in a
@@ -422,10 +428,21 @@ class AbstractPool:
             # state over the network. So we replace the state with a marker,
             # that the compiler process will recognize.
             pickled_state = state.REUSE_LAST_STATE_MARKER
+            dbname = user_schema_pickle = None
+        else:
+            worker_db = worker._dbs.get(dbname)
+            if worker_db is None:
+                dbname = None
+            elif worker_db.user_schema_pickle is user_schema_pickle:
+                user_schema_pickle = None
+            else:
+                dbname = None
 
         try:
             units, new_pickled_state = await worker.call(
                 'compile_in_tx',
+                dbname,
+                user_schema_pickle,
                 pickled_state,
                 txid,
                 *compile_args

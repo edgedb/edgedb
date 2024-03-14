@@ -426,6 +426,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_with_sysconfig = False
         self._in_tx_with_dbconfig = False
         self._in_tx_with_set = False
+        self._in_tx_root_user_schema_pickle = None
         self._in_tx_user_schema_pickle = None
         self._in_tx_user_schema_version = None
         self._in_tx_global_schema_pickle = None
@@ -845,6 +846,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_globals = self._globals
         self._in_tx_db_config = self._db.db_config
         self._in_tx_modaliases = self._modaliases
+        self._in_tx_root_user_schema_pickle = self._db.user_schema_pickle
         self._in_tx_user_schema_pickle = self._db.user_schema_pickle
         self._in_tx_user_schema_version = self._db.schema_version
         self._in_tx_global_schema_pickle = \
@@ -1269,6 +1271,8 @@ cdef class DatabaseConnectionView:
         try:
             if self.in_tx():
                 result = await compiler_pool.compile_in_tx(
+                    self.dbname,
+                    self._in_tx_root_user_schema_pickle,
                     self.txid,
                     self._last_comp_state,
                     self._last_comp_state_id,

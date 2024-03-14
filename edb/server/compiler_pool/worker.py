@@ -194,12 +194,23 @@ def compile(
     return units, pickled_state
 
 
-def compile_in_tx(cstate, *args, **kwargs):
+def compile_in_tx(
+    dbname: Optional[str],
+    user_schema: Optional[bytes],
+    cstate,
+    *args,
+    **kwargs
+):
     global LAST_STATE
     if cstate == state.REUSE_LAST_STATE_MARKER:
         cstate = LAST_STATE
     else:
         cstate = pickle.loads(cstate)
+        if dbname is None:
+            assert user_schema is not None
+            cstate.set_root_user_schema(pickle.loads(user_schema))
+        else:
+            cstate.set_root_user_schema(DBS[dbname].user_schema)
     units, cstate = COMPILER.compile_in_tx_request(cstate, *args, **kwargs)
     LAST_STATE = cstate
     return units, pickle.dumps(cstate, -1)
