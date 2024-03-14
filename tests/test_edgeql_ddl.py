@@ -743,6 +743,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ]
         )
 
+        # Make sure @source/@target are correct in created alias
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Link {
+                    pnames := .properties.name
+                } FILTER .name = {"connected", '__type__'}
+                  AND .source.name = 'default::Alias2'
+            """,
+            [
+                {"pnames": {'source', 'target'}},
+                {"pnames": {'source', 'target'}},
+            ]
+        )
+
     async def test_edgeql_ddl_20(self):
         await self.con.execute("""
 
