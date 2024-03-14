@@ -444,6 +444,10 @@ class ScalarVal:
     tp: ScalarTp
     val: Any
 
+    def __post_init__(self):
+        if self.tp == ScalarTp(name=QualifiedName(["std", "int64"])) and not isinstance(self.val, int):
+            raise ValueError("val must be an int")
+
 def IntVal(val: int):
     return ScalarVal(IntTp(), val)
 

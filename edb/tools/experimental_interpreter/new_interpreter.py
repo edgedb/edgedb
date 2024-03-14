@@ -40,8 +40,9 @@ from .type_checking_tools import schema_checking as sck
 
 
 
-def empty_db(schema : DBSchema) -> EdgeDatabaseInterface:
-    return InMemoryEdgeDatabase(schema)
+def empty_db(schema : DBSchema) -> EdgeDatabase:
+    storage = InMemoryEdgeDatabaseStorageProvider(schema)
+    return EdgeDatabase(storage)
 
 def empty_dbschema() -> DBSchema:
     return DBSchema({}, {}, {}, {}, {})
@@ -67,7 +68,7 @@ def default_dbschema() -> DBSchema:
 
 
 
-def run_statement(db: EdgeDatabaseInterface,
+def run_statement(db: EdgeDatabase,
                   stmt: qlast.Expr, dbschema: DBSchema,
                   should_print: bool,
                   logs: Optional[List[Any]],
@@ -141,7 +142,7 @@ def run_statement(db: EdgeDatabaseInterface,
     # debug.dump(stmt)
 
 
-def run_stmts(db: EdgeDatabaseInterface, stmts: Sequence[qlast.Expr],
+def run_stmts(db: EdgeDatabase, stmts: Sequence[qlast.Expr],
               dbschema: DBSchema, debug_print: bool,
               logs: Optional[List[Any]],
               skip_type_checking: bool = False,
@@ -159,7 +160,7 @@ def run_stmts(db: EdgeDatabaseInterface, stmts: Sequence[qlast.Expr],
             return [cur_val, *rest_val]
     raise ValueError("Not Possible")
 
-def run_meta_cmd(db: EdgeDatabaseInterface, dbschema: DBSchema, cmd: str) -> MultiSetVal:
+def run_meta_cmd(db: EdgeDatabase, dbschema: DBSchema, cmd: str) -> MultiSetVal:
     if cmd == "\ps":
         print(pp.show_module(dbschema.modules[("default",)]) + "\n")
     elif cmd == "\ps --all":
@@ -168,7 +169,7 @@ def run_meta_cmd(db: EdgeDatabaseInterface, dbschema: DBSchema, cmd: str) -> Mul
         raise ValueError("Unknown meta command: " + cmd)
 
 def run_str(
-    db: EdgeDatabaseInterface,
+    db: EdgeDatabase,
     dbschema: DBSchema,
     s: str,
     print_asts: bool = False,
@@ -190,7 +191,7 @@ def run_str(
 
 
 def run_single_str(
-    dbschema_and_db: Tuple[DBSchema, EdgeDatabaseInterface],
+    dbschema_and_db: Tuple[DBSchema, EdgeDatabase],
     s: str,
     variables: Dict[str, Val] = {},
     print_asts: bool = False
@@ -208,7 +209,7 @@ def run_single_str(
 
 
 def run_single_str_get_json(
-    dbschema_and_db: Tuple[DBSchema, EdgeDatabaseInterface],
+    dbschema_and_db: Tuple[DBSchema, EdgeDatabase],
     s: str,
     variables: Optional[Dict[str, Any] | Tuple[Any, ...]],
     print_asts: bool = False
@@ -236,7 +237,7 @@ def repl(*, init_sdl_file=None,
     ql_parser.preload_spec()
 
     dbschema: DBSchema 
-    db: EdgeDatabaseInterface
+    db: EdgeDatabase
     logs: List[Any] = []  # type: ignore[var]
 
     dbschema = default_dbschema()
@@ -325,7 +326,7 @@ def dbschema_and_db_with_initial_schema_and_queries(
         initial_queries: str,
         sqlite_file_name: Optional[str] = None,
         debug_print=False,
-        logs: Optional[List[Any]] = None) -> Tuple[DBSchema, EdgeDatabaseInterface]:
+        logs: Optional[List[Any]] = None) -> Tuple[DBSchema, EdgeDatabase]:
     if sqlite_file_name is not None:
         dbschema, db = sqlite_adapter.schema_and_db_from_sqlite(initial_schema_defs, sqlite_file_name)
     else:

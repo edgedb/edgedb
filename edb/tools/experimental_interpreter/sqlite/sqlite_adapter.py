@@ -5,27 +5,53 @@ import sqlite3
 import pickle
 from typing import List
 
-from ..db_interface import EdgeID
+from ..db_interface import EdgeID, EdgeDatabaseStorageProviderInterface
+from .. import db_interface
 
 from ..data.data_ops import *
 from ..data import data_ops as e
 from typing import *
 # from ..basis.built_ins import all_builtin_funcs
-from ..db_interface import EdgeDatabaseInterface
+from .. import db_interface
 from ..elab_schema import add_module_from_sdl_file, add_module_from_sdl_defs
 
 import copy
 
-# def sqlite_dbschema(sqlite_dbschema: Dict[str, ObjectTp]) -> DBSchema:
-#     return DBSchema(sqlite_dbschema, all_builtin_funcs)
 
 @dataclass(frozen=True)
 class PropertyTypeView:
     is_primitive: bool
     is_optional: bool
     is_singular: bool
-    target_type_name: Optional[e.QualifiedName]
-    link_props: Dict[str, PropertyTypeView]
+    target_type_name: List[e.QualifiedName] # a union (choice) of names
+    link_props: Dict[str, PropertyTypeView] # link props must be empty when is_primitive is True
+
+    def has_lp_table(self) -> bool:
+        if self.link_props:
+            fetch_from_lp_table = True
+        else:
+            if self.is_singular:
+                fetch_from_lp_table = False
+            else:
+                fetch_from_lp_table = True
+        return fetch_from_lp_table
+
+    def get_storage_class(self) -> str:
+        if self.target_type_name == [e.QualifiedName(["std", "int64"])] or not self.is_primitive:
+            return "INTEGER"
+        else:
+            return "TEXT"
+
+
+@dataclass(frozen=True)
+class ColumnSpec:
+    type: str # "INTEGER" or "TEXT"
+    is_nullable: bool
+
+@dataclass(frozen=True)
+class TableSpec:
+    columns: Dict[str, ColumnSpec]
+    primary_key: List[str]
 
 def get_property_type_view(result_tp: e.ResultTp) -> PropertyTypeView:
     tp = result_tp.tp
@@ -36,16 +62,31 @@ def get_property_type_view(result_tp: e.ResultTp) -> PropertyTypeView:
     match tp:
         case e.NamedNominalLinkTp(name=name, linkprop=link_props):
             assert isinstance(name, e.QualifiedName)
-            lp_view = {lpname : get_property_type_view(t) for (lpname, t) in link_props.items()}
-            return PropertyTypeView(is_primitive=False, is_optional=is_optional, is_singular=is_singular, target_type_name=name, link_props=lp_view)
+            lp_view = {lpname : get_property_type_view(t) for (lpname, t) in link_props.val.items() if not isinstance(t.tp, e.ComputableTp)}
+            return PropertyTypeView(is_primitive=False, is_optional=is_optional, is_singular=is_singular, target_type_name=[name], link_props=lp_view)
+        case e.ScalarTp(name=name):
+            return PropertyTypeView(is_primitive=True, is_optional=is_optional, is_singular=is_singular, target_type_name=[name], link_props={})
+        case e.CompositeTp(kind=kind, tps=tps, labels=labels):
+            # This is extremely TODO
+            return PropertyTypeView(is_primitive=True, is_optional=is_optional, is_singular=is_singular, target_type_name=[], link_props={})
+        case e.DefaultTp(expr=_, tp=inner):
+            return get_property_type_view(e.ResultTp(inner, result_tp.mode))
+        case e.ComputableTp(_):
+            raise ValueError("Computable type is not supported yet")
+        case e.UnionTp(left=l, right=r):
+            l_view = get_property_type_view(e.ResultTp(l, result_tp.mode))
+            r_view = get_property_type_view(e.ResultTp(r, result_tp.mode))
+            assert l_view.link_props == r_view.link_props, "Link props mismatch"
+            assert l_view.is_primitive == r_view.is_primitive, "Primitive mismatch"
+            return PropertyTypeView(
+                is_primitive=l_view.is_primitive,
+                is_optional=is_optional,
+                is_singular=is_singular,
+                target_type_name=l_view.target_type_name + r_view.target_type_name,
+                link_props=l_view.link_props
+            )
         case _:
             raise ValueError(f"Unimplemented type {tp}")
-
-            
-    
-    
-
-
 
 def get_schema_property_view(schema: e.DBSchema) -> Dict[str # type name
                                                         , Dict[str, #property name
@@ -57,94 +98,145 @@ def get_schema_property_view(schema: e.DBSchema) -> Dict[str # type name
     for name, mdef in default_module.defs.items():
         match mdef:
             case e.ModuleEntityTypeDef(typedef=e.ObjectTp(_), is_abstract=False, constraints=_):
-                type_def_view = {pname : get_property_type_view(t) for (pname, t) in mdef.typedef.items()}
+                type_def_view = {pname : get_property_type_view(t) for (pname, t) in mdef.typedef.val.items() if not isinstance(t.tp, e.ComputableTp)}
                 result[name] = type_def_view
             case _:
                 pass
     return result
 
-def create_or_populate_schema_table(conn: sqlite3.Connection, schema: e.DBSchema) -> None:
-    pass
+def get_table_view_from_property_view(schema_property_view: Dict[str, Dict[str, PropertyTypeView]]) -> Dict[str, TableSpec]:
+    result_table = {}
+    for tname, tdef in schema_property_view.items():
+        assert tname not in result_table, "Duplicate table name"
 
-    
+        all_single_prop_names = sorted([pname for (pname, pdef) in tdef.items() if pdef.is_singular])
+        result_table[tname] = TableSpec(
+            columns={"id": ColumnSpec(type="INTEGER", is_nullable=False),
+                     **{pname : ColumnSpec(type=tdef[pname].get_storage_class(),
+                                           is_nullable=tdef[pname].is_optional)
+                         for pname in all_single_prop_names
+                     }},
+            primary_key=["id"])
+        
+        for (pname, pdef) in tdef.items():
+            if pname in all_single_prop_names and len(pdef.link_props) == 0:
+                continue
 
+            tname_pname = f"{tname}.{pname}"
+            assert tname_pname not in result_table, "Duplicate table name"
 
-def compute_projection(cursor: sqlite3.Cursor,
-                       id : EdgeID,
-                       tp : str,
-                       prop: str
-                        )  -> MultiSetVal:
+            target_type = pdef.get_storage_class()
+            assert "source" not in pdef.link_props, "source is reserved"
+            assert "target" not in pdef.link_props, "target is reserved"
+            result_table[tname_pname] = TableSpec(
+                columns={"source": ColumnSpec(type="INTEGER", is_nullable=False),
+                         "target": ColumnSpec(type=target_type, is_nullable=False),
+                         **{
+                                lpname : ColumnSpec(type=pdef.link_props[lpname].get_storage_class(),
+                                                    is_nullable=pdef.link_props[lpname].is_optional)
+                                for lpname in pdef.link_props
+                            }},
+                primary_key=["source", "target"])
 
-    table_name = f"{tp}.{prop}"
-    cursor.execute(f"SELECT property_type FROM property_types WHERE table_name=?", (table_name,))
-    property_tp_row  = cursor.fetchone()
-    if property_tp_row is None:
-        raise ValueError(f"Table {table_name} not found in database")
+    if "objects" in result_table:
+        raise ValueError("objects table is reserved")
     else:
-        property_tp = property_tp_row[0]
-        if property_tp == "INT":
-            cursor.execute(f"SELECT int_value FROM \"{table_name}\" WHERE id=?", (id,))
-            return e.ResultMultiSetVal([IntVal(row[0]) for row in cursor.fetchall()])
-        elif property_tp == "STRING":
-            cursor.execute(f"SELECT string_value FROM \"{table_name}\" WHERE id=?", (id,))
-            return e.ResultMultiSetVal([StrVal(row[0]) for row in cursor.fetchall()])
-        elif property_tp == "LINK":
-            cursor.execute(f"SELECT link_value FROM \"{table_name}\" WHERE id=?", (id,))
-            targets : List[Val]= []
-            for link_target_id_row in cursor.fetchall():
-                link_target_id = link_target_id_row[0]
-                link_source_id = id
-                link_props : Dict[Label, Tuple[Marker, MultiSetVal]]= {}
+        result_table["objects"] = TableSpec(columns={"id": ColumnSpec(type="INTEGER", is_nullable=False),
+                                                    "tp": ColumnSpec(type="TEXT", is_nullable=False)},
+                                            primary_key=["id"])
 
-                # search all possible link properties
+    return result_table
 
-                prefix = tp + "." + prop + ".%"
-                cursor.execute("SELECT table_name FROM property_types WHERE table_name LIKE ?", (prefix,))
+def convert_val_to_sqlite_val(val: e.ResultMultiSetVal) -> Any:
+    assert isinstance(val, e.ResultMultiSetVal)
+    if len(val.getVals()) > 1:
+        raise ValueError("MultiSetVal is not supported yet")
+    elif len(val.getVals()) == 0:
+        return None
+    else:
+        match val.getVals()[0]:
+            case e.ScalarVal(tp=tp, val=v):
+                match tp:
+                    case e.QualifiedName(name=["std", "int64"]):
+                        return v
+                    case _:
+                        return str(v)
+            case e.RefVal(refid=refid, tpname=tpname, val=v):
+                return refid
+            case _:
+                raise ValueError(f"Unknown value {val}")
 
-                for link_property_table_name in [row[0] for row in cursor.fetchall()]:
-                    link_property_name = link_property_table_name.split(".")[2]
+class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
-                    cursor.execute(f"SELECT property_type FROM property_types WHERE table_name=?", (link_property_table_name,))
-                    link_property_tp_row  = cursor.fetchone()
-                    if link_property_tp_row is None:
-                        raise ValueError(f"Table {link_property_table_name} not found in property_types")
-                    else:
-                        link_property_tp = link_property_tp_row[0]
-                        if link_property_tp == "INT":
-                            cursor.execute(f"SELECT int_value FROM \"{link_property_table_name}\" WHERE source_id=? AND target_id=?", 
-                                            (link_source_id, link_target_id))
-                            link_props[LinkPropLabel(link_property_name)] = (Visible(), e.ResultMultiSetVal([IntVal(row[0]) for row in cursor.fetchall()]))
-                        elif link_property_tp == "STRING":
-                            cursor.execute(f"SELECT string_value FROM \"{link_property_table_name}\" WHERE source_id=? AND target_id=?",
-                                                (link_source_id, link_target_id))
-                            link_props[LinkPropLabel(link_property_name)] = (Visible(), e.ResultMultiSetVal([StrVal(row[0]) for row in cursor.fetchall()]))
-
-                targets.append(RefVal(link_target_id, ObjectVal(link_props)))
-            return e.ResultMultiSetVal(targets)
-        else:
-            raise ValueError(f"Unknown property type {property_tp}")
-
-class SQLiteEdgeDatabase(EdgeDatabaseInterface):
-
-    def __init__(self, conn: sqlite3.Connection, schema: DBSchema):
+    def __init__(self, conn:sqlite3.Connection, schema: e.DBSchema) -> None:
+        super().__init__()
         self.conn = conn
         self.schema = schema
         self.cursor = conn.cursor()
-        # to_insert is set to zero usually, but it is set to one to inserted but not committed data
-        self.cursor.execute("CREATE TABLE IF NOT EXISTS objects (id INTEGER PRIMARY KEY, tp TEXT NOT NULL, to_insert INTEGER NOT NULL)")
-        self.conn.commit()
-        self.cursor.execute("CREATE INDEX IF NOT EXISTS objects_idx1 ON objects (id)")
-        self.cursor.execute("CREATE INDEX IF NOT EXISTS objects_idx2 ON objects (tp)")
-        # property_type can be "INT", "STRING", "LINK"
-        self.cursor.execute("CREATE TABLE IF NOT EXISTS property_types (table_name TEXT PRIMARY KEY, property_type TEXT NOT NULL)")
-        self.cursor.execute("CREATE INDEX IF NOT EXISTS property_types_idx1 ON property_types (table_name)")
-        self.cursor.execute("CREATE INDEX IF NOT EXISTS property_types_idx2 ON property_types (property_type)")
-        
-        # deletes and updates are set on the side until commit
-        # inserts are directly written to the database
-        self.to_delete : List[EdgeID] = []
-        self.to_update : Dict[EdgeID, Dict[str, MultiSetVal]]= {}
 
+        self.schema_property_view = get_schema_property_view(schema)
+        self.table_view = get_table_view_from_property_view(self.schema_property_view)
+        self.id_initialization()
+        self.create_or_populate_schema_table()
+
+    def get_tp_name(self, tp: e.QualifiedName) -> str:
+        assert len(tp.names) == 2 and tp.names[0] == "default", "Only default module is supported"
+        return tp.names[1]
+
+    def to_tp_name(self, name: str) -> e.QualifiedName:
+        return e.QualifiedName(["default", name])
+
+    def get_type_for_an_id(self, id: EdgeID) -> e.QualifiedName:
+        self.cursor.execute("SELECT tp FROM objects WHERE id=?", (id,))
+        tp_row = self.cursor.fetchone()
+        if tp_row is None:
+            raise ValueError(f"ID {id} not found in database")
+        else:
+            return e.QualifiedName(tp_row[0].split("::"))
+
+    def to_type_for_an_id(self, tp: e.QualifiedName) -> str:
+        return "::".join(tp.names)
+
+    def convert_sqlite_result_to_val(self, 
+                                    result_data: Any, 
+                                    result_tp: PropertyTypeView,
+                                    link_props: Dict[str, Any]) -> Val:
+        assert link_props.keys() == result_tp.link_props.keys(), "Link props mismatch"
+
+
+        if len(link_props) > 0:
+
+            if len(result_tp.target_type_name) == 1:
+                tp_name = result_tp.target_type_name[0]
+            else:
+                tp_name = self.get_type_for_an_id(result_data)
+            converted_link_props = {lpname : self.convert_sqlite_result_to_val(link_props[lpname], result_tp.link_props[lpname], {}) for lpname in link_props}
+            return e.RefVal(refid=result_data,
+                        tpname=tp_name,
+                        val=ObjectVal(converted_link_props))
+        else:
+            if result_tp.is_primitive:
+                assert len(result_tp.target_type_name) == 1
+                tp_name = result_tp.target_type_name[0]
+                return e.ScalarVal(tp=e.ScalarTp(name=tp_name), val=result_data)
+            else:
+                if len(result_tp.target_type_name) == 1:
+                    tp_name = result_tp.target_type_name[0]
+                else:
+                    tp_name = self.get_type_for_an_id(result_data)
+                return e.RefVal(refid=result_data, tpname=tp_name, val={})
+
+    def create_or_populate_schema_table(self) -> None:
+        
+        for tname, tspec in self.table_view.items():
+            column_spec = ','.join([f"{cname} {cspec.type}" + ("" if cspec.is_nullable else " NOT NULL") 
+                                    for (cname, cspec) in tspec.columns.items()])
+            primary_key_spec = f"PRIMARY KEY ({','.join(tspec.primary_key)})"
+                                                
+            self.cursor.execute(f"""CREATE TABLE IF NOT EXISTS "{tname}" ({column_spec}, {primary_key_spec}) STRICT, WITHOUT ROWID""")
+            
+
+    def id_initialization(self):
         self.cursor.execute("CREATE TABLE IF NOT EXISTS next_id_to_return_gen (id INTEGER PRIMARY KEY)")
         self.cursor.execute("SELECT id FROM next_id_to_return_gen LIMIT 1")
         next_id_row = self.cursor.fetchone()
@@ -153,315 +245,11 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
         else:
             self.cursor.execute("INSERT INTO next_id_to_return_gen (id) VALUES (?)", (101,))
         self.conn.commit() # I am not sure whether this is needed
-
-
-    def dump_state(self) -> object:
-        self.conn.commit()
-
-        dump_script = '\n'.join(self.conn.iterdump())
-        return {
-            # "savepoint": save_point_name,
-            "dump": dump_script,
-            "to_delete": copy.copy(self.to_delete),
-            "to_update": copy.copy(self.to_update),
-        }
-
-    def restore_state(self, dumped_state) -> None:
-        self.to_delete = copy.copy(dumped_state["to_delete"])
-        self.to_update = copy.copy(dumped_state["to_update"])
-
-        # Drop all tables
-        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        tables = self.cursor.fetchall()
-        drop_statements = [f"DROP TABLE IF EXISTS \"{table[0]}\";" for table in tables]
-        drop_script = '\n'.join(drop_statements)
-
-        # Execute the drop script and the dump script
-        self.conn.executescript(drop_script + '\n' + dumped_state["dump"])
-
-    def query_ids_for_a_type(self, tp: str) -> List[EdgeID]:
-        # to insert is set to 1 if it is to insert, set to zero usually
-        # check if type exists
-        self.cursor.execute(f"SELECT id FROM objects WHERE to_insert=0 AND tp=?", (tp,))
-        return [row[0] for row in self.cursor.fetchall()]
-
-    def get_props_for_id(self, id: EdgeID) -> Dict[str, MultiSetVal]:
-        self.cursor.execute("SELECT tp, to_update FROM objects WHERE id=?", (id,))
-        tp_row = self.cursor.fetchone()
-        if tp_row is None:
-            raise ValueError(f"ID {id} not found in database")
-        else:
-            tp, to_insert = tp_row
-            if to_insert == 1 and id in self.to_update.keys():
-                return self.to_update[id]
-            else:
-                # select all table names that are potential candidates
-                prefix = tp + ".%"
-                self.cursor.execute("SELECT table_name FROM property_types WHERE table_name LIKE ?", (prefix,))
-                table_names = [row[0] for row in self.cursor.fetchall()]
-                result = {}
-                # properties are stored in table with tp_property
-                # link properties are stored in table with tp_property_linkprop
-                for table_name in table_names:
-                    if table_name.count(".")>1:
-                        continue
-                    property_name = table_name.split(".")[1]
-                    result[property_name] = self.project(id, property_name)
-                return result
-
-
-                
-    # def get_type_for_an_id(self, id: EdgeID) -> str:
-    #     self.cursor.execute("SELECT tp FROM objects WHERE id=?", (id,))
-    #     tp_row = self.cursor.fetchone()
-    #     if tp_row is None:
-    #         raise ValueError(f"ID {id} not found in database")
-    #     else:
-    #         return tp_row[0]
     
-    def is_projectable(self, id: EdgeID, prop: str) -> bool:
-        tp_name = self.get_type_for_an_id(id)
-        self.cursor.execute("SELECT property_type FROM property_types WHERE table_name=?", 
-                                (tp_name + "." + prop,))
-        property_type_row = self.cursor.fetchone()
-        if property_type_row is None:
-            return False
-        else:
-            return True
-    
-    def project(self, id: EdgeID, prop: str) -> MultiSetVal:
-        tp_name = self.get_type_for_an_id(id)
-        return compute_projection(self.cursor, id, tp_name, prop)
-
-    def reverse_project(self, subject_ids: Sequence[EdgeID], prop: str) -> MultiSetVal:
-
-        # retrieve all link tables:
-        self.cursor.execute("SELECT table_name FROM property_types WHERE property_type='LINK' AND table_name LIKE ?", (f"%.{prop}",))
-        link_tables = [row[0] for row in self.cursor.fetchall() if row[0].count(".")==1] # do not allow link property table names
-
-        result : List[Val] = []
-        for link_table in link_tables:
-            self.cursor.execute(f"SELECT id, link_value FROM \"{link_table}\" WHERE link_value IN ({','.join(['?']*len(subject_ids))})", subject_ids)
-            # retrive link proerty for each subject_id
-            for (source_id, target_id) in [row for row in self.cursor.fetchall()]:
-                # fetch the link property table names
-                self.cursor.execute("SELECT table_name, property_type FROM property_types WHERE table_name LIKE ?", (f"{link_table}.%",))
-                link_props : Dict[Label, Tuple[Marker, MultiSetVal]]= {}
-                for (link_property_table, link_property_type) in [row for row in self.cursor.fetchall() if row[0].count(".")==2]:
-                    property_name = link_property_table.split(".")[2]
-                    match link_property_type:
-                        case "LINK":
-                            raise ValueError("Link property cannot be a link property")
-                        case "INT":
-                            self.cursor.execute(f"SELECT int_value FROM \"{link_property_table}\" WHERE source_id=? AND target_id=?", (source_id, target_id))
-                            link_props[LinkPropLabel(property_name)] = (Visible(), e.ResultMultiSetVal([IntVal(row[0]) for row in self.cursor.fetchall()]))
-                        case "STRING":
-                            self.cursor.execute(f"SELECT string_value FROM \"{link_property_table}\" WHERE source_id=? AND target_id=?", (source_id, target_id))
-                            link_props[LinkPropLabel(property_name)] = (Visible(), e.ResultMultiSetVal([StrVal(row[0]) for row in self.cursor.fetchall()]))
-                        case _:
-                            raise ValueError(f"Unknown property type {link_property_type}")
-                result.append(RefVal(refid=source_id, val=ObjectVal(link_props)))
-        return e.ResultMultiSetVal(result)
-
-    def delete(self, id: EdgeID) -> None:
-        self.to_delete.append(id)
-    
-    # this is a smarter way to figure out a type of an expression
-    # by first looking at the passed in value, if the val is empty,
-    # it tryies to retrieve the type from the schema
-    def get_type_for_proprty(self, tp : str, prop : str, lp_prop : Optional[str], val : MultiSetVal) -> str:
-        # query the type from the database
-        if lp_prop is None:
-            self.cursor.execute("SELECT property_type FROM property_types WHERE table_name=?", (tp + "." + prop,))
-        else:
-            self.cursor.execute("SELECT property_type FROM property_types WHERE table_name=?", (tp + "." + prop + "." + lp_prop,))
-        property_type_row = self.cursor.fetchone()
-        if property_type_row is not None:
-            return property_type_row[0]
-
-        # retrive the type from the values and tp, and create appropriate table
-        result_tp = None
-        if len(val.getVals()) == 0:
-            schema = self.get_schema()
-            base_tp = schema.val[tp].val[prop].tp
-            if lp_prop is None:
-                match base_tp:
-                    case StrTp():
-                        result_tp =  "STRING"
-                    case IntTp():
-                        result_tp =  "INT"
-                    # case VarTp(_):
-                    #     result_tp =  "LINK"
-                    case NamedNominalLinkTp(_):
-                        result_tp =  "LINK"
-                    case _:
-                        raise ValueError(f"Unknown type {base_tp}")
-            else:
-                match base_tp:
-                    case NamedNominalLinkTp(name=name, linkprop=link_props):
-                        match link_props.val[lp_prop].tp:
-                            case StrTp():
-                                result_tp =  "STRING"
-                            case IntTp():
-                                result_tp =  "INT"
-                            case _:
-                                raise ValueError(f"Unknown type {link_props.val[lp_prop]}")
-        else:
-            if all(isinstance(v, StrVal) for v in val.getVals()):
-                result_tp =  "STRING"
-            elif all(isinstance(v, IntVal) for v in val.getVals()):
-                result_tp =  "INT"
-            elif all(isinstance(v, RefVal) for v in val.getVals()):
-                result_tp =  "LINK"
-            else:
-                raise ValueError(f"Unknown type for {val}")
-
-        assert result_tp is not None, "should be assigned a type"
-
-        # create the table
-        if lp_prop is None:
-            match result_tp:
-                case "STRING":
-                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS \"{tp}.{prop}\" (id INTEGER, string_value TEXT)") 
-                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS \"{tp}.{prop}_idx1\" ON \"{tp}.{prop}\" (id)")
-                    # IF NOT EXISTS serves to rule out database anormalies (maybe previosu transaction was cutout in the middle)
-                case "INT":
-                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS \"{tp}.{prop}\" (id INTEGER, int_value INTEGER)")
-                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS \"{tp}.{prop}_idx1\" ON \"{tp}.{prop}\" (id)")
-                case "LINK":
-                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS \"{tp}.{prop}\" (id INTEGER, link_value INTEGER)")
-                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS \"{tp}.{prop}_idx1\" ON \"{tp}.{prop}\" (id)")
-                case _:
-                    raise ValueError(f"Unknown type {result_tp}")
-        else:
-            match result_tp:
-                case "STRING":
-                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS \"{tp}.{prop}.{lp_prop}\" (source_id INTEGER, target_id INTEGER, string_value TEXT)")
-                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS \"{tp}.{prop}.{lp_prop}_idx1\" ON \"{tp}.{prop}.{lp_prop}\" (source_id, target_id)")
-                case "INT":
-                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS \"{tp}.{prop}.{lp_prop}\" (source_id INTEGER, target_id INTEGER, int_value INTEGER)")
-                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS \"{tp}.{prop}.{lp_prop}_idx1\" ON \"{tp}.{prop}.{lp_prop}\" (source_id, target_id)")
-                case _:
-                    raise ValueError(f"Unknown type {result_tp}")
-
-        # insert into the property_types table
-        if lp_prop is None:
-            self.cursor.execute("INSERT INTO property_types (table_name, property_type) VALUES (?, ?)", (tp + "." + prop, result_tp))
-        else:
-            self.cursor.execute("INSERT INTO property_types (table_name, property_type) VALUES (?, ?)", (tp + "." + prop + "." + lp_prop, result_tp))
-
-        return result_tp
-
-
-
-
-    def insert(self, tp: str, props : Dict[str, MultiSetVal]) -> EdgeID:
-        id = self.next_id()
-        # insert the object into the objects table
-        self.cursor.execute("INSERT INTO objects (id, tp, to_insert) VALUES (?, ?, ?)", (id, tp, 1))
-
-        for (prop, val) in props.items():
-
-            target_table_tp = self.get_type_for_proprty(tp, prop, None, val)
-            
-            # insert the property value
-            for v in val.getVals():
-                match v:
-                    case StrVal(s):
-                        self.cursor.execute(f"INSERT INTO \"{tp}.{prop}\" (id, string_value) VALUES (?, ?)", (id, s))
-                    case IntVal(i):
-                        self.cursor.execute(f"INSERT INTO \"{tp}.{prop}\" (id, int_value) VALUES (?, ?)", (id, i))
-                    case RefVal(refid, linkprop):
-                        # insert the link property table if it does not exist
-                        for (lp_name, (_, val)) in linkprop.val.items():
-                            lp_tp = self.get_type_for_proprty(tp, prop, lp_name.label, val)
-
-                            # insert the link property value
-                            for v in val.getVals():
-                                match v:
-                                    case StrVal(s):
-                                        self.cursor.execute(f"INSERT INTO {tp}.{prop}.{lp_name.label} (source_id, target_id, string_value) VALUES (?, ?, ?)", (id, refid, v))
-                                    case IntVal(i):
-                                        self.cursor.execute(f"INSERT INTO {tp}.{prop}.{lp_name.label} (source_id, target_id, int_value) VALUES (?, ?, ?)", (id, refid, v))
-                                    case _:
-                                        raise ValueError(f"Unknown value {v}")
-                    case _:
-                        raise ValueError(f"Unknown type {v}")
-
-
-
-
-
-
-        
-        return id
-
-    def update(self, id: EdgeID, props : Dict[str, MultiSetVal]) -> None:
-        self.to_update[id] = props
-    
-    def commit_dml(self) -> None:
-        # make insert permanent
-        self.cursor.execute("UPDATE objects SET to_insert=0 WHERE to_insert=1")
-
-        # perform the updates
-        for (id, props) in self.to_update.items():
-            tp = self.get_type_for_an_id(id)
-            for (prop_name, prop_val) in props.items():
-                prop_tp_str = self.get_type_for_proprty(tp, prop_name, None, prop_val)
-                match prop_tp_str:
-                    case "STRING":
-                        self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}\" WHERE id=?", (id,))
-                        for v in prop_val.getVals():
-                            assert isinstance(v, StrVal), "type mismatch"
-                            self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}\" VALUES (?, ?)", (id, v.val))
-                    case "INT":
-                        self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}\" WHERE id=?", (id,))
-                        for v in prop_val.getVals():
-                            assert isinstance(v, IntVal), "type mismatch"
-                            self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}\" VALUES (?, ?)", (id, v.val))
-                    case "LINK":
-                        self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}\" WHERE id=?", (id,))
-                        for v in prop_val.getVals():
-                            assert isinstance(v, RefVal), "type mismatch"
-                            self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}\" VALUES (?, ?)", (id, v.refid))
-                            # replace all link properties
-                            for (lp_name, (_, lp_val)) in v.val.val.items():
-                                lp_prop_tp_str = self.get_type_for_proprty(tp, prop_name, lp_name.label, lp_val)
-                                self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}.{lp_name.label}\" WHERE source_id=? AND target_id=?", (id, v.refid))
-                                match lp_prop_tp_str:
-                                    case "STRING":
-                                        for lp_v in lp_val.getVals():
-                                            assert isinstance(lp_v, StrVal), "type mismatch"
-                                            self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}.{lp_name.label}\" (source_id, target_id, string_value) VALUES (?, ?, ?)", (id, v.refid, lp_v.val))
-                                    case "INT":
-                                        for lp_v in lp_val.getVals():
-                                            assert isinstance(lp_v, IntVal), "type mismatch"
-                                            self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}.{lp_name.label}\" (source_id, target_id, int_value) VALUES (?, ?, ?)", (id, v.refid, lp_v.val))
-                                    case _:
-                                        raise ValueError(f"Unknown type {lp_v}")
-
-        # delete objects
-        for id in self.to_delete:
-            self.cursor.execute("DELETE FROM objects WHERE id=?", (id,))
-            # delete all properties and links
-            self.cursor.execute(f"SELECT table_name FROM property_types")
-            for (table_name, ) in self.cursor.fetchall():
-                if table_name.count(".") == 1:
-                    # it is a property table
-                    self.cursor.execute(f"DELETE FROM \"{table_name}\" WHERE id=?", (id,))
-                elif table_name.count(".") == 2:
-                    # it is a link proeprty table
-                    self.cursor.execute(f"DELETE FROM \"{table_name}\" WHERE source_id=? OR target_id=?", (id, id,))
-
-            
-        self.conn.commit() # do not commit as this may interfere with ROLLBACK, todo: figure out how to do proper checkpointing
-        self.to_delete = []
-        self.to_update = {}
-        self.to_insert = DB({})
-        
     def get_schema(self) -> DBSchema:
         return self.schema
-    
+
+      
     def next_id(self) -> EdgeID:
         ## XXX: This is not thread safe
         self.cursor.execute("SELECT id FROM next_id_to_return_gen LIMIT 1")
@@ -472,16 +260,153 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
         self.cursor.execute("UPDATE next_id_to_return_gen SET id = id + 1")
         return id
     
-    def close(self) -> None:
-        self.conn.close()
+    def query_ids_for_a_type(self, tp: e.QualifiedName, filters: List[db_interface.EdgeDatabaseSelectFilter]) -> List[EdgeID]:
+        assert len(filters) == 0, "Filters are not supported yet"
+        self.cursor.execute(f"""SELECT id FROM "{self.get_tp_name(tp)}" """)
+        return [row[0] for row in self.cursor.fetchall()]
+
+    def dump_state(self) -> object:
+        self.conn.commit()
+
+        dump_script = '\n'.join(self.conn.iterdump())
+        return {
+            "dump": dump_script,
+        }
+
+    def restore_state(self, dumped_state) -> None:
+
+        # Drop all tables
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = self.cursor.fetchall()
+        drop_statements = [f"DROP TABLE IF EXISTS \"{table[0]}\";" for table in tables]
+        drop_script = '\n'.join(drop_statements)
+
+        # Execute the drop script and the dump script
+        self.conn.executescript(drop_script + '\n' + dumped_state["dump"])
+
+    def next_id(self) -> EdgeID:
+        ## XXX: This is not thread safe
+        self.cursor.execute("SELECT id FROM next_id_to_return_gen LIMIT 1")
+        id_row = self.cursor.fetchone()
+        if id_row is None:
+            raise ValueError("Cannot fetch next id, check initialization")
+        id = id_row[0]
+        self.cursor.execute("UPDATE next_id_to_return_gen SET id = id + 1")
+        return id
     
 
+    def project(self, id: EdgeID, tp: e.QualifiedName, prop: str) -> MultiSetVal:
+        tp_name = self.get_tp_name(tp)
+        pview = self.schema_property_view[tp_name][prop]
+
+        fetch_from_lp_table = pview.has_lp_table()
+        
+        if fetch_from_lp_table:
+            lp_property_names = list(pview.link_props.keys())
+            lp_table_name = f"{tp_name}.{prop}"
+            if len(lp_property_names) > 0:
+                query = f"SELECT target, {','.join(lp_property_names)} FROM {lp_table_name} WHERE source=?"
+            else:
+                query = f"SELECT target FROM {lp_table_name} WHERE source=?"
+            self.cursor.execute(query, (id,))
+            result = []
+            for row in self.cursor.fetchall():
+                target_id = row[0]
+                lp_vals = {}
+                for i, lp_prop_name in enumerate(lp_property_names):
+                    lp_vals[lp_prop_name] = row[i+1]
+                result.append(self.convert_sqlite_result_to_val(target_id, pview, lp_vals))
+            return e.ResultMultiSetVal(result)
+        else:
+            query = f"SELECT {prop} FROM {tp_name} WHERE id=?"
+            self.cursor.execute(query, (id,))
+            result = []
+            for row in self.cursor.fetchall():
+                result.append(self.convert_sqlite_result_to_val(row[0], pview, {}))
+            return e.ResultMultiSetVal(result)
+
+
+    def reverse_project(self, subject_ids: Sequence[EdgeID], 
+                        subject_tps: Sequence[e.QualifiedName], 
+                        prop: str) -> MultiSetVal:
+        result : List[Val] = []
+        for (tp_name, tdef) in self.schema_property_view.items():
+            for prop_name, pview in tdef.items():
+                if prop_name == prop:
+                    if pview.has_lp_table():
+                        lp_property_names = list(pview.link_props.keys())
+                        lp_table_name = f"{tp_name}.{prop}"
+                        if len(lp_property_names) > 0:
+                            query = f"SELECT source, {','.join(lp_property_names)} FROM {lp_table_name} WHERE target IN ({','.join(['?']*len(subject_ids))})"
+                        else:
+                            query = f"SELECT source FROM {lp_table_name} WHERE target IN ({','.join(['?']*len(subject_ids))})"
+                    else:
+                        lp_property_names = []
+                        query = f"SELECT id FROM {tp_name} WHERE {prop} IN ({','.join(['?']*len(subject_ids))})"
+                    self.cursor.execute(query, subject_ids)
+                    for row in self.cursor.fetchall():
+                        source_id = row[0]
+                        lp_vals = {}
+                        for i, lp_prop_name in enumerate(lp_property_names):
+                            lp_vals[lp_prop_name] = self.convert_sqlite_result_to_val(row[i+1], pview.link_props[lp_prop_name], {})
+                        result.append(e.RefVal(refid=source_id, tpname=self.to_tp_name(tp_name), val=lp_vals))
+                    
+
+        return e.ResultMultiSetVal(result)
+
     
+    def insert(self, id: EdgeID, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> None:
+        tp_name = self.get_tp_name(tp)
+        tdef = self.schema_property_view[tp_name]
+
+        single_props = [pname for (pname, pview) in tdef.items() if pview.is_singular]
+        single_prop_vals = [convert_val_to_sqlite_val(props[pname]) for pname in single_props]
+        self.cursor.execute(f"INSERT INTO {tp_name} (id, {','.join(single_props)}) VALUES (?, {','.join(['?']*len(single_props))})",
+                            (id, *single_prop_vals))
+        
+        for (pname, pview) in tdef.items():
+            if pview.has_lp_table():
+                lp_table_name = f"{tp_name}.{pname}"
+                lp_property_names = list(pview.link_props.keys())
+                for v in props[pname].getVals():
+                    if len(lp_property_names) > 0:
+                        lp_props = [convert_val_to_sqlite_val(v.val.val[e.LinkPropLabel(lp_prop_name)][1]) for lp_prop_name in lp_property_names]
+                        self.cursor.execute(f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
+                                            (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), *lp_props))
+                    else:
+                        self.cursor.execute(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
+                                            (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v]))))
+        
+        self.cursor.execute(f"INSERT INTO objects (id, tp) VALUES (?, ?)", (id, self.to_type_for_an_id(tp)))
 
 
     
+    def delete(self, id: EdgeID, tp: e.QualifiedName) -> None:
+        raise NotImplementedError("delete is not implemented yet")
+    
+    def update(self, id: EdgeID, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> None:
+        tp_name = self.get_tp_name(tp)
+        tdef = self.schema_property_view[tp_name]
 
+        single_props = [pname for (pname, pview) in tdef.items() if pview.is_singular]
+        single_prop_vals = {pname : props[pname] for pname in single_props if pname in props}
+        if len(single_prop_vals) > 0:
+            self.cursor.execute(f"UPDATE {tp_name} SET {','.join([f'{pname}=?' for pname in single_prop_vals])} WHERE id=?", 
+                                (*single_prop_vals, id))
+        
+        for (pname, pview) in tdef.items():
+            if pview.has_lp_table() and pname in props:
+                lp_table_name = f"{tp_name}.{pname}"
+                lp_property_names = list(pview.link_props.keys())
+                for v in props[pname].getVals():
+                    if len(lp_property_names) > 0:
+                        lp_props = [convert_val_to_sqlite_val(v.val.val[e.LinkPropLabel(lp_prop_name)][1]) for lp_prop_name in lp_property_names]
+                        self.cursor.execute(f"UPDATE '{lp_table_name}' SET {','.join([f'{lp_prop_name}=?' for lp_prop_name in lp_property_names])}, target=? WHERE source=?",
+                                            (*lp_props, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), id))
+                    else:
+                        self.cursor.execute(f"UPDATE '{lp_table_name}' SET target=? WHERE source=?", (convert_val_to_sqlite_val(v), id))
 
+    
 def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):
     # Connect to the SQLite database
     conn = sqlite3.connect(sqlite_file_name)
@@ -501,6 +426,8 @@ def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):
         # Create sdl_schema table
         c.execute("CREATE TABLE sdl_schema (content TEXT)")
 
+    from ..new_interpreter import default_dbschema
+    dbschema = default_dbschema()
     if db_sdl is None:
 
         if sdl_file_content is None:
@@ -510,7 +437,7 @@ def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):
 
         # Read and store the content into sdl_schema table
         c.execute("INSERT INTO sdl_schema (content) VALUES (?)", (content,))
-        dbschema = add_module_from_sdl_defs(content)
+        dbschema = add_module_from_sdl_defs(dbschema, content)
 
         # Commit the changes
         conn.commit()
@@ -524,13 +451,14 @@ def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):
         if db_sdl != sdl_content:
             raise ValueError("Passed in SDL file differs from SQLite Schema.", sdl_content, db_sdl)
 
-        dbschema = add_module_from_sdl_defs(db_sdl)
+        dbschema = add_module_from_sdl_defs(dbschema, db_sdl)
 
     # Unpickle the objects
     # dbschema_val = pickle.loads(dbschema_bytes)
     # dbschema = sqlite_dbschema(dbschema_val)
 
-    db = SQLiteEdgeDatabase(conn, dbschema)
+    storage = SQLiteEdgeDatabaseStorageProvider(conn, dbschema)
+    db = db_interface.EdgeDatabase(storage)
     return dbschema, db
 
 

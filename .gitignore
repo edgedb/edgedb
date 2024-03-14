@@ -43,3 +43,4 @@ docs/_build
 temp_*
 
 *.temp.txt
+test_*.sqlite

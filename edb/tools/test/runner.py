@@ -778,6 +778,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self.test_annotations = collections.defaultdict(dict)
         self.warnings = []
         self.notImplemented = []
+        self.successes = []
         self.currently_running = {}
         # An index of all seen warnings to keep track
         # of repeated warnings.
@@ -827,6 +828,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
 
     def addSuccess(self, test):
         super().addSuccess(test)
+        self.successes.append(test)
         self.report_progress(test, Markers.passed)
 
     def addError(self, test, err):
@@ -1252,12 +1254,13 @@ class ParallelTextTestRunner:
         counts = [('tests ran', result.testsRun)]
 
         display = {
+            'successes': 'successes',
             'expectedFailures': 'expected failures',
             'notImplemented': 'not implemented',
             'unexpectedSuccesses': 'unexpected successes',
         }
 
-        for bit in ['failures', 'errors', 'expectedFailures',
+        for bit in ['successes', 'failures', 'errors', 'expectedFailures',
                     'notImplemented', 'unexpectedSuccesses', 'skipped']:
             count = len(getattr(result, bit))
             if count:

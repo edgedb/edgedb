@@ -77,7 +77,7 @@ def ctx_extend(ctx: EvalEnv, bnd : BindingExpr, val: MultiSetVal) -> Tuple[EvalE
     return {**ctx, bnd_no_capture.var: val}, instantiate_expr(
                 e.FreeVarExpr(bnd_no_capture.var), bnd_no_capture)
 
-def apply_shape(ctx: EvalEnv, db : EdgeDatabaseInterface, shape: ShapeExpr, value: Val) -> Val:
+def apply_shape(ctx: EvalEnv, db : EdgeDatabase, shape: ShapeExpr, value: Val) -> Val:
     def apply_shape_to_prodval(
             shape: ShapeExpr, objectval: ObjectVal) -> ObjectVal:
         result: Dict[Label, Tuple[Marker, MultiSetVal]] = {}
@@ -105,7 +105,7 @@ def apply_shape(ctx: EvalEnv, db : EdgeDatabaseInterface, shape: ShapeExpr, valu
 
 
 def eval_expr_list(ctx: EvalEnv,
-                   db : EdgeDatabaseInterface,
+                   db : EdgeDatabase,
                    exprs: Sequence[Expr]) -> Sequence[MultiSetVal]:
     result: Sequence[MultiSetVal] = []
     for expr in exprs:
@@ -115,9 +115,9 @@ def eval_expr_list(ctx: EvalEnv,
 
 # not sure why the semantics says to produce empty set when label not present
 
-def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: Label) -> MultiSetVal:
+def singular_proj(ctx: EvalEnv, db: EdgeDatabase, subject: Val, label: Label) -> MultiSetVal:
     match subject:
-        case RefVal(refid=id, val=objVal):
+        case RefVal(refid=id, tpname=tpname, val=objVal):
             if label in objVal.val.keys():
                 return objVal.val[label][1]
             elif isinstance(label, StrLabel):
@@ -125,7 +125,7 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
                 if label_str == "id":
                     return e.ResultMultiSetVal([e.UuidVal(id)])
                 else:
-                    return db.project(id, label_str)
+                    return db.project(id, tpname, label_str)
             else:
                 raise ValueError("Label not found", label)
         case NamedTupleVal(val=dic):
@@ -190,10 +190,10 @@ class EvaluationLogsWrapper:
         self.logs = logs
         self.indexes: List[int] = []
 
-    def __call__(self, eval_expr: Callable[[EvalEnv, EdgeDatabaseInterface, Expr], MultiSetVal]):
+    def __call__(self, eval_expr: Callable[[EvalEnv, EdgeDatabase, Expr], MultiSetVal]):
         self.original_eval_expr = eval_expr
 
-        def wrapper(ctx: EvalEnv, db: EdgeDatabaseInterface, expr: Expr) -> MultiSetVal:
+        def wrapper(ctx: EvalEnv, db: EdgeDatabase, expr: Expr) -> MultiSetVal:
             if self.logs is None:
                 return self.original_eval_expr(ctx, db, expr)
             else:
@@ -229,7 +229,7 @@ def do_conditional_dedup(val: MultiSetVal) -> MultiSetVal:
 # the database is a mutable reference that keeps track of a read snapshot inside
 @eval_logs_wrapper
 def eval_expr(ctx: EvalEnv,
-                db: EdgeDatabaseInterface,
+                db: EdgeDatabase,
                 expr: Expr) -> MultiSetVal:
     match expr:
         case ScalarVal(_):
@@ -250,11 +250,11 @@ def eval_expr(ctx: EvalEnv,
             id = db.insert(tname, {})
             argv = {k : eval_expr(ctx, db, v) for (k,v) in arg.items()}
             arg_object = ObjectVal({StrLabel(k): (e.Visible(), v) for (k,v) in argv.items()})
-            type_def = mops.resolve_type_name(db.get_schema(), tname)
+            type_def = mops.resolve_type_name(db.storage.get_schema(), tname)
             if isinstance(type_def, e.ObjectTp):
                 new_object = coerce_to_storage(
                     arg_object, tops.get_storage_tp(type_def))
-                db.update(id, {k : v  for k, v in new_object.items() })
+                db.update(id, tname, {k : v  for k, v in new_object.items() })
                 return e.ResultMultiSetVal([RefVal(id, tname, ObjectVal({}))])
             else:
                 raise ValueError("Cannot insert into scalar types")
@@ -298,7 +298,7 @@ def eval_expr(ctx: EvalEnv,
         case e.QualifiedName(names=names):
                 all_ids: Sequence[Val] = [
                     RefVal(id, e.QualifiedName(names=names), ObjectVal({}))
-                    for id in db.query_ids_for_a_type(expr)]
+                    for id in db.storage.query_ids_for_a_type(expr, [])]
                 return e.ResultMultiSetVal(all_ids)
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):
             assert idx is not None, "overloading index must be set in type checking"
@@ -359,7 +359,8 @@ def eval_expr(ctx: EvalEnv,
                            isinstance(v, RefVal) else
                            eval_error(v, "expecting references")
                            for v in subjectv.getVals()]
-            return db.reverse_project(subject_ids, label)
+            
+            return db.storage.reverse_project(subject_ids, label)
         case e.IsTpExpr(subject=subject, tp=tp_name):
             if not isinstance(tp_name, e.QualifiedName):
                 raise ValueError("Should be updated during tcking")
@@ -427,9 +428,9 @@ def eval_expr(ctx: EvalEnv,
         case e.DeleteExpr(subject=subject):
             subjectv = eval_expr(ctx, db, subject)
             if all([val_is_ref_val(v) for v in subjectv.getVals()]):
-                delete_ref_ids = [v.refid for v in subjectv.getVals()]
-                for delete_id in delete_ref_ids:
-                    db.delete(delete_id)
+                delete_ref_ids = [(v.refid, v.tpname) for v in subjectv.getVals()]
+                for (delete_id, tpname) in delete_ref_ids:
+                    db.delete(delete_id, tpname)
                 return subjectv
             else:
                 return eval_error(expr, "expecting all references")
@@ -443,6 +444,7 @@ def eval_expr(ctx: EvalEnv,
                     cut_tp = {k : v for (k,v) in full_tp.val.items() if StrLabel(k) in u.val.val.keys()}
                     db.update(
                         u.refid,
+                        u.tpname,
                         coerce_to_storage(u.val, ObjectTp(cut_tp))
                     )
                 return e.ResultMultiSetVal(updated)
@@ -544,7 +546,7 @@ def eval_ctx_from_variables(variables) -> EvalEnv:
         raise ValueError("")
 
 
-def eval_expr_toplevel(db: EdgeDatabaseInterface, expr: Expr,
+def eval_expr_toplevel(db: EdgeDatabase, expr: Expr,
                        variables: Dict[str, Val] | Tuple[Val] = None,
                        logs: Optional[Any] = None) -> MultiSetVal:
 
