@@ -31,7 +31,7 @@ from edb.tools.edb import edbcommands
 def main():
     qlparser.preload_spec()
 
-    for q in QUERIES[-10:]:
+    for q in QUERIES[-1:]:
         sdl = q.startswith('sdl')
         if sdl:
             q = q[3:]
@@ -328,4 +328,18 @@ QUERIES = [
     '''
     INSERT Foo FILTER Foo.bar = 42;
     ''',
+    '''
+    start migration to {
+      module default {
+        type Hello extending MetaHello {
+          property platform_fee_percentage: int16 {
+            constrant exclusive {
+              errmessage := "asxasx";
+            }
+          }
+          required property blah := .bleh - .bloh - .blih;
+        }
+      }
+    }
+    '''
 ]

@@ -6429,6 +6429,27 @@ aa';
         crEAte something;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected 'exclusive'", line=6, col=27)
+    def test_edgeql_syntax_ddl_01(self):
+        """
+        start migration to {
+          module default {
+            type Hello extending MetaHello {
+              property platform_fee_percentage: int16 {
+                constrant exclusive {
+                  errmessage := "asxasx";
+                }
+              }
+              required property blah := .bleh - .bloh - .blih;
+            }
+          }
+        }
+        """
+        # TODO: this actually returns a bunch of errors, but we throw all away
+        # and pick only first.
+        # When returning multiple errors is supported, we should still return
+        # just the first one.
 
 class TestEdgeQLNormalization(EdgeQLSyntaxTest):
 
