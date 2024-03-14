@@ -8212,6 +8212,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
             await self.con.query("select ($0, <std::int64>$0)")
 
+    async def test_edgeql_select_params_04(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    "cannot apply a shape to the parameter"):
+            await self.con.query("select <std::int64>$0 { id }")
+
+
     async def test_edgeql_type_pointer_inlining_01(self):
         await self.con._fetchall(
             r'''
