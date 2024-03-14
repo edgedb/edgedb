@@ -55,6 +55,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
     let mut new_parsers = Vec::with_capacity(parsers.len() + 5);
 
     for token in input {
+        // println!("token {:?}", token);
         while let Some(mut parser) = parsers.pop() {
             let res = parser.act(ctx, token);
 
@@ -75,22 +76,24 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                 };
 
                 // option 1: inject a token
-                let possible_actions = &ctx.spec.actions[parser.stack_top.state];
-                for token_kind in possible_actions.keys() {
-                    let mut inject = parser.clone();
+                if parser.error_cost <= ERROR_COST_INJECT_MAX {
+                    let possible_actions = &ctx.spec.actions[parser.stack_top.state];
+                    for token_kind in possible_actions.keys() {
+                        let mut inject = parser.clone();
 
-                    let injection = new_token_for_injection(*token_kind, ctx);
+                        let injection = new_token_for_injection(*token_kind, ctx);
 
-                    let cost = injection_cost(token_kind);
-                    let error = Error::new(format!("Missing {injection}")).with_span(gap_span);
-                    inject.push_error(error, cost);
+                        let cost = injection_cost(token_kind);
+                        let error = Error::new(format!("Missing {injection}")).with_span(gap_span);
+                        inject.push_error(error, cost);
 
-                    if inject.error_cost <= ERROR_COST_INJECT_MAX {
-                        // println!("   --> [inject {injection}]");
+                        if inject.error_cost <= ERROR_COST_INJECT_MAX {
+                            if inject.act(ctx, injection).is_ok() {
+                                // println!("   --> [inject {injection}]");
 
-                        if inject.act(ctx, injection).is_ok() {
-                            // insert into parsers, to retry the original token
-                            parsers.push(inject);
+                                // insert into parsers, to retry the original token
+                                parsers.push(inject);
+                            }
                         }
                     }
                 }
@@ -104,12 +107,14 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                             .push_error(error.default_span_to(token.span), ERROR_COST_CUSTOM_ERROR);
                         parser.has_custom_error = true;
 
+                        // println!("   --> [custom error]");
                         new_parsers.push(parser);
                         continue;
                     }
                 } else if parser.has_custom_error {
                     // when there is a custom error, just skip the tokens until
                     // the parser recovers
+                    // println!("   --> [skip because of custom error]");
                     new_parsers.push(parser);
                     continue;
                 }
@@ -124,9 +129,8 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                     skip.can_recover = false;
                 }
 
-                // println!("   --> [skip]");
-
                 // insert into new_parsers, so the token is skipped
+                // println!("   --> [skip] {}", skip.error_cost);
                 new_parsers.push(skip);
             }
         }
@@ -150,6 +154,11 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                     new_parsers.push(recovered);
                 }
             }
+        }
+
+        // prune: pick only 1 best parsers that has cost > ERROR_COST_INJECT_MAX
+        if new_parsers[0].error_cost > ERROR_COST_INJECT_MAX {
+            new_parsers.drain(1..);
         }
 
         // prune: pick only X best parsers
@@ -245,8 +254,7 @@ pub struct Reduce {
 /// Any types that do allocation with global allocator (such as String or Vec),
 /// must manually drop. This is why Terminal has a special vec arena that does
 /// Drop.
-#[derive(Debug, Clone, Copy)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum CSTNode<'a> {
     #[default]
     Empty,
@@ -566,8 +574,6 @@ impl std::fmt::Display for Terminal {
         }
     }
 }
-
-
 
 impl Terminal {
     pub fn from_token(token: Token) -> Self {
