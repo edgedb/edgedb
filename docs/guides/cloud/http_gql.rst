@@ -15,7 +15,7 @@ Enabling
 ========
 
 EdgeDB Cloud can expose an HTTP endpoint for EdgeQL queries. Since HTTP is a
-stateless protocol, no :ref:`DDL <ref_eql_ddl>`, :ref:`transaction commands
+stateless protocol, no :ref:`DDL <ref_eql_ddl>` or :ref:`transaction commands
 <ref_eql_statements_start_tx>`, can be executed using this endpoint.  Only one
 query per request can be executed.
 
