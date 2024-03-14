@@ -19,6 +19,7 @@ interface nearly identical to the :ref:`EdgeDB UI <ref_cli_edgedb_ui>`.
 
     cli
     web
+    http_gql
     deploy/index
     deploy/vercel
     deploy/netlify
