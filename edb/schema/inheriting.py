@@ -92,6 +92,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         *,
         fields: Optional[Iterable[str]] = None,
         ignore_local: bool = False,
+        apply: bool = True,
     ) -> s_schema.Schema:
         from . import referencing as s_referencing
 
@@ -191,8 +192,10 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 self.get_attribute_value("inherited_fields"),
             )
 
-        for op in deferred_complex_ops:
-            schema = op.apply(schema, context)
+        # In some cases, self will be applied later
+        if apply:
+            for op in deferred_complex_ops:
+                schema = op.apply(schema, context)
 
         return schema
 
@@ -975,7 +978,7 @@ class AlterInheritingObjectOrFragment(
             with ctx_stack():
                 assert isinstance(d_alter_cmd, InheritingObjectCommand)
                 schema = d_alter_cmd.inherit_fields(
-                    schema, context, d_bases, fields=props)
+                    schema, context, d_bases, fields=props, apply=False)
 
             self.add_caused(d_root_cmd)
 

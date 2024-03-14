@@ -421,24 +421,6 @@ class AlterAliasLike(
 
         return super()._alter_begin(schema, context)
 
-    def _alter_finalize(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._alter_finalize(schema, context)
-        if not self.canonical:
-            # For unknown reasons (at least to me), _alter_begin was being
-            # called multiple times with context.canonical==False, on the same
-            # object. This is probably wrong and it did cause problems because
-            # we were dropping created_types before their shells were even
-            # fully created, which was producing errors.
-            # This is a workaround: after canonicalizing, set self.canonical to
-            # True so canonicalization code is not run again.
-            self.canonical = True
-        return schema
-
-
 class AlterAlias(
     AlterAliasLike[Alias],
     AliasCommand,
