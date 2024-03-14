@@ -820,11 +820,13 @@ def check_params(params: Dict[str, irast.Param]) -> None:
 
 def throw_on_shaped_param(
     param: qlast.Parameter,
+    shape: qlast.Shape,
     ctx: context.ContextLevel
 ) -> None:
     raise errors.QueryError(
         f'cannot apply a shape to the parameter',
-        context=param.context)
+        hint='Consider adding parentheses around the parameter and type cast',
+        context=shape.context)
 
 
 def throw_on_loose_param(
@@ -860,17 +862,17 @@ def preprocess_script(
         for stmt in stmts
     ]
 
-    if shaped_params := [
-        shaped for params in params_lists
-        for shaped in params.shaped_params
-    ]:
-        throw_on_shaped_param(shaped_params[0], ctx)
-
     if loose_params := [
         loose for params in params_lists
         for loose in params.loose_params
     ]:
         throw_on_loose_param(loose_params[0], ctx)
+
+    if shaped_params := [
+        shaped for params in params_lists
+        for shaped in params.shaped_params
+    ]:
+        throw_on_shaped_param(shaped_params[0][0], shaped_params[0][1], ctx)
 
     casts = [
         cast for params in params_lists for cast in params.cast_params

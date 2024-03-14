@@ -127,7 +127,9 @@ class Params:
     cast_params: List[
         Tuple[qlast.TypeCast, Dict[Optional[str], str]]
     ] = field(default_factory=list)
-    shaped_params: List[qlast.Parameter] = field(default_factory=list)
+    shaped_params: List[
+        Tuple[qlast.Parameter, qlast.Shape]
+    ] = field(default_factory=list)
     loose_params: List[qlast.Parameter] = field(default_factory=list)
 
 class FindParams(ast.NodeVisitor):
@@ -164,7 +166,7 @@ class FindParams(ast.NodeVisitor):
             self.params.cast_params.append((n, self.modaliases))
         elif isinstance(n.expr, qlast.Shape):
             if isinstance(n.expr.expr, qlast.Parameter):
-                self.params.shaped_params.append(n.expr.expr)
+                self.params.shaped_params.append((n.expr.expr, n.expr))
             else:
                 self.generic_visit(n)
         else:
