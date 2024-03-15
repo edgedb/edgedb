@@ -350,14 +350,6 @@ def _inline_array_slicing(
     )
 
 
-@dispatch.compile.register(irast.TypeIntrospection)
-def compile_TypeIntrospection(
-        expr: irast.TypeIntrospection, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
-    raise errors.UnsupportedFeatureError(
-        'type introspection not supported in simple expressions')
-
-
 def _compile_call_args(
     expr: irast.Call, *,
     ctx: context.CompilerContextLevel
@@ -649,6 +641,13 @@ def compile_TypeRef(
         expr: irast.TypeRef, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     return astutils.compile_typeref(expr)
+
+
+@dispatch.compile.register(irast.TypeIntrospection)
+def compile_TypeIntrospection(
+        expr: irast.TypeIntrospection, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    return astutils.compile_typeref(expr.output_typeref)
 
 
 @dispatch.compile.register(irast.FunctionCall)
