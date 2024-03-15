@@ -80,7 +80,7 @@ def compile_orderby_clause(
                 ir_sortexpr = dispatch.compile(sortexpr.path, ctx=exprctx)
                 ir_sortexpr = setgen.scoped_set(
                     ir_sortexpr, force_reassign=True, ctx=exprctx)
-                ir_sortexpr.context = sortexpr.span
+                ir_sortexpr.span = sortexpr.span
 
                 # Check that the sortexpr type is actually orderable
                 # with either '>' or '<' based on the DESC or ASC sort
@@ -146,6 +146,6 @@ def compile_limit_offset_clause(
                 sn.QualName('std', 'int64'))
             ir_set = setgen.scoped_set(
                 ir_expr, force_reassign=True, typehint=int_t, ctx=subctx)
-            ir_set.context = expr.span
+            ir_set.span = expr.span
 
     return ir_set

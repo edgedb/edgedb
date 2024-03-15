@@ -245,7 +245,7 @@ def compile_FunctionCall(
             raise errors.UnsupportedFeatureError(
                 'newly created or updated objects cannot be passed to '
                 'functions',
-                context=arg.expr.context
+                context=arg.expr.span
             )
 
     if not in_abstract_constraint:
@@ -308,7 +308,6 @@ def compile_FunctionCall(
         preserves_upper_cardinality=func.get_preserves_upper_cardinality(
             env.schema),
         params_typemods=params_typemods,
-        context=expr.span,
         typeref=typegen.type_to_typeref(
             rtype, env=env,
         ),
@@ -320,6 +319,7 @@ def compile_FunctionCall(
         impl_is_strict=func.get_impl_is_strict(env.schema),
         prefer_subquery_args=func.get_prefer_subquery_args(env.schema),
         global_args=global_args,
+        span=expr.span,
     )
 
     # Apply special function handling
@@ -385,7 +385,7 @@ def compile_operator(
             raise errors.QueryError(
                 f'could not resolve the type of operand '
                 f'#{ai} of {op_name}',
-                context=qlarg.context)
+                context=qlarg.span)
 
         args.append((arg_type, arg_ir))
 
@@ -640,12 +640,12 @@ def compile_operator(
         volatility=oper.get_volatility(env.schema),
         operator_kind=oper.get_operator_kind(env.schema),
         params_typemods=params_typemods,
-        context=qlexpr.span,
         typeref=typegen.type_to_typeref(rtype, env=env),
         typemod=oper.get_return_typemod(env.schema),
         tuple_path_ids=[],
         impl_is_strict=oper.get_impl_is_strict(env.schema),
         prefer_subquery_args=oper.get_prefer_subquery_args(env.schema),
+        span=qlexpr.span,        
     )
 
     _check_free_shape_op(node, ctx=ctx)
@@ -676,7 +676,7 @@ def _check_free_shape_op(
         if typ.issubclass(ctx.env.schema, virt_obj):
             raise errors.QueryError(
                 f'cannot use {ir.func_shortname.name} on free shape',
-                context=ir.context)
+                context=ir.span)
 
 
 def validate_recursive_operator(
@@ -738,7 +738,7 @@ def compile_func_call_args(
             raise errors.QueryError(
                 f'could not resolve the type of positional argument '
                 f'#{ai} of function {funcname}',
-                context=arg.context)
+                context=arg.span)
 
         args.append((arg_type, arg_ir))
 
@@ -752,7 +752,7 @@ def compile_func_call_args(
             raise errors.QueryError(
                 f'could not resolve the type of named argument '
                 f'${aname} of function {funcname}',
-                context=arg.context)
+                context=arg.span)
 
         kwargs[aname] = (arg_type, arg_ir)
 
@@ -939,7 +939,7 @@ def compile_fts_search(
     stype_id = object_typeref.id
 
     schema = ctx.env.schema
-    span = object_arg.context
+    span = object_arg.span
 
     stype = schema.get_by_id(stype_id, type=s_types.Type)
 
@@ -1004,7 +1004,7 @@ def compile_fts_with_options(
     if not irutils.is_const(weight_expr):
         raise errors.InvalidValueError(
             f"fts::search weight_category must be a constant",
-            context=weight_expr.context,
+            context=weight_expr.span,
         )
     weight_const = irutils.as_const(weight_expr)
     if weight_const:

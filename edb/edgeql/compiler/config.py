@@ -119,7 +119,7 @@ def compile_ConfigSet(
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
         is_system_config=info.is_system_config,
-        context=expr.span,
+        span=expr.span,
         expr=param_val,
         backend_expr=backend_expr,
     )
@@ -181,7 +181,7 @@ def compile_ConfigReset(
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
         is_system_config=info.is_system_config,
-        context=expr.span,
+        span=expr.span,
         selector=select_ir,
     )
     return setgen.ensure_set(config_reset, ctx=ctx)
@@ -229,7 +229,7 @@ def compile_ConfigInsert(
             backend_setting=info.backend_setting,
             is_system_config=info.is_system_config,
             expr=insert_subject,
-            context=expr.span,
+            span=expr.span,
         ),
         ctx=ctx,
     )

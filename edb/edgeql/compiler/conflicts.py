@@ -471,7 +471,7 @@ def compile_insert_unless_conflict(
         stmt, typ,
         constrs=pointers,
         obj_constrs=obj_constrs,
-        span=stmt.context, ctx=ctx)
+        span=stmt.span, ctx=ctx)
 
     return irast.OnConflictClause(
         constraint=None, select_ir=select_ir, always_check=always_check,
@@ -553,7 +553,7 @@ def compile_insert_unless_conflict_on(
           for ptr in ptrs}
     select_ir, always_check, from_anc = _compile_conflict_select(
         stmt, typ, constrs=ds, obj_constrs=list(obj_constrs),
-        span=stmt.context, ctx=ctx)
+        span=stmt.span, ctx=ctx)
 
     # Compile an else branch
     else_ir = None
@@ -596,7 +596,7 @@ def _has_explicit_id_write(stmt: irast.MutatingStmt) -> bool:
     for elem, _ in stmt.subject.shape:
         assert elem.rptr is not None
         if elem.rptr.ptrref.shortname.name == 'id':
-            return elem.context is not None
+            return elem.span is not None
     return False
 
 
@@ -623,7 +623,7 @@ def _disallow_exclusive_linkprops(
                     'INSERT/UPDATE do not support exclusive constraints on '
                     'link properties when another statement in '
                     'the same query modifies a related type',
-                    context=stmt.context,
+                    context=stmt.span,
                 )
 
 
@@ -708,7 +708,7 @@ def _compile_inheritance_conflict_selects(
             fake_dml_set=fake_dml_set,
             constrs=p,
             obj_constrs=o,
-            span=stmt.context, ctx=ctx)
+            span=stmt.span, ctx=ctx)
         if isinstance(select_ir, irast.EmptySet):
             continue
         cnstr_ref = irast.ConstraintRef(id=cnstr.id)

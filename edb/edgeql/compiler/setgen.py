@@ -175,7 +175,7 @@ def new_set_from_set(
         stype: Optional[s_types.Type]=None,
         rptr: Optional[irast.Pointer | KeepCurrentT]=KeepCurrent,
         expr: Optional[irast.Expr | KeepCurrentT]=KeepCurrent,
-        context: Optional[parsing.Span]=None,
+        span: Optional[parsing.Span]=None,
         is_binding: Optional[irast.BindingKind]=None,
         is_schema_alias: Optional[bool]=None,
         is_materialized_ref: Optional[bool]=None,
@@ -202,8 +202,8 @@ def new_set_from_set(
         rptr = ir_set.rptr
     if expr == KeepCurrent:
         expr = ir_set.expr
-    if context is None:
-        context = ir_set.context
+    if span is None:
+        span = ir_set.span
     if is_binding is None:
         is_binding = ir_set.is_binding
     if is_schema_alias is None:
@@ -220,7 +220,7 @@ def new_set_from_set(
         stype=stype,
         expr=expr,
         rptr=rptr,
-        context=context,
+        span=span,
         is_binding=is_binding,
         is_schema_alias=is_schema_alias,
         is_materialized_ref=is_materialized_ref,
@@ -380,7 +380,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                             view_scope_info.pinned_path_id_ns is None
                         ),
                         is_binding=view_scope_info.binding_kind,
-                        context=step.span,
+                        span=step.span,
                         ctx=ctx,
                     )
 
@@ -599,7 +599,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             path_sets.append(path_tip)
 
     if expr.span:
-        path_tip.context = expr.span
+        path_tip.span = expr.span
     pathctx.register_set_in_scope(path_tip, ctx=ctx)
 
     for ir_set in computables:
@@ -619,7 +619,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             subctx.path_scope = scope
             assert ir_set.rptr is not None
             comp_ir_set = computable_ptr_set(
-                ir_set.rptr, ir_set.path_id, srcctx=ir_set.context, ctx=subctx)
+                ir_set.rptr, ir_set.path_id, srcctx=ir_set.span, ctx=subctx)
             i = path_sets.index(ir_set)
             if i != len(path_sets) - 1:
                 prptr = path_sets[i + 1].rptr
@@ -1029,7 +1029,7 @@ def extend_path(
     target = orig_ptrcls.get_far_endpoint(ctx.env.schema, direction)
     assert isinstance(target, s_types.Type)
     target_set = new_set(
-        stype=target, path_id=path_id, context=srcctx, ctx=ctx)
+        stype=target, path_id=path_id, span=srcctx, ctx=ctx)
 
     ptr = irast.Pointer(
         source=source_set,
@@ -1245,7 +1245,7 @@ def type_intersection_set(
     if result.stype == arg_type:
         return source_set
 
-    poly_set = new_set(stype=result.stype, context=source_context, ctx=ctx)
+    poly_set = new_set(stype=result.stype, span=source_context, ctx=ctx)
     rptr = source_set.rptr
     rptr_specialization = []
 
@@ -1371,7 +1371,7 @@ def expression_set(
         path_id=path_id,
         stype=stype,
         expr=expr,
-        context=expr.context,
+        span=expr.span,
         ctx=ctx
     )
 
@@ -1435,7 +1435,7 @@ def ensure_set(
         stype = type_override
 
     if srcctx is not None:
-        ir_set = new_set_from_set(ir_set, context=srcctx, ctx=ctx)
+        ir_set = new_set_from_set(ir_set, span=srcctx, ctx=ctx)
 
     if (isinstance(ir_set, irast.EmptySet)
             and (stype is None or stype.is_any(ctx.env.schema))
@@ -1452,7 +1452,7 @@ def ensure_set(
             f'expecting expression of type '
             f'{typehint.get_displayname(ctx.env.schema)}, '
             f'got {stype.get_displayname(ctx.env.schema)}',
-            context=expr.context
+            context=expr.span
         )
 
     return ir_set
@@ -1652,7 +1652,7 @@ def computable_ptr_set(
         comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
     comp_ir_set = new_set_from_set(
-        comp_ir_set, path_id=path_id, rptr=rptr, context=srcctx,
+        comp_ir_set, path_id=path_id, rptr=rptr, span=srcctx,
         merge_current_ns=True,
         ctx=ctx)
 

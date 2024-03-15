@@ -90,7 +90,7 @@ def compile_cast(
             stype=new_stype,
             alias=ir_expr.path_id.target_name_hint.name,
             ctx=ctx,
-            span=ir_expr.context)
+            span=ir_expr.span)
 
     if isinstance(new_stype, s_types.Array) and (
         irutils.is_untyped_empty_array_expr(ir_expr)
@@ -136,7 +136,7 @@ def compile_cast(
         return setgen.new_empty_set(
             stype=new_stype,
             ctx=ctx,
-            span=ir_expr.context)
+            span=ir_expr.span)
 
     uuid_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'uuid'))
     if (
@@ -394,7 +394,7 @@ def _compile_cast(
             f'cannot cast '
             f'{orig_stype.get_displayname(ctx.env.schema)!r} to '
             f'{new_stype.get_displayname(ctx.env.schema)!r}',
-            context=srcctx or ir_set.context)
+            context=srcctx or ir_set.span)
 
     return _cast_to_ir(ir_set, cast, orig_stype, new_stype,
                        cardinality_mod, ctx=ctx)

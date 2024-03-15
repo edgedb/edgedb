@@ -211,7 +211,7 @@ def _check_op_volatility(
             if cartesian_cardinality(cards2).is_multi():
                 raise errors.QueryError(
                     "can not take cross product of volatile operation",
-                    context=args[i].context
+                    context=args[i].span
                 )
 
 
@@ -275,13 +275,13 @@ def __infer_config_set(
         raise errors.QueryError(
             f"possibly an empty set returned for "
             f"a global declared as 'required'",
-            context=ir.context,
+            context=ir.span,
         )
     if ir.cardinality.is_single() and not card.is_single():
         raise errors.QueryError(
             f"possibly more than one element returned for "
             f"a global declared as 'single'",
-            context=ir.context,
+            context=ir.span,
         )
 
     return card
@@ -514,7 +514,7 @@ def _infer_shape(
             _infer_pointer_cardinality(
                 ptrcls=ptrcls,
                 ptrref=ptrref,
-                source_ctx=shape_set.context,
+                source_ctx=shape_set.span,
                 irexpr=shape_set.expr,
                 is_mut_assignment=is_mutation,
                 specified_card=specified_card,
@@ -1223,7 +1223,7 @@ def _infer_singleton_only(
         raise errors.QueryError(
             'possibly more than one element returned by an expression '
             'where only singletons are allowed',
-            context=part.context)
+            context=part.span)
     return card
 
 
@@ -1490,7 +1490,7 @@ def infer_cardinality(
         raise errors.QueryError(
             'could not determine the cardinality of '
             'set produced by expression',
-            context=ir.context)
+            context=ir.span)
 
     ctx.inferred_cardinality[key] = result
 

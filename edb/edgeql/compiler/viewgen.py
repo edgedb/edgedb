@@ -545,7 +545,7 @@ def _process_view(
             # already has a context, since for explain output that
             # seems nicer, but this is what we want for producing
             # actual error messages.
-            ptr_set.context = ptr_span
+            ptr_set.span = ptr_span
 
         else:
             # The set must be something pretty trivial, so just do it
@@ -789,7 +789,7 @@ def _gen_pointers_from_defaults(
             # add __source__ to anchors
             source_set = ir_set
             scopectx.path_scope.attach_path(
-                source_set.path_id, context=None,
+                source_set.path_id, span=None,
                 optional=False,
             )
             scopectx.iterator_path_ids |= {source_set.path_id}
@@ -1127,7 +1127,7 @@ def _compile_rewrites_for_stype(
 
             for key, anchor in nanchors.items():
                 scopectx.path_scope.attach_path(
-                    anchor.path_id, context=None,
+                    anchor.path_id, span=None,
                     optional=(anchor is subject_set),
                 )
                 scopectx.iterator_path_ids |= {anchor.path_id}
@@ -1592,7 +1592,7 @@ def _normalize_view_ptr_expr(
                     context=shape_el.operation.span,
                 )
 
-        irexpr.context = compexpr.span
+        irexpr.span = compexpr.span
 
         is_inbound_alias = False
         if base_ptrcls is None:
@@ -1960,8 +1960,8 @@ def _normalize_view_ptr_expr(
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.Unknown)
 
-    if irexpr and not irexpr.context:
-        irexpr.context = shape_el.span
+    if irexpr and not irexpr.span:
+        irexpr.span = shape_el.span
 
     return ptrcls, irexpr
 

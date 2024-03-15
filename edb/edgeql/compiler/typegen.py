@@ -67,7 +67,7 @@ def infer_common_type(
     if not irs:
         raise errors.QueryError(
             'cannot determine common type of an empty set',
-            context=irs[0].context)
+            context=irs[0].span)
 
     types = []
     empties = []
@@ -93,12 +93,12 @@ def infer_common_type(
     if seen_coll + seen_scalar + seen_object > 1:
         raise errors.QueryError(
             'cannot determine common type',
-            context=irs[0].context)
+            context=irs[0].span)
 
     if not types:
         raise errors.QueryError(
             'cannot determine common type of an empty set',
-            context=irs[0].context)
+            context=irs[0].span)
 
     common_type = None
     if seen_scalar or seen_coll:

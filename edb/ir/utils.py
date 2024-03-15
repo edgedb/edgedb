@@ -186,12 +186,12 @@ def get_source_context_as_json(
     expr: irast.Base,
     exctype: Type[errors.EdgeDBError] = errors.InternalServerError,
 ) -> str:
-    if expr.context:
+    if expr.span:
         details = json.dumps({
             # TODO(tailhook) should we add offset, utf16column here?
-            'line': expr.context.start_point.line,
-            'column': expr.context.start_point.column,
-            'name': expr.context.name,
+            'line': expr.span.start_point.line,
+            'column': expr.span.start_point.column,
+            'name': expr.span.name,
             'code': exctype.get_code(),
         })
 

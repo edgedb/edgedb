@@ -101,7 +101,7 @@ def evaluate_SelectStmt(
         return evaluate(ir_stmt.result, schema)
     else:
         raise UnsupportedExpressionError(
-            'expression is not constant', context=ir_stmt.context)
+            'expression is not constant', context=ir_stmt.span)
 
 
 @evaluate.register(irast.TypeCast)
@@ -140,7 +140,7 @@ def evaluate_Set(
         return evaluate(ir_set.expr, schema=schema)
     else:
         raise UnsupportedExpressionError(
-            'expression is not constant', context=ir_set.context)
+            'expression is not constant', context=ir_set.span)
 
 
 @evaluate.register(irast.ConstExpr)
@@ -212,7 +212,7 @@ def evaluate_OperatorCall(
     if eval_func is None:
         raise UnsupportedExpressionError(
             f'unsupported operator: {opcall.func_shortname}',
-            context=opcall.context)
+            context=opcall.span)
 
     args = []
     for arg in opcall.args:
@@ -220,17 +220,17 @@ def evaluate_OperatorCall(
         if isinstance(arg_val, tuple):
             raise UnsupportedExpressionError(
                 f'non-singleton operations are not supported',
-                context=opcall.context)
+                context=opcall.span)
         if arg_val is None:
             raise UnsupportedExpressionError(
                 f'empty operations are not supported',
-                context=opcall.context)
+                context=opcall.span)
 
         args.append(arg_val)
 
     value = eval_func(*args)
     return _process_op_result(
-        value, opcall.typeref, schema, srcctx=opcall.context)
+        value, opcall.typeref, schema, srcctx=opcall.span)
 
 
 @evaluate.register(irast.SliceIndirection)
@@ -250,17 +250,17 @@ def evaluate_SliceIndirection(
         if isinstance(arg_val, tuple):
             raise UnsupportedExpressionError(
                 f'non-singleton operations are not supported',
-                context=slice.context)
+                context=slice.span)
         if arg_val is None:
             raise UnsupportedExpressionError(
                 f'empty operations are not supported',
-                context=slice.context)
+                context=slice.span)
 
     base, start, stop = vals
 
     value = base[start:stop]
     return _process_op_result(
-        value, slice.expr.typeref, schema, srcctx=slice.context)
+        value, slice.expr.typeref, schema, srcctx=slice.span)
 
 
 def _evaluate_union(
@@ -277,7 +277,7 @@ def _evaluate_union(
                 if isinstance(el, irast.Parameter):
                     raise UnsupportedExpressionError(
                         f'{el!r} not supported in UNION',
-                        context=opcall.context)
+                        context=opcall.span)
                 elements.append(el)
         elif isinstance(val, irast.EmptySet):
             empty_set = val
@@ -286,7 +286,7 @@ def _evaluate_union(
         else:
             raise UnsupportedExpressionError(
                 f'{val!r} not supported in UNION',
-                context=opcall.context)
+                context=opcall.span)
 
     if elements:
         return irast.ConstantSet(

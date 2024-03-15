@@ -165,7 +165,7 @@ def compile_ForQuery(
         return rewritten
 
     with ctx.subquery() as sctx:
-        stmt = irast.SelectStmt(context=qlstmt.span)
+        stmt = irast.SelectStmt(span=qlstmt.span)
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 
         # As an optimization, if the iterator is a singleton set, use
@@ -235,7 +235,7 @@ def compile_ForQuery(
                 node = node.attach_branch()
 
             node.attach_subtree(view_scope_info.path_scope,
-                                context=iterator.span)
+                                span=iterator.span)
 
         # Compile the body
         with sctx.newscope(fenced=True) as bctx:
@@ -353,7 +353,7 @@ def compile_InternalGroupQuery(
                         path_id_namespace=scopectx.path_id_namespace,
                         ctx=scopectx,
                     )
-                    binding.context = using_entry.expr.span
+                    binding.span = using_entry.expr.span
                     stmt.using[using_entry.alias] = (
                         setgen.new_set_from_set(binding, ctx=sctx),
                         qltypes.Cardinality.UNKNOWN)
@@ -448,7 +448,7 @@ def compile_InsertQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.InsertStmt(context=expr.span)
+        stmt = irast.InsertStmt(span=expr.span)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         with ictx.new() as ectx:
@@ -553,7 +553,7 @@ def compile_InsertQuery(
                 [stmt.result, stmt.on_conflict.else_ir], ctx.env)
             if final_typ is None:
                 raise errors.QueryError('could not determine INSERT type',
-                                        context=stmt.context)
+                                        context=stmt.span)
             stmt.final_typeref = typegen.type_to_typeref(final_typ, env=ctx.env)
 
         # Wrap the statement.
@@ -577,7 +577,7 @@ def compile_InsertQuery(
                     view_name=ctx.toplevel_result_view_name,
                     compile_views=ictx.stmt is ctx.toplevel_stmt,
                     ctx=resultctx,
-                    span=result.context,
+                    span=result.span,
                 )
 
     return result
@@ -601,7 +601,7 @@ def compile_UpdateQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.UpdateStmt(context=expr.span)
+        stmt = irast.UpdateStmt(span=expr.span)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         with ictx.new() as ectx:
@@ -708,7 +708,7 @@ def compile_DeleteQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.DeleteStmt(context=expr.span)
+        stmt = irast.DeleteStmt(span=expr.span)
         # Expand the DELETE from sugar into full DELETE (SELECT ...)
         # form, if there's any additional clauses.
         if any([expr.where, expr.orderby, expr.offset, expr.limit]):
@@ -1114,7 +1114,7 @@ def compile_Shape(
             shape=shape.elements,
             compile_views=False,
             ctx=subctx,
-            span=expr.context)
+            span=expr.span)
 
         ir_result = setgen.ensure_set(stmt, ctx=subctx)
 
@@ -1237,9 +1237,9 @@ def fini_stmt(
     type_override = view if view is not None else None
     result = setgen.scoped_set(
         irstmt, type_override=type_override, path_id=path_id, ctx=ctx)
-    if irstmt.context and not result.context:
+    if irstmt.span and not result.span:
         result = setgen.new_set_from_set(
-            result, context=irstmt.context, ctx=ctx)
+            result, span=irstmt.span, ctx=ctx)
 
     if view is not None:
         parent_ctx.view_sets[view] = result
@@ -1557,7 +1557,7 @@ def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
     ):
         return compile_query_subject(
             ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx,
-            span=ir.context)
+            span=ir.span)
     else:
         return ir
 

@@ -94,7 +94,7 @@ def compile_trigger(
 
         for name, ir in anchors.items():
             if scope == qltypes.TriggerScope.Each:
-                sctx.path_scope.attach_path(ir.path_id, context=None)
+                sctx.path_scope.attach_path(ir.path_id, span=None)
                 sctx.iterator_path_ids |= {ir.path_id}
             sctx.anchors[name] = ir
 

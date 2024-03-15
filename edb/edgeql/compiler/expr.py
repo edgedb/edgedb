@@ -689,7 +689,7 @@ def compile_TypeCast(
                     typeref=typeref,
                     name=param_name,
                     required=required,
-                    context=expr.expr.span,
+                    span=expr.expr.span,
                 ),
                 pt,
                 span=expr.expr.span,
@@ -703,7 +703,7 @@ def compile_TypeCast(
                     typeref=typeref,
                     name=param_name,
                     required=required,
-                    context=expr.expr.span,
+                    span=expr.expr.span,
                 ),
                 ctx=ctx,
             )
@@ -848,7 +848,7 @@ def _infer_index_type(
                 f'cannot index string by '
                 f'{index_type.get_displayname(env.schema)}, '
                 f'{int_t.get_displayname(env.schema)} was expected',
-                context=index.context)
+                context=index.span)
 
         result = str_t
 
@@ -859,7 +859,7 @@ def _infer_index_type(
                 f'cannot index bytes by '
                 f'{index_type.get_displayname(env.schema)}, '
                 f'{int_t.get_displayname(env.schema)} was expected',
-                context=index.context)
+                context=index.span)
 
         result = bytes_t
 
@@ -873,7 +873,7 @@ def _infer_index_type(
                 f'{index_type.get_displayname(env.schema)}, '
                 f'{int_t.get_displayname(env.schema)} or '
                 f'{str_t.get_displayname(env.schema)} was expected',
-                context=index.context)
+                context=index.span)
 
         result = json_t
 
@@ -884,7 +884,7 @@ def _infer_index_type(
                 f'cannot index array by '
                 f'{index_type.get_displayname(env.schema)}, '
                 f'{int_t.get_displayname(env.schema)} was expected',
-                context=index.context)
+                context=index.span)
 
         result = node_type.get_subtypes(env.schema)[0]
 
@@ -899,7 +899,7 @@ def _infer_index_type(
         raise errors.QueryError(
             f'index indirection cannot be applied to '
             f'{node_type.get_verbosename(env.schema)}',
-            context=expr.context)
+            context=expr.span)
 
     return result
 
@@ -932,7 +932,7 @@ def _infer_slice_type(
         # the base type is not valid
         raise errors.QueryError(
             f'{node_type.get_verbosename(env.schema)} cannot be sliced',
-            context=expr.context)
+            context=expr.span)
 
     for index in [start, stop]:
         if index is not None:
@@ -943,7 +943,7 @@ def _infer_slice_type(
                     f'cannot slice {base_name} by '
                     f'{index_type.get_displayname(env.schema)}, '
                     f'{int_t.get_displayname(env.schema)} was expected',
-                    context=index.context)
+                    context=index.span)
 
     return node_type
 
@@ -956,13 +956,13 @@ def compile_Indirection(
     for indirection_el in expr.indirection:
         if isinstance(indirection_el, qlast.Index):
             idx = dispatch.compile(indirection_el.index, ctx=ctx)
-            idx.context = indirection_el.index.span
+            idx.span = indirection_el.index.span
             typeref = typegen.type_to_typeref(
                 _infer_index_type(node, idx, ctx=ctx), env=ctx.env
             )
 
             node = irast.IndexIndirection(
-                expr=node, index=idx, typeref=typeref, context=expr.span
+                expr=node, index=idx, typeref=typeref, span=expr.span
             )
         elif isinstance(indirection_el, qlast.Slice):
             start: Optional[irast.Base]

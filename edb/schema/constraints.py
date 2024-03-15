@@ -956,7 +956,7 @@ class ConstraintCommand(
             ):
                 raise errors.InvalidConstraintDefinitionError(
                     f'constraint expressions must be immutable',
-                    context=final_subjectexpr.irast.context,
+                    context=final_subjectexpr.irast.span,
                 )
 
             if final_except_expr:
