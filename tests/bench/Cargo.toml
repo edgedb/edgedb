@@ -1,0 +1,19 @@
+[package]
+name = "edgedb_benchmarks"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "edgedb_benchmarks"
+path = "./src/main.rs"
+
+[dependencies]
+tokio = { version = "1.36", features = ["macros", "rt-multi-thread"] }
+edgedb-tokio = { git = "https://github.com/mrfoxpro/edgedb-rust", branch = "master" }
+edgedb-protocol = { git = "https://github.com/mrfoxpro/edgedb-rust", branch = "master", features = [
+	"with-serde",
+	"with-chrono",
+] }
+indexmap = "2.2.5"
+anyhow = "1.0.81"
