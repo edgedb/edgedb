@@ -796,6 +796,13 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.query_single(
                 'select schema::Object {name} filter .id=$id', id='asd')
 
+    async def test_server_proto_args_07_1(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    "cannot apply a shape to the parameter"):
+            await self.con.query_single(
+                'select schema::Object filter .id=<uuid>$id {name}', id='asd')
+
+
     async def test_server_proto_args_08(self):
         async with self._run_and_rollback():
             await self.con.execute(

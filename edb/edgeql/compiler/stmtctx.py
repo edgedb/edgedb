@@ -818,6 +818,17 @@ def check_params(params: Dict[str, irast.Param]) -> None:
                 f'{"s" if len(missing_args) > 1 else ""}')
 
 
+def throw_on_shaped_param(
+    param: qlast.Parameter,
+    shape: qlast.Shape,
+    ctx: context.ContextLevel
+) -> None:
+    raise errors.QueryError(
+        f'cannot apply a shape to the parameter',
+        hint='Consider adding parentheses around the parameter and type cast',
+        context=shape.context)
+
+
 def throw_on_loose_param(
     param: qlast.Parameter,
     ctx: context.ContextLevel
@@ -846,19 +857,25 @@ def preprocess_script(
     Doing this in advance makes it easy to check that they have
     consistent types.
     """
-    param_lists = [
+    params_lists = [
         astutils.find_parameters(stmt, ctx.modaliases)
         for stmt in stmts
     ]
 
     if loose_params := [
-        loose for _, loose_list in param_lists
-        for loose in loose_list
+        loose for params in params_lists
+        for loose in params.loose_params
     ]:
         throw_on_loose_param(loose_params[0], ctx)
 
+    if shaped_params := [
+        shaped for params in params_lists
+        for shaped in params.shaped_params
+    ]:
+        throw_on_shaped_param(shaped_params[0][0], shaped_params[0][1], ctx)
+
     casts = [
-        cast for cast_lists, _ in param_lists for cast in cast_lists
+        cast for params in params_lists for cast in params.cast_params
     ]
     params = {}
     for cast, modaliases in casts:
