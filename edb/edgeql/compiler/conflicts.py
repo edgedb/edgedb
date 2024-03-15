@@ -375,7 +375,7 @@ def _compile_conflict_select(
     fake_dml_set: Optional[irast.Set]=None,
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: PointerConstraintMap,
-    parser_context: Optional[span.Span],
+    span: Optional[span.Span],
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, bool, bool]:
     """Synthesize a select of conflicting objects
@@ -403,7 +403,7 @@ def _compile_conflict_select(
             stmt, a_obj, obj_constrs=a_obj_constrs, constrs=a_constrs,
             for_inheritance=for_inheritance,
             fake_dml_set=fake_dml_set,
-            span=parser_context, ctx=ctx,
+            span=span, ctx=ctx,
         )
         always_check |= frag_always_check
         if frag:
@@ -471,7 +471,7 @@ def compile_insert_unless_conflict(
         stmt, typ,
         constrs=pointers,
         obj_constrs=obj_constrs,
-        parser_context=stmt.context, ctx=ctx)
+        span=stmt.context, ctx=ctx)
 
     return irast.OnConflictClause(
         constraint=None, select_ir=select_ir, always_check=always_check,
@@ -553,7 +553,7 @@ def compile_insert_unless_conflict_on(
           for ptr in ptrs}
     select_ir, always_check, from_anc = _compile_conflict_select(
         stmt, typ, constrs=ds, obj_constrs=list(obj_constrs),
-        parser_context=stmt.context, ctx=ctx)
+        span=stmt.context, ctx=ctx)
 
     # Compile an else branch
     else_ir = None
@@ -708,7 +708,7 @@ def _compile_inheritance_conflict_selects(
             fake_dml_set=fake_dml_set,
             constrs=p,
             obj_constrs=o,
-            parser_context=stmt.context, ctx=ctx)
+            span=stmt.context, ctx=ctx)
         if isinstance(select_ir, irast.EmptySet):
             continue
         cnstr_ref = irast.ConstraintRef(id=cnstr.id)

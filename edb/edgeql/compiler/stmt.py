@@ -507,7 +507,7 @@ def compile_InsertQuery(
                 compile_views=True,
                 exprtype=s_types.ExprType.Insert,
                 ctx=bodyctx,
-                parser_context=expr.context,
+                span=expr.context,
             )
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
@@ -539,7 +539,7 @@ def compile_InsertQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
-                parser_context=expr.context,
+                span=expr.context,
             )
 
         if pol_condition := policies.compile_dml_write_policies(
@@ -577,7 +577,7 @@ def compile_InsertQuery(
                     view_name=ctx.toplevel_result_view_name,
                     compile_views=ictx.stmt is ctx.toplevel_stmt,
                     ctx=resultctx,
-                    parser_context=result.context,
+                    span=result.context,
                 )
 
     return result
@@ -655,7 +655,7 @@ def compile_UpdateQuery(
                 compile_views=True,
                 exprtype=s_types.ExprType.Update,
                 ctx=bodyctx,
-                parser_context=expr.context,
+                span=expr.context,
             )
 
         result = setgen.class_set(
@@ -669,7 +669,7 @@ def compile_UpdateQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
-                parser_context=expr.context,
+                span=expr.context,
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
@@ -788,7 +788,7 @@ def compile_DeleteQuery(
                 shape=None,
                 exprtype=s_types.ExprType.Delete,
                 ctx=bodyctx,
-                parser_context=expr.context,
+                span=expr.context,
             )
 
         result = setgen.class_set(
@@ -802,7 +802,7 @@ def compile_DeleteQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
-                parser_context=expr.context,
+                span=expr.context,
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
@@ -1114,7 +1114,7 @@ def compile_Shape(
             shape=shape.elements,
             compile_views=False,
             ctx=subctx,
-            parser_context=expr.context)
+            span=expr.context)
 
         ir_result = setgen.ensure_set(stmt, ctx=subctx)
 
@@ -1383,7 +1383,7 @@ def compile_result_clause(
             exprtype=exprtype,
             compile_views=ctx.stmt is ctx.toplevel_stmt,
             ctx=sctx,
-            parser_context=result.context)
+            span=result.context)
 
         ctx.partial_path_prefix = ir_result
 
@@ -1401,7 +1401,7 @@ def compile_query_subject(
         exprtype: s_types.ExprType = s_types.ExprType.Select,
         allow_select_shape_inject: bool=True,
         forward_rptr: bool=False,
-        parser_context: Optional[span.Span],
+        span: Optional[span.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
@@ -1508,7 +1508,7 @@ def compile_query_subject(
             raise errors.QueryError(
                 f'shapes cannot be applied to '
                 f'{expr_stype.get_verbosename(ctx.env.schema)}',
-                context=parser_context,
+                context=span,
             )
 
         view_scls, expr = viewgen.process_view(
@@ -1519,7 +1519,7 @@ def compile_query_subject(
             view_name=view_name,
             exprtype=exprtype,
             ctx=ctx,
-            srcctx=parser_context,
+            srcctx=span,
         )
 
     if view_scls is not None:
@@ -1556,7 +1556,7 @@ def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
     ):
         return compile_query_subject(
             ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx,
-            parser_context=ir.context)
+            span=ir.context)
     else:
         return ir
 
