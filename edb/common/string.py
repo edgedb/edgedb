@@ -27,6 +27,7 @@ def escape_string(s: str) -> str:
     result = result.replace('\\', '\\\\')
 
     result = result.replace('\'', '\\\'')
+    result = result.replace('\"', '\\\"')
     result = result.replace('\b', '\\b')
     result = result.replace('\f', '\\f')
     result = result.replace('\n', '\\n')
@@ -43,6 +44,7 @@ def unescape_string(s: str) -> str:
         result = s
 
         result = result.replace('\\\'', '\'')
+        result = result.replace('\\\"', '\"')
         result = result.replace('\\b', '\b')
         result = result.replace('\\f', '\f')
         result = result.replace('\\n', '\n')

@@ -24,13 +24,13 @@ class StringTests(unittest.TestCase):
     unescaped_escaped_strings = [
         ('', ''),
         ('abc', 'abc'),
-        ('"', '"'),
         ('\b', '\\b'),
         ('\f', '\\f'),
         ('\n', '\\n'),
         ('\r', '\\r'),
         ('\t', '\\t'),
         ('\'', '\\\''),
+        ('\"', '\\\"'),
         ('\\', '\\\\'),
         ('\\b', '\\\\b'),
         ('\\f', '\\\\f'),
@@ -38,8 +38,9 @@ class StringTests(unittest.TestCase):
         ('\\r', '\\\\r'),
         ('\\t', '\\\\t'),
         ('\\\'', '\\\\\\\''),
+        ('\\\"', '\\\\\\\"'),
         ('\\\\', '\\\\\\\\'),
-        ('abc"efg\nhij\'klm\\nop', 'abc"efg\\nhij\\\'klm\\\\nop'),
+        ('abc"efg\nhij\'klm\\nop', 'abc\\"efg\\nhij\\\'klm\\\\nop'),
     ]
 
     def test_escape_string(self):
