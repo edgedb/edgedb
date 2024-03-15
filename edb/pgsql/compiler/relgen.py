@@ -31,10 +31,13 @@ from typing import (
     List,
     Set,
     NamedTuple,
-    cast,
+    Generic,
+    TypeVar,
+    Type,
 )
 
 import contextlib
+import functools
 
 from edb import errors
 
@@ -362,84 +365,54 @@ def simple_special_case(
     return func
 
 
+# Dispatcher for _get_set_rvar implementations for different expressions.
+# The implementations just take a SetE[T] for some T, so register_get_rvar
+# needs to do some wrapping.
+@functools.singledispatch
+def _get_expr_set_rvar(
+    expr: irast.Expr,
+    ir: irast.Set,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    raise NotImplementedError(f'no relgen handler for {ir.__class__}')
+
+
+T = TypeVar('T', contravariant=True)
+
+
+class _GetExprRvarFunc(Protocol, Generic[T]):
+    def __call__(
+        self, __ir_set: irast.SetE[T], *, ctx: context.CompilerContextLevel
+    ) -> SetRVars:
+        pass
+
+
+def register_get_rvar(
+    typ: Type[T],
+) -> Callable[[_GetExprRvarFunc[T]], _GetExprRvarFunc[T]]:
+    def func(f: _GetExprRvarFunc[T]) -> _GetExprRvarFunc[T]:
+        _get_expr_set_rvar.register(typ)(
+            lambda _, ir, *, ctx: f(ir, ctx=ctx))
+        return f
+
+    return func
+
+
 def _get_set_rvar(
     ir_set: irast.Set,
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
+    # TODO: Turn *all* of these into expr fields we can dispatch on too.
 
     if ir_set.is_materialized_ref:
         # Sets that are materialized_refs get initial processing like
         # a subquery, but might be missing the expr.
         return process_set_as_subquery(ir_set, ctx=ctx)
 
-    if irutils.is_set_instance(
-        ir_set, irast.Expr  # type: ignore[type-abstract]
-    ):
-        if irutils.is_set_instance(ir_set, irast.Stmt):
-            # Sub-statement (explicit or implicit), most computables
-            # go here.
-            return process_set_as_subquery(ir_set, ctx=ctx)
-
-        if irutils.is_set_instance(ir_set, irast.Call):
-            fname = str(ir_set.expr.func_shortname)
-            if (func := _SPECIAL_FUNCTIONS.get(fname)) and (
-                not func.only_as_fallback or ir_set.expr.func_sql_expr
-            ):
-                return func.func(ir_set, ctx=ctx)
-
-            # Route simple special functions through expr compilation
-            if fname in _SIMPLE_SPECIAL_FUNCTIONS:
-                return process_set_as_expr(ir_set, ctx=ctx)
-
-            if irutils.is_set_instance(ir_set, irast.OperatorCall):
-                # Operator call
-                return process_set_as_oper_expr(ir_set, ctx=ctx)
-
-            if any(
-                pm is qltypes.TypeModifier.SetOfType
-                for pm in ir_set.expr.params_typemods
-            ):
-                # Call to an aggregate function.
-                assert irutils.is_set_instance(ir_set, irast.FunctionCall)
-                return process_set_as_agg_expr(ir_set, ctx=ctx)
-
-            # Regular function call.
-            return process_set_as_func_expr(ir_set, ctx=ctx)
-
-        if irutils.is_set_instance(ir_set, irast.Tuple):
-            # Tuple
-            return process_set_as_tuple(ir_set, ctx=ctx)
-
-        if irutils.is_set_instance(ir_set, irast.Array):
-            # Array literal: "[" expr ... "]"
-            return process_set_as_array_expr(ir_set, ctx=ctx)
-
-        if irutils.is_set_instance(ir_set, irast.TypeCast):
-            # Type cast: <foo>expr
-            return process_set_as_type_cast(ir_set, ctx=ctx)
-
-        if irutils.is_set_instance(ir_set, irast.TypeIntrospection):
-            # INTROSPECT <type-expr>
-            return process_set_as_type_introspection(ir_set, ctx=ctx)
-
-        if irutils.is_set_instance(ir_set, irast.ConstantSet):
-            # {<const>[, <const> ...]}
-            return process_set_as_const_set(ir_set, ctx=ctx)
-
-        if irutils.is_set_instance(ir_set, irast.TriggerAnchor):
-            return process_set_as_trigger_anchor(ir_set, ctx=ctx)
-
-        # Regular non-computable path start.
-        if irutils.is_set_instance(ir_set, irast.TypeRoot):
-            return process_set_as_root(ir_set, ctx=ctx)
-
-        # All other expressions.
-        return process_set_as_expr(ir_set, ctx=ctx)
-
-    if ir_set.path_id.is_tuple_indirection_path():
-        # Named tuple indirection.
-        return process_set_as_tuple_indirection(ir_set, ctx=ctx)
+    if irutils.is_set_instance(ir_set, irast.Expr):
+        return _get_expr_set_rvar(ir_set.expr, ir_set, ctx=ctx)
 
     if ir_set.rptr is not None:
         # Regular non-computable path step.
@@ -808,6 +781,9 @@ def process_set_as_root(
     return new_source_set_rvar(ir_set, rvar)
 
 
+register_get_rvar(irast.TypeRoot)(process_set_as_root)
+
+
 def process_set_as_empty(
     ir_set: irast.EmptySet, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -938,12 +914,12 @@ def process_set_as_link_property_ref(
 def process_set_as_path_type_intersection(
     ir_set: irast.Set,
     ptrref: irast.TypeIntersectionPointerRef,
-    source_is_visible: bool,
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
     assert ir_set.rptr is not None
     ir_source = ir_set.rptr.source
+    source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
     stmt = ctx.rel
 
     if (not source_is_visible
@@ -1067,20 +1043,19 @@ def process_set_as_path(
 ) -> SetRVars:
     rptr = ir_set.rptr
     assert rptr is not None
+
+    # Type intersection and tuple indirections have their own code paths
+    if isinstance(rptr, irast.TypeIntersectionPointer):
+        return process_set_as_path_type_intersection(
+            ir_set, rptr.ptrref, ctx=ctx)
+    elif isinstance(rptr, irast.TupleIndirectionPointer):
+        return process_set_as_tuple_indirection(ir_set, ctx=ctx)
+
     ptrref = rptr.ptrref
     ir_source = rptr.source
     stmt = ctx.rel
-
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
-
     rvars = []
-
-    # Type intersection paths have their own entire code path.
-    if ir_set.path_id.is_type_intersection_path():
-        ptrref = cast(irast.TypeIntersectionPointerRef, ptrref)
-        return process_set_as_path_type_intersection(
-            ir_set, ptrref, source_is_visible, ctx=ctx
-        )
 
     ptr_info = pg_types.get_ptrref_storage_info(
         ptrref, resolve_type=False, link_bias=False, allow_missing=True)
@@ -1513,6 +1488,9 @@ def process_set_as_subquery(
     return rvars
 
 
+register_get_rvar(irast.Stmt)(process_set_as_subquery)
+
+
 @_special_case('std::IN')
 @_special_case('std::NOT IN')
 def process_set_as_membership_expr(
@@ -1942,6 +1920,7 @@ def process_set_as_coalesce(
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
 
+@register_get_rvar(irast.Tuple)
 def process_set_as_tuple(
     ir_set: irast.SetE[irast.Tuple], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -2088,6 +2067,7 @@ def process_set_as_tuple_indirection(
     return new_simple_set_rvar(ir_set, rvar, aspects=('value',))
 
 
+@register_get_rvar(irast.TypeCast)
 def process_set_as_type_cast(
     ir_set: irast.SetE[irast.TypeCast], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -2152,6 +2132,7 @@ def process_set_as_type_cast(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@register_get_rvar(irast.TypeIntrospection)
 def process_set_as_type_introspection(
     ir_set: irast.SetE[irast.TypeIntrospection],
     *, ctx: context.CompilerContextLevel
@@ -2176,6 +2157,7 @@ def process_set_as_type_introspection(
     )
 
 
+@register_get_rvar(irast.ConstantSet)
 def process_set_as_const_set(
     ir_set: irast.SetE[irast.ConstantSet], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -2207,6 +2189,7 @@ def process_set_as_oper_expr(
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
 
+@register_get_rvar(irast.TriggerAnchor)
 def process_set_as_trigger_anchor(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -2217,6 +2200,7 @@ def process_set_as_trigger_anchor(
     return process_set_as_root(ir_set, ctx=ctx)
 
 
+@register_get_rvar(irast.Expr)
 def process_set_as_expr(
     ir_set: irast.SetE[irast.Expr], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -2904,6 +2888,36 @@ def process_set_as_std_multirange(
     pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
+
+
+@register_get_rvar(irast.Call)
+def process_set_as_call(
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    fname = str(ir_set.expr.func_shortname)
+    if (func := _SPECIAL_FUNCTIONS.get(fname)) and (
+        not func.only_as_fallback or ir_set.expr.func_sql_expr
+    ):
+        return func.func(ir_set, ctx=ctx)
+
+    # Route simple special functions through expr compilation
+    if fname in _SIMPLE_SPECIAL_FUNCTIONS:
+        return process_set_as_expr(ir_set, ctx=ctx)
+
+    if irutils.is_set_instance(ir_set, irast.OperatorCall):
+        # Operator call
+        return process_set_as_oper_expr(ir_set, ctx=ctx)
+
+    if any(
+        pm is qltypes.TypeModifier.SetOfType
+        for pm in ir_set.expr.params_typemods
+    ):
+        # Call to an aggregate function.
+        assert irutils.is_set_instance(ir_set, irast.FunctionCall)
+        return process_set_as_agg_expr(ir_set, ctx=ctx)
+
+    # Regular function call.
+    return process_set_as_func_expr(ir_set, ctx=ctx)
 
 
 def _process_set_func_with_ordinality(
@@ -3741,6 +3755,7 @@ def build_array_expr(
         return array
 
 
+@register_get_rvar(irast.Array)
 def process_set_as_array_expr(
     ir_set: irast.SetE[irast.Array], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
