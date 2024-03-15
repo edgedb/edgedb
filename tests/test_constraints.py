@@ -1769,6 +1769,19 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 };
             """)
 
+    async def test_constraints_ddl_error_07(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r'Constant sets not allowed in singleton mode'
+        ):
+            await self.con.execute(r"""
+                CREATE TYPE ConstraintOnTest_err_07 {
+                    CREATE PROPERTY less_than_three -> std::int64 {
+                        CREATE CONSTRAINT std::one_of({1,2,3});
+                    };
+                };
+            """)
+
     async def test_constraints_tuple(self):
         await self.con.execute(r"""
             CREATE TYPE Transaction {
