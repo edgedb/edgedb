@@ -46,7 +46,3 @@ class StringTests(unittest.TestCase):
     def test_escape_string(self):
         for unescaped, escaped in StringTests.unescaped_escaped_strings:
             self.assertEqual(string.escape_string(unescaped), escaped)
-
-    def test_unescape_string(self):
-        for unescaped, escaped in StringTests.unescaped_escaped_strings:
-            self.assertEqual(string.unescape_string(escaped), unescaped)

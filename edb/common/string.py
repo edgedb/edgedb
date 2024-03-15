@@ -35,23 +35,3 @@ def escape_string(s: str) -> str:
     result = result.replace('\t', '\\t')
 
     return result
-
-
-def unescape_string(s: str) -> str:
-    split = s.split('\\\\')
-
-    def unescape_non_backslash(s: str) -> str:
-        result = s
-
-        result = result.replace('\\\'', '\'')
-        result = result.replace('\\\"', '\"')
-        result = result.replace('\\b', '\b')
-        result = result.replace('\\f', '\f')
-        result = result.replace('\\n', '\n')
-        result = result.replace('\\r', '\r')
-        result = result.replace('\\t', '\t')
-
-        return result
-
-    return '\\'.join(unescape_non_backslash(r)
-                   for r in split)
