@@ -511,6 +511,9 @@ class TypeRoot(Expr):
     # This will be replicated in the enclosing set.
     typeref: TypeRef
 
+    # Whether this is a reference to a cached global.
+    is_cached_global: bool = False
+
     # Whether to force this to not select subtypes
     skip_subtypes: bool = False
 
