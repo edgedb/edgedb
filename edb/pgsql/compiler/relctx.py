@@ -1395,12 +1395,7 @@ def range_for_material_objtype(
 
     env = ctx.env
 
-    # If this is a view type, but it still appears in rewrites, that is
-    # because it is a global that we are caching.
-    if (
-        typeref.material_type is not None
-        and (typeref.id, include_descendants) not in ctx.env.type_rewrites
-    ):
+    if typeref.material_type is not None:
         typeref = typeref.material_type
     is_global = typeref.material_type is not None
 
@@ -1418,7 +1413,7 @@ def range_for_material_objtype(
     key = rw_key + (dml_source_key,)
     force_cte = _needs_cte(typeref)
     if (
-        (not ignore_rewrites or is_global)
+        not ignore_rewrites
         and (
             (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
             or force_cte
@@ -1464,13 +1459,13 @@ def range_for_material_objtype(
                 # If we are expanding inhviews, we also expand type
                 # rewrites, so don't populate type_ctes. The normal
                 # case is to stick it in a CTE and cache that, though.
-                if ctx.env.expand_inhviews and not is_global:
+                if ctx.env.expand_inhviews:
                     type_rel = sctx.rel
                 else:
                     type_cte = pgast.CommonTableExpr(
                         name=ctx.env.aliases.get(f't_{typeref.name_hint}'),
                         query=sctx.rel,
-                        materialized=is_global or force_cte,
+                        materialized=force_cte,
                     )
                     ctx.type_ctes[key] = type_cte
                     type_rel = type_cte
