@@ -31,7 +31,6 @@ from typing import (
     List,
     Set,
     NamedTuple,
-    cast,
     Generic,
     TypeVar,
     Type,
@@ -405,6 +404,7 @@ def _get_set_rvar(
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
+    # TODO: Turn *all* of these into expr fields we can dispatch on too.
 
     if ir_set.is_materialized_ref:
         # Sets that are materialized_refs get initial processing like
@@ -413,10 +413,6 @@ def _get_set_rvar(
 
     if irutils.is_set_instance(ir_set, irast.Expr):
         return _get_expr_set_rvar(ir_set.expr, ir_set, ctx=ctx)
-
-    if ir_set.path_id.is_tuple_indirection_path():
-        # Named tuple indirection.
-        return process_set_as_tuple_indirection(ir_set, ctx=ctx)
 
     if ir_set.rptr is not None:
         # Regular non-computable path step.
@@ -918,12 +914,12 @@ def process_set_as_link_property_ref(
 def process_set_as_path_type_intersection(
     ir_set: irast.Set,
     ptrref: irast.TypeIntersectionPointerRef,
-    source_is_visible: bool,
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
     assert ir_set.rptr is not None
     ir_source = ir_set.rptr.source
+    source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
     stmt = ctx.rel
 
     if (not source_is_visible
@@ -1047,20 +1043,19 @@ def process_set_as_path(
 ) -> SetRVars:
     rptr = ir_set.rptr
     assert rptr is not None
+
+    # Type intersection and tuple indirections have their own code paths
+    if isinstance(rptr, irast.TypeIntersectionPointer):
+        return process_set_as_path_type_intersection(
+            ir_set, rptr.ptrref, ctx=ctx)
+    elif isinstance(rptr, irast.TupleIndirectionPointer):
+        return process_set_as_tuple_indirection(ir_set, ctx=ctx)
+
     ptrref = rptr.ptrref
     ir_source = rptr.source
     stmt = ctx.rel
-
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
-
     rvars = []
-
-    # Type intersection paths have their own entire code path.
-    if ir_set.path_id.is_type_intersection_path():
-        ptrref = cast(irast.TypeIntersectionPointerRef, ptrref)
-        return process_set_as_path_type_intersection(
-            ir_set, ptrref, source_is_visible, ctx=ctx
-        )
 
     ptr_info = pg_types.get_ptrref_storage_info(
         ptrref, resolve_type=False, link_bias=False, allow_missing=True)
