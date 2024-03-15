@@ -98,6 +98,11 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             '_irast': None,
         }
 
+    def __setstate__(self, state: Mapping[str, Any]) -> None:
+        # Since `origin` is omitted from the pickled schema, it needs to be
+        # explicitly set to `None` when loading pickles.
+        super().__setstate__({"origin": None, **state})
+
     def __eq__(self, rhs: object) -> bool:
         if not isinstance(rhs, Expression):
             return NotImplemented
