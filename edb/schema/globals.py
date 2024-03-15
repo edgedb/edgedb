@@ -382,14 +382,14 @@ class CreateGlobal(
             cmd.set_attribute_value(
                 'required',
                 astnode.is_required,
-                source_context=astnode.context,
+                source_context=astnode.span,
             )
 
         if astnode.cardinality is not None:
             cmd.set_attribute_value(
                 'cardinality',
                 astnode.cardinality,
-                source_context=astnode.context,
+                source_context=astnode.span,
             )
 
         assert astnode.target is not None
@@ -404,7 +404,7 @@ class CreateGlobal(
             cmd.set_attribute_value(
                 'target',
                 type_ref,
-                source_context=astnode.target.context,
+                source_context=astnode.target.span,
             )
 
         else:
@@ -428,7 +428,7 @@ class CreateGlobal(
         ):
             raise errors.UnsupportedFeatureError(
                 "cannot specify a type and an expression for a global",
-                context=astnode.context,
+                context=astnode.span,
             )
 
         return cmd

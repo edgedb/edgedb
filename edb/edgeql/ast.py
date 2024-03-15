@@ -85,14 +85,13 @@ class DescribeGlobal(s_enum.StrEnum):
 
 class Base(ast.AST):
     __abstract_node__ = True
-    __ast_hidden__ = {'context', 'system_comment'}
+    __ast_hidden__ = {'span', 'system_comment'}
     __rust_ignore__ = True
 
-    context: typing.Optional[parsing.Span] = None
+    span: typing.Optional[parsing.Span] = None
+
     # System-generated comment.
     system_comment: typing.Optional[str] = None
-
-    # parent: typing.Optional[Base]
 
     def dump_edgeql(self) -> None:
         from edb.common.debug import dump_edgeql

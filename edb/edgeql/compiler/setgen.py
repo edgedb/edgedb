@@ -130,14 +130,16 @@ def new_set(
     return ir_set
 
 
-def new_empty_set(*, stype: Optional[s_types.Type]=None, alias: str='e',
-                  ctx: context.ContextLevel,
-                  srcctx: Optional[
-                      parsing.Span]=None) -> irast.Set:
+def new_empty_set(
+    *,
+    stype: Optional[s_types.Type]=None, alias: str='e',
+    ctx: context.ContextLevel,
+    span: Optional[parsing.Span]=None
+) -> irast.Set:
     if stype is None:
         stype = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
-        if srcctx is not None:
-            ctx.env.type_origins[stype] = srcctx
+        if span is not None:
+            ctx.env.type_origins[stype] = span
 
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
     path_id = pathctx.get_expression_path_id(stype, alias, ctx=ctx)
@@ -257,16 +259,17 @@ def new_tuple_set(
 
 
 def new_array_set(
-        elements: Sequence[irast.Set], *,
-        stype: Optional[s_types.Type]=None,
-        ctx: context.ContextLevel,
-        srcctx: Optional[parsing.Span]=None) -> irast.Set:
+    elements: Sequence[irast.Set], *,
+    stype: Optional[s_types.Type]=None,
+    ctx: context.ContextLevel,
+    span: Optional[parsing.Span]=None
+) -> irast.Set:
 
     if elements:
         element_type = typegen.infer_common_type(elements, ctx.env)
         if element_type is None:
             raise errors.QueryError('could not determine array type',
-                                    context=srcctx)
+                                    context=span)
     elif stype is not None:
         # When constructing an empty array, we should skip explicit cast any
         # time that we would skip it for an empty set because we can infer it
@@ -274,8 +277,8 @@ def new_array_set(
         assert stype.is_array()
     else:
         element_type = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
-        if srcctx is not None:
-            ctx.env.type_origins[element_type] = srcctx
+        if span is not None:
+            ctx.env.type_origins[element_type] = span
 
     if stype is None:
         assert element_type
@@ -312,7 +315,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         else:
             raise errors.QueryError(
                 'could not resolve partial path ',
-                context=expr.context)
+                context=expr.span
+            )
 
     computables: list[irast.Set] = []
     path_sets: list[irast.Set] = []
@@ -359,7 +363,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         raise errors.InvalidReferenceError(
                             f"cannot refer to alias link helper type "
                             f"'{stype.get_name(ctx.env.schema)}'",
-                            context=step.context,
+                            context=step.span,
                         )
 
                     # This is a schema-level view, as opposed to
@@ -376,7 +380,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                             view_scope_info.pinned_path_id_ns is None
                         ),
                         is_binding=view_scope_info.binding_kind,
-                        context=step.context,
+                        context=step.span,
                         ctx=ctx,
                     )
 
@@ -411,7 +415,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     raise errors.EdgeQLSyntaxError(
                         f"unexpected reference to link property {ptr_name!r} "
                         "outside of a path expression",
-                        context=ptr_expr.context,
+                        context=ptr_expr.span,
                     )
 
                 # The backend can't really handle @source/@target
@@ -426,7 +430,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     raise errors.QueryError(
                         f'@{ptr_expr.name} may only be used in index and '
                         'constraint definitions',
-                        context=step.context)
+                        context=step.span)
 
                 if isinstance(path_tip.rptr.ptrref,
                               irast.TypeIntersectionPointerRef):
@@ -450,7 +454,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                             f"property '{ptr_name}' does not exist because"
                             f" there are no '{pn}' links between"
                             f" {s_vn} and {t_vn}",
-                            context=ptr_expr.context,
+                            context=ptr_expr.span,
                         )
 
                     prefix_ptr_name = (
@@ -473,7 +477,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     raise errors.QueryError(
                         'improper reference to link property on '
                         'a non-link object',
-                        context=step.context,
+                        context=step.span,
                     )
             else:
                 source = get_set_type(path_tip, ctx=ctx)
@@ -494,7 +498,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if isinstance(source, s_types.Tuple):
                 path_tip = tuple_indirection_set(
                     path_tip, source=source, ptr_name=ptr_name,
-                    source_context=step.context, ctx=ctx)
+                    source_context=step.span, ctx=ctx)
 
             else:
                 path_tip = ptr_step_set(
@@ -502,7 +506,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     direction=direction,
                     upcoming_intersections=upcoming_intersections,
                     ignore_computable=True,
-                    source_context=step.context, ctx=ctx)
+                    source_context=step.span, ctx=ctx)
 
                 assert path_tip.rptr is not None
                 ptrcls = typegen.ptrcls_from_ptrref(
@@ -517,22 +521,22 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     f'cannot apply type intersection operator to '
                     f'{arg_type.get_verbosename(ctx.env.schema)}: '
                     f'it is not an object type',
-                    context=step.context)
+                    context=step.span)
 
             if not isinstance(step.type, qlast.TypeName):
                 raise errors.QueryError(
                     f'complex type expressions are not supported here',
-                    context=step.context,
+                    context=step.span,
                 )
 
             typ = schemactx.get_schema_type(step.type.maintype, ctx=ctx)
 
             try:
                 path_tip = type_intersection_set(
-                    path_tip, typ, optional=False, source_context=step.context,
+                    path_tip, typ, optional=False, source_context=step.span,
                     ctx=ctx)
             except errors.SchemaError as e:
-                e.set_source_context(step.type.context)
+                e.set_source_context(step.type.span)
                 raise
 
         else:
@@ -587,15 +591,15 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             computables.append(path_tip)
 
         if pathctx.path_is_inserting(path_tip.path_id, ctx=ctx):
-            raise_self_insert_error(stype, step.context, ctx=ctx)
+            raise_self_insert_error(stype, step.span, ctx=ctx)
 
         # Don't track this step of the path if it didn't change the set
         # (probably because of do-nothing intersection)
         if not path_sets or path_sets[-1] != path_tip:
             path_sets.append(path_tip)
 
-    if expr.context:
-        path_tip.context = expr.context
+    if expr.span:
+        path_tip.context = expr.span
     pathctx.register_set_in_scope(path_tip, ctx=ctx)
 
     for ir_set in computables:
@@ -652,7 +656,7 @@ def resolve_name(
         ),
         label='object type or alias',
         item_type=s_types.QualifiedType,
-        srcctx=name.context,
+        srcctx=name.span,
         ctx=ctx,
     )
     return (None, stype)
@@ -674,7 +678,7 @@ def resolve_special_anchor(
     if not path_tip:
         raise errors.InvalidReferenceError(
             f'{token} cannot be used in this expression',
-            context=anchor.context,
+            context=anchor.span,
         )
 
     return path_tip
@@ -1121,7 +1125,7 @@ def compile_enum_path(
             f"'{source.get_displayname(ctx.env.schema)}' enum "
             f"path expression lacks an enum member name, as in "
             f"'{source.get_displayname(ctx.env.schema)}.{enum_values[0]}'",
-            context=expr.steps[0].context,
+            context=expr.steps[0].span,
         )
 
     step2 = expr.steps[1]
@@ -1130,7 +1134,7 @@ def compile_enum_path(
             f"an enum member name must follow enum type name in the path, "
             f"as in "
             f"'{source.get_displayname(ctx.env.schema)}.{enum_values[0]}'",
-            context=step2.context,
+            context=step2.span,
         )
 
     ptr_name = step2.name
@@ -1141,19 +1145,19 @@ def compile_enum_path(
     if step2_direction is not s_pointers.PointerDirection.Outbound:
         raise errors.QueryError(
             f"enum types do not support backlink navigation",
-            context=step2.context,
+            context=step2.span,
         )
     if step2.type == 'property':
         raise errors.QueryError(
             f"unexpected reference to link property '{ptr_name}' "
             f"outside of a path expression",
-            context=step2.context,
+            context=step2.span,
         )
 
     if nsteps > 2:
         raise errors.QueryError(
             f"invalid property reference on a primitive type expression",
-            context=expr.steps[2].context,
+            context=expr.steps[2].span,
         )
 
     if ptr_name not in enum_values:
@@ -1165,13 +1169,13 @@ def compile_enum_path(
         raise errors.InvalidReferenceError(
             f"'{src_name}' enum has no member called {ptr_name!r}",
             hint=f"did you mean {rec_name!r}?",
-            context=step2.context,
+            context=step2.span,
         )
 
     return enum_indirection_set(
         source=source,
         ptr_name=step2.name,
-        source_context=expr.context,
+        source_context=expr.span,
         ctx=ctx,
     )
 

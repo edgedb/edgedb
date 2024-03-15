@@ -37,7 +37,7 @@ from typing import (
 
 from edb import errors
 
-from edb.common import span as ctx_utils
+from edb.common import span as span
 from edb.common import struct
 from edb.edgeql import ast as qlast
 from edb.schema import schema as s_schema
@@ -810,7 +810,7 @@ class CreateInheritingObject(
         bases = cls._classbases_from_ast(schema, astnode, context)
         ctxes = [b.sourcectx for b in bases if b.sourcectx is not None]
         if ctxes:
-            srcctx = ctx_utils.merge_context(ctxes)
+            srcctx = span.merge_spans(ctxes)
         else:
             srcctx = None
         cmd.set_attribute_value(

@@ -431,7 +431,7 @@ class ConstraintCommand(
                 if cname in {'subject', 'subjectexpr'}:
                     raise errors.InvalidConstraintDefinitionError(
                         f'{cname} is not a valid constraint annotation',
-                        context=command.context)
+                        context=command.span)
 
     @classmethod
     def _classname_quals_from_ast(
@@ -1230,13 +1230,13 @@ class CreateConstraint(
                     raise errors.InvalidConstraintDefinitionError(
                         'named only parameters are not allowed '
                         'in this context',
-                        context=astnode.context)
+                        context=astnode.span)
 
                 if param.get_default(schema) is not None:
                     raise errors.InvalidConstraintDefinitionError(
                         'constraints do not support parameters '
                         'with defaults',
-                        context=astnode.context)
+                        context=astnode.span)
 
             if cmd.get_attribute_value('return_type') is None:
                 cmd.set_attribute_value(

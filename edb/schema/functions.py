@@ -1651,7 +1651,7 @@ class FunctionCommand(
                 raise errors.InvalidFunctionDefinitionError(
                     'data-modifying statements are not allowed in function'
                     ' bodies',
-                    context=ir.dml_exprs[0].context,
+                    context=ir.dml_exprs[0].span,
                 )
 
         spec_volatility: Optional[ft.Volatility] = (
@@ -1676,7 +1676,7 @@ class FunctionCommand(
                     f'{str(spec_volatility).lower()}',
                     details=f'Actual volatility is '
                             f'{str(ir.volatility).lower()}',
-                    context=body.qlast.context,
+                    context=body.qlast.span,
                 )
 
         globs = {schema.get(glob.global_name, type=s_globals.Global)
@@ -2204,7 +2204,7 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
                 raise errors.EdgeQLSyntaxError(
                     'altering function code is only supported for '
                     'pure EdgeQL functions',
-                    context=astnode.context
+                    context=astnode.span
                 )
 
             nativecode_expr: Optional[qlast.Expr] = None
@@ -2416,7 +2416,7 @@ def compile_function(
             f'{return_type.get_verbosename(schema)}',
             details=f'Actual return type is '
                     f'{ir.stype.get_verbosename(schema)}',
-            context=body.qlast.context,
+            context=body.qlast.span,
         )
 
     if (return_typemod is not ft.TypeModifier.SetOfType
@@ -2427,7 +2427,7 @@ def compile_function(
             details=(
                 f'Function may return a set with more than one element.'
             ),
-            context=body.qlast.context,
+            context=body.qlast.span,
         )
     elif (return_typemod is ft.TypeModifier.SingletonType
             and ir.cardinality.can_be_zero()):
@@ -2437,7 +2437,7 @@ def compile_function(
             details=(
                 f'Function may return an empty set.'
             ),
-            context=body.qlast.context,
+            context=body.qlast.span,
         )
 
     return compiled

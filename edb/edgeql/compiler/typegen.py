@@ -199,25 +199,25 @@ def _ql_typeexpr_to_type(
                 raise errors.UnsupportedFeatureError(
                     f'cannot use type operator {ql_t.op!r} with non-object '
                     f'type {left[0].get_displayname(ctx.env.schema)}',
-                    context=ql_t.left.context)
+                    context=ql_t.left.span)
             if len(right) == 1 and not right[0].is_object_type():
                 raise errors.UnsupportedFeatureError(
                     f'cannot use type operator {ql_t.op!r} with non-object '
                     f'type {right[0].get_displayname(ctx.env.schema)}',
-                    context=ql_t.right.context)
+                    context=ql_t.right.span)
 
             return left + right
 
         raise errors.UnsupportedFeatureError(
             f'type operator {ql_t.op!r} is not implemented',
-            context=ql_t.context)
+            context=ql_t.span)
 
     elif isinstance(ql_t, qlast.TypeName):
         return [_ql_typename_to_type(ql_t, ctx=ctx)]
 
     else:
         raise errors.EdgeQLSyntaxError("Unexpected type expression",
-                                       context=ql_t.context)
+                                       context=ql_t.span)
 
 
 def _ql_typename_to_type(

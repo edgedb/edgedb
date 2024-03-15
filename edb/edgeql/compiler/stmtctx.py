@@ -826,14 +826,14 @@ def throw_on_loose_param(
         if ctx.env.options.schema_object_context is s_constr.Constraint:
             raise errors.InvalidConstraintDefinitionError(
                 f'dollar-prefixed "$parameters" cannot be used here',
-                context=param.context)
+                context=param.span)
         else:
             raise errors.InvalidFunctionDefinitionError(
                 f'dollar-prefixed "$parameters" cannot be used here',
-                context=param.context)
+                context=param.span)
     raise errors.QueryError(
         f'missing a type cast before the parameter',
-        context=param.context)
+        context=param.span)
 
 
 def preprocess_script(

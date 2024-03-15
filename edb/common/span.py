@@ -33,6 +33,7 @@ contexts through the AST structure.
 
 from __future__ import annotations
 
+from typing import List
 import re
 import bisect
 
@@ -41,6 +42,7 @@ import edb._edgeql_parser as ql_parser
 from edb.common import ast
 from edb.common import markup
 from edb.common import typeutils
+from edb.common import span
 
 
 NEW_LINE = re.compile(br'\r\n?|\n')
@@ -123,7 +125,7 @@ class Span(markup.MarkupExceptionContext):
         return me.lang.ExceptionContext(title=self.title, body=[tbp])
 
 
-def _get_context(items, *, reverse=False):
+def _get_span(items, *, reverse=False):
     ctx = None
 
     items = reversed(items) if reverse else items
@@ -131,19 +133,19 @@ def _get_context(items, *, reverse=False):
     #
     for item in items:
         if isinstance(item, (list, tuple)):
-            ctx = _get_context(item, reverse=reverse)
+            ctx = _get_span(item, reverse=reverse)
             if ctx:
                 return ctx
         else:
-            ctx = getattr(item, 'context', None)
+            ctx = getattr(item, 'span', None)
             if ctx:
                 return ctx
 
     return None
 
 
-def empty_context():
-    """Return a dummy context that points to an empty string."""
+def empty_span():
+    """Return a dummy span that points to an empty string."""
     return Span(
         name='<empty>',
         buffer='',
@@ -152,9 +154,9 @@ def empty_context():
     )
 
 
-def get_context(*kids):
-    start_ctx = _get_context(kids)
-    end_ctx = _get_context(kids, reverse=True)
+def get_span(*kids: List[ast.AST]):
+    start_ctx = _get_span(kids)
+    end_ctx = _get_span(kids, reverse=True)
 
     if not start_ctx:
         return None
@@ -167,27 +169,27 @@ def get_context(*kids):
     )
 
 
-def merge_context(ctxlist):
-    ctxlist.sort(key=lambda x: (x.start, x.end))
+def merge_spans(spans: List[span.Span]) -> span.Span:
+    spans.sort(key=lambda x: (x.start, x.end))
 
     # assume same name and buffer apply to all
     #
     return Span(
-        name=ctxlist[0].name,
-        buffer=ctxlist[0].buffer,
-        start=ctxlist[0].start,
-        end=ctxlist[-1].end,
+        name=spans[0].name,
+        buffer=spans[0].buffer,
+        start=spans[0].start,
+        end=spans[-1].end,
     )
 
 
-def force_context(node, context):
-    if hasattr(node, 'context'):
-        ContextPropagator.run(node, default=context)
-        node.context = context
+def infer_span_from_children(node, span: span.Span):
+    if hasattr(node, 'span'):
+        SpanPropagator.run(node, default=span)
+        node.span = span
 
 
-def has_context(func):
-    """Provide automatic context for Nonterm production rules."""
+def wrap_function_to_infer_spans(func):
+    """Provide automatic span for Nonterm production rules."""
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
         obj, *args = args
@@ -198,36 +200,31 @@ def has_context(func):
             #
             arg = args[0]
             if getattr(arg, 'val', None) is obj.val:
-                if hasattr(arg, 'context'):
-                    obj.context = arg.context
-                if hasattr(obj.val, 'context'):
-                    obj.val.context = obj.context
+                if hasattr(arg, 'span'):
+                    obj.span = arg.span
+                if hasattr(obj.val, 'span'):
+                    obj.val.span = obj.span
                 return result
 
-        # Avoid mangling any existing context.
-        if getattr(obj, 'context', None) is None:
-            obj.context = get_context(*args)
+        # Avoid mangling existing span
+        if getattr(obj, 'span', None) is None:
+            obj.span = get_span(*args)
 
-        # we have the context for the nonterminal, but now we need to
-        # enforce context in the obj.val, recursively, in case it was
+        # we have the span for the nonterminal, but now we need to
+        # enforce span in the obj.val, recursively, in case it was
         # a complex production with nested AST nodes
-        #
-        force_context(obj.val, obj.context)
+        infer_span_from_children(obj.val, obj.span)
         return result
 
     return wrapper
 
 
-class ContextVisitor(ast.NodeVisitor):
-    pass
+class SpanPropagator(ast.NodeVisitor):
+    """Propagate span from children to root.
 
-
-class ContextPropagator(ContextVisitor):
-    """Propagate context from children to root.
-
-    It is assumed that if a node has a context, all of its children
-    also have correct context. For a node that has no context, its
-    context is derived as a superset of all of the contexts of its
+    It is assumed that if a node has a span, all of its children
+    also have correct span. For a node that has no span, its
+    span is derived as a superset of all of the spans of its
     descendants.
     """
 
@@ -236,40 +233,42 @@ class ContextPropagator(ContextVisitor):
         self._default = default
 
     def container_visit(self, node):
-        ctxlist = []
+        span_list = []
         for el in node:
             if isinstance(el, ast.AST) or typeutils.is_container(el):
-                ctx = self.visit(el)
+                span = self.visit(el)
 
-                if isinstance(ctx, list):
-                    ctxlist.extend(ctx)
+                if isinstance(span, list):
+                    span_list.extend(span)
                 else:
-                    ctxlist.append(ctx)
-        return ctxlist
+                    span_list.append(span)
+        return span_list
 
     def generic_visit(self, node):
-        # base case: we already have context
-        #
-        if getattr(node, 'context', None) is not None:
-            return node.context
+        # base case: we already have span
+        if getattr(node, 'span', None) is not None:
+            return node.span
 
-        # we need to derive context based on the children
-        #
-        ctxlist = self.container_visit(v[1] for v in ast.iter_fields(node))
+        # we need to derive span based on the children
+        span_list = self.container_visit(v for _, v in ast.iter_fields(node))
 
-        # now that we have all of the children contexts, let's merge
+        if None in span_list:
+            node.dump()
+            print(list(ast.iter_fields(node)))
+
+        # now that we have all of the children spans, let's merge
         # them into one
         #
-        if ctxlist:
-            node.context = merge_context(ctxlist)
+        if span_list:
+            node.span = merge_spans(span_list)
         else:
-            node.context = self._default
+            node.span = self._default
 
-        return node.context
+        return node.span
 
 
-class ContextValidator(ContextVisitor):
+class SpanValidator(ast.NodeVisitor):
     def generic_visit(self, node):
-        if getattr(node, 'context', None) is None:
-            raise RuntimeError('node {} has no context'.format(node))
+        if getattr(node, 'span', None) is None:
+            raise RuntimeError('node {} has no span'.format(node))
         super().generic_visit(node)

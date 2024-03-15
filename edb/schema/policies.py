@@ -319,7 +319,7 @@ class CreateAccessPolicy(
                     astnode.condition, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.condition.context,
+                source_context=astnode.condition.span,
             )
 
         if astnode.expr:
@@ -329,7 +329,7 @@ class CreateAccessPolicy(
                     astnode.expr, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.expr.context,
+                source_context=astnode.expr.span,
             )
 
         cmd.set_attribute_value('action', astnode.action)
@@ -436,14 +436,14 @@ class AlterAccessPolicyPerms(
             sd.AlterObjectProperty(
                 property='action',
                 new_value=astnode.action,
-                source_context=astnode.context,
+                source_context=astnode.span,
             )
         )
         cmd.add(
             sd.AlterObjectProperty(
                 property='access_kinds',
                 new_value=astnode.access_kinds,
-                source_context=astnode.context,
+                source_context=astnode.span,
             )
         )
         return cmd

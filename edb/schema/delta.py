@@ -1098,7 +1098,7 @@ class Command(
         context: CommandContext,
     ) -> Command:
         cmd = cls._cmd_from_ast(schema, astnode, context)
-        cmd.source_context = astnode.context
+        cmd.source_context = astnode.span
         cmd.qlast = astnode
         ctx = context.current()
         if ctx is not None and type(ctx) is cls.get_context_class():
@@ -1659,7 +1659,7 @@ class Query(Command):
         context: CommandContext,
     ) -> Command:
         return cls(
-            source_context=astnode.context,
+            source_context=astnode.span,
             expr=s_expr.Expression.from_ast(
                 astnode,  # type: ignore
                 schema=schema,
@@ -2909,7 +2909,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         if module is None:
             raise errors.SchemaDefinitionError(
                 f'unqualified name and no default module set',
-                context=objref.context,
+                context=objref.span,
             )
 
         return sn.QualName(module=module, name=objref.name)
@@ -4062,7 +4062,7 @@ class AlterObjectProperty(Command):
             except LookupError:
                 raise errors.SchemaDefinitionError(
                     f'{propname!r} is not a valid field',
-                    context=astnode.context)
+                    context=astnode.span)
 
         if not (
             astnode.special_syntax
@@ -4072,12 +4072,12 @@ class AlterObjectProperty(Command):
         ):
             raise errors.SchemaDefinitionError(
                 f'{propname!r} is not a valid field',
-                context=astnode.context)
+                context=astnode.span)
 
         if field.name == 'id' and not isinstance(parent_op, CreateObject):
             raise errors.SchemaDefinitionError(
                 f'cannot alter object id',
-                context=astnode.context)
+                context=astnode.span)
 
         new_value: Any
 
@@ -4163,7 +4163,7 @@ class AlterObjectProperty(Command):
         return cls(
             property=propname,
             new_value=new_value,
-            source_context=astnode.context,
+            source_context=astnode.span,
         )
 
     def is_data_safe(self) -> bool:

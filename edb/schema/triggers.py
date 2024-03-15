@@ -162,7 +162,7 @@ class TriggerCommand(
                     raise errors.SchemaDefinitionError(
                         'data-modifying statements are not allowed in trigger '
                         'when clauses',
-                        context=expression.irast.dml_exprs[0].context,
+                        context=expression.irast.dml_exprs[0].span,
                     )
 
         return schema
@@ -314,7 +314,7 @@ class CreateTrigger(
                     astnode.expr, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.expr.context,
+                source_context=astnode.expr.span,
             )
         if astnode.condition is not None:
             cmd.set_attribute_value(
@@ -323,7 +323,7 @@ class CreateTrigger(
                     astnode.condition, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.condition.context,
+                source_context=astnode.condition.span,
             )
 
         cmd.set_attribute_value('timing', astnode.timing)

@@ -208,7 +208,7 @@ def _cst_to_ast(
 
             if terminal := node.terminal:
                 # Terminal is simple: just convert to parsing.Token
-                context = parsing.Span(
+                span = parsing.Span(
                     name=filename,
                     buffer=source.text(),
                     start=terminal.start,
@@ -216,7 +216,7 @@ def _cst_to_ast(
                 )
                 result.append(
                     parsing.Token(
-                        terminal.text, terminal.value, context
+                        terminal.text, terminal.value, span
                     )
                 )
 

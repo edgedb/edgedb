@@ -130,8 +130,8 @@ def analyze_queries(
 ) -> AnalysisInfo:
     debug_spew = debug.flags.edgeql_explain
 
-    assert ql.context
-    contexts = {(ql.context.buffer, ql.context.name): 0}
+    assert ql.span
+    contexts = {(ql.span.buffer, ql.span.name): 0}
 
     def get_context(node: irast.Set) -> ContextDesc:
         assert node.context, node

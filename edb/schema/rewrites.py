@@ -353,7 +353,7 @@ class CreateRewrite(
                     context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.expr.context,
+                source_context=astnode.expr.span,
             )
         return group
 

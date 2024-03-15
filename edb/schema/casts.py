@@ -270,7 +270,7 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
                 'user-defined casts are not supported',
-                context=astnode.context
+                context=astnode.span
             )
 
         return super()._cmd_tree_from_ast(schema, astnode, context)

@@ -91,7 +91,7 @@ class RoleCommand(
                 raise errors.EdgeQLSyntaxError(
                     'cannot specify both `password` and `password_hash` in'
                     ' the same statement',
-                    context=astnode.context,
+                    context=astnode.span,
                 )
             salted_password = scram.build_verifier(password)
             cmd.set_attribute_value('password', salted_password)
@@ -103,7 +103,7 @@ class RoleCommand(
             except ValueError as e:
                 raise errors.InvalidValueError(
                     e.args[0],
-                    context=astnode.context)
+                    context=astnode.span)
             cmd.set_attribute_value('password', password_hash)
 
     @classmethod
@@ -155,7 +155,7 @@ class CreateRole(RoleCommand, inheriting.CreateInheritingObject[Role]):
         if not astnode.superuser and not context.testmode:
             raise errors.EdgeQLSyntaxError(
                 'missing required SUPERUSER qualifier',
-                context=astnode.context,
+                context=astnode.span,
             )
 
         cmd.set_attribute_value('superuser', astnode.superuser)

@@ -505,14 +505,14 @@ def compile_insert_unless_conflict_on(
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property, link, '
                 'or tuple of properties and links',
-                context=constraint_spec.context,
+                context=constraint_spec.span,
             )
 
         if cspec_arg.rptr.source.path_id != stmt.subject.path_id:
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property of the '
                 'type being inserted',
-                context=constraint_spec.context,
+                context=constraint_spec.span,
             )
 
     schema = ctx.env.schema
@@ -527,7 +527,7 @@ def compile_insert_unless_conflict_on(
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property, link, '
                 'or tuple of properties and links',
-                context=constraint_spec.context,
+                context=constraint_spec.span,
             )
 
         ptr = ptr.get_nearest_non_derived_parent(schema)
@@ -546,7 +546,7 @@ def compile_insert_unless_conflict_on(
     if len(all_constrs) != 1:
         raise errors.QueryError(
             'UNLESS CONFLICT property must have a single exclusive constraint',
-            context=constraint_spec.context,
+            context=constraint_spec.span,
         )
 
     ds = {ptr.get_shortname(schema).name: (ptr, field_constrs)
@@ -567,7 +567,7 @@ def compile_insert_unless_conflict_on(
                 details=(
                     f"The existing object can't be exposed in the ELSE clause "
                     f"because it may not have type {typ.get_name(schema)}"),
-                context=constraint_spec.context,
+                context=constraint_spec.span,
             )
 
         with ctx.new() as ectx:

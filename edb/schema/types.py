@@ -2896,7 +2896,9 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
         expr = qlast.get_ddl_field_value(astnode, 'expr')
         if expr is None:
             raise errors.InvalidAliasDefinitionError(
-                f'missing required view expression', context=astnode.context)
+                f'missing required view expression',
+                context=astnode.span
+            )
         assert isinstance(expr, qlast.Expr)
         return expr
 

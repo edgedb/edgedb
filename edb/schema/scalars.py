@@ -523,7 +523,7 @@ class CreateScalarType(
                 if isinstance(b, s_types.CollectionTypeShell):
                     raise errors.SchemaError(
                         f'scalar type may not have a collection base type',
-                        context=ab.context,
+                        context=ab.span,
                     )
 
             # We don't support FINAL, but old dumps and migrations specify
@@ -532,7 +532,7 @@ class CreateScalarType(
             if not is_enum and astnode.final:
                 raise errors.UnsupportedFeatureError(
                     f'FINAL is not supported',
-                    context=astnode.context,
+                    context=astnode.span,
                 )
 
             if is_enum:
@@ -542,7 +542,7 @@ class CreateScalarType(
                     raise errors.SchemaError(
                         f'invalid scalar type definition, enumeration must be'
                         f' the only supertype specified',
-                        context=astnode.bases[0].context,
+                        context=astnode.bases[0].span,
                     )
                 if create_cmd.has_attribute_value('default'):
                     raise errors.UnsupportedFeatureError(
@@ -557,7 +557,7 @@ class CreateScalarType(
                 if len(set(shell.elements)) != len(shell.elements):
                     raise errors.SchemaDefinitionError(
                         f'enums cannot contain duplicate values',
-                        context=astnode.bases[0].context,
+                        context=astnode.bases[0].span,
                     )
                 create_cmd.set_attribute_value('enum_values', shell.elements)
                 create_cmd.set_attribute_value(
@@ -580,7 +580,7 @@ class CreateScalarType(
                         raise errors.SchemaDefinitionError(
                             'scalars with parameterized bases may '
                             'only have one',
-                            context=astnode.bases[0].context,
+                            context=astnode.bases[0].span,
                         )
                     base = bases[0]
                     args = []
@@ -591,7 +591,7 @@ class CreateScalarType(
                         ):
                             raise errors.SchemaDefinitionError(
                                 'invalid scalar type argument',
-                                context=x.context,
+                                context=x.span,
                             )
                         args.append(x.val.value)
                     cmd.set_attribute_value('arg_values', args)
@@ -599,8 +599,8 @@ class CreateScalarType(
                 cmd.set_attribute_value(
                     'bases',
                     so.ObjectCollectionShell(
-                        bases, collection_type=so.ObjectList),
-                    # source_context=srcctx,
+                        bases, collection_type=so.ObjectList
+                    ),
                 )
 
         return cmd

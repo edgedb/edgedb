@@ -664,13 +664,13 @@ class IndexCommand(
                     f'possibly more than one element returned by '
                     f'the index expression where only singletons '
                     f'are allowed',
-                    context=value.qlast.context,
+                    context=value.qlast.span,
                 )
 
             if expr.irast.volatility != qltypes.Volatility.Immutable:
                 raise errors.SchemaDefinitionError(
                     f'index expressions must be immutable',
-                    context=value.qlast.context,
+                    context=value.qlast.span,
                 )
 
             refs = irutils.get_longest_paths(expr.irast)

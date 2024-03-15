@@ -90,7 +90,7 @@ def compile_cast(
             stype=new_stype,
             alias=ir_expr.path_id.target_name_hint.name,
             ctx=ctx,
-            srcctx=ir_expr.context)
+            span=ir_expr.context)
 
     if isinstance(new_stype, s_types.Array) and (
         irutils.is_untyped_empty_array_expr(ir_expr)
@@ -136,7 +136,7 @@ def compile_cast(
         return setgen.new_empty_set(
             stype=new_stype,
             ctx=ctx,
-            srcctx=ir_expr.context)
+            span=ir_expr.context)
 
     uuid_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'uuid'))
     if (

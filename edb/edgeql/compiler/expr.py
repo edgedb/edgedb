@@ -26,7 +26,7 @@ from typing import Callable, Optional, Type, Union, Sequence, List, cast
 
 from edb import errors
 
-from edb.common import span as ctx_utils
+from edb.common import span as pspan
 from edb.common import parsing
 
 from edb.ir import ast as irast
@@ -80,31 +80,32 @@ def compile_Path(
 def _balance(
     elements: Sequence[qlast.Expr],
     ctor: Callable[
-        [qlast.Expr, qlast.Expr, Optional[ctx_utils.Span]],
+        [qlast.Expr, qlast.Expr, Optional[pspan.Span]],
         qlast.Expr
     ],
-    context: Optional[ctx_utils.Span],
+    span: Optional[pspan.Span],
 ) -> qlast.Expr:
     mid = len(elements) // 2
     ls, rs = elements[:mid], elements[mid:]
-    ls_context = rs_context = None
-    if len(ls) > 1 and ls[0].context and ls[-1].context:
-        ls_context = ctx_utils.merge_context([
-            ls[0].context, ls[-1].context])
-    if len(rs) > 1 and rs[0].context and rs[-1].context:
-        rs_context = ctx_utils.merge_context([
-            rs[0].context, rs[-1].context])
+    ls_span = rs_span = None
+    if len(ls) > 1 and ls[0].span and ls[-1].span:
+        ls_span = pspan.merge_spans([
+            ls[0].span, ls[-1].span
+        ])
+    if len(rs) > 1 and rs[0].span and rs[-1].span:
+        rs_span = pspan.merge_spans([
+            rs[0].span, rs[-1].span])
 
     return ctor(
         (
-            _balance(ls, ctor, ls_context)
+            _balance(ls, ctor, ls_span)
             if len(ls) > 1 else ls[0]
         ),
         (
-            _balance(rs, ctor, rs_context)
+            _balance(rs, ctor, rs_span)
             if len(rs) > 1 else rs[0]
         ),
-        context,
+        span,
     )
 
 
@@ -123,9 +124,10 @@ def compile_BinOp(
         if len(elements) >= REBALANCE_THRESHOLD:
             balanced = _balance(
                 elements,
-                lambda l, r, c: qlast.BinOp(
-                    left=l, right=r, op=expr.op, rebalanced=True, context=c),
-                expr.context
+                lambda l, r, s: qlast.BinOp(
+                    left=l, right=r, op=expr.op, rebalanced=True, span=s
+                ),
+                expr.span
             )
             return dispatch.compile(balanced, ctx=ctx)
 
@@ -187,8 +189,8 @@ def compile_Set(
             bigunion = _balance(
                 elements,
                 lambda l, r, c: qlast.SetConstructorOp(
-                    left=l, right=r, rebalanced=True, context=c),
-                expr.context
+                    left=l, right=r, rebalanced=True, span=c),
+                expr.span
             )
             res = dispatch.compile(bigunion, ctx=ctx)
             if cres := try_constant_set(res):
@@ -198,7 +200,7 @@ def compile_Set(
         return setgen.new_empty_set(
             alias=ctx.aliases.get('e'),
             ctx=ctx,
-            srcctx=expr.context,
+            span=expr.span,
         )
 
 
@@ -268,7 +270,7 @@ def compile_NamedTuple(
         if name in names:
             raise errors.QueryError(
                 f"named tuple has duplicate field '{name}'",
-                context=el.context)
+                context=el.span)
         names.add(name)
 
         element = irast.TupleElement(
@@ -307,9 +309,9 @@ def compile_Array(
         if isinstance(setgen.get_set_type(el, ctx=ctx), s_abc.Array):
             raise errors.QueryError(
                 f'nested arrays are not supported',
-                context=expr_el.context)
+                context=expr_el.span)
 
-    return setgen.new_array_set(elements, ctx=ctx, srcctx=expr.context)
+    return setgen.new_array_set(elements, ctx=ctx, span=expr.span)
 
 
 def _move_fenced_anchor(ir: irast.Set, *, ctx: context.ContextLevel) -> None:
@@ -593,7 +595,7 @@ def compile_GlobalExpr(
         typname = objctx.get_schema_class_displayname()
         raise errors.SchemaDefinitionError(
             f'global variables cannot be referenced from {typname}',
-            context=expr.context)
+            context=expr.span)
 
     param_set: qlast.Expr | irast.Set
     present_set: qlast.Expr | irast.Set | None
@@ -654,7 +656,7 @@ def compile_TypeCast(
                 f'{target_stype.get_displayname(ctx.env.schema)!r}',
                 hint="Please ensure you don't use generic "
                      '"any" types or abstract scalars.',
-                context=expr.context)
+                context=expr.span)
 
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
 
@@ -675,7 +677,7 @@ def compile_TypeCast(
                 raise errors.QueryError(
                     'queries compiled to accept JSON parameters do not '
                     'accept positional parameters',
-                    context=expr.expr.context)
+                    context=expr.expr.span)
 
             typeref = typegen.type_to_typeref(
                 ctx.env.get_schema_type_and_track(sn.QualName('std', 'json')),
@@ -687,10 +689,10 @@ def compile_TypeCast(
                     typeref=typeref,
                     name=param_name,
                     required=required,
-                    context=expr.expr.context,
+                    context=expr.expr.span,
                 ),
                 pt,
-                span=expr.expr.context,
+                span=expr.expr.span,
                 ctx=ctx,
             )
 
@@ -701,7 +703,7 @@ def compile_TypeCast(
                     typeref=typeref,
                     name=param_name,
                     required=required,
-                    context=expr.expr.context,
+                    context=expr.expr.span,
                 ),
                 ctx=ctx,
             )
@@ -716,7 +718,7 @@ def compile_TypeCast(
                     f'{pt.get_displayname(ctx.env.schema)} '
                     f'does not match original type '
                     f'{param_first_type.get_displayname(ctx.env.schema)}',
-                    context=expr.expr.context)
+                    context=expr.expr.span)
 
         if param_name not in ctx.env.query_parameters:
             sub_params = None
@@ -750,7 +752,7 @@ def compile_TypeCast(
             target_stype,
             cardinality_mod=expr.cardinality_mod,
             ctx=subctx,
-            span=expr.context,
+            span=expr.span,
         )
 
     return stmt.maybe_add_view(res, ctx=ctx)
@@ -803,18 +805,18 @@ def compile_Introspect(
     if irtyputils.is_view(typeref):
         raise errors.QueryError(
             f'cannot introspect transient type variant',
-            context=expr.type.context)
+            context=expr.type.span)
     if irtyputils.is_collection(typeref):
         raise errors.QueryError(
             f'cannot introspect collection types',
-            context=expr.type.context)
+            context=expr.type.span)
     if irtyputils.is_generic(typeref):
         raise errors.QueryError(
             f'cannot introspect generic types',
-            context=expr.type.context)
+            context=expr.type.span)
 
     result_typeref = typegen.type_to_typeref(
-        _infer_type_introspection(typeref, ctx.env, expr.context), env=ctx.env
+        _infer_type_introspection(typeref, ctx.env, expr.span), env=ctx.env
     )
     ir = setgen.ensure_set(
         irast.TypeIntrospection(output_typeref=typeref, typeref=result_typeref),
@@ -954,13 +956,13 @@ def compile_Indirection(
     for indirection_el in expr.indirection:
         if isinstance(indirection_el, qlast.Index):
             idx = dispatch.compile(indirection_el.index, ctx=ctx)
-            idx.context = indirection_el.index.context
+            idx.context = indirection_el.index.span
             typeref = typegen.type_to_typeref(
                 _infer_index_type(node, idx, ctx=ctx), env=ctx.env
             )
 
             node = irast.IndexIndirection(
-                expr=node, index=idx, typeref=typeref, context=expr.context
+                expr=node, index=idx, typeref=typeref, context=expr.span
             )
         elif isinstance(indirection_el, qlast.Slice):
             start: Optional[irast.Base]
@@ -1001,7 +1003,8 @@ def compile_type_check_op(
     if ltype.is_object_type():
         left = setgen.ptr_step_set(
             left, expr=None, source=ltype, ptr_name='__type__',
-            source_context=expr.context, ctx=ctx)
+            source_context=expr.span, ctx=ctx
+        )
         pathctx.register_set_in_scope(left, ctx=ctx)
         result = None
     else:

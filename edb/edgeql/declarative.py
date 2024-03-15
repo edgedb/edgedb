@@ -485,7 +485,7 @@ def sdl_to_ddl(
             # A single schema object with a recursive definition.
             msg = f'{item_vn} is defined recursively'
 
-        raise errors.InvalidDefinitionError(msg, context=node.context) from e
+        raise errors.InvalidDefinitionError(msg, context=node.span) from e
 
     return tuple(mods) + tuple(ordered)
 
@@ -759,7 +759,7 @@ def _trace_item_layout(
             if field_name in ctx.objects:
                 vn = get_verbosename_from_fqname(field_name, ctx)
                 msg = f'{vn} was already declared'
-                raise errors.InvalidDefinitionError(msg, context=decl.context)
+                raise errors.InvalidDefinitionError(msg, context=decl.span)
 
             ctx.objects[field_name] = qltracer.Field(field_name)
 
@@ -1094,7 +1094,7 @@ def _register_item(
     if fq_name in ctx.ddlgraph:
         vn = get_verbosename_from_fqname(fq_name, ctx)
         msg = f'{vn} was already declared'
-        raise errors.InvalidDefinitionError(msg, context=decl.context)
+        raise errors.InvalidDefinitionError(msg, context=decl.span)
 
     if deps:
         deps = set(deps)
@@ -1414,7 +1414,7 @@ def _get_bases(
                 raise errors.SchemaError(
                     f"invalid scalar type definition, enumeration must "
                     f"be the only supertype specified",
-                    context=decl.bases[0].context,
+                    context=decl.bases[0].span,
                 )
 
             bases = [s_name.QualName("std", "anyenum")]
@@ -1528,7 +1528,7 @@ def _resolve_type_name(
 ) -> qltracer.ObjectLike:
 
     refname = ctx.get_ref_name(ref)
-    local_obj = _get_local_obj(refname, tracer_type, ref.context, ctx=ctx)
+    local_obj = _get_local_obj(refname, tracer_type, ref.span, ctx=ctx)
     obj: qltracer.ObjectLike
     if local_obj is not None:
         obj = local_obj
@@ -1536,7 +1536,7 @@ def _resolve_type_name(
         obj = _resolve_schema_ref(
             refname,
             type=tracer_type,
-            sourcectx=ref.context,
+            span=ref.span,
             ctx=ctx,
         )
 
@@ -1585,7 +1585,7 @@ def _validate_schema_ref(
         # Bail out and rely on some other validation mechanism
         return
 
-    local_obj = _get_local_obj(refname, tracer_type, decl.context, ctx=ctx)
+    local_obj = _get_local_obj(refname, tracer_type, decl.span, ctx=ctx)
 
     if local_obj is None:
         if (tracer_type is qltracer.Index and
@@ -1595,7 +1595,7 @@ def _validate_schema_ref(
         _resolve_schema_ref(
             refname,
             type=tracer_type,
-            sourcectx=decl.context,
+            span=decl.span,
             ctx=ctx,
         )
 
@@ -1603,13 +1603,13 @@ def _validate_schema_ref(
 def _resolve_schema_ref(
     name: s_name.Name,
     type: Type[qltracer.NamedObject],
-    sourcectx: Optional[parsing.Span],
+    span: Optional[parsing.Span],
     *,
     ctx: LayoutTraceContext | DepTraceContext,
 ) -> s_obj.SubclassableObject:
     real_type = TRACER_TO_REAL_TYPE_MAP[type]
     try:
-        return ctx.schema.get(name, type=real_type, sourcectx=sourcectx)
+        return ctx.schema.get(name, type=real_type, sourcectx=span)
     except errors.InvalidReferenceError as e:
         s_utils.enrich_schema_lookup_error(
             e,
@@ -1617,6 +1617,6 @@ def _resolve_schema_ref(
             schema=ctx.schema,
             modaliases=ctx.modaliases,
             item_type=real_type,
-            context=sourcectx,
+            context=span,
         )
         raise

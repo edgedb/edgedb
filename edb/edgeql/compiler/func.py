@@ -88,7 +88,7 @@ def compile_FunctionCall(
         ):
             raise errors.QueryError(
                 f'parameter `{expr.func}` is not callable',
-                context=expr.context)
+                context=expr.span)
 
         funcname = sn.UnqualName(expr.func)
     else:
@@ -102,7 +102,7 @@ def compile_FunctionCall(
     if funcs is None:
         raise errors.QueryError(
             f'could not resolve function name {funcname}',
-            context=expr.context)
+            context=expr.span)
 
     in_polymorphic_func = (
         ctx.env.options.func_params is not None and
@@ -120,7 +120,7 @@ def compile_FunctionCall(
     args, kwargs = compile_func_call_args(
         expr, funcname, typemods, prefer_subquery_args=prefer_subquery_args,
         ctx=ctx)
-    with errors.ensure_context(expr.context):
+    with errors.ensure_context(expr.span):
         matched = polyres.find_callable(
             funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
@@ -158,7 +158,7 @@ def compile_FunctionCall(
         raise errors.QueryError(
             f'function "{signature}" does not exist',
             hint=hint,
-            context=expr.context)
+            context=expr.span)
     elif len(matched) > 1:
         if in_abstract_constraint:
             matched_call = matched[0]
@@ -169,7 +169,7 @@ def compile_FunctionCall(
                 hint=f'Please disambiguate between the following '
                      f'alternatives:\n' +
                      ('\n'.join(alts)),
-                context=expr.context)
+                context=expr.span)
     else:
         matched_call = matched[0]
 
@@ -186,7 +186,7 @@ def compile_FunctionCall(
             raise errors.SchemaDefinitionError(
                 f'mutations are invalid in '
                 f'{ctx.env.options.in_ddl_context_name}',
-                context=expr.context,
+                context=expr.span,
             )
         elif (
             (dv := ctx.defining_view) is not None
@@ -203,7 +203,7 @@ def compile_FunctionCall(
                     f'To resolve this try to factor out the mutation '
                     f'expression into the top-level WITH block.'
                 ),
-                context=expr.context,
+                context=expr.span,
             )
 
     func_name = func.get_shortname(env.schema)
@@ -308,7 +308,7 @@ def compile_FunctionCall(
         preserves_upper_cardinality=func.get_preserves_upper_cardinality(
             env.schema),
         params_typemods=params_typemods,
-        context=expr.context,
+        context=expr.span,
         typeref=typegen.type_to_typeref(
             rtype, env=env,
         ),
@@ -361,7 +361,7 @@ def compile_operator(
     if opers is None:
         raise errors.QueryError(
             f'no operator matches the given name and argument types',
-            context=qlexpr.context)
+            context=qlexpr.span)
 
     typemods = polyres.find_callable_typemods(
         opers, num_args=len(qlargs), kwargs_names=set(), ctx=ctx)
@@ -400,14 +400,14 @@ def compile_operator(
         if len(opers) > 1:
             raise errors.InternalServerError(
                 f'more than one derived operator of the same name: {op_name}',
-                context=qlarg.context)
+                context=qlarg.span)
 
         derivative_op = opers[0]
         opers = schema.get_operators(origin_op)
         if not opers:
             raise errors.InternalServerError(
                 f'cannot find the origin operator for {op_name}',
-                context=qlarg.context)
+                context=qlarg.span)
         actual_typemods = [
             param.get_typemod(schema)
             for param in derivative_op.get_params(schema).objects(schema)
@@ -549,7 +549,7 @@ def compile_operator(
             raise errors.InvalidTypeError(
                 msg,
                 hint=hint,
-                context=qlexpr.context)
+                context=qlexpr.span)
         elif len(matched) > 1:
             if in_abstract_constraint:
                 matched_call = matched[0]
@@ -562,7 +562,7 @@ def compile_operator(
                     f'operator {str(op_name)!r} is ambiguous for '
                     f'operands of type {types}',
                     hint=f'Possible variants: {detail}.',
-                    context=qlexpr.context)
+                    context=qlexpr.span)
 
     oper = matched_call.func
     assert isinstance(oper, s_oper.Operator)
@@ -640,7 +640,7 @@ def compile_operator(
         volatility=oper.get_volatility(env.schema),
         operator_kind=oper.get_operator_kind(env.schema),
         params_typemods=params_typemods,
-        context=qlexpr.context,
+        context=qlexpr.span,
         typeref=typegen.type_to_typeref(rtype, env=env),
         typemod=oper.get_return_typemod(env.schema),
         tuple_path_ids=[],
@@ -788,7 +788,7 @@ def get_globals(
         and not ctx.env.options.json_parameters
     ):
         glob_set = setgen.get_globals_as_json(
-            tuple(globs), ctx=ctx, srcctx=expr.context)
+            tuple(globs), ctx=ctx, srcctx=expr.span)
     else:
         if ctx.env.options.func_params is not None:
             # Make sure that we properly track the globals we use in functions

@@ -282,7 +282,7 @@ class PropertyCommand(
             if isinstance(sub, qlast.CreateConcretePointer):
                 raise errors.InvalidDefinitionError(
                     f'cannot create a link property on a property',
-                    context=node.context,
+                    context=node.span,
                     hint='Link properties can only be created on links, whose '
                          'target types are object types.',
                 )

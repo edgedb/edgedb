@@ -1521,7 +1521,7 @@ class PointerCommandOrFragment(
                 raise errors.SchemaError(
                     f'possibly more than one element returned by '
                     f'{expr_description}, while a singleton is expected',
-                    context=expr.qlast.context,
+                    context=expr.qlast.span,
                 )
 
             return compiled
@@ -1530,7 +1530,7 @@ class PointerCommandOrFragment(
             if source_context:
                 e.set_source_context(source_context)
             if not e.has_source_context():
-                e.set_source_context(expr.qlast.context)
+                e.set_source_context(expr.qlast.span)
             raise
 
     def compile_expr_field(
@@ -1918,7 +1918,7 @@ class PointerCommand(
                 typ = cls.get_schema_metaclass().get_schema_class_displayname()
                 raise errors.SchemaDefinitionError(
                     f"'default' is not a valid field for an abstract {typ}",
-                    context=astnode.context)
+                    context=astnode.span)
         return cmd
 
     def _process_create_or_alter_ast(
@@ -1937,7 +1937,7 @@ class PointerCommand(
             self.set_attribute_value(
                 'required',
                 astnode.is_required,
-                source_context=astnode.context,
+                source_context=astnode.span,
             )
 
         if astnode.cardinality is not None:
@@ -1945,7 +1945,7 @@ class PointerCommand(
                 self.set_attribute_value(
                     'cardinality',
                     astnode.cardinality,
-                    source_context=astnode.context,
+                    source_context=astnode.span,
                 )
             else:
                 handler = sd.get_special_field_alter_handler_for_context(
@@ -1957,7 +1957,7 @@ class PointerCommand(
                         str(astnode.cardinality),
                     ),
                     special_syntax=True,
-                    context=astnode.context,
+                    span=astnode.span,
                 )
                 apc = handler._cmd_tree_from_ast(schema, set_field, context)
                 self.add(apc)
@@ -1997,7 +1997,7 @@ class PointerCommand(
             self.set_attribute_value(
                 'target',
                 target_ref,
-                source_context=astnode.target.context,
+                source_context=astnode.target.span,
             )
 
         elif target_ref is not None:
@@ -2005,7 +2005,7 @@ class PointerCommand(
             self.set_attribute_value(
                 'target',
                 target_ref,
-                source_context=astnode.target.context,
+                source_context=astnode.target.span,
             )
 
     def _process_alter_ast(
@@ -2032,7 +2032,7 @@ class PointerCommand(
                 self.set_attribute_value(
                     'target',
                     target_ref,
-                    source_context=expr.context,
+                    source_context=expr.span,
                 )
                 self.discard_attribute('expr')
 
@@ -2156,7 +2156,7 @@ class AlterPointer(
                     aop = sd.AlterObjectProperty(
                         property='expr',
                         new_value=None,
-                        source_context=astnode.context,
+                        source_context=astnode.span,
                     )
                     cmd.add(aop)
 
