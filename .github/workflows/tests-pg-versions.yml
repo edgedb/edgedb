@@ -428,6 +428,7 @@ jobs:
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
         echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
+        echo LIBPG_QUERY_GIT_REV=$(cat .tmp/libpg_query_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
@@ -482,6 +483,13 @@ jobs:
         path: build/cache
         key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
 
+    - name: Restore libpg_query cache
+      uses: actions/cache@v4
+      id: libpg-query-cache
+      with:
+        path: edb/pgsql/parser/libpg_query/libpg_query.a
+        key: edb-libpg_query-v1-${{ env.LIBPG_QUERY_GIT_REV }}
+
     - name: Stop if we cannot retrieve the cache
       if: |
         steps.cli-cache.outputs.cache-hit != 'true' ||
@@ -490,6 +498,7 @@ jobs:
         steps.parsers-cache.outputs.cache-hit != 'true' ||
         steps.postgres-cache.outputs.cache-hit != 'true' ||
         steps.stolon-cache.outputs.cache-hit != 'true' ||
+        steps.libpg-query-cache.outputs.cache-hit != 'true' ||
         steps.bootstrap-cache.outputs.cache-hit != 'true'
       run: |
         echo ::error::Cannot retrieve build cache.
