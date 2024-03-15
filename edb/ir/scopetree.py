@@ -44,7 +44,7 @@ import textwrap
 import weakref
 
 from edb import errors
-from edb.common import context as pctx
+from edb.common import span as span
 from edb.common import term
 from . import pathid
 from . import ast as irast
@@ -384,7 +384,7 @@ class ScopeTreeNode:
             pd.path_id = pd.path_id.strip_namespace(ns)
 
     def attach_child(self, node: ScopeTreeNode,
-                     context: Optional[pctx.Span]=None) -> None:
+                     context: Optional[span.Span]=None) -> None:
         """Attach a child node to this node.
 
         This is a low-level operation, no tree validation is
@@ -422,7 +422,7 @@ class ScopeTreeNode:
         path_id: pathid.PathId,
         *,
         optional: bool=False,
-        context: Optional[pctx.Span],
+        context: Optional[span.Span],
     ) -> None:
         """Attach a scope subtree representing *path_id*."""
 
@@ -496,7 +496,7 @@ class ScopeTreeNode:
 
     def attach_subtree(self, node: ScopeTreeNode,
                        was_fenced: bool=False,
-                       context: Optional[pctx.Span]=None) -> None:
+                       context: Optional[span.Span]=None) -> None:
         """Attach a subtree to this node.
 
         *node* is expected to be a balanced scope tree and may be modified
@@ -631,7 +631,7 @@ class ScopeTreeNode:
         existing: ScopeTreeNodeWithPathId,
         unnest_fence: bool,
         existing_finfo: FenceInfo,
-        context: Optional[pctx.Span],
+        context: Optional[span.Span],
     ) -> None:
         if existing_finfo.factoring_fence:
             # This node is already present in the surrounding
@@ -713,7 +713,7 @@ class ScopeTreeNode:
         node: ScopeTreeNode,
         self_fenced: bool=False,
         node_fenced: bool=False,
-        context: Optional[pctx.Span]=None,
+        context: Optional[span.Span]=None,
     ) -> None:
         node.remove()
 

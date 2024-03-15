@@ -37,7 +37,7 @@ import textwrap
 
 from edb import errors
 from edb.common import ast
-from edb.common import context as pctx
+from edb.common import span as span
 from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
@@ -1401,7 +1401,7 @@ def compile_query_subject(
         exprtype: s_types.ExprType = s_types.ExprType.Select,
         allow_select_shape_inject: bool=True,
         forward_rptr: bool=False,
-        parser_context: Optional[pctx.Span],
+        parser_context: Optional[span.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     expr_stype = setgen.get_set_type(expr, ctx=ctx)

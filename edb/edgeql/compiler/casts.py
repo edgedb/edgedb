@@ -68,12 +68,12 @@ if TYPE_CHECKING:
 def compile_cast(
         ir_expr: Union[irast.Set, irast.Expr],
         new_stype: s_types.Type, *,
-        srcctx: Optional[parsing.Span],
+        span: Optional[parsing.Span],
         ctx: context.ContextLevel,
         cardinality_mod: Optional[qlast.CardinalityModifier]=None
 ) -> irast.Set:
 
-    if new_stype.is_polymorphic(ctx.env.schema) and srcctx is not None:
+    if new_stype.is_polymorphic(ctx.env.schema) and span is not None:
         # If we have no srcctx we don't know whether this is a direct cast
         # or some implicit cast being processed.
         raise errors.QueryError(
@@ -81,7 +81,7 @@ def compile_cast(
             f'{new_stype.get_displayname(ctx.env.schema)!r}',
             hint="Please ensure you don't use generic "
                  '"any" types or abstract scalars.',
-            context=srcctx)
+            context=span)
 
     if isinstance(ir_expr, irast.EmptySet):
         # For the common case of casting an empty set, we simply
@@ -111,7 +111,7 @@ def compile_cast(
     if new_stype.is_polymorphic(ctx.env.schema):
         raise errors.QueryError(
             f'expression returns value of indeterminate type',
-            context=srcctx)
+            context=span)
 
     if (orig_stype == new_stype and
             cardinality_mod is not qlast.CardinalityModifier.Required):
@@ -125,7 +125,7 @@ def compile_cast(
             f'{orig_stype.get_displayname(ctx.env.schema)!r} '
             f'to {new_stype.get_displayname(ctx.env.schema)!r}, use '
             f'`...[IS {new_stype.get_displayname(ctx.env.schema)}]` instead',
-            context=srcctx)
+            context=span)
 
     # The only valid object type cast other than <uuid> is from anytype,
     # and thus it must be an empty set.
@@ -154,11 +154,11 @@ def compile_cast(
         )
     ):
         return _cast_array_literal(
-            ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+            ir_set, orig_stype, new_stype, srcctx=span, ctx=ctx)
 
     if orig_stype.is_tuple(ctx.env.schema):
         return _cast_tuple(
-            ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+            ir_set, orig_stype, new_stype, srcctx=span, ctx=ctx)
 
     if isinstance(orig_stype, s_types.Array):
         if not s_types.is_type_compatible(
@@ -178,7 +178,7 @@ def compile_cast(
                 ir_set, el_type, orig_stype, ctx=ctx)
 
         return _cast_array(
-            ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+            ir_set, orig_stype, new_stype, srcctx=span, ctx=ctx)
 
     if isinstance(orig_stype, s_types.Range):
         if s_types.is_type_compatible(
@@ -203,7 +203,7 @@ def compile_cast(
                         ir_set, orig_stype, mr_stype,
                         cardinality_mod=cardinality_mod, ctx=ctx)
                     return _cast_multirange(
-                        ir_set, mr_stype, new_stype, srcctx=srcctx, ctx=ctx)
+                        ir_set, mr_stype, new_stype, srcctx=span, ctx=ctx)
 
                 else:
                     # The subtypes match, so this is a direct upcast from
@@ -213,7 +213,7 @@ def compile_cast(
                         cardinality_mod=cardinality_mod, ctx=ctx)
 
             return _cast_range(
-                ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+                ir_set, orig_stype, new_stype, srcctx=span, ctx=ctx)
 
     if orig_stype.is_multirange():
         if s_types.is_type_compatible(
@@ -225,7 +225,7 @@ def compile_cast(
             return ir_set
         else:
             return _cast_multirange(
-                ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+                ir_set, orig_stype, new_stype, srcctx=span, ctx=ctx)
 
     if orig_stype.issubclass(ctx.env.schema, new_stype):
         # The new type is a supertype of the old type,
@@ -258,13 +258,13 @@ def compile_cast(
         if base_stype := _get_concrete_scalar_base(new_stype, ctx):
             # Casts from json to custom scalars may have special handling.
             # So we turn the type cast json->x into json->base and base->x.
-            base_ir = compile_cast(ir_expr, base_stype, srcctx=srcctx, ctx=ctx)
+            base_ir = compile_cast(ir_expr, base_stype, span=span, ctx=ctx)
 
             return compile_cast(
                 base_ir,
                 new_stype,
                 cardinality_mod=cardinality_mod,
-                srcctx=srcctx,
+                span=span,
                 ctx=ctx,
             )
 
@@ -282,11 +282,11 @@ def compile_cast(
                 ir_expr,
                 json_array_typ,
                 cardinality_mod=cardinality_mod,
-                srcctx=srcctx,
+                span=span,
                 ctx=ctx,
             )
             return compile_cast(
-                json_array_ir, new_stype, srcctx=srcctx, ctx=ctx
+                json_array_ir, new_stype, span=span, ctx=ctx
             )
 
         elif isinstance(new_stype, s_types.Tuple):
@@ -295,7 +295,7 @@ def compile_cast(
                 orig_stype,
                 new_stype,
                 cardinality_mod,
-                srcctx=srcctx,
+                srcctx=span,
                 ctx=ctx,
             )
 
@@ -305,7 +305,7 @@ def compile_cast(
                 orig_stype,
                 new_stype,
                 cardinality_mod,
-                srcctx=srcctx,
+                srcctx=span,
                 ctx=ctx,
             )
 
@@ -315,7 +315,7 @@ def compile_cast(
                 orig_stype,
                 new_stype,
                 cardinality_mod,
-                srcctx=srcctx,
+                srcctx=span,
                 ctx=ctx,
             )
 
@@ -342,7 +342,7 @@ def compile_cast(
         orig_stype,
         new_stype,
         cardinality_mod=cardinality_mod,
-        srcctx=srcctx,
+        srcctx=span,
         ctx=ctx,
     )
 
@@ -652,7 +652,7 @@ def _cast_json_to_tuple(
             val = compile_cast(
                 val, new_st,
                 cardinality_mod=qlast.CardinalityModifier.Required,
-                ctx=subctx, srcctx=srcctx)
+                ctx=subctx, span=srcctx)
 
             elements.append(irast.TupleElement(name=new_el_name, val=val))
 
@@ -695,7 +695,7 @@ def _cast_tuple(
             )
             val_type = setgen.get_set_type(val, ctx=ctx)
             # Element cast
-            val = compile_cast(val, new_stype, ctx=ctx, srcctx=srcctx)
+            val = compile_cast(val, new_stype, ctx=ctx, span=srcctx)
 
             elements.append(irast.TupleElement(name=n, val=val))
 
@@ -737,7 +737,7 @@ def _cast_tuple(
         new_el_name, new_st = new_subtypes[i]
         if val_type != new_st:
             # Element cast
-            val = compile_cast(val, new_st, ctx=ctx, srcctx=srcctx)
+            val = compile_cast(val, new_st, ctx=ctx, span=srcctx)
 
         elements.append(irast.TupleElement(name=new_el_name, val=val))
 
@@ -1185,7 +1185,7 @@ def _cast_array_literal(
     for el in ir_set.expr.elements:
         el = compile_cast(el, el_type,
                           cardinality_mod=qlast.CardinalityModifier.Required,
-                          ctx=ctx, srcctx=srcctx)
+                          ctx=ctx, span=srcctx)
         casted_els.append(el)
 
     new_array = setgen.ensure_set(

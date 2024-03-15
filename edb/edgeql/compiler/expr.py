@@ -26,7 +26,7 @@ from typing import Callable, Optional, Type, Union, Sequence, List, cast
 
 from edb import errors
 
-from edb.common import context as ctx_utils
+from edb.common import span as ctx_utils
 from edb.common import parsing
 
 from edb.ir import ast as irast
@@ -690,7 +690,7 @@ def compile_TypeCast(
                     context=expr.expr.context,
                 ),
                 pt,
-                srcctx=expr.expr.context,
+                span=expr.expr.context,
                 ctx=ctx,
             )
 
@@ -750,7 +750,7 @@ def compile_TypeCast(
             target_stype,
             cardinality_mod=expr.cardinality_mod,
             ctx=subctx,
-            srcctx=expr.context,
+            span=expr.context,
         )
 
     return stmt.maybe_add_view(res, ctx=ctx)

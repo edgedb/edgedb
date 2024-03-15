@@ -1191,7 +1191,7 @@ def enum_indirection_set(
     return casts.compile_cast(
         irast.StringConstant(value=ptr_name, typeref=strref),
         source,
-        srcctx=source_context,
+        span=source_context,
         ctx=ctx,
     )
 

@@ -30,9 +30,9 @@ import types
 
 import parsing
 
-from edb.common import context as pctx, debug
+from edb.common import debug, span as span
 
-Span = pctx.Span
+Span = span.Span
 
 logger = logging.getLogger('edb.common.parsing')
 
@@ -141,7 +141,7 @@ class Nonterm(parsing.Nonterm):
                     attr = lambda self, *args, meth=attr: meth(self, *args)
                     attr.__doc__ = doc
 
-                a = pctx.has_context(attr)
+                a = span.has_context(attr)
 
                 a.__doc__ = attr.__doc__
                 a.inline_index = inline_index

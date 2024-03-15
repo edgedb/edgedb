@@ -28,7 +28,7 @@ import os
 import re
 import unittest
 
-from edb.common import context
+from edb.common import span
 from edb.common import debug
 from edb.common import devmode
 from edb.common import markup
@@ -194,7 +194,7 @@ class BaseSyntaxTest(BaseDocTest):
             markup.dump(inast)
 
         # make sure that the AST has context
-        context.ContextValidator().visit(inast)
+        span.ContextValidator().visit(inast)
 
         processed_src = self.ast_to_source(inast)
 

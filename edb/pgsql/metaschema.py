@@ -35,7 +35,7 @@ import re
 
 import edb._edgeql_parser as ql_parser
 
-from edb.common import context as parser_context
+from edb.common import span as parser_context
 from edb.common import debug
 from edb.common import exceptions
 from edb.common import uuidgen

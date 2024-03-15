@@ -24,7 +24,7 @@ from __future__ import annotations
 from typing import Optional, Tuple, Iterable, Sequence, Dict, List, Set
 
 from edb import errors
-from edb.common import context as pctx
+from edb.common import span
 
 from edb.ir import ast as irast
 from edb.ir import typeutils
@@ -88,7 +88,7 @@ def _compile_conflict_select_for_obj_type(
     fake_dml_set: Optional[irast.Set],
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
-    parser_context: Optional[pctx.Span],
+    span: Optional[span.Span],
     ctx: context.ContextLevel,
 ) -> tuple[Optional[qlast.Expr], bool]:
     """Synthesize a select of conflicting objects
@@ -119,7 +119,7 @@ def _compile_conflict_select_for_obj_type(
                 raise errors.UnsupportedFeatureError(
                     "INSERT UNLESS CONFLICT cannot be used on properties or "
                     "links that have a rewrite rule specified",
-                    context=parser_context,
+                    context=span,
                 )
 
     ctx.anchors = ctx.anchors.copy()
@@ -161,7 +161,7 @@ def _compile_conflict_select_for_obj_type(
                         'properties'
                     )
                 raise errors.UnsupportedFeatureError(
-                    error, context=parser_context
+                    error, context=span
                 )
 
             # We want to use the same path_scope_id as the original
@@ -188,7 +188,7 @@ def _compile_conflict_select_for_obj_type(
     if not ptr_anchors:
         raise errors.QueryError(
             'INSERT UNLESS CONFLICT property requires matching shape',
-            context=parser_context,
+            context=span,
         )
 
     conds: List[qlast.Expr] = []
@@ -375,7 +375,7 @@ def _compile_conflict_select(
     fake_dml_set: Optional[irast.Set]=None,
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: PointerConstraintMap,
-    parser_context: Optional[pctx.Span],
+    parser_context: Optional[span.Span],
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, bool, bool]:
     """Synthesize a select of conflicting objects
@@ -403,7 +403,7 @@ def _compile_conflict_select(
             stmt, a_obj, obj_constrs=a_obj_constrs, constrs=a_constrs,
             for_inheritance=for_inheritance,
             fake_dml_set=fake_dml_set,
-            parser_context=parser_context, ctx=ctx,
+            span=parser_context, ctx=ctx,
         )
         always_check |= frag_always_check
         if frag:

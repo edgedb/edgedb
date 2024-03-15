@@ -37,7 +37,7 @@ from typing import (
 
 from edb import errors
 
-from edb.common import context as ctx_utils
+from edb.common import span as ctx_utils
 from edb.common import struct
 from edb.edgeql import ast as qlast
 from edb.schema import schema as s_schema

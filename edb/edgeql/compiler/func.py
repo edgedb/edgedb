@@ -916,7 +916,7 @@ def finalize_args(
             # casting.
             orig_arg = arg
             arg = casts.compile_cast(
-                arg, paramtype, srcctx=None, ctx=ctx)
+                arg, paramtype, span=None, ctx=ctx)
             if ctx.path_scope.is_optional(orig_arg.path_id):
                 pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
 
@@ -939,16 +939,16 @@ def compile_fts_search(
     stype_id = object_typeref.id
 
     schema = ctx.env.schema
-    pctx = object_arg.context
+    span = object_arg.context
 
     stype = schema.get_by_id(stype_id, type=s_types.Type)
 
     if union_variants := stype.get_union_of(schema):
         for variant in union_variants.objects(schema):
             schema, variant = variant.material_type(schema)
-            _validate_has_fts_index(variant, schema, pctx)
+            _validate_has_fts_index(variant, schema, span)
     else:
-        _validate_has_fts_index(stype, schema, pctx)
+        _validate_has_fts_index(stype, schema, span)
 
     return call
 
@@ -956,7 +956,7 @@ def compile_fts_search(
 def _validate_has_fts_index(
     stype: s_types.Type,
     schema: s_schema.Schema,
-    pctx: Optional[parsing.Span],
+    span: Optional[parsing.Span],
 ) -> None:
     if isinstance(stype, s_indexes.IndexableSubject):
         (fts_index, _) = s_indexes.get_effective_fts_index(stype, schema)
@@ -967,7 +967,7 @@ def _validate_has_fts_index(
         raise errors.InvalidReferenceError(
             f"fts::search requires an fts::index index on type "
             f"'{stype.get_displayname(schema)}'",
-            context=pctx,
+            context=span,
         )
 
 

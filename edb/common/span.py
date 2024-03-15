@@ -47,7 +47,9 @@ NEW_LINE = re.compile(br'\r\n?|\n')
 
 
 class Span(markup.MarkupExceptionContext):
-    title = 'Source Context'
+    '''
+    Parser Source Context
+    '''
 
     def __init__(self, name, buffer, start: int, end: int, document=None, *,
                  filename=None, context_lines=1):

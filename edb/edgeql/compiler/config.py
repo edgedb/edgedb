@@ -85,7 +85,7 @@ def compile_ConfigSet(
             )
         else:
             param_val = casts.compile_cast(
-                param_val, param_type, srcctx=None, ctx=ctx)
+                param_val, param_type, span=None, ctx=ctx)
 
     try:
         if expr.scope != qltypes.ConfigScope.GLOBAL:

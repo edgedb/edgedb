@@ -22,7 +22,7 @@ from __future__ import annotations
 import collections
 import typing
 
-from edb.common import parsing, context
+from edb.common import parsing, span
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -2181,7 +2181,7 @@ class Keyword(parsing.Nonterm):
         for token in keywords.by_type[type].values():
             def method(inst, *kids):
                 inst.val = kids[0].val
-            method = context.has_context(method)
+            method = span.has_context(method)
             method.__doc__ = "%%reduce %s" % token
             method.__name__ = 'reduce_%s' % token
             setattr(cls, method.__name__, method)

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Type, Iterator, Dict
 
-from edb.common import context as pctx
+from edb.common import span as span
 from edb.common import exceptions as ex
 
 import contextlib
@@ -103,7 +103,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         self._attrs = {}
         self._pgext_code = pgext_code
 
-        if isinstance(context, pctx.Span):
+        if isinstance(context, span.Span):
             self.set_source_context(context)
         elif position:
             self.set_position(*position)
@@ -143,7 +143,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def has_source_context(self):
         return FIELD_DETAILS in self._attrs
 
-    def set_source_context(self, context: Optional[pctx.Span]):
+    def set_source_context(self, context: Optional[span.Span]):
         if not context:
             return
 
