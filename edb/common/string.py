@@ -17,13 +17,10 @@
 #
 
 
-import re
-
-
 def escape_string(s: str) -> str:
     # characters escaped according to
     # https://www.postgresql.org/docs/current/sql-syntax-lexical.html
-    # 4.1.2.2 String Constants with C-Style Escapes 
+    # 4.1.2.2 String Constants with C-Style Escapes
     result = s
 
     # escape backslash first
