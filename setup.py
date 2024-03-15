@@ -386,23 +386,24 @@ def _get_git_rev(repo, ref):
 
 def _get_pg_source_stamp():
     output = subprocess.check_output(
-        ['git', 'submodule', 'status', 'postgres'],
+        ['git', 'submodule', 'status', '--cached', 'postgres'],
         universal_newlines=True,
         cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
     source_stamp = revision + '+' + PGVECTOR_COMMIT
-    return source_stamp
+    return source_stamp.strip()
 
 
 def _get_libpg_query_source_stamp():
     output = subprocess.check_output(
-        ['git', 'submodule', 'status', 'edb/pgsql/parser/libpg_query'],
+        ['git', 'submodule', 'status', '--cached',
+         'edb/pgsql/parser/libpg_query'],
         universal_newlines=True,
         cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
-    return revision
+    return revision.strip()
 
 
 def _compile_cli(build_base, build_temp):
@@ -546,10 +547,10 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(parser_hash).decode())
 
         elif self.type == 'postgres':
-            print(_get_pg_source_stamp().strip())
+            print(_get_pg_source_stamp())
 
         elif self.type == 'libpg_query':
-            print(_get_libpg_query_source_stamp().strip())
+            print(_get_libpg_query_source_stamp())
 
         elif self.type == 'bootstrap':
             bootstrap_hash = hash_dirs(
@@ -576,7 +577,10 @@ class ci_helper(setuptools.Command):
                 (pkg_dir, '.pxd'),
                 (pkg_dir, '.pxi'),
             ])
-            print(binascii.hexlify(ext_hash).decode())
+            print(
+                binascii.hexlify(ext_hash).decode() + '-'
+                + _get_libpg_query_source_stamp()
+            )
 
         elif self.type == 'cli':
             print(_get_git_rev(EDGEDBCLI_REPO, EDGEDBCLI_COMMIT))
