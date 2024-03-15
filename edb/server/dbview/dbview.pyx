@@ -1279,6 +1279,7 @@ cdef class DatabaseConnectionView:
                     query_req.serialize(),
                     query_req.source.text(),
                     self.in_tx_error(),
+                    client_id=self.tenant.client_id,
                 )
             else:
                 result = await compiler_pool.compile(
