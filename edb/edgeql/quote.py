@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import re
 
-from edb.common.string import escape_string
 from .parser.grammar import keywords
 
 
@@ -37,6 +36,25 @@ _re_ident_or_num = re.compile(r'''(?x)
 
 
 def quote_literal(string: str) -> str:
+
+    def escape_string(s: str) -> str:
+        # characters escaped according to
+        # https://www.edgedb.com/docs/reference/edgeql/lexical#strings
+        result = s
+
+        # escape backslash first
+        result = result.replace('\\', '\\\\')
+
+        result = result.replace('\'', '\\\'')
+        result = result.replace('\"', '\\\"')
+        result = result.replace('\b', '\\b')
+        result = result.replace('\f', '\\f')
+        result = result.replace('\n', '\\n')
+        result = result.replace('\r', '\\r')
+        result = result.replace('\t', '\\t')
+
+        return result
+
     return "'" + escape_string(string) + "'"
 
 
