@@ -28,6 +28,7 @@ import uuid
 import edgedb
 
 from edb.common import assert_data_shape
+from edb.common.string import unescape_string
 
 from edb.testbase import server as tb
 from edb.testbase import serutils
@@ -140,7 +141,7 @@ class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
                         interpolations[var_name] = var_value
 
                 for stmt in mig['proposed']['statements']:
-                    curddl = stmt['text']
+                    curddl = unescape_string(stmt['text'])
 
                     if interpolations:
                         def _replace(match, interpolations=interpolations):

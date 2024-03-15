@@ -22,23 +22,6 @@ import edb.edgeql.quote as qlquote
 
 class QuoteTests(unittest.TestCase):
 
-    def test_escape_string(self):
-        self.assertEqual(qlquote.escape_string(''), '')
-        self.assertEqual(qlquote.escape_string('abc'), 'abc')
-        self.assertEqual(qlquote.escape_string('\n'), '\n')
-        self.assertEqual(qlquote.escape_string('\t'), '\t')
-        self.assertEqual(qlquote.escape_string('\\'), '\\\\')
-        self.assertEqual(qlquote.escape_string('\\n'), '\\\\n')
-        self.assertEqual(qlquote.escape_string('\\t'), '\\\\t')
-        self.assertEqual(qlquote.escape_string('\\\\'), '\\\\\\\\')
-        self.assertEqual(qlquote.escape_string('"'), '\\"')
-        self.assertEqual(qlquote.escape_string("'"), "\\'")
-        self.assertEqual(qlquote.escape_string('\\"'), '\\\\\\"')
-        self.assertEqual(qlquote.escape_string("\\'"), "\\\\\\'")
-        self.assertEqual(qlquote.escape_string(
-            'abc"efg\nhij\'klm\\nop"'),
-            'abc\\"efg\nhij\\\'klm\\\\nop\\"')
-
     def test_quote_string(self):
         self.assertEqual(qlquote.quote_literal("abc"), "'abc'")
-        self.assertEqual(qlquote.quote_literal("abc\\\n"), "'abc\\\\\n'")
+        self.assertEqual(qlquote.quote_literal("abc\\\n"), "'abc\\\\\\n'")

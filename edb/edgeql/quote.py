@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 
+from edb.common.string import escape_string
 from .parser.grammar import keywords
 
 
@@ -33,14 +34,6 @@ _re_ident_or_num = re.compile(r'''(?x)
     |
     ([1-9]\d* | 0)  # purely integer identifier
 ''')
-
-
-def escape_string(s: str) -> str:
-    result = s
-    result = result.replace('\\', '\\\\')
-    result = result.replace("'", "\\'")
-    result = result.replace('"', '\\"')
-    return result
 
 
 def quote_literal(string: str) -> str:
