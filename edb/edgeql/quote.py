@@ -36,13 +36,11 @@ _re_ident_or_num = re.compile(r'''(?x)
 
 
 def escape_string(s: str) -> str:
-    split = re.split(r"(\n|\\\\|\\')", s)
-
-    if len(split) == 1:
-        return s.replace(r"'", r"\'")
-
-    return ''.join((r if i % 2 else r.replace(r"'", r"\'"))
-                   for i, r in enumerate(split))
+    result = s
+    result = result.replace('\\', '\\\\')
+    result = result.replace("'", "\\'")
+    result = result.replace('"', '\\"')
+    return result
 
 
 def quote_literal(string: str) -> str:
