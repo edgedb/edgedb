@@ -1317,16 +1317,6 @@ class MultiTenantWorker(Worker):
             self._cache.pop(client_id, None)
             self._last_used_by_client.pop(client_id, None)
 
-    async def call(self, method_name, *args, sync_state=None):
-        if method_name == "compile_in_tx":
-            # multitenant_worker is also used in MultiSchemaPool for remote
-            # compilers where the first argument "state_id" is used to find
-            # worker without passing the pickled state. Here in multi-tenant
-            # mode, we already have the pickled state, so "state_id" is not
-            # used. Just prepend a fake ID to comply to the API.
-            args = (0, *args)
-        return await super().call(method_name, *args, sync_state=sync_state)
-
 
 @srvargs.CompilerPoolMode.MultiTenant.assign_implementation
 class MultiTenantPool(FixedPool):
@@ -1570,7 +1560,7 @@ class MultiTenantPool(FixedPool):
         worker = await self._acquire_worker(
             condition=lambda w: (w._last_pickled_state is pickled_state),
             weighter=weighter,
-            compiler_args=compiler_args,
+            **compiler_args,
         )
 
         # Avoid sending information that we know the worker already have.
@@ -1579,7 +1569,6 @@ class MultiTenantPool(FixedPool):
             dbname = client_id = user_schema_pickle = None
         else:
             assert isinstance(worker, MultiTenantWorker)
-            client_id = worker.current_client_id
             assert client_id is not None
             tenant_schema = worker.get_tenant_schema(client_id)
             if tenant_schema is None:
@@ -1604,6 +1593,12 @@ class MultiTenantPool(FixedPool):
         try:
             units, new_pickled_state = await worker.call(
                 'compile_in_tx',
+                # multitenant_worker is also used in MultiSchemaPool for remote
+                # compilers where the first argument "state_id" is used to find
+                # worker without passing the pickled state. Here in multi-
+                # tenant mode, we already have the pickled state, so "state_id"
+                # is not used. Just prepend a fake ID to comply to the API.
+                0,  # state_id
                 client_id,
                 dbname,
                 user_schema_pickle,
