@@ -704,5 +704,30 @@ Bug fixes
 * Fix computed single scalar globals
   (:eql:gh:`#6999`)
 
-* Fix query cache dbver issue with concurrent DDL 
+* Fix query cache dbver issue with concurrent DDL
   (:eql:gh:`#6819`)
+
+* Several UI fixes
+
+  * Update behaviour of datatable editor to save input by default on closing
+    (:eql:gh:`edgedb/edgedb-ui/#325`)
+
+  * Store instance version with schema data, so schema is refreshed when
+    instance is upgraded (:eql:gh:`edgedb/edgedb-ui/#333`)
+
+  * De-duplicate queries when navigating repl history with ctrl+up/down
+    (:eql:gh:`edgedb/edgedb-ui/7916ee70`)
+
+  * Add max height to inline editor in dataview
+    (:eql:gh:`edgedb/edgedb-ui/b2fedb72`)
+
+  * Always order ``id`` column first in dataview
+    (:eql:gh:`edgedb/edgedb-ui/9a7c352e`)
+
+  * Improve rendering of long/multiline strings in dataview changes preview
+    (:eql:gh:`edgedb/edgedb-ui/13511ebd`)
+
+  * Fix link props in visual query builder
+    (:eql:gh:`edgedb/edgedb-ui/42492465`)
+
+  * And `many more UI fixes <https://github.com/edgedb/edgedb-ui/commits/4.x/?since=2024-02-25&until=2024-03-15>`__
