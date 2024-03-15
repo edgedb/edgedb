@@ -721,16 +721,10 @@ def _describe_current_migration(
                     **extra,
                 }
             )
-            .encode('unicode_escape')
-            .decode('utf-8')
         )
 
-        # json dumps already produces escaped json text
-        # need to additionally escape single quotes
-        desc = "'{}'".format(desc.replace("'", "\\'"))
-
         desc_ql = edgeql.parse_query(
-            f'SELECT to_json({desc})'
+            f'SELECT to_json({qlquote.quote_literal(desc)})'
         )
         return compiler._compile_ql_query(
             ctx,
