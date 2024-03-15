@@ -709,6 +709,9 @@ Bug fixes
 
 * Several UI fixes
 
+  * Update behaviour of datatable editor to save input by default on closing
+    (:eql:gh:`edgedb/edgedb-ui/#325`)
+
   * Store instance version with schema data, so schema is refreshed when
     instance is upgraded (:eql:gh:`edgedb/edgedb-ui/#333`)
 
@@ -726,8 +729,5 @@ Bug fixes
 
   * Fix link props in visual query builder
     (:eql:gh:`edgedb/edgedb-ui/42492465`)
-
-  * Update behaviour of datatable editor to save input by default on closing
-    (:eql:gh:`edgedb/edgedb-ui/#325`)
 
   * And `many more UI fixes <https://github.com/edgedb/edgedb-ui/commits/4.x/?since=2024-02-25&until=2024-03-15>`__
