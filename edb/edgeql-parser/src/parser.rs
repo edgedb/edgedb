@@ -24,6 +24,10 @@ impl<'s> Context<'s> {
     }
 }
 
+/// This is a const just so we remember to update it everywhere
+/// when changing.
+const UNEXPECTED: &str = "Unexpected";
+
 pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode<'a>>, Vec<Error>) {
     let stack_top = ctx.arena.alloc(StackNode {
         parent: None,
@@ -121,7 +125,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
 
                 // option 3: skip the token
                 let mut skip = parser;
-                let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
+                let error = Error::new(format!("{UNEXPECTED} {token}")).with_span(token.span);
                 skip.push_error(error, ERROR_COST_SKIP);
                 if token.kind == Kind::EOF {
                     // extra penalty
@@ -452,7 +456,23 @@ impl<'s> Parser<'s> {
     }
 
     fn push_error(&mut self, error: Error, cost: u16) {
-        self.errors.push(error);
+        let mut suppress = false;
+        if error.message.starts_with(UNEXPECTED) {
+            if let Some(last) = self.errors.last() {
+                if last.message.starts_with(UNEXPECTED) {
+                    // don't repeat "Unexpected" errors
+
+                    // This is especially useful when we encounter an
+                    // unrecoverable error which will make all tokens until EOF
+                    // as "Unexpected".
+                    suppress = true;
+                }
+            }
+        }
+        if !suppress {
+            self.errors.push(error);
+        }
+
         self.error_cost += cost;
         self.node_count = 0;
     }
