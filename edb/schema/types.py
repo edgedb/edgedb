@@ -175,6 +175,7 @@ class Type(
         attrs: Optional[Mapping[str, Any]] = None,
         inheritance_merge: bool = True,
         transient: bool = False,
+        preserve_endpoint_ptrs: bool = False,
         inheritance_refdicts: Optional[AbstractSet[str]] = None,
         stdmode: bool = False,
         **kwargs: Any,
@@ -223,6 +224,8 @@ class Type(
 
             if transient:
                 context.current().transient_derivation = True
+                if not preserve_endpoint_ptrs:
+                    context.current().slim_links = True
 
             delta.add(cmd)
             schema = delta.apply(schema, context)
