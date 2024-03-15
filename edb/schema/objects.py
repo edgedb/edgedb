@@ -1016,7 +1016,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
     # Schema source context for this object
     sourcectx = SchemaField(
-        parsing.ParserContext,
+        parsing.Span,
         default=None,
         compcoef=None,
         inheritable=False,
@@ -2199,7 +2199,7 @@ class ObjectShell(Shell, Generic[Object_T_co]):
         schemaclass: Type[Object_T_co],
         displayname: Optional[str] = None,
         origname: Optional[sn.Name] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> None:
         self.name = name
         self.origname = origname

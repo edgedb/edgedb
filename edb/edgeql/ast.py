@@ -88,7 +88,7 @@ class Base(ast.AST):
     __ast_hidden__ = {'context', 'system_comment'}
     __rust_ignore__ = True
 
-    context: typing.Optional[parsing.ParserContext] = None
+    context: typing.Optional[parsing.Span] = None
     # System-generated comment.
     system_comment: typing.Optional[str] = None
 

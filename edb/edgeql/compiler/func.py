@@ -956,7 +956,7 @@ def compile_fts_search(
 def _validate_has_fts_index(
     stype: s_types.Type,
     schema: s_schema.Schema,
-    pctx: Optional[parsing.ParserContext],
+    pctx: Optional[parsing.Span],
 ) -> None:
     if isinstance(stype, s_indexes.IndexableSubject):
         (fts_index, _) = s_indexes.get_effective_fts_index(stype, schema)

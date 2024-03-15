@@ -41,7 +41,7 @@ from edb.ir import ast as irast
 class Base(ast.AST):
     __ast_hidden__ = {'context'}
 
-    context: typing.Optional[parsing.ParserContext] = None
+    context: typing.Optional[parsing.Span] = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

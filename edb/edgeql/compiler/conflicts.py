@@ -88,7 +88,7 @@ def _compile_conflict_select_for_obj_type(
     fake_dml_set: Optional[irast.Set],
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
-    parser_context: Optional[pctx.ParserContext],
+    parser_context: Optional[pctx.Span],
     ctx: context.ContextLevel,
 ) -> tuple[Optional[qlast.Expr], bool]:
     """Synthesize a select of conflicting objects
@@ -375,7 +375,7 @@ def _compile_conflict_select(
     fake_dml_set: Optional[irast.Set]=None,
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: PointerConstraintMap,
-    parser_context: Optional[pctx.ParserContext],
+    parser_context: Optional[pctx.Span],
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, bool, bool]:
     """Synthesize a select of conflicting objects

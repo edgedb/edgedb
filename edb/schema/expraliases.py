@@ -201,7 +201,7 @@ class AliasLikeCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         is_alter: bool = False,
-        parser_context: Optional[parsing.ParserContext] = None,
+        parser_context: Optional[parsing.Span] = None,
     ) -> Tuple[
         sd.Command,
         s_types.TypeShell[s_types.Type],
@@ -462,7 +462,7 @@ def compile_alias_expr(
     classname: sn.QualName,
     schema: s_schema.Schema,
     context: sd.CommandContext,
-    parser_context: Optional[parsing.ParserContext] = None,
+    parser_context: Optional[parsing.Span] = None,
 ) -> irast.Statement:
     cached: Optional[irast.Statement] = (
         context.get_cached((expr, classname)))
@@ -502,7 +502,7 @@ def _create_alias_types(
     classname: sn.QualName,
     schema: s_schema.Schema,
     is_global: bool,
-    parser_context: Optional[parsing.ParserContext] = None,
+    parser_context: Optional[parsing.Span] = None,
 ) -> Tuple[
     sd.Command,
     s_types.TypeShell[s_types.Type],

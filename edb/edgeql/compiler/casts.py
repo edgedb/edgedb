@@ -68,7 +68,7 @@ if TYPE_CHECKING:
 def compile_cast(
         ir_expr: Union[irast.Set, irast.Expr],
         new_stype: s_types.Type, *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel,
         cardinality_mod: Optional[qlast.CardinalityModifier]=None
 ) -> irast.Set:
@@ -382,7 +382,7 @@ def _compile_cast(
         ir_expr: Union[irast.Set, irast.Expr],
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel,
         cardinality_mod: Optional[qlast.CardinalityModifier]) -> irast.Set:
 
@@ -560,7 +560,7 @@ class CastCallableWrapper(s_func.CallableLike):
 def _find_cast(
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel) -> Optional[s_casts.Cast]:
 
     # Don't try to pick up casts when there is a direct subtyping
@@ -607,7 +607,7 @@ def _cast_json_to_tuple(
         new_stype: s_types.Tuple,
         cardinality_mod: Optional[qlast.CardinalityModifier],
         *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     with ctx.new() as subctx:
@@ -667,7 +667,7 @@ def _cast_tuple(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     assert isinstance(orig_stype, s_types.Tuple)
@@ -752,7 +752,7 @@ def _cast_range(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     assert isinstance(orig_stype, s_types.Range)
@@ -828,7 +828,7 @@ def _cast_multirange(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     assert isinstance(orig_stype, s_types.MultiRange)
@@ -897,7 +897,7 @@ def _cast_json_to_range(
         new_stype: s_types.Range,
         cardinality_mod: Optional[qlast.CardinalityModifier],
         *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     with ctx.new() as subctx:
@@ -1005,7 +1005,7 @@ def _cast_json_to_multirange(
         new_stype: s_types.MultiRange,
         cardinality_mod: Optional[qlast.CardinalityModifier],
         *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     ctx.env.schema, new_range_type = s_types.Range.from_subtypes(
@@ -1054,7 +1054,7 @@ def _cast_array(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     assert isinstance(orig_stype, s_types.Array)
@@ -1155,7 +1155,7 @@ def _cast_array_literal(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     assert isinstance(ir_set.expr, irast.Array)

@@ -1401,7 +1401,7 @@ def compile_query_subject(
         exprtype: s_types.ExprType = s_types.ExprType.Select,
         allow_select_shape_inject: bool=True,
         forward_rptr: bool=False,
-        parser_context: Optional[pctx.ParserContext],
+        parser_context: Optional[pctx.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
     expr_stype = setgen.get_set_type(expr, ctx=ctx)

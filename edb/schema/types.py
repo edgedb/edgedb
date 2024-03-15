@@ -594,7 +594,7 @@ class TypeShell(so.ObjectShell[TypeT_co]):
         displayname: Optional[str] = None,
         expr: Optional[str] = None,
         schemaclass: typing.Type[TypeT_co],
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
         extra_args: tuple[qlast.Expr] | None = None,
     ) -> None:
         super().__init__(
@@ -636,7 +636,7 @@ class TypeExprShell(TypeShell[TypeT_co]):
         name: s_name.Name,
         components: Iterable[TypeShell[TypeT_co]],
         schemaclass: typing.Type[TypeT_co],
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> None:
         super().__init__(
             name=name,
@@ -667,7 +667,7 @@ class UnionTypeShell(TypeExprShell[TypeT_co]):
         components: Iterable[TypeShell[TypeT_co]],
         opaque: bool = False,
         schemaclass: typing.Type[TypeT_co],
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> None:
         name = get_union_type_name(
             (c.name for c in components),
@@ -905,7 +905,7 @@ class IntersectionTypeShell(TypeExprShell[TypeT_co]):
         module: str,
         components: Iterable[TypeShell[TypeT_co]],
         schemaclass: type[TypeT_co],
-        sourcectx: parsing.ParserContext | None = None,
+        sourcectx: parsing.Span | None = None,
     ) -> None:
         name = get_intersection_type_name(
             (c.name for c in components),
@@ -2874,7 +2874,7 @@ def ensure_schema_type_expr_type(
     type_shell: TypeExprShell[Type],
     parent_cmd: sd.Command,
     *,
-    src_context: typing.Optional[parsing.ParserContext] = None,
+    src_context: typing.Optional[parsing.Span] = None,
     context: sd.CommandContext,
 ) -> Optional[sd.Command]:
 

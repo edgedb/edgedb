@@ -225,7 +225,7 @@ def compile_constraint(
     subject: s_constraints.ConsistencySubject,
     constraint: s_constraints.Constraint,
     schema: s_schema.Schema,
-    source_context: Optional[parsing.ParserContext],
+    source_context: Optional[parsing.Span],
 ) -> SchemaDomainConstraint | SchemaTableConstraint:
     assert constraint.get_subject(schema) is not None
     TypeOrPointer = s_types.Type | s_pointers.Pointer

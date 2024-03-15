@@ -46,7 +46,7 @@ from edb.common import typeutils
 NEW_LINE = re.compile(br'\r\n?|\n')
 
 
-class ParserContext(markup.MarkupExceptionContext):
+class Span(markup.MarkupExceptionContext):
     title = 'Source Context'
 
     def __init__(self, name, buffer, start: int, end: int, document=None, *,
@@ -142,7 +142,7 @@ def _get_context(items, *, reverse=False):
 
 def empty_context():
     """Return a dummy context that points to an empty string."""
-    return ParserContext(
+    return Span(
         name='<empty>',
         buffer='',
         start=0,
@@ -157,7 +157,7 @@ def get_context(*kids):
     if not start_ctx:
         return None
 
-    return ParserContext(
+    return Span(
         name=start_ctx.name,
         buffer=start_ctx.buffer,
         start=start_ctx.start,
@@ -170,7 +170,7 @@ def merge_context(ctxlist):
 
     # assume same name and buffer apply to all
     #
-    return ParserContext(
+    return Span(
         name=ctxlist[0].name,
         buffer=ctxlist[0].buffer,
         start=ctxlist[0].start,

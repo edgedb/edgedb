@@ -103,7 +103,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         self._attrs = {}
         self._pgext_code = pgext_code
 
-        if isinstance(context, pctx.ParserContext):
+        if isinstance(context, pctx.Span):
             self.set_source_context(context)
         elif position:
             self.set_position(*position)
@@ -143,7 +143,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def has_source_context(self):
         return FIELD_DETAILS in self._attrs
 
-    def set_source_context(self, context: Optional[pctx.ParserContext]):
+    def set_source_context(self, context: Optional[pctx.Span]):
         if not context:
             return
 

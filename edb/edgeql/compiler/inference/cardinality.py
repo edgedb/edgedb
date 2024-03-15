@@ -354,7 +354,7 @@ def _infer_pointer_cardinality(
     specified_card: Optional[qltypes.SchemaCardinality] = None,
     is_mut_assignment: bool = False,
     shape_op: qlast.ShapeOp = qlast.ShapeOp.ASSIGN,
-    source_ctx: Optional[parsing.ParserContext] = None,
+    source_ctx: Optional[parsing.Span] = None,
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> None:

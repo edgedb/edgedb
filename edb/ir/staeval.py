@@ -167,7 +167,7 @@ def _process_op_result(
     typeref: irast.TypeRef,
     schema: s_schema.Schema,
     *,
-    srcctx: Optional[parsing.ParserContext]=None,
+    srcctx: Optional[parsing.Span]=None,
 ) -> irast.ConstExpr:
     qlconst: qlast.BaseConstant
     if isinstance(value, str):

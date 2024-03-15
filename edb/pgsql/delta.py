@@ -2149,7 +2149,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.ParserContext] = None,
+        source_context: Optional[parsing.Span] = None,
     ) -> dbops.Command:
         op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
@@ -2169,7 +2169,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.ParserContext] = None,
+        source_context: Optional[parsing.Span] = None,
     ) -> dbops.Command:
         op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
@@ -2189,7 +2189,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.ParserContext] = None,
+        source_context: Optional[parsing.Span] = None,
     ) -> dbops.Command:
 
         if cls.constraint_is_effective(schema, constraint):

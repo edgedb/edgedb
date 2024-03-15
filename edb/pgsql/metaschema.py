@@ -7458,7 +7458,7 @@ async def execute_sql_script(
             text = sql_text
 
         if point is not None:
-            pcontext = parser_context.ParserContext(
+            pcontext = parser_context.Span(
                 'query', text, start=point, end=point, context_lines=30)
             exceptions.replace_context(e, pcontext)
 

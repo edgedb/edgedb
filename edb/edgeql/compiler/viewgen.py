@@ -136,7 +136,7 @@ def process_view(
     view_name: Optional[sn.QualName] = None,
     exprtype: s_types.ExprType = s_types.ExprType.Select,
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext],
+    srcctx: Optional[parsing.Span],
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
 
     cache_key = (stype, exprtype, tuple(elements))
@@ -185,7 +185,7 @@ def _process_view(
     elements: Optional[Sequence[qlast.ShapeElement]],
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext],
+    srcctx: Optional[parsing.Span],
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
     path_id = ir_set.path_id
     view_rptr = s_ctx.view_rptr
@@ -848,7 +848,7 @@ def _raise_on_missing(
     stype: s_objtypes.ObjectType,
     rewrites: Optional[irast.Rewrites],
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext],
+    srcctx: Optional[parsing.Span],
 ) -> None:
     pointer_names = {
         ptr.get_local_name(ctx.env.schema) for ptr in pointers

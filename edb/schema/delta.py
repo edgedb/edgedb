@@ -455,7 +455,7 @@ class Command(
     markup.MarkupCapableMixin,
     metaclass=CommandMeta,
 ):
-    source_context = struct.Field(parsing.ParserContext, default=None)
+    source_context = struct.Field(parsing.Span, default=None)
     canonical = struct.Field(bool, default=False)
 
     _context_class: Optional[Type[CommandContextToken[Command]]] = None
@@ -694,7 +694,7 @@ class Command(
     def get_attribute_source_context(
         self,
         attr_name: str,
-    ) -> Optional[parsing.ParserContext]:
+    ) -> Optional[parsing.Span]:
         op = self._get_attribute_set_cmd(attr_name)
         if op is not None:
             return op.source_context
@@ -712,7 +712,7 @@ class Command(
         computed: bool = False,
         from_default: bool = False,
         orig_computed: Optional[bool] = None,
-        source_context: Optional[parsing.ParserContext] = None,
+        source_context: Optional[parsing.Span] = None,
     ) -> Command:
         orig_op = op = self._get_simple_attribute_set_cmd(attr_name)
         if op is None:
@@ -1962,7 +1962,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         computed: bool = False,
         orig_computed: Optional[bool] = None,
         from_default: bool = False,
-        source_context: Optional[parsing.ParserContext] = None,
+        source_context: Optional[parsing.Span] = None,
     ) -> Command:
         special = type(self)._get_special_handler(attr_name)
         op = self._get_attribute_set_cmd(attr_name)
@@ -2564,7 +2564,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> so.Object_T:
         ...
 
@@ -2576,7 +2576,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.Object_T]:
         ...
 
@@ -2587,7 +2587,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.Object_T]:
         metaclass = self.get_schema_metaclass()
         if name is None:
@@ -2922,7 +2922,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.QualifiedObject_T, so.NoDefaultT] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> so.QualifiedObject_T:
         ...
 
@@ -2934,7 +2934,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.QualifiedObject_T]:
         ...
 
@@ -2946,7 +2946,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         name: Optional[sn.Name] = None,
         default: Union[
             so.QualifiedObject_T, so.NoDefaultT, None] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.QualifiedObject_T]:
         if name is None:
             name = self.classname

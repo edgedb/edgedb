@@ -163,7 +163,7 @@ class PseudoTypeShell(s_types.TypeShell[PseudoType]):
         self,
         *,
         name: sn.Name,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> None:
         super().__init__(
             name=name, schemaclass=PseudoType, sourcectx=sourcectx)

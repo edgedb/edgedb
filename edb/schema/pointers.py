@@ -1444,7 +1444,7 @@ class PointerCommandOrFragment(
         expr_description: Optional[str] = None,
         no_query_rewrites: bool = False,
         make_globals_empty: bool = False,
-        source_context: Optional[parsing.ParserContext] = None,
+        source_context: Optional[parsing.Span] = None,
         detached: bool = False,
         should_set_path_prefix_anchor: bool = True
     ) -> s_expr.CompiledExpression:

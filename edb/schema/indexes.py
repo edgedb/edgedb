@@ -513,7 +513,7 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Index:
         ...
 
@@ -525,7 +525,7 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[Index]:
         ...
 
@@ -536,7 +536,7 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT, None] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[Index]:
         try:
             return super().get_object(

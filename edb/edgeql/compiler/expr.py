@@ -80,10 +80,10 @@ def compile_Path(
 def _balance(
     elements: Sequence[qlast.Expr],
     ctor: Callable[
-        [qlast.Expr, qlast.Expr, Optional[ctx_utils.ParserContext]],
+        [qlast.Expr, qlast.Expr, Optional[ctx_utils.Span]],
         qlast.Expr
     ],
-    context: Optional[ctx_utils.ParserContext],
+    context: Optional[ctx_utils.Span],
 ) -> qlast.Expr:
     mid = len(elements) // 2
     ls, rs = elements[:mid], elements[mid:]
@@ -759,7 +759,7 @@ def compile_TypeCast(
 def _infer_type_introspection(
     typeref: irast.TypeRef,
     env: context.Environment,
-    srcctx: Optional[parsing.ParserContext]=None,
+    srcctx: Optional[parsing.Span]=None,
 ) -> s_types.Type:
     if irtyputils.is_scalar(typeref):
         return cast(s_objtypes.ObjectType,

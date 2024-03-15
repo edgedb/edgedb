@@ -731,7 +731,7 @@ class ConstraintCommand(
         name: sn.QualName,
         subjectexpr: Optional[s_expr.Expression] = None,
         subjectexpr_inherited: bool = False,
-        sourcectx: Optional[c_parsing.ParserContext] = None,
+        sourcectx: Optional[c_parsing.Span] = None,
         args: Any = None,
         **kwargs: Any
     ) -> None:

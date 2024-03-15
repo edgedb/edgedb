@@ -31,7 +31,7 @@ from typing import (
     cast,
 )
 
-from edb.common.parsing import ParserContext
+from edb.common.parsing import Span
 
 from edb.pgsql import ast as pgast
 from edb.edgeql import ast as qlast
@@ -172,11 +172,11 @@ def _as_column_ref(name: str) -> pgast.ColumnRef:
     )
 
 
-def _build_context(n: Node, c: Context) -> Optional[ParserContext]:
+def _build_context(n: Node, c: Context) -> Optional[Span]:
     if 'location' not in n:
         return None
 
-    return ParserContext(
+    return Span(
         name="<string>",
         buffer=c.source_sql,
         start=n["location"],

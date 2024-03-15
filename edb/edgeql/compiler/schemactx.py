@@ -65,7 +65,7 @@ def get_schema_object(
     condition: Optional[Callable[[s_obj.Object], bool]]=None,
     label: Optional[str]=None,
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext] = None,
+    srcctx: Optional[parsing.Span] = None,
 ) -> s_obj.Object:
 
     if isinstance(ref, qlast.ObjectRef):
@@ -138,7 +138,7 @@ def get_schema_type(
     label: Optional[str] = None,
     condition: Optional[Callable[[s_obj.Object], bool]] = None,
     item_type: Optional[Type[s_obj.Object]] = None,
-    srcctx: Optional[parsing.ParserContext] = None,
+    srcctx: Optional[parsing.Span] = None,
 ) -> s_types.Type:
     if item_type is None:
         item_type = s_types.Type

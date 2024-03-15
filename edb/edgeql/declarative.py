@@ -1493,7 +1493,7 @@ TRACER_TO_REAL_TYPE_MAP = {
 def _get_local_obj(
     refname: s_name.QualName,
     tracer_type: Type[qltracer.NamedObject],
-    sourcectx: Optional[parsing.ParserContext],
+    sourcectx: Optional[parsing.Span],
     *,
     ctx: LayoutTraceContext | DepTraceContext,
 ) -> Optional[qltracer.NamedObject]:
@@ -1603,7 +1603,7 @@ def _validate_schema_ref(
 def _resolve_schema_ref(
     name: s_name.Name,
     type: Type[qltracer.NamedObject],
-    sourcectx: Optional[parsing.ParserContext],
+    sourcectx: Optional[parsing.Span],
     *,
     ctx: LayoutTraceContext | DepTraceContext,
 ) -> s_obj.SubclassableObject:

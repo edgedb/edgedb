@@ -32,7 +32,7 @@ import parsing
 
 from edb.common import context as pctx, debug
 
-ParserContext = pctx.ParserContext
+Span = pctx.Span
 
 logger = logging.getLogger('edb.common.parsing')
 

@@ -23,7 +23,7 @@ import functools
 from typing import Optional, Tuple, Union, Iterable, List, cast
 
 from edb import errors
-from edb.common.parsing import ParserContext
+from edb.common.parsing import Span
 from edb.server.pgcon import errors as pgerror
 
 from edb.pgsql import ast as pgast
@@ -330,7 +330,7 @@ def _resolve_RangeFunction(
 def _zip_column_alias(
     columns: List[context.Column],
     alias: pgast.Alias,
-    ctx: Optional[ParserContext],
+    ctx: Optional[Span],
 ) -> Iterable[Tuple[context.Column, Optional[str]]]:
     if not alias.colnames:
         return map(lambda c: (c, None), columns)

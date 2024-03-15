@@ -93,7 +93,7 @@ def resolve_name(
     lname: sn.Name,
     *,
     metaclass: Optional[Type[so.Object]] = None,
-    sourcectx: Optional[parsing.ParserContext] = None,
+    sourcectx: Optional[parsing.Span] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
 ) -> sn.Name:
@@ -949,7 +949,7 @@ def enrich_schema_lookup_error(
     item_type: Optional[so.ObjectMeta] = None,
     suggestion_limit: int = 3,
     condition: Optional[Callable[[so.Object], bool]] = None,
-    context: Optional[parsing.ParserContext] = None,
+    context: Optional[parsing.Span] = None,
     pointer_parent: Optional[so.Object] = None,
 ) -> None:
 

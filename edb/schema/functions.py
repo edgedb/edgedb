@@ -1340,7 +1340,7 @@ class Function(
         self,
         schema: s_schema.Schema,
         *,
-        srcctx: Optional[parsing.ParserContext] = None,
+        srcctx: Optional[parsing.Span] = None,
     ) -> Optional[Tuple[List[Function], int]]:
         """Find if this function overloads another in object parameter.
 
