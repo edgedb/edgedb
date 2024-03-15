@@ -553,7 +553,7 @@ def _process_view(
                 ir_set,
                 ptrcls,
                 same_computable_scope=True,
-                srcctx=ptr_span or span,
+                span=ptr_span or span,
                 ctx=ctx,
             )
 
@@ -1346,7 +1346,7 @@ def _normalize_view_ptr_expr(
             ptrname,
             track_ref=shape_el_desc.ptr_ql,
             ctx=ctx,
-            source_context=shape_el.span,
+            span=shape_el.span,
         )
         real_ptrcls = None
         if is_polymorphic:
@@ -1362,7 +1362,7 @@ def _normalize_view_ptr_expr(
                     ptrname,
                     track_ref=shape_el_desc.ptr_ql,
                     ctx=ctx,
-                    source_context=shape_el.span,
+                    span=shape_el.span,
                 )
             except errors.InvalidReferenceError:
                 is_independent_polymorphic = True
@@ -1810,13 +1810,13 @@ def _normalize_view_ptr_expr(
                 t2_vn = ptr_target.get_verbosename(ctx.env.schema)
 
                 if compexpr is not None:
-                    source_context = compexpr.span
+                    span = compexpr.span
                 else:
-                    source_context = shape_el.expr.steps[-1].span
+                    span = shape_el.expr.steps[-1].span
                 raise errors.SchemaError(
                     f'cannot redefine {vnp} as {t2_vn}',
                     details=f'{vnp} is defined as {t1_vn}',
-                    context=source_context,
+                    context=span,
                 )
         else:
             ptrcls = schemactx.derive_ptr(
@@ -2413,7 +2413,7 @@ def _late_compile_view_shapes_in_set(
                 path_tip,
                 ptr,
                 same_computable_scope=True,
-                srcctx=srcctx,
+                span=srcctx,
                 ctx=ctx,
             )
 

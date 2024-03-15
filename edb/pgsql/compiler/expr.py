@@ -265,8 +265,10 @@ def compile_IndexIndirection(
     # line, column and filename are captured here to be used with the
     # error message
     srcctx = pgast.StringConstant(
-        val=irutils.get_source_context_as_json(expr.index,
-                                               errors.InvalidValueError))
+        val=irutils.get_span_as_json(
+            expr.index, errors.InvalidValueError
+        )
+    )
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False

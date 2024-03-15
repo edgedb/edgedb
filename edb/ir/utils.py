@@ -182,7 +182,7 @@ def get_path_root(ir_set: irast.Set) -> irast.Set:
     return result
 
 
-def get_source_context_as_json(
+def get_span_as_json(
     expr: irast.Base,
     exctype: Type[errors.EdgeDBError] = errors.InternalServerError,
 ) -> str:
