@@ -39,9 +39,9 @@ from edb.ir import ast as irast
 
 
 class Base(ast.AST):
-    __ast_hidden__ = {'context'}
+    __ast_hidden__ = {'span'}
 
-    context: typing.Optional[parsing.Span] = None
+    span: typing.Optional[parsing.Span] = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

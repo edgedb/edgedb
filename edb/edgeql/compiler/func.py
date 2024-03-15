@@ -645,7 +645,7 @@ def compile_operator(
         tuple_path_ids=[],
         impl_is_strict=oper.get_impl_is_strict(env.schema),
         prefer_subquery_args=oper.get_prefer_subquery_args(env.schema),
-        span=qlexpr.span,        
+        span=qlexpr.span,
     )
 
     _check_free_shape_op(node, ctx=ctx)
