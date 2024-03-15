@@ -44,3 +44,4 @@ temp_*
 
 *.temp.txt
 test_*.sqlite
+test_*.sqlite-journal

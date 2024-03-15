@@ -171,7 +171,10 @@ class EdgeDatabase:
         if id in self.to_insert.dbdata.keys():
             raise ValueError("Semantic Change: Insert should carry properties before storage coercion")
 
-        return self.storage.project(id, tp, prop)
+        result =  self.storage.project(id, tp, prop)
+        assert isinstance(result, MultiSetVal)
+        return result
+    
         # updates are queried before insert as we are able to update an inserted object
         # elif id in self.to_update.keys():
         #     props = self.to_update[id] # with x := insert ... , _ := update x {p1 := v}, select x.p1;

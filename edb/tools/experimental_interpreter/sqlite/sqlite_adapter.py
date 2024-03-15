@@ -4,7 +4,7 @@ from __future__ import annotations
 import sqlite3
 import pickle
 from typing import List
-
+import json
 from ..db_interface import EdgeID, EdgeDatabaseStorageProviderInterface
 from .. import db_interface
 
@@ -148,13 +148,8 @@ def get_table_view_from_property_view(schema_property_view: Dict[str, Dict[str, 
     return result_table
 
 def convert_val_to_sqlite_val(val: e.ResultMultiSetVal) -> Any:
-    assert isinstance(val, e.ResultMultiSetVal)
-    if len(val.getVals()) > 1:
-        raise ValueError("MultiSetVal is not supported yet")
-    elif len(val.getVals()) == 0:
-        return None
-    else:
-        match val.getVals()[0]:
+    def sub_convert(v : e.Val) -> Any:
+        match v:
             case e.ScalarVal(tp=tp, val=v):
                 match tp:
                     case e.QualifiedName(name=["std", "int64"]):
@@ -163,8 +158,20 @@ def convert_val_to_sqlite_val(val: e.ResultMultiSetVal) -> Any:
                         return str(v)
             case e.RefVal(refid=refid, tpname=tpname, val=v):
                 return refid
+            case e.ArrVal(val=vals):
+                return json.dumps([sub_convert(v) for v in vals])
             case _:
                 raise ValueError(f"Unknown value {val}")
+
+
+    assert isinstance(val, e.ResultMultiSetVal)
+    if len(val.getVals()) > 1:
+        raise ValueError("MultiSetVal is not supported yet")
+    elif len(val.getVals()) == 0:
+        return None
+    else:
+        return sub_convert(val.getVals()[0])
+    
 
 class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
@@ -197,11 +204,22 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
     def to_type_for_an_id(self, tp: e.QualifiedName) -> str:
         return "::".join(tp.names)
 
+    def convert_sqlite_link_props_to_object_val(self, 
+                                                link_props: Dict[str, Any], 
+                                                link_props_view: Dict[str, PropertyTypeView]) -> ObjectVal:
+        assert link_props.keys() == link_props_view.keys(), "Link props mismatch"
+        return ObjectVal({e.LinkPropLabel(lpname) : (e.Invisible(), 
+                                                     e.ResultMultiSetVal([self.convert_sqlite_result_to_val(link_props[lpname], link_props_view[lpname], {})])
+                                                     if link_props[lpname] else e.ResultMultiSetVal([]))
+                          for lpname in link_props})
+
+
     def convert_sqlite_result_to_val(self, 
                                     result_data: Any, 
                                     result_tp: PropertyTypeView,
                                     link_props: Dict[str, Any]) -> Val:
-        assert link_props.keys() == result_tp.link_props.keys(), "Link props mismatch"
+        if result_data is None:
+            raise ValueError("Unexpected sqlite value None (Internal Error)")
 
 
         if len(link_props) > 0:
@@ -210,10 +228,10 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 tp_name = result_tp.target_type_name[0]
             else:
                 tp_name = self.get_type_for_an_id(result_data)
-            converted_link_props = {lpname : self.convert_sqlite_result_to_val(link_props[lpname], result_tp.link_props[lpname], {}) for lpname in link_props}
+            converted_link_props = self.convert_sqlite_link_props_to_object_val(link_props, result_tp.link_props)
             return e.RefVal(refid=result_data,
                         tpname=tp_name,
-                        val=ObjectVal(converted_link_props))
+                        val=converted_link_props)
         else:
             if result_tp.is_primitive:
                 assert len(result_tp.target_type_name) == 1
@@ -305,9 +323,9 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             lp_property_names = list(pview.link_props.keys())
             lp_table_name = f"{tp_name}.{prop}"
             if len(lp_property_names) > 0:
-                query = f"SELECT target, {','.join(lp_property_names)} FROM {lp_table_name} WHERE source=?"
+                query = f"SELECT target, {','.join(lp_property_names)} FROM '{lp_table_name}' WHERE source=?"
             else:
-                query = f"SELECT target FROM {lp_table_name} WHERE source=?"
+                query = f"SELECT target FROM '{lp_table_name}' WHERE source=?"
             self.cursor.execute(query, (id,))
             result = []
             for row in self.cursor.fetchall():
@@ -322,12 +340,12 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             self.cursor.execute(query, (id,))
             result = []
             for row in self.cursor.fetchall():
-                result.append(self.convert_sqlite_result_to_val(row[0], pview, {}))
+                if row[0] is not None:
+                    result.append(self.convert_sqlite_result_to_val(row[0], pview, {}))
             return e.ResultMultiSetVal(result)
 
 
     def reverse_project(self, subject_ids: Sequence[EdgeID], 
-                        subject_tps: Sequence[e.QualifiedName], 
                         prop: str) -> MultiSetVal:
         result : List[Val] = []
         for (tp_name, tdef) in self.schema_property_view.items():
@@ -337,19 +355,20 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                         lp_property_names = list(pview.link_props.keys())
                         lp_table_name = f"{tp_name}.{prop}"
                         if len(lp_property_names) > 0:
-                            query = f"SELECT source, {','.join(lp_property_names)} FROM {lp_table_name} WHERE target IN ({','.join(['?']*len(subject_ids))})"
+                            query = f"SELECT source, {','.join(lp_property_names)} FROM '{lp_table_name}' WHERE target IN ({','.join(['?']*len(subject_ids))})"
                         else:
-                            query = f"SELECT source FROM {lp_table_name} WHERE target IN ({','.join(['?']*len(subject_ids))})"
+                            query = f"SELECT source FROM '{lp_table_name}' WHERE target IN ({','.join(['?']*len(subject_ids))})"
                     else:
                         lp_property_names = []
-                        query = f"SELECT id FROM {tp_name} WHERE {prop} IN ({','.join(['?']*len(subject_ids))})"
-                    self.cursor.execute(query, subject_ids)
+                        query = f"SELECT id FROM '{tp_name}' WHERE {prop} IN ({','.join(['?']*len(subject_ids))})"
+                    self.cursor.execute(query, [int(id) for id in subject_ids])
                     for row in self.cursor.fetchall():
                         source_id = row[0]
                         lp_vals = {}
                         for i, lp_prop_name in enumerate(lp_property_names):
-                            lp_vals[lp_prop_name] = self.convert_sqlite_result_to_val(row[i+1], pview.link_props[lp_prop_name], {})
-                        result.append(e.RefVal(refid=source_id, tpname=self.to_tp_name(tp_name), val=lp_vals))
+                            lp_vals[lp_prop_name] = row[i+1]
+                        converted_lp_vals = self.convert_sqlite_link_props_to_object_val(lp_vals, pview.link_props)
+                        result.append(e.RefVal(refid=source_id, tpname=self.to_tp_name(tp_name), val=converted_lp_vals))
                     
 
         return e.ResultMultiSetVal(result)
@@ -382,29 +401,47 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
     
     def delete(self, id: EdgeID, tp: e.QualifiedName) -> None:
-        raise NotImplementedError("delete is not implemented yet")
+        tp_name = self.get_tp_name(tp)
+
+
+        for (pname, pview) in self.schema_property_view[tp_name].items():
+            if pview.has_lp_table():
+                lp_table_name = f"{tp_name}.{pname}"
+                self.cursor.execute(f"DELETE FROM '{lp_table_name}' WHERE source=?", (id,))
+        
+        self.cursor.execute(f"DELETE FROM '{tp_name}' WHERE id=?", (id,))
+        self.cursor.execute(f"DELETE FROM objects WHERE id=?", (id,))
+
+
     
     def update(self, id: EdgeID, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> None:
         tp_name = self.get_tp_name(tp)
         tdef = self.schema_property_view[tp_name]
 
         single_props = [pname for (pname, pview) in tdef.items() if pview.is_singular]
-        single_prop_vals = {pname : props[pname] for pname in single_props if pname in props}
+        single_prop_vals = [props[pname] for pname in single_props if pname in props]
         if len(single_prop_vals) > 0:
-            self.cursor.execute(f"UPDATE {tp_name} SET {','.join([f'{pname}=?' for pname in single_prop_vals])} WHERE id=?", 
+            self.cursor.execute(f"UPDATE '{tp_name}' SET {','.join([f'{pname}=?' for pname in single_prop_vals])} WHERE id=?", 
                                 (*single_prop_vals, id))
         
         for (pname, pview) in tdef.items():
             if pview.has_lp_table() and pname in props:
                 lp_table_name = f"{tp_name}.{pname}"
                 lp_property_names = list(pview.link_props.keys())
+                # Delete all existing links
+                self.cursor.execute(f"DELETE FROM '{lp_table_name}' WHERE source=?", (id,))
                 for v in props[pname].getVals():
                     if len(lp_property_names) > 0:
                         lp_props = [convert_val_to_sqlite_val(v.val.val[e.LinkPropLabel(lp_prop_name)][1]) for lp_prop_name in lp_property_names]
-                        self.cursor.execute(f"UPDATE '{lp_table_name}' SET {','.join([f'{lp_prop_name}=?' for lp_prop_name in lp_property_names])}, target=? WHERE source=?",
-                                            (*lp_props, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), id))
+                        # insert
+                        self.cursor.execute(f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
+                                            (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), *lp_props))
+                        # self.cursor.execute(f"UPDATE '{lp_table_name}' SET {','.join([f'{lp_prop_name}=?' for lp_prop_name in lp_property_names])}, target=? WHERE source=?",
+                        #                     (*lp_props, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), id))
                     else:
-                        self.cursor.execute(f"UPDATE '{lp_table_name}' SET target=? WHERE source=?", (convert_val_to_sqlite_val(v), id))
+                        # self.cursor.execute(f"UPDATE '{lp_table_name}' SET target=? WHERE source=?", (convert_val_to_sqlite_val(v), id))
+                        self.cursor.execute(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
+                                            (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v]))))
 
     
 def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):

@@ -313,8 +313,8 @@ def show_multiset_val(val: e.MultiSetVal) -> str:
     match val:
         case e.ResultMultiSetVal(_vals=arr):
             return "(multiset val){" + ", ".join(show_val(el) for el in arr) + "}"
-        case e.ConditionalDedupMultiSetVal(_vals=arr):
-            return "(dedup pending){" + ", ".join(show_val(el) for el in arr) + "}"
+        # case e.ConditionalDedupMultiSetVal(_vals=arr):
+        #     return "(dedup pending){" + ", ".join(show_val(el) for el in arr) + "}"
         case _:
             raise ValueError('Unimplemented', val)
         

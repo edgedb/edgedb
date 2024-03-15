@@ -447,6 +447,8 @@ class ScalarVal:
     def __post_init__(self):
         if self.tp == ScalarTp(name=QualifiedName(["std", "int64"])) and not isinstance(self.val, int):
             raise ValueError("val must be an int")
+        if self.val is None:
+            raise ValueError("val cannot be None")
 
 def IntVal(val: int):
     return ScalarVal(IntTp(), val)
@@ -715,6 +717,15 @@ class ArrExpr:
 class ObjectVal:
     val: Dict[Label, Tuple[Marker, MultiSetVal]]
 
+    def __post_init__(self):
+        for lbl, (marker, val) in self.val.items():
+            if not isinstance(val, MultiSetVal):
+                raise ValueError("val must be a MultiSetVal")
+            if not isinstance(marker, Marker):
+                raise ValueError("marker must be a Marker")
+            if not isinstance(lbl, Label):
+                raise ValueError("label must be a Label")
+
 
 # @dataclass(frozen=True)
 # class FreeVal:
@@ -726,6 +737,12 @@ class RefVal:
     refid: int
     tpname: QualifiedName
     val: ObjectVal
+
+    def __post_init__(self):
+        if not isinstance(self.val, ObjectVal):
+            raise ValueError("val must be an ObjectVal")
+        if not isinstance(self.tpname, QualifiedName):
+            raise ValueError("tpname must be a QualifiedName")
 
 # @dataclass(frozen=True)
 # class RefLinkVal:

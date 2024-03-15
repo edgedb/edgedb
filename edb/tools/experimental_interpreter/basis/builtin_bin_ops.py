@@ -36,7 +36,8 @@ def eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
         case [[
             e.ScalarVal(t1, v1)], [
             e.ScalarVal(t2, v2)]]:
-            assert t1 == t2
+            if t1 != t2:
+                print(f"Warning: comparing different types {t1} and {t2}")
             return [BoolVal(v1 == v2)]
         case [[e.RefVal(id1, v1)], [e.RefVal(id2, v2)]]:    
             return [BoolVal(id1 == id2)]
