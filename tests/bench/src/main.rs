@@ -84,12 +84,12 @@ async fn test_it(edb: &edgedb_tokio::Client, query: String, args: EValue) {
 
             handle.spawn(async move {
                 loop {
-                    if (Instant::now() - started_at).as_millis() >= DURATION_MS {
+                    if started_at.elapsed().as_millis() >= DURATION_MS {
                         break;
                     }
                     let n = Instant::now();
                     edb.query_json(&query, &*args).await.unwrap();
-                    let latency = (Instant::now() - n).as_millis();
+                    let latency = n.elapsed().as_millis();
                     let mut latencies = latencies.lock().await;
                     latencies.push(latency as f32);
                 }
