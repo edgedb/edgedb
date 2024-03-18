@@ -24,7 +24,6 @@ from __future__ import annotations
 from typing import Optional, Tuple, Iterable, Sequence, Dict, List, Set
 
 from edb import errors
-from edb.common import span
 
 from edb.ir import ast as irast
 from edb.ir import typeutils
@@ -88,7 +87,7 @@ def _compile_conflict_select_for_obj_type(
     fake_dml_set: Optional[irast.Set],
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
-    span: Optional[span.Span],
+    span: Optional[irast.Span],
     ctx: context.ContextLevel,
 ) -> tuple[Optional[qlast.Expr], bool]:
     """Synthesize a select of conflicting objects
@@ -375,7 +374,7 @@ def _compile_conflict_select(
     fake_dml_set: Optional[irast.Set]=None,
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: PointerConstraintMap,
-    span: Optional[span.Span],
+    span: Optional[irast.Span],
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, bool, bool]:
     """Synthesize a select of conflicting objects

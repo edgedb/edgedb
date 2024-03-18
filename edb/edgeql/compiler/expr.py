@@ -26,8 +26,8 @@ from typing import Callable, Optional, Type, Union, Sequence, List, cast
 
 from edb import errors
 
-from edb.common import span as pspan
 from edb.common import parsing
+from edb.common import span as pspan
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -80,10 +80,10 @@ def compile_Path(
 def _balance(
     elements: Sequence[qlast.Expr],
     ctor: Callable[
-        [qlast.Expr, qlast.Expr, Optional[pspan.Span]],
+        [qlast.Expr, qlast.Expr, Optional[qlast.Span]],
         qlast.Expr
     ],
-    span: Optional[pspan.Span],
+    span: Optional[qlast.Span],
 ) -> qlast.Expr:
     mid = len(elements) // 2
     ls, rs = elements[:mid], elements[mid:]

@@ -30,7 +30,7 @@ import types
 
 import parsing
 
-from edb.common import debug, span as span
+from edb.common import debug, span
 
 Span = span.Span
 

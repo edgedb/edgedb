@@ -44,7 +44,7 @@ import textwrap
 import weakref
 
 from edb import errors
-from edb.common import span as span
+from edb.common import span
 from edb.common import term
 from . import pathid
 from . import ast as irast

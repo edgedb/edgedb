@@ -70,7 +70,7 @@ import dataclasses
 import typing
 import uuid
 
-from edb.common import ast, compiler, parsing, markup, enum as s_enum
+from edb.common import ast, compiler, span, markup, enum as s_enum
 
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
@@ -86,6 +86,8 @@ from .pathid import PathId, Namespace  # noqa
 from .scopetree import ScopeTreeNode  # noqa
 
 
+Span = span.Span
+
 def new_scope_tree() -> ScopeTreeNode:
     return ScopeTreeNode(fenced=True)
 
@@ -94,7 +96,7 @@ class Base(ast.AST):
     __abstract_node__ = True
     __ast_hidden__ = {'span'}
 
-    span: typing.Optional[parsing.Span] = None
+    span: typing.Optional[Span] = None
 
     def __repr__(self) -> str:
         return (

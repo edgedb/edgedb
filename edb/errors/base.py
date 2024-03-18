@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Type, Iterator, Dict
 
-from edb.common import span as span
+from edb.common import span
 from edb.common import exceptions as ex
 
 import contextlib

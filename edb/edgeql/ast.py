@@ -25,10 +25,11 @@ from __future__ import annotations
 import typing
 
 from edb.common import enum as s_enum
-from edb.common import ast, parsing
+from edb.common import ast, span
 
 from . import qltypes
 
+Span = span.Span
 
 DDLCommand_T = typing.TypeVar(
     'DDLCommand_T',
@@ -88,7 +89,7 @@ class Base(ast.AST):
     __ast_hidden__ = {'span', 'system_comment'}
     __rust_ignore__ = True
 
-    span: typing.Optional[parsing.Span] = None
+    span: typing.Optional[Span] = None
 
     # System-generated comment.
     system_comment: typing.Optional[str] = None

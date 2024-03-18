@@ -37,7 +37,7 @@ from typing import (
 
 from edb import errors
 
-from edb.common import span as span
+from edb.common import span as pspan
 from edb.common import struct
 from edb.edgeql import ast as qlast
 from edb.schema import schema as s_schema
@@ -808,15 +808,15 @@ class CreateInheritingObject(
 
         assert isinstance(astnode, qlast.ObjectDDL)
         bases = cls._classbases_from_ast(schema, astnode, context)
-        ctxes = [b.sourcectx for b in bases if b.sourcectx is not None]
-        if ctxes:
-            srcctx = span.merge_spans(ctxes)
+        spans = [b.sourcectx for b in bases if b.sourcectx is not None]
+        if spans:
+            span = pspan.merge_spans(spans)
         else:
-            srcctx = None
+            span = None
         cmd.set_attribute_value(
             'bases',
             so.ObjectCollectionShell(bases, collection_type=so.ObjectList),
-            source_context=srcctx,
+            source_context=span,
         )
 
         return cmd

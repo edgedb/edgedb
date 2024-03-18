@@ -42,7 +42,6 @@ import edb._edgeql_parser as ql_parser
 from edb.common import ast
 from edb.common import markup
 from edb.common import typeutils
-from edb.common import span
 
 
 NEW_LINE = re.compile(br'\r\n?|\n')
@@ -65,6 +64,15 @@ class Span(markup.MarkupExceptionContext):
         self._points = None
         assert start is not None
         assert end is not None
+
+    @classmethod
+    def empty() -> Span:
+        return Span(
+            name='<empty>',
+            buffer='',
+            start=0,
+            end=0,
+        )
 
     def __getstate__(self):
         dic = self.__dict__.copy()
@@ -144,16 +152,6 @@ def _get_span(items, *, reverse=False):
     return None
 
 
-def empty_span():
-    """Return a dummy span that points to an empty string."""
-    return Span(
-        name='<empty>',
-        buffer='',
-        start=0,
-        end=0,
-    )
-
-
 def get_span(*kids: List[ast.AST]):
     start_ctx = _get_span(kids)
     end_ctx = _get_span(kids, reverse=True)
@@ -169,7 +167,7 @@ def get_span(*kids: List[ast.AST]):
     )
 
 
-def merge_spans(spans: List[span.Span]) -> span.Span:
+def merge_spans(spans: List[Span]) -> Span:
     spans.sort(key=lambda x: (x.start, x.end))
 
     # assume same name and buffer apply to all
@@ -182,7 +180,7 @@ def merge_spans(spans: List[span.Span]) -> span.Span:
     )
 
 
-def infer_span_from_children(node, span: span.Span):
+def infer_span_from_children(node, span: Span):
     if hasattr(node, 'span'):
         SpanPropagator.run(node, default=span)
         node.span = span
