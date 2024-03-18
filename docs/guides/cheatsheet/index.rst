@@ -45,8 +45,8 @@ EdgeQL
 Schema
 ======
 
-* :ref:`Booleans <ref_cheatsheet_object_types>` -- Boolean expressions can be
-  tricky sometimes, so here are a handful of tips and gotchas.
+* :ref:`Booleans <ref_cheatsheet_boolean>` -- Boolean expressions can be tricky
+  sometimes, so here are a handful of tips and gotchas.
 * :ref:`Object Types <ref_cheatsheet_object_types>` -- Make your own object
   and abstract types on top of existing system types.
 * :ref:`User Defined Functions <ref_cheatsheet_functions>` -- Write and
