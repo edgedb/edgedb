@@ -139,6 +139,10 @@ Database
 
     In EdgeDB 5, databases were replaced by branches.
 
+.. versionadded:: 5.0
+
+    In EdgeDB 5, databases were replaced by branches.
+
 Each instance can contain several **databases**, each with a unique name. At
 the time of creation, all instances contain a single default database called
 ``edgedb``. All incoming queries are executed
