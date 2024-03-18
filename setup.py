@@ -43,7 +43,7 @@ EDGEDBCLI_COMMIT = 'master'
 
 EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
-EDGEDBGUI_COMMIT = 'main'
+EDGEDBGUI_COMMIT = '5.x'
 
 PGVECTOR_REPO = 'https://github.com/pgvector/pgvector.git'
 # This can be a branch, tag, or commit
