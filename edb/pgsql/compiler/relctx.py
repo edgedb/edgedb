@@ -505,7 +505,8 @@ def new_primitive_rvar(
         skip_subtypes = ir_set.expr.skip_subtypes
         is_global = ir_set.expr.is_cached_global
     else:
-        skip_subtypes = is_global = False
+        skip_subtypes = False
+        is_global = False
 
     typeref = ir_set.typeref
     dml_source = irutils.get_dml_sources(ir_set)
