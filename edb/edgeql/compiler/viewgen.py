@@ -907,9 +907,6 @@ class RewriteContext:
     base_type: s_objtypes.ObjectType
     shape_type: s_objtypes.ObjectType
 
-    # Cache for computing `prepare_rewrite_anchors`, since that is expensive
-    anchor_cache: Dict[s_objtypes.ObjectType, RewriteAnchors]
-
 
 def _compile_rewrites(
     specified_ptrs: Set[sn.UnqualName],
@@ -926,14 +923,12 @@ def _compile_rewrites(
         kind=kind,
         base_type=stype,
         shape_type=view_scls,
-        anchor_cache=dict(),
     )
 
     # Computing anchors isn't cheap, so we want to only do it once,
     # and only do it when it is necessary.
     anchors: Dict[s_objtypes.ObjectType, RewriteAnchors] = {}
     def get_anchors(stype: s_objtypes.ObjectType) -> RewriteAnchors:
-        nonlocal anchors
         if stype not in anchors:
             anchors[stype] = prepare_rewrite_anchors(stype, r_ctx, s_ctx, ctx)
         return anchors[stype]
