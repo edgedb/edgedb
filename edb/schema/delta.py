@@ -712,7 +712,7 @@ class Command(
         computed: bool = False,
         from_default: bool = False,
         orig_computed: Optional[bool] = None,
-        source_context: Optional[parsing.Span] = None,
+        span: Optional[parsing.Span] = None,
     ) -> Command:
         orig_op = op = self._get_simple_attribute_set_cmd(attr_name)
         if op is None:
@@ -731,8 +731,8 @@ class Command(
         op.old_computed = orig_computed
         op.from_default = from_default
 
-        if source_context is not None:
-            op.source_context = source_context
+        if span is not None:
+            op.source_context = span
         if orig_value is not None:
             op.old_value = orig_value
 
@@ -1962,7 +1962,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         computed: bool = False,
         orig_computed: Optional[bool] = None,
         from_default: bool = False,
-        source_context: Optional[parsing.Span] = None,
+        span: Optional[parsing.Span] = None,
     ) -> Command:
         special = type(self)._get_special_handler(attr_name)
         op = self._get_attribute_set_cmd(attr_name)
@@ -1984,7 +1984,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 new_computed=computed,
                 old_computed=orig_computed,
                 from_default=from_default,
-                source_context=source_context,
+                source_context=span,
             )
 
             top_op = self._special_attrs.get(attr_name)
@@ -2009,8 +2009,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             op.old_computed = orig_computed
             op.from_default = from_default
 
-            if source_context is not None:
-                op.source_context = source_context
+            if span is not None:
+                op.source_context = span
             if orig_value is not None:
                 op.old_value = orig_value
 

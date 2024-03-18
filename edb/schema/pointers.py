@@ -1204,7 +1204,7 @@ class PointerCommandOrFragment(
             self.set_attribute_value(
                 'target',
                 inf_target_ref,
-                source_context=srcctx,
+                span=srcctx,
                 computed=True,
             )
 
@@ -1444,7 +1444,7 @@ class PointerCommandOrFragment(
         expr_description: Optional[str] = None,
         no_query_rewrites: bool = False,
         make_globals_empty: bool = False,
-        source_context: Optional[parsing.Span] = None,
+        span: Optional[parsing.Span] = None,
         detached: bool = False,
         should_set_path_prefix_anchor: bool = True
     ) -> s_expr.CompiledExpression:
@@ -1527,8 +1527,8 @@ class PointerCommandOrFragment(
             return compiled
 
         except errors.QueryError as e:
-            if source_context:
-                e.set_source_context(source_context)
+            if span:
+                e.set_source_context(span)
             if not e.has_source_context():
                 e.set_source_context(expr.qlast.span)
             raise
@@ -1765,7 +1765,7 @@ class PointerCommand(
                 self._check_id_default(
                     schema, context, default_expr.irast.expr)
 
-            source_context = self.get_attribute_source_context('default')
+            span = self.get_attribute_source_context('default')
             ir = default_expr.irast
             default_schema = ir.schema
             default_type = ir.stype
@@ -1785,7 +1785,7 @@ class PointerCommand(
             ):
                 raise errors.SchemaDefinitionError(
                     f'default expression may not include a shape',
-                    context=source_context,
+                    context=span,
                 )
             if not default_type.assignment_castable_to(
                     ptr_target, default_schema):
@@ -1793,7 +1793,7 @@ class PointerCommand(
                     f'default expression is of invalid type: '
                     f'{default_type.get_displayname(default_schema)}, '
                     f'expected {ptr_target.get_displayname(schema)}',
-                    context=source_context,
+                    context=span,
                 )
             # "required" status of defaults should not be enforced
             # because it's impossible to actually guarantee that any
@@ -1809,7 +1809,7 @@ class PointerCommand(
                     f'the default expression for '
                     f'{scls.get_verbosename(schema)} declared as '
                     f"'single'",
-                    context=source_context,
+                    context=span,
                 )
 
             # prevent references to local links, only properties
@@ -1828,7 +1828,7 @@ class PointerCommand(
                     raise errors.SchemaDefinitionError(
                         f"default expression cannot refer to multi properties "
                         "of inserted object",
-                        context=source_context,
+                        context=span,
                         hint="this is a temporary implementation restriction",
                     )
 
@@ -1836,7 +1836,7 @@ class PointerCommand(
                     raise errors.SchemaDefinitionError(
                         f"default expression cannot refer to links "
                         "of inserted object",
-                        context=source_context,
+                        context=span,
                         hint='this is a temporary implementation restriction'
                     )
 
@@ -1890,12 +1890,12 @@ class PointerCommand(
             and isinstance(expr.expr, irast.FunctionCall)
             and str(expr.expr.func_shortname) in ID_ALLOWLIST
         ):
-            source_context = self.get_attribute_source_context('default')
+            span = self.get_attribute_source_context('default')
             options = ', '.join(ID_ALLOWLIST)
             raise errors.SchemaDefinitionError(
                 "invalid default value for 'id' property",
                 hint=f'default must be a call to one of: {options}',
-                context=source_context,
+                context=span,
             )
 
     @classmethod
@@ -1937,7 +1937,7 @@ class PointerCommand(
             self.set_attribute_value(
                 'required',
                 astnode.is_required,
-                source_context=astnode.span,
+                span=astnode.span,
             )
 
         if astnode.cardinality is not None:
@@ -1945,7 +1945,7 @@ class PointerCommand(
                 self.set_attribute_value(
                     'cardinality',
                     astnode.cardinality,
-                    source_context=astnode.span,
+                    span=astnode.span,
                 )
             else:
                 handler = sd.get_special_field_alter_handler_for_context(
@@ -1997,7 +1997,7 @@ class PointerCommand(
             self.set_attribute_value(
                 'target',
                 target_ref,
-                source_context=astnode.target.span,
+                span=astnode.target.span,
             )
 
         elif target_ref is not None:
@@ -2005,7 +2005,7 @@ class PointerCommand(
             self.set_attribute_value(
                 'target',
                 target_ref,
-                source_context=astnode.target.span,
+                span=astnode.target.span,
             )
 
     def _process_alter_ast(
@@ -2032,7 +2032,7 @@ class PointerCommand(
                 self.set_attribute_value(
                     'target',
                     target_ref,
-                    source_context=expr.span,
+                    span=expr.span,
                 )
                 self.discard_attribute('expr')
 

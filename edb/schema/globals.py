@@ -231,12 +231,12 @@ class GlobalCommand(
             default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
 
-            source_context = self.get_attribute_source_context('default')
+            span = self.get_attribute_source_context('default')
 
             if is_computable:
                 raise errors.SchemaDefinitionError(
                     f'computed globals may not have default values',
-                    context=source_context,
+                    context=span,
                 )
 
             if not default_type.assignment_castable_to(target, default_schema):
@@ -244,7 +244,7 @@ class GlobalCommand(
                     f'default expression is of invalid type: '
                     f'{default_type.get_displayname(default_schema)}, '
                     f'expected {target.get_displayname(schema)}',
-                    context=source_context,
+                    context=span,
                 )
 
             ptr_cardinality = scls.get_cardinality(schema)
@@ -258,7 +258,7 @@ class GlobalCommand(
                     f'the default expression for '
                     f'{scls.get_verbosename(schema)} declared as '
                     f"'single'",
-                    context=source_context,
+                    context=span,
                 )
 
             if scls.get_required(schema) and not default_required:
@@ -267,14 +267,14 @@ class GlobalCommand(
                     f'the default expression for '
                     f'{scls.get_verbosename(schema)} declared as '
                     f"'required'",
-                    context=source_context,
+                    context=span,
                 )
 
             if default_expr.irast.volatility.is_volatile():
                 raise errors.SchemaDefinitionError(
                     f'{scls.get_verbosename(schema)} has a volatile '
                     f'default expression, which is not allowed',
-                    context=source_context,
+                    context=span,
                 )
 
     def get_dummy_expr_field_value(
@@ -382,14 +382,14 @@ class CreateGlobal(
             cmd.set_attribute_value(
                 'required',
                 astnode.is_required,
-                source_context=astnode.span,
+                span=astnode.span,
             )
 
         if astnode.cardinality is not None:
             cmd.set_attribute_value(
                 'cardinality',
                 astnode.cardinality,
-                source_context=astnode.span,
+                span=astnode.span,
             )
 
         assert astnode.target is not None
@@ -404,7 +404,7 @@ class CreateGlobal(
             cmd.set_attribute_value(
                 'target',
                 type_ref,
-                source_context=astnode.target.span,
+                span=astnode.target.span,
             )
 
         else:

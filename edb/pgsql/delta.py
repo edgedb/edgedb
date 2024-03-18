@@ -2117,7 +2117,7 @@ class ConstraintCommand(MetaCommand):
     @classmethod
     def fixup_base_constraint_triggers(
         cls, constraint, orig_schema, schema, context,
-        source_context=None, *, is_delete
+        span=None, *, is_delete
     ):
         base_schema = orig_schema if is_delete else schema
 
@@ -2137,7 +2137,7 @@ class ConstraintCommand(MetaCommand):
             ):
                 subject = base.get_subject(schema)
                 bconstr = schemamech.compile_constraint(
-                    subject, base, schema, source_context
+                    subject, base, schema, span
                 )
                 op.add_command(bconstr.alter_ops(
                     bconstr, only_modify_enabled=True))
@@ -2149,7 +2149,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.Span] = None,
+        span: Optional[parsing.Span] = None,
     ) -> dbops.Command:
         op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
@@ -2157,7 +2157,7 @@ class ConstraintCommand(MetaCommand):
 
             if subject is not None:
                 bconstr = schemamech.compile_constraint(
-                    subject, constraint, schema, source_context
+                    subject, constraint, schema, span
                 )
 
                 op.add_command(bconstr.create_ops())
@@ -2169,7 +2169,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.Span] = None,
+        span: Optional[parsing.Span] = None,
     ) -> dbops.Command:
         op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
@@ -2177,7 +2177,7 @@ class ConstraintCommand(MetaCommand):
 
             if subject is not None:
                 bconstr = schemamech.compile_constraint(
-                    subject, constraint, schema, source_context
+                    subject, constraint, schema, span
                 )
 
                 op.add_command(bconstr.delete_ops())
@@ -2189,7 +2189,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.Span] = None,
+        span: Optional[parsing.Span] = None,
     ) -> dbops.Command:
 
         if cls.constraint_is_effective(schema, constraint):
@@ -2197,7 +2197,7 @@ class ConstraintCommand(MetaCommand):
 
             if subject is not None:
                 bconstr = schemamech.compile_constraint(
-                    subject, constraint, schema, source_context
+                    subject, constraint, schema, span
                 )
 
                 return bconstr.enforce_ops()

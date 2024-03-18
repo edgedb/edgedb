@@ -319,7 +319,7 @@ class CreateAccessPolicy(
                     astnode.condition, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.condition.span,
+                span=astnode.condition.span,
             )
 
         if astnode.expr:
@@ -329,7 +329,7 @@ class CreateAccessPolicy(
                     astnode.expr, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.expr.span,
+                span=astnode.expr.span,
             )
 
         cmd.set_attribute_value('action', astnode.action)

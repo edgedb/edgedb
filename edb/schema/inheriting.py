@@ -816,7 +816,7 @@ class CreateInheritingObject(
         cmd.set_attribute_value(
             'bases',
             so.ObjectCollectionShell(bases, collection_type=so.ObjectList),
-            source_context=span,
+            span=span,
         )
 
         return cmd

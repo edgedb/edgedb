@@ -314,7 +314,7 @@ class CreateTrigger(
                     astnode.expr, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.expr.span,
+                span=astnode.expr.span,
             )
         if astnode.condition is not None:
             cmd.set_attribute_value(
@@ -323,7 +323,7 @@ class CreateTrigger(
                     astnode.condition, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.condition.span,
+                span=astnode.condition.span,
             )
 
         cmd.set_attribute_value('timing', astnode.timing)
