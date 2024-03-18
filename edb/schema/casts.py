@@ -331,7 +331,7 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
             raise errors.DuplicateCastDefinitionError(
                 f'a cast from {from_type.get_displayname(schema)!r} '
                 f'to {to_type.get_displayname(schema)!r} is already defined',
-                context=self.source_context)
+                context=self.span)
 
         return super()._create_begin(schema, context)
 

@@ -141,7 +141,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     schema=schema,
                 )
             except errors.SchemaDefinitionError as e:
-                if (srcctx := self.get_attribute_source_context(field_name)):
+                if (srcctx := self.get_attribute_span(field_name)):
                     e.set_source_context(srcctx)
                 raise
 

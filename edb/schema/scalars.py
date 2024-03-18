@@ -377,7 +377,7 @@ class ScalarTypeCommand(
             if len(self.scls.get_constraints(schema)):
                 raise errors.SchemaError(
                     f'parameterized scalar types may not have constraints',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
         if args := self.scls.get_arg_values(schema):
@@ -387,14 +387,14 @@ class ScalarTypeCommand(
                 raise errors.SchemaDefinitionError(
                     f'base type {base.get_name(schema)} does not '
                     f'accept parameters',
-                    context=self.source_context,
+                    context=self.span,
                 )
             if num_params != len(args):
                 raise errors.SchemaDefinitionError(
                     f'incorrect number of arguments provided to base type '
                     f'{base.get_name(schema)}: expected {num_params} '
                     f'but got {len(args)}',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
     def validate_scalar_ancestors(
@@ -424,7 +424,7 @@ class ScalarTypeCommand(
             raise errors.SchemaError(
                 f'scalar type may not have more than '
                 f'one concrete base type',
-                context=self.source_context,
+                context=self.span,
             )
         abstract = self.get_attribute_value('abstract')
         enum = self.get_attribute_value('enum_values')
@@ -445,7 +445,7 @@ class ScalarTypeCommand(
 
             raise errors.SchemaError(
                 f'scalar type must have a concrete base type',
-                context=self.source_context,
+                context=self.span,
                 hint=hint,
             )
 
@@ -548,7 +548,7 @@ class CreateScalarType(
                     raise errors.UnsupportedFeatureError(
                         f'enumerated types do not support defaults',
                         context=(
-                            create_cmd.get_attribute_source_context('default')
+                            create_cmd.get_attribute_span('default')
                         ),
                     )
 
@@ -736,7 +736,7 @@ class RebaseScalarType(
                 if isinstance(b, s_types.CollectionTypeShell):
                     raise errors.SchemaError(
                         f'scalar type may not have a collection base type',
-                        context=self.source_context,
+                        context=self.span,
                     )
 
             schema = super().apply(schema, context)

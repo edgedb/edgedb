@@ -3414,7 +3414,7 @@ def materialize_type_in_attribute(
     if type_ref is None:
         return schema
 
-    srcctx = cmd.get_attribute_source_context('target')
+    srcctx = cmd.get_attribute_span('target')
 
     if isinstance(type_ref, TypeExprShell):
         cc_cmd = ensure_schema_type_expr_type(

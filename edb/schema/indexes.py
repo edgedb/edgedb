@@ -698,7 +698,7 @@ class IndexCommand(
                 raise errors.SchemaDefinitionError(
                     "cannot use aggregate functions or operators "
                     "in an index expression",
-                    context=self.source_context,
+                    context=self.span,
                 )
 
             return expr
@@ -868,7 +868,7 @@ class CreateIndex(
         if not params:
             raise errors.SchemaDefinitionError(
                 f'the {ancestor_name} does not support any parameters',
-                context=self.source_context
+                context=self.span
             )
 
         # Make sure that the kwargs are valid.
@@ -878,7 +878,7 @@ class CreateIndex(
             if param is None:
                 raise errors.SchemaDefinitionError(
                     f'the {ancestor_name} does not have a parameter {key!r}',
-                    context=self.source_context
+                    context=self.span
                 )
 
             param_type = param.get_type(schema)
@@ -899,7 +899,7 @@ class CreateIndex(
                     f'corresponding parameter of the '
                     f'{ancestor_name} with type '
                     f'{param_type.get_displayname(schema)}',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
     def validate_object(
@@ -939,7 +939,7 @@ class CreateIndex(
                         raise errors.SchemaDefinitionError(
                             f'cannot create {self.get_verbosename()} '
                             f'because it extends incompatible abstract indxes',
-                            context=self.source_context
+                            context=self.span
                         )
 
                 # We should have found a root because we have bases.
@@ -960,7 +960,7 @@ class CreateIndex(
                         f'cannot create {self.get_verbosename()} '
                         f'because user-defined abstract indexes are not '
                         f'supported',
-                        context=self.source_context
+                        context=self.span
                     )
 
             return
@@ -975,7 +975,7 @@ class CreateIndex(
             if isinstance(subject, s_pointers.Pointer):
                 raise errors.SchemaDefinitionError(
                     "fts::index cannot be declared on links",
-                    context=self.source_context
+                    context=self.span
                 )
 
         # Ensure that the name of the index (if given) matches an existing
@@ -1028,7 +1028,7 @@ class CreateIndex(
                     f'cannot create {self.get_verbosename()} '
                     f'because the following parameters are still undefined: '
                     f'{names}.',
-                    context=self.source_context
+                    context=self.span
                 )
 
             # Make sure that the concrete index expression type matches the
@@ -1062,7 +1062,7 @@ class CreateIndex(
                     f'index expression ({expr.text}) '
                     f'is not of a valid type for the '
                     f'{self.scls.get_verbosename(comp_expr.schema)}',
-                    context=self.source_context,
+                    context=self.span,
                     details=hint,
                 )
 

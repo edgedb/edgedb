@@ -1200,7 +1200,7 @@ class PointerCommandOrFragment(
             inf_target_ref = None
 
         if inf_target_ref is not None:
-            srcctx = self.get_attribute_source_context('target')
+            srcctx = self.get_attribute_span('target')
             self.set_attribute_value(
                 'target',
                 inf_target_ref,
@@ -1329,7 +1329,7 @@ class PointerCommandOrFragment(
         # and best to consistently give an understandable error.
         for schema_ref in expression.irast.schema_refs:
             if isinstance(schema_ref, s_expraliases.Alias):
-                srcctx = self.get_attribute_source_context('target')
+                srcctx = self.get_attribute_span('target')
                 an = schema_ref.get_verbosename(expression.irast.schema)
                 raise errors.UnsupportedFeatureError(
                     f'referring to {an} from computed {ptr_name} '
@@ -1345,7 +1345,7 @@ class PointerCommandOrFragment(
             raise errors.UnsupportedFeatureError(
                 f'including a shape on schema-defined computed links '
                 f'is not yet supported',
-                context=self.source_context,
+                context=self.span,
             )
 
         spec_target: Optional[
@@ -1377,7 +1377,7 @@ class PointerCommandOrFragment(
                 expression.irast.schema)
 
             if spec_target_type != inferred_target_type:
-                srcctx = self.get_attribute_source_context('target')
+                srcctx = self.get_attribute_span('target')
                 raise errors.SchemaDefinitionError(
                     f'the type inferred from the expression '
                     f'of the computed {ptr_name} '
@@ -1388,7 +1388,7 @@ class PointerCommandOrFragment(
                 )
 
         if spec_required and not required:
-            srcctx = self.get_attribute_source_context('target')
+            srcctx = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'possibly an empty set returned by an '
                 f'expression for the computed '
@@ -1401,7 +1401,7 @@ class PointerCommandOrFragment(
             spec_card is qltypes.SchemaCardinality.One
             and card is not qltypes.SchemaCardinality.One
         ):
-            srcctx = self.get_attribute_source_context('target')
+            srcctx = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'possibly more than one element returned by an '
                 f'expression for the computed '
@@ -1420,7 +1420,7 @@ class PointerCommandOrFragment(
             not is_view_source(source, schema)
             and expression.irast.volatility == qltypes.Volatility.Volatile
         ):
-            srcctx = self.get_attribute_source_context('target')
+            srcctx = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'volatile functions are not permitted in schema-defined '
                 f'computed expressions',
@@ -1627,7 +1627,7 @@ class PointerCommand(
                     f'{scls.get_verbosename(schema, with_parent=True)} '
                     f'to extend an abstract '
                     f'{scls.get_schema_class_displayname()}',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
         # Get the non-generic, explicitly declared ancestors as the
@@ -1664,7 +1664,7 @@ class PointerCommand(
                 f'{scls.get_verbosename(schema, with_parent=True)} '
                 f'to overload an existing '
                 f'{scls.get_schema_class_displayname()}',
-                context=self.source_context,
+                context=self.span,
             )
         else:
             if status is LineageStatus.MIXED:
@@ -1673,7 +1673,7 @@ class PointerCommand(
                     f'{scls.get_verbosename(schema, with_parent=True)} '
                     f'to extend both a computed and a non-computed '
                     f'{scls.get_schema_class_displayname()}',
-                    context=self.source_context,
+                    context=self.span,
                 )
             elif status is LineageStatus.MULTIPLE_COMPUTABLES:
                 raise errors.SchemaDefinitionError(
@@ -1681,7 +1681,7 @@ class PointerCommand(
                     f'{scls.get_verbosename(schema, with_parent=True)} '
                     f'to extend more than one computed '
                     f'{scls.get_schema_class_displayname()}',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
     def _validate_lineage(
@@ -1765,7 +1765,7 @@ class PointerCommand(
                 self._check_id_default(
                     schema, context, default_expr.irast.expr)
 
-            span = self.get_attribute_source_context('default')
+            span = self.get_attribute_span('default')
             ir = default_expr.irast
             default_schema = ir.schema
             default_type = ir.stype
@@ -1849,7 +1849,7 @@ class PointerCommand(
                     f"cannot specify a rewrite for "
                     f"{scls.get_verbosename(schema, with_parent=True)} "
                     f"because it is multi",
-                    context=self.source_context,
+                    context=self.span,
                     hint='this is a temporary implementation restriction'
                 )
 
@@ -1858,7 +1858,7 @@ class PointerCommand(
                     f"cannot specify a rewrite for "
                     f"{scls.get_verbosename(schema, with_parent=True)} "
                     f"because it has link properties",
-                    context=self.source_context,
+                    context=self.span,
                     hint='this is a temporary implementation restriction'
                 )
 
@@ -1890,7 +1890,7 @@ class PointerCommand(
             and isinstance(expr.expr, irast.FunctionCall)
             and str(expr.expr.func_shortname) in ID_ALLOWLIST
         ):
-            span = self.get_attribute_source_context('default')
+            span = self.get_attribute_span('default')
             options = ', '.join(ID_ALLOWLIST)
             raise errors.SchemaDefinitionError(
                 "invalid default value for 'id' property",
@@ -2156,7 +2156,7 @@ class AlterPointer(
                     aop = sd.AlterObjectProperty(
                         property='expr',
                         new_value=None,
-                        source_context=astnode.span,
+                        span=astnode.span,
                     )
                     cmd.add(aop)
 
@@ -2471,7 +2471,7 @@ class SetPointerType(
             # on a non-inherited type.
             raise errors.SchemaError(
                 f'cannot RESET TYPE of {vn} because it is not inherited',
-                context=self.source_context,
+                context=self.span,
             )
 
         if not context.canonical and orig_target != new_target:
@@ -2498,7 +2498,7 @@ class SetPointerType(
                         'You might need to specify a conversion '
                         'expression in a USING clause'
                     ),
-                    context=self.source_context,
+                    context=self.span,
                 )
 
             if self.cast_expr is not None:
@@ -2527,20 +2527,20 @@ class SetPointerType(
                         f'{vn} cannot be cast automatically from '
                         f'{ot} to {nt} ',
                         hint='You might need to add an explicit cast.',
-                        context=self.source_context,
+                        context=self.span,
                     )
                 if using_type.is_view(self.cast_expr.schema):
                     raise errors.SchemaError(
                         f'result of USING clause for the alteration of '
                         f'{vn} may not include a shape',
-                        context=self.source_context,
+                        context=self.span,
                     )
 
                 if irutils.contains_dml(self.cast_expr.ir_statement):
                     raise errors.SchemaError(
                         f'USING clause for the alteration of type of {vn} '
                         f'cannot include mutating statements',
-                        context=self.source_context,
+                        context=self.span,
                     )
 
             schema = self._propagate_if_expr_refs(
@@ -2692,7 +2692,7 @@ class AlterPointerUpperCardinality(
                         'You need to specify a conversion '
                         'expression in a USING clause'
                     ),
-                    context=self.source_context,
+                    context=self.span,
                 )
 
             if self.conv_expr is not None:
@@ -2722,13 +2722,13 @@ class AlterPointerUpperCardinality(
                         f'{vn} cannot be cast automatically from '
                         f'{ot} to {nt} ',
                         hint='You might need to add an explicit cast.',
-                        context=self.source_context,
+                        context=self.span,
                     )
                 if using_type.is_view(self.conv_expr.schema):
                     raise errors.SchemaError(
                         f'result of USING clause for the alteration of '
                         f'{vn} may not include a shape',
-                        context=self.source_context,
+                        context=self.span,
                     )
 
             schema = self._propagate_if_expr_refs(schema, context, action=desc)
@@ -2949,13 +2949,13 @@ class AlterPointerLowerCardinality(
                         f'{vn} cannot be cast automatically from '
                         f'{ot} to {nt} ',
                         hint='You might need to add an explicit cast.',
-                        context=self.source_context,
+                        context=self.span,
                     )
                 if using_type.is_view(self.fill_expr.schema):
                     raise errors.SchemaError(
                         f'result of USING clause for the alteration of '
                         f'{vn} may not include a shape',
-                        context=self.source_context,
+                        context=self.span,
                     )
 
             schema = self._propagate_if_expr_refs(

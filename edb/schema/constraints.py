@@ -1050,7 +1050,7 @@ class CreateConstraint(
                         f'{self.get_verbosename()} '
                         f'extends multiple constraints '
                         f'with parameters',
-                        context=self.source_context,
+                        context=self.span,
                     )
                 base_params = params
                 base_with_params = base
@@ -1067,7 +1067,7 @@ class CreateConstraint(
                     f'must define parameters to reflect parameters of '
                     f'the {base_with_params.get_verbosename(schema)} '
                     f'it extends',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
             if len(params) < len(base_params):
@@ -1076,7 +1076,7 @@ class CreateConstraint(
                     f'has fewer parameters than the '
                     f'{base_with_params.get_verbosename(schema)} '
                     f'it extends',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
             # Skipping the __subject__ param
@@ -1093,7 +1093,7 @@ class CreateConstraint(
                         f'must be renamed to {base_param_name!r} '
                         f'to match the signature of the base '
                         f'{base_with_params.get_verbosename(schema)} ',
-                        context=self.source_context,
+                        context=self.span,
                     )
 
                 param_type = param.get_type(schema)
@@ -1110,7 +1110,7 @@ class CreateConstraint(
                         f'parameter of the '
                         f'{base_with_params.get_verbosename(schema)} '
                         f'it extends has a concrete type',
-                        context=self.source_context,
+                        context=self.span,
                     )
 
                 if (
@@ -1127,7 +1127,7 @@ class CreateConstraint(
                         f'corresponding parameter of the '
                         f'{base_with_params.get_verbosename(schema)} with '
                         f'type {base_param_type.get_displayname(schema)}',
-                        context=self.source_context,
+                        context=self.span,
                     )
 
     def _create_begin(
@@ -1146,7 +1146,7 @@ class CreateConstraint(
             raise errors.UnsupportedFeatureError(
                 f'constraints cannot be defined on '
                 f'{subject.get_verbosename(schema)}',
-                context=self.source_context,
+                context=self.span,
             )
 
         if not context.canonical:
@@ -1164,7 +1164,7 @@ class CreateConstraint(
                 name=shortname,
                 subjectexpr_inherited=self.is_attribute_inherited(
                     'subjectexpr'),
-                sourcectx=self.source_context,
+                sourcectx=self.span,
                 **props,
             )
 
@@ -1453,7 +1453,7 @@ class AlterConstraint(
                 subjectexpr=subjectexpr,
                 subjectexpr_inherited=subjectexpr_inherited,
                 args=args,
-                sourcectx=self.source_context,
+                sourcectx=self.span,
                 **props,
             )
 
@@ -1533,7 +1533,7 @@ class AlterConstraint(
             raise errors.InvalidConstraintDefinitionError(
                 f'cannot redefine {tgt_repr} as delegated:'
                 f' it is defined as non-delegated in {bases_repr}',
-                context=self.source_context,
+                context=self.span,
             )
 
     def canonicalize_alter_from_external_ref(

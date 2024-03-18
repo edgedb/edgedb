@@ -455,7 +455,7 @@ class Command(
     markup.MarkupCapableMixin,
     metaclass=CommandMeta,
 ):
-    source_context = struct.Field(parsing.Span, default=None)
+    span = struct.Field(parsing.Span, default=None)
     canonical = struct.Field(bool, default=False)
 
     _context_class: Optional[Type[CommandContextToken[Command]]] = None
@@ -691,13 +691,13 @@ class Command(
         else:
             return False
 
-    def get_attribute_source_context(
+    def get_attribute_span(
         self,
         attr_name: str,
     ) -> Optional[parsing.Span]:
         op = self._get_attribute_set_cmd(attr_name)
         if op is not None:
-            return op.source_context
+            return op.span
         else:
             return None
 
@@ -732,7 +732,7 @@ class Command(
         op.from_default = from_default
 
         if span is not None:
-            op.source_context = span
+            op.span = span
         if orig_value is not None:
             op.old_value = orig_value
 
@@ -1098,7 +1098,7 @@ class Command(
         context: CommandContext,
     ) -> Command:
         cmd = cls._cmd_from_ast(schema, astnode, context)
-        cmd.source_context = astnode.span
+        cmd.span = astnode.span
         cmd.qlast = astnode
         ctx = context.current()
         if ctx is not None and type(ctx) is cls.get_context_class():
@@ -1659,7 +1659,7 @@ class Query(Command):
         context: CommandContext,
     ) -> Command:
         return cls(
-            source_context=astnode.span,
+            span=astnode.span,
             expr=s_expr.Expression.from_ast(
                 astnode,  # type: ignore
                 schema=schema,
@@ -1984,7 +1984,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 new_computed=computed,
                 old_computed=orig_computed,
                 from_default=from_default,
-                source_context=span,
+                span=span,
             )
 
             top_op = self._special_attrs.get(attr_name)
@@ -2010,7 +2010,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             op.from_default = from_default
 
             if span is not None:
-                op.source_context = span
+                op.span = span
             if orig_value is not None:
                 op.old_value = orig_value
 
@@ -2518,7 +2518,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 raise errors.SchemaDefinitionError(
                     f'cannot {self._delta_action} {self.get_verbosename()}: '
                     f'module {modroot} is read-only',
-                    context=self.source_context)
+                    context=self.span)
 
     def get_verbosename(self, parent: Optional[str] = None) -> str:
         mcls = self.get_schema_metaclass()
@@ -2955,7 +2955,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
                 name = rename
         metaclass = self.get_schema_metaclass()
         if sourcectx is None:
-            sourcectx = self.source_context
+            sourcectx = self.span
         return schema.get(
             name, type=metaclass, default=default, sourcectx=sourcectx)
 
@@ -4163,7 +4163,7 @@ class AlterObjectProperty(Command):
         return cls(
             property=propname,
             new_value=new_value,
-            source_context=astnode.span,
+            span=astnode.span,
         )
 
     def is_data_safe(self) -> bool:
@@ -4200,7 +4200,7 @@ class AlterObjectProperty(Command):
         if field is None:
             raise errors.SchemaDefinitionError(
                 f'{self.property!r} is not a valid field',
-                context=self.source_context)
+                context=self.span)
 
         if self.property == 'id':
             return None

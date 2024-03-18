@@ -162,7 +162,7 @@ class AccessPolicyCommand(
                 value=expr,
             )
 
-            srcctx = self.get_attribute_source_context(field)
+            srcctx = self.get_attribute_span(field)
 
             if expression.irast.cardinality.can_be_zero():
                 raise errors.SchemaDefinitionError(
@@ -188,12 +188,12 @@ class AccessPolicyCommand(
             target = schema.get(sn.QualName('std', 'bool'), type=s_types.Type)
             expr_type = expression.irast.stype
             if not expr_type.issubclass(expression.irast.schema, target):
-                srcctx = self.get_attribute_source_context(field)
+                srcctx = self.get_attribute_span(field)
                 raise errors.SchemaDefinitionError(
                     f'{vname} expression for {pol_name} is of invalid type: '
                     f'{expr_type.get_displayname(schema)}, '
                     f'expected {target.get_displayname(schema)}',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
         return schema
@@ -277,7 +277,7 @@ class AccessPolicyCommand(
                         f'insert and update write access policies may not '
                         f'refer to link properties with default values: '
                         f'{pol_name} refers to {obj_name}',
-                        context=self.source_context,
+                        context=self.span,
                     )
 
 
@@ -389,7 +389,7 @@ class AlterAccessPolicy(
             raise errors.SchemaDefinitionError(
                 f'cannot alter the definition of inherited access policy '
                 f'{self.scls.get_displayname(schema)}',
-                context=self.source_context
+                context=self.span
             )
 
         return schema
@@ -436,14 +436,14 @@ class AlterAccessPolicyPerms(
             sd.AlterObjectProperty(
                 property='action',
                 new_value=astnode.action,
-                source_context=astnode.span,
+                span=astnode.span,
             )
         )
         cmd.add(
             sd.AlterObjectProperty(
                 property='access_kinds',
                 new_value=astnode.access_kinds,
-                source_context=astnode.span,
+                span=astnode.span,
             )
         )
         return cmd

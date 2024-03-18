@@ -62,7 +62,7 @@ class DatabaseCommand(
     ) -> None:
         name = self.get_attribute_value('name')
         if len(str(name)) > s_def.MAX_NAME_LENGTH:
-            span = self.get_attribute_source_context('name')
+            span = self.get_attribute_span('name')
             raise errors.SchemaDefinitionError(
                 f'Database names longer than {s_def.MAX_NAME_LENGTH} '
                 f'characters are not supported',

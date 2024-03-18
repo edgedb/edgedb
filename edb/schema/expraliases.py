@@ -314,7 +314,7 @@ class CreateAliasLike(
                 classname=alias_name,
                 schema=schema,
                 context=context,
-                span=self.get_attribute_source_context('expr'),
+                span=self.get_attribute_span('expr'),
             )
             self.add_prerequisite(type_cmd)
             self.set_attribute_value('expr', expr)
@@ -387,7 +387,7 @@ class AlterAliasLike(
                     schema=schema,
                     context=context,
                     is_alter=is_computable,
-                    span=self.get_attribute_source_context('expr'),
+                    span=self.get_attribute_span('expr'),
                 )
 
                 self.add_prerequisite(type_cmd)

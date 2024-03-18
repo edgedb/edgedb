@@ -806,7 +806,7 @@ class ReferencedInheritingObjectCommand(
                     f'{self.scls.get_verbosename(schema, with_parent=True)} '
                     f'must be declared using the `overloaded` keyword because '
                     f'it is defined in the following ancestor(s): {alist}',
-                    context=self.source_context,
+                    context=self.span,
                 )
             elif (not implicit_bases
                     and self.get_attribute_value('declared_overloaded')):
@@ -815,7 +815,7 @@ class ReferencedInheritingObjectCommand(
                     f'{self.scls.get_verbosename(schema, with_parent=True)}: '
                     f'cannot be declared `overloaded` as there are no '
                     f'ancestors defining it.',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
     def get_implicit_bases(
@@ -937,7 +937,7 @@ class ReferencedInheritingObjectCommand(
                         f'{vn} is inherited from '
                         f'{bases_str}'
                     ),
-                    context=self.source_context,
+                    context=self.span,
                 )
 
         value = self.get_attribute_value(field_name)
@@ -1389,7 +1389,7 @@ class RenameReferencedInheritingObject(
                             f'{vn} is inherited from '
                             f'{bases_str}, which {verb} not being renamed'
                         ),
-                        context=self.source_context,
+                        context=self.span,
                     )
 
             self._propagate_ref_rename(schema, context, scls)
@@ -1486,7 +1486,7 @@ class DeleteReferencedInheritingObject(
 
                 raise errors.SchemaError(
                     f'cannot drop inherited {vn}',
-                    context=self.source_context,
+                    context=self.span,
                     details=f'{vn} is inherited from:\n- {pnames}'
                 )
 
@@ -1602,7 +1602,7 @@ class AlterOwned(
                 raise errors.InvalidDefinitionError(
                     f'cannot drop owned {vn}, as it is not inherited, '
                     f'use DROP {sn} instead',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
             # DROP OWNED requires special handling: the object in question

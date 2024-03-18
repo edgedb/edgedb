@@ -149,7 +149,7 @@ class TriggerCommand(
                     sn.QualName('std', 'bool'), type=s_types.Type)
                 expr_type = expression.irast.stype
                 if not expr_type.issubclass(expression.irast.schema, target):
-                    srcctx = self.get_attribute_source_context(field)
+                    srcctx = self.get_attribute_span(field)
                     raise errors.SchemaDefinitionError(
                         f'{vname} expression for {trig_name} is of invalid '
                         f'type: '
@@ -246,7 +246,8 @@ class TriggerCommand(
             except errors.QueryError as e:
                 if not e.has_source_context():
                     e.set_source_context(
-                        self.get_attribute_source_context(field.name))
+                        self.get_attribute_span(field.name)
+                    )
                 raise
         else:
             return super().compile_expr_field(
@@ -369,7 +370,7 @@ class AlterTrigger(
             raise errors.SchemaDefinitionError(
                 f'cannot alter the definition of inherited trigger '
                 f'{self.scls.get_displayname(schema)}',
-                context=self.source_context
+                context=self.span
             )
 
         return schema

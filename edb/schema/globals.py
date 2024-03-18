@@ -148,7 +148,7 @@ class GlobalCommand(
         glob_name = self.get_verbosename()
 
         if spec_required and not required:
-            srcctx = self.get_attribute_source_context('target')
+            srcctx = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'possibly an empty set returned by an '
                 f'expression for the computed '
@@ -161,7 +161,7 @@ class GlobalCommand(
             spec_card is qltypes.SchemaCardinality.One
             and card is not qltypes.SchemaCardinality.One
         ):
-            srcctx = self.get_attribute_source_context('target')
+            srcctx = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'possibly more than one element returned by an '
                 f'expression for the computed '
@@ -210,17 +210,17 @@ class GlobalCommand(
             ):
                 raise errors.SchemaDefinitionError(
                     "required globals must have a default",
-                    context=self.source_context,
+                    context=self.span,
                 )
             if scls.get_cardinality(schema) == qltypes.SchemaCardinality.Many:
                 raise errors.SchemaDefinitionError(
                     "non-computed globals may not be multi",
-                    context=self.source_context,
+                    context=self.span,
                 )
             if target.contains_object(schema):
                 raise errors.SchemaDefinitionError(
                     "non-computed globals may not have have object type",
-                    context=self.source_context,
+                    context=self.span,
                 )
 
         default_expr = scls.get_default(schema)
@@ -231,7 +231,7 @@ class GlobalCommand(
             default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
 
-            span = self.get_attribute_source_context('default')
+            span = self.get_attribute_span('default')
 
             if is_computable:
                 raise errors.SchemaDefinitionError(
@@ -483,7 +483,7 @@ class AlterGlobal(
             ):
                 raise errors.UnsupportedFeatureError(
                     "cannot specify a type and an expression for a global",
-                    context=self.source_context,
+                    context=self.span,
                 )
 
             if clears_expr and old_expr:
@@ -537,7 +537,7 @@ class SetGlobalType(
                 raise errors.UnsupportedFeatureError(
                     f'USING casts for SET TYPE on globals are not supported',
                     hint='Use RESET TO DEFAULT instead',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
             if not self.reset_value:
@@ -545,7 +545,7 @@ class SetGlobalType(
                     f"SET TYPE on global must explicitly reset the "
                     f"global's value",
                     hint='Use RESET TO DEFAULT after the type',
-                    context=self.source_context,
+                    context=self.span,
                 )
 
         return schema
