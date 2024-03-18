@@ -6,6 +6,10 @@ Database
 
 :edb-alt-title: Databases
 
+.. versionadded:: 5.0
+
+    In EdgeDB 5.0, databases were replaced by :ref:`branches
+    <ref_admin_branches>`.
 
 This section describes the administrative commands pertaining to
 :ref:`databases <ref_datamodel_databases>`.

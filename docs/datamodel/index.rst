@@ -115,14 +115,26 @@ Terminology
 
 .. rubric:: Instance
 
-An EdgeDB **instance** is a collection of databases that store their data in
-a shared directory, listen for queries on a particular port, and are managed
-by a running EdgeDB process. Instances can be created, started, stopped, and
-destroyed locally with the :ref:`EdgeDB CLI <ref_cli_overview>`.
+An EdgeDB **instance** is a running EdgeDB process. Instances can be created,
+started, stopped, and destroyed locally with the :ref:`EdgeDB CLI
+<ref_cli_overview>`.
+
+.. _ref_datamodel_branches:
+
+.. rubric:: Branches
+
+.. versionadded:: 5.0
+
+Each instance can be branched when working on new features, similar to branches
+in your VCS. Each branch has its own schema and data.
 
 .. _ref_datamodel_databases:
 
 .. rubric:: Database
+
+.. versionadded:: 5.0
+
+    In EdgeDB 5, databases were replaced by branches.
 
 Each instance can contain several **databases**, each with a unique name. At
 the time of creation, all instances contain a single default database called
@@ -133,10 +145,10 @@ against it unless otherwise specified.
 
 .. rubric:: Module
 
-Each database has a schema consisting of several **modules**, each with a
-unique name. Modules can be used to organize large schemas into logical units.
-In practice, though, most users put their entire schema inside a single module
-called ``default``.
+Each branch (or database pre-v5) has a schema consisting of several
+**modules**, each with a unique name. Modules can be used to organize large
+schemas into logical units. In practice, though, most users put their entire
+schema inside a single module called ``default``.
 
 .. code-block:: sdl
 

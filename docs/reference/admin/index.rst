@@ -23,6 +23,7 @@ Administrative commands for managing EdgeDB:
     :maxdepth: 3
     :hidden:
 
+    branches
     configure
     databases
     roles
