@@ -929,14 +929,14 @@ def _compile_rewrites(
         anchor_cache=dict(),
     )
 
-    anchors: RewriteAnchors | None = None
-
     # Computing anchors isn't cheap, so we want to only do it once,
     # and only do it when it is necessary.
+    anchors: Dict[s_objtypes.ObjectType, RewriteAnchors] = {}
     def get_anchors(stype: s_objtypes.ObjectType) -> RewriteAnchors:
         nonlocal anchors
-        anchors = prepare_rewrite_anchors(stype, r_ctx, s_ctx, ctx)
-        return anchors
+        if stype not in anchors:
+            anchors[stype] = prepare_rewrite_anchors(stype, r_ctx, s_ctx, ctx)
+        return anchors[stype]
 
     rewrites = _compile_rewrites_for_stype(
         stype, kind, ir_set, get_anchors, s_ctx, ctx=ctx
@@ -996,12 +996,13 @@ def _compile_rewrites(
 
             by_type[ty][pn] = (ptr_set, ptrref.real_material_ptr)
 
-    if not anchors:
+    anc = next(iter(anchors.values()), None)
+    if not anc:
         return None
 
     return irast.Rewrites(
-        subject_path_id=anchors.subject_set.path_id,
-        old_path_id=anchors.old_set.path_id if anchors.old_set else None,
+        subject_path_id=anc.subject_set.path_id,
+        old_path_id=anc.old_set.path_id if anc.old_set else None,
         by_type=by_type,
     )
 
@@ -1191,11 +1192,11 @@ def prepare_rewrite_anchors(
     # TODO: Do we really need a separate path id for __subject__?
     subject_name = sn.QualName("__derived__", "__subject__")
     subject_path_id = irast.PathId.from_type(
-        schema, r_ctx.base_type, typename=subject_name,
+        schema, stype, typename=subject_name,
         namespace=ctx.path_id_namespace, env=ctx.env,
     )
     subject_set = setgen.class_set(
-        r_ctx.base_type, path_id=subject_path_id, ctx=ctx
+        stype, path_id=subject_path_id, ctx=ctx
     )
 
     # init reference to std::bool
@@ -1209,7 +1210,7 @@ def prepare_rewrite_anchors(
 
     # init set for __specified__
     specified_pointers: List[irast.TupleElement] = []
-    for pn, _ in r_ctx.base_type.get_pointers(schema).items(schema):
+    for pn, _ in stype.get_pointers(schema).items(schema):
         pointer_path_id = irast.PathId.from_type(
             schema,
             bool_type,
@@ -1239,11 +1240,11 @@ def prepare_rewrite_anchors(
     if r_ctx.kind == qltypes.RewriteKind.Update:
         old_name = sn.QualName("__derived__", "__old__")
         old_path_id = irast.PathId.from_type(
-            schema, r_ctx.base_type, typename=old_name,
+            schema, stype, typename=old_name,
             namespace=ctx.path_id_namespace, env=ctx.env,
         )
         old_set = setgen.new_set(
-            stype=r_ctx.base_type, path_id=old_path_id, ctx=ctx
+            stype=stype, path_id=old_path_id, ctx=ctx
         )
         old_set.expr = irast.TriggerAnchor(typeref=old_set.typeref)
     else:
