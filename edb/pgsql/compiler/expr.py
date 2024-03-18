@@ -600,6 +600,15 @@ def compile_TypeCheckOp(
     return result
 
 
+@dispatch.compile.register(irast.ConstantSet)
+def compile_ConstantSet(
+        expr: irast.ConstantSet, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    raise errors.UnsupportedFeatureError(
+        "Constant sets not allowed in singleton mode",
+        hint="Are you passing a set into a variadic function?")
+
+
 @dispatch.compile.register(irast.Array)
 def compile_Array(
         expr: irast.Array, *,
