@@ -2132,31 +2132,6 @@ def process_set_as_type_cast(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
-@register_get_rvar(irast.TypeIntrospection)
-def process_set_as_type_introspection(
-    ir_set: irast.SetE[irast.TypeIntrospection],
-    *, ctx: context.CompilerContextLevel
-) -> SetRVars:
-    typeref = ir_set.expr.output_typeref
-    type_rvar = relctx.range_for_typeref(
-        ir_set.typeref, ir_set.path_id, ctx=ctx)
-    pathctx.put_rvar_path_bond(type_rvar, ir_set.path_id)
-    clsname = pgast.StringConstant(val=str(typeref.id))
-    nameref = pathctx.get_rvar_path_identity_var(
-        type_rvar, ir_set.path_id, env=ctx.env)
-    condition = astutils.new_binop(nameref, clsname, op='=')
-
-    with ctx.subrel() as subctx:
-        relctx.include_rvar(subctx.rel, type_rvar, ir_set.path_id, ctx=subctx)
-        subctx.rel.where_clause = astutils.extend_binop(
-            subctx.rel.where_clause, condition
-        )
-
-    return new_stmt_set_rvar(
-        ir_set, subctx.rel, aspects=['value', 'source'], ctx=ctx
-    )
-
-
 @register_get_rvar(irast.ConstantSet)
 def process_set_as_const_set(
     ir_set: irast.SetE[irast.ConstantSet], *, ctx: context.CompilerContextLevel
