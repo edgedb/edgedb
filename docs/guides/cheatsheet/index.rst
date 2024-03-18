@@ -6,6 +6,26 @@ Cheatsheets
 
 :edb-alt-title: Cheatsheets: EdgeDB by example
 
+.. toctree::
+    :maxdepth: 3
+    :hidden:
+
+
+    select
+    insert
+    update
+    delete
+    link_properties
+    boolean
+    objects
+    functions
+    aliases
+    annotations
+    cli
+    repl
+    admin
+
+
 Just getting started? Keep an eye on this collection of cheatsheets with
 handy examples for what you'll need to get started with EdgeDB.
 After familiarizing yourself with them, feel free to dive into more EdgeDB
@@ -46,23 +66,3 @@ CLI/Admin
   frequently used commands in the EdgeDB Interactive Shell.
 * :ref:`Administration <ref_cheatsheet_admin>` -- Database and role creation,
   passwords, port configuration, etc.
-
-
-.. toctree::
-    :maxdepth: 3
-    :hidden:
-
-
-    select
-    insert
-    update
-    delete
-    link_properties
-    boolean
-    objects
-    functions
-    aliases
-    annotations
-    cli
-    repl
-    admin
