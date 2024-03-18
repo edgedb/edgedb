@@ -1108,9 +1108,6 @@ def _compile_rewrites_for_stype(
                 old_set = setgen.class_set(
                     rewrite_view, path_id=old_set.path_id, ctx=ctx)
 
-            ir_set = setgen.class_set(
-                rewrite_view, path_id=ir_set.path_id, ctx=ctx)
-
         rewrite_expr = rewrite.get_expr(ctx.env.schema)
         assert rewrite_expr
 
