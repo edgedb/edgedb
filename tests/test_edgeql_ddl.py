@@ -7127,6 +7127,38 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [{'org': {'id': obj.id}}],
         )
 
+    async def test_edgeql_ddl_global_11(self):
+        # Just like 9, but with a shape on current_org
+        await self.con.execute('''
+            create type Org;
+
+            create global current_org_id -> uuid;
+            create global current_org := (
+              select Org { * } filter .id = global current_org_id
+            );
+
+            create type Widget {
+              create required link org -> Org {
+                set default := global current_org;
+              }
+            };
+        ''')
+
+        obj = await self.con.query_single('insert Org')
+        await self.con.execute(
+            '''
+            set global current_org_id := <uuid>$0
+            ''',
+            obj.id,
+        )
+        await self.con.execute('insert Widget')
+        await self.assert_query_result(
+            '''
+                select Widget { org }
+            ''',
+            [{'org': {'id': obj.id}}],
+        )
+
     async def test_edgeql_ddl_global_default(self):
         await self.con.execute('''
             create global foo -> str;

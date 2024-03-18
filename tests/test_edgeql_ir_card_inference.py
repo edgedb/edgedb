@@ -1308,3 +1308,10 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         AT_MOST_ONE
         """
+
+    def test_edgeql_ir_card_inference_156(self):
+        """
+        select global Alice
+% OK %
+        AT_MOST_ONE
+        """
