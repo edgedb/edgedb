@@ -558,7 +558,12 @@ def compile_GlobalExpr(
         if glob.get_cardinality(ctx.env.schema).is_single():
             key = (setgen.get_set_type(target, ctx=ctx), False)
             if not ctx.env.type_rewrites.get(key):
-                ctx.env.type_rewrites[key] = target
+                with ctx.detached() as dctx:
+                    # The official rewrite needs to be in a detached
+                    # scope to avoid collisions; this won't really
+                    # recompile the whole thing, it will hit a cache
+                    # of the view.
+                    ctx.env.type_rewrites[key] = dispatch.compile(qry, ctx=dctx)
             rewrite_target = ctx.env.type_rewrites[key]
 
             # We need to have the set with expr=None, so that the rewrite
@@ -567,7 +572,11 @@ def compile_GlobalExpr(
             # instead of assuming it is MANY.
             assert isinstance(rewrite_target, irast.Set)
             target = setgen.new_set_from_set(
-                target, expr=irast.TypeRoot(typeref=target.typeref), ctx=ctx
+                target,
+                expr=irast.TypeRoot(
+                    typeref=target.typeref, is_cached_global=True
+                ),
+                ctx=ctx,
             )
             wrap = irast.SelectStmt(
                 result=target,

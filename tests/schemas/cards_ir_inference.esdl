@@ -157,3 +157,5 @@ abstract type Named2 {
     delegated constraint exclusive on (.name);
 }
 type Named2Sub extending Named2;
+
+global Alice := (select User filter .name = 'Alice');
