@@ -299,7 +299,7 @@ def ast_to_type_shell(
             except errors.SchemaError as e:
                 # all errors raised inside are pertaining to subtypes, so
                 # the context should point to the first subtype
-                e.set_source_context(node.subtypes[0].span)
+                e.set_span(node.subtypes[0].span)
                 raise e
 
         elif issubclass(coll, s_types.Array):
@@ -332,7 +332,7 @@ def ast_to_type_shell(
                     subtypes=subtypes_list,
                 )
             except errors.SchemaError as e:
-                e.set_source_context(node.span)
+                e.set_span(node.span)
                 raise e
 
         elif issubclass(coll, (s_types.Range, s_types.MultiRange)):
@@ -361,7 +361,7 @@ def ast_to_type_shell(
                     subtypes=subtypes_list,
                 )
             except errors.SchemaError as e:
-                e.set_source_context(node.span)
+                e.set_span(node.span)
                 raise e
 
     elif isinstance(node.maintype, qlast.PseudoObjectRef):
@@ -979,7 +979,7 @@ def enrich_schema_lookup_error(
         error.set_hint_and_details(hint=hint)
 
     if context is not None:
-        error.set_source_context(context)
+        error.set_span(context)
 
 
 def ensure_union_type(

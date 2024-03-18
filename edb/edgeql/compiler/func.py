@@ -120,7 +120,7 @@ def compile_FunctionCall(
     args, kwargs = compile_func_call_args(
         expr, funcname, typemods, prefer_subquery_args=prefer_subquery_args,
         ctx=ctx)
-    with errors.ensure_context(expr.span):
+    with errors.ensure_span(expr.span):
         matched = polyres.find_callable(
             funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:

@@ -142,7 +142,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 )
             except errors.SchemaDefinitionError as e:
                 if (srcctx := self.get_attribute_span(field_name)):
-                    e.set_source_context(srcctx)
+                    e.set_span(srcctx)
                 raise
 
             if not ignore_local_field:

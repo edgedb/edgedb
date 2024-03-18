@@ -169,7 +169,7 @@ def _lookup_column(
         try:
             table = _lookup_table(cast(str, tab_name), ctx)
         except errors.QueryError as e:
-            e.set_source_context(column_ref.span)
+            e.set_span(column_ref.span)
             raise
 
         if isinstance(col_name, pgast.Star):

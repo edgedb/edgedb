@@ -3454,7 +3454,7 @@ def materialize_type_in_attribute(
                 )
             raise
         except errors.InvalidPropertyDefinitionError as e:
-            e.set_source_context(srcctx)
+            e.set_span(srcctx)
             raise
     elif not isinstance(type_ref, Type):
         raise AssertionError(

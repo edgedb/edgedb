@@ -3728,8 +3728,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             self.pgops.add(self.create_index(index, schema, context))
 
         except errors.EdgeDBError as e:
-            if not e.has_source_context():
-                e.set_source_context(self.span)
+            if not e.has_span():
+                e.set_span(self.span)
             raise e
 
         # FTS

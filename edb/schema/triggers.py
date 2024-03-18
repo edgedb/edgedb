@@ -244,8 +244,8 @@ class TriggerCommand(
                     ),
                 )
             except errors.QueryError as e:
-                if not e.has_source_context():
-                    e.set_source_context(
+                if not e.has_span():
+                    e.set_span(
                         self.get_attribute_span(field.name)
                     )
                 raise

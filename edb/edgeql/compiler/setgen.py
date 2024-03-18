@@ -535,7 +535,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     path_tip, typ, optional=False, span=step.span,
                     ctx=ctx)
             except errors.SchemaError as e:
-                e.set_source_context(step.type.span)
+                e.set_span(step.type.span)
                 raise
 
         else:
