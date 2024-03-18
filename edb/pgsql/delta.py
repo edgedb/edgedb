@@ -3724,13 +3724,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             # Don't do anything for abstract indexes
             return schema
 
-        try:
+        with errors.ensure_span(self.span):
             self.pgops.add(self.create_index(index, schema, context))
-
-        except errors.EdgeDBError as e:
-            if not e.has_span():
-                e.set_span(self.span)
-            raise e
 
         # FTS
         if index.has_base_with_name(schema, sn.QualName('fts', 'index')):

@@ -1492,7 +1492,7 @@ class PointerCommandOrFragment(
             else:
                 singletons.append(self.scls)
 
-        try:
+        with errors.ensure_span(span or expr.qlast.span):
             options = qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
                 schema_object_context=self.get_schema_metaclass(),
@@ -1520,18 +1520,10 @@ class PointerCommandOrFragment(
 
                 raise errors.SchemaError(
                     f'possibly more than one element returned by '
-                    f'{expr_description}, while a singleton is expected',
-                    context=expr.qlast.span,
+                    f'{expr_description}, while a singleton is expected'
                 )
 
             return compiled
-
-        except errors.QueryError as e:
-            if span:
-                e.set_span(span)
-            if not e.has_span():
-                e.set_span(expr.qlast.span)
-            raise
 
     def compile_expr_field(
         self,

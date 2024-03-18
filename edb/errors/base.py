@@ -141,7 +141,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
             self._attrs[FIELD_DETAILS] = details
 
     def has_span(self):
-        return FIELD_DETAILS in self._attrs
+        return FIELD_POSITION_START in self._attrs
 
     def set_span(self, span: Optional[edb_span.Span]):
         if not span:
