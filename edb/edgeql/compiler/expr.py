@@ -27,7 +27,7 @@ from typing import Callable, Optional, Type, Union, Sequence, List, cast
 from edb import errors
 
 from edb.common import parsing
-from edb.common import span as pspan
+from edb.common import span as edb_span
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -89,11 +89,11 @@ def _balance(
     ls, rs = elements[:mid], elements[mid:]
     ls_span = rs_span = None
     if len(ls) > 1 and ls[0].span and ls[-1].span:
-        ls_span = pspan.merge_spans([
+        ls_span = edb_span.merge_spans([
             ls[0].span, ls[-1].span
         ])
     if len(rs) > 1 and rs[0].span and rs[-1].span:
-        rs_span = pspan.merge_spans([
+        rs_span = edb_span.merge_spans([
             rs[0].span, rs[-1].span])
 
     return ctor(

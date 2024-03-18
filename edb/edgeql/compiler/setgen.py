@@ -47,7 +47,6 @@ import enum
 from edb import errors
 
 from edb.common import levenshtein
-from edb.common import parsing
 from edb.common.typeutils import downcast, not_none
 
 from edb.ir import ast as irast

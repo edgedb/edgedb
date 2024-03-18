@@ -30,7 +30,7 @@ from edb.errors import EdgeQLSyntaxError
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
-from edb.common import span as pspan
+from edb.common import span as edb_span
 from edb.common import parsing
 
 from . import expressions
@@ -434,7 +434,7 @@ class NestedQLBlock(ProductionTpl):
         if sc2.span is not None:
             contexts.append(sc2.span)
         contexts.append(rbrace.span)
-        body.span = pspan.merge_spans(contexts)
+        body.span = edb_span.merge_spans(contexts)
         body.text = self._get_text(body)
         self.val = self.result(body=body, fields=fields)
 
@@ -442,7 +442,7 @@ class NestedQLBlock(ProductionTpl):
         # LBRACE Semicolons NestedQLBlock OptSemicolons RBRACE
         fields, stmts = self._process_body(cmdlist.val)
         body = qlast.NestedQLBlock(commands=stmts)
-        body.span = pspan.merge_spans(
+        body.span = edb_span.merge_spans(
             [sc1.span, cmdlist.span, sc2.span])
         body.text = self._get_text(body)
         self.val = self.result(body=body, fields=fields)
