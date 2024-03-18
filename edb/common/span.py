@@ -66,7 +66,7 @@ class Span(markup.MarkupExceptionContext):
         assert end is not None
 
     @classmethod
-    def empty() -> Span:
+    def empty(cls) -> Span:
         return Span(
             name='<empty>',
             buffer='',
