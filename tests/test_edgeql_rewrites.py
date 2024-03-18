@@ -49,6 +49,18 @@ class TestRewrites(tb.QueryTestCase):
         };
 
         create type Project extending Resource;
+
+        create type Document extending Resource {
+          create property text: str;
+          create required property textUpdatedAt: std::datetime {
+            set default := (std::datetime_of_statement());
+            create rewrite update using ((
+              IF __specified__.text
+              THEN std::datetime_of_statement()
+              ELSE __old__.textUpdatedAt
+            ));
+          };
+        };
     """
     ]
 
@@ -1073,4 +1085,21 @@ class TestRewrites(tb.QueryTestCase):
                     'updated_at': 'now'
                 }
             ]
+        )
+
+    async def test_edgeql_rewrites_29(self):
+        # see https://github.com/edgedb/edgedb/issues/7048
+
+        # these tests check that subject of an update rewrite is the child
+        # object and not parent that is being updated
+        await self.con.execute(
+            '''
+            update std::Object set { };
+            '''
+        )
+
+        await self.con.execute(
+            '''
+            update Project set { name := '## redacted ##' }
+            '''
         )
