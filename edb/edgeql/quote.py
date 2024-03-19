@@ -46,7 +46,6 @@ def quote_literal(string: str) -> str:
         result = result.replace('\\', '\\\\')
 
         result = result.replace('\'', '\\\'')
-        result = result.replace('\"', '\\\"')
         result = result.replace('\b', '\\b')
         result = result.replace('\f', '\\f')
         result = result.replace('\n', '\\n')
