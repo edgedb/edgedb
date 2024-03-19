@@ -11,10 +11,6 @@ We're going to build a simple blog application with
 `Next.js <https://nextjs.org/>`_ and EdgeDB. Let's start by scaffolding our
 app with Next.js's ``create-next-app`` tool.
 
-.. code-block:: bash
-
-  $ npx create-next-app@latest
-
 You'll be prompted to provide a name (we'll use ``nextjs-blog``) for your 
 app and choose project options. For this tutorial, we'll go with the 
 recommended settings including TypeScript, App Router, and 
@@ -22,12 +18,13 @@ recommended settings including TypeScript, App Router, and
 
 .. code-block:: bash
 
-  ✔ Would you like to use TypeScript? Yes
-  ✔ Would you like to use ESLint? Yes
-  ✔ Would you like to use Tailwind CSS? Yes
-  ✔ Would you like to use src/ directory? No
-  ✔ Would you like to use App Router? (recommended) Yes
-  ✔ Would you like to customize the default import alias (@/*) Yes
+  $ npx create-next-app@latest
+    ✔ Would you like to use TypeScript? Yes
+    ✔ Would you like to use ESLint? Yes
+    ✔ Would you like to use Tailwind CSS? Yes
+    ✔ Would you like to use src/ directory? No
+    ✔ Would you like to use App Router? (recommended) Yes
+    ✔ Would you like to customize the default import alias (@/*) Yes
 
 The scaffolding tool will create a simple Next.js app and install its 
 dependencies. Once it's done, you can navigate to the app's directory and 
