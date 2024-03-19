@@ -22,7 +22,7 @@ jobs:
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
-        run-id: 8337265753
+        run-id: 8337265753/attempts/1
 
     - name: Test
       env:
