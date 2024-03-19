@@ -6,7 +6,7 @@ on:
 
 jobs:
   test-macos-x86_64:
-    runs-on: ['macos-14-large']
+    runs-on: ['macos-13']
 
     steps:
     - run: |
