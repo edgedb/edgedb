@@ -71,6 +71,19 @@ Connection flags
     default to the name provided when the link was created. This also includes
     EdgeDB Cloud instance links created via :ref:`ref_cli_edgedb_project_init`.
 
+    .. note::
+
+        With EdgeDB 5, databases were refactored as branches. If you're using
+        EdgeDB 5+, use the option below instead of this one.
+
+:cli:synopsis:`-b <branch_name>, --branch=<branch_name>`
+    Specifies the name of the branch to connect to. Defaults to the value of
+    the ``EDGEDB_BRANCH`` environment variable. If that variable isn't set,
+    local instances will default to the most recently switched branch or the
+    ``main`` branch, while remote instances will default to the name provided
+    when the link was created. This also includes EdgeDB Cloud instance links
+    created via :ref:`ref_cli_edgedb_project_init`.
+
 :cli:synopsis:`--password | --no-password`
     If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
     for a password before connecting to the database.  This is usually not
