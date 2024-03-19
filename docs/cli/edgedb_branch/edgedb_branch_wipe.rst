@@ -22,8 +22,6 @@ Destroy the contents of a :ref:`branch <ref_datamodel_branches>`
 Description
 ===========
 
-The branch wiped will be one of these values: the value passed for the
-``--branch``/``-b`` option, the value of ``EDGEDB_BRANCH``, or ``edgedb``.
 The contents of the branch will be destroyed and the schema reset to its
 state before any migrations, but the branch itself will be preserved.
 

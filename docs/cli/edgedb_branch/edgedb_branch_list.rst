@@ -16,12 +16,4 @@ List all :ref:`branches <ref_datamodel_branches>`
 
 .. cli:synopsis::
 
-    edgedb branch list [<options>] <old-name> <new-name>
-
-
-Options
-=======
-
-The ``branch rename`` command runs in the EdgeDB instance it is
-connected to. For specifying the connection target see
-:ref:`connection options <ref_cli_edgedb_connopts>`.
+    edgedb branch list

@@ -36,16 +36,3 @@ connected to. For specifying the connection target see
 
 :cli:synopsis:`<name>`
     The name of the target branch.
-
-:cli:synopsis:`-c, --create`
-    Create the branch if it doesn't exist.
-
-:cli:synopsis:`-e, --empty`
-    If creating a new branch: create the branch with no schema or data.
-
-:cli:synopsis:`--from <FROM>`
-    If creating a new branch: the optional base branch to create the new branch
-    from.
-
-:cli:synopsis:`--copy-data`
-    If creating a new branch: copy data from the base branch to the new branch.
