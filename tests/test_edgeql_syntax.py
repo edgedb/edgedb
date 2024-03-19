@@ -6391,6 +6391,7 @@ aa';
         # When returning multiple errors is supported, we should still return
         # just the first one.
 
+
 class TestEdgeQLNormalization(EdgeQLSyntaxTest):
 
     def _run_test(self, *, source, spec=None, expected=None):
