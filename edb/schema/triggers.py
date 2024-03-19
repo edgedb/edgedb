@@ -204,16 +204,16 @@ class TriggerCommand(
             scope = self._get_scope(schema)
             kinds = self._get_kinds(schema)
 
-            anchors: dict[str, pathid.PathId | s_types.Type] = {}
+            singleton_anchors: dict[str, pathid.PathId | s_types.Type] = {}
             if qltypes.TriggerKind.Insert not in kinds:
-                anchors['__old__'] = pathid.PathId.from_type(
+                singleton_anchors['__old__'] = pathid.PathId.from_type(
                     schema,
                     source,
                     typename=sn.QualName(module='__derived__', name='__old__'),
                     env=None,
                 )
             if qltypes.TriggerKind.Delete not in kinds:
-                anchors['__new__'] = pathid.PathId.from_type(
+                singleton_anchors['__new__'] = pathid.PathId.from_type(
                     schema,
                     source,
                     typename=sn.QualName(module='__derived__', name='__new__'),
@@ -221,10 +221,19 @@ class TriggerCommand(
                 )
 
             singletons = (
-                frozenset(anchors.values())
+                frozenset(singleton_anchors.values())
                 if scope == qltypes.TriggerScope.Each else frozenset()
             )
+            anchors: dict[
+                str, pathid.PathId | s_types.Type | qlast.Expr
+            ] = {k: v for k, v in singleton_anchors.items()}
             anchors['__trigger_type__'] = source
+            anchors['__trigger_kinds__'] = qlast.Array(
+                elements=[
+                    qlast.StringConstant.from_python(kind)
+                    for kind in kinds
+                ]
+            )
 
             assert isinstance(source, s_types.Type)
 

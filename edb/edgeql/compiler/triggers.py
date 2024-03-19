@@ -138,6 +138,7 @@ def compile_trigger(
 def compile_triggers_phase(
     dml_stmts: Collection[irast.MutatingStmt],
     defining_trigger_on: Optional[s_types.Type],
+    defining_trigger_kinds: Optional[Collection[qltypes.TriggerKind]],
     *,
     ctx: context.ContextLevel,
 ) -> tuple[irast.Trigger, ...]:
@@ -165,11 +166,13 @@ def compile_triggers_phase(
 
         # Process all the types, starting with the base type
         for subtype in sorted(stypes, key=lambda t: t != stype):
-            if defining_trigger_on and subtype.issubclass(
-                    ctx.env.schema, defining_trigger_on):
+            if (defining_trigger_on and defining_trigger_kinds and
+                kind in defining_trigger_kinds and
+                subtype.issubclass(ctx.env.schema, defining_trigger_on)
+            ):
                 name = str(defining_trigger_on.get_name(ctx.env.schema))
                 raise errors.SchemaDefinitionError(
-                    f"trigger on {name} is recursive"
+                    f"trigger on {name} after {kind} is recursive"
                 )
 
             for trigger in subtype.get_relevant_triggers(kind, schema):
@@ -201,31 +204,51 @@ def compile_triggers(
     defining_trigger = (
         ctx.env.options.schema_object_context == s_triggers.Trigger)
     defining_trigger_on = None
+    defining_trigger_kinds = None
     if defining_trigger:
         defining_trigger_on = setgen.get_set_type(
             ctx.anchors['__trigger_type__'], ctx=ctx)
+        trigger_kinds_anchor = ctx.anchors['__trigger_kinds__']
+        if isinstance(trigger_kinds_anchor.expr, irast.Array):
+            defining_trigger_kinds = [
+                qltypes.TriggerKind(element.expr.value)
+                for element in trigger_kinds_anchor.expr.elements
+                if isinstance(element.expr, irast.StringConstant)
+            ]
 
     ir_triggers: list[tuple[irast.Trigger, ...]] = []
     start = 0
-    all_trigger_types: set[irast.TypeRef] = set()
+    all_trigger_causes: set[tuple[irast.TypeRef, qltypes.TriggerKind]] = set()
     while start < len(ctx.env.dml_stmts):
         end = len(ctx.env.dml_stmts)
-        new = compile_triggers_phase(
-            ctx.env.dml_stmts[start:], defining_trigger_on, ctx=ctx)
-        new_types = {x for t in new for x in t.all_affected_types}
+        compiled_triggers = compile_triggers_phase(
+            ctx.env.dml_stmts[start:],
+            defining_trigger_on,
+            defining_trigger_kinds,
+            ctx=ctx
+        )
+        new_causes = {
+            (affected_type, kind)
+            for compiled_trigger in compiled_triggers
+            for affected_type in compiled_trigger.all_affected_types
+            for kind in compiled_trigger.kinds
+        }
 
         # Any given type is allowed allowed to have its triggers fire
         # in *one* phase of trigger execution, since the semantics get
         # a little unclear otherwise. We might relax this later.
-        overlap = new_types & all_trigger_types
+        overlap = new_causes & all_trigger_causes
         if overlap:
-            names = sorted(str(t.name_hint) for t in overlap)
+            names = sorted(
+                f"{str(cause[0].name_hint)} after {cause[1]}"
+                for cause in overlap
+            )
             raise errors.QueryError(
                 f"trigger would need to be executed in multiple stages on "
                 f"{', '.join(names)}"
             )
-        all_trigger_types |= new_types
-        ir_triggers.append(new)
+        all_trigger_causes |= new_causes
+        ir_triggers.append(compiled_triggers)
         start = end
 
     return tuple(ir_triggers)
