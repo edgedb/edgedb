@@ -738,8 +738,7 @@ Bug fixes
 * UI: revert a few changes that were meant for 5.x only.
 
 * Revert "Compile single globals into materialized CTEs", since it introduced
-  multiple bugs. These bugs were already fixed in 5.x, but the fixes were hard
-  to backport.
+  multiple bugs. These bugs were already fixed in 5.x.
   (:eql:gh:`#6613`)
 
 * Add optional PKCE challenge in email verification
