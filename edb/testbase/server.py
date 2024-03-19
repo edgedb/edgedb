@@ -53,6 +53,7 @@ import secrets
 import shlex
 import socket
 import ssl
+import struct
 import subprocess
 import sys
 import tempfile
@@ -75,6 +76,7 @@ from edb.common import debug
 from edb.common import retryloop
 from edb.common import secretkey
 
+from edb import protocol
 from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
 
@@ -359,6 +361,10 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         }
 
 
+class RollbackException(Exception):
+    pass
+
+
 class RollbackChanges:
     def __init__(self, test):
         self._conn = test.con
@@ -378,13 +384,22 @@ class BaseHTTPTestCase(TestCase):
 
     @classmethod
     @contextlib.contextmanager
-    def http_con(cls, server, keep_alive=True, server_hostname=None):
+    def http_con(
+        cls,
+        server,
+        keep_alive=True,
+        server_hostname=None,
+        client_cert_file=None,
+        client_key_file=None,
+    ):
         conn_args = server.get_connect_args()
         tls_context = ssl.create_default_context(
             ssl.Purpose.SERVER_AUTH,
             cafile=conn_args["tls_ca_file"],
         )
         tls_context.check_hostname = False
+        if any((client_cert_file, client_key_file)):
+            tls_context.load_cert_chain(client_cert_file, client_key_file)
         if keep_alive:
             ConCls = StubbornHttpConnection
         else:
@@ -490,6 +505,53 @@ class BaseHTTPTestCase(TestCase):
             result = None
 
         return result, headers, status
+
+    @classmethod
+    def http_con_binary_request(
+        cls,
+        http_con: http.client.HTTPConnection,
+        query: str,
+        proto_ver=edgedb_defines.CURRENT_PROTOCOL,
+        bearer_token: Optional[str] = None,
+        user: str = "edgedb",
+        database: str = "main",
+    ):
+        proto_ver_str = f"v_{proto_ver[0]}_{proto_ver[1]}"
+        mime_type = f"application/x.edgedb.{proto_ver_str}.binary"
+        headers = {"Content-Type": mime_type, "X-EdgeDB-User": user}
+        if bearer_token:
+            headers["Authorization"] = f"Bearer {bearer_token}"
+        content, headers, status = cls.http_con_request(
+            http_con,
+            method="POST",
+            path=f"db/{database}",
+            prefix="",
+            body=protocol.Execute(
+                annotations=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
+                command_text=query,
+                output_format=protocol.OutputFormat.JSON,
+                expected_cardinality=protocol.Cardinality.AT_MOST_ONE,
+                input_typedesc_id=b"\0" * 16,
+                output_typedesc_id=b"\0" * 16,
+                state_typedesc_id=b"\0" * 16,
+                arguments=b"",
+                state_data=b"",
+            ).dump() + protocol.Sync().dump(),
+            headers=headers,
+        )
+        content = memoryview(content)
+        uint32_unpack = struct.Struct("!L").unpack
+        msgs = []
+        while content:
+            mtype = content[0]
+            (msize,) = uint32_unpack(content[1:5])
+            msg = protocol.ServerMessage.parse(mtype, content[5: msize + 1])
+            msgs.append(msg)
+            content = content[msize + 1:]
+        return msgs, headers, status
 
 
 _default_cluster = None
@@ -788,13 +850,22 @@ class ClusterTestCase(BaseHTTPTestCase):
 
     @classmethod
     @contextlib.contextmanager
-    def http_con(cls, server=None, keep_alive=True, server_hostname=None):
+    def http_con(
+        cls,
+        server=None,
+        keep_alive=True,
+        server_hostname=None,
+        client_cert_file=None,
+        client_key_file=None,
+    ):
         if server is None:
             server = cls
         with super().http_con(
             server,
             keep_alive=keep_alive,
             server_hostname=server_hostname,
+            client_cert_file=client_cert_file,
+            client_key_file=client_key_file,
         ) as http_con:
             yield http_con
 
@@ -950,6 +1021,20 @@ class ConnectedTestCase(ClusterTestCase):
     def _run_and_rollback(self):
         return RollbackChanges(self)
 
+    async def _run_and_rollback_retrying(self):
+        @contextlib.asynccontextmanager
+        async def cm(tx):
+            try:
+                async with tx:
+                    await tx._ensure_transaction()
+                    yield tx
+                    raise RollbackException
+            except RollbackException:
+                pass
+
+        async for tx in self.con.retrying_transaction():
+            yield cm(tx)
+
     def assert_data_shape(self, data, shape, message=None):
         assert_data_shape.assert_data_shape(
             data, shape, self.fail, message=message)
@@ -1073,43 +1158,26 @@ class DatabaseTestCase(ConnectedTestCase):
         elif cls.uses_database_copies():
             admin_conn = await cls.connect()
 
-            orig_testmode = await admin_conn.query(
-                'SELECT cfg::Config.__internal_testmode',
-            )
-            if not orig_testmode:
-                orig_testmode = False
-            else:
-                orig_testmode = orig_testmode[0]
-
-            # Enable testmode to unblock the template database syntax below.
-            if not orig_testmode:
-                await admin_conn.execute(
-                    'CONFIGURE SESSION SET __internal_testmode := true;',
-                )
-
             base_db_name, _, _ = dbname.rpartition('_')
+
+            if cls.get_setup_script():
+                create_command = (
+                    f'CREATE DATA BRANCH {qlquote.quote_ident(dbname)}'
+                    f' FROM {qlquote.quote_ident(base_db_name)}'
+                )
+            else:
+                create_command = (
+                    f'CREATE EMPTY BRANCH {qlquote.quote_ident(dbname)}')
 
             # The retry here allows the test to survive a concurrent testing
             # EdgeDB server (e.g. async with tb.start_edgedb_server()) whose
             # introspection holds a lock on the base_db here
-            async def create_db():
-                async for tr in cls.try_until_succeeds(
-                    ignore=edgedb.ExecutionError,
-                    timeout=30,
-                ):
-                    async with tr:
-                        await admin_conn.execute(
-                            f'''
-                                CREATE DATABASE {qlquote.quote_ident(dbname)}
-                                FROM {qlquote.quote_ident(base_db_name)}
-                            ''',
-                        )
-            await create_db()
-
-            if not orig_testmode:
-                await admin_conn.execute(
-                    'CONFIGURE SESSION SET __internal_testmode := false;',
-                )
+            async for tr in cls.try_until_succeeds(
+                ignore=edgedb.ExecutionError,
+                timeout=30,
+            ):
+                async with tr:
+                    await admin_conn.execute(create_command)
 
             await admin_conn.aclose()
 
@@ -1176,6 +1244,7 @@ class DatabaseTestCase(ConnectedTestCase):
     @classmethod
     def get_setup_script(cls):
         script = ''
+        has_nontrivial_script = False
 
         # allow the setup script to also run in test mode and no recompilation
         if cls.INTERNAL_TESTMODE:
@@ -1215,6 +1284,8 @@ class DatabaseTestCase(ConnectedTestCase):
                     schema.append(f'\nmodule {module_name} {{ {module} }}')
 
         if schema:
+            has_nontrivial_script = True
+
             script += f'\nSTART MIGRATION'
             script += f' TO {{ {"".join(schema)} }};'
             script += f'\nPOPULATE MIGRATION;'
@@ -1227,6 +1298,8 @@ class DatabaseTestCase(ConnectedTestCase):
                 scripts = cls.SETUP
 
             for scr in scripts:
+                has_nontrivial_script = True
+
                 if '\n' not in scr and os.path.exists(scr):
                     with open(scr, 'rt') as f:
                         setup = f.read()
@@ -1245,7 +1318,7 @@ class DatabaseTestCase(ConnectedTestCase):
         if not cls.ENABLE_RECOMPILATION:
             script += '\nCONFIGURE SESSION RESET auto_rebuild_query_cache;'
 
-        return script.strip(' \n')
+        return script.strip(' \n') if has_nontrivial_script else ''
 
     async def migrate(self, migration, *, module: str = 'default'):
         async with self.con.transaction():
@@ -1838,9 +1911,6 @@ def get_test_cases_setup(
         except unittest.SkipTest:
             continue
 
-        if not setup_script:
-            continue
-
         dbname = case.get_database_name()
         result.append((case, dbname, setup_script))
 
@@ -1936,9 +2006,10 @@ async def _setup_database(
         database=dbname, **default_args
     )
     try:
-        async for tx in dbconn.retrying_transaction():
-            async with tx:
-                await dbconn.execute(setup_script)
+        if setup_script:
+            async for tx in dbconn.retrying_transaction():
+                async with tx:
+                    await dbconn.execute(setup_script)
     except Exception as ex:
         raise RuntimeError(
             f'exception during initialization of {dbname!r} test DB: '
@@ -2022,8 +2093,10 @@ class _EdgeDBServer:
         runstate_dir: Optional[str] = None,
         reset_auth: Optional[bool] = None,
         tenant_id: Optional[str] = None,
-        security: Optional[edgedb_args.ServerSecurityMode] = None,
-        default_auth_method: Optional[edgedb_args.ServerAuthMethod] = None,
+        security: edgedb_args.ServerSecurityMode,
+        default_auth_method: Optional[
+            edgedb_args.ServerAuthMethod | edgedb_args.ServerAuthMethods
+        ] = None,
         binary_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode] = None,
         http_endpoint_security: Optional[
@@ -2035,10 +2108,12 @@ class _EdgeDBServer:
         tls_key_file: Optional[os.PathLike] = None,
         tls_cert_mode: edgedb_args.ServerTlsCertMode = (
             edgedb_args.ServerTlsCertMode.SelfSigned),
+        tls_client_ca_file: Optional[os.PathLike] = None,
         jws_key_file: Optional[os.PathLike] = None,
         jwt_sub_allowlist_file: Optional[os.PathLike] = None,
         jwt_revocation_list_file: Optional[os.PathLike] = None,
         multitenant_config: Optional[str] = None,
+        default_branch: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
         extra_args: Optional[List[str]] = None,
     ) -> None:
@@ -2067,10 +2142,12 @@ class _EdgeDBServer:
         self.tls_cert_file = tls_cert_file
         self.tls_key_file = tls_key_file
         self.tls_cert_mode = tls_cert_mode
+        self.tls_client_ca_file = tls_client_ca_file
         self.jws_key_file = jws_key_file
         self.jwt_sub_allowlist_file = jwt_sub_allowlist_file
         self.jwt_revocation_list_file = jwt_revocation_list_file
         self.multitenant_config = multitenant_config
+        self.default_branch = default_branch
         self.env = env
         self.extra_args = extra_args
 
@@ -2186,6 +2263,9 @@ class _EdgeDBServer:
         if bootstrap_command:
             cmd += ['--bootstrap-command', bootstrap_command]
 
+        if self.default_branch is not None:
+            cmd += ['--default-branch', self.default_branch]
+
         if self.auto_shutdown_after is not None:
             cmd += ['--auto-shutdown-after', str(self.auto_shutdown_after)]
 
@@ -2221,11 +2301,14 @@ class _EdgeDBServer:
         if self.tls_key_file:
             cmd += ['--tls-key-file', self.tls_key_file]
 
+        if self.tls_client_ca_file:
+            cmd += ['--tls-client-ca-file', str(self.tls_client_ca_file)]
+
         if self.readiness_state_file:
             cmd += ['--readiness-state-file', self.readiness_state_file]
 
         if self.jws_key_file:
-            cmd += ['--jws-key-file', self.jws_key_file]
+            cmd += ['--jws-key-file', str(self.jws_key_file)]
 
         if self.jwt_sub_allowlist_file:
             cmd += ['--jwt-sub-allowlist-file', self.jwt_sub_allowlist_file]
@@ -2345,8 +2428,11 @@ def start_edgedb_server(
     data_dir: Optional[str] = None,
     reset_auth: Optional[bool] = None,
     tenant_id: Optional[str] = None,
-    security: Optional[edgedb_args.ServerSecurityMode] = None,
-    default_auth_method: Optional[edgedb_args.ServerAuthMethod] = None,
+    security: edgedb_args.ServerSecurityMode = (
+        edgedb_args.ServerSecurityMode.Strict),
+    default_auth_method: Optional[
+        edgedb_args.ServerAuthMethod | edgedb_args.ServerAuthMethods
+    ] = None,
     binary_endpoint_security: Optional[
         edgedb_args.ServerEndpointSecurityMode] = None,
     http_endpoint_security: Optional[
@@ -2358,12 +2444,14 @@ def start_edgedb_server(
     tls_key_file: Optional[os.PathLike] = None,
     tls_cert_mode: edgedb_args.ServerTlsCertMode = (
         edgedb_args.ServerTlsCertMode.SelfSigned),
+    tls_client_ca_file: Optional[os.PathLike] = None,
     jws_key_file: Optional[os.PathLike] = None,
     jwt_sub_allowlist_file: Optional[os.PathLike] = None,
     jwt_revocation_list_file: Optional[os.PathLike] = None,
     multitenant_config: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
     extra_args: Optional[List[str]] = None,
+    default_branch: Optional[str] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if backend_dsn or adjacent_to:
@@ -2423,12 +2511,14 @@ def start_edgedb_server(
         tls_cert_file=tls_cert_file,
         tls_key_file=tls_key_file,
         tls_cert_mode=tls_cert_mode,
+        tls_client_ca_file=tls_client_ca_file,
         jws_key_file=jws_key_file,
         jwt_sub_allowlist_file=jwt_sub_allowlist_file,
         jwt_revocation_list_file=jwt_revocation_list_file,
         multitenant_config=multitenant_config,
         env=env,
         extra_args=extra_args,
+        default_branch=default_branch,
     )
 
 
@@ -2456,8 +2546,8 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     # Prepare the source heaps
     setup_count = 0
     for case, tests in cases.items():
-        setup_script = getattr(case, 'get_setup_script', lambda: None)()
-        if setup_script and tests:
+        setup_script_getter = getattr(case, 'get_setup_script', None)
+        if setup_script_getter and tests:
             tests_per_setup = []
             est_per_setup = setup_est = stats.get(
                 'setup::' + case.get_database_name(), (new_setup_est, 0),

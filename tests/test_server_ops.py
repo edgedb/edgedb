@@ -37,6 +37,7 @@ import unittest
 import uuid
 
 import edgedb
+import httpx
 from edgedb import errors
 
 from edb import protocol
@@ -500,7 +501,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     await con.execute(f'CREATE DATABASE {tenant}')
                     await con.execute(f'CREATE SUPERUSER ROLE {tenant}')
                     databases = await con.query('SELECT sys::Database.name')
-                    self.assertEqual(set(databases), {'edgedb', tenant})
+                    self.assertEqual(set(databases), {'main', tenant})
                     roles = await con.query('SELECT sys::Role.name')
                     self.assertEqual(set(roles), {'edgedb', tenant})
                 finally:
@@ -782,6 +783,29 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 await self._test_connection(con)
             finally:
                 await con.aclose()
+
+    async def test_server_ops_mtls_http_transports(self):
+        certs = pathlib.Path(__file__).parent / 'certs'
+        client_ca_cert_file = certs / 'client_ca.cert.pem'
+        client_ssl_cert_file = certs / 'client.cert.pem'
+        client_ssl_key_file = certs / 'client.key.pem'
+        async with tb.start_edgedb_server(
+            tls_client_ca_file=client_ca_cert_file,
+            security=args.ServerSecurityMode.Strict,
+        ) as sd:
+            def test(url):
+                resp = httpx.get(url, verify=sd.tls_cert_file)
+                self.assertFalse(resp.is_success)
+
+                resp = httpx.get(
+                    url,
+                    verify=sd.tls_cert_file,
+                    cert=(str(client_ssl_cert_file), str(client_ssl_key_file)),
+                )
+                self.assertTrue(resp.is_success)
+
+            test(f'https://{sd.host}:{sd.port}/metrics')
+            test(f'https://{sd.host}:{sd.port}/server/status/alive')
 
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
@@ -1316,7 +1340,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         ) as http_con:
             async for tr in self.try_until_succeeds(ignore=AssertionError):
                 async with tr:
-                    response, _, status = self.http_con_json_request(
+                    _response, _, status = self.http_con_json_request(
                         http_con,
                         path=f"/db/{conn.dbname}/ext/auth/register",
                         body={

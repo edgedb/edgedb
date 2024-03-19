@@ -6096,7 +6096,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
         await self.interact([
             "did you rename property 'asdf' of object type 'test::Foo' to "
-            "'womp'?" ,
+            "'womp'?",
 
             "did you create annotation 'std::title' of property 'womp'?",
         ])

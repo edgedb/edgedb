@@ -80,6 +80,26 @@ cdef class CompilationRequest:
     ):
         self._serializer = compilation_config_serializer
 
+    def __copy__(self):
+        cdef CompilationRequest rv = CompilationRequest(self._serializer)
+        rv.source = self.source
+        rv.protocol_version = self.protocol_version
+        rv.output_format = self.output_format
+        rv.json_parameters = self.json_parameters
+        rv.expect_one = self.expect_one
+        rv.implicit_limit = self.implicit_limit
+        rv.inline_typeids = self.inline_typeids
+        rv.inline_typenames = self.inline_typenames
+        rv.inline_objectids = self.inline_objectids
+        rv.modaliases = self.modaliases
+        rv.session_config = self.session_config
+        rv.database_config = self.database_config
+        rv.system_config = self.system_config
+        rv.schema_version = self.schema_version
+        rv.serialized_cache = self.serialized_cache
+        rv.cache_key = self.cache_key
+        return rv
+
     def update(
         self,
         source: edgeql.Source,
@@ -127,6 +147,12 @@ cdef class CompilationRequest:
 
     def set_system_config(self, value) -> CompilationRequest:
         self.system_config = value
+        self.serialized_cache = None
+        self.cache_key = None
+        return self
+
+    def set_schema_version(self, version: uuid.UUID) -> CompilationRequest:
+        self.schema_version = version
         self.serialized_cache = None
         self.cache_key = None
         return self
@@ -216,6 +242,10 @@ cdef class CompilationRequest:
             {k: v.value for k, v in comp_config.items()}
         )
         hash_obj.update(serialized_comp_config)
+
+        # Must set_schema_version() before serializing compilation request
+        assert self.schema_version is not None
+        hash_obj.update(self.schema_version.bytes)
 
         cache_key_bytes = hash_obj.digest()
         self.cache_key = uuidgen.from_bytes(cache_key_bytes)

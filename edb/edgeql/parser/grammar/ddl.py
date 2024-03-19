@@ -271,11 +271,6 @@ class InnerDDLStmt(Nonterm):
         pass
 
 
-class InnerDDLStmtBlock(parsing.ListNonterm, element=InnerDDLStmt,
-                        separator=Semicolons):
-    pass
-
-
 class PointerName(Nonterm):
     @parsing.inline(0)
     def reduce_PtrNodeName(self, *kids):
@@ -742,7 +737,7 @@ class CreateDatabaseStmt(Nonterm):
             CREATE DATABASE DatabaseName FROM AnyNodeName
             OptCreateDatabaseCommandsBlock
         """
-        _, _, name, _, template, commands = kids
+        _, _, _name, _, _template, _commands = kids
         self.val = qlast.CreateDatabase(
             name=kids[2].val,
             commands=kids[5].val,
@@ -810,12 +805,6 @@ class BranchStmt(Nonterm):
 #
 # CREATE BRANCH
 #
-
-
-commands_block(
-    'CreateBranch',
-    SetFieldStmt,
-)
 
 
 class CreateBranchStmt(Nonterm):

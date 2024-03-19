@@ -18,7 +18,9 @@
 
 
 from __future__ import annotations
-from typing import Any, Callable, Tuple, Type, Dict, List, Set, cast
+from typing import (
+    Any, Callable, Tuple, Type, Dict, List, Set, Optional, cast
+)
 
 import json
 import logging
@@ -39,66 +41,39 @@ class ParserSpecIncompatibleError(Exception):
     pass
 
 
-class TokenMeta(type):
-    token_map: Dict[Tuple[Any, Any], Any] = {}
+class Token(parsing.Token):
+    token_map: Dict[Any, Any] = {}
+    _token: str = ""
 
-    def __new__(
-            mcls, name, bases, dct, *, token=None, lextoken=None,
-            precedence_class=None):
-        result = super().__new__(mcls, name, bases, dct)
+    def __init_subclass__(
+            cls, *, token=None, lextoken=None, is_internal=False, **kwargs):
+        super().__init_subclass__(**kwargs)
 
-        if precedence_class is not None:
-            result._precedence_class = precedence_class
-
-        if name == 'Token' or name == 'GrammarToken':
-            return result
+        if is_internal:
+            return
 
         if token is None:
-            if not name.startswith('T_'):
+            if not cls.__name__.startswith('T_'):
                 raise Exception(
                     'Token class names must either start with T_ or have '
                     'a token parameter')
-            token = name[2:]
+            token = cls.__name__[2:]
 
         if lextoken is None:
             lextoken = token
 
-        result._token = token
-        mcls.token_map[mcls, lextoken] = result
+        cls._token = token
+        Token.token_map[lextoken] = cls
 
-        if not result.__doc__:
+        if not cls.__doc__:
             doc = '%%token %s' % token
 
-            pcls = getattr(result, '_precedence_class', None)
-            if pcls is None:
-                try:
-                    pcls = sys.modules[mcls.__module__].PrecedenceMeta
-                except (KeyError, AttributeError):
-                    pass
-
-            if pcls is None:
-                msg = 'Precedence class is not set for {!r}'.format(mcls)
-                raise TypeError(msg)
-
-            prec = pcls.for_token(token)
+            prec = Precedence.for_token(token)
             if prec:
                 doc += ' [%s]' % prec.__name__
 
-            result.__doc__ = doc
+            cls.__doc__ = doc
 
-        return result
-
-    def __init__(
-            cls, name, bases, dct, *, token=None, lextoken=None,
-            precedence_class=None):
-        super().__init__(name, bases, dct)
-
-    @classmethod
-    def for_lex_token(mcls, token):
-        return mcls.token_map[mcls, token]
-
-
-class Token(parsing.Token, metaclass=TokenMeta):
     def __init__(self, val, clean_value, context=None):
         super().__init__()
         self.val = val
@@ -122,17 +97,32 @@ def inline(argument_index: int):
     return decorator
 
 
-class NontermMeta(type):
-    def __new__(mcls, name, bases, dct):
-        result = super().__new__(mcls, name, bases, dct)
 
-        if name == 'Nonterm' or name == 'ListNonterm':
-            return result
+class Nonterm(parsing.Nonterm):
 
-        if not result.__doc__:
-            result.__doc__ = '%nonterm'
+    def __init_subclass__(cls, *, is_internal=False, **kwargs):
+        """Add docstrings to class and reduce functions
 
-        for name, attr in result.__dict__.items():
+        If no class docstring is present, set it to '%nonterm'.
+
+        If any reduce function (ie. of the form `reduce(_\\w+)+` does not
+        have a docstring, a new one is generated based on the function name.
+
+        See https://github.com/MagicStack/parsing for more information.
+
+        Keyword arguments:
+        is_internal -- internal classes do not need docstrings and processing
+                       can be skipped
+        """
+        super().__init_subclass__(**kwargs)
+
+        if is_internal:
+            return
+
+        if not cls.__doc__:
+            cls.__doc__ = '%nonterm'
+
+        for name, attr in cls.__dict__.items():
             if (name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType)):
                 inline_index = getattr(attr, 'inline_index', None)
@@ -155,50 +145,111 @@ class NontermMeta(type):
 
                 a.__doc__ = attr.__doc__
                 a.inline_index = inline_index
-                setattr(result, name, a)
-
-        return result
+                setattr(cls, name, a)
 
 
-class Nonterm(parsing.Nonterm, metaclass=NontermMeta):
-    pass
+class ListNonterm(Nonterm, is_internal=True):
+    def __init_subclass__(cls, *, element, separator=None, is_internal=False,
+                          allow_trailing_separator=False, **kwargs):
+        """Create reductions for list classes.
 
+        If trailing separator is not allowed, the class can handle all
+        reductions directly.
 
-class ListNontermMeta(NontermMeta):
-    def __new__(mcls, name, bases, dct, *, element, separator=None):
-        if name != 'ListNonterm':
-            if isinstance(separator, TokenMeta):
-                separator = separator._token
-            elif isinstance(separator, NontermMeta):
-                separator = separator.__name__
+            L := E
+            L := L S E
 
-            tokens = [name]
-            if separator:
-                tokens.append(separator)
+        If trailing separator is allowed, create an inner class to handle
+        all non-trailing reductions. Then the class handles the trailing
+        separator.
 
-            if isinstance(element, TokenMeta):
-                element = element._token
-            elif isinstance(element, NontermMeta):
-                element = element.__name__
+            I := E
+            I := I S E
+            L := I
+            L := I S
 
-            tokens.append(element)
+        The inner class is added to the same module as the class.
+        """
+        if not is_internal:
+            if not allow_trailing_separator:
+                # directly handle the list
+                ListNonterm.add_list_reductions(
+                    cls, element=element, separator=separator
+                )
 
-            if separator:
-                prod = lambda self, lst, sep, el: self._reduce_list(lst, el)
             else:
-                prod = lambda self, lst, el: self._reduce_list(lst, el)
-            dct['reduce_' + '_'.join(tokens)] = prod
-            dct['reduce_' + element] = lambda self, el: self._reduce_el(el)
+                # create inner list class and add to same module
+                mod = sys.modules[cls.__module__]
 
-        cls = super().__new__(mcls, name, bases, dct)
-        return cls
+                def inner_cls_exec(ns):
+                    ns['__module__'] = mod.__name__
+                    return ns
 
-    def __init__(cls, name, bases, dct, *, element, separator=None):
-        super().__init__(name, bases, dct)
+                inner_cls_name = cls.__name__ + 'Inner'
+                inner_cls_kwds = dict(element=element, separator=separator)
+                inner_cls = types.new_class(inner_cls_name, (ListNonterm,),
+                                            inner_cls_kwds, inner_cls_exec)
+                setattr(mod, inner_cls_name, inner_cls)
+
+                # create reduce_inner function
+                separator_name = ListNonterm.component_name(separator)
+
+                setattr(cls,
+                    'reduce_{}'.format(inner_cls_name),
+                    lambda self, inner: (
+                        ListNonterm._reduce_inner(self, inner)
+                    ))
+                setattr(cls,
+                    'reduce_{}_{}'.format(inner_cls_name, separator_name),
+                    lambda self, inner, sep: (
+                        ListNonterm._reduce_inner(self, inner)
+                    ))
 
 
-class ListNonterm(Nonterm, metaclass=ListNontermMeta, element=None):
+        # reduce functions must be present before calling superclass
+        super().__init_subclass__(is_internal=is_internal, **kwargs)
 
+    def __iter__(self):
+        return iter(self.val)
+
+    def __len__(self):
+        return len(self.val)
+
+    @staticmethod
+    def add_list_reductions(cls, *, element, separator=None):
+        element_name = ListNonterm.component_name(element)
+        separator_name = ListNonterm.component_name(separator)
+
+        if separator_name:
+            tail_prod = lambda self, lst, sep, el: (
+                ListNonterm._reduce_list(self, lst, el)
+            )
+            tail_prod_name = 'reduce_{}_{}_{}'.format(
+                cls.__name__, separator_name, element_name)
+        else:
+            tail_prod = lambda self, lst, el: (
+                ListNonterm._reduce_list(self, lst, el)
+            )
+            tail_prod_name = 'reduce_{}_{}'.format(
+                cls.__name__, element_name)
+        setattr(cls, tail_prod_name, tail_prod)
+
+        setattr(cls, 'reduce_' + element_name,
+            lambda self, el: ListNonterm._reduce_el(self, el))
+
+    @staticmethod
+    def component_name(component: type) -> Optional[str]:
+        if component is None:
+            return None
+        elif issubclass(component, Token):
+            return component._token
+        elif issubclass(component, Nonterm):
+            return component.__name__
+        else:
+            raise Exception(
+                'List component must be a Token or Nonterm')
+
+    @staticmethod
     def _reduce_list(self, lst, el):
         if el.val is None:
             tail = []
@@ -207,6 +258,7 @@ class ListNonterm(Nonterm, metaclass=ListNontermMeta, element=None):
 
         self.val = lst.val + tail
 
+    @staticmethod
     def _reduce_el(self, el):
         if el.val is None:
             tail = []
@@ -215,11 +267,9 @@ class ListNonterm(Nonterm, metaclass=ListNontermMeta, element=None):
 
         self.val = tail
 
-    def __iter__(self):
-        return iter(self.val)
-
-    def __len__(self):
-        return len(self.val)
+    @staticmethod
+    def _reduce_inner(self, inner):
+        self.val = inner.val
 
 
 def precedence(precedence):
@@ -231,55 +281,44 @@ def precedence(precedence):
     return decorator
 
 
-class PrecedenceMeta(type):
-    token_prec_map: Dict[Tuple[Any, Any], Any] = {}
-    last: Dict[Tuple[Any, Any], Any] = {}
+class Precedence(parsing.Precedence):
+    token_prec_map: Dict[Any, Any] = {}
+    last: Dict[Any, Any] = {}
 
-    def __new__(
-            mcls, name, bases, dct, *, assoc, tokens=None, prec_group=None,
-            rel_to_last='>'):
-        result = super().__new__(mcls, name, bases, dct)
+    def __init_subclass__(
+            cls, *, assoc, tokens=None, prec_group=None, rel_to_last='>',
+            is_internal=False, **kwargs):
+        super().__init_subclass__(**kwargs)
 
-        if name == 'Precedence':
-            return result
+        if is_internal:
+            return
 
-        if not result.__doc__:
+        if not cls.__doc__:
             doc = '%%%s' % assoc
 
-            last = mcls.last.get((mcls, prec_group))
+            last = Precedence.last.get(prec_group)
             if last:
                 doc += ' %s%s' % (rel_to_last, last.__name__)
 
-            result.__doc__ = doc
+            cls.__doc__ = doc
 
         if tokens:
             for token in tokens:
                 existing = None
                 try:
-                    existing = mcls.token_prec_map[mcls, token]
+                    existing = Precedence.token_prec_map[token]
                 except KeyError:
-                    mcls.token_prec_map[mcls, token] = result
+                    Precedence.token_prec_map[token] = cls
                 else:
                     raise Exception(
                         'token {} has already been set precedence {}'.format(
                             token, existing))
 
-        mcls.last[mcls, prec_group] = result
-
-        return result
-
-    def __init__(
-            cls, name, bases, dct, *, assoc, tokens=None, prec_group=None,
-            rel_to_last='>'):
-        super().__init__(name, bases, dct)
+        Precedence.last[prec_group] = cls
 
     @classmethod
-    def for_token(mcls, token_name):
-        return mcls.token_prec_map.get((mcls, token_name))
-
-
-class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
-    pass
+    def for_token(cls, token_name):
+        return Precedence.token_prec_map.get(token_name)
 
 
 def load_parser_spec(
@@ -321,7 +360,7 @@ def spec_to_json(spec: parsing.Spec) -> str:
     assert spec.pureLR
 
     token_map: Dict[str, str] = {
-        v._token: c for (_, c), v in TokenMeta.token_map.items()
+        v._token: c for c, v in Token.token_map.items()
     }
 
     # productions

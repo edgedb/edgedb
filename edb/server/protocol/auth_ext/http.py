@@ -38,7 +38,7 @@ from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
-from edb.server import tenant as edbtenant
+from edb.server import tenant as edbtenant, metrics
 from edb.server.config.types import CompositeConfigType
 
 from . import (
@@ -253,7 +253,9 @@ class Router:
             raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
-        challenge = _get_search_param(query, "challenge")
+        challenge = _get_search_param(
+            query, "challenge", fallback_keys=["code_challenge"]
+        )
         oauth_client = oauth.Client(
             db=self.db, provider_name=provider_name, base_url=self.test_url
         )
@@ -386,7 +388,9 @@ class Router:
             request.url.query.decode("ascii") if request.url.query else ""
         )
         code = _get_search_param(query, "code")
-        verifier = _get_search_param(query, "verifier")
+        verifier = _get_search_param(
+            query, "verifier", fallback_keys=["code_verifier"]
+        )
 
         verifier_size = len(verifier)
 
@@ -663,7 +667,7 @@ class Router:
             )
         elif "email" in data:
             email = data["email"]
-            maybe_challenge = None
+            maybe_challenge = data.get("challenge", data.get("code_challenge"))
             maybe_redirect_to = data.get("redirect_to")
             if maybe_redirect_to and not self._is_url_allowed(
                 maybe_redirect_to
@@ -872,6 +876,14 @@ class Router:
             tenant=self.tenant,
             test_mode=self.test_mode,
         )
+
+        request_accepts_json: bool = request.accept == b"application/json"
+
+        if not request_accepts_json and not maybe_redirect_to:
+            raise errors.InvalidData(
+                "Request must accept JSON or provide a redirect URL."
+            )
+
         try:
             await magic_link_client.register(
                 email=email,
@@ -888,34 +900,33 @@ class Router:
                 "email_sent": email,
             }
 
-            if maybe_redirect_to:
+            if request_accepts_json:
+                response.status = http.HTTPStatus.OK
+                response.content_type = b"application/json"
+                response.body = json.dumps(return_data).encode()
+            elif maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
                 response.custom_headers["Location"] = util.join_url_params(
                     maybe_redirect_to, return_data
                 )
             else:
-                response.status = http.HTTPStatus.OK
-                response.content_type = b"application/json"
-                response.body = json.dumps(return_data).encode()
-        except Exception as ex:
-            redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
-            )
-            if redirect_on_failure is None:
-                raise ex
-            else:
-                if not self._is_url_allowed(redirect_on_failure):
-                    raise errors.InvalidData(
-                        "Redirect URL does not match any allowed URLs.",
-                    )
-                response.status = http.HTTPStatus.FOUND
-                redirect_params = {
-                    "error": str(ex),
-                    "email": data.get('email', ''),
-                }
-                response.custom_headers["Location"] = util.join_url_params(
-                    redirect_on_failure, redirect_params
+                # This should not happen since we check earlier for this case
+                # but this seems safer than a cast
+                raise errors.InvalidData(
+                    "Request must accept JSON or provide a redirect URL."
                 )
+        except Exception as ex:
+            if request_accepts_json:
+                raise ex
+
+            response.status = http.HTTPStatus.FOUND
+            redirect_params = {
+                "error": str(ex),
+                "email": data.get('email', ''),
+            }
+            response.custom_headers["Location"] = util.join_url_params(
+                redirect_on_failure, redirect_params
+            )
 
     async def handle_magic_link_email(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
@@ -947,9 +958,8 @@ class Router:
                     "Error redirect URL does not match any allowed URLs.",
                 )
 
-            if (
-                maybe_redirect_to and
-                not self._is_url_allowed(maybe_redirect_to)
+            if maybe_redirect_to and not self._is_url_allowed(
+                maybe_redirect_to
             ):
                 raise errors.InvalidData(
                     "Redirect URL does not match any allowed URLs.",
@@ -1090,18 +1100,22 @@ class Router:
 
         user_handle_cookie = request.cookies.get(
             "edgedb-webauthn-registration-user-handle"
-        ).value
-        if user_handle_cookie is None:
+        )
+        user_handle_base64url: Optional[str] = (
+            user_handle_cookie.value
+            if user_handle_cookie
+            else data.get("user_handle")
+        )
+        if user_handle_base64url is None:
             raise errors.InvalidData(
-                "Missing 'edgedb-webauthn-registration-user-handle' cookie"
+                "Missing user_handle from cookie or request body"
             )
         try:
-            user_handle = base64.urlsafe_b64decode(user_handle_cookie)
+            user_handle = base64.urlsafe_b64decode(
+                f"{user_handle_base64url}==="
+            )
         except Exception as e:
-            raise errors.InvalidData(
-                "Failed to decode 'edgedb-webauthn-registration-user-handle'"
-                " cookie"
-            ) from e
+            raise errors.InvalidData("Failed to decode user_handle") from e
 
         require_verification = webauthn_client.provider.require_verification
         pkce_code: Optional[str] = None
@@ -1163,18 +1177,12 @@ class Router:
             )
         webauthn_client = webauthn.Client(self.db)
 
-        (user_handle, registration_options) = (
+        (_, registration_options) = (
             await webauthn_client.create_authentication_options_for_email(
                 email=email, webauthn_provider=webauthn_provider
             )
         )
 
-        _set_cookie(
-            response,
-            "edgedb-webauthn-authentication-user-handle",
-            user_handle,
-            path="/",
-        )
         response.status = http.HTTPStatus.OK
         response.content_type = b"application/json"
         response.body = registration_options
@@ -1192,25 +1200,9 @@ class Router:
         assertion: str = data["assertion"]
         pkce_challenge: str = data["challenge"]
 
-        user_handle_cookie = request.cookies.get(
-            "edgedb-webauthn-authentication-user-handle"
-        ).value
-        if user_handle_cookie is None:
-            raise errors.InvalidData(
-                "Missing 'edgedb-webauthn-authentication-user-handle' cookie"
-            )
-        try:
-            user_handle = base64.urlsafe_b64decode(user_handle_cookie)
-        except Exception as e:
-            raise errors.InvalidData(
-                "Failed to decode 'edgedb-webauthn-authentication-user-handle'"
-                " cookie"
-            ) from e
-
         identity = await webauthn_client.authenticate(
             assertion=assertion,
             email=email,
-            user_handle=user_handle,
         )
 
         require_verification = webauthn_client.provider.require_verification
@@ -1226,12 +1218,6 @@ class Router:
             self.db, identity.id, pkce_challenge
         )
 
-        _set_cookie(
-            response,
-            "edgedb-webauthn-authentication-user-handle",
-            "",
-            path="/",
-        )
         response.status = http.HTTPStatus.OK
         response.content_type = b"application/json"
         response.body = json.dumps(
@@ -1356,7 +1342,9 @@ class Router:
             query = urllib.parse.parse_qs(
                 request.url.query.decode("ascii") if request.url.query else ""
             )
-            challenge = _get_search_param(query, "challenge")
+            challenge = _get_search_param(
+                query, "challenge", fallback_keys=["code_challenge"]
+            )
             app_details_config = self._get_app_details_config()
 
             response.status = http.HTTPStatus.OK
@@ -1497,20 +1485,17 @@ class Router:
                         case _:
                             maybe_pkce_code = None
 
-                    match maybe_redirect_to:
-                        case str(rt):
-                            redirect_to = (
-                                _with_appended_qs(
-                                    rt,
-                                    {
-                                        "code": [maybe_pkce_code],
-                                    },
-                                )
-                                if maybe_pkce_code
-                                else rt
-                            )
-                        case _:
-                            redirect_to = cast(str, ui_config.redirect_to)
+                    redirect_to = maybe_redirect_to or redirect_to
+                    redirect_to = (
+                        _with_appended_qs(
+                            redirect_to,
+                            {
+                                "code": [maybe_pkce_code],
+                            },
+                        )
+                        if maybe_pkce_code
+                        else redirect_to
+                    )
 
                 except errors.VerificationTokenExpired:
                     app_details_config = self._get_app_details_config()
@@ -1681,6 +1666,7 @@ class Router:
             claims=claims,
         )
         session_token.make_signed_token(signing_key)
+        metrics.auth_successful_logins.inc(1.0, self.tenant.get_instance_name())
         return session_token.serialize()
 
     def _get_from_claims(self, state: str, key: str) -> str:
@@ -2005,8 +1991,18 @@ def _maybe_get_search_param(
     return params[0] if params else None
 
 
-def _get_search_param(query_dict: dict[str, list[str]], key: str) -> str:
+def _get_search_param(
+    query_dict: dict[str, list[str]],
+    key: str,
+    *,
+    fallback_keys: Optional[list[str]] = None,
+) -> str:
     val = _maybe_get_search_param(query_dict, key)
+    if val is None and fallback_keys is not None:
+        for fallback_key in fallback_keys:
+            val = _maybe_get_search_param(query_dict, fallback_key)
+            if val is not None:
+                break
     if val is None:
         raise errors.InvalidData(f"Missing query parameter: {key}")
     return val
@@ -2028,7 +2024,9 @@ def _get_pkce_challenge(
     query_dict: dict[str, list[str]],
 ) -> str | None:
     cookie_name = 'edgedb-pkce-challenge'
-    challenge: str | None = _maybe_get_search_param(query_dict, 'challenge')
+    challenge: str | None = _maybe_get_search_param(
+        query_dict, 'challenge'
+    ) or _maybe_get_search_param(query_dict, "code_challenge")
     if challenge is not None:
         _set_cookie(response, cookie_name, challenge)
     else:

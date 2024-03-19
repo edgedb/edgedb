@@ -40,6 +40,8 @@ import immutables as immu
 
 from edb import errors
 
+from edb.common.typeutils import not_none
+
 from edb.edgeql import qltypes
 from edb.edgeql import ast as qlast
 
@@ -499,17 +501,25 @@ def new_primitive_rvar(
     lateral: bool,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
-    if not ir_set.path_id.is_objtype_path():
-        raise ValueError('cannot create root rvar for non-object path')
+    if isinstance(ir_set.expr, irast.TypeRoot):
+        skip_subtypes = ir_set.expr.skip_subtypes
+        is_global = ir_set.expr.is_cached_global
+    else:
+        skip_subtypes = False
+        is_global = False
 
     typeref = ir_set.typeref
     dml_source = irutils.get_dml_sources(ir_set)
     set_rvar = range_for_typeref(
         typeref, path_id, lateral=lateral, dml_source=dml_source,
-        include_descendants=not ir_set.skip_subtypes,
-        ignore_rewrites=ir_set.ignore_rewrites, ctx=ctx)
+        include_descendants=not skip_subtypes,
+        ignore_rewrites=ir_set.ignore_rewrites,
+        is_global=is_global,
+        ctx=ctx,
+    )
     pathctx.put_rvar_path_bond(set_rvar, path_id)
 
+    # FIXME: This feels like it should all not be here.
     rptr = ir_set.rptr
     if rptr is not None:
         if (isinstance(rptr.ptrref, irast.TypeIntersectionPointerRef)
@@ -572,11 +582,11 @@ def new_root_rvar(
 
 
 def new_pointer_rvar(
-        ir_ptr: irast.Pointer, *,
+        ir_set: irast.Set, *,
         link_bias: bool=False,
         src_rvar: pgast.PathRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-
+    ir_ptr = not_none(ir_set.rptr)
     ptrref = ir_ptr.ptrref
 
     ptr_info = pg_types.get_ptrref_storage_info(
@@ -585,28 +595,30 @@ def new_pointer_rvar(
     if ptr_info and ptr_info.table_type == 'ObjectType':
         # Inline link
         return _new_inline_pointer_rvar(
-            ir_ptr, ptr_info=ptr_info,
+            ir_set, ptr_info=ptr_info,
             src_rvar=src_rvar, ctx=ctx)
     else:
-        return _new_mapped_pointer_rvar(ir_ptr, ctx=ctx)
+        return _new_mapped_pointer_rvar(ir_set, ctx=ctx)
 
 
 def _new_inline_pointer_rvar(
-        ir_ptr: irast.Pointer, *,
+        ir_set: irast.Set, *,
         lateral: bool=True,
         ptr_info: pg_types.PointerStorageInfo,
         src_rvar: pgast.PathRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    ir_ptr = not_none(ir_set.rptr)
+
     ptr_rel = pgast.SelectStmt()
     ptr_rvar = rvar_for_rel(ptr_rel, lateral=lateral, ctx=ctx)
-    ptr_rvar.query.path_id = ir_ptr.target.path_id.ptr_path()
+    ptr_rvar.query.path_id = ir_set.path_id.ptr_path()
 
     is_inbound = ir_ptr.direction == s_pointers.PointerDirection.Inbound
 
     if is_inbound:
         far_pid = ir_ptr.source.path_id
     else:
-        far_pid = ir_ptr.target.path_id
+        far_pid = ir_set.path_id
 
     far_ref = pathctx.get_rvar_path_identity_var(
         src_rvar, far_pid, env=ctx.env)
@@ -618,11 +630,13 @@ def _new_inline_pointer_rvar(
 
 
 def _new_mapped_pointer_rvar(
-        ir_ptr: irast.Pointer, *,
+        ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    ir_ptr = not_none(ir_set.rptr)
+
     ptrref = ir_ptr.ptrref
     dml_source = irutils.get_dml_sources(ir_ptr.source)
-    ptr_rvar = range_for_pointer(ir_ptr, dml_source=dml_source, ctx=ctx)
+    ptr_rvar = range_for_pointer(ir_set, dml_source=dml_source, ctx=ctx)
 
     src_col = 'source'
     source_ref = pgast.ColumnRef(name=[src_col], nullable=False)
@@ -643,7 +657,7 @@ def _new_mapped_pointer_rvar(
         far_ref = target_ref
 
     src_pid = ir_ptr.source.path_id
-    tgt_pid = ir_ptr.target.path_id
+    tgt_pid = ir_set.path_id
     ptr_pid = tgt_pid.ptr_path()
 
     ptr_rvar.query.path_id = ptr_pid
@@ -706,7 +720,7 @@ def semi_join(
     else:
         far_pid = ir_set.path_id
         # Link range.
-        map_rvar = new_pointer_rvar(rptr, src_rvar=src_rvar, ctx=ctx)
+        map_rvar = new_pointer_rvar(ir_set, src_rvar=src_rvar, ctx=ctx)
         include_rvar(
             ctx.rel, map_rvar,
             path_id=ir_set.path_id.ptr_path(), ctx=ctx)
@@ -1404,20 +1418,18 @@ def range_for_material_objtype(
     include_overlays: bool=True,
     include_descendants: bool=True,
     ignore_rewrites: bool=False,
+    is_global: bool=False,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
     env = ctx.env
 
-    # If this is a view type, but it still appears in rewrites, that is
-    # because it is a global that we are caching.
-    if (
-        typeref.material_type is not None
-        and (typeref.id, include_descendants) not in ctx.env.type_rewrites
-    ):
-        typeref = typeref.material_type
-    is_global = typeref.material_type is not None
+    if not is_global:
+        typeref = typeref.real_material_type
+
+    if not is_global and not path_id.is_objtype_path():
+        raise ValueError('cannot create root rvar for non-object path')
 
     relation: Union[pgast.Relation, pgast.CommonTableExpr]
 
@@ -1444,6 +1456,7 @@ def range_for_material_objtype(
             rewrite = irast.Set(
                 path_id=irast.PathId.from_typeref(typeref, namespace={'rw'}),
                 typeref=typeref,
+                expr=irast.TypeRoot(typeref=typeref),
             )
 
         # Don't include overlays in the normal way in trigger mode
@@ -1549,7 +1562,7 @@ def range_for_material_objtype(
         )
 
     else:
-
+        assert not typeref.is_view, "attempting to generate range from view"
         table_schema_name, table_name = common.get_objtype_backend_name(
             typeref.id,
             typeref.name_hint.module,
@@ -1648,6 +1661,7 @@ def range_for_typeref(
     for_mutation: bool=False,
     include_descendants: bool=True,
     ignore_rewrites: bool=False,
+    is_global: bool=False,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
@@ -1664,14 +1678,14 @@ def range_for_typeref(
         for child in typeref.union:
             mat_child = child.material_type or child
             if mat_child.id in seen:
-                assert typeref.union_is_concrete
+                assert typeref.union_is_exhaustive
                 continue
             seen.add(mat_child.id)
 
             c_rvar = range_for_typeref(
                 child,
                 path_id=path_id,
-                include_descendants=not typeref.union_is_concrete,
+                include_descendants=not typeref.union_is_exhaustive,
                 for_mutation=for_mutation,
                 dml_source=dml_source,
                 lateral=lateral,
@@ -1730,6 +1744,7 @@ def range_for_typeref(
             ignore_rewrites=ignore_rewrites,
             include_overlays=not for_mutation,
             for_mutation=for_mutation,
+            is_global=is_global,
             dml_source=dml_source,
             ctx=ctx,
         )
@@ -1944,7 +1959,7 @@ def range_for_ptrref(
         overlays = get_ptr_rel_overlays(
             ptrref, dml_source=dml_source, ctx=ctx)
 
-    include_descendants = not ptrref.union_is_concrete
+    include_descendants = not ptrref.union_is_exhaustive
 
     assert isinstance(ptrref.out_source.name_hint, sn.QualName)
     # expand_inhviews helps support EXPLAIN. see
@@ -2073,13 +2088,14 @@ def range_for_ptrref(
 
 
 def range_for_pointer(
-    pointer: irast.Pointer,
+    ir_set: irast.Set,
     *,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
+    pointer = not_none(ir_set.rptr)
 
-    path_id = pointer.target.path_id.ptr_path()
+    path_id = ir_set.path_id.ptr_path()
     external_rvar = ctx.env.external_rvars.get((path_id, 'source'))
     if external_rvar is not None:
         return external_rvar

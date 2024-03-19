@@ -241,7 +241,12 @@ def derive_view(
                 inheritance_refdicts={'pointers'},
                 mark_derived=True,
                 transient=True,
+                # When compiling aliases, we can't elide
+                # @source/@target pointers, which normally we would
+                # when creating a view.
+                preserve_endpoint_ptrs=ctx.env.options.schema_view_mode,
                 attrs=attrs,
+                stdmode=ctx.env.options.bootstrap_mode,
             )
 
         if (
@@ -334,7 +339,12 @@ def derive_ptr(
         inheritance_refdicts={'pointers'},
         mark_derived=True,
         transient=True,
-        attrs=attrs)
+        # When compiling aliases, we can't elide
+        # @source/@target pointers, which normally we would
+        # when creating a view.
+        preserve_endpoint_ptrs=ctx.env.options.schema_view_mode,
+        attrs=attrs,
+    )
 
     if not ptr.is_non_concrete(ctx.env.schema):
         if isinstance(derived, s_sources.Source):
@@ -461,7 +471,7 @@ def concretify(
         return get_union_type(ts, ctx=ctx)
     if els := t.get_intersection_of(ctx.env.schema):
         ts = [concretify(e, ctx=ctx) for e in els.objects(ctx.env.schema)]
-        return get_intersection_type(ts , ctx=ctx)
+        return get_intersection_type(ts, ctx=ctx)
     return t
 
 
@@ -586,7 +596,6 @@ def derive_dummy_ptr(
             },
             name=derived_name,
             mark_derived=True,
-            transient=True,
         )
         ctx.env.created_schema_objects.add(derived)
 

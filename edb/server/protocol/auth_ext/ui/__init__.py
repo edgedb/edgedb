@@ -898,7 +898,7 @@ email address:
     </div>
   </td>
 </tr>
-    """ # noqa: E501
+    """  # noqa: E501
     html_msg = mime_text.MIMEText(
         render.base_default_email(
             app_name=app_name,

@@ -18,7 +18,6 @@
 
 
 import base64
-import struct
 import urllib
 
 import edgedb
@@ -117,8 +116,8 @@ class BaseTestHttpAuth(
             content,
             headers,
             status,
-            sid,
-            expected_server_sig,
+            _sid,
+            _expected_server_sig,
         ) = self._scram_auth(user, password)
         self.assertEqual(status, 401)
         self.assertEqual(content, b"Authentication failed")
@@ -144,46 +143,21 @@ class TestHttpAuth(BaseTestHttpAuth):
         server_final = base64.b64decode(values["data"])
         server_sig = scram.parse_server_final_message(server_final)
         self.assertEqual(server_sig, expected_server_sig)
+
         proto_ver = edbdef.CURRENT_PROTOCOL
         proto_ver_str = f"v_{proto_ver[0]}_{proto_ver[1]}"
         mime_type = f"application/x.edgedb.{proto_ver_str}.binary"
 
         with self.http_con() as con:
-            con.request(
-                "POST",
-                f"/db/{args['database']}",
-                body=protocol.Execute(
-                    annotations=[],
-                    allowed_capabilities=protocol.Capability.ALL,
-                    compilation_flags=protocol.CompilationFlag(0),
-                    implicit_limit=0,
-                    command_text="SELECT 42",
-                    output_format=protocol.OutputFormat.JSON,
-                    expected_cardinality=protocol.Cardinality.AT_MOST_ONE,
-                    input_typedesc_id=b"\0" * 16,
-                    output_typedesc_id=b"\0" * 16,
-                    state_typedesc_id=b"\0" * 16,
-                    arguments=b"",
-                    state_data=b"",
-                ).dump()
-                + protocol.Sync().dump(),
-                headers={
-                    "Content-Type": mime_type,
-                    "Authorization": f"Bearer {token.decode('ascii')}",
-                    "X-EdgeDB-User": args["user"],
-                },
+            msgs, headers, status = self.http_con_binary_request(
+                con,
+                "SELECT 42",
+                bearer_token=token.decode("ascii"),
+                user=args["user"],
+                database=args["database"],
             )
-            content, headers, status = self.http_con_read_response(con)
         self.assertEqual(status, 200)
         self.assertEqual(headers, headers | {"content-type": mime_type})
-        uint32_unpack = struct.Struct("!L").unpack
-        msgs = []
-        while content:
-            mtype = content[0]
-            (msize,) = uint32_unpack(content[1:5])
-            msg = protocol.ServerMessage.parse(mtype, content[5 : msize + 1])
-            msgs.append(msg)
-            content = content[msize + 1 :]
         self.assertIsInstance(msgs[0], protocol.CommandDataDescription)
         self.assertIsInstance(msgs[1], protocol.Data)
         self.assertEqual(bytes(msgs[1].data[0].data), b"42")

@@ -55,6 +55,7 @@ from edb.common import devmode
 from edb.common import lru
 from edb.common import secretkey
 from edb.common import windowedsum
+from edb.common.log import current_tenant
 
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
@@ -187,6 +188,7 @@ class BaseServer:
         self._system_compile_cache = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE
         )
+        self._system_compile_cache_locks: dict[Any, Any] = {}
 
         self._listen_sockets = listen_sockets
         if listen_sockets:
@@ -444,6 +446,10 @@ class BaseServer:
             if conn.dbname == dbname:
                 conn.request_stop()
 
+    @property
+    def system_compile_cache_locks(self):
+        return self._system_compile_cache_locks
+
     def _idle_gc_collector(self):
         try:
             self._idle_gc_handler = None
@@ -457,9 +463,9 @@ class BaseServer:
             for conn in self._binary_conns:
                 try:
                     if conn.is_idle(expiry_time):
-                        metrics.idle_client_connections.inc(
-                            1.0, conn.get_tenant_label()
-                        )
+                        label = conn.get_tenant_label()
+                        metrics.idle_client_connections.inc(1.0, label)
+                        current_tenant.set(label)
                         conn.close_for_idling()
                     elif conn.is_alive():
                         # We are sorting connections in
@@ -778,7 +784,7 @@ class BaseServer:
         # Used in multi-tenant server only. This method must not fail.
         pass
 
-    def reload_tls(self, tls_cert_file, tls_key_file):
+    def reload_tls(self, tls_cert_file, tls_key_file, client_ca_file):
         logger.info("loading TLS certificates")
         tls_password_needed = False
         if self._tls_certs_reload_retry_handle is not None:
@@ -838,6 +844,16 @@ class BaseServer:
 
             raise StartupError(f"Cannot load TLS certificates - {e}") from e
 
+        if client_ca_file is not None:
+            try:
+                sslctx.load_verify_locations(client_ca_file)
+                sslctx_pgext.load_verify_locations(client_ca_file)
+            except ssl.SSLError as e:
+                raise StartupError(
+                    f"Cannot load client CA certificates - {e}") from e
+            sslctx.verify_mode = ssl.CERT_OPTIONAL
+            sslctx_pgext.verify_mode = ssl.CERT_OPTIONAL
+
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         sslctx.sni_callback = self._sni_callback
         sslctx_pgext.sni_callback = self._sni_callback
@@ -849,16 +865,17 @@ class BaseServer:
         tls_cert_file,
         tls_key_file,
         tls_cert_newly_generated,
+        client_ca_file,
     ):
         assert self._sslctx is self._sslctx_pgext is None
-        self.reload_tls(tls_cert_file, tls_key_file)
+        self.reload_tls(tls_cert_file, tls_key_file, client_ca_file)
 
         self._tls_cert_file = str(tls_cert_file)
         self._tls_cert_newly_generated = tls_cert_newly_generated
 
         def reload_tls(_file_modified, _event, retry=0):
             try:
-                self.reload_tls(tls_cert_file, tls_key_file)
+                self.reload_tls(tls_cert_file, tls_key_file, client_ca_file)
             except (StartupError, FileNotFoundError) as e:
                 if retry > defines._TLS_CERT_RELOAD_MAX_RETRIES:
                     logger.critical(str(e))
@@ -886,6 +903,8 @@ class BaseServer:
         self.monitor_fs(tls_cert_file, reload_tls)
         if tls_cert_file != tls_key_file:
             self.monitor_fs(tls_key_file, reload_tls)
+        if client_ca_file is not None:
+            self.monitor_fs(client_ca_file, reload_tls)
 
     def load_jwcrypto(self, jws_key_file: pathlib.Path) -> None:
         try:

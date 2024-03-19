@@ -313,10 +313,10 @@ def _type_to_typeref(
                     schema)
                 for c in union_of.objects(schema)
             }
-            non_overlapping, union_is_concrete = (
+            non_overlapping, union_is_exhaustive = (
                 s_utils.get_non_overlapping_union(schema, union_types)
             )
-            if union_is_concrete:
+            if union_is_exhaustive:
                 non_overlapping = frozenset({
                     t for t in non_overlapping
                     if t.is_material_object_type(schema)
@@ -326,7 +326,7 @@ def _type_to_typeref(
                 _typeref(c) for c in non_overlapping
             )
         else:
-            union_is_concrete = False
+            union_is_exhaustive = False
             union = None
 
         intersection_of = t.get_intersection_of(schema)
@@ -399,7 +399,7 @@ def _type_to_typeref(
             children=children,
             ancestors=ancestors,
             union=union,
-            union_is_concrete=union_is_concrete,
+            union_is_exhaustive=union_is_exhaustive,
             intersection=intersection,
             element_name=_name,
             is_scalar=t.is_scalar(),
@@ -657,7 +657,7 @@ def ptrref_from_ptrcls(
 
     union_components: Optional[Set[irast.BasePointerRef]] = None
     union_of = ptrcls.get_union_of(schema)
-    union_is_concrete = False
+    union_is_exhaustive = False
     if union_of:
         union_ptrs = set()
 
@@ -666,9 +666,11 @@ def ptrref_from_ptrcls(
             schema, material_comp = component.material_type(schema)
             union_ptrs.add(material_comp)
 
-        non_overlapping, union_is_concrete = s_utils.get_non_overlapping_union(
-            schema,
-            union_ptrs,
+        non_overlapping, union_is_exhaustive = (
+            s_utils.get_non_overlapping_union(
+                schema,
+                union_ptrs,
+            )
         )
 
         union_components = {
@@ -740,25 +742,27 @@ def ptrref_from_ptrcls(
     else:
         children = frozenset()
 
-    kwargs.update(dict(
-        out_source=out_source,
-        out_target=out_target,
-        name=ptrcls.get_name(schema),
-        shortname=ptrcls.get_shortname(schema),
-        std_parent_name=std_parent_name,
-        source_ptr=source_ptr,
-        base_ptr=base_ptr,
-        material_ptr=material_ptr,
-        children=children,
-        is_derived=ptrcls.get_is_derived(schema),
-        is_computable=ptrcls.get_computable(schema),
-        union_components=union_components,
-        intersection_components=intersection_components,
-        union_is_concrete=union_is_concrete,
-        has_properties=ptrcls.has_user_defined_properties(schema),
-        in_cardinality=in_cardinality,
-        out_cardinality=out_cardinality,
-    ))
+    kwargs.update(
+        dict(
+            out_source=out_source,
+            out_target=out_target,
+            name=ptrcls.get_name(schema),
+            shortname=ptrcls.get_shortname(schema),
+            std_parent_name=std_parent_name,
+            source_ptr=source_ptr,
+            base_ptr=base_ptr,
+            material_ptr=material_ptr,
+            children=children,
+            is_derived=ptrcls.get_is_derived(schema),
+            is_computable=ptrcls.get_computable(schema),
+            union_components=union_components,
+            intersection_components=intersection_components,
+            union_is_exhaustive=union_is_exhaustive,
+            has_properties=ptrcls.has_user_defined_properties(schema),
+            in_cardinality=in_cardinality,
+            out_cardinality=out_cardinality,
+        )
+    )
 
     ptrref = ircls(**kwargs)
 

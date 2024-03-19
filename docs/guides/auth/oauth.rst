@@ -6,7 +6,7 @@ OAuth
 
 :edb-alt-title: Integrating EdgeDB Auth's OAuth provider
 
-Along with using the `Built-in UI <ref_guide_auth_built_in_ui>`_, you can also
+Along with using the :ref:`built-in UI <ref_guide_auth_built_in_ui>`, you can also
 create your own UI that calls to your own web application backend.
 
 UI considerations
@@ -57,6 +57,20 @@ this value, which you can then use to retrieve it from the cookie store at the
 end of the flow. Take this ``verifier`` string, hash it with SHA256, and then
 base64url encode the resulting string. This new string is called the
 ``challenge``.
+
+.. note::
+
+   If you are familiar with PKCE, you will notice some differences from how RFC
+   7636 defines PKCE. Our authentication flow is not an OAuth flow, but rather a
+   strict server-to-server flow with Proof Key of Code Exchange added for
+   additional security to avoid leaking the authentication token. Here are some
+   differences between PKCE as defined in RFC 7636 and our implementation:
+
+   - We do not support the ``plain`` value for ``code_challenge_method``, and
+     therefore do not read that value if provided in requests.
+   - Our parameters omit the ``code_`` prefix, however we do support
+     ``code_challenge`` and ``code_verifier`` as aliases, preferring
+     ``challenge`` and ``verifier`` if present.
 
 .. code-block:: javascript
 

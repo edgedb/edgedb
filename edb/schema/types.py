@@ -106,7 +106,10 @@ class Type(
     # schema without revealing weird internals.
     from_alias = so.SchemaField(
         bool,
-        default=False, compcoef=1.0)
+        default=False,
+        # cannot alter type from being produced by an alias into an actual type
+        compcoef=0.0,
+    )
 
     # True when from a global. The purpose of this is to ensure that
     # the types from globals and aliases can't be migrated between
@@ -172,7 +175,9 @@ class Type(
         attrs: Optional[Mapping[str, Any]] = None,
         inheritance_merge: bool = True,
         transient: bool = False,
+        preserve_endpoint_ptrs: bool = False,
         inheritance_refdicts: Optional[AbstractSet[str]] = None,
+        stdmode: bool = False,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, TypeT]:
 
@@ -202,6 +207,7 @@ class Type(
         context = sd.CommandContext(
             modaliases={},
             schema=schema,
+            stdmode=stdmode,
         )
 
         delta = sd.DeltaRoot()
@@ -218,6 +224,8 @@ class Type(
 
             if transient:
                 context.current().transient_derivation = True
+                if not preserve_endpoint_ptrs:
+                    context.current().slim_links = True
 
             delta.add(cmd)
             schema = delta.apply(schema, context)

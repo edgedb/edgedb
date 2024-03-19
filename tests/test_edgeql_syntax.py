@@ -2881,6 +2881,30 @@ aa';
             .age,
             .rank,
             .status;
+        GROUP
+            User
+        BY
+            .name,
+            .age,
+            .rank,
+            .status,;
+
+% OK %
+
+        GROUP
+            User
+        BY
+            .name,
+            .age,
+            .rank,
+            .status;
+        GROUP
+            User
+        BY
+            .name,
+            .age,
+            .rank,
+            .status;
         """
 
     def test_edgeql_syntax_group_07(self):
@@ -2915,6 +2939,24 @@ aa';
         USING
             letter := (.name)[0]
         BY {letter, .age, ROLLUP(.rank, .status)};
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status),};
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status)};
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status)};
         """
 
     def test_edgeql_syntax_group_09(self):
@@ -2924,10 +2966,46 @@ aa';
         USING
             letter := (.name)[0]
         BY CUBE(letter, .age, .rank, .status);
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status,);
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status);
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status);
         """
 
     def test_edgeql_syntax_group_10(self):
         """
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status)}};
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status,)},};
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status)}};
         GROUP
             User
         USING
@@ -2949,10 +3027,40 @@ aa';
             User
         BY
             {(.name, .age), (.rank, .status)};
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status),};
+
+% OK %
+
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status)};
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status)};
         """
 
     def test_edgeql_syntax_group_13(self):
         """
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status));
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status),);
+
+% OK %
+
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status));
         GROUP
             User
         BY
@@ -5624,25 +5732,25 @@ aa';
         """
         CONFIGURE INSTANCE SET foo := (SELECT User);
         CONFIGURE SESSION SET foo := (SELECT User);
-        CONFIGURE CURRENT DATABASE SET foo := (SELECT User);
+        CONFIGURE CURRENT BRANCH SET foo := (SELECT User);
         CONFIGURE INSTANCE SET cfg::foo := (SELECT User);
         CONFIGURE SESSION SET cfg::foo := (SELECT User);
-        CONFIGURE CURRENT DATABASE SET cfg::foo := (SELECT User);
+        CONFIGURE CURRENT BRANCH SET cfg::foo := (SELECT User);
         CONFIGURE INSTANCE RESET foo;
         CONFIGURE SESSION RESET foo;
-        CONFIGURE CURRENT DATABASE RESET foo;
+        CONFIGURE CURRENT BRANCH RESET foo;
         CONFIGURE INSTANCE RESET cfg::foo;
         CONFIGURE SESSION RESET cfg::foo;
-        CONFIGURE CURRENT DATABASE RESET cfg::foo;
+        CONFIGURE CURRENT BRANCH RESET cfg::foo;
         CONFIGURE INSTANCE INSERT Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT Foo {bar := (SELECT 1)};
-        CONFIGURE CURRENT DATABASE INSERT Foo {bar := (SELECT 1)};
+        CONFIGURE CURRENT BRANCH INSERT Foo {bar := (SELECT 1)};
         CONFIGURE INSTANCE INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT cfg::Foo {bar := (SELECT 1)};
-        CONFIGURE CURRENT DATABASE INSERT cfg::Foo {bar := (SELECT 1)};
+        CONFIGURE CURRENT BRANCH INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE INSTANCE RESET Foo FILTER (.bar = 2);
         CONFIGURE SESSION RESET Foo FILTER (.bar = 2);
-        CONFIGURE CURRENT DATABASE RESET Foo FILTER (.bar = 2);
+        CONFIGURE CURRENT BRANCH RESET Foo FILTER (.bar = 2);
         """
 
     @tb.must_fail(
@@ -6321,6 +6429,27 @@ aa';
         crEAte something;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected 'exclusive'", line=6, col=27)
+    def test_edgeql_syntax_ddl_01(self):
+        """
+        start migration to {
+          module default {
+            type Hello extending MetaHello {
+              property platform_fee_percentage: int16 {
+                constrant exclusive {
+                  errmessage := "asxasx";
+                }
+              }
+              required property blah := .bleh - .bloh - .blih;
+            }
+          }
+        }
+        """
+        # TODO: this actually returns a bunch of errors, but we throw all away
+        # and pick only first.
+        # When returning multiple errors is supported, we should still return
+        # just the first one.
 
 class TestEdgeQLNormalization(EdgeQLSyntaxTest):
 

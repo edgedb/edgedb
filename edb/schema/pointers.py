@@ -1799,7 +1799,7 @@ class PointerCommand(
             # because it's impossible to actually guarantee that any
             # SELECT involving a path is non-empty
             ptr_cardinality = scls.get_cardinality(schema)
-            default_required, default_cardinality = \
+            _default_required, default_cardinality = \
                 default_expr.irast.cardinality.to_schema_value()
 
             if (ptr_cardinality is qltypes.SchemaCardinality.One

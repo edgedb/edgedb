@@ -19,9 +19,13 @@ interface nearly identical to the :ref:`EdgeDB UI <ref_cli_edgedb_ui>`.
 
     cli
     web
+    http_gql
     deploy/index
     deploy/vercel
     deploy/netlify
+    deploy/fly
+    deploy/render
+    deploy/railway
 
 
 Questions? Problems? Bugs?
@@ -36,7 +40,7 @@ better!
   <https://www.edgedbstatus.com/>`_ for information on what may be
   causing it.
 * Report any bugs you find by `submitting a support ticket
-  <https://edgedb.com/p/cloud-support>`_. Note: when using EdgeDB Cloud
+  <https://www.edgedb.com/p/cloud-support>`_. Note: when using EdgeDB Cloud
   through the CLI, setting the ``RUST_LOG`` environment variable to ``info``,
   ``debug``, or ``trace`` may provide additional debugging information
   which will be useful to include with your ticket.

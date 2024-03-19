@@ -26,6 +26,7 @@ import sys
 import tempfile
 import time
 import unittest.mock
+import uuid
 
 import immutables
 
@@ -133,7 +134,7 @@ class TestAmsg(tbs.TestCase):
 
     async def test_server_compiler_pool_restart(self):
         pids = []
-        async with self.compiler_pool(2) as (server, proto, proc, sn):
+        async with self.compiler_pool(2) as (server, proto, _proc, _sn):
             # Make sure both compiler workers are up and ready
             pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
             pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
@@ -176,7 +177,7 @@ class TestAmsg(tbs.TestCase):
                 os.kill(pid, 0)
 
     async def test_server_compiler_pool_template_proc_exit(self):
-        async with self.compiler_pool(2) as (server, proto, proc, sn):
+        async with self.compiler_pool(2) as (server, proto, proc, _sn):
             # Make sure both compiler workers are up and ready
             pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
             pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
@@ -213,7 +214,7 @@ class TestAmsg(tbs.TestCase):
                     os.kill(pid, 0)
 
     async def test_server_compiler_pool_server_exit(self):
-        async with self.compiler_pool(2) as (server, proto, proc, sn):
+        async with self.compiler_pool(2) as (server, proto, proc, _sn):
             # Make sure both compiler workers are up and ready
             pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
             pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
@@ -442,9 +443,11 @@ class TestCompilerPool(tbs.TestCase):
                     source=edgeql.Source.from_string(orig_query),
                     protocol_version=(1, 0),
                     implicit_limit=101,
-                )
+                ).set_schema_version(uuid.uuid4())
 
                 await asyncio.gather(*(pool_.compile_in_tx(
+                    None,
+                    pickle.dumps(context.state.root_user_schema),
                     context.state.current_tx().id,
                     pickle.dumps(context.state),
                     0,
@@ -473,11 +476,18 @@ class TestCompilerPool(tbs.TestCase):
             ).update(
                 source=source,
                 protocol_version=(1, 0),
-            )
+            ).set_schema_version(uuid.uuid4())
             request2 = rpc.CompilationRequest(
                 compiler.state.compilation_config_serializer
             ).deserialize(request1.serialize(), "<unknown>")
             self.assertEqual(hash(request1), hash(request2))
+            self.assertEqual(request1, request2)
+
+            # schema_version affects the cache_key, hence the hash.
+            # But, it's not serialized so the 2 requests are still equal.
+            # This makes request2 a new key as being used in dicts.
+            request2.set_schema_version(uuid.uuid4())
+            self.assertNotEqual(hash(request1), hash(request2))
             self.assertEqual(request1, request2)
 
         test(edgeql.Source.from_string("SELECT 42"))

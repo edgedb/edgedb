@@ -96,8 +96,7 @@ Using the querybuilder:
     await query2.run(tx);
   });
 
-Full documentation at `Client Libraries > TypeScript/JS
-</docs/clients/01_js/index>`_;
+Full documentation at :ref:`Client Libraries > TypeScript/JS <edgedb-js-intro>`;
 
 Python
 ^^^^^^
@@ -113,8 +112,7 @@ Python
               filter .name = 'Customer2'
               set { bank_balance := .bank_balance +10 };""")
 
-Full documentation at `Client Libraries > Python
-</docs/clients/00_python/index>`_;
+Full documentation at :ref:`Client Libraries > Python <edgedb-python-intro>`;
 
 Golang
 ^^^^^^
@@ -140,7 +138,7 @@ Golang
 		log.Fatal(err)
 	}
 
-Full documentation at `Client Libraries > Go </docs/clients/02_go/index>`_.
+Full documentation at :ref:`Client Libraries > Go <edgedb-go-intro>`.
 
 Rust
 ^^^^
@@ -164,4 +162,4 @@ Rust
       .await
       .expect("Transaction should have worked");
 
-Full documentation at `Client Libraries > Rust </docs/clients/rust/index>`_.
+Full documentation at :ref:`Client Libraries > Rust <ref_rust_index>`.

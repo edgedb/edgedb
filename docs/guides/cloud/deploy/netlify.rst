@@ -1,8 +1,8 @@
 .. _ref_guide_cloud_deploy_netlify:
 
-========================
-Deploy an app on Netlify
-========================
+=======
+Netlify
+=======
 
 :edb-alt-title: Deploying applications built on EdgeDB Cloud to Netlify
 

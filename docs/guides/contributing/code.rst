@@ -26,9 +26,9 @@ Linux or macOS.  Windows is not currently supported.
 
 * GNU make version 3.80 or newer;
 * C compiler (GCC or clang);
-* Rust compiler and Cargo 1.65 or later;
+* Rust compiler and Cargo 1.74 or later;
 * autotools;
-* Python 3.10 dev package;
+* Python 3.11 dev package;
 * Bison 1.875 or later;
 * Flex 2.5.31 or later;
 * Perl 5.8.3 or later;

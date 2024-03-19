@@ -968,6 +968,11 @@ cdef class PGConnection:
                     out.write_buffer(buf.end_message())
                     parse_array[idx] = True
                     parsed.add(stmt_name)
+                    metrics.query_size.observe(
+                        len(query_unit.sql[0]),
+                        self.get_tenant_label(),
+                        'compiled',
+                    )
 
                 buf = WriteBuffer.new_message(b'B')
                 buf.write_bytestring(b'')  # portal name
@@ -987,6 +992,9 @@ cdef class PGConnection:
                     buf.write_bytestring(sql)
                     buf.write_int16(0)
                     out.write_buffer(buf.end_message())
+                    metrics.query_size.observe(
+                        len(sql), self.get_tenant_label(), 'compiled'
+                    )
 
                     buf = WriteBuffer.new_message(b'B')
                     buf.write_bytestring(b'')  # portal name
@@ -1233,6 +1241,9 @@ cdef class PGConnection:
                     buf.write_int16(0)
                     out.write_buffer(buf.end_message())
                     i += 1
+                    metrics.query_size.observe(
+                        len(sql), self.get_tenant_label(), 'compiled'
+                    )
             else:
                 if len(query.sql) != 1:
                     raise errors.InternalServerError(
@@ -1244,6 +1255,9 @@ cdef class PGConnection:
                 buf.write_bytestring(query.sql[0])
                 buf.write_int16(0)
                 out.write_buffer(buf.end_message())
+                metrics.query_size.observe(
+                    len(query.sql[0]), self.get_tenant_label(), 'compiled'
+                )
 
         assert bind_data is not None
         if stmt_name == b'' and msgs_num > 1:
@@ -1678,6 +1692,9 @@ cdef class PGConnection:
                     msg_buf.write_bytestring(sql_text)
                     msg_buf.write_bytes(data)
                     buf.write_buffer(msg_buf.end_message())
+                    metrics.query_size.observe(
+                        len(sql_text), self.get_tenant_label(), 'compiled'
+                    )
                     if self.debug:
                         self.debug_print(
                             'Parse', action.stmt_name, sql_text, data
@@ -2230,10 +2247,10 @@ cdef class PGConnection:
         object query_unit,
         bytes state=None
     ):
+        data = await self.sql_fetch(query_unit.sql, state=state)
         if query_unit.ddl_stmt_id is None:
-            return await self.sql_execute(query_unit.sql)
+            return
         else:
-            data = await self.sql_fetch(query_unit.sql, state=state)
             return self.load_ddl_return(query_unit, data)
 
     def load_ddl_return(self, object query_unit, data):
@@ -2915,7 +2932,8 @@ cdef class PGConnection:
                     self.tenant.on_remote_database_quarantine(dbname)
                 elif event == 'query-cache-changes':
                     dbname = event_payload['dbname']
-                    self.tenant.on_remote_query_cache_change(dbname)
+                    keys = event_payload.get('keys')
+                    self.tenant.on_remote_query_cache_change(dbname, keys=keys)
                 else:
                     raise AssertionError(f'unexpected system event: {event!r}')
 

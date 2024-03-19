@@ -532,7 +532,7 @@ class GraphQLTranslator:
         if self._is_duplicate_field(node):
             return
 
-        is_top, path, prevt, target, steps = \
+        _is_top, _path, prevt, target, steps = \
             self._prepare_field(node)
 
         json_mode = False

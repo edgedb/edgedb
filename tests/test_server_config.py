@@ -854,7 +854,7 @@ class TestServerConfig(tb.QueryTestCase):
 
         await self.assert_query_result(
             '''
-            SELECT cfg::DatabaseConfig.__internal_sess_testvalue
+            SELECT cfg::BranchConfig.__internal_sess_testvalue
             ''',
             [
                 3
@@ -1083,7 +1083,7 @@ class TestServerConfig(tb.QueryTestCase):
     async def test_server_proto_configure_describe_database_config(self):
         try:
             conf1 = (
-                "CONFIGURE CURRENT DATABASE "
+                "CONFIGURE CURRENT BRANCH "
                 "SET singleprop := '1337';"
             )
             await self.con.execute(conf1)
@@ -1404,8 +1404,34 @@ class TestServerConfig(tb.QueryTestCase):
             ''')
             await self.con.execute("drop type RecompileOnDBConfig;")
 
+    async def test_server_proto_remember_pgcon_state(self):
+        query = 'SELECT assert_single(cfg::Config.__internal_sess_testvalue)'
+        con1 = await self.connect(database=self.con.dbname)
+        con2 = await self.connect(database=self.con.dbname)
+        try:
+            # make sure the default state is remembered in a pgcon
+            async with con1.transaction():
+                # `transaction()` is used as a fail-safe to store the state in
+                # pgcon, in case the query itself failed to do so by mistake
+                default = await con1.query_single(query)
 
-class TestSeparateCluster(tb.TestCase):
+            # update the state in most-likely the same pgcon
+            await con2.execute(f'''
+                CONFIGURE SESSION
+                SET __internal_sess_testvalue := {default + 1};
+            ''')
+
+            # verify the state is successfully updated
+            self.assertEqual(await con2.query_single(query), default + 1)
+
+            # now switch back to the default state in con1 with the same pgcon
+            self.assertEqual(await con1.query_single(query), default)
+        finally:
+            await con1.aclose()
+            await con2.aclose()
+
+
+class TestSeparateCluster(tb.BaseHTTPTestCase):
 
     @unittest.skipIf(
         platform.system() == "Darwin",
@@ -1583,6 +1609,8 @@ class TestSeparateCluster(tb.TestCase):
             ''')
             self.assertEqual(conf, 5)
 
+            DB = 'main'
+
             # Use `try_until_succeeds` because it might take the server a few
             # seconds on slow CI to reload the DB config in the server process.
             async for tr in self.try_until_succeeds(
@@ -1593,7 +1621,7 @@ class TestSeparateCluster(tb.TestCase):
                         databases = info['databases']
                     else:
                         databases = info['tenants']['localhost']['databases']
-                    dbconf = databases['edgedb']['config']
+                    dbconf = databases[DB]['config']
                     self.assertEqual(
                         dbconf.get('__internal_sess_testvalue'), 5)
 
@@ -1615,9 +1643,75 @@ class TestSeparateCluster(tb.TestCase):
                         databases = info['databases']
                     else:
                         databases = info['tenants']['localhost']['databases']
-                    dbconf = databases['edgedb']['config']
+                    dbconf = databases[DB]['config']
                     self.assertEqual(
                         dbconf.get('__internal_sess_testvalue'), 10)
+
+    async def test_server_config_default_branch_01(self):
+        # Test default branch configuration and default branch
+        # connection fallback behavior.
+        # TODO: The python bindings don't support the branch argument
+        # and the __default__ behavior, so we don't test that yet.
+        # We do test all the different combos for HTTP, though.
+
+        DBNAME = 'asdf'
+        async with tb.start_edgedb_server(
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
+            security=args.ServerSecurityMode.InsecureDevMode,
+            default_branch=DBNAME,
+        ) as sd:
+            def check(mode, name, current, ok=True):
+                with self.http_con(sd) as hcon:
+                    res, _, code = self.http_con_request(
+                        hcon,
+                        method='POST',
+                        body=json.dumps(dict(query=qry)).encode(),
+                        headers={'Content-Type': 'application/json'},
+                        path=f'/{mode}/{name}/edgeql',
+                    )
+                    if ok:
+                        self.assertEqual(code, 200, f'Request failed: {res}')
+                        self.assertEqual(
+                            json.loads(res).get('data'),
+                            [current],
+                        )
+                    else:
+                        self.assertEqual(
+                            code, 404, f'Expected 404, got: {code}/{res}')
+
+            # Since 'edgedb' doesn't exist, trying to connect to it
+            # should route to our default database instead.
+            con = await sd.connect(database='edgedb')
+            await con.query('CREATE EXTENSION edgeql_http')
+
+            qry = '''
+                select sys::get_current_database()
+            '''
+
+            dbname = await con.query_single(qry)
+            self.assertEqual(dbname, DBNAME)
+
+            check('db', 'edgedb', DBNAME)
+            check('branch', '__default__', DBNAME)
+            check('db', '__default__', DBNAME, ok=False)
+            check('branch', 'edgedb', DBNAME, ok=False)
+
+            await con.query_single('''
+                create database edgedb
+            ''')
+            await con.aclose()
+
+            # Now that 'edgedb' exists, we should connect to it
+            con = await sd.connect(database='edgedb')
+            await con.query('CREATE EXTENSION edgeql_http')
+            dbname = await con.query_single(qry)
+            self.assertEqual(dbname, 'edgedb')
+            await con.aclose()
+
+            check('db', 'edgedb', 'edgedb')
+            check('branch', '__default__', DBNAME)
+            check('db', '__default__', DBNAME, ok=False)
+            check('branch', 'edgedb', 'edgedb')
 
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,

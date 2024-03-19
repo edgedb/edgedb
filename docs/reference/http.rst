@@ -76,14 +76,17 @@ Retrieve instance metrics.
 All EdgeDB instances expose a Prometheus-compatible endpoint available via GET
 request. The following metrics are made available.
 
-Processes
-^^^^^^^^^
+System
+^^^^^^
 
 ``compiler_process_spawns_total``
   **Counter.** Total number of compiler processes spawned.
 
 ``compiler_processes_current``
   **Gauge.** Current number of active compiler processes.
+
+``branches_current``
+  **Gauge.** Current number of branches.
 
 Backend connections and performance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -117,26 +120,74 @@ Client connections
 ``client_connections_idle_total``
   **Counter.** Total number of forcefully closed idle client connections.
 
-Query compilation
-^^^^^^^^^^^^^^^^^
+``client_connection_duration``
+  **Histogram.** Time a client connection is open.
+
+Queries and compilation
+^^^^^^^^^^^^^^^^^^^^^^^
 
 ``edgeql_query_compilations_total``
   **Counter.** Number of compiled/cached queries or scripts since instance
   startup. A query is compiled and then cached on first use, increasing the
   ``path="compiler"`` parameter. Subsequent uses of the same query only use
   the cache, thus only increasing the ``path="cache"`` parameter.
-  
-  
 
 ``edgeql_query_compilation_duration``
+  Deprecated in favor of ``query_compilation_duration[interface="edgeql"]``.
+
   **Histogram.** Time it takes to compile an EdgeQL query or script, in
   seconds.
+
+``graphql_query_compilations_total``
+  **Counter.** Number of compiled/cached GraphQL queries since instance
+  startup. A query is compiled and then cached on first use, increasing the
+  ``path="compiler"`` parameter. Subsequent uses of the same query only use
+  the cache, thus only increasing the ``path="cache"`` parameter.
+
+``sql_queries_total``
+  **Counter.** Number of SQL queries since instance startup.
+
+``sql_compilations_total``
+  **Counter.** Number of SQL compilations since instance startup.
+
+``query_compilation_duration``
+  **Histogram.** Time it takes to compile a query or script, in seconds.
+
+``queries_per_connection``
+  **Histogram.** Number of queries per connection.
+
+``query_size``
+  **Histogram.** Number of bytes in a query, where the label
+  ``interface=edgeql`` means the size of an EdgeQL query, ``=graphql`` for a
+  GraphQL query, ``=sql`` for a readonly SQL query from the user, and
+  ``=compiled`` for a backend SQL query compiled and issued by the server.
+
+Auth Extension
+^^^^^^^^^^^^^^
+
+``auth_api_calls_total``
+  **Counter.** Number of API calls to the Auth extension.
+
+``auth_ui_renders_total``
+  **Counter.** Number of UI pages rendered by the Auth extension.
+
+``auth_providers``
+  **Histogram.** Number of Auth providers configured.
+
+``auth_successful_logins_total``
+  **Counter.** Number of successful logins in the Auth extension.
 
 Errors
 ^^^^^^
 
 ``background_errors_total``
   **Counter.** Number of unhandled errors in background server routines.
+
+``transaction_serialization_errors_total``
+  **Counter.** Number of transaction serialization errors.
+
+``connection_errors_total``
+  **Counter.** Number of network connection errors.
 
 .. _ref_reference_http_querying:
 

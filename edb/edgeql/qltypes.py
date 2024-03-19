@@ -313,7 +313,7 @@ class ConfigScope(s_enum.StrEnum):
 
     def to_edgeql(self) -> str:
         if self is ConfigScope.DATABASE:
-            return 'CURRENT DATABASE'
+            return 'CURRENT BRANCH'
         else:
             return str(self)
 

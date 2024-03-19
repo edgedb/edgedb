@@ -190,13 +190,14 @@ class WebAuthnAuthenticationChallenge:
     created_at: datetime.datetime
     modified_at: datetime.datetime
     challenge: bytes
-    factor: WebAuthnFactor
+    factors: list[WebAuthnFactor]
 
-    def __init__(self, *, id, created_at, modified_at, challenge, factor):
+    def __init__(self, *, id, created_at, modified_at, challenge, factors):
         self.id = id
         self.created_at = created_at
         self.modified_at = modified_at
         self.challenge = base64.b64decode(challenge)
-        self.factor = (
+        self.factors = [
             WebAuthnFactor(**factor) if isinstance(factor, dict) else factor
-        )
+            for factor in factors
+        ]

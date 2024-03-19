@@ -457,8 +457,8 @@ database because of the ``pgvector`` extension. In order to use it in our
 schema, we have to activate the ``ext::pgvector`` module with ``using extension
 pgvector`` at the beginning of the schema file. This module gives us access to
 the ``ext::pgvector::vector`` data type as well as few similarity functions and
-indexes we can use later to retrieve embeddings. Read our `pgvector
-documentation <https://www.edgedb.com/docs/stdlib/pgvector>`_ for more details
+indexes we can use later to retrieve embeddings. Read our :ref:`pgvector
+documentation <ref_ext_pgvector>` for more details
 on the extension.
 
 Just below that, we can start building our module by creating a new scalar
@@ -603,8 +603,8 @@ libraries that will help us.
 
 The ``@edgedb/generate`` package provides a set of code generation tools that
 are useful when developing an EdgeDB-backed applications with
-TypeScript/JavaScript. We're going to write queries using our `query builder
-<https://www.edgedb.com/docs/clients/js/querybuilder>`_, but before we can, we
+TypeScript/JavaScript. We're going to write queries using our
+:ref:`query builder <edgedb-js-qb>`, but before we can, we
 need to run the query builder generator.
 
 .. code-block:: bash

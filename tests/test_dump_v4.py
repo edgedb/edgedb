@@ -25,13 +25,10 @@ from edb.testbase import server as tb
 class DumpTestCaseMixin:
 
     async def ensure_schema_data_integrity(self, include_secrets=False):
-        tx = self.con.transaction()
-        await tx.start()
-        try:
-            await self._ensure_schema_data_integrity(
-                include_secrets=include_secrets)
-        finally:
-            await tx.rollback()
+        async for tx in self._run_and_rollback_retrying():
+            async with tx:
+                await self._ensure_schema_data_integrity(
+                    include_secrets=include_secrets)
 
     async def _ensure_schema_data_integrity(self, include_secrets):
         await self.assert_query_result(
@@ -101,7 +98,7 @@ class DumpTestCaseMixin:
             '''
             select ext::_conf::get_top_secret()
             ''',
-            ['secret'] if include_secrets else [] ,
+            ['secret'] if include_secrets else [],
         )
 
         # We took a version snapshot for 4.0, but then needed to

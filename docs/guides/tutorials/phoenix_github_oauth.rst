@@ -6,10 +6,11 @@ Phoenix
 
 :edb-alt-title: Building a GitHub OAuth application
 
-There is a community-supported `Elixir driver
-<https://hex.pm/packages/edgedb>`_ for EdgeDB. In this tutorial, we'll look at
+
+In this tutorial, we'll look at
 how you can create an application with authorization through GitHub using
-`Phoenix <https://phoenixframework.org/>`_ and EdgeDB.
+`Phoenix <https://phoenixframework.org/>`_ and :ref:`the official EdgeDB Elixir
+driver <edgedb-elixir-intro>`.
 
 This tutorial is a simplified version of the `LiveBeats
 <https://github.com/fly-apps/live_beats>`_ application from

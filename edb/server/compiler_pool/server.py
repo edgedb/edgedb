@@ -381,12 +381,12 @@ class MultiSchemaPool(pool_mod.FixedPool):
             if status == 0:
                 worker.set_client_schema(client_id, client_schema)
                 if method_name == "compile":
-                    units, new_pickled_state = data[0]
+                    _units, new_pickled_state = data[0]
                     if new_pickled_state:
                         sid = worker._last_pickled_state = next_tx_state_id()
                         resp = pickle.dumps((0, (*data[0], sid)), -1)
             elif status == 1:
-                exc, tb = data
+                exc, _tb = data
                 if not isinstance(exc, state_mod.FailedStateSync):
                     worker.set_client_schema(client_id, client_schema)
             else:
@@ -401,7 +401,15 @@ class MultiSchemaPool(pool_mod.FixedPool):
             self._release_worker(worker)
 
     async def compile_in_tx(
-        self, pickled_state, state_id, txid, *compile_args, msg=None
+        self,
+        state_id,
+        client_id,
+        dbname,
+        user_schema_pickle,
+        pickled_state,
+        txid,
+        *compile_args,
+        msg=None,
     ):
         if pickled_state == state_mod.REUSE_LAST_STATE_MARKER:
             worker = await self._acquire_worker(
@@ -414,7 +422,15 @@ class MultiSchemaPool(pool_mod.FixedPool):
             worker = await self._acquire_worker()
         try:
             resp = await worker.call(
-                "compile_in_tx", pickled_state, txid, *compile_args, msg=msg
+                "compile_in_tx",
+                state_id,
+                client_id,
+                dbname,
+                user_schema_pickle,
+                pickled_state,
+                txid,
+                *compile_args,
+                msg=msg,
             )
             status, *data = pickle.loads(resp)
             if status == 0:

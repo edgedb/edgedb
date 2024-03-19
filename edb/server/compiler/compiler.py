@@ -287,8 +287,7 @@ def new_compiler_context(
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
     protocol_version: defines.ProtocolVersion = defines.CURRENT_PROTOCOL,
-    backend_runtime_params: pg_params.BackendRuntimeParams = (
-        pg_params.get_default_runtime_params()),
+    backend_runtime_params: Optional[pg_params.BackendRuntimeParams] = None,
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
 
@@ -312,7 +311,9 @@ def new_compiler_context(
         bootstrap_mode=bootstrap_mode,
         internal_schema_mode=internal_schema_mode,
         protocol_version=protocol_version,
-        backend_runtime_params=backend_runtime_params,
+        backend_runtime_params=(
+            backend_runtime_params or pg_params.get_default_runtime_params()
+        ),
     )
 
     return ctx
@@ -869,7 +870,7 @@ class Compiler:
             request.protocol_version,
             request.inline_objectids,
             request.json_parameters,
-            persistent_cache=True,
+            persistent_cache=not debug.flags.disable_persistent_cache,
             cache_key=request.get_cache_key(),
         )
         return units, cstate
@@ -975,7 +976,7 @@ class Compiler:
             request.inline_objectids,
             request.json_parameters,
             expect_rollback=expect_rollback,
-            persistent_cache=True,
+            persistent_cache=not debug.flags.disable_persistent_cache,
             cache_key=request.get_cache_key(),
         )
         return units, cstate
@@ -2608,6 +2609,15 @@ def _try_compile(
 
         _check_force_database_error(stmt_ctx, stmt)
 
+        # Initialize user_schema_version with the version this query is
+        # going to be compiled upon. This can be overwritten later by DDLs.
+        try:
+            schema_version = _get_schema_version(
+                stmt_ctx.state.current_tx().get_user_schema()
+            )
+        except errors.InvalidReferenceError:
+            schema_version = None
+
         comp, capabilities = _compile_dispatch_ql(
             stmt_ctx,
             stmt,
@@ -2623,6 +2633,7 @@ def _try_compile(
             capabilities=capabilities,
             output_format=stmt_ctx.output_format,
             cache_key=ctx.cache_key,
+            user_schema_version=schema_version,
         )
 
         if not comp.is_transactional:

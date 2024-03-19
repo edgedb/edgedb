@@ -436,7 +436,7 @@ class Block:
         result = self.func[0]
         edgedb = str(EDGEDB_DIR) + os.sep
         if result.startswith(edgedb):
-            return result[len(edgedb) :]
+            return result[len(edgedb):]
 
         parts = []
         maybe_stdlib = False
@@ -862,7 +862,7 @@ def build_svg_blocks_by_memory(
             color=color,
             level=level,
             tooltip=(
-                f"{caller.size / 1024 :.2f} KiB / {caller.blocks}"
+                f"{caller.size / 1024:.2f} KiB / {caller.blocks}"
                 f" blocks \N{RIGHTWARDS DOUBLE ARROW} {line}"
             ),
             w=caller.size,

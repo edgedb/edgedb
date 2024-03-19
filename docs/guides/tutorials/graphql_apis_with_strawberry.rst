@@ -9,7 +9,7 @@ extension. It enables you to expose GraphQL-driven CRUD APIs for all object
 types, their properties, links, and aliases. This opens up the scope for
 creating backend-less applications where the users will directly communicate
 with the database. You can learn more about that in the
-`GraphQL <https://www.edgedb.com/docs/graphql/index>`_ section of the docs.
+:ref:`GraphQL <ref_graphql_index>` section of the docs.
 
 However, as of now, EdgeDB is not ready to be used as a standalone backend. You
 shouldn't expose your EdgeDB instance directly to the application’s frontend;
@@ -23,7 +23,7 @@ like schema, query, mutation, resolver, validator, etc, and have used GraphQL
 with some other technology before.
 
 We'll build the same movie organization system that we used in the Flask
-`tutorial <https://www.edgedb.com/docs/guides/tutorials/rest_apis_with_flask>`_
+:ref:`tutorial <ref_guide_rest_apis_with_flask>`
 and expose the objects and relationships as a GraphQL API. Using the GraphQL
 interface, you'll be able to fetch, create, update, and delete movie and actor
 objects in the database. `Strawberry <https://strawberry.rocks/>`_ is a Python
@@ -378,7 +378,7 @@ This exposes the webserver in port 5000. Now, in your browser, go to
 find that the HTTP basic auth requires us to provide the username and password.
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/strawberry/http_basic.png
+    /docs/tutorials/strawberry/http_basic.png
     :alt: HTTP basic auth prompt
     :width: 100%
 
@@ -389,7 +389,7 @@ like this:
 
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/strawberry/graphiql.png
+    /docs/tutorials/strawberry/graphiql.png
     :alt: GraphiQL interface
     :width: 100%
 
@@ -410,7 +410,7 @@ following query does that:
 The following response will appear on the right panel of the GraphiQL explorer:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/strawberry/query_actors.png
+    /docs/tutorials/strawberry/query_actors.png
     :alt: Query actors
     :width: 100%
 
@@ -494,7 +494,7 @@ and show all three attributes— ``name``, ``age``, and ``height`` of the create
 actor in the response payload. Here's the response:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/strawberry/create_actor.png
+    /docs/tutorials/strawberry/create_actor.png
     :alt: Create an actor
     :width: 100%
 
@@ -503,7 +503,7 @@ to fetch the actors. Running the ``ActorQuery`` will give you the following
 response:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/strawberry/query_actors_2.png
+    /docs/tutorials/strawberry/query_actors_2.png
     :alt: Query actors
     :width: 100%
 
@@ -704,7 +704,7 @@ actor ``Robert Downey Jr.`` with the movie:
 It'll return:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/strawberry/create_movie.png
+    /docs/tutorials/strawberry/create_movie.png
     :alt: Create a movie
     :width: 100%
 
@@ -727,7 +727,7 @@ Now you can fetch the movies with a simple query like this one:
 You'll then see an output similar to this:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/strawberry/query_movies.png
+    /docs/tutorials/strawberry/query_movies.png
     :alt: Query movies
     :width: 100%
 

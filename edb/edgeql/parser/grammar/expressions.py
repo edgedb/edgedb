@@ -37,11 +37,11 @@ from .precedence import *  # NOQA
 from .tokens import *  # NOQA
 
 
-class Nonterm(parsing.Nonterm):
+class Nonterm(parsing.Nonterm, is_internal=True):
     pass
 
 
-class ListNonterm(parsing.ListNonterm, element=None):
+class ListNonterm(parsing.ListNonterm, element=None, is_internal=True):
     pass
 
 
@@ -100,7 +100,7 @@ class OptionallyAliasedExpr(Nonterm):
 
 
 class AliasedExprList(ListNonterm, element=AliasedExpr,
-                      separator=tokens.T_COMMA):
+                      separator=tokens.T_COMMA, allow_trailing_separator=True):
     pass
 
 
@@ -135,8 +135,9 @@ class GroupingAtom(Nonterm):
         self.val = qlast.GroupingIdentList(elements=kids[1].val)
 
 
-class GroupingAtomList(ListNonterm, element=GroupingAtom,
-                       separator=tokens.T_COMMA):
+class GroupingAtomList(
+        ListNonterm, element=GroupingAtom, separator=tokens.T_COMMA,
+        allow_trailing_separator=True):
     pass
 
 
@@ -155,7 +156,8 @@ class GroupingElement(Nonterm):
 
 
 class GroupingElementList(
-        ListNonterm, element=GroupingElement, separator=tokens.T_COMMA):
+        ListNonterm, element=GroupingElement, separator=tokens.T_COMMA,
+        allow_trailing_separator=True):
     pass
 
 
@@ -231,10 +233,6 @@ class UsingClause(Nonterm):
     def reduce_USING_AliasedExprList(self, *kids):
         pass
 
-    @parsing.inline(1)
-    def reduce_USING_AliasedExprList_COMMA(self, *kids):
-        pass
-
 
 class OptUsingClause(Nonterm):
     @parsing.inline(0)
@@ -272,7 +270,7 @@ class InternalGroup(Nonterm):
         r"%reduce FOR GROUP OptionallyAliasedExpr \
                   UsingClause \
                   ByClause \
-                  INTO Identifier OptGroupingAlias \
+                  IN Identifier OptGroupingAlias \
                   UNION OptionallyAliasedExpr \
                   OptFilterClause OptSortClause \
         "
@@ -310,7 +308,7 @@ class SimpleInsert(Nonterm):
             shape = []
 
         if isinstance(subj_path, qlast.Path) and \
-                len(subj_path.steps) == 1 and  \
+                len(subj_path.steps) == 1 and \
                 isinstance(subj_path.steps[0], qlast.ObjectRef):
             objtype = subj_path.steps[0]
         elif isinstance(subj_path, qlast.IfElse):
@@ -379,12 +377,6 @@ class WithBlock(Nonterm):
             aliases.append(w)
         self.val = WithBlockData(aliases=aliases)
 
-    def reduce_WITH_WithDeclList_COMMA(self, *kids):
-        aliases = []
-        for w in kids[1].val:
-            aliases.append(w)
-        self.val = WithBlockData(aliases=aliases)
-
 
 class AliasDecl(Nonterm):
     def reduce_MODULE_ModuleName(self, *kids):
@@ -408,7 +400,7 @@ class WithDecl(Nonterm):
 
 
 class WithDeclList(ListNonterm, element=WithDecl,
-                   separator=tokens.T_COMMA):
+                   separator=tokens.T_COMMA, allow_trailing_separator=True):
     pass
 
 
@@ -420,39 +412,9 @@ class Shape(Nonterm):
     def reduce_LBRACE_ShapeElementList_RBRACE(self, *kids):
         pass
 
-    @parsing.inline(1)
-    def reduce_LBRACE_ShapeElementList_COMMA_RBRACE(self, *kids):
-        pass
-
-
-class OptShape(Nonterm):
-    @parsing.inline(0)
-    def reduce_Shape(self, *kids):
-        pass
-
-    def reduce_empty(self, *kids):
-        self.val = []
-
-
-class TypedShape(Nonterm):
-    def reduce_NodeName_OptShape(self, *kids):
-        self.val = qlast.Shape(
-            expr=qlast.Path(
-                steps=[qlast.ObjectRef(
-                    name=kids[0].val.name,
-                    module=kids[0].val.module,
-                    context=kids[0].context)
-                ]
-            ),
-            elements=kids[1].val
-        )
-
 
 class FreeShape(Nonterm):
     def reduce_LBRACE_FreeComputableShapePointerList_RBRACE(self, *kids):
-        self.val = qlast.Shape(elements=kids[1].val)
-
-    def reduce_LBRACE_FreeComputableShapePointerList_COMMA_RBRACE(self, *kids):
         self.val = qlast.Shape(elements=kids[1].val)
 
 
@@ -483,7 +445,7 @@ class ShapeElement(Nonterm):
 
 
 class ShapeElementList(ListNonterm, element=ShapeElement,
-                       separator=tokens.T_COMMA):
+                       separator=tokens.T_COMMA, allow_trailing_separator=True):
     pass
 
 
@@ -1004,7 +966,8 @@ class FreeComputableShapePointer(Nonterm):
 
 class FreeComputableShapePointerList(ListNonterm,
                                      element=FreeComputableShapePointer,
-                                     separator=tokens.T_COMMA):
+                                     separator=tokens.T_COMMA,
+                                     allow_trailing_separator=True):
     pass
 
 
@@ -1507,9 +1470,6 @@ class NamedTuple(Nonterm):
     def reduce_LPAREN_NamedTupleElementList_RPAREN(self, *kids):
         self.val = qlast.NamedTuple(elements=kids[1].val)
 
-    def reduce_LPAREN_NamedTupleElementList_COMMA_RPAREN(self, *kids):
-        self.val = qlast.NamedTuple(elements=kids[1].val)
-
 
 class NamedTupleElement(Nonterm):
     def reduce_ShortNodeName_ASSIGN_Expr(self, *kids):
@@ -1520,7 +1480,8 @@ class NamedTupleElement(Nonterm):
 
 
 class NamedTupleElementList(ListNonterm, element=NamedTupleElement,
-                            separator=tokens.T_COMMA):
+                            separator=tokens.T_COMMA,
+                            allow_trailing_separator=True):
     pass
 
 
@@ -1537,10 +1498,6 @@ class Collection(Nonterm):
 
 class OptExprList(Nonterm):
     @parsing.inline(0)
-    def reduce_ExprList_COMMA(self, *kids):
-        pass
-
-    @parsing.inline(0)
     def reduce_ExprList(self, *kids):
         pass
 
@@ -1548,7 +1505,8 @@ class OptExprList(Nonterm):
         self.val = []
 
 
-class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA):
+class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA,
+               allow_trailing_separator=True):
     pass
 
 
@@ -1821,15 +1779,12 @@ class FuncCallArg(Nonterm):
             self.val = (self.val[0], self.val[1], qry)
 
 
-class FuncArgList(ListNonterm, element=FuncCallArg, separator=tokens.T_COMMA):
+class FuncArgList(ListNonterm, element=FuncCallArg, separator=tokens.T_COMMA,
+                  allow_trailing_separator=True):
     pass
 
 
 class OptFuncArgList(Nonterm):
-    @parsing.inline(0)
-    def reduce_FuncArgList_COMMA(self, *kids):
-        pass
-
     @parsing.inline(0)
     def reduce_FuncArgList(self, *kids):
         pass
@@ -2022,13 +1977,6 @@ class CollectionTypeName(Nonterm):
             subtypes=kids[2].val,
         )
 
-    def reduce_NodeName_LANGBRACKET_SubtypeList_COMMA_RANGBRACKET(self, *kids):
-        self.validate_subtype_list(kids[2])
-        self.val = qlast.TypeName(
-            maintype=kids[0].val,
-            subtypes=kids[2].val,
-        )
-
 
 class TypeName(Nonterm):
     @parsing.inline(0)
@@ -2128,7 +2076,8 @@ class Subtype(Nonterm):
         )
 
 
-class SubtypeList(ListNonterm, element=Subtype, separator=tokens.T_COMMA):
+class SubtypeList(ListNonterm, element=Subtype, separator=tokens.T_COMMA,
+                  allow_trailing_separator=True):
     pass
 
 
@@ -2141,10 +2090,6 @@ class NodeName(Nonterm):
         self.val = qlast.ObjectRef(
             module='::'.join(base_name.val[:-1]) or None,
             name=base_name.val[-1])
-
-
-class NodeNameList(ListNonterm, element=NodeName, separator=tokens.T_COMMA):
-    pass
 
 
 class PtrNodeName(Nonterm):
@@ -2219,9 +2164,17 @@ class AnyNodeName(Nonterm):
             name=kids[0].val)
 
 
-class KeywordMeta(parsing.NontermMeta):
-    def __new__(mcls, name, bases, dct, *, type):
-        result = super().__new__(mcls, name, bases, dct)
+class Keyword(parsing.Nonterm):
+    """Base class for the different classes of keywords.
+
+    Not a real nonterm on its own.
+    """
+    def __init_subclass__(
+            cls, *, type, is_internal=False, **kwargs):
+        super().__init_subclass__(is_internal=is_internal, **kwargs)
+
+        if is_internal:
+            return
 
         assert type in keywords.keyword_types
 
@@ -2231,25 +2184,20 @@ class KeywordMeta(parsing.NontermMeta):
             method = context.has_context(method)
             method.__doc__ = "%%reduce %s" % token
             method.__name__ = 'reduce_%s' % token
-            setattr(result, method.__name__, method)
-
-        return result
-
-    def __init__(cls, name, bases, dct, *, type):
-        super().__init__(name, bases, dct)
+            setattr(cls, method.__name__, method)
 
 
-class UnreservedKeyword(Nonterm, metaclass=KeywordMeta,
+class UnreservedKeyword(Keyword,
                         type=keywords.UNRESERVED_KEYWORD):
     pass
 
 
-class PartialReservedKeyword(Nonterm, metaclass=KeywordMeta,
+class PartialReservedKeyword(Keyword,
                              type=keywords.PARTIAL_RESERVED_KEYWORD):
     pass
 
 
-class ReservedKeyword(Nonterm, metaclass=KeywordMeta,
+class ReservedKeyword(Keyword,
                       type=keywords.RESERVED_KEYWORD):
     pass
 

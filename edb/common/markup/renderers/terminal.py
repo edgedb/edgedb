@@ -216,7 +216,7 @@ class Buffer:
             elif el == HEADER:
                 # ``item[1]`` -- text to output, ``item[2]`` -- its style,
                 #
-                _, text, style, level = el
+                _, text, style, _level = el
                 if item[2] is None:
                     result.append(item[1])
                 else:

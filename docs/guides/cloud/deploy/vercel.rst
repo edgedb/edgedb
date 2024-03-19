@@ -1,8 +1,8 @@
 .. _ref_guide_cloud_deploy_vercel:
 
-=======================
-Deploy an app on Vercel
-=======================
+======
+Vercel
+======
 
 :edb-alt-title: Deploying applications built on EdgeDB Cloud to Vercel
 

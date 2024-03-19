@@ -41,6 +41,7 @@ cdef class CompiledQuery:
     cdef public object extra_counts
     cdef public object extra_blobs
     cdef public object request
+    cdef public object recompiled_cache
 
 
 cdef class DatabaseIndex:
@@ -57,18 +58,25 @@ cdef class DatabaseIndex:
         object _cached_compiler_args
 
     cdef invalidate_caches(self)
+    cdef inline set_current_branches(self)
 
 
 cdef class Database:
 
     cdef:
         stmt_cache.StatementsCache _eql_to_compiled
+        object _cache_locks
         object _sql_to_compiled
         DatabaseIndex _index
         object _views
         object _introspection_lock
         object _state_serializers
         readonly object user_config_spec
+
+        object _cache_worker_task
+        object _cache_queue
+        object _cache_notify_task
+        object _cache_notify_queue
 
         readonly str name
         readonly object schema_version
@@ -82,9 +90,10 @@ cdef class Database:
     cdef schedule_config_update(self)
 
     cdef _invalidate_caches(self)
-    cdef _cache_compiled_query(self, key, compiled, schema_version)
+    cdef _cache_compiled_query(self, key, compiled)
     cdef _new_view(self, query_cache, protocol_version)
     cdef _remove_view(self, view)
+    cdef _observe_auth_ext_config(self)
     cdef _update_backend_ids(self, new_types)
     cdef _set_and_signal_new_user_schema(
         self,
@@ -130,6 +139,7 @@ cdef class DatabaseConnectionView:
         object _txid
         object _in_tx_db_config
         object _in_tx_savepoints
+        object _in_tx_root_user_schema_pickle
         object _in_tx_user_schema_pickle
         object _in_tx_user_schema_version
         object _in_tx_user_config_spec
@@ -151,6 +161,7 @@ cdef class DatabaseConnectionView:
         object __weakref__
 
     cdef _reset_tx_state(self)
+    cdef inline _check_in_tx_error(self, query_unit_group)
 
     cdef clear_tx_error(self)
     cdef rollback_tx_to_savepoint(self, name)
@@ -161,10 +172,9 @@ cdef class DatabaseConnectionView:
     cpdef in_tx(self)
     cpdef in_tx_error(self)
 
-    cdef cache_compiled_query(
-        self, object key, object query_unit_group, schema_version
-    )
+    cdef cache_compiled_query(self, object key, object query_unit_group)
     cdef lookup_compiled_query(self, object key)
+    cdef as_compiled(self, query_req, query_unit_group, bint use_metrics=?)
 
     cdef tx_error(self)
 
