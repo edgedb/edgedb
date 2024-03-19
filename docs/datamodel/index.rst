@@ -113,7 +113,8 @@ Terminology
 
 .. _ref_datamodel_instances:
 
-.. rubric:: Instance
+Instance
+^^^^^^^^
 
 An EdgeDB **instance** is a running EdgeDB process. Instances can be created,
 started, stopped, and destroyed locally with the :ref:`EdgeDB CLI
@@ -121,7 +122,8 @@ started, stopped, and destroyed locally with the :ref:`EdgeDB CLI
 
 .. _ref_datamodel_branches:
 
-.. rubric:: Branches
+Branches
+^^^^^^^^
 
 .. versionadded:: 5.0
 
@@ -130,7 +132,8 @@ in your VCS. Each branch has its own schema and data.
 
 .. _ref_datamodel_databases:
 
-.. rubric:: Database
+Database
+^^^^^^^^
 
 .. versionadded:: 5.0
 
@@ -143,7 +146,8 @@ against it unless otherwise specified.
 
 .. _ref_datamodel_modules:
 
-.. rubric:: Module
+Module
+^^^^^^
 
 Each branch (or database pre-v5) has a schema consisting of several
 **modules**, each with a unique name. Modules can be used to organize large
