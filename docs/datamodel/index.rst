@@ -127,8 +127,8 @@ Branches
 
 .. versionadded:: 5.0
 
-Each instance can be branched when working on new features, similar to branches
-in your VCS. Each branch has its own schema and data.
+Instances can be branched when working on new features, similar to branches in
+your VCS. Each branch has its own schema and data.
 
 .. _ref_datamodel_databases:
 
