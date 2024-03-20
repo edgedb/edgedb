@@ -17,6 +17,14 @@ Before the major version, we publish "testing releases":
 - "beta" (i.e. `v4.0b1`, `v4.0b2`),
 - "release candidates" (`v4.0rc1`) that we might promote into the final release.
 
+## edgedb-ui
+
+On release branches, `edgedb-ui` should be pinned to the associated branch.
+This can be done is `setup.py` with variable `EDGEDBGUI_COMMIT`.
+For example, on branch `release/4.x`, it is pinned to `edgedb-ui`'s branch `4.x`.
+This means any release off `release/4.x` will contain latest commits from 
+`edgedb-ui`'s branch `4.x`.
+
 ## Preparing commits for a release
 
 We have GitHub labels (i.e. "backport-4.x") associated with each major release
@@ -97,6 +105,8 @@ which are usually composed by our dev-rel team.
 Each minor release is just a subsection in the page, as a list of back-ported
 PRs. Any PRs that fix internal stuff (like our test framework) or are not user
 facing should not be included in the changelog.
+
+Don't forget to include commits released from `edgedb-ui`.
 
 These changes need to land on master branch and are not needed on the release
 branch, so best course of action if to open a PR to master after kicking off
