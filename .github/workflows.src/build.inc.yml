@@ -236,6 +236,9 @@
         <%- endif %>
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        <%- if tgt.arch == "x86_64" %>
+        _EDGEDB_TEST_DISABLE_START_EDGEDB_SERVER: "1"
+        <%- endif %>
       run: |
         edgedb-pkg/integration/macos/test.sh
 <%- endfor %>
