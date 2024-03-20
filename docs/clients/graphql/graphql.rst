@@ -10,16 +10,16 @@ containing the following schema:
 .. code-block:: sdl
 
     type Author {
-        property name -> str;
+        name: str;
     }
 
     type Book {
         # to make the examples simpler only the title is
         # a required property
-        required property title -> str;
-        property synopsis -> str;
-        link author -> Author;
-        property isbn -> str {
+        required title: str;
+        synopsis: str;
+        author: Author;
+        isbn: str {
             constraint max_len_value(10);
         }
     }
