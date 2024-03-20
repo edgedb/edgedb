@@ -70,6 +70,12 @@ the DSN of the newly created instance handy.
    Once the restore is complete, update your application to connect to the new
    instance.
 
+.. note::
+
+    If your Postgres cluster is also backing other versions of EdgeDB, make
+    sure you start your new instance with the ``--ignore-other-tenants``
+    option when bootstrapping your new instance.
+
 This process will involve some downtime, specifically during steps 2 and 3. We
 are working on an in-place upgrade workflow that will reduce the amount of
 downtime involved and avoid the need to spin up a new instance. We'll publish
