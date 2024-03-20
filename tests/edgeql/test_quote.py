@@ -25,13 +25,13 @@ class QuoteTests(unittest.TestCase):
     def test_quote_string(self):
         self.assertEqual(qlquote.quote_literal(""), "''"),
         self.assertEqual(qlquote.quote_literal("abc"), "'abc'")
+        self.assertEqual(qlquote.quote_literal("\""), "'\"'")
         self.assertEqual(qlquote.quote_literal("\b"), "'\\b'")
         self.assertEqual(qlquote.quote_literal("\f"), "'\\f'")
         self.assertEqual(qlquote.quote_literal("\n"), "'\\n'")
         self.assertEqual(qlquote.quote_literal("\r"), "'\\r'")
         self.assertEqual(qlquote.quote_literal("\t"), "'\\t'")
         self.assertEqual(qlquote.quote_literal("\'"), "'\\\''")
-        self.assertEqual(qlquote.quote_literal("\""), "'\\\"'")
         self.assertEqual(qlquote.quote_literal("\\"), "'\\\\'")
         self.assertEqual(qlquote.quote_literal("\\b"), "'\\\\b'")
         self.assertEqual(qlquote.quote_literal("\\f"), "'\\\\f'")
@@ -39,8 +39,7 @@ class QuoteTests(unittest.TestCase):
         self.assertEqual(qlquote.quote_literal("\\r"), "'\\\\r'")
         self.assertEqual(qlquote.quote_literal("\\t"), "'\\\\t'")
         self.assertEqual(qlquote.quote_literal("\\\'"), "'\\\\\\\''")
-        self.assertEqual(qlquote.quote_literal("\\\""), "'\\\\\\\"'")
         self.assertEqual(qlquote.quote_literal("\\\\"), "'\\\\\\\\'")
         self.assertEqual(qlquote.quote_literal(
             "abc\"efg\nhij\'klm\\nop"),
-            "'abc\\\"efg\\nhij\\\'klm\\\\nop'")
+            "'abc\"efg\\nhij\\\'klm\\\\nop'")
