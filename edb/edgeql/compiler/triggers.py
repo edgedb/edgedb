@@ -38,6 +38,7 @@ from edb.edgeql import qltypes
 
 from . import context
 from . import dispatch
+from . import options
 from . import schemactx
 from . import setgen
 from . import typegen
@@ -205,16 +206,12 @@ def compile_triggers(
         ctx.env.options.schema_object_context == s_triggers.Trigger)
     defining_trigger_on = None
     defining_trigger_kinds = None
-    if defining_trigger:
-        defining_trigger_on = setgen.get_set_type(
-            ctx.anchors['__trigger_type__'], ctx=ctx)
-        trigger_kinds_anchor = ctx.anchors['__trigger_kinds__']
-        if isinstance(trigger_kinds_anchor.expr, irast.Array):
-            defining_trigger_kinds = [
-                qltypes.TriggerKind(element.expr.value)
-                for element in trigger_kinds_anchor.expr.elements
-                if isinstance(element.expr, irast.StringConstant)
-            ]
+    if (
+        defining_trigger and
+        isinstance(ctx.env.options, options.CompilerOptions)
+    ):
+        defining_trigger_on = ctx.env.options.trigger_type
+        defining_trigger_kinds = ctx.env.options.trigger_kinds
 
     ir_triggers: list[tuple[irast.Trigger, ...]] = []
     start = 0
