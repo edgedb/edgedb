@@ -1446,7 +1446,8 @@ class PointerCommandOrFragment(
         make_globals_empty: bool = False,
         source_context: Optional[parsing.ParserContext] = None,
         detached: bool = False,
-        should_set_path_prefix_anchor: bool = True
+        should_set_path_prefix_anchor: bool = True,
+        path_prefix_absence_hint: Optional[str] = None,
     ) -> s_expr.CompiledExpression:
         singletons: List[Union[s_types.Type, Pointer]] = []
 
@@ -1501,6 +1502,7 @@ class PointerCommandOrFragment(
                     qlast.Source().name
                     if should_set_path_prefix_anchor
                     else None),
+                path_prefix_absence_hint=path_prefix_absence_hint,
                 singletons=singletons,
                 apply_query_rewrites=(
                     not context.stdmode and not no_query_rewrites
@@ -1575,6 +1577,10 @@ class PointerCommandOrFragment(
                 track_schema_ref_exprs=track_schema_ref_exprs,
                 detached=detached,
                 should_set_path_prefix_anchor=should_set_path_prefix_anchor,
+                path_prefix_absence_hint=(
+                    None if should_set_path_prefix_anchor else
+                    "Partial paths are not allowed in the default of a"
+                    " link property."),
             )
         else:
             return super().compile_expr_field(
