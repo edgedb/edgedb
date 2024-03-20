@@ -731,3 +731,21 @@ Bug fixes
     (:eql:gh:`edgedb/edgedb-ui/42492465`)
 
   * And `many more UI fixes <https://github.com/edgedb/edgedb-ui/commits/4.x/?since=2024-02-25&until=2024-03-15>`__
+
+4.7
+===
+
+* UI: revert a few changes that were meant for 5.x only.
+
+* Revert "Compile single globals into materialized CTEs", since it introduced
+  multiple bugs. These bugs were already fixed in 5.x.
+  (:eql:gh:`#6613`)
+
+* Add optional PKCE challenge in email verification
+  (:eql:gh:`#7037`)
+
+* Fix very slow parsing performance of large files with unrecoverable errors
+  (:eql:gh:`#7046`)
+
+* Fix update rewrites on types that are children of updated type
+  (:eql:gh:`#7073`)
