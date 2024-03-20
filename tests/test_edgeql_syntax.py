@@ -6451,6 +6451,14 @@ aa';
         # When returning multiple errors is supported, we should still return
         # just the first one.
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Missing keyword 'SELECT'", line=2, col=9)
+    def test_edgeql_syntax_ddl_02(self):
+        """
+        sys::get_version();
+        """
+
+
 class TestEdgeQLNormalization(EdgeQLSyntaxTest):
 
     def _run_test(self, *, source, spec=None, expected=None):
