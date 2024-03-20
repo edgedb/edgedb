@@ -35,17 +35,25 @@ _re_ident_or_num = re.compile(r'''(?x)
 ''')
 
 
-def escape_string(s: str) -> str:
-    split = re.split(r"(\n|\\\\|\\')", s)
-
-    if len(split) == 1:
-        return s.replace(r"'", r"\'")
-
-    return ''.join((r if i % 2 else r.replace(r"'", r"\'"))
-                   for i, r in enumerate(split))
-
-
 def quote_literal(string: str) -> str:
+
+    def escape_string(s: str) -> str:
+        # characters escaped according to
+        # https://www.edgedb.com/docs/reference/edgeql/lexical#strings
+        result = s
+
+        # escape backslash first
+        result = result.replace('\\', '\\\\')
+
+        result = result.replace('\'', '\\\'')
+        result = result.replace('\b', '\\b')
+        result = result.replace('\f', '\\f')
+        result = result.replace('\n', '\\n')
+        result = result.replace('\r', '\\r')
+        result = result.replace('\t', '\\t')
+
+        return result
+
     return "'" + escape_string(string) + "'"
 
 
