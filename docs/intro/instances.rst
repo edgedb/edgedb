@@ -29,26 +29,6 @@ which instance to connect to by passing an instance name into the ``-I`` flag.
   $ edgedb query "select 3.14" -I my_instance
   3.14
 
-Creating databases
-^^^^^^^^^^^^^^^^^^
-A single EdgeDB *instance* can contain multiple *databases*. Upon creation, an
-instance contains a single database called ``edgedb``. All queries and CLI
-commands are executed against this database unless otherwise specified.
-
-To create a new database:
-
-.. code-block:: bash
-
-  $ edgedb database create newdb -I my_instance
-
-We can now execute queries against this new database by specifying it with the
-``--database/-d`` flag.
-
-.. code-block:: bash
-
-  $ edgedb query "select 3.14" -I my_instance -d newdb
-  3.14
-
 Managing instances
 ^^^^^^^^^^^^^^^^^^
 Instances can be stopped, started, restarted, and destroyed.
