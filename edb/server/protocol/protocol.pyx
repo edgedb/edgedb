@@ -360,7 +360,7 @@ cdef class HttpProtocol:
             response.content_type,
             response.custom_headers,
             response.body,
-            response.close_connection)
+            response.close_connection or not request.should_keep_alive)
 
     def _switch_to_binary_protocol(self, data=None):
         binproto = binary.new_edge_connection(
