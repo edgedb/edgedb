@@ -77,6 +77,7 @@ pub enum Kind {
     SubAssign,       // -=
     AddAssign,       // +=
     CoalesceAssign,  // ?:=
+    AssignCoalesce,  // :=?
     Arrow,           // ->
     Coalesce,        // ??
     Namespace,       // ::
@@ -292,7 +293,10 @@ impl<'a> Tokenizer<'a> {
 
         match cur_char {
             ':' => match iter.next() {
-                Some((_, '=')) => Ok((Assign, 2)),
+                Some((_, '=')) => match iter.next() {
+                    Some((_, '?')) => Ok((AssignCoalesce, 3)),
+                    _ => Ok((Assign, 2)),
+                },
                 Some((_, ':')) => Ok((Namespace, 2)),
                 _ => Ok((Colon, 1)),
             },
@@ -1060,6 +1064,7 @@ impl Kind {
             Assign => ":=",
             SubAssign => "-=",
             CoalesceAssign => "?:=",
+            AssignCoalesce => ":=?",
 
             Keyword(keywords::Keyword(kw)) => kw,
 

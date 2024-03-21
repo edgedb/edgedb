@@ -715,6 +715,7 @@ fn get_token_kind(token_name: &str) -> Kind {
         ":=" => Assign,
         "-=" => SubAssign,
         "?:=" => CoalesceAssign,
+        ":=?" => AssignCoalesce,
 
         "PARAMETER" => Parameter,
         "PARAMETERANDTYPE" => ParameterAndType,

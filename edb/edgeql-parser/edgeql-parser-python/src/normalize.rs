@@ -206,7 +206,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
 fn is_operator(token: &Token) -> bool {
     use edgeql_parser::tokenizer::Kind::*;
     match token.kind {
-        Assign | SubAssign | AddAssign | CoalesceAssign | Arrow | Coalesce | Namespace | DoubleSplat
+        Assign | SubAssign | AddAssign | CoalesceAssign | AssignCoalesce | Arrow | Coalesce | Namespace | DoubleSplat
         | BackwardLink | FloorDiv | Concat | GreaterEq | LessEq | NotEq | NotDistinctFrom
         | DistinctFrom | Comma | OpenParen | CloseParen | OpenBracket | CloseBracket
         | OpenBrace | CloseBrace | Dot | Semicolon | Colon | Add | Sub | Mul | Div | Modulo

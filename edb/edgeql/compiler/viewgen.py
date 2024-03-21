@@ -1507,13 +1507,22 @@ def _normalize_view_ptr_expr(
     else:
         base_ptrcls = ptrcls = None
 
-        if shape_el.operation.op is qlast.ShapeOp.COALESCE_ASSIGN:
+        if shape_el.operation.op in [
+            qlast.ShapeOp.COALESCE_ASSIGN,
+            qlast.ShapeOp.ASSIGN_COALESCE,
+        ] and shape_el.compexpr is not None:
             shape_el.operation = qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN)
-            if shape_el.compexpr is not None:
+            if shape_el.operation.op == qlast.ShapeOp.COALESCE_ASSIGN:
                 shape_el.compexpr = qlast.BinOp(
                     left=shape_el.expr,
                     op='??',
                     right=shape_el.compexpr,
+                )
+            elif shape_el.operation.op == qlast.ShapeOp.ASSIGN_COALESCE:
+                shape_el.compexpr = qlast.BinOp(
+                    left=shape_el.compexpr,
+                    op='??',
+                    right=shape_el.expr,
                 )
 
         if (is_mutation

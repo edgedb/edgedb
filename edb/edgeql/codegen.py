@@ -673,6 +673,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(' -= ')
             elif node.operation.op is qlast.ShapeOp.COALESCE_ASSIGN:
                 self.write(' ?:= ')
+            elif node.operation.op is qlast.ShapeOp.ASSIGN_COALESCE:
+                self.write(' :=? ')
             else:
                 raise NotImplementedError(
                     f'unexpected shape operation: {node.operation.op!r}'

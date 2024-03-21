@@ -184,6 +184,10 @@ class T_COALESCEASSIGN(Token, lextoken='?:='):
     pass
 
 
+class T_ASSIGNCOALESCE(Token, lextoken=':=?'):
+    pass
+
+
 class T_ARROW(Token, lextoken='->'):
     pass
 
