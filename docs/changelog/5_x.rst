@@ -4,13 +4,13 @@ v5.0
 
 :edb-alt-title: EdgeDB v5
 
-To play with the new features, make sure to specify version 5.0 when 
-initializing the project as pre-release versions are not considered stable 
+To play with the new features, make sure to specify version 5.0 when
+initializing the project as pre-release versions are not considered stable
 and will not be automatically suggested:
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version 5.0-beta.1
+  $ edgedb project init --server-version 5.0-beta.2
 
 
 Upgrading
@@ -173,6 +173,9 @@ manage "feature" branches:
    then merge the EdgeDB branch as well (or rename the "feature" EdgeDB branch
    to "main", if the old branch is no longer needed).
 
+We've added :ref:`edgedb branch commands <ref_cli_edgedb_branch>` to our CLI
+as well that create, copy, rename, drop, and rebase EdgeDB branches.
+
 
 Updated pgvector extension
 --------------------------
@@ -230,6 +233,32 @@ Passkeys), as well as email-based "magic links".
 
 We've also added two popular chat platforms to our list of supported OAuth
 providers: Slack and Discord.
+
+We also have the following updates:
+
+* Allow passing WebAuthn ``user_handle`` in request body
+  (:eql:gh:`#6942`)
+
+* Handle WebAuthn challenge having multiple factors
+  (:eql:gh:`#6945`)
+
+* Explicitly pass WebAuthn credential properties
+  (:eql:gh:`#6975`)
+
+* Return JSON for magic link register
+  (:eql:gh:`#6974`)
+
+* Ensure built-in UI verification redirect includes code
+  (:eql:gh:`#6982`)
+
+* Ensure WebAuthn redirect matches expected shape
+  (:eql:gh:`#6987`)
+
+* Fallback to PKCE RFC parameter names
+  (:eql:gh:`#7034`)
+
+* Add optional PKCE challenge in email verification
+  (:eql:gh:`#7037`)
 
 
 Additional changes
@@ -326,6 +355,9 @@ EdgeQL
 * Support closing all connections to a database on ``drop database``.
   (:eql:gh:`#6780`)
 
+* Add a ``std::get_current_branch()`` function
+  (:eql:gh:`#7001`)
+
 
 Bug fixes
 ---------
@@ -369,3 +401,30 @@ Bug fixes
 
 * Don't leak objects out of access policies when used in a computed global.
   (:eql:gh:`#6926`)
+
+* Allow grouping to have trailing comma.
+  (:eql:gh:`#7002`)
+
+* Fix computed single scalar globals.
+  (:eql:gh:`#6999`)
+
+* Fix ISE when creating an alias with a name that already exists.
+  (:eql:gh:`#6946`)
+
+* Fix parser at unrecoverable errors.
+  (:eql:gh:`#7046`)
+
+* Improve error when applying a shape to a parameter.
+  (:eql:gh:`#7044`)
+
+* Skip creating @source/@target on derived views improving performance.
+  (:eql:gh:`#7051`)
+
+* Fix issues with cached global shapes and global cardinality inference
+  (:eql:gh:`#7062`)
+
+* Add error when a constant set is used in singleton mode
+  (:eql:gh:`#7065`)
+
+* Fix update rewrites on types that are children of updated type
+  (:eql:gh:`#7073`)
