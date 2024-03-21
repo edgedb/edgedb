@@ -32,7 +32,15 @@ tools.
 
     * - :ref:`ref_cli_edgedb_branch_create`
       - Create a new branch
-    * - :ref:`ref_cli_edgedb_cloud_logout`
-      - Forget the stored access token
-    * - :ref:`ref_cli_edgedb_cloud_secretkey`
-      - Manage your secret keys
+    * - :ref:`ref_cli_edgedb_branch_drop`
+      - Drop a branch
+    * - :ref:`ref_cli_edgedb_branch_list`
+      - List all branches
+    * - :ref:`ref_cli_edgedb_branch_rebase`
+      - Create a branch based on a target branch
+    * - :ref:`ref_cli_edgedb_branch_rename`
+      - Rename a branch
+    * - :ref:`ref_cli_edgedb_branch_switch`
+      - Change the currently active branch
+    * - :ref:`ref_cli_edgedb_branch_wipe`
+      - Destroy the contents of a branch
