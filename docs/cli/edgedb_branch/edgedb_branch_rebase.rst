@@ -26,6 +26,9 @@ Description
 Creates a new branch that is based on the target branch, but also contains any new migrations on the
 current branch.
 
+For more about how rebasing works, check out the breakdown :ref:`in our schema
+migrations guide <ref_migration_guide_branches_rebasing>`.
+
 
 Options
 =======
