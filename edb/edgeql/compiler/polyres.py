@@ -104,7 +104,7 @@ def find_callable_typemods(
     """
 
     typ = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
-    dummy = irast.EmptySet()  # type: ignore
+    dummy = irast.DUMMY_SET
     args = [(typ, dummy)] * num_args
     kwargs = {k: (typ, dummy) for k in kwargs_names}
     options = find_callable(

@@ -584,6 +584,9 @@ else:
     Set = SetE
 
 
+DUMMY_SET = Set()  # type: ignore[call-arg]
+
+
 class Command(Base):
     __abstract_node__ = True
 
@@ -1086,8 +1089,8 @@ class Stmt(Expr):
     name: typing.Optional[str] = None
     # Parts of the edgeql->IR compiler need to create statements and fill in
     # the result later, but making it Optional would cause lots of errors,
-    # so we stick a bogus Empty set in.
-    result: Set = EmptySet()  # type: ignore
+    # so we stick a dummy set set in.
+    result: Set = DUMMY_SET
     parent_stmt: typing.Optional[Stmt] = None
     iterator_stmt: typing.Optional[Set] = None
     bindings: typing.Optional[typing.List[Set]] = None
@@ -1118,12 +1121,12 @@ class SelectStmt(FilteredStmt):
 
 
 class GroupStmt(FilteredStmt):
-    subject: Set = EmptySet()  # type: ignore
+    subject: Set = DUMMY_SET
     using: typing.Dict[str, typing.Tuple[Set, qltypes.Cardinality]] = (
         ast.field(factory=dict))
     by: typing.List[qlast.GroupingElement]
-    result: Set = EmptySet()  # type: ignore
-    group_binding: Set = EmptySet()  # type: ignore
+    result: Set = DUMMY_SET
+    group_binding: Set = DUMMY_SET
     grouping_binding: typing.Optional[Set] = None
     orderby: typing.Optional[typing.List[SortExpr]] = None
     # Optimization information
@@ -1158,8 +1161,8 @@ class MutatingStmt(Stmt, MutatingLikeStmt):
     __abstract_node__ = True
     # Parts of the edgeql->IR compiler need to create statements and fill in
     # the subject later, but making it Optional would cause lots of errors,
-    # so we stick a bogus Empty set in.
-    subject: Set = EmptySet()  # type: ignore
+    # so we stick a dummy set in.
+    subject: Set = DUMMY_SET
     # Conflict checks that we should manually raise constraint violations
     # for.
     conflict_checks: typing.Optional[typing.List[OnConflictClause]] = None
