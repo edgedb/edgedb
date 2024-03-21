@@ -24,7 +24,6 @@ from __future__ import annotations
 from typing import Optional, Tuple, Iterable, Sequence, Dict, List, Set
 
 from edb import errors
-from edb.common import context as pctx
 
 from edb.ir import ast as irast
 from edb.ir import typeutils
@@ -88,7 +87,7 @@ def _compile_conflict_select_for_obj_type(
     fake_dml_set: Optional[irast.Set],
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
-    parser_context: Optional[pctx.ParserContext],
+    span: Optional[irast.Span],
     ctx: context.ContextLevel,
 ) -> tuple[Optional[qlast.Expr], bool]:
     """Synthesize a select of conflicting objects
@@ -119,7 +118,7 @@ def _compile_conflict_select_for_obj_type(
                 raise errors.UnsupportedFeatureError(
                     "INSERT UNLESS CONFLICT cannot be used on properties or "
                     "links that have a rewrite rule specified",
-                    context=parser_context,
+                    span=span,
                 )
 
     ctx.anchors = ctx.anchors.copy()
@@ -161,7 +160,7 @@ def _compile_conflict_select_for_obj_type(
                         'properties'
                     )
                 raise errors.UnsupportedFeatureError(
-                    error, context=parser_context
+                    error, span=span
                 )
 
             # We want to use the same path_scope_id as the original
@@ -188,7 +187,7 @@ def _compile_conflict_select_for_obj_type(
     if not ptr_anchors:
         raise errors.QueryError(
             'INSERT UNLESS CONFLICT property requires matching shape',
-            context=parser_context,
+            span=span,
         )
 
     conds: List[qlast.Expr] = []
@@ -375,7 +374,7 @@ def _compile_conflict_select(
     fake_dml_set: Optional[irast.Set]=None,
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: PointerConstraintMap,
-    parser_context: Optional[pctx.ParserContext],
+    span: Optional[irast.Span],
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, bool, bool]:
     """Synthesize a select of conflicting objects
@@ -403,7 +402,7 @@ def _compile_conflict_select(
             stmt, a_obj, obj_constrs=a_obj_constrs, constrs=a_constrs,
             for_inheritance=for_inheritance,
             fake_dml_set=fake_dml_set,
-            parser_context=parser_context, ctx=ctx,
+            span=span, ctx=ctx,
         )
         always_check |= frag_always_check
         if frag:
@@ -471,7 +470,7 @@ def compile_insert_unless_conflict(
         stmt, typ,
         constrs=pointers,
         obj_constrs=obj_constrs,
-        parser_context=stmt.context, ctx=ctx)
+        span=stmt.span, ctx=ctx)
 
     return irast.OnConflictClause(
         constraint=None, select_ir=select_ir, always_check=always_check,
@@ -505,14 +504,14 @@ def compile_insert_unless_conflict_on(
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property, link, '
                 'or tuple of properties and links',
-                context=constraint_spec.context,
+                span=constraint_spec.span,
             )
 
         if cspec_arg.rptr.source.path_id != stmt.subject.path_id:
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property of the '
                 'type being inserted',
-                context=constraint_spec.context,
+                span=constraint_spec.span,
             )
 
     schema = ctx.env.schema
@@ -527,7 +526,7 @@ def compile_insert_unless_conflict_on(
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property, link, '
                 'or tuple of properties and links',
-                context=constraint_spec.context,
+                span=constraint_spec.span,
             )
 
         ptr = ptr.get_nearest_non_derived_parent(schema)
@@ -546,14 +545,14 @@ def compile_insert_unless_conflict_on(
     if len(all_constrs) != 1:
         raise errors.QueryError(
             'UNLESS CONFLICT property must have a single exclusive constraint',
-            context=constraint_spec.context,
+            span=constraint_spec.span,
         )
 
     ds = {ptr.get_shortname(schema).name: (ptr, field_constrs)
           for ptr in ptrs}
     select_ir, always_check, from_anc = _compile_conflict_select(
         stmt, typ, constrs=ds, obj_constrs=list(obj_constrs),
-        parser_context=stmt.context, ctx=ctx)
+        span=stmt.span, ctx=ctx)
 
     # Compile an else branch
     else_ir = None
@@ -567,7 +566,7 @@ def compile_insert_unless_conflict_on(
                 details=(
                     f"The existing object can't be exposed in the ELSE clause "
                     f"because it may not have type {typ.get_name(schema)}"),
-                context=constraint_spec.context,
+                span=constraint_spec.span,
             )
 
         with ctx.new() as ectx:
@@ -596,7 +595,7 @@ def _has_explicit_id_write(stmt: irast.MutatingStmt) -> bool:
     for elem, _ in stmt.subject.shape:
         assert elem.rptr is not None
         if elem.rptr.ptrref.shortname.name == 'id':
-            return elem.context is not None
+            return elem.span is not None
     return False
 
 
@@ -623,7 +622,7 @@ def _disallow_exclusive_linkprops(
                     'INSERT/UPDATE do not support exclusive constraints on '
                     'link properties when another statement in '
                     'the same query modifies a related type',
-                    context=stmt.context,
+                    span=stmt.span,
                 )
 
 
@@ -708,7 +707,7 @@ def _compile_inheritance_conflict_selects(
             fake_dml_set=fake_dml_set,
             constrs=p,
             obj_constrs=o,
-            parser_context=stmt.context, ctx=ctx)
+            span=stmt.span, ctx=ctx)
         if isinstance(select_ir, irast.EmptySet):
             continue
         cnstr_ref = irast.ConstraintRef(id=cnstr.id)

@@ -85,7 +85,7 @@ def compile_ConfigSet(
             )
         else:
             param_val = casts.compile_cast(
-                param_val, param_type, srcctx=None, ctx=ctx)
+                param_val, param_type, span=None, ctx=ctx)
 
     try:
         if expr.scope != qltypes.ConfigScope.GLOBAL:
@@ -96,7 +96,7 @@ def compile_ConfigSet(
     except ireval.UnsupportedExpressionError as e:
         raise errors.QueryError(
             f'non-constant expression in CONFIGURE {expr.scope} SET',
-            context=expr.expr.context
+            span=expr.expr.span
         ) from e
     else:
         if isinstance(val, statypes.ScalarType) and info.backend_setting:
@@ -119,7 +119,7 @@ def compile_ConfigSet(
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
         is_system_config=info.is_system_config,
-        context=expr.context,
+        span=expr.span,
         expr=param_val,
         backend_expr=backend_expr,
     )
@@ -140,7 +140,7 @@ def compile_ConfigReset(
         raise errors.QueryError(
             'RESET of a primitive configuration parameter '
             'must not have a FILTER clause',
-            context=expr.context,
+            span=expr.span,
         )
 
     elif isinstance(info.param_type, s_objtypes.ObjectType):
@@ -181,7 +181,7 @@ def compile_ConfigReset(
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
         is_system_config=info.is_system_config,
-        context=expr.context,
+        span=expr.span,
         selector=select_ir,
     )
     return setgen.ensure_set(config_reset, ctx=ctx)
@@ -229,7 +229,7 @@ def compile_ConfigInsert(
             backend_setting=info.backend_setting,
             is_system_config=info.is_system_config,
             expr=insert_subject,
-            context=expr.context,
+            span=expr.span,
         ),
         ctx=ctx,
     )
@@ -387,7 +387,7 @@ def _validate_op(
         if isinstance(expr, qlast.ConfigSet):
             raise errors.ConfigurationError(
                 f'unrecognized configuration parameter {name!r}',
-                context=expr.context
+                span=expr.span
             )
 
         cfg_type = ctx.env.get_schema_type_and_track(
@@ -399,7 +399,7 @@ def _validate_op(
         if not cfg_type:
             raise errors.ConfigurationError(
                 f'unrecognized configuration object {name!r}',
-                context=expr.context
+                span=expr.span
             )
 
         assert isinstance(cfg_type, s_objtypes.ObjectType)

@@ -270,7 +270,7 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
                 'user-defined casts are not supported',
-                context=astnode.context
+                span=astnode.span
             )
 
         return super()._cmd_tree_from_ast(schema, astnode, context)
@@ -331,7 +331,7 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
             raise errors.DuplicateCastDefinitionError(
                 f'a cast from {from_type.get_displayname(schema)!r} '
                 f'to {to_type.get_displayname(schema)!r} is already defined',
-                context=self.source_context)
+                span=self.span)
 
         return super()._create_begin(schema, context)
 

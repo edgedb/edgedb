@@ -400,6 +400,6 @@ def infer_volatility(
         raise errors.QueryError(
             'could not determine the volatility of '
             'set produced by expression',
-            context=ir.context)
+            span=ir.span)
 
     return result

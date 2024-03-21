@@ -106,7 +106,7 @@ def init_context(
             had_optional |= optional
             path_id = compile_anchor('__', singleton, ctx=ctx).path_id
             ctx.env.path_scope.attach_path(
-                path_id, optional=optional, context=None)
+                path_id, optional=optional, span=None)
             if not optional:
                 ctx.env.singletons.append(path_id)
             ctx.iterator_path_ids |= {path_id}
@@ -251,7 +251,7 @@ def fini_expression(
             raise errors.QueryError(
                 'expression returns value of indeterminate type',
                 hint='Consider using an explicit type cast.',
-                context=ctx.env.type_origins.get(anytype))
+                span=ctx.env.type_origins.get(anytype))
 
     # Clear out exprs that we decided to omit from the IR
     for ir_set in exprs_to_clear:
@@ -826,7 +826,8 @@ def throw_on_shaped_param(
     raise errors.QueryError(
         f'cannot apply a shape to the parameter',
         hint='Consider adding parentheses around the parameter and type cast',
-        context=shape.context)
+        span=shape.span
+    )
 
 
 def throw_on_loose_param(
@@ -837,14 +838,14 @@ def throw_on_loose_param(
         if ctx.env.options.schema_object_context is s_constr.Constraint:
             raise errors.InvalidConstraintDefinitionError(
                 f'dollar-prefixed "$parameters" cannot be used here',
-                context=param.context)
+                span=param.span)
         else:
             raise errors.InvalidFunctionDefinitionError(
                 f'dollar-prefixed "$parameters" cannot be used here',
-                context=param.context)
+                span=param.span)
     raise errors.QueryError(
         f'missing a type cast before the parameter',
-        context=param.context)
+        span=param.span)
 
 
 def preprocess_script(

@@ -136,7 +136,7 @@ def process_view(
     view_name: Optional[sn.QualName] = None,
     exprtype: s_types.ExprType = s_types.ExprType.Select,
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext],
+    span: Optional[parsing.Span],
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
 
     cache_key = (stype, exprtype, tuple(elements))
@@ -170,7 +170,7 @@ def process_view(
         elements=elements,
         ctx=ctx,
         s_ctx=s_ctx,
-        srcctx=srcctx,
+        span=span,
     )
 
     ctx.env.shape_type_cache[cache_key] = view_scls
@@ -185,7 +185,7 @@ def _process_view(
     elements: Optional[Sequence[qlast.ShapeElement]],
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext],
+    span: Optional[parsing.Span],
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
     path_id = ir_set.path_id
     view_rptr = s_ctx.view_rptr
@@ -295,13 +295,13 @@ def _process_view(
         if s_ctx.exprtype is not s_types.ExprType.Select:
             raise errors.QueryError(
                 "unexpected splat operator in non-SELECT shape",
-                context=shape_el.expr.context,
+                span=shape_el.expr.span,
             )
 
         if ctx.env.options.func_params is not None:
             raise errors.UnsupportedFeatureError(
                 "splat operators in function bodies are not supported",
-                context=shape_el.expr.context,
+                span=shape_el.expr.span,
             )
 
         splat = shape_el.expr.steps[0]
@@ -311,7 +311,7 @@ def _process_view(
                 vn = splat_type.get_verbosename(schema=ctx.env.schema)
                 raise errors.QueryError(
                     f"splat operator expects an object type, got {vn}",
-                    context=splat.type.context,
+                    span=splat.type.span,
                 )
 
             if not stype.issubclass(ctx.env.schema, splat_type):
@@ -320,7 +320,7 @@ def _process_view(
                 raise errors.QueryError(
                     f"splat type must be {vn} or its parent type, "
                     f"got {vn2}",
-                    context=splat.type.context,
+                    span=splat.type.span,
                 )
 
             if splat.intersection is not None:
@@ -340,7 +340,7 @@ def _process_view(
                 vn = splat_type.get_verbosename(schema=ctx.env.schema)
                 raise errors.QueryError(
                     f"splat operator expects an object type, got {vn}",
-                    context=splat.intersection.type.context,
+                    span=splat.intersection.type.span,
                 )
         else:
             splat_type = stype
@@ -395,7 +395,7 @@ def _process_view(
                     raise errors.QueryError(
                         f"link or property '{desc.ptr_name}' appears in splats "
                         f"for unrelated types: {vn1} and {vn2}",
-                        context=splat.context,
+                        span=splat.span,
                     )
 
             else:
@@ -485,7 +485,7 @@ def _process_view(
         rewrites = None
 
     if s_ctx.exprtype.is_insert():
-        _raise_on_missing(pointers, stype, rewrites, ctx, srcctx=srcctx)
+        _raise_on_missing(pointers, stype, rewrites, ctx, span=span)
 
     set_shape = []
     shape_ptrs: List[ShapePtr] = []
@@ -520,9 +520,9 @@ def _process_view(
     # Produce the shape. The main thing here is that we need to fixup
     # all of the rptrs to properly point back at ir_set.
     for _, ptrcls, shape_op, ptr_set in shape_ptrs:
-        psrcctx = None
+        ptr_span = None
         if ptrcls in ctx.env.pointer_specified_info:
-            _, _, psrcctx = ctx.env.pointer_specified_info[ptrcls]
+            _, _, ptr_span = ctx.env.pointer_specified_info[ptrcls]
 
         if ptr_set:
             src_path_id = path_id
@@ -545,7 +545,7 @@ def _process_view(
             # already has a context, since for explain output that
             # seems nicer, but this is what we want for producing
             # actual error messages.
-            ptr_set.context = psrcctx
+            ptr_set.span = ptr_span
 
         else:
             # The set must be something pretty trivial, so just do it
@@ -553,7 +553,7 @@ def _process_view(
                 ir_set,
                 ptrcls,
                 same_computable_scope=True,
-                srcctx=psrcctx or srcctx,
+                span=ptr_span or span,
                 ctx=ctx,
             )
 
@@ -601,7 +601,7 @@ def _shape_el_ql_to_shape_el_desc(
             if view_rptr is None or view_rptr.ptrcls is None:
                 raise errors.QueryError(
                     'invalid reference to link property '
-                    'in top level shape', context=lexpr.context)
+                    'in top level shape', span=lexpr.span)
             assert isinstance(view_rptr.ptrcls, s_links.Link)
             source = view_rptr.ptrcls
     elif plen == 2 and isinstance(steps[0], qlast.TypeIntersection):
@@ -612,14 +612,14 @@ def _shape_el_ql_to_shape_el_desc(
         if not isinstance(ptype, qlast.TypeName):
             raise errors.QueryError(
                 'complex type expressions are not supported here',
-                context=ptype.context,
+                span=ptype.span,
             )
         source_spec = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
         if not isinstance(source_spec, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f"expected object type, got "
                 f"{source_spec.get_verbosename(ctx.env.schema)}",
-                context=ptype.context,
+                span=ptype.span,
             )
         source = source_spec
         is_polymorphic = True
@@ -789,7 +789,7 @@ def _gen_pointers_from_defaults(
             # add __source__ to anchors
             source_set = ir_set
             scopectx.path_scope.attach_path(
-                source_set.path_id, context=None,
+                source_set.path_id, span=None,
                 optional=False,
             )
             scopectx.iterator_path_ids |= {source_set.path_id}
@@ -848,7 +848,7 @@ def _raise_on_missing(
     stype: s_objtypes.ObjectType,
     rewrites: Optional[irast.Rewrites],
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext],
+    span: Optional[parsing.Span],
 ) -> None:
     pointer_names = {
         ptr.get_local_name(ctx.env.schema) for ptr in pointers
@@ -886,17 +886,14 @@ def _raise_on_missing(
                 continue
 
         vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
+        msg = f"missing value for required {vn}"
         # If this is happening in the context of DDL, report a
         # QueryError because it is weird to report an ExecutionError
         # (MissingRequiredError) when nothing is really executing.
-        errcls = (
-            errors.SchemaDefinitionError
-            if ctx.env.options.schema_object_context
-            else errors.MissingRequiredError
-        )
-        raise errcls(
-            f"missing value for required {vn}", context=srcctx
-        )
+        if ctx.env.options.schema_object_context:
+            raise errors.SchemaDefinitionError(msg, span=span)
+        else:
+            raise errors.MissingRequiredError(msg, span=span)
 
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False)
@@ -1119,8 +1116,9 @@ def _compile_rewrites_for_stype(
 
             for key, anchor in nanchors.items():
                 scopectx.path_scope.attach_path(
-                    anchor.path_id, context=None,
+                    anchor.path_id,
                     optional=(anchor is anchors.subject_set),
+                    span=None,
                 )
                 scopectx.iterator_path_ids |= {anchor.path_id}
                 scopectx.anchors[key] = anchor
@@ -1354,7 +1352,7 @@ def _normalize_view_ptr_expr(
     if compexpr is None and is_mutation:
         raise errors.QueryError(
             "mutation queries must specify values with ':='",
-            context=shape_el.expr.steps[-1].context,
+            span=shape_el.expr.steps[-1].span,
         )
 
     ptrcls: Optional[s_pointers.Pointer]
@@ -1365,7 +1363,7 @@ def _normalize_view_ptr_expr(
             ptrname,
             track_ref=shape_el_desc.ptr_ql,
             ctx=ctx,
-            source_context=shape_el.context,
+            span=shape_el.span,
         )
         real_ptrcls = None
         if is_polymorphic:
@@ -1381,7 +1379,7 @@ def _normalize_view_ptr_expr(
                     ptrname,
                     track_ref=shape_el_desc.ptr_ql,
                     ctx=ctx,
-                    source_context=shape_el.context,
+                    span=shape_el.span,
                 )
             except errors.InvalidReferenceError:
                 is_independent_polymorphic = True
@@ -1479,7 +1477,7 @@ def _normalize_view_ptr_expr(
             # We do not know the parent's pointer cardinality yet.
             ctx.env.pointer_derivation_map[base_ptrcls].append(ptrcls)
             ctx.env.pointer_specified_info[ptrcls] = (
-                shape_el.cardinality, shape_el.required, shape_el.context)
+                shape_el.cardinality, shape_el.required, shape_el.span)
 
         # If we generated qlexpr for the element, we process the
         # subview by just compiling the qlexpr. This is so that we can
@@ -1519,7 +1517,7 @@ def _normalize_view_ptr_expr(
                                                 with_parent=True)
                 raise errors.QueryError(
                     f'modification of computed {ptr_vn} is prohibited',
-                    context=shape_el.context)
+                    span=shape_el.span)
 
             base_ptrcls = ptrcls.get_bases(
                 ctx.env.schema).first(ctx.env.schema)
@@ -1608,10 +1606,10 @@ def _normalize_view_ptr_expr(
                 )
                 raise errors.EdgeQLSyntaxError(
                     f"unexpected '{op}'",
-                    context=shape_el.operation.context,
+                    span=shape_el.operation.span,
                 )
 
-        irexpr.context = compexpr.context
+        irexpr.span = compexpr.span
 
         is_inbound_alias = False
         if base_ptrcls is None:
@@ -1633,7 +1631,7 @@ def _normalize_view_ptr_expr(
         if generic_type is not None:
             raise errors.QueryError(
                 'expression returns value of indeterminate type',
-                context=ctx.env.type_origins.get(generic_type),
+                span=ctx.env.type_origins.get(generic_type),
             )
 
         # Validate that the insert/update expression is
@@ -1709,7 +1707,7 @@ def _normalize_view_ptr_expr(
         raise errors.QueryError(
             f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
             f'it is declared as read-only',
-            context=compexpr and compexpr.context,
+            span=compexpr.span if compexpr else None,
         )
 
     if (
@@ -1727,7 +1725,7 @@ def _normalize_view_ptr_expr(
         raise errors.QueryError(
             f'cannot assign to {ptrcls.get_verbosename(ctx.env.schema)}: '
             f'it is protected',
-            context=compexpr and compexpr.context,
+            span=compexpr.span if compexpr else None,
         )
 
     # Prohibit invalid operations on id
@@ -1760,7 +1758,7 @@ def _normalize_view_ptr_expr(
         else:
             hint = None
 
-        raise errors.QueryError(msg, context=shape_el.context, hint=hint)
+        raise errors.QueryError(msg, span=shape_el.span, hint=hint)
 
     # Common code for computed/not computed
 
@@ -1772,7 +1770,7 @@ def _normalize_view_ptr_expr(
         vnp = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
         raise errors.QueryError(
             f'duplicate definition of {vnp}',
-            context=shape_el.context)
+            span=shape_el.span)
 
     if qlexpr is not None or ptrcls is None:
         src_scls: s_sources.Source
@@ -1829,13 +1827,13 @@ def _normalize_view_ptr_expr(
                 t2_vn = ptr_target.get_verbosename(ctx.env.schema)
 
                 if compexpr is not None:
-                    source_context = compexpr.context
+                    span = compexpr.span
                 else:
-                    source_context = shape_el.expr.steps[-1].context
+                    span = shape_el.expr.steps[-1].span
                 raise errors.SchemaError(
                     f'cannot redefine {vnp} as {t2_vn}',
                     details=f'{vnp} is defined as {t1_vn}',
-                    context=source_context,
+                    span=span,
                 )
         else:
             ptrcls = schemactx.derive_ptr(
@@ -1862,7 +1860,7 @@ def _normalize_view_ptr_expr(
     ):
         raise errors.QueryError(
             f'cannot refer to volatile WITH bindings from DML',
-            context=compexpr and compexpr.context,
+            span=compexpr.span if compexpr else None,
         )
 
     if materialized and not is_mutation and ctx.qlstmt:
@@ -1954,7 +1952,7 @@ def _normalize_view_ptr_expr(
                     f'{ptrcls.get_verbosename(ctx.env.schema)}: '
                     f'it is defined as {base_cardinality.as_ptr_qual()!r} '
                     f'in the base {base_src_name}',
-                    context=compexpr and compexpr.context,
+                    span=compexpr.span if compexpr else None,
                 )
 
             if (
@@ -1970,17 +1968,17 @@ def _normalize_view_ptr_expr(
                     f'{ptrcls.get_verbosename(ctx.env.schema)} '
                     f'as optional: it is defined as required '
                     f'in the base {base_src_name}',
-                    context=compexpr and compexpr.context,
+                    span=compexpr.span if compexpr else None,
                 )
 
         ctx.env.pointer_specified_info[ptrcls] = (
-            specified_cardinality, specified_required, shape_el.context)
+            specified_cardinality, specified_required, shape_el.span)
 
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.Unknown)
 
-    if irexpr and not irexpr.context:
-        irexpr.context = shape_el.context
+    if irexpr and not irexpr.span:
+        irexpr.span = shape_el.span
 
     return ptrcls, irexpr
 
@@ -2432,7 +2430,7 @@ def _late_compile_view_shapes_in_set(
                 path_tip,
                 ptr,
                 same_computable_scope=True,
-                srcctx=srcctx,
+                span=srcctx,
                 ctx=ctx,
             )
 

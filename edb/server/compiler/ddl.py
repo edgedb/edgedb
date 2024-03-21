@@ -90,7 +90,7 @@ def compile_and_apply_ddl_stmt(
                     f"to avoid accidental schema changes outside of "
                     f"the migration flow."
                 ),
-                context=stmt.context,
+                span=stmt.span,
             )
         cm = qlast.CreateMigration(  # type: ignore
             body=qlast.NestedQLBlock(
@@ -811,7 +811,7 @@ def _commit_migration(
                 ' to let the system populate the outstanding DDL'
                 ' automatically.'
             ),
-            context=ql.context,
+            span=ql.span,
         )
 
     if debug.flags.delta_plan:
@@ -1001,7 +1001,7 @@ def _commit_migration_rewrite(
         raise errors.QueryError(
             'cannot commit migration rewrite: schema resulting '
             'from rewrite does not match committed schema',
-            context=ql.context,
+            span=ql.span,
         )
 
     schema = mrstate.target_schema
@@ -1099,7 +1099,7 @@ def _reset_schema(
         raise errors.QueryError(
             f'Unknown schema version "{ql.target.name}". '
             'Currently, only revision supported is "initial"',
-            context=ql.target.context,
+            span=ql.target.span,
         )
 
     current_tx = ctx.state.current_tx()
@@ -1243,7 +1243,7 @@ def administer_repair_schema(
     if ql.expr.args or ql.expr.kwargs:
         raise errors.QueryError(
             'repair_schema() does not take arguments',
-            context=ql.expr.context,
+            span=ql.expr.span,
         )
 
     current_tx = ctx.state.current_tx()
@@ -1278,7 +1278,7 @@ def administer_reindex(
     if len(ql.expr.args) != 1 or ql.expr.kwargs:
         raise errors.QueryError(
             'reindex() takes exactly one position argument',
-            context=ql.expr.context,
+            span=ql.expr.span,
         )
 
     arg = ql.expr.args[0]
@@ -1296,7 +1296,7 @@ def administer_reindex(
         case _:
             raise errors.QueryError(
                 'argument to reindex() must be an object type',
-                context=arg.context,
+                span=arg.span,
             )
 
     current_tx = ctx.state.current_tx()
@@ -1319,7 +1319,7 @@ def administer_reindex(
         ):
             raise errors.QueryError(
                 'invalid pointer argument to reindex()',
-                context=arg.context,
+                span=arg.span,
             )
         rptr = expr.expr.result.rptr
         source = rptr.source
@@ -1334,7 +1334,7 @@ def administer_reindex(
     ):
         raise errors.QueryError(
             'argument to reindex() must be a regular object type',
-            context=arg.context,
+            span=arg.span,
         )
 
     tables: set[s_pointers.Pointer | s_objtypes.ObjectType] = set()
@@ -1355,7 +1355,7 @@ def administer_reindex(
         if not isinstance(rptr.ptrref, irast.PointerRef):
             raise errors.QueryError(
                 'invalid pointer argument to reindex()',
-                context=arg.context,
+                span=arg.span,
             )
         schema, ptrcls = irtypeutils.ptrcls_from_ptrref(
             rptr.ptrref, schema=schema)
@@ -1419,12 +1419,12 @@ def administer_vacuum(
         if name != 'full':
             raise errors.QueryError(
                 f'unrecognized keyword argument {name!r} for vacuum()',
-                context=val.context,
+                span=val.span,
             )
         elif not isinstance(val, qlast.BooleanConstant):
             raise errors.QueryError(
                 f'argument {name!r} for vacuum() must be a boolean literal',
-                context=val.context,
+                span=val.span,
             )
         kwargs[name] = val.value
 
@@ -1450,7 +1450,7 @@ def administer_vacuum(
                 raise errors.QueryError(
                     'argument to vacuum() must be an object type '
                     'or a link or property reference',
-                    context=arg.context,
+                    span=arg.span,
                 )
 
         ir: irast.Statement = qlcompiler.compile_ast_to_ir(
@@ -1469,7 +1469,7 @@ def administer_vacuum(
             ):
                 raise errors.QueryError(
                     'invalid pointer argument to vacuum()',
-                    context=arg.context,
+                    span=arg.span,
                 )
             rptr = expr.expr.result.rptr
             source = rptr.source
@@ -1485,7 +1485,7 @@ def administer_vacuum(
             raise errors.QueryError(
                 'argument to vacuum() must be an object type '
                 'or a link or property reference',
-                context=arg.context,
+                span=arg.span,
             )
         args.append((rptr, obj))
 
@@ -1504,7 +1504,7 @@ def administer_vacuum(
             if not isinstance(rptr.ptrref, irast.PointerRef):
                 raise errors.QueryError(
                     'invalid pointer argument to vacuum()',
-                    context=arg.context,
+                    span=arg.span,
                 )
             schema, ptrcls = irtypeutils.ptrcls_from_ptrref(
                 rptr.ptrref, schema=schema)
@@ -1518,14 +1518,14 @@ def administer_vacuum(
                     raise errors.QueryError(
                         f'{vn} is not a valid argument to vacuum() '
                         f'because it is not a multi property',
-                        context=arg.context,
+                        span=arg.span,
                     )
                 else:
                     raise errors.QueryError(
                         f'{vn} is not a valid argument to vacuum() '
                         f'because it is neither a multi link nor '
                         f'does it have link properties',
-                        context=arg.context,
+                        span=arg.span,
                     )
 
             ptrclses = {ptrcls} | {

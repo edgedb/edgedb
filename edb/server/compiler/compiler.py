@@ -155,7 +155,7 @@ class CompileContext:
             stmt = status.get_status(ql).decode()
             raise errors.QueryError(
                 f'cannot execute {stmt} in a migration block',
-                context=ql.context,
+                span=ql.span,
             )
 
     def _assert_in_migration_block(
@@ -169,7 +169,7 @@ class CompileContext:
             stmt = status.get_status(ql).decode()
             raise errors.QueryError(
                 f'cannot execute {stmt} outside of a migration block',
-                context=ql.context,
+                span=ql.span,
             )
         return mstate
 
@@ -184,7 +184,7 @@ class CompileContext:
             stmt = status.get_status(ql).decode()
             raise errors.QueryError(
                 f'cannot execute {stmt} in a migration rewrite block',
-                context=ql.context,
+                span=ql.span,
             )
 
     def _assert_in_migration_rewrite_block(
@@ -198,7 +198,7 @@ class CompileContext:
             stmt = status.get_status(ql).decode()
             raise errors.QueryError(
                 f'cannot execute {stmt} outside of a migration rewrite block',
-                context=ql.context,
+                span=ql.span,
             )
         return mstate
 
@@ -1702,7 +1702,7 @@ def _compile_ql_explain(
             if name not in EXPLAIN_PARAMS:
                 raise errors.QueryError(
                     f"unknown ANALYZE argument '{name}'",
-                    context=el.context,
+                    span=el.span,
                 )
             arg_ir = qlcompiler.compile_ast_to_ir(
                 el.val,
@@ -1717,7 +1717,7 @@ def _compile_ql_explain(
                     f"incorrect type for ANALYZE argument '{name}': "
                     f"expected '{exp_typ.get_name(schema)}', "
                     f"got '{arg_ir.stype.get_name(schema)}'",
-                    context=el.context,
+                    span=el.span,
                 )
 
             args[name] = ireval.evaluate_to_python_val(arg_ir.expr, schema)
@@ -1744,7 +1744,7 @@ def _compile_ql_explain(
     if isinstance(query, dbstate.NullQuery):
         raise errors.QueryError(
             f"cannot ANALYZE inside of a migration",
-            context=ql.context,
+            span=ql.span,
         )
 
     assert len(query.sql) == 1, query.sql
@@ -1785,12 +1785,12 @@ def _compile_ql_administer(
         if not _get_config_val(ctx, '__internal_testmode'):
             raise errors.QueryError(
                 'statistics_update() can only be executed in test mode',
-                context=ql.context)
+                span=ql.span)
 
         if ql.expr.args or ql.expr.kwargs:
             raise errors.QueryError(
                 'statistics_update() does not take arguments',
-                context=ql.expr.context,
+                span=ql.expr.span,
             )
 
         return dbstate.MaintenanceQuery(sql=(b'ANALYZE',))
@@ -1803,7 +1803,7 @@ def _compile_ql_administer(
     else:
         raise errors.QueryError(
             'Unknown ADMINISTER function',
-            context=ql.expr.context,
+            span=ql.expr.span,
         )
 
 
@@ -2641,14 +2641,14 @@ def _try_compile(
                 raise errors.QueryError(
                     f'cannot execute {status.get_status(stmt).decode()} '
                     f'with other commands in one block',
-                    context=stmt.context,
+                    span=stmt.span,
                 )
 
             if not ctx.state.current_tx().is_implicit():
                 raise errors.QueryError(
                     f'cannot execute {status.get_status(stmt).decode()} '
                     f'in a transaction',
-                    context=stmt.context,
+                    span=stmt.span,
                 )
 
             unit.is_transactional = False

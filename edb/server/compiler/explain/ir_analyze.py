@@ -130,21 +130,21 @@ def analyze_queries(
 ) -> AnalysisInfo:
     debug_spew = debug.flags.edgeql_explain
 
-    assert ql.context
-    contexts = {(ql.context.buffer, ql.context.name): 0}
+    assert ql.span
+    contexts = {(ql.span.buffer, ql.span.name): 0}
 
     def get_context(node: irast.Set) -> ContextDesc:
-        assert node.context, node
-        context = node.context
-        key = context.buffer, context.name
+        assert node.span, node
+        span = node.span
+        key = span.buffer, span.name
         if (idx := contexts.get(key)) is None:
             idx = len(contexts)
             contexts[key] = idx
-        text = context.buffer[context.start:context.end]
+        text = span.buffer[span.start:span.end]
 
         return ContextDesc(
-            start=context.start,
-            end=context.end,
+            start=span.start,
+            end=span.end,
             buffer_idx=idx,
             text=text,
         )
@@ -194,7 +194,7 @@ def analyze_queries(
         asets = []
         while True:
             ns = cast(list[irast.Set], rvar.ir_origins or [])
-            if len(ns) >= 1 and ns[0].context:
+            if len(ns) >= 1 and ns[0].span:
                 if ns[0] not in asets:
                     asets.append(ns[0])
 
@@ -215,14 +215,14 @@ def analyze_queries(
 
             rvar = subq_to_rvar[source]
 
-        sctxs = [get_context(x) for x in asets if x.context]
+        spans = [get_context(x) for x in asets if x.span]
         if debug_spew:
             print(alias, asets)
             for x in asets:
-                debug.dump(x.context)
+                debug.dump(x.span)
 
         # Using the first set of contexts found
-        alias_contexts.setdefault(alias, sctxs)
+        alias_contexts.setdefault(alias, spans)
 
     alias_info = {
         alias: AliasInfo(

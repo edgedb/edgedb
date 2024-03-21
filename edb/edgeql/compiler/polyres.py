@@ -612,7 +612,7 @@ def compile_arg(
 
         if fenced:
             arg_ql = qlast.SelectQuery(
-                result=arg_ql, context=arg_ql.context,
+                result=arg_ql, span=arg_ql.span,
                 implicit=True, rptr_passthrough=True)
 
         argctx.inhibit_implicit_limit = True

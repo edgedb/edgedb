@@ -39,7 +39,7 @@ def _resolve(
 
 def resolve(ir: Base_T, *, ctx: context.ResolverContextLevel) -> Base_T:
     res = _resolve(ir, ctx=ctx)
-    return typing.cast(Base_T, res.replace(context=ir.context))
+    return typing.cast(Base_T, res.replace(span=ir.span))
 
 
 def resolve_opt(
@@ -77,7 +77,7 @@ def resolve_relation(
     ir: BaseRelation_T, *, ctx: context.ResolverContextLevel
 ) -> typing.Tuple[BaseRelation_T, context.Table]:
     res, tab = _resolve_relation(ir, ctx=ctx)
-    return typing.cast(BaseRelation_T, res.replace(context=ir.context)), tab
+    return typing.cast(BaseRelation_T, res.replace(span=ir.span)), tab
 
 
 @_resolve.register

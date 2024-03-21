@@ -30,7 +30,7 @@ from edb.errors import EdgeQLSyntaxError
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
-from edb.common import context as pctx
+from edb.common import span as edb_span
 from edb.common import parsing
 
 from . import expressions
@@ -285,7 +285,7 @@ class UnqualifiedPointerName(Nonterm):
         if kids[0].val.module:
             raise EdgeQLSyntaxError(
                 'unexpected fully-qualified name',
-                context=kids[0].val.context)
+                span=kids[0].val.span)
         self.val = kids[0].val
 
 
@@ -403,12 +403,12 @@ class NestedQLBlock(ProductionTpl):
                 if stmt.name not in self.allowed_fields:
                     raise errors.InvalidSyntaxError(
                         f'unexpected field: {stmt.name!r}',
-                        context=stmt.context,
+                        span=stmt.span,
                     )
                 if stmt.name in uniq_check:
                     raise errors.InvalidSyntaxError(
                         f'duplicate `SET {stmt.name} := ...`',
-                        context=stmt.context,
+                        span=stmt.span,
                     )
                 uniq_check.add(stmt.name)
                 fields.append(stmt)
@@ -420,9 +420,9 @@ class NestedQLBlock(ProductionTpl):
     def _get_text(self, body):
         # XXX: Workaround the rust lexer issue of returning
         # byte token offsets instead of character offsets.
-        src_start = body.context.start
-        src_end = body.context.end
-        buffer = body.context.buffer.encode('utf-8')
+        src_start = body.span.start
+        src_end = body.span.end
+        buffer = body.span.buffer.encode('utf-8')
         text = buffer[src_start:src_end].decode('utf-8').strip().strip('}{\n')
         return textwrap.dedent(text).strip('\n')
 
@@ -430,11 +430,11 @@ class NestedQLBlock(ProductionTpl):
         # LBRACE NestedQLBlock OptSemicolons RBRACE
         fields, stmts = self._process_body(cmdlist.val)
         body = qlast.NestedQLBlock(commands=stmts)
-        contexts = [lbrace.context, cmdlist.context]
-        if sc2.context is not None:
-            contexts.append(sc2.context)
-        contexts.append(rbrace.context)
-        body.context = pctx.merge_context(contexts)
+        spans = [lbrace.span, cmdlist.span]
+        if sc2.span is not None:
+            spans.append(sc2.span)
+        spans.append(rbrace.span)
+        body.span = edb_span.merge_spans(spans)
         body.text = self._get_text(body)
         self.val = self.result(body=body, fields=fields)
 
@@ -442,8 +442,8 @@ class NestedQLBlock(ProductionTpl):
         # LBRACE Semicolons NestedQLBlock OptSemicolons RBRACE
         fields, stmts = self._process_body(cmdlist.val)
         body = qlast.NestedQLBlock(commands=stmts)
-        body.context = pctx.merge_context(
-            [sc1.context, cmdlist.context, sc2.context])
+        body.span = edb_span.merge_spans(
+            [sc1.span, cmdlist.span, sc2.span])
         body.text = self._get_text(body)
         self.val = self.result(body=body, fields=fields)
 
@@ -452,9 +452,9 @@ class NestedQLBlock(ProductionTpl):
         self.val = []
         body = qlast.NestedQLBlock(commands=[])
         if len(kids) > 1:
-            body.context = kids[1].context
-        if body.context is None:
-            body.context = pctx.empty_context()
+            body.span = kids[1].span
+        if body.span is None:
+            body.span = qlast.Span.empty()
         body.text = self._get_text(body)
         self.val = self.result(body=body, fields=[])
 
@@ -684,7 +684,7 @@ class DatabaseName(Nonterm):
             # few remaining reserved __keywords__.
             raise EdgeQLSyntaxError(
                 "identifiers surrounded by double underscores are forbidden",
-                context=kids[0].context)
+                span=kids[0].span)
 
         self.val = qlast.ObjectRef(
             module=None,
@@ -1866,17 +1866,17 @@ class CreateConcretePropertyStmt(Nonterm):
                 if target is not None:
                     raise EdgeQLSyntaxError(
                         f'computed property with more than one expression',
-                        context=kids[3].context)
+                        span=kids[3].span)
                 target = cmd.value
             elif isinstance(cmd, qlast.AlterAddInherit):
                 raise EdgeQLSyntaxError(
                     f'computed property cannot specify EXTENDING',
-                    context=kids[3].context)
+                    span=kids[3].span)
 
         if target is None:
             raise EdgeQLSyntaxError(
                 f'computed property without expression',
-                context=kids[3].context)
+                span=kids[3].span)
 
         self.val = qlast.CreateConcreteProperty(
             name=kids[3].val,
@@ -2203,17 +2203,17 @@ class CreateConcreteLinkStmt(Nonterm):
                 if target is not None:
                     raise EdgeQLSyntaxError(
                         f'computed link with more than one expression',
-                        context=kids[3].context)
+                        span=kids[3].span)
                 target = cmd.value
             elif isinstance(cmd, qlast.AlterAddInherit):
                 raise EdgeQLSyntaxError(
                     f'computed link cannot specify EXTENDING',
-                    context=kids[3].context)
+                    span=kids[3].span)
 
         if target is None:
             raise EdgeQLSyntaxError(
                 f'computed link without expression',
-                context=kids[3].context)
+                span=kids[3].span)
 
         self.val = qlast.CreateConcreteLink(
             name=kids[3].val,
@@ -2814,13 +2814,13 @@ class OperatorCode(Nonterm):
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in USING OPERATOR clause',
-                context=kids[1].context) from None
+                span=kids[1].span) from None
 
         m = re.match(SQL_OP_RE, kids[3].val.value)
         if not m:
             raise EdgeQLSyntaxError(
                 f'invalid syntax for USING OPERATOR clause',
-                context=kids[3].context) from None
+                span=kids[3].span) from None
 
         sql_operator = (m.group(1),)
         if m.group(2):
@@ -2834,13 +2834,13 @@ class OperatorCode(Nonterm):
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in USING FUNCTION clause',
-                context=kids[1].context) from None
+                span=kids[1].span) from None
 
         m = re.match(SQL_OP_RE, kids[3].val.value)
         if not m:
             raise EdgeQLSyntaxError(
                 f'invalid syntax for USING FUNCTION clause',
-                context=kids[3].context) from None
+                span=kids[3].span) from None
 
         sql_function = (m.group(1),)
         if m.group(2):
@@ -2854,7 +2854,7 @@ class OperatorCode(Nonterm):
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in USING clause',
-                context=kids[1].context) from None
+                span=kids[1].span) from None
 
         self.val = qlast.OperatorCode(language=lang,
                                       code=kids[2].val.value)
@@ -2864,7 +2864,7 @@ class OperatorCode(Nonterm):
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in USING clause',
-                context=kids[1].context) from None
+                span=kids[1].span) from None
 
         self.val = qlast.OperatorCode(language=lang)
 
@@ -2937,28 +2937,28 @@ class CreateOperatorStmt(Nonterm):
                     raise errors.InvalidOperatorDefinitionError(
                         'unexpected USING clause in abstract '
                         'operator definition',
-                        context=node.context,
+                        span=node.span,
                     )
 
                 if node.from_function:
                     if from_function is not None:
                         raise errors.InvalidOperatorDefinitionError(
                             'more than one USING FUNCTION clause',
-                            context=node.context)
+                            span=node.span)
                     from_function = node.from_function
 
                 elif node.from_operator:
                     if from_operator is not None:
                         raise errors.InvalidOperatorDefinitionError(
                             'more than one USING OPERATOR clause',
-                            context=node.context)
+                            span=node.span)
                     from_operator = node.from_operator
 
                 elif node.code:
                     if code is not None:
                         raise errors.InvalidOperatorDefinitionError(
                             'more than one USING <code> clause',
-                            context=node.context)
+                            span=node.span)
                     code = node.code
 
                 else:
@@ -2973,14 +2973,14 @@ class CreateOperatorStmt(Nonterm):
                     and not from_expr):
                 raise errors.InvalidOperatorDefinitionError(
                     'CREATE OPERATOR requires at least one USING clause',
-                    context=block.context)
+                    span=block.span)
 
             else:
                 if from_expr and (from_operator or from_function or code):
                     raise errors.InvalidOperatorDefinitionError(
                         'USING SQL EXPRESSION is mutually exclusive with '
                         'other USING variants',
-                        context=block.context)
+                        span=block.span)
 
                 props['code'] = qlast.OperatorCode(
                     language=qlast.Language.SQL,
@@ -3067,7 +3067,7 @@ class CastCode(Nonterm):
         if lang not in {qlast.Language.SQL, qlast.Language.EdgeQL}:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in USING FUNCTION clause',
-                context=kids[1].context) from None
+                span=kids[1].span) from None
 
         self.val = qlast.CastCode(language=lang,
                                   from_function=kids[3].val.value)
@@ -3077,7 +3077,7 @@ class CastCode(Nonterm):
         if lang not in {qlast.Language.SQL, qlast.Language.EdgeQL}:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in USING clause',
-                context=kids[1].context) from None
+                span=kids[1].span) from None
 
         self.val = qlast.CastCode(language=lang,
                                   code=kids[2].val.value)
@@ -3087,7 +3087,7 @@ class CastCode(Nonterm):
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in USING CAST clause',
-                context=kids[1].context) from None
+                span=kids[1].span) from None
 
         self.val = qlast.CastCode(language=lang, from_cast=True)
 
@@ -3096,7 +3096,7 @@ class CastCode(Nonterm):
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in USING EXPRESSION clause',
-                context=kids[1].context) from None
+                span=kids[1].span) from None
 
         self.val = qlast.CastCode(language=lang)
 
@@ -3142,14 +3142,14 @@ class CreateCastStmt(Nonterm):
                     if from_function is not None:
                         raise EdgeQLSyntaxError(
                             'more than one USING FUNCTION clause',
-                            context=node.context)
+                            span=node.span)
                     from_function = node.from_function
 
                 elif node.code:
                     if code is not None:
                         raise EdgeQLSyntaxError(
                             'more than one USING <code> clause',
-                            context=node.context)
+                            span=node.span)
                     code = node.code
 
                 elif node.from_cast:
@@ -3158,7 +3158,7 @@ class CreateCastStmt(Nonterm):
                     if from_cast:
                         raise EdgeQLSyntaxError(
                             'more than one USING CAST clause',
-                            context=node.context)
+                            span=node.span)
 
                     from_cast = True
 
@@ -3168,7 +3168,7 @@ class CreateCastStmt(Nonterm):
                     if from_expr:
                         raise EdgeQLSyntaxError(
                             'more than one USING EXPRESSION clause',
-                            context=node.context)
+                            span=node.span)
 
                     from_expr = True
 
@@ -3181,7 +3181,7 @@ class CreateCastStmt(Nonterm):
                 else:
                     raise EdgeQLSyntaxError(
                         'unexpected ALLOW clause',
-                        context=node.context)
+                        span=node.span)
 
             else:
                 commands.append(node)
@@ -3190,20 +3190,20 @@ class CreateCastStmt(Nonterm):
                 and not from_expr and not from_cast):
             raise EdgeQLSyntaxError(
                 'CREATE CAST requires at least one USING clause',
-                context=block.context)
+                span=block.span)
 
         else:
             if from_expr and (from_function or code or from_cast):
                 raise EdgeQLSyntaxError(
                     'USING SQL EXPRESSION is mutually exclusive with other '
                     'USING variants',
-                    context=block.context)
+                    span=block.span)
 
             if from_cast and (from_function or code or from_expr):
                 raise EdgeQLSyntaxError(
                     'USING SQL CAST is mutually exclusive with other '
                     'USING variants',
-                    context=block.context)
+                    span=block.span)
 
             props['code'] = qlast.CastCode(
                 language=qlast.Language.SQL,
@@ -3330,13 +3330,13 @@ class CreateGlobalStmt(Nonterm):
                 if target is not None:
                     raise EdgeQLSyntaxError(
                         f'computed global with more than one expression',
-                        context=kids[3].context)
+                        span=kids[3].span)
                 target = cmd.value
 
         if target is None:
             raise EdgeQLSyntaxError(
                 f'computed global without expression',
-                context=kids[3].context)
+                span=kids[3].span)
 
         self.val = qlast.CreateGlobal(
             name=kids[3].val,

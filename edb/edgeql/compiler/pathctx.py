@@ -90,7 +90,7 @@ def register_set_in_scope(
     path_scope.attach_path(
         ir_set.path_id,
         optional=optional,
-        context=ir_set.context,
+        span=ir_set.span,
     )
 
 

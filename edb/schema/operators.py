@@ -142,7 +142,7 @@ class OperatorCommand(
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
                 'user-defined operators are not supported',
-                context=astnode.context
+                span=astnode.span
             )
 
         return super()._cmd_tree_from_ast(schema, astnode, context)
@@ -188,7 +188,7 @@ class CreateOperator(
                 f'cannot create the `{signature}` operator: '
                 f'an operator with the same signature '
                 f'is already defined',
-                context=self.source_context)
+                span=self.span)
 
         schema = super()._create_begin(schema, context)
 
@@ -205,7 +205,7 @@ class CreateOperator(
             raise errors.InvalidOperatorDefinitionError(
                 f'cannot create the `{signature}` operator: '
                 f'an operator must have operands',
-                context=self.source_context)
+                span=self.span)
 
         # We'll need to make sure that there's no mix of recursive and
         # non-recursive operators being overloaded.
@@ -224,7 +224,7 @@ class CreateOperator(
                 f'cannot create the `{signature}` operator: '
                 f'operands of a recursive operator must either be '
                 f'all arrays or all tuples',
-                context=self.source_context)
+                span=self.span)
 
         for oper in schema.get_operators(shortname, ()):
             if oper == self.scls:
@@ -237,7 +237,7 @@ class CreateOperator(
                     f'operator: overloading another operator with different '
                     f'return type {oper_return_typemod.to_edgeql()} '
                     f'{oper.get_return_type(schema).name}',
-                    context=self.source_context)
+                    span=self.span)
 
             oper_derivative_of = oper.get_derivative_of(schema)
             if oper_derivative_of:
@@ -245,13 +245,13 @@ class CreateOperator(
                     f'cannot create the `{signature}` '
                     f'operator: there exists a derivative operator of the '
                     f'same name',
-                    context=self.source_context)
+                    span=self.span)
             elif derivative_of:
                 raise errors.DuplicateOperatorDefinitionError(
                     f'cannot create `{signature}` '
                     f'as a derivative operator: there already exists an '
                     f'operator of the same name',
-                    context=self.source_context)
+                    span=self.span)
 
             # Check if there is a recursive/non-recursive operator
             # overloading.
@@ -282,7 +282,7 @@ class CreateOperator(
                         f'overloading a {oper_rec} operator '
                         f'`{oper_signature}` with a {new_rec} one '
                         f'is not allowed',
-                        context=self.source_context)
+                        span=self.span)
 
         return schema
 

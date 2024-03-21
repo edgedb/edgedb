@@ -309,7 +309,7 @@ class CreateAnnotationValue(
             vn = ir.stype.get_verbosename(schema)
             raise errors.InvalidValueError(
                 f"annotation values must be 'std::str', got {vn}",
-                context=astnode.value.context,
+                span=astnode.value.span,
             )
 
         anno = utils.ast_objref_to_object_shell(
@@ -388,7 +388,7 @@ class AlterAnnotationValue(
                 vn = ir.stype.get_verbosename(schema)
                 raise errors.InvalidValueError(
                     f"annotation values must be 'std::str', got {vn}",
-                    context=astnode.value.context,
+                    span=astnode.value.span,
                 )
 
             cmd.set_attribute_value(

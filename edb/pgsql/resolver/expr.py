@@ -92,7 +92,7 @@ def resolve_ResTarget(
 
     col = context.Column(name=alias, reference_as=alias)
     new_target = pgast.ResTarget(
-        val=val, name=alias, context=res_target.context
+        val=val, name=alias, span=res_target.span
     )
     return (new_target,), (col,)
 
@@ -169,7 +169,7 @@ def _lookup_column(
         try:
             table = _lookup_table(cast(str, tab_name), ctx)
         except errors.QueryError as e:
-            e.set_source_context(column_ref.context)
+            e.set_span(column_ref.span)
             raise
 
         if isinstance(col_name, pgast.Star):
@@ -179,7 +179,7 @@ def _lookup_column(
 
     if not matched_columns:
         raise errors.QueryError(
-            f'cannot find column `{col_name}`', context=column_ref.context
+            f'cannot find column `{col_name}`', span=column_ref.span
         )
 
     # apply precedence
@@ -194,7 +194,7 @@ def _lookup_column(
         raise errors.QueryError(
             f'ambiguous column `{col_name}` could belong to '
             f'following tables: {potential_tables}',
-            context=column_ref.context,
+            span=column_ref.span,
         )
 
     return (matched_columns[0],)

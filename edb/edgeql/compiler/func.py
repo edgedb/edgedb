@@ -88,7 +88,7 @@ def compile_FunctionCall(
         ):
             raise errors.QueryError(
                 f'parameter `{expr.func}` is not callable',
-                context=expr.context)
+                span=expr.span)
 
         funcname = sn.UnqualName(expr.func)
     else:
@@ -102,7 +102,7 @@ def compile_FunctionCall(
     if funcs is None:
         raise errors.QueryError(
             f'could not resolve function name {funcname}',
-            context=expr.context)
+            span=expr.span)
 
     in_polymorphic_func = (
         ctx.env.options.func_params is not None and
@@ -120,7 +120,7 @@ def compile_FunctionCall(
     args, kwargs = compile_func_call_args(
         expr, funcname, typemods, prefer_subquery_args=prefer_subquery_args,
         ctx=ctx)
-    with errors.ensure_context(expr.context):
+    with errors.ensure_span(expr.span):
         matched = polyres.find_callable(
             funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
@@ -158,7 +158,7 @@ def compile_FunctionCall(
         raise errors.QueryError(
             f'function "{signature}" does not exist',
             hint=hint,
-            context=expr.context)
+            span=expr.span)
     elif len(matched) > 1:
         if in_abstract_constraint:
             matched_call = matched[0]
@@ -169,7 +169,7 @@ def compile_FunctionCall(
                 hint=f'Please disambiguate between the following '
                      f'alternatives:\n' +
                      ('\n'.join(alts)),
-                context=expr.context)
+                span=expr.span)
     else:
         matched_call = matched[0]
 
@@ -186,7 +186,7 @@ def compile_FunctionCall(
             raise errors.SchemaDefinitionError(
                 f'mutations are invalid in '
                 f'{ctx.env.options.in_ddl_context_name}',
-                context=expr.context,
+                span=expr.span,
             )
         elif (
             (dv := ctx.defining_view) is not None
@@ -203,7 +203,7 @@ def compile_FunctionCall(
                     f'To resolve this try to factor out the mutation '
                     f'expression into the top-level WITH block.'
                 ),
-                context=expr.context,
+                span=expr.span,
             )
 
     func_name = func.get_shortname(env.schema)
@@ -245,7 +245,7 @@ def compile_FunctionCall(
             raise errors.UnsupportedFeatureError(
                 'newly created or updated objects cannot be passed to '
                 'functions',
-                context=arg.expr.context
+                span=arg.expr.span
             )
 
     if not in_abstract_constraint:
@@ -308,7 +308,6 @@ def compile_FunctionCall(
         preserves_upper_cardinality=func.get_preserves_upper_cardinality(
             env.schema),
         params_typemods=params_typemods,
-        context=expr.context,
         typeref=typegen.type_to_typeref(
             rtype, env=env,
         ),
@@ -320,6 +319,7 @@ def compile_FunctionCall(
         impl_is_strict=func.get_impl_is_strict(env.schema),
         prefer_subquery_args=func.get_prefer_subquery_args(env.schema),
         global_args=global_args,
+        span=expr.span,
     )
 
     # Apply special function handling
@@ -361,7 +361,7 @@ def compile_operator(
     if opers is None:
         raise errors.QueryError(
             f'no operator matches the given name and argument types',
-            context=qlexpr.context)
+            span=qlexpr.span)
 
     typemods = polyres.find_callable_typemods(
         opers, num_args=len(qlargs), kwargs_names=set(), ctx=ctx)
@@ -385,7 +385,7 @@ def compile_operator(
             raise errors.QueryError(
                 f'could not resolve the type of operand '
                 f'#{ai} of {op_name}',
-                context=qlarg.context)
+                span=qlarg.span)
 
         args.append((arg_type, arg_ir))
 
@@ -400,14 +400,14 @@ def compile_operator(
         if len(opers) > 1:
             raise errors.InternalServerError(
                 f'more than one derived operator of the same name: {op_name}',
-                context=qlarg.context)
+                span=qlarg.span)
 
         derivative_op = opers[0]
         opers = schema.get_operators(origin_op)
         if not opers:
             raise errors.InternalServerError(
                 f'cannot find the origin operator for {op_name}',
-                context=qlarg.context)
+                span=qlarg.span)
         actual_typemods = [
             param.get_typemod(schema)
             for param in derivative_op.get_params(schema).objects(schema)
@@ -549,7 +549,7 @@ def compile_operator(
             raise errors.InvalidTypeError(
                 msg,
                 hint=hint,
-                context=qlexpr.context)
+                span=qlexpr.span)
         elif len(matched) > 1:
             if in_abstract_constraint:
                 matched_call = matched[0]
@@ -562,7 +562,7 @@ def compile_operator(
                     f'operator {str(op_name)!r} is ambiguous for '
                     f'operands of type {types}',
                     hint=f'Possible variants: {detail}.',
-                    context=qlexpr.context)
+                    span=qlexpr.span)
 
     oper = matched_call.func
     assert isinstance(oper, s_oper.Operator)
@@ -640,12 +640,12 @@ def compile_operator(
         volatility=oper.get_volatility(env.schema),
         operator_kind=oper.get_operator_kind(env.schema),
         params_typemods=params_typemods,
-        context=qlexpr.context,
         typeref=typegen.type_to_typeref(rtype, env=env),
         typemod=oper.get_return_typemod(env.schema),
         tuple_path_ids=[],
         impl_is_strict=oper.get_impl_is_strict(env.schema),
         prefer_subquery_args=oper.get_prefer_subquery_args(env.schema),
+        span=qlexpr.span,
     )
 
     _check_free_shape_op(node, ctx=ctx)
@@ -676,7 +676,7 @@ def _check_free_shape_op(
         if typ.issubclass(ctx.env.schema, virt_obj):
             raise errors.QueryError(
                 f'cannot use {ir.func_shortname.name} on free shape',
-                context=ir.context)
+                span=ir.span)
 
 
 def validate_recursive_operator(
@@ -738,7 +738,7 @@ def compile_func_call_args(
             raise errors.QueryError(
                 f'could not resolve the type of positional argument '
                 f'#{ai} of function {funcname}',
-                context=arg.context)
+                span=arg.span)
 
         args.append((arg_type, arg_ir))
 
@@ -752,7 +752,7 @@ def compile_func_call_args(
             raise errors.QueryError(
                 f'could not resolve the type of named argument '
                 f'${aname} of function {funcname}',
-                context=arg.context)
+                span=arg.span)
 
         kwargs[aname] = (arg_type, arg_ir)
 
@@ -788,7 +788,7 @@ def get_globals(
         and not ctx.env.options.json_parameters
     ):
         glob_set = setgen.get_globals_as_json(
-            tuple(globs), ctx=ctx, srcctx=expr.context)
+            tuple(globs), ctx=ctx, srcctx=expr.span)
     else:
         if ctx.env.options.func_params is not None:
             # Make sure that we properly track the globals we use in functions
@@ -916,7 +916,7 @@ def finalize_args(
             # casting.
             orig_arg = arg
             arg = casts.compile_cast(
-                arg, paramtype, srcctx=None, ctx=ctx)
+                arg, paramtype, span=None, ctx=ctx)
             if ctx.path_scope.is_optional(orig_arg.path_id):
                 pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
 
@@ -939,16 +939,16 @@ def compile_fts_search(
     stype_id = object_typeref.id
 
     schema = ctx.env.schema
-    pctx = object_arg.context
+    span = object_arg.span
 
     stype = schema.get_by_id(stype_id, type=s_types.Type)
 
     if union_variants := stype.get_union_of(schema):
         for variant in union_variants.objects(schema):
             schema, variant = variant.material_type(schema)
-            _validate_has_fts_index(variant, schema, pctx)
+            _validate_has_fts_index(variant, schema, span)
     else:
-        _validate_has_fts_index(stype, schema, pctx)
+        _validate_has_fts_index(stype, schema, span)
 
     return call
 
@@ -956,7 +956,7 @@ def compile_fts_search(
 def _validate_has_fts_index(
     stype: s_types.Type,
     schema: s_schema.Schema,
-    pctx: Optional[parsing.ParserContext],
+    span: Optional[parsing.Span],
 ) -> None:
     if isinstance(stype, s_indexes.IndexableSubject):
         (fts_index, _) = s_indexes.get_effective_fts_index(stype, schema)
@@ -967,7 +967,7 @@ def _validate_has_fts_index(
         raise errors.InvalidReferenceError(
             f"fts::search requires an fts::index index on type "
             f"'{stype.get_displayname(schema)}'",
-            context=pctx,
+            span=span,
         )
 
 
@@ -1004,7 +1004,7 @@ def compile_fts_with_options(
     if not irutils.is_const(weight_expr):
         raise errors.InvalidValueError(
             f"fts::search weight_category must be a constant",
-            context=weight_expr.context,
+            span=weight_expr.span,
         )
     weight_const = irutils.as_const(weight_expr)
     if weight_const:

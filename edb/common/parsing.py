@@ -30,9 +30,9 @@ import types
 
 import parsing
 
-from edb.common import context as pctx, debug
+from edb.common import debug, span
 
-ParserContext = pctx.ParserContext
+Span = span.Span
 
 logger = logging.getLogger('edb.common.parsing')
 
@@ -74,11 +74,11 @@ class Token(parsing.Token):
 
             cls.__doc__ = doc
 
-    def __init__(self, val, clean_value, context=None):
+    def __init__(self, val, clean_value, span=None):
         super().__init__()
         self.val = val
         self.clean_value = clean_value
-        self.context = context
+        self.span = span
 
     def __repr__(self):
         return '<Token %s "%s">' % (self.__class__._token, self.val)
@@ -141,7 +141,7 @@ class Nonterm(parsing.Nonterm):
                     attr = lambda self, *args, meth=attr: meth(self, *args)
                     attr.__doc__ = doc
 
-                a = pctx.has_context(attr)
+                a = span.wrap_function_to_infer_spans(attr)
 
                 a.__doc__ = attr.__doc__
                 a.inline_index = inline_index

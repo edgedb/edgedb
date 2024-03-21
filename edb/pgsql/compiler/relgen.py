@@ -3333,7 +3333,7 @@ def process_set_as_func_expr(
                         val=expr.error_on_null_result,
                     ),
                     pgast.StringConstant(
-                        val=irutils.get_source_context_as_json(
+                        val=irutils.get_span_as_json(
                             expr, errors.InvalidValueError),
                     ),
                 ]
@@ -3527,7 +3527,7 @@ def process_set_as_agg_expr_inner(
                         val=expr.error_on_null_result,
                     ),
                     pgast.StringConstant(
-                        val=irutils.get_source_context_as_json(
+                        val=irutils.get_span_as_json(
                             expr, errors.InvalidValueError),
                     ),
                 ]

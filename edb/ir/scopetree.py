@@ -44,7 +44,7 @@ import textwrap
 import weakref
 
 from edb import errors
-from edb.common import context as pctx
+from edb.common import span
 from edb.common import term
 from . import pathid
 from . import ast as irast
@@ -384,7 +384,7 @@ class ScopeTreeNode:
             pd.path_id = pd.path_id.strip_namespace(ns)
 
     def attach_child(self, node: ScopeTreeNode,
-                     context: Optional[pctx.ParserContext]=None) -> None:
+                     span: Optional[span.Span]=None) -> None:
         """Attach a child node to this node.
 
         This is a low-level operation, no tree validation is
@@ -395,7 +395,7 @@ class ScopeTreeNode:
                 if child.path_id == node.path_id:
                     raise errors.InvalidReferenceError(
                         f'{node.path_id} is already present in {self!r}',
-                        context=context,
+                        span=span,
                     )
 
         if node.unique_id is not None:
@@ -422,7 +422,7 @@ class ScopeTreeNode:
         path_id: pathid.PathId,
         *,
         optional: bool=False,
-        context: Optional[pctx.ParserContext],
+        span: Optional[span.Span],
     ) -> None:
         """Attach a scope subtree representing *path_id*."""
 
@@ -492,11 +492,11 @@ class ScopeTreeNode:
             if not prefix.is_tuple_indirection_path():
                 parent = new_child
 
-        self.attach_subtree(subtree, context=context)
+        self.attach_subtree(subtree, span=span)
 
     def attach_subtree(self, node: ScopeTreeNode,
                        was_fenced: bool=False,
-                       context: Optional[pctx.ParserContext]=None) -> None:
+                       span: Optional[span.Span]=None) -> None:
         """Attach a subtree to this node.
 
         *node* is expected to be a balanced scope tree and may be modified
@@ -533,7 +533,7 @@ class ScopeTreeNode:
                     raise errors.InvalidReferenceError(
                         f'cannot reference correlated set '
                         f'{path_id.pformat()!r} here',
-                        context=context,
+                        span=span,
                     )
 
                 # This path is already present in the tree, discard,
@@ -551,7 +551,7 @@ class ScopeTreeNode:
                     descendant,
                     self_fenced=False,
                     node_fenced=desc_fenced,
-                    context=context)
+                    span=span)
 
             elif descendant.parent_fence is node:
                 # Unfenced path.
@@ -588,7 +588,7 @@ class ScopeTreeNode:
 
                     self._check_factoring_errors(
                         path_id, descendant, factor_point, existing,
-                        unnest_fence, existing_finfo, context,
+                        unnest_fence, existing_finfo, span,
                     )
 
                     existing_fenced = existing.parent_fence is not factor_point
@@ -610,7 +610,7 @@ class ScopeTreeNode:
                         current,
                         self_fenced=existing_fenced,
                         node_fenced=node_fenced,
-                        context=context)
+                        span=span)
 
                     current = existing
 
@@ -631,7 +631,7 @@ class ScopeTreeNode:
         existing: ScopeTreeNodeWithPathId,
         unnest_fence: bool,
         existing_finfo: FenceInfo,
-        context: Optional[pctx.ParserContext],
+        span: Optional[span.Span],
     ) -> None:
         if existing_finfo.factoring_fence:
             # This node is already present in the surrounding
@@ -641,7 +641,7 @@ class ScopeTreeNode:
             raise errors.InvalidReferenceError(
                 f'cannot reference correlated set '
                 f'{path_id.pformat()!r} here',
-                context=context,
+                span=span,
             )
 
         if (
@@ -681,7 +681,7 @@ class ScopeTreeNode:
                 f'{imp}reference to {offending_id} '
                 f'changes the interpretation of {existing_id} '
                 f'elsewhere in the query',
-                context=context,
+                span=span,
             )
 
     def _node_paths_are_not_links(self) -> bool:
@@ -713,7 +713,7 @@ class ScopeTreeNode:
         node: ScopeTreeNode,
         self_fenced: bool=False,
         node_fenced: bool=False,
-        context: Optional[pctx.ParserContext]=None,
+        span: Optional[span.Span]=None,
     ) -> None:
         node.remove()
 
@@ -730,7 +730,7 @@ class ScopeTreeNode:
         else:
             subtree = node
 
-        self.attach_subtree(subtree, was_fenced=self_fenced, context=context)
+        self.attach_subtree(subtree, was_fenced=self_fenced, span=span)
 
     def remove_subtree(self, node: ScopeTreeNode) -> None:
         """Remove the given subtree from this node."""

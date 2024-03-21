@@ -83,7 +83,7 @@ def ast_ref_to_unqualname(ref: qlast.ObjectRef) -> sn.UnqualName:
     if ref.module:
         raise errors.InternalServerError(
             f'unexpected fully-qualified name: {ast_ref_to_name(ref)}',
-            context=ref.context,
+            span=ref.span,
         )
     else:
         return sn.UnqualName(name=ref.name)
@@ -93,7 +93,7 @@ def resolve_name(
     lname: sn.Name,
     *,
     metaclass: Optional[Type[so.Object]] = None,
-    sourcectx: Optional[parsing.ParserContext] = None,
+    sourcectx: Optional[parsing.Span] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
 ) -> sn.Name:
@@ -138,14 +138,14 @@ def ast_objref_to_object_shell(
         metaclass=metaclass,
         modaliases=modaliases,
         schema=schema,
-        sourcectx=ref.context,
+        sourcectx=ref.span,
     )
 
     return so.ObjectShell(
         name=name,
         origname=lname,
         schemaclass=metaclass,
-        sourcectx=ref.context,
+        sourcectx=ref.span,
     )
 
 
@@ -169,14 +169,14 @@ def ast_objref_to_type_shell(
         metaclass=mcls,
         modaliases=modaliases,
         schema=schema,
-        sourcectx=ref.context,
+        sourcectx=ref.span,
     )
 
     return s_types.TypeShell(
         name=name,
         origname=lname,
         schemaclass=mcls,
-        sourcectx=ref.context,
+        sourcectx=ref.span,
     )
 
 
@@ -222,7 +222,7 @@ def ast_to_type_shell(
                         not isinstance(est.maintype, qlast.ObjectRef)):
                     raise errors.EdgeQLSyntaxError(
                         f'enums do not support mapped values',
-                        context=est.context,
+                        span=est.span,
                     )
                 elements.append(est.maintype.name)
             return s_scalars.AnonymousEnumTypeShell(  # type: ignore
@@ -270,7 +270,7 @@ def ast_to_type_shell(
                     if type_name in names:
                         raise errors.SchemaError(
                             f"named tuple has duplicate field '{type_name}'",
-                            context=st.context)
+                            span=st.span)
                     names.add(type_name)
                 else:
                     unnamed = True
@@ -280,7 +280,7 @@ def ast_to_type_shell(
                     raise errors.EdgeQLSyntaxError(
                         f'mixing named and unnamed tuple declaration '
                         f'is not supported',
-                        context=node.subtypes[0].context,
+                        span=node.subtypes[0].span,
                     )
 
                 subtypes[type_name] = ast_to_type_shell(
@@ -299,7 +299,7 @@ def ast_to_type_shell(
             except errors.SchemaError as e:
                 # all errors raised inside are pertaining to subtypes, so
                 # the context should point to the first subtype
-                e.set_source_context(node.subtypes[0].context)
+                e.set_span(node.subtypes[0].span)
                 raise e
 
         elif issubclass(coll, s_types.Array):
@@ -317,13 +317,13 @@ def ast_to_type_shell(
                 raise errors.SchemaError(
                     f'unexpected number of subtypes,'
                     f' expecting 1, got {len(subtypes_list)}',
-                    context=node.context,
+                    span=node.span,
                 )
 
             if isinstance(subtypes_list[0], s_types.ArrayTypeShell):
                 raise errors.UnsupportedFeatureError(
                     'nested arrays are not supported',
-                    context=node.subtypes[0].context,
+                    span=node.subtypes[0].span,
                 )
 
             try:
@@ -332,7 +332,7 @@ def ast_to_type_shell(
                     subtypes=subtypes_list,
                 )
             except errors.SchemaError as e:
-                e.set_source_context(node.context)
+                e.set_span(node.span)
                 raise e
 
         elif issubclass(coll, (s_types.Range, s_types.MultiRange)):
@@ -350,7 +350,7 @@ def ast_to_type_shell(
                 raise errors.SchemaError(
                     f'unexpected number of subtypes,'
                     f' expecting 1, got {len(subtypes_list)}',
-                    context=node.context,
+                    span=node.span,
                 )
 
             # FIXME: need to check that subtypes are only anypoint
@@ -361,14 +361,14 @@ def ast_to_type_shell(
                     subtypes=subtypes_list,
                 )
             except errors.SchemaError as e:
-                e.set_source_context(node.context)
+                e.set_span(node.span)
                 raise e
 
     elif isinstance(node.maintype, qlast.PseudoObjectRef):
         from . import pseudo as s_pseudo
         return s_pseudo.PseudoTypeShell(
             name=sn.UnqualName(node.maintype.name),
-            sourcectx=node.maintype.context,
+            sourcectx=node.maintype.span,
         )  # type: ignore
 
     assert isinstance(node.maintype, qlast.ObjectRef)
@@ -395,7 +395,7 @@ def type_op_ast_to_type_shell(
     if node.op != '|':
         raise errors.UnsupportedFeatureError(
             f'unsupported type expression operator: {node.op}',
-            context=node.context,
+            span=node.span,
         )
 
     if module is None:
@@ -404,7 +404,7 @@ def type_op_ast_to_type_shell(
     if module is None:
         raise errors.InternalServerError(
             'cannot determine module for derived compound type',
-            context=node.context,
+            span=node.span,
         )
 
     left = ast_to_type_shell(
@@ -949,7 +949,7 @@ def enrich_schema_lookup_error(
     item_type: Optional[so.ObjectMeta] = None,
     suggestion_limit: int = 3,
     condition: Optional[Callable[[so.Object], bool]] = None,
-    context: Optional[parsing.ParserContext] = None,
+    span: Optional[parsing.Span] = None,
     pointer_parent: Optional[so.Object] = None,
 ) -> None:
 
@@ -978,8 +978,8 @@ def enrich_schema_lookup_error(
 
         error.set_hint_and_details(hint=hint)
 
-    if context is not None:
-        error.set_source_context(context)
+    if span is not None:
+        error.set_span(span)
 
 
 def ensure_union_type(

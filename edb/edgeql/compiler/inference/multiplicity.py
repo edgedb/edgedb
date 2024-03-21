@@ -220,7 +220,7 @@ def _infer_shape(
                         f'DISTINCT operator to silently discard duplicate '
                         f'elements.'
                     ),
-                    context=shape_set.context
+                    span=shape_set.span
                 )
 
         _infer_shape(
@@ -953,7 +953,7 @@ def infer_multiplicity(
         raise errors.QueryError(
             'could not determine the multiplicity of '
             'set produced by expression',
-            context=ir.context)
+            span=ir.span)
 
     ctx.inferred_multiplicity[ir, scope_tree, ctx.distinct_iterator] = result
 

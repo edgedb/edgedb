@@ -201,7 +201,7 @@ class AliasLikeCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         is_alter: bool = False,
-        parser_context: Optional[parsing.ParserContext] = None,
+        span: Optional[parsing.Span] = None,
     ) -> Tuple[
         sd.Command,
         s_types.TypeShell[s_types.Type],
@@ -224,7 +224,7 @@ class AliasLikeCommand(
             classname,
             pschema,
             context,
-            parser_context=parser_context,
+            span=span,
         )
 
         expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
@@ -236,7 +236,7 @@ class AliasLikeCommand(
             classname=classname,
             schema=schema,
             is_global=is_global,
-            parser_context=parser_context,
+            span=span,
         )
         if drop_old_types_cmd:
             cmd.prepend(drop_old_types_cmd)
@@ -314,7 +314,7 @@ class CreateAliasLike(
                 classname=alias_name,
                 schema=schema,
                 context=context,
-                parser_context=self.get_attribute_source_context('expr'),
+                span=self.get_attribute_span('expr'),
             )
             self.add_prerequisite(type_cmd)
             self.set_attribute_value('expr', expr)
@@ -387,7 +387,7 @@ class AlterAliasLike(
                     schema=schema,
                     context=context,
                     is_alter=is_computable,
-                    parser_context=self.get_attribute_source_context('expr'),
+                    span=self.get_attribute_span('expr'),
                 )
 
                 self.add_prerequisite(type_cmd)
@@ -462,7 +462,7 @@ def compile_alias_expr(
     classname: sn.QualName,
     schema: s_schema.Schema,
     context: sd.CommandContext,
-    parser_context: Optional[parsing.ParserContext] = None,
+    span: Optional[parsing.Span] = None,
 ) -> irast.Statement:
     cached: Optional[irast.Statement] = (
         context.get_cached((expr, classname)))
@@ -488,7 +488,7 @@ def compile_alias_expr(
         raise errors.SchemaDefinitionError(
             f'volatile functions are not permitted in schema-defined '
             f'computed expressions',
-            context=parser_context,
+            span=span,
         )
 
     context.cache_value((expr, classname), ir)
@@ -502,7 +502,7 @@ def _create_alias_types(
     classname: sn.QualName,
     schema: s_schema.Schema,
     is_global: bool,
-    parser_context: Optional[parsing.ParserContext] = None,
+    span: Optional[parsing.Span] = None,
 ) -> Tuple[
     sd.Command,
     s_types.TypeShell[s_types.Type],
@@ -569,7 +569,7 @@ def _create_alias_types(
         name=classname,
         origname=classname,
         schemaclass=type_cmd.get_schema_metaclass(),
-        sourcectx=parser_context,
+        sourcectx=span,
     )
     return result, type_shell, created_type_shells
 

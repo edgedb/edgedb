@@ -225,7 +225,7 @@ def compile_constraint(
     subject: s_constraints.ConsistencySubject,
     constraint: s_constraints.Constraint,
     schema: s_schema.Schema,
-    source_context: Optional[parsing.ParserContext],
+    span: Optional[parsing.Span],
 ) -> SchemaDomainConstraint | SchemaTableConstraint:
     assert constraint.get_subject(schema) is not None
     TypeOrPointer = s_types.Type | s_pointers.Pointer
@@ -287,7 +287,7 @@ def compile_constraint(
             f'Constraint {constraint.get_displayname(schema)} on '
             f'{subject.get_displayname(schema)} is not supported '
             f'because it would depend on multiple objects',
-            context=source_context,
+            span=span,
         )
     elif ref_tables:
         subject_db_name, info = next(iter(ref_tables.items()))

@@ -149,20 +149,20 @@ class TriggerCommand(
                     sn.QualName('std', 'bool'), type=s_types.Type)
                 expr_type = expression.irast.stype
                 if not expr_type.issubclass(expression.irast.schema, target):
-                    srcctx = self.get_attribute_source_context(field)
+                    srcctx = self.get_attribute_span(field)
                     raise errors.SchemaDefinitionError(
                         f'{vname} expression for {trig_name} is of invalid '
                         f'type: '
                         f'{expr_type.get_displayname(schema)}, '
                         f'expected {target.get_displayname(schema)}',
-                        context=srcctx,
+                        span=srcctx,
                     )
 
                 if expression.irast.dml_exprs:
                     raise errors.SchemaDefinitionError(
                         'data-modifying statements are not allowed in trigger '
                         'when clauses',
-                        context=expression.irast.dml_exprs[0].context,
+                        span=expression.irast.dml_exprs[0].span,
                     )
 
         return schema
@@ -244,9 +244,10 @@ class TriggerCommand(
                     ),
                 )
             except errors.QueryError as e:
-                if not e.has_source_context():
-                    e.set_source_context(
-                        self.get_attribute_source_context(field.name))
+                if not e.has_span():
+                    e.set_span(
+                        self.get_attribute_span(field.name)
+                    )
                 raise
         else:
             return super().compile_expr_field(
@@ -314,7 +315,7 @@ class CreateTrigger(
                     astnode.expr, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.expr.context,
+                span=astnode.expr.span,
             )
         if astnode.condition is not None:
             cmd.set_attribute_value(
@@ -323,7 +324,7 @@ class CreateTrigger(
                     astnode.condition, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.condition.context,
+                span=astnode.condition.span,
             )
 
         cmd.set_attribute_value('timing', astnode.timing)
@@ -369,7 +370,7 @@ class AlterTrigger(
             raise errors.SchemaDefinitionError(
                 f'cannot alter the definition of inherited trigger '
                 f'{self.scls.get_displayname(schema)}',
-                context=self.source_context
+                span=self.span
             )
 
         return schema

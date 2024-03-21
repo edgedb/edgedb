@@ -163,7 +163,7 @@ class PseudoTypeShell(s_types.TypeShell[PseudoType]):
         self,
         *,
         name: sn.Name,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> None:
         super().__init__(
             name=name, schemaclass=PseudoType, sourcectx=sourcectx)
@@ -200,7 +200,7 @@ class CreatePseudoType(PseudoTypeCommand, sd.CreateObject[PseudoType]):
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
                 'user-defined pseudotypes are not supported',
-                context=astnode.context
+                span=astnode.span
             )
 
         return super()._cmd_tree_from_ast(schema, astnode, context)

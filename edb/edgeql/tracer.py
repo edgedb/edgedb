@@ -643,7 +643,7 @@ def trace_Global(
         ctx.refs.add(refname)
         tip = ctx.objects[refname]
     else:
-        tip = ctx.schema.get(refname, sourcectx=node.context)
+        tip = ctx.schema.get(refname, sourcectx=node.span)
     return tip
 
 
@@ -739,7 +739,7 @@ def trace_Path(
                     ctx.refs.add(refname)
                     tip = ctx.objects[refname]
                 else:
-                    tip = ctx.schema.get(refname, sourcectx=step.context)
+                    tip = ctx.schema.get(refname, sourcectx=step.span)
 
         elif isinstance(step, qlast.Ptr):
             pname = sn.UnqualName(step.name)
@@ -926,7 +926,7 @@ def _resolve_type_expr(
             obj: TypeLike
             if local_obj is None:
                 obj = ctx.schema.get(
-                    refname, type=s_types.Type, sourcectx=texpr.context)
+                    refname, type=s_types.Type, sourcectx=texpr.span)
             else:
                 assert isinstance(local_obj, Type)
                 obj = local_obj

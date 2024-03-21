@@ -88,7 +88,7 @@ def index_parameters(
         raise errors.SchemaDefinitionError(
             f'Expected {len(params) - 1} arguments, but found '
             f'{len(ql_args) - 1}',
-            context=ql_args[-1].context,
+            span=ql_args[-1].span,
             details='Did you mean to use ON (...) for specifying the subject?',
         )
 
