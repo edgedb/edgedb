@@ -22,6 +22,7 @@ tools.
     edgedb_branch_create
     edgedb_branch_drop
     edgedb_branch_list
+    edgedb_branch_merge
     edgedb_branch_rebase
     edgedb_branch_rename
     edgedb_branch_switch
@@ -36,6 +37,8 @@ tools.
       - Drop a branch
     * - :ref:`ref_cli_edgedb_branch_list`
       - List all branches
+    * - :ref:`ref_cli_edgedb_branch_merge`
+      - Merge a branch into the current branch
     * - :ref:`ref_cli_edgedb_branch_rebase`
       - Create a branch based on a target branch
     * - :ref:`ref_cli_edgedb_branch_rename`
