@@ -978,7 +978,8 @@ class AlterInheritingObjectOrFragment(
             with ctx_stack():
                 assert isinstance(d_alter_cmd, InheritingObjectCommand)
                 schema = d_alter_cmd.inherit_fields(
-                    schema, context, d_bases, fields=props, apply=False)
+                    schema, context, d_bases, fields=props, apply=False
+                )
 
             self.add_caused(d_root_cmd)
 

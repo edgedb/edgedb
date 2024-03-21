@@ -2234,7 +2234,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         # fix up (a computed property and a constraint on it, for
         # example, requires us to fix up the computed property first),
         # so sort by dependency order.
-        objs_to_cmds: Dict[so.Object, List[Tuple[Command, AlterObject[so.Object], List[str]]]] = {}
+        objs_to_cmds: Dict[
+            so.Object, List[Tuple[Command, AlterObject[so.Object], List[str]]]
+        ] = {}
         for delta, cmd, refdesc in context.affected_finalization.get(self, []):
             if schema.has_object(cmd.scls.id):
                 cmds = objs_to_cmds.setdefault(cmd.scls, [])
@@ -2253,16 +2255,18 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                         # where they are correct, and not later, when more
                         # renames may have broken them.
                         assert isinstance(cmd, ObjectCommand)
-                        for key, value in cmd.get_resolved_attributes(
-                                schema, context).items():
+                        res_attrs = cmd.get_resolved_attributes(schema, context)
+                        for key, value in res_attrs.items():
                             cmd.set_attribute_value(key, value)
 
                         # HACK: Apply constraint of pointers in innards, because
                         # when converting a pointer to a computed pointer,
                         # constraints need to be adjusted before the column is
-                        # dropped. We cannot drop the column later because we need
-                        # mainain the ordering of drops of any children pointers.
+                        # dropped. We cannot drop the column later because we
+                        # need mainain the ordering of drops of any children
+                        # pointers.
                         from . import constraints as s_constraints
+
                         if isinstance(cmd, s_constraints.ConstraintCommand):
                             self.add(delta)
                         else:
