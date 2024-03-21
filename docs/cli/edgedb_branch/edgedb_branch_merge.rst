@@ -12,7 +12,7 @@ edgedb branch merge
     use the :ref:`ref_cli_edgedb_database` command suite to manage databases,
     which branches replaced in EdgeDB 5.0.
 
-Merge one :ref:`branch <ref_datamodel_branches>` into the current branch.
+Merge a :ref:`branch <ref_datamodel_branches>` into the current branch.
 
 .. cli:synopsis::
 
