@@ -1512,9 +1512,17 @@ def _normalize_view_ptr_expr(
             qlast.ShapeOp.ASSIGN_COALESCE,
         ]:
             if shape_el.compexpr is None:
+                ptr_vn = ptrcls.get_verbosename(ctx.env.schema,
+                                                with_parent=True)
                 raise errors.EdgeQLSyntaxError(
-                    f"expected assignment expression",
-                    span=shape_el.operation.span,
+                    f'expected assignment expression for {ptr_vn}',
+                    span=shape_el.span,
+                )
+            if not is_mutation:
+                raise errors.QueryError(
+                    f'coalescing assignments are prohibited outside of insert '
+                    f'and update',
+                    span=shape_el.operation.span
                 )
 
             left: qlast.Expr
