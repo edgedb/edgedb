@@ -4,7 +4,7 @@
 Branches
 ========
 
-EdgeDB’ branches make it easy to prototype app features that impact your
+EdgeDB's branches make it easy to prototype app features that impact your
 database schema, even in cases where those features are never released. You can
 create a branch in your EdgeDB database that corresponds to a feature branch in
 your VCS. When you're done, either :ref:`rebase <ref_cli_edgedb_branch_rebase>`
@@ -107,6 +107,6 @@ Further reading
 
 - :ref:`Branches CLI <ref_cli_edgedb_branch>`
 
-Further information can be found in the `Branches RFC
+Further information can be found in the `branches RFC
 <https://github.com/edgedb/rfcs/blob/master/text/1025-branches.rst#rebasing-branches>`_,
 which describes the design of the migration system.
