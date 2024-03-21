@@ -1510,20 +1510,27 @@ def _normalize_view_ptr_expr(
         if shape_el.operation.op in [
             qlast.ShapeOp.COALESCE_ASSIGN,
             qlast.ShapeOp.ASSIGN_COALESCE,
-        ] and shape_el.compexpr is not None:
-            shape_el.operation = qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN)
+        ]:
+            if shape_el.compexpr is None:
+                raise errors.EdgeQLSyntaxError(
+                    f"expected assignment expression",
+                    span=shape_el.operation.span,
+                )
+
+            left: qlast.Expr
+            right: qlast.Expr
             if shape_el.operation.op == qlast.ShapeOp.COALESCE_ASSIGN:
-                shape_el.compexpr = qlast.BinOp(
-                    left=shape_el.expr,
-                    op='??',
-                    right=shape_el.compexpr,
-                )
+                left = shape_el.expr
+                right = shape_el.compexpr
             elif shape_el.operation.op == qlast.ShapeOp.ASSIGN_COALESCE:
-                shape_el.compexpr = qlast.BinOp(
-                    left=shape_el.compexpr,
-                    op='??',
-                    right=shape_el.expr,
-                )
+                left = shape_el.compexpr
+                right = shape_el.expr
+
+            shape_el.operation = qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN)
+            shape_el.compexpr = qlast.SelectQuery(
+                result=qlast.BinOp(left=left, op='??', right=right),
+                implicit=True,
+            )
 
         if (is_mutation
                 and ptrname not in ctx.special_computables_in_mutation_shape):
