@@ -316,6 +316,29 @@ For local testing, you can use the same method used for SMTP previously for
 <ref_guide_auth_overview_email_password>`.
 
 
+WebAuthn
+--------
+
+-  ``relying_party_origin``: This is the URL of the origin of the web
+   application handling the WebAuthn request. If you're using the built-in UI,
+   this is the origin of the EdgeDB web server.
+
+-  ``require_verification``: (Default: ``true``) If ``true``, your application
+   will not be able to retrieve an authentication token until the user has
+   verified their email. If ``false``, your application can retrieve an
+   authentication token, but a verification email will still be sent.
+   Regardless of this setting, you can always decide to limit access or
+   specific features in your application by testing if
+   ``ext::auth::WebAuthnFactor.verified_at`` is set to a date in the past on
+   the ``ext::auth::LocalIdentity``.
+
+.. note::
+
+    If you enable ``require_verification``, you will need to configure SMTP.
+    For local testing, you can use Mailpit as described in :ref:`the
+    email/password section <ref_guide_auth_overview_email_password>`.
+
+
 Integrating your application
 ============================
 
