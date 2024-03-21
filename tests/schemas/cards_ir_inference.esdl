@@ -101,6 +101,10 @@ type Eert {
     }
 }
 
+type Asdf {
+    link children -> Eert;
+}
+
 
 type Report extending Named {
     property subtitle -> str;
