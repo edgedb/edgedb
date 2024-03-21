@@ -946,7 +946,7 @@ branch in your VCS to develop a new feature:
 The workflow is outlined in detail in :ref:`the branches guide in our "Get
 started" section <ref_intro_branches>`.
 
-.. _ref_migration_guide_rebasing:
+.. _ref_migration_guide_branches_rebasing:
 
 How rebasing works
 ------------------
