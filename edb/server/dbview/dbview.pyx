@@ -1048,8 +1048,14 @@ cdef class DatabaseConnectionView:
                     rv.append((query_req, unit_group))
 
         async with asyncio.TaskGroup() as g:
+            req: rpc.CompilationRequest
             for req, grp in self._db._eql_to_compiled.items():
-                if len(grp) == 1:
+                if (
+                    len(grp) == 1
+                    # Only recompile queries from the *latest* version,
+                    # to avoid quadratic slowdown problems.
+                    and req.schema_version == self.schema_version
+                ):
                     g.create_task(recompile_request(req))
         return rv
 
