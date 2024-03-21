@@ -182,8 +182,9 @@ class Link(
         target: s_types.Type,
     ) -> s_schema.Schema:
         schema = super().set_target(schema, target)
-        tgt_prop = self.getptr(schema, sn.UnqualName('target'))
-        schema = tgt_prop.set_target(schema, target)
+        tgt_prop = self.maybe_get_ptr(schema, sn.UnqualName('target'))
+        if tgt_prop:
+            schema = tgt_prop.set_target(schema, target)
         return schema
 
     @classmethod
@@ -463,6 +464,11 @@ class CreateLink(
         if parent_ctx is None:
             return cmd
 
+        # Skip source and target when compiling stuff that won't ever
+        # go into a real schema.
+        if context.slim_links:
+            return cmd
+
         base_prop_name = sn.QualName('std', 'source')
         s_name = sn.get_specialized_name(
             sn.QualName('__', 'source'), str(self.classname))
@@ -565,11 +571,12 @@ class SetLinkType(
 
         if not context.canonical:
             # We need to update the target link prop as well
-            tgt_prop = scls.getptr(schema, sn.UnqualName('target'))
-            tgt_prop_alter = tgt_prop.init_delta_command(
-                schema, sd.AlterObject)
-            tgt_prop_alter.set_attribute_value('target', new_target)
-            self.add(tgt_prop_alter)
+            tgt_prop = scls.maybe_get_ptr(schema, sn.UnqualName('target'))
+            if tgt_prop:
+                tgt_prop_alter = tgt_prop.init_delta_command(
+                    schema, sd.AlterObject)
+                tgt_prop_alter.set_attribute_value('target', new_target)
+                self.add(tgt_prop_alter)
 
         return schema
 

@@ -503,15 +503,20 @@ def new_primitive_rvar(
 ) -> pgast.PathRangeVar:
     if isinstance(ir_set.expr, irast.TypeRoot):
         skip_subtypes = ir_set.expr.skip_subtypes
+        is_global = ir_set.expr.is_cached_global
     else:
         skip_subtypes = False
+        is_global = False
 
     typeref = ir_set.typeref
     dml_source = irutils.get_dml_sources(ir_set)
     set_rvar = range_for_typeref(
         typeref, path_id, lateral=lateral, dml_source=dml_source,
         include_descendants=not skip_subtypes,
-        ignore_rewrites=ir_set.ignore_rewrites, ctx=ctx)
+        ignore_rewrites=ir_set.ignore_rewrites,
+        is_global=is_global,
+        ctx=ctx,
+    )
     pathctx.put_rvar_path_bond(set_rvar, path_id)
 
     # FIXME: This feels like it should all not be here.
@@ -1413,20 +1418,15 @@ def range_for_material_objtype(
     include_overlays: bool=True,
     include_descendants: bool=True,
     ignore_rewrites: bool=False,
+    is_global: bool=False,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
     env = ctx.env
 
-    # If this is a view type, but it still appears in rewrites, that is
-    # because it is a global that we are caching.
-    if (
-        typeref.material_type is not None
-        and (typeref.id, include_descendants) not in ctx.env.type_rewrites
-    ):
-        typeref = typeref.material_type
-    is_global = typeref.material_type is not None
+    if not is_global:
+        typeref = typeref.real_material_type
 
     if not is_global and not path_id.is_objtype_path():
         raise ValueError('cannot create root rvar for non-object path')
@@ -1562,7 +1562,7 @@ def range_for_material_objtype(
         )
 
     else:
-
+        assert not typeref.is_view, "attempting to generate range from view"
         table_schema_name, table_name = common.get_objtype_backend_name(
             typeref.id,
             typeref.name_hint.module,
@@ -1661,6 +1661,7 @@ def range_for_typeref(
     for_mutation: bool=False,
     include_descendants: bool=True,
     ignore_rewrites: bool=False,
+    is_global: bool=False,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
@@ -1743,6 +1744,7 @@ def range_for_typeref(
             ignore_rewrites=ignore_rewrites,
             include_overlays=not for_mutation,
             for_mutation=for_mutation,
+            is_global=is_global,
             dml_source=dml_source,
             ctx=ctx,
         )

@@ -101,6 +101,10 @@ type Eert {
     }
 }
 
+type Asdf {
+    link children -> Eert;
+}
+
 
 type Report extending Named {
     property subtitle -> str;
@@ -157,3 +161,5 @@ abstract type Named2 {
     delegated constraint exclusive on (.name);
 }
 type Named2Sub extending Named2;
+
+global Alice := (select User filter .name = 'Alice');

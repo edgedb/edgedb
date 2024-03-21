@@ -1226,6 +1226,13 @@ class CommandContextToken(Generic[Command_T_co]):
     mark_derived: Optional[bool]
     enable_recursion: Optional[bool]
     transient_derivation: Optional[bool]
+    # Whether to skip creating @source/@target properties on links.
+    # Typically this is set whenever transient_derivation is,
+    # (so that it doesn't get set on transiet views, etc),
+    # except when compiling aliases where we need to produce
+    # fully populated links.
+    # This is a surprisingly valuable optimization (25% on a big schema).
+    slim_links: Optional[bool]
 
     def __init__(
         self,
@@ -1246,6 +1253,7 @@ class CommandContextToken(Generic[Command_T_co]):
         self.mark_derived = None
         self.enable_recursion = None
         self.transient_derivation = None
+        self.slim_links = None
 
 
 class CommandContextWrapper(Generic[Command_T_co]):
@@ -1369,6 +1377,10 @@ class CommandContext:
                 return ctx.transient_derivation
 
         return False
+
+    @property
+    def slim_links(self) -> bool:
+        return any(ctx.slim_links for ctx in self.stack)
 
     @property
     def canonical(self) -> bool:

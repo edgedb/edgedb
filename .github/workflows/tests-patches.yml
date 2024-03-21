@@ -77,7 +77,7 @@ jobs:
         python setup.py -q ci_helper --type parsers >.tmp/parsers_cache_key.txt
         python setup.py -q ci_helper --type postgres >.tmp/postgres_git_rev.txt
         python setup.py -q ci_helper --type libpg_query >.tmp/libpg_query_git_rev.txt
-        echo 'v0.17.0' >.tmp/stolon_git_rev.txt
+        echo 'f8cd94309eaccbfba5dea7835b88c78377608a37' >.tmp/stolon_git_rev.txt
         python setup.py -q ci_helper --type bootstrap >.tmp/bootstrap_cache_key.txt
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
@@ -291,7 +291,7 @@ jobs:
     - uses: actions/checkout@v4
       if: steps.stolon-cache.outputs.cache-hit != 'true'
       with:
-        repository: sorintlab/stolon
+        repository: edgedb/stolon
         path: build/stolon
         ref: ${{ env.STOLON_GIT_REV }}
         fetch-depth: 0

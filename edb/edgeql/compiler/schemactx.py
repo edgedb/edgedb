@@ -241,6 +241,10 @@ def derive_view(
                 inheritance_refdicts={'pointers'},
                 mark_derived=True,
                 transient=True,
+                # When compiling aliases, we can't elide
+                # @source/@target pointers, which normally we would
+                # when creating a view.
+                preserve_endpoint_ptrs=ctx.env.options.schema_view_mode,
                 attrs=attrs,
                 stdmode=ctx.env.options.bootstrap_mode,
             )
@@ -335,7 +339,12 @@ def derive_ptr(
         inheritance_refdicts={'pointers'},
         mark_derived=True,
         transient=True,
-        attrs=attrs)
+        # When compiling aliases, we can't elide
+        # @source/@target pointers, which normally we would
+        # when creating a view.
+        preserve_endpoint_ptrs=ctx.env.options.schema_view_mode,
+        attrs=attrs,
+    )
 
     if not ptr.is_non_concrete(ctx.env.schema):
         if isinstance(derived, s_sources.Source):
@@ -587,7 +596,6 @@ def derive_dummy_ptr(
             },
             name=derived_name,
             mark_derived=True,
-            transient=True,
         )
         ctx.env.created_schema_objects.add(derived)
 

@@ -389,7 +389,14 @@ class AbstractPool:
             self._release_worker(worker)
 
     async def compile_in_tx(
-        self, txid, pickled_state, state_id, *compile_args
+        self,
+        dbname,
+        user_schema_pickle,
+        txid,
+        pickled_state,
+        state_id,
+        *compile_args,
+        **compiler_args,
     ):
         # When we compile a query, the compiler returns a tuple:
         # a QueryUnit and the state the compiler is in if it's in a
@@ -413,7 +420,8 @@ class AbstractPool:
         # stored in edgecon; we never modify it, so `is` is sufficient and
         # is faster than `==`.
         worker = await self._acquire_worker(
-            condition=lambda w: (w._last_pickled_state is pickled_state)
+            condition=lambda w: (w._last_pickled_state is pickled_state),
+            compiler_args=compiler_args,
         )
 
         if worker._last_pickled_state is pickled_state:
@@ -422,10 +430,21 @@ class AbstractPool:
             # state over the network. So we replace the state with a marker,
             # that the compiler process will recognize.
             pickled_state = state.REUSE_LAST_STATE_MARKER
+            dbname = user_schema_pickle = None
+        else:
+            worker_db = worker._dbs.get(dbname)
+            if worker_db is None:
+                dbname = None
+            elif worker_db.user_schema_pickle is user_schema_pickle:
+                user_schema_pickle = None
+            else:
+                dbname = None
 
         try:
             units, new_pickled_state = await worker.call(
                 'compile_in_tx',
+                dbname,
+                user_schema_pickle,
                 pickled_state,
                 txid,
                 *compile_args
@@ -1154,22 +1173,35 @@ class RemotePool(AbstractPool):
         self._semaphore.release()
 
     async def compile_in_tx(
-        self, txid, pickled_state, state_id, *compile_args
+        self,
+        dbname,
+        user_schema_pickle,
+        txid,
+        pickled_state,
+        state_id,
+        *compile_args,
+        **compiler_args,
     ):
         worker = await self._acquire_worker()
         try:
             return await worker.call(
                 'compile_in_tx',
-                state.REUSE_LAST_STATE_MARKER,
                 state_id,
+                None,  # client_id
+                None,  # dbname
+                None,  # user_schema_pickle
+                state.REUSE_LAST_STATE_MARKER,
                 txid,
                 *compile_args
             )
         except state.StateNotFound:
             return await worker.call(
                 'compile_in_tx',
+                0,  # state_id
+                None,  # client_id
+                None,  # dbname
+                user_schema_pickle,
                 pickled_state,
-                0,
                 txid,
                 *compile_args
             )
@@ -1284,11 +1316,6 @@ class MultiTenantWorker(Worker):
         for client_id in client_ids:
             self._cache.pop(client_id, None)
             self._last_used_by_client.pop(client_id, None)
-
-    async def call(self, method_name, *args, sync_state=None):
-        if method_name == "compile_in_tx":
-            args = (args[0], 0, *args[1:])
-        return await super().call(method_name, *args, sync_state=sync_state)
 
 
 @srvargs.CompilerPoolMode.MultiTenant.assign_implementation
@@ -1500,6 +1527,90 @@ class MultiTenantPool(FixedPool):
             method_name,
             dbname,
         ), callback
+
+    async def compile_in_tx(
+        self,
+        dbname,
+        user_schema_pickle,
+        txid,
+        pickled_state,
+        state_id,
+        *compile_args,
+        **compiler_args,
+    ):
+        client_id = compiler_args.get("client_id")
+
+        # Prefer a worker we used last time in the transaction (condition), or
+        # (weighter) one with the user schema at tx start so that we can pass
+        # over only the pickled state. Then prefer the least-recently used one
+        # if many workers passed any check in the weighter, or the most vacant.
+        def weighter(w: MultiTenantWorker):
+            if ts := w.get_tenant_schema(client_id):
+                if db := ts.dbs.get(dbname):
+                    return (
+                        True,
+                        db.user_schema_pickle is user_schema_pickle,
+                        w.last_used(client_id),
+                    )
+                else:
+                    return True, False, w.last_used(client_id)
+            else:
+                return False, False, self._cache_size - w.cache_size()
+
+        worker = await self._acquire_worker(
+            condition=lambda w: (w._last_pickled_state is pickled_state),
+            weighter=weighter,
+            **compiler_args,
+        )
+
+        # Avoid sending information that we know the worker already have.
+        if worker._last_pickled_state is pickled_state:
+            pickled_state = state.REUSE_LAST_STATE_MARKER
+            dbname = client_id = user_schema_pickle = None
+        else:
+            assert isinstance(worker, MultiTenantWorker)
+            assert client_id is not None
+            tenant_schema = worker.get_tenant_schema(client_id)
+            if tenant_schema is None:
+                # Just pass state + root user schema if this is a new client in
+                # the worker; we don't want to initialize the client as we
+                # don't have enough information to do so.
+                dbname = client_id = None
+            else:
+                worker_db = tenant_schema.dbs.get(dbname)
+                if worker_db is None:
+                    # The worker has the client but not the database
+                    dbname = client_id = None
+                elif worker_db.user_schema_pickle is user_schema_pickle:
+                    # Avoid sending the root user schema because the worker has
+                    # it - just send client_id + dbname to reference it, as
+                    # well as the state of course.
+                    user_schema_pickle = None
+                else:
+                    # The worker has a different root user schema
+                    dbname = client_id = None
+
+        try:
+            units, new_pickled_state = await worker.call(
+                'compile_in_tx',
+                # multitenant_worker is also used in MultiSchemaPool for remote
+                # compilers where the first argument "state_id" is used to find
+                # worker without passing the pickled state. Here in multi-
+                # tenant mode, we already have the pickled state, so "state_id"
+                # is not used. Just prepend a fake ID to comply to the API.
+                0,  # state_id
+                client_id,
+                dbname,
+                user_schema_pickle,
+                pickled_state,
+                txid,
+                *compile_args
+            )
+            worker._last_pickled_state = new_pickled_state
+            return units, new_pickled_state, 0
+
+        finally:
+            self._release_worker(worker, put_in_front=False)
 
 
 async def create_compiler_pool(

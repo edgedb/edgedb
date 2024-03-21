@@ -298,6 +298,7 @@ class ReferencedInheritingObject(
         inheritance_merge: bool = True,
         inheritance_refdicts: Optional[AbstractSet[str]] = None,
         transient: bool = False,
+        preserve_endpoint_ptrs: bool = False,
         name: Optional[sn.QualName] = None,
         **kwargs: Any,
     ) -> Tuple[s_schema.Schema, ReferencedInheritingObjectT]:
@@ -388,6 +389,8 @@ class ReferencedInheritingObject(
 
             if transient:
                 context.current().transient_derivation = True
+                if not preserve_endpoint_ptrs:
+                    context.current().slim_links = True
 
             parent_cmd.add(cmd)
             schema = delta.apply(schema, context)
