@@ -180,6 +180,10 @@ class T_REMASSIGN(Token, lextoken='-='):
     pass
 
 
+class T_COALESCEASSIGN(Token, lextoken='?:='):
+    pass
+
+
 class T_ARROW(Token, lextoken='->'):
     pass
 
