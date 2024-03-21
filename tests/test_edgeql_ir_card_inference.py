@@ -366,6 +366,33 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         parent: AT_MOST_ONE
         """
 
+    def test_edgeql_ir_card_inference_36b(self):
+        """
+        SELECT Eert {
+            asdf := .<children[is Eert]
+        }
+% OK %
+        asdf: AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_36c(self):
+        """
+        SELECT Eert {
+            asdf := .<children[is Asdf]
+        }
+% OK %
+        asdf: MANY
+        """
+
+    def test_edgeql_ir_card_inference_36d(self):
+        """
+        SELECT Eert {
+            asdf := .<children[is Object]
+        }
+% OK %
+        asdf: MANY
+        """
+
     def test_edgeql_ir_card_inference_37(self):
         """
         SELECT Report {
