@@ -501,9 +501,11 @@ def new_primitive_rvar(
     lateral: bool,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
-    if isinstance(ir_set.expr, irast.TypeRoot):
-        skip_subtypes = ir_set.expr.skip_subtypes
-        is_global = ir_set.expr.is_cached_global
+    # XXX: is this needed?
+    expr = ir_set.old_expr
+    if isinstance(expr, irast.TypeRoot):
+        skip_subtypes = expr.skip_subtypes
+        is_global = expr.is_cached_global
     else:
         skip_subtypes = False
         is_global = False

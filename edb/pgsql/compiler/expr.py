@@ -784,8 +784,8 @@ def _compile_set_in_singleton_mode(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     if isinstance(node, irast.EmptySet):
         return pgast.NullConstant()
-    elif node.expr is not None:
-        return dispatch.compile(node.expr, ctx=ctx)
+    elif node.old_expr is not None:
+        return dispatch.compile(node.old_expr, ctx=ctx)
     else:
         assert node.rptr
         ptrref = node.rptr.ptrref

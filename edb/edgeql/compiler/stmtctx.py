@@ -255,7 +255,10 @@ def fini_expression(
 
     # Clear out exprs that we decided to omit from the IR
     for ir_set in exprs_to_clear:
-        ir_set.expr = None
+        if isinstance(ir_set.expr, irast.Pointer):
+            ir_set.expr.expr = None
+        else:
+            ir_set.expr = None
 
     # Analyze GROUP statements to find aggregates that can be optimized
     group.infer_group_aggregates(all_exprs, ctx=ctx)
