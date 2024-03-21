@@ -430,11 +430,11 @@ class NestedQLBlock(ProductionTpl):
         # LBRACE NestedQLBlock OptSemicolons RBRACE
         fields, stmts = self._process_body(cmdlist.val)
         body = qlast.NestedQLBlock(commands=stmts)
-        contexts = [lbrace.span, cmdlist.span]
+        spans = [lbrace.span, cmdlist.span]
         if sc2.span is not None:
-            contexts.append(sc2.span)
-        contexts.append(rbrace.span)
-        body.span = edb_span.merge_spans(contexts)
+            spans.append(sc2.span)
+        spans.append(rbrace.span)
+        body.span = edb_span.merge_spans(spans)
         body.text = self._get_text(body)
         self.val = self.result(body=body, fields=fields)
 

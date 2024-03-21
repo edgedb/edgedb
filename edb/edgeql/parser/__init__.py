@@ -157,7 +157,7 @@ def parse(
         message, span, hint, details = error
         position = qltokenizer.inflate_position(source.text(), span)
 
-        pcontext = parsing.Span(
+        parsing_span = parsing.Span(
             'query',
             source.text(),
             start=position[2],
@@ -169,7 +169,7 @@ def parse(
             position=position,
             hint=hint,
             details=details,
-            span=pcontext
+            span=parsing_span
         )
 
     return _cst_to_ast(

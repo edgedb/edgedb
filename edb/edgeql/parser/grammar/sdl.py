@@ -816,7 +816,7 @@ class ConcreteUnknownPointerBlock(Nonterm):
                 else:
                     on_target_delete = cmd
 
-    def _extract_target(self, target, cmds, context, *, overloaded=False):
+    def _extract_target(self, target, cmds, span, *, overloaded=False):
         if target:
             return target, cmds
 
@@ -825,13 +825,13 @@ class ConcreteUnknownPointerBlock(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed link with more than one expression',
-                        span=context)
+                        span=span)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed link without expression',
-                span=context)
+                span=span)
 
         return target, cmds
 
@@ -1053,7 +1053,7 @@ sdl_commands_block(
 
 
 class ConcretePropertyBlock(Nonterm):
-    def _extract_target(self, target, cmds, context, *, overloaded=False):
+    def _extract_target(self, target, cmds, span, *, overloaded=False):
         if target:
             return target, cmds
 
@@ -1062,13 +1062,13 @@ class ConcretePropertyBlock(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed property with more than one expression',
-                        span=context)
+                        span=span)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed property without expression',
-                span=context)
+                span=span)
 
         return target, cmds
 
@@ -1310,7 +1310,7 @@ class ConcreteLinkBlock(Nonterm):
                 else:
                     on_target_delete = cmd
 
-    def _extract_target(self, target, cmds, context, *, overloaded=False):
+    def _extract_target(self, target, cmds, span, *, overloaded=False):
         if target:
             return target, cmds
 
@@ -1319,13 +1319,13 @@ class ConcreteLinkBlock(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed link with more than one expression',
-                        span=context)
+                        span=span)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed link without expression',
-                span=context)
+                span=span)
 
         return target, cmds
 
@@ -1772,7 +1772,7 @@ sdl_commands_block(
 
 
 class GlobalDeclaration(Nonterm):
-    def _extract_target(self, target, cmds, context, *, overloaded=False):
+    def _extract_target(self, target, cmds, span, *, overloaded=False):
         if target:
             return target, cmds
 
@@ -1781,13 +1781,13 @@ class GlobalDeclaration(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed global with more than one expression',
-                        span=context)
+                        span=span)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed property without expression',
-                span=context)
+                span=span)
 
         return target, cmds
 

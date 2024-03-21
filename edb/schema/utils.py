@@ -949,7 +949,7 @@ def enrich_schema_lookup_error(
     item_type: Optional[so.ObjectMeta] = None,
     suggestion_limit: int = 3,
     condition: Optional[Callable[[so.Object], bool]] = None,
-    context: Optional[parsing.Span] = None,
+    span: Optional[parsing.Span] = None,
     pointer_parent: Optional[so.Object] = None,
 ) -> None:
 
@@ -978,8 +978,8 @@ def enrich_schema_lookup_error(
 
         error.set_hint_and_details(hint=hint)
 
-    if context is not None:
-        error.set_span(context)
+    if span is not None:
+        error.set_span(span)
 
 
 def ensure_union_type(

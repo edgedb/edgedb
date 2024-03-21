@@ -103,7 +103,7 @@ def get_schema_object(
             item_type=item_type,
             pointer_parent=_get_partial_path_prefix_type(ctx),
             condition=condition,
-            context=span,
+            span=span,
         )
         raise
 

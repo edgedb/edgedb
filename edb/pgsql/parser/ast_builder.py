@@ -810,21 +810,21 @@ def _build_base_range_var(n: Node, c: Context) -> pgast.BaseRangeVar:
 
 def _build_const(n: Node, c: Context) -> pgast.BaseConstant:
     val = n["val"]
-    context = _build_span(n, c)
+    span = _build_span(n, c)
 
     if "Integer" in val:
         return pgast.NumericConstant(
-            val=str(val["Integer"]["ival"]), span=context
+            val=str(val["Integer"]["ival"]), span=span
         )
 
     if "Float" in val:
-        return pgast.NumericConstant(val=val["Float"]["str"], span=context)
+        return pgast.NumericConstant(val=val["Float"]["str"], span=span)
 
     if "Null" in val:
-        return pgast.NullConstant(span=context)
+        return pgast.NullConstant(span=span)
 
     if "String" in val:
-        return pgast.StringConstant(val=_build_str(val, c), span=context)
+        return pgast.StringConstant(val=_build_str(val, c), span=span)
 
     raise PSqlUnsupportedError(n)
 

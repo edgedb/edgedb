@@ -2877,7 +2877,7 @@ def ensure_schema_type_expr_type(
     type_shell: TypeExprShell[Type],
     parent_cmd: sd.Command,
     *,
-    src_context: typing.Optional[parsing.Span] = None,
+    span: typing.Optional[parsing.Span] = None,
     context: sd.CommandContext,
 ) -> Optional[sd.Command]:
 
@@ -3424,7 +3424,7 @@ def materialize_type_in_attribute(
             schema,
             type_ref,
             parent_cmd=cmd,
-            src_context=srcctx,
+            span=srcctx,
             context=context,
         )
         if cc_cmd is not None:
@@ -3453,7 +3453,7 @@ def materialize_type_in_attribute(
                     modaliases=context.modaliases,
                     schema=schema,
                     item_type=Type,
-                    context=srcctx,
+                    span=srcctx,
                 )
             raise
         except errors.InvalidPropertyDefinitionError as e:

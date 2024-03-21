@@ -1617,6 +1617,6 @@ def _resolve_schema_ref(
             schema=ctx.schema,
             modaliases=ctx.modaliases,
             item_type=real_type,
-            context=span,
+            span=span,
         )
         raise

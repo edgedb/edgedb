@@ -864,7 +864,7 @@ class ConstraintCommand(
                 span=sourcectx
             )
 
-        except_expr = attrs.get('except_expr')
+        except_expr: s_expr.Expression | None = attrs.get('except_expr')
         if except_expr:
             if isinstance(subject, s_pointers.Pointer):
                 raise errors.InvalidConstraintDefinitionError(
@@ -887,7 +887,7 @@ class ConstraintCommand(
 
             refs = ir_utils.get_longest_paths(final_expr.irast)
 
-            final_except_expr = None
+            final_except_expr: s_expr.CompiledExpression | None = None
             if except_expr:
                 final_except_expr = except_expr.compiled(
                     schema=schema, options=options
@@ -966,7 +966,7 @@ class ConstraintCommand(
                 ):
                     raise errors.InvalidConstraintDefinitionError(
                         f'constraint expressions must be immutable',
-                        span=final_except_expr.irast.context,
+                        span=final_except_expr.irast.span,
                     )
 
         if final_expr.irast.volatility != qltypes.Volatility.Immutable:

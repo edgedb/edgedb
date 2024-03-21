@@ -52,7 +52,7 @@ def resolve_BaseRangeVar(
 
     # general case
     node, table = _resolve_range_var(range_var, alias, ctx=ctx)
-    node = node.replace(context=range_var.span)
+    node = node.replace(span=range_var.span)
 
     # infer public name and internal alias
     table.alias = range_var.alias.aliasname
