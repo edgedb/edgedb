@@ -580,7 +580,7 @@ def _find_cast(
         else:
             return None
 
-    dummy_set = irast.EmptySet()  # type: ignore
+    dummy_set = irast.DUMMY_SET
     args = [
         (orig_stype, dummy_set),
         (new_stype, dummy_set),
