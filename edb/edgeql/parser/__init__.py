@@ -169,7 +169,7 @@ def parse(
             position=position,
             hint=hint,
             details=details,
-            context=pcontext
+            span=pcontext
         )
 
     return _cst_to_ast(

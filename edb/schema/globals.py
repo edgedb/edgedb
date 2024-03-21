@@ -154,7 +154,7 @@ class GlobalCommand(
                 f'expression for the computed '
                 f'{glob_name} '
                 f"explicitly declared as 'required'",
-                context=srcctx
+                span=srcctx
             )
 
         if (
@@ -167,7 +167,7 @@ class GlobalCommand(
                 f'expression for the computed '
                 f'{glob_name} '
                 f"explicitly declared as 'single'",
-                context=srcctx
+                span=srcctx
             )
 
         if spec_card is None:
@@ -210,17 +210,17 @@ class GlobalCommand(
             ):
                 raise errors.SchemaDefinitionError(
                     "required globals must have a default",
-                    context=self.span,
+                    span=self.span,
                 )
             if scls.get_cardinality(schema) == qltypes.SchemaCardinality.Many:
                 raise errors.SchemaDefinitionError(
                     "non-computed globals may not be multi",
-                    context=self.span,
+                    span=self.span,
                 )
             if target.contains_object(schema):
                 raise errors.SchemaDefinitionError(
                     "non-computed globals may not have have object type",
-                    context=self.span,
+                    span=self.span,
                 )
 
         default_expr = scls.get_default(schema)
@@ -236,7 +236,7 @@ class GlobalCommand(
             if is_computable:
                 raise errors.SchemaDefinitionError(
                     f'computed globals may not have default values',
-                    context=span,
+                    span=span,
                 )
 
             if not default_type.assignment_castable_to(target, default_schema):
@@ -244,7 +244,7 @@ class GlobalCommand(
                     f'default expression is of invalid type: '
                     f'{default_type.get_displayname(default_schema)}, '
                     f'expected {target.get_displayname(schema)}',
-                    context=span,
+                    span=span,
                 )
 
             ptr_cardinality = scls.get_cardinality(schema)
@@ -258,7 +258,7 @@ class GlobalCommand(
                     f'the default expression for '
                     f'{scls.get_verbosename(schema)} declared as '
                     f"'single'",
-                    context=span,
+                    span=span,
                 )
 
             if scls.get_required(schema) and not default_required:
@@ -267,14 +267,14 @@ class GlobalCommand(
                     f'the default expression for '
                     f'{scls.get_verbosename(schema)} declared as '
                     f"'required'",
-                    context=span,
+                    span=span,
                 )
 
             if default_expr.irast.volatility.is_volatile():
                 raise errors.SchemaDefinitionError(
                     f'{scls.get_verbosename(schema)} has a volatile '
                     f'default expression, which is not allowed',
-                    context=span,
+                    span=span,
                 )
 
     def get_dummy_expr_field_value(
@@ -428,7 +428,7 @@ class CreateGlobal(
         ):
             raise errors.UnsupportedFeatureError(
                 "cannot specify a type and an expression for a global",
-                context=astnode.span,
+                span=astnode.span,
             )
 
         return cmd
@@ -483,7 +483,7 @@ class AlterGlobal(
             ):
                 raise errors.UnsupportedFeatureError(
                     "cannot specify a type and an expression for a global",
-                    context=self.span,
+                    span=self.span,
                 )
 
             if clears_expr and old_expr:
@@ -537,7 +537,7 @@ class SetGlobalType(
                 raise errors.UnsupportedFeatureError(
                     f'USING casts for SET TYPE on globals are not supported',
                     hint='Use RESET TO DEFAULT instead',
-                    context=self.span,
+                    span=self.span,
                 )
 
             if not self.reset_value:
@@ -545,7 +545,7 @@ class SetGlobalType(
                     f"SET TYPE on global must explicitly reset the "
                     f"global's value",
                     hint='Use RESET TO DEFAULT after the type',
-                    context=self.span,
+                    span=self.span,
                 )
 
         return schema

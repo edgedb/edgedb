@@ -83,7 +83,7 @@ def ast_ref_to_unqualname(ref: qlast.ObjectRef) -> sn.UnqualName:
     if ref.module:
         raise errors.InternalServerError(
             f'unexpected fully-qualified name: {ast_ref_to_name(ref)}',
-            context=ref.span,
+            span=ref.span,
         )
     else:
         return sn.UnqualName(name=ref.name)
@@ -222,7 +222,7 @@ def ast_to_type_shell(
                         not isinstance(est.maintype, qlast.ObjectRef)):
                     raise errors.EdgeQLSyntaxError(
                         f'enums do not support mapped values',
-                        context=est.span,
+                        span=est.span,
                     )
                 elements.append(est.maintype.name)
             return s_scalars.AnonymousEnumTypeShell(  # type: ignore
@@ -270,7 +270,7 @@ def ast_to_type_shell(
                     if type_name in names:
                         raise errors.SchemaError(
                             f"named tuple has duplicate field '{type_name}'",
-                            context=st.span)
+                            span=st.span)
                     names.add(type_name)
                 else:
                     unnamed = True
@@ -280,7 +280,7 @@ def ast_to_type_shell(
                     raise errors.EdgeQLSyntaxError(
                         f'mixing named and unnamed tuple declaration '
                         f'is not supported',
-                        context=node.subtypes[0].span,
+                        span=node.subtypes[0].span,
                     )
 
                 subtypes[type_name] = ast_to_type_shell(
@@ -317,13 +317,13 @@ def ast_to_type_shell(
                 raise errors.SchemaError(
                     f'unexpected number of subtypes,'
                     f' expecting 1, got {len(subtypes_list)}',
-                    context=node.span,
+                    span=node.span,
                 )
 
             if isinstance(subtypes_list[0], s_types.ArrayTypeShell):
                 raise errors.UnsupportedFeatureError(
                     'nested arrays are not supported',
-                    context=node.subtypes[0].span,
+                    span=node.subtypes[0].span,
                 )
 
             try:
@@ -350,7 +350,7 @@ def ast_to_type_shell(
                 raise errors.SchemaError(
                     f'unexpected number of subtypes,'
                     f' expecting 1, got {len(subtypes_list)}',
-                    context=node.span,
+                    span=node.span,
                 )
 
             # FIXME: need to check that subtypes are only anypoint
@@ -395,7 +395,7 @@ def type_op_ast_to_type_shell(
     if node.op != '|':
         raise errors.UnsupportedFeatureError(
             f'unsupported type expression operator: {node.op}',
-            context=node.span,
+            span=node.span,
         )
 
     if module is None:
@@ -404,7 +404,7 @@ def type_op_ast_to_type_shell(
     if module is None:
         raise errors.InternalServerError(
             'cannot determine module for derived compound type',
-            context=node.span,
+            span=node.span,
         )
 
     left = ast_to_type_shell(

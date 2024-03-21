@@ -299,7 +299,7 @@ class SimpleInsert(Nonterm):
             if not subj.expr:
                 raise errors.EdgeQLSyntaxError(
                     "insert shape expressions must have a type name",
-                    context=subj.span
+                    span=subj.span
                 )
             subj_path = subj.expr
             shape = subj.elements
@@ -324,7 +324,7 @@ class SimpleInsert(Nonterm):
                     f"the INSERT will be triggered conditionally in one of "
                     f"the branches."
                 ),
-                context=subj_path.span)
+                span=subj_path.span)
         else:
             raise errors.EdgeQLSyntaxError(
                 f"INSERT only works with object types, not arbitrary "
@@ -334,7 +334,7 @@ class SimpleInsert(Nonterm):
                     f"statement with parentheses in order to separate it "
                     f"from the rest of the expression."
                 ),
-                context=subj_path.span)
+                span=subj_path.span)
 
         self.val = qlast.InsertQuery(
             subject=objtype,
@@ -1716,7 +1716,7 @@ class FuncApplication(Nonterm):
                 if argname in kwargs:
                     raise errors.EdgeQLSyntaxError(
                         f"duplicate named argument `{argname}`",
-                        context=argname_ctx)
+                        span=argname_ctx)
 
                 last_named_seen = argname
                 kwargs[argname] = arg
@@ -1726,7 +1726,7 @@ class FuncApplication(Nonterm):
                     raise errors.EdgeQLSyntaxError(
                         f"positional argument after named "
                         f"argument `{last_named_seen}`",
-                        context=arg.span)
+                        span=arg.span)
                 args.append(arg)
 
         self.val = qlast.FunctionCall(func=name, args=args, kwargs=kwargs)
@@ -1757,12 +1757,12 @@ class FuncCallArgExpr(Nonterm):
         if kids[0].val[1].isdigit():
             raise errors.EdgeQLSyntaxError(
                 f"numeric named parameters are not supported",
-                context=kids[0].span)
+                span=kids[0].span)
         else:
             raise errors.EdgeQLSyntaxError(
                 f"named parameters do not need a '$' prefix, "
                 f"rewrite as '{kids[0].val[1:]} := ...'",
-                context=kids[0].span)
+                span=kids[0].span)
 
 
 class FuncCallArg(Nonterm):
@@ -1853,7 +1853,7 @@ class AnyIdentifier(Nonterm):
             # few remaining reserved __keywords__.
             raise errors.EdgeQLSyntaxError(
                 "identifiers surrounded by double underscores are forbidden",
-                context=kids[0].span)
+                span=kids[0].span)
 
         self.val = name
 
@@ -1954,20 +1954,20 @@ class CollectionTypeName(Nonterm):
             # `enum<bbbb, 'aaaa'>`
             raise errors.EdgeQLSyntaxError(
                 "mixing string type literals and type names is not supported",
-                context=lst.span)
+                span=lst.span)
 
         if has_items and has_nonstrval:
             # Prohibit cases like `tuple<a: int64, int32>`
             raise errors.EdgeQLSyntaxError(
                 "mixing named and unnamed subtype declarations "
                 "is not supported",
-                context=lst.span)
+                span=lst.span)
 
     def reduce_NodeName_LANGBRACKET_RANGBRACKET(self, *kids):
         # Constructs like `enum<>` or `array<>` aren't legal.
         raise errors.EdgeQLSyntaxError(
             'parametrized type must have at least one argument',
-            context=kids[1].span,
+            span=kids[1].span,
         )
 
     def reduce_NodeName_LANGBRACKET_SubtypeList_RANGBRACKET(self, *kids):

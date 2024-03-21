@@ -2530,7 +2530,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 raise errors.SchemaDefinitionError(
                     f'cannot {self._delta_action} {self.get_verbosename()}: '
                     f'module {modroot} is read-only',
-                    context=self.span)
+                    span=self.span)
 
     def get_verbosename(self, parent: Optional[str] = None) -> str:
         mcls = self.get_schema_metaclass()
@@ -2921,7 +2921,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         if module is None:
             raise errors.SchemaDefinitionError(
                 f'unqualified name and no default module set',
-                context=objref.span,
+                span=objref.span,
             )
 
         return sn.QualName(module=module, name=objref.name)
@@ -4074,7 +4074,7 @@ class AlterObjectProperty(Command):
             except LookupError:
                 raise errors.SchemaDefinitionError(
                     f'{propname!r} is not a valid field',
-                    context=astnode.span)
+                    span=astnode.span)
 
         if not (
             astnode.special_syntax
@@ -4084,12 +4084,12 @@ class AlterObjectProperty(Command):
         ):
             raise errors.SchemaDefinitionError(
                 f'{propname!r} is not a valid field',
-                context=astnode.span)
+                span=astnode.span)
 
         if field.name == 'id' and not isinstance(parent_op, CreateObject):
             raise errors.SchemaDefinitionError(
                 f'cannot alter object id',
-                context=astnode.span)
+                span=astnode.span)
 
         new_value: Any
 
@@ -4212,7 +4212,7 @@ class AlterObjectProperty(Command):
         if field is None:
             raise errors.SchemaDefinitionError(
                 f'{self.property!r} is not a valid field',
-                context=self.span)
+                span=self.span)
 
         if self.property == 'id':
             return None

@@ -112,7 +112,7 @@ def get_schema_object(
         # not yet a valid schema object
         raise errors.SchemaDefinitionError(
             f'illegal self-reference in definition of {str(name)!r}',
-            context=span)
+            span=span)
 
     return stype
 

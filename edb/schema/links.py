@@ -273,7 +273,7 @@ class LinkCommand(
             raise errors.InvalidLinkTargetError(
                 f'invalid link target type, expected object type, got '
                 f'{target.get_verbosename(schema)}',
-                context=srcctx,
+                span=srcctx,
                 hint=hint,
             )
 
@@ -281,7 +281,7 @@ class LinkCommand(
             srcctx = self.get_attribute_span('target')
             raise errors.InvalidLinkTargetError(
                 f'{target.get_verbosename(schema)} is not a valid link target',
-                context=srcctx,
+                span=srcctx,
             )
 
         if (
@@ -293,7 +293,7 @@ class LinkCommand(
             raise errors.InvalidLinkTargetError(
                 f'invalid link type: {target.get_displayname(schema)!r}'
                 f' is an expression alias, not a proper object type',
-                context=srcctx,
+                span=srcctx,
             )
 
         if (
@@ -304,7 +304,7 @@ class LinkCommand(
             raise errors.InvalidLinkTargetError(
                 'required links may not use `on target delete '
                 'deferred restrict`',
-                context=self.span,
+                span=self.span,
             )
 
     def _get_ast(

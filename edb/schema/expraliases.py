@@ -488,7 +488,7 @@ def compile_alias_expr(
         raise errors.SchemaDefinitionError(
             f'volatile functions are not permitted in schema-defined '
             f'computed expressions',
-            context=span,
+            span=span,
         )
 
     context.cache_value((expr, classname), ir)

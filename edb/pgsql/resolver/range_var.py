@@ -342,7 +342,7 @@ def _zip_column_alias(
             f'Table alias for `{alias.aliasname}` contains '
             f'{len(alias.colnames)} columns, but the query resolves to '
             f'{len(columns)} columns',
-            context=ctx,
+            span=ctx,
             pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
         )
     return zip(columns, alias.colnames)

@@ -195,7 +195,7 @@ def compile_ForQuery(
         if iterator_type.is_any(ctx.env.schema):
             raise errors.QueryError(
                 'FOR statement has iterator of indeterminate type',
-                context=ctx.env.type_origins.get(iterator_type),
+                span=ctx.env.type_origins.get(iterator_type),
             )
 
         view_scope_info = sctx.env.path_scope_map[iterator_view]
@@ -207,7 +207,7 @@ def compile_ForQuery(
         ):
             raise errors.UnsupportedFeatureError(
                 "'FOR OPTIONAL' is an internal testing feature",
-                context=qlstmt.span,
+                span=qlstmt.span,
             )
 
         pathctx.register_set_in_scope(
@@ -300,7 +300,7 @@ def compile_InternalGroupQuery(
     if not expr.from_desugaring and not ctx.env.options.testmode:
         raise errors.UnsupportedFeatureError(
             "'FOR GROUP' is an internal testing feature",
-            context=expr.span,
+            span=expr.span,
         )
 
     with ctx.subquery() as sctx:
@@ -333,12 +333,12 @@ def compile_InternalGroupQuery(
                 if using_entry.alias == 'id':
                     raise errors.UnsupportedFeatureError(
                         "may not name a grouping alias 'id'",
-                        context=using_entry.span,
+                        span=using_entry.span,
                     )
                 elif desugar_group.key_name(using_entry.alias) == 'id':
                     raise errors.UnsupportedFeatureError(
                         "may not group by a field named id",
-                        context=using_entry.expr.span,
+                        span=using_entry.expr.span,
                         hint="try 'using id_ := .id'",
                     )
 
@@ -381,7 +381,7 @@ def compile_InternalGroupQuery(
                 raise errors.InvalidReferenceError(
                     f"variable '{by_ref.name}' referenced in BY but not "
                     f"declared in USING",
-                    context=by_ref.span,
+                    span=by_ref.span,
                 )
 
         # compile the output
@@ -440,7 +440,7 @@ def compile_InsertQuery(
                 f'To resolve this try to factor out the mutation '
                 f'expression into the top-level WITH block.'
             ),
-            context=expr.span,
+            span=expr.span,
         )
 
     # Record this node in the list of potential DML expressions.
@@ -469,24 +469,24 @@ def compile_InsertQuery(
             raise errors.QueryError(
                 f'cannot insert into abstract '
                 f'{subject_stype.get_verbosename(ctx.env.schema)}',
-                context=expr.subject.span)
+                span=expr.subject.span)
 
         if subject_stype.is_free_object_type(ctx.env.schema):
             raise errors.QueryError(
                 f'free objects cannot be inserted',
-                context=expr.subject.span)
+                span=expr.subject.span)
 
         if subject_stype.is_view(ctx.env.schema):
             raise errors.QueryError(
                 f'cannot insert into expression alias '
                 f'{str(subject_stype.get_shortname(ctx.env.schema))!r}',
-                context=expr.subject.span)
+                span=expr.subject.span)
 
         if _is_forbidden_stdlib_type_for_mod(subject_stype, ctx):
             raise errors.QueryError(
                 f'cannot insert standard library type '
                 f'{subject_stype.get_displayname(ctx.env.schema)}',
-                context=expr.subject.span)
+                span=expr.subject.span)
 
         with ictx.new() as bodyctx:
             # Self-references in INSERT are prohibited.
@@ -552,7 +552,7 @@ def compile_InsertQuery(
                 [stmt.result, stmt.on_conflict.else_ir], ctx.env)
             if final_typ is None:
                 raise errors.QueryError('could not determine INSERT type',
-                                        context=stmt.span)
+                                        span=stmt.span)
             stmt.final_typeref = typegen.type_to_typeref(final_typ, env=ctx.env)
 
         # Wrap the statement.
@@ -593,7 +593,7 @@ def compile_UpdateQuery(
                 f'To resolve this try to factor out the mutation '
                 f'expression into the top-level WITH block.'
             ),
-            context=expr.span,
+            span=expr.span,
         )
 
     # Record this node in the list of DML statements.
@@ -612,13 +612,13 @@ def compile_UpdateQuery(
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f'cannot update non-ObjectType objects',
-                context=expr.subject.span
+                span=expr.subject.span
             )
 
         if subj_type.is_free_object_type(ctx.env.schema):
             raise errors.QueryError(
                 f'free objects cannot be updated',
-                context=expr.subject.span)
+                span=expr.subject.span)
 
         mat_stype = schemactx.concretify(subj_type, ctx=ctx)
 
@@ -626,7 +626,7 @@ def compile_UpdateQuery(
             raise errors.QueryError(
                 f'cannot update standard library type '
                 f'{subj_type.get_displayname(ctx.env.schema)}',
-                context=expr.subject.span)
+                span=expr.subject.span)
 
         stmt._material_type = typeutils.type_to_typeref(
             ctx.env.schema,
@@ -700,7 +700,7 @@ def compile_DeleteQuery(
                 f'To resolve this try to factor out the mutation '
                 f'expression into the top-level WITH block.'
             ),
-            context=expr.span,
+            span=expr.span,
         )
 
     # Record this node in the list of potential DML expressions.
@@ -753,13 +753,13 @@ def compile_DeleteQuery(
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f'cannot delete non-ObjectType objects',
-                context=expr.subject.span
+                span=expr.subject.span
             )
 
         if subj_type.is_free_object_type(ctx.env.schema):
             raise errors.QueryError(
                 f'free objects cannot be deleted',
-                context=expr.subject.span)
+                span=expr.subject.span)
 
         mat_stype = schemactx.concretify(subj_type, ctx=ctx)
 
@@ -767,7 +767,7 @@ def compile_DeleteQuery(
             raise errors.QueryError(
                 f'cannot delete standard library type '
                 f'{subj_type.get_displayname(ctx.env.schema)}',
-                context=expr.subject.span)
+                span=expr.subject.span)
 
         stmt._material_type = typeutils.type_to_typeref(
             ctx.env.schema,
@@ -911,7 +911,7 @@ def compile_DescribeStmt(
                         s_mod.Module, mod, None):
                     raise errors.InvalidReferenceError(
                         f"module '{mod}' does not exist",
-                        context=objref.span,
+                        span=objref.span,
                     )
 
                 modules.append(mod)
@@ -1008,7 +1008,7 @@ def compile_DescribeStmt(
                     raise errors.InvalidReferenceError(
                         f"{str(itemclass).lower()} '{objref.name}' "
                         f"does not exist",
-                        context=objref.span,
+                        span=objref.span,
                     )
 
             verbose = ql.options.get_flag('VERBOSE')
@@ -1105,7 +1105,7 @@ def compile_Shape(
             raise errors.QueryError(
                 f'shapes cannot be applied to '
                 f'{expr_stype.get_verbosename(ctx.env.schema)}',
-                context=shape.span,
+                span=shape.span,
             )
 
         stmt.result = compile_query_subject(
@@ -1133,7 +1133,7 @@ def init_stmt(
             raise errors.SchemaDefinitionError(
                 f'mutations are invalid in '
                 f'{ctx.env.options.in_ddl_context_name}',
-                context=qlstmt.span,
+                span=qlstmt.span,
             )
         elif (
             (dv := ctx.defining_view) is not None
@@ -1161,7 +1161,7 @@ def init_stmt(
                     f'To resolve this try to factor out the mutation '
                     f'expression into the top-level WITH block.'
                 ),
-                context=qlstmt.span,
+                span=qlstmt.span,
             )
 
     ctx.stmt = irstmt
@@ -1508,7 +1508,7 @@ def compile_query_subject(
             raise errors.QueryError(
                 f'shapes cannot be applied to '
                 f'{expr_stype.get_verbosename(ctx.env.schema)}',
-                context=span,
+                span=span,
             )
 
         view_scls, expr = viewgen.process_view(

@@ -158,7 +158,7 @@ class RewriteCommand(
                 span = self.get_attribute_span('expr')
                 raise errors.SchemaDefinitionError(
                     'rewrites on link properties are not supported',
-                    context=span,
+                    span=span,
                 )
             else:
                 raise NotImplementedError('unsupported rewrite source')
@@ -269,7 +269,7 @@ class RewriteCommand(
             span = self.get_attribute_span('expr')
             raise errors.SchemaDefinitionError(
                 f'rewrite expression may not include a shape',
-                context=span,
+                span=span,
             )
 
         ptr_target = self.scls.get_ptr_target(compiled_schema)
@@ -279,7 +279,7 @@ class RewriteCommand(
                 f'rewrite expression is of invalid type: '
                 f'{typ.get_displayname(compiled_schema)}, '
                 f'expected {ptr_target.get_displayname(compiled_schema)}',
-                context=span,
+                span=span,
             )
 
     @classmethod
@@ -406,7 +406,7 @@ class AlterRewrite(
             raise errors.SchemaDefinitionError(
                 f'cannot alter the definition of inherited trigger '
                 f'{self.scls.get_displayname(schema)}',
-                context=self.span,
+                span=self.span,
             )
 
         return schema

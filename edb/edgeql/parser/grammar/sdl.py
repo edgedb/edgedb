@@ -342,16 +342,16 @@ class ModuleDeclaration(Nonterm):
             if isinstance(decl, qlast.ExtensionCommand):
                 raise errors.EdgeQLSyntaxError(
                     "'using extension' cannot be used inside a module block",
-                    context=decl.span)
+                    span=decl.span)
             elif isinstance(decl, qlast.FutureCommand):
                 raise errors.EdgeQLSyntaxError(
                     "'using future' cannot be used inside a module block",
-                    context=decl.span)
+                    span=decl.span)
             elif decl.name.module is not None:
                 raise errors.EdgeQLSyntaxError(
                     "fully-qualified name is not allowed in "
                     "a module declaration",
-                    context=decl.name.span)
+                    span=decl.name.span)
 
         self.val = qlast.ModuleDeclaration(
             # mirror what we do in CREATE MODULE
@@ -812,7 +812,7 @@ class ConcreteUnknownPointerBlock(Nonterm):
                 if on_target_delete:
                     raise errors.EdgeQLSyntaxError(
                         f"more than one 'on target delete' specification",
-                        context=cmd.span)
+                        span=cmd.span)
                 else:
                     on_target_delete = cmd
 
@@ -825,13 +825,13 @@ class ConcreteUnknownPointerBlock(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed link with more than one expression',
-                        context=context)
+                        span=context)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed link without expression',
-                context=context)
+                span=context)
 
         return target, cmds
 
@@ -1062,13 +1062,13 @@ class ConcretePropertyBlock(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed property with more than one expression',
-                        context=context)
+                        span=context)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed property without expression',
-                context=context)
+                span=context)
 
         return target, cmds
 
@@ -1306,7 +1306,7 @@ class ConcreteLinkBlock(Nonterm):
                 if on_target_delete:
                     raise errors.EdgeQLSyntaxError(
                         f"more than one 'on target delete' specification",
-                        context=cmd.span)
+                        span=cmd.span)
                 else:
                     on_target_delete = cmd
 
@@ -1319,13 +1319,13 @@ class ConcreteLinkBlock(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed link with more than one expression',
-                        context=context)
+                        span=context)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed link without expression',
-                context=context)
+                span=context)
 
         return target, cmds
 
@@ -1781,13 +1781,13 @@ class GlobalDeclaration(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed global with more than one expression',
-                        context=context)
+                        span=context)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed property without expression',
-                context=context)
+                span=context)
 
         return target, cmds
 

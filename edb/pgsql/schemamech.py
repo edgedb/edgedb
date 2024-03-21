@@ -287,7 +287,7 @@ def compile_constraint(
             f'Constraint {constraint.get_displayname(schema)} on '
             f'{subject.get_displayname(schema)} is not supported '
             f'because it would depend on multiple objects',
-            context=span,
+            span=span,
         )
     elif ref_tables:
         subject_db_name, info = next(iter(ref_tables.items()))

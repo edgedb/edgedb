@@ -513,7 +513,7 @@ class ObjectTypeCommand(
                 ):
                     raise errors.SchemaDefinitionError(
                         f"cannot extend system type '{name}'",
-                        context=self.span,
+                        span=self.span,
                     )
 
     def get_dummy_expr_field_value(

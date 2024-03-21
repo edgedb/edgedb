@@ -268,7 +268,7 @@ def new_array_set(
         element_type = typegen.infer_common_type(elements, ctx.env)
         if element_type is None:
             raise errors.QueryError('could not determine array type',
-                                    context=span)
+                                    span=span)
     elif stype is not None:
         # When constructing an empty array, we should skip explicit cast any
         # time that we would skip it for an empty set because we can infer it
@@ -300,7 +300,7 @@ def raise_self_insert_error(
             f'Use DETACHED if you meant to refer to an '
             f'uncorrelated {dname} set'
         ),
-        context=span,
+        span=span,
     )
 
 
@@ -314,7 +314,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         else:
             raise errors.QueryError(
                 'could not resolve partial path ',
-                context=expr.span
+                span=expr.span
             )
 
     computables: list[irast.Set] = []
@@ -362,7 +362,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         raise errors.InvalidReferenceError(
                             f"cannot refer to alias link helper type "
                             f"'{stype.get_name(ctx.env.schema)}'",
-                            context=step.span,
+                            span=step.span,
                         )
 
                     # This is a schema-level view, as opposed to
@@ -414,7 +414,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     raise errors.EdgeQLSyntaxError(
                         f"unexpected reference to link property {ptr_name!r} "
                         "outside of a path expression",
-                        context=ptr_expr.span,
+                        span=ptr_expr.span,
                     )
 
                 # The backend can't really handle @source/@target
@@ -429,7 +429,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     raise errors.QueryError(
                         f'@{ptr_expr.name} may only be used in index and '
                         'constraint definitions',
-                        context=step.span)
+                        span=step.span)
 
                 if isinstance(path_tip.rptr.ptrref,
                               irast.TypeIntersectionPointerRef):
@@ -453,7 +453,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                             f"property '{ptr_name}' does not exist because"
                             f" there are no '{pn}' links between"
                             f" {s_vn} and {t_vn}",
-                            context=ptr_expr.span,
+                            span=ptr_expr.span,
                         )
 
                     prefix_ptr_name = (
@@ -476,7 +476,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     raise errors.QueryError(
                         'improper reference to link property on '
                         'a non-link object',
-                        context=step.span,
+                        span=step.span,
                     )
             else:
                 source = get_set_type(path_tip, ctx=ctx)
@@ -520,12 +520,12 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     f'cannot apply type intersection operator to '
                     f'{arg_type.get_verbosename(ctx.env.schema)}: '
                     f'it is not an object type',
-                    context=step.span)
+                    span=step.span)
 
             if not isinstance(step.type, qlast.TypeName):
                 raise errors.QueryError(
                     f'complex type expressions are not supported here',
-                    context=step.span,
+                    span=step.span,
                 )
 
             typ = schemactx.get_schema_type(step.type.maintype, ctx=ctx)
@@ -677,7 +677,7 @@ def resolve_special_anchor(
     if not path_tip:
         raise errors.InvalidReferenceError(
             f'{token} cannot be used in this expression',
-            context=anchor.span,
+            span=anchor.span,
         )
 
     return path_tip
@@ -769,7 +769,7 @@ def resolve_ptr_with_intersections(
     if not isinstance(near_endpoint, s_sources.Source):
         # Reference to a property on non-object
         msg = 'invalid property reference on a primitive type expression'
-        raise errors.InvalidReferenceError(msg, context=span)
+        raise errors.InvalidReferenceError(msg, span=span)
 
     ptr: Optional[s_pointers.Pointer] = None
 
@@ -875,7 +875,7 @@ def resolve_ptr_with_intersections(
                     raise errors.InvalidReferenceError(
                         f'cannot follow backlink {pointer_name!r} because '
                         f'{vname} is computed',
-                        context=span
+                        span=span
                     )
 
             opaque = not far_endpoints
@@ -921,7 +921,7 @@ def resolve_ptr_with_intersections(
         path = f'{nep_name}.{direction}{pointer_name}'
         msg = f'{path!r} does not resolve to any known path'
 
-    err = errors.InvalidReferenceError(msg, context=span)
+    err = errors.InvalidReferenceError(msg, span=span)
 
     if (
         direction is s_pointers.PointerDirection.Outbound
@@ -967,7 +967,7 @@ def _check_secret_ptr(
     vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
     raise errors.QueryError(
         f"cannot access {vn} because it is secret",
-        context=srcctx,
+        span=srcctx,
     )
 
 
@@ -1124,7 +1124,7 @@ def compile_enum_path(
             f"'{source.get_displayname(ctx.env.schema)}' enum "
             f"path expression lacks an enum member name, as in "
             f"'{source.get_displayname(ctx.env.schema)}.{enum_values[0]}'",
-            context=expr.steps[0].span,
+            span=expr.steps[0].span,
         )
 
     step2 = expr.steps[1]
@@ -1133,7 +1133,7 @@ def compile_enum_path(
             f"an enum member name must follow enum type name in the path, "
             f"as in "
             f"'{source.get_displayname(ctx.env.schema)}.{enum_values[0]}'",
-            context=step2.span,
+            span=step2.span,
         )
 
     ptr_name = step2.name
@@ -1144,19 +1144,19 @@ def compile_enum_path(
     if step2_direction is not s_pointers.PointerDirection.Outbound:
         raise errors.QueryError(
             f"enum types do not support backlink navigation",
-            context=step2.span,
+            span=step2.span,
         )
     if step2.type == 'property':
         raise errors.QueryError(
             f"unexpected reference to link property '{ptr_name}' "
             f"outside of a path expression",
-            context=step2.span,
+            span=step2.span,
         )
 
     if nsteps > 2:
         raise errors.QueryError(
             f"invalid property reference on a primitive type expression",
-            context=expr.steps[2].span,
+            span=expr.steps[2].span,
         )
 
     if ptr_name not in enum_values:
@@ -1168,7 +1168,7 @@ def compile_enum_path(
         raise errors.InvalidReferenceError(
             f"'{src_name}' enum has no member called {ptr_name!r}",
             hint=f"did you mean {rec_name!r}?",
-            context=step2.span,
+            span=step2.span,
         )
 
     return enum_indirection_set(
@@ -1451,7 +1451,7 @@ def ensure_set(
             f'expecting expression of type '
             f'{typehint.get_displayname(ctx.env.schema)}, '
             f'got {stype.get_displayname(ctx.env.schema)}',
-            context=expr.span
+            span=expr.span
         )
 
     return ir_set
@@ -2101,7 +2101,7 @@ def get_globals_as_json(
         raise errors.SchemaDefinitionError(
             f'functions that reference global variables cannot be called '
             f'from {typname}',
-            context=srcctx)
+            span=srcctx)
 
     null_expr = qlast.FunctionCall(
         func=('__std__', 'to_json'),

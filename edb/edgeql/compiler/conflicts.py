@@ -118,7 +118,7 @@ def _compile_conflict_select_for_obj_type(
                 raise errors.UnsupportedFeatureError(
                     "INSERT UNLESS CONFLICT cannot be used on properties or "
                     "links that have a rewrite rule specified",
-                    context=span,
+                    span=span,
                 )
 
     ctx.anchors = ctx.anchors.copy()
@@ -160,7 +160,7 @@ def _compile_conflict_select_for_obj_type(
                         'properties'
                     )
                 raise errors.UnsupportedFeatureError(
-                    error, context=span
+                    error, span=span
                 )
 
             # We want to use the same path_scope_id as the original
@@ -187,7 +187,7 @@ def _compile_conflict_select_for_obj_type(
     if not ptr_anchors:
         raise errors.QueryError(
             'INSERT UNLESS CONFLICT property requires matching shape',
-            context=span,
+            span=span,
         )
 
     conds: List[qlast.Expr] = []
@@ -504,14 +504,14 @@ def compile_insert_unless_conflict_on(
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property, link, '
                 'or tuple of properties and links',
-                context=constraint_spec.span,
+                span=constraint_spec.span,
             )
 
         if cspec_arg.rptr.source.path_id != stmt.subject.path_id:
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property of the '
                 'type being inserted',
-                context=constraint_spec.span,
+                span=constraint_spec.span,
             )
 
     schema = ctx.env.schema
@@ -526,7 +526,7 @@ def compile_insert_unless_conflict_on(
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property, link, '
                 'or tuple of properties and links',
-                context=constraint_spec.span,
+                span=constraint_spec.span,
             )
 
         ptr = ptr.get_nearest_non_derived_parent(schema)
@@ -545,7 +545,7 @@ def compile_insert_unless_conflict_on(
     if len(all_constrs) != 1:
         raise errors.QueryError(
             'UNLESS CONFLICT property must have a single exclusive constraint',
-            context=constraint_spec.span,
+            span=constraint_spec.span,
         )
 
     ds = {ptr.get_shortname(schema).name: (ptr, field_constrs)
@@ -566,7 +566,7 @@ def compile_insert_unless_conflict_on(
                 details=(
                     f"The existing object can't be exposed in the ELSE clause "
                     f"because it may not have type {typ.get_name(schema)}"),
-                context=constraint_spec.span,
+                span=constraint_spec.span,
             )
 
         with ctx.new() as ectx:
@@ -622,7 +622,7 @@ def _disallow_exclusive_linkprops(
                     'INSERT/UPDATE do not support exclusive constraints on '
                     'link properties when another statement in '
                     'the same query modifies a related type',
-                    context=stmt.span,
+                    span=stmt.span,
                 )
 
 

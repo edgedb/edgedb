@@ -395,7 +395,7 @@ class ScopeTreeNode:
                 if child.path_id == node.path_id:
                     raise errors.InvalidReferenceError(
                         f'{node.path_id} is already present in {self!r}',
-                        context=span,
+                        span=span,
                     )
 
         if node.unique_id is not None:
@@ -533,7 +533,7 @@ class ScopeTreeNode:
                     raise errors.InvalidReferenceError(
                         f'cannot reference correlated set '
                         f'{path_id.pformat()!r} here',
-                        context=span,
+                        span=span,
                     )
 
                 # This path is already present in the tree, discard,
@@ -641,7 +641,7 @@ class ScopeTreeNode:
             raise errors.InvalidReferenceError(
                 f'cannot reference correlated set '
                 f'{path_id.pformat()!r} here',
-                context=span,
+                span=span,
             )
 
         if (
@@ -681,7 +681,7 @@ class ScopeTreeNode:
                 f'{imp}reference to {offending_id} '
                 f'changes the interpretation of {existing_id} '
                 f'elsewhere in the query',
-                context=span,
+                span=span,
             )
 
     def _node_paths_are_not_links(self) -> bool:

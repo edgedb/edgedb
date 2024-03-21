@@ -330,7 +330,7 @@ class BaseSchemaTest(BaseDocTest):
                     raise errors.QueryError(
                         'unexpected POPULATE MIGRATION:'
                         ' not currently in a migration block',
-                        context=stmt.context,
+                        span=stmt.context,
                     )
 
                 migration_diff = s_ddl.delta_schemas(
@@ -379,7 +379,7 @@ class BaseSchemaTest(BaseDocTest):
                     raise errors.QueryError(
                         'unexpected COMMIT MIGRATION:'
                         ' not currently in a migration block',
-                        context=stmt.context,
+                        span=stmt.context,
                     )
 
                 last_migration = current_schema.get_last_migration()

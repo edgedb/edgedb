@@ -625,7 +625,7 @@ class TypeShell(so.ObjectShell[TypeT_co]):
             f'unsupported type intersection in schema {str(view_name)}',
             hint=f'Type intersections are currently '
                  f'unsupported as valid link targets.',
-            context=self.sourcectx,
+            span=self.sourcectx,
         )
 
 
@@ -2900,7 +2900,7 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
         if expr is None:
             raise errors.InvalidAliasDefinitionError(
                 f'missing required view expression',
-                context=astnode.span
+                span=astnode.span
             )
         assert isinstance(expr, qlast.Expr)
         return expr
@@ -2992,7 +2992,7 @@ class InheritingTypeCommand(
                 shell = shells.get(base.get_name(schema))
                 raise errors.SchemaError(
                     f"{base_type_name!r} cannot be a parent type",
-                    context=shell.sourcectx if shell is not None else None,
+                    span=shell.sourcectx if shell is not None else None,
                 )
 
 

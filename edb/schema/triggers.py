@@ -155,14 +155,14 @@ class TriggerCommand(
                         f'type: '
                         f'{expr_type.get_displayname(schema)}, '
                         f'expected {target.get_displayname(schema)}',
-                        context=srcctx,
+                        span=srcctx,
                     )
 
                 if expression.irast.dml_exprs:
                     raise errors.SchemaDefinitionError(
                         'data-modifying statements are not allowed in trigger '
                         'when clauses',
-                        context=expression.irast.dml_exprs[0].span,
+                        span=expression.irast.dml_exprs[0].span,
                     )
 
         return schema
@@ -370,7 +370,7 @@ class AlterTrigger(
             raise errors.SchemaDefinitionError(
                 f'cannot alter the definition of inherited trigger '
                 f'{self.scls.get_displayname(schema)}',
-                context=self.span
+                span=self.span
             )
 
         return schema

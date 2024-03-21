@@ -251,7 +251,7 @@ def fini_expression(
             raise errors.QueryError(
                 'expression returns value of indeterminate type',
                 hint='Consider using an explicit type cast.',
-                context=ctx.env.type_origins.get(anytype))
+                span=ctx.env.type_origins.get(anytype))
 
     # Clear out exprs that we decided to omit from the IR
     for ir_set in exprs_to_clear:
@@ -826,7 +826,7 @@ def throw_on_shaped_param(
     raise errors.QueryError(
         f'cannot apply a shape to the parameter',
         hint='Consider adding parentheses around the parameter and type cast',
-        context=shape.span
+        span=shape.span
     )
 
 
@@ -838,14 +838,14 @@ def throw_on_loose_param(
         if ctx.env.options.schema_object_context is s_constr.Constraint:
             raise errors.InvalidConstraintDefinitionError(
                 f'dollar-prefixed "$parameters" cannot be used here',
-                context=param.span)
+                span=param.span)
         else:
             raise errors.InvalidFunctionDefinitionError(
                 f'dollar-prefixed "$parameters" cannot be used here',
-                context=param.span)
+                span=param.span)
     raise errors.QueryError(
         f'missing a type cast before the parameter',
-        context=param.span)
+        span=param.span)
 
 
 def preprocess_script(

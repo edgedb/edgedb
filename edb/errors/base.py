@@ -89,22 +89,20 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         *,
         hint: Optional[str] = None,
         details: Optional[str] = None,
-        context=None,
+        span: Optional[edb_span.Span] = None,
         position: Optional[tuple[int, int, int, int | None]] = None,
         filename: Optional[str] = None,
-        token=None,
         pgext_code: Optional[str] = None,
     ):
         if type(self) is EdgeDBError:
             raise RuntimeError(
                 'EdgeDBError is not supposed to be instantiated directly')
 
-        self.token = token
         self._attrs = {}
         self._pgext_code = pgext_code
 
-        if isinstance(context, edb_span.Span):
-            self.set_span(context)
+        if span:
+            self.set_span(span)
         elif position:
             self.set_position(*position)
 

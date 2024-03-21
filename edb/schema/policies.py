@@ -168,21 +168,21 @@ class AccessPolicyCommand(
                 raise errors.SchemaDefinitionError(
                     f'possibly an empty set returned by {vname} '
                     f'expression for the {pol_name} ',
-                    context=srcctx
+                    span=srcctx
                 )
 
             if expression.irast.cardinality.is_multi():
                 raise errors.SchemaDefinitionError(
                     f'possibly more than one element returned by {vname} '
                     f'expression for the {pol_name} ',
-                    context=srcctx
+                    span=srcctx
                 )
 
             if expression.irast.volatility.is_volatile():
                 raise errors.SchemaDefinitionError(
                     f'{pol_name} has a volatile {vname} expression, '
                     f'which is not allowed',
-                    context=srcctx
+                    span=srcctx
                 )
 
             target = schema.get(sn.QualName('std', 'bool'), type=s_types.Type)
@@ -193,7 +193,7 @@ class AccessPolicyCommand(
                     f'{vname} expression for {pol_name} is of invalid type: '
                     f'{expr_type.get_displayname(schema)}, '
                     f'expected {target.get_displayname(schema)}',
-                    context=self.span,
+                    span=self.span,
                 )
 
         return schema
@@ -277,7 +277,7 @@ class AccessPolicyCommand(
                         f'insert and update write access policies may not '
                         f'refer to link properties with default values: '
                         f'{pol_name} refers to {obj_name}',
-                        context=self.span,
+                        span=self.span,
                     )
 
 
@@ -389,7 +389,7 @@ class AlterAccessPolicy(
             raise errors.SchemaDefinitionError(
                 f'cannot alter the definition of inherited access policy '
                 f'{self.scls.get_displayname(schema)}',
-                context=self.span
+                span=self.span
             )
 
         return schema

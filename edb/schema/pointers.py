@@ -1334,7 +1334,7 @@ class PointerCommandOrFragment(
                 raise errors.UnsupportedFeatureError(
                     f'referring to {an} from computed {ptr_name} '
                     f'is unsupported',
-                    context=srcctx,
+                    span=srcctx,
                 )
 
         if (
@@ -1345,7 +1345,7 @@ class PointerCommandOrFragment(
             raise errors.UnsupportedFeatureError(
                 f'including a shape on schema-defined computed links '
                 f'is not yet supported',
-                context=self.span,
+                span=self.span,
             )
 
         spec_target: Optional[
@@ -1384,7 +1384,7 @@ class PointerCommandOrFragment(
                     f'is {inferred_target_type.get_verbosename(mschema)}, '
                     f'which does not match the explicitly specified '
                     f'{spec_target_type.get_verbosename(schema)}',
-                    context=srcctx
+                    span=srcctx
                 )
 
         if spec_required and not required:
@@ -1394,7 +1394,7 @@ class PointerCommandOrFragment(
                 f'expression for the computed '
                 f'{ptr_name} '
                 f"explicitly declared as 'required'",
-                context=srcctx
+                span=srcctx
             )
 
         if (
@@ -1407,7 +1407,7 @@ class PointerCommandOrFragment(
                 f'expression for the computed '
                 f'{ptr_name} '
                 f"explicitly declared as 'single'",
-                context=srcctx
+                span=srcctx
             )
 
         if spec_card is None:
@@ -1424,7 +1424,7 @@ class PointerCommandOrFragment(
             raise errors.SchemaDefinitionError(
                 f'volatile functions are not permitted in schema-defined '
                 f'computed expressions',
-                context=srcctx
+                span=srcctx
             )
 
         self.set_attribute_value('computable', True)
@@ -1619,7 +1619,7 @@ class PointerCommand(
                     f'{scls.get_verbosename(schema, with_parent=True)} '
                     f'to extend an abstract '
                     f'{scls.get_schema_class_displayname()}',
-                    context=self.span,
+                    span=self.span,
                 )
 
         # Get the non-generic, explicitly declared ancestors as the
@@ -1656,7 +1656,7 @@ class PointerCommand(
                 f'{scls.get_verbosename(schema, with_parent=True)} '
                 f'to overload an existing '
                 f'{scls.get_schema_class_displayname()}',
-                context=self.span,
+                span=self.span,
             )
         else:
             if status is LineageStatus.MIXED:
@@ -1665,7 +1665,7 @@ class PointerCommand(
                     f'{scls.get_verbosename(schema, with_parent=True)} '
                     f'to extend both a computed and a non-computed '
                     f'{scls.get_schema_class_displayname()}',
-                    context=self.span,
+                    span=self.span,
                 )
             elif status is LineageStatus.MULTIPLE_COMPUTABLES:
                 raise errors.SchemaDefinitionError(
@@ -1673,7 +1673,7 @@ class PointerCommand(
                     f'{scls.get_verbosename(schema, with_parent=True)} '
                     f'to extend more than one computed '
                     f'{scls.get_schema_class_displayname()}',
-                    context=self.span,
+                    span=self.span,
                 )
 
     def _validate_lineage(
@@ -1777,7 +1777,7 @@ class PointerCommand(
             ):
                 raise errors.SchemaDefinitionError(
                     f'default expression may not include a shape',
-                    context=span,
+                    span=span,
                 )
             if not default_type.assignment_castable_to(
                     ptr_target, default_schema):
@@ -1785,7 +1785,7 @@ class PointerCommand(
                     f'default expression is of invalid type: '
                     f'{default_type.get_displayname(default_schema)}, '
                     f'expected {ptr_target.get_displayname(schema)}',
-                    context=span,
+                    span=span,
                 )
             # "required" status of defaults should not be enforced
             # because it's impossible to actually guarantee that any
@@ -1801,7 +1801,7 @@ class PointerCommand(
                     f'the default expression for '
                     f'{scls.get_verbosename(schema)} declared as '
                     f"'single'",
-                    context=span,
+                    span=span,
                 )
 
             # prevent references to local links, only properties
@@ -1820,7 +1820,7 @@ class PointerCommand(
                     raise errors.SchemaDefinitionError(
                         f"default expression cannot refer to multi properties "
                         "of inserted object",
-                        context=span,
+                        span=span,
                         hint="this is a temporary implementation restriction",
                     )
 
@@ -1828,7 +1828,7 @@ class PointerCommand(
                     raise errors.SchemaDefinitionError(
                         f"default expression cannot refer to links "
                         "of inserted object",
-                        context=span,
+                        span=span,
                         hint='this is a temporary implementation restriction'
                     )
 
@@ -1841,7 +1841,7 @@ class PointerCommand(
                     f"cannot specify a rewrite for "
                     f"{scls.get_verbosename(schema, with_parent=True)} "
                     f"because it is multi",
-                    context=self.span,
+                    span=self.span,
                     hint='this is a temporary implementation restriction'
                 )
 
@@ -1850,7 +1850,7 @@ class PointerCommand(
                     f"cannot specify a rewrite for "
                     f"{scls.get_verbosename(schema, with_parent=True)} "
                     f"because it has link properties",
-                    context=self.span,
+                    span=self.span,
                     hint='this is a temporary implementation restriction'
                 )
 
@@ -1887,7 +1887,7 @@ class PointerCommand(
             raise errors.SchemaDefinitionError(
                 "invalid default value for 'id' property",
                 hint=f'default must be a call to one of: {options}',
-                context=span,
+                span=span,
             )
 
     @classmethod
@@ -1910,7 +1910,7 @@ class PointerCommand(
                 typ = cls.get_schema_metaclass().get_schema_class_displayname()
                 raise errors.SchemaDefinitionError(
                     f"'default' is not a valid field for an abstract {typ}",
-                    context=astnode.span)
+                    span=astnode.span)
         return cmd
 
     def _process_create_or_alter_ast(
@@ -2463,7 +2463,7 @@ class SetPointerType(
             # on a non-inherited type.
             raise errors.SchemaError(
                 f'cannot RESET TYPE of {vn} because it is not inherited',
-                context=self.span,
+                span=self.span,
             )
 
         if not context.canonical and orig_target != new_target:
@@ -2490,7 +2490,7 @@ class SetPointerType(
                         'You might need to specify a conversion '
                         'expression in a USING clause'
                     ),
-                    context=self.span,
+                    span=self.span,
                 )
 
             if self.cast_expr is not None:
@@ -2519,20 +2519,20 @@ class SetPointerType(
                         f'{vn} cannot be cast automatically from '
                         f'{ot} to {nt} ',
                         hint='You might need to add an explicit cast.',
-                        context=self.span,
+                        span=self.span,
                     )
                 if using_type.is_view(self.cast_expr.schema):
                     raise errors.SchemaError(
                         f'result of USING clause for the alteration of '
                         f'{vn} may not include a shape',
-                        context=self.span,
+                        span=self.span,
                     )
 
                 if irutils.contains_dml(self.cast_expr.ir_statement):
                     raise errors.SchemaError(
                         f'USING clause for the alteration of type of {vn} '
                         f'cannot include mutating statements',
-                        context=self.span,
+                        span=self.span,
                     )
 
             schema = self._propagate_if_expr_refs(
@@ -2684,7 +2684,7 @@ class AlterPointerUpperCardinality(
                         'You need to specify a conversion '
                         'expression in a USING clause'
                     ),
-                    context=self.span,
+                    span=self.span,
                 )
 
             if self.conv_expr is not None:
@@ -2714,13 +2714,13 @@ class AlterPointerUpperCardinality(
                         f'{vn} cannot be cast automatically from '
                         f'{ot} to {nt} ',
                         hint='You might need to add an explicit cast.',
-                        context=self.span,
+                        span=self.span,
                     )
                 if using_type.is_view(self.conv_expr.schema):
                     raise errors.SchemaError(
                         f'result of USING clause for the alteration of '
                         f'{vn} may not include a shape',
-                        context=self.span,
+                        span=self.span,
                     )
 
             schema = self._propagate_if_expr_refs(schema, context, action=desc)
@@ -2941,13 +2941,13 @@ class AlterPointerLowerCardinality(
                         f'{vn} cannot be cast automatically from '
                         f'{ot} to {nt} ',
                         hint='You might need to add an explicit cast.',
-                        context=self.span,
+                        span=self.span,
                     )
                 if using_type.is_view(self.fill_expr.schema):
                     raise errors.SchemaError(
                         f'result of USING clause for the alteration of '
                         f'{vn} may not include a shape',
-                        context=self.span,
+                        span=self.span,
                     )
 
             schema = self._propagate_if_expr_refs(

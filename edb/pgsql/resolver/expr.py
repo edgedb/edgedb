@@ -179,7 +179,7 @@ def _lookup_column(
 
     if not matched_columns:
         raise errors.QueryError(
-            f'cannot find column `{col_name}`', context=column_ref.span
+            f'cannot find column `{col_name}`', span=column_ref.span
         )
 
     # apply precedence
@@ -194,7 +194,7 @@ def _lookup_column(
         raise errors.QueryError(
             f'ambiguous column `{col_name}` could belong to '
             f'following tables: {potential_tables}',
-            context=column_ref.span,
+            span=column_ref.span,
         )
 
     return (matched_columns[0],)

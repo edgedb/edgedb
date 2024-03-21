@@ -270,7 +270,7 @@ def compile_NamedTuple(
         if name in names:
             raise errors.QueryError(
                 f"named tuple has duplicate field '{name}'",
-                context=el.span)
+                span=el.span)
         names.add(name)
 
         element = irast.TupleElement(
@@ -309,7 +309,7 @@ def compile_Array(
         if isinstance(setgen.get_set_type(el, ctx=ctx), s_abc.Array):
             raise errors.QueryError(
                 f'nested arrays are not supported',
-                context=expr_el.span)
+                span=expr_el.span)
 
     return setgen.new_array_set(elements, ctx=ctx, span=expr.span)
 
@@ -604,7 +604,7 @@ def compile_GlobalExpr(
         typname = objctx.get_schema_class_displayname()
         raise errors.SchemaDefinitionError(
             f'global variables cannot be referenced from {typname}',
-            context=expr.span)
+            span=expr.span)
 
     param_set: qlast.Expr | irast.Set
     present_set: qlast.Expr | irast.Set | None
@@ -665,7 +665,7 @@ def compile_TypeCast(
                 f'{target_stype.get_displayname(ctx.env.schema)!r}',
                 hint="Please ensure you don't use generic "
                      '"any" types or abstract scalars.',
-                context=expr.span)
+                span=expr.span)
 
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
 
@@ -686,7 +686,7 @@ def compile_TypeCast(
                 raise errors.QueryError(
                     'queries compiled to accept JSON parameters do not '
                     'accept positional parameters',
-                    context=expr.expr.span)
+                    span=expr.expr.span)
 
             typeref = typegen.type_to_typeref(
                 ctx.env.get_schema_type_and_track(sn.QualName('std', 'json')),
@@ -727,7 +727,7 @@ def compile_TypeCast(
                     f'{pt.get_displayname(ctx.env.schema)} '
                     f'does not match original type '
                     f'{param_first_type.get_displayname(ctx.env.schema)}',
-                    context=expr.expr.span)
+                    span=expr.expr.span)
 
         if param_name not in ctx.env.query_parameters:
             sub_params = None
@@ -792,7 +792,7 @@ def _infer_type_introspection(
                     env.schema.get('schema::MultiRange'))
     else:
         raise errors.QueryError(
-            'unexpected type in INTROSPECT', context=srcctx)
+            'unexpected type in INTROSPECT', span=srcctx)
 
 
 @dispatch.compile.register(qlast.Introspect)
@@ -814,15 +814,15 @@ def compile_Introspect(
     if irtyputils.is_view(typeref):
         raise errors.QueryError(
             f'cannot introspect transient type variant',
-            context=expr.type.span)
+            span=expr.type.span)
     if irtyputils.is_collection(typeref):
         raise errors.QueryError(
             f'cannot introspect collection types',
-            context=expr.type.span)
+            span=expr.type.span)
     if irtyputils.is_generic(typeref):
         raise errors.QueryError(
             f'cannot introspect generic types',
-            context=expr.type.span)
+            span=expr.type.span)
 
     result_typeref = typegen.type_to_typeref(
         _infer_type_introspection(typeref, ctx.env, expr.span), env=ctx.env
@@ -857,7 +857,7 @@ def _infer_index_type(
                 f'cannot index string by '
                 f'{index_type.get_displayname(env.schema)}, '
                 f'{int_t.get_displayname(env.schema)} was expected',
-                context=index.span)
+                span=index.span)
 
         result = str_t
 
@@ -868,7 +868,7 @@ def _infer_index_type(
                 f'cannot index bytes by '
                 f'{index_type.get_displayname(env.schema)}, '
                 f'{int_t.get_displayname(env.schema)} was expected',
-                context=index.span)
+                span=index.span)
 
         result = bytes_t
 
@@ -882,7 +882,7 @@ def _infer_index_type(
                 f'{index_type.get_displayname(env.schema)}, '
                 f'{int_t.get_displayname(env.schema)} or '
                 f'{str_t.get_displayname(env.schema)} was expected',
-                context=index.span)
+                span=index.span)
 
         result = json_t
 
@@ -893,7 +893,7 @@ def _infer_index_type(
                 f'cannot index array by '
                 f'{index_type.get_displayname(env.schema)}, '
                 f'{int_t.get_displayname(env.schema)} was expected',
-                context=index.span)
+                span=index.span)
 
         result = node_type.get_subtypes(env.schema)[0]
 
@@ -908,7 +908,7 @@ def _infer_index_type(
         raise errors.QueryError(
             f'index indirection cannot be applied to '
             f'{node_type.get_verbosename(env.schema)}',
-            context=expr.span)
+            span=expr.span)
 
     return result
 
@@ -941,7 +941,7 @@ def _infer_slice_type(
         # the base type is not valid
         raise errors.QueryError(
             f'{node_type.get_verbosename(env.schema)} cannot be sliced',
-            context=expr.span)
+            span=expr.span)
 
     for index in [start, stop]:
         if index is not None:
@@ -952,7 +952,7 @@ def _infer_slice_type(
                     f'cannot slice {base_name} by '
                     f'{index_type.get_displayname(env.schema)}, '
                     f'{int_t.get_displayname(env.schema)} was expected',
-                    context=index.span)
+                    span=index.span)
 
     return node_type
 

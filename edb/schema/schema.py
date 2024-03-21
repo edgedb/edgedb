@@ -1415,7 +1415,7 @@ class FlatSchema(Schema):
                 raise errors.InvalidReferenceError(
                     f'{refname!r} exists, but is {english.add_a(got_name)}, '
                     f'not {english.add_a(exp_name)}',
-                    context=sourcectx,
+                    span=sourcectx,
                 )
 
             return obj  # type: ignore
@@ -1463,7 +1463,7 @@ class FlatSchema(Schema):
 
         raise errors.InvalidReferenceError(
             f'{label} {refname!r} does not exist',
-            context=sourcectx,
+            span=sourcectx,
         )
 
     def has_object(self, object_id: uuid.UUID) -> bool:

@@ -88,7 +88,7 @@ def compile_FunctionCall(
         ):
             raise errors.QueryError(
                 f'parameter `{expr.func}` is not callable',
-                context=expr.span)
+                span=expr.span)
 
         funcname = sn.UnqualName(expr.func)
     else:
@@ -102,7 +102,7 @@ def compile_FunctionCall(
     if funcs is None:
         raise errors.QueryError(
             f'could not resolve function name {funcname}',
-            context=expr.span)
+            span=expr.span)
 
     in_polymorphic_func = (
         ctx.env.options.func_params is not None and
@@ -158,7 +158,7 @@ def compile_FunctionCall(
         raise errors.QueryError(
             f'function "{signature}" does not exist',
             hint=hint,
-            context=expr.span)
+            span=expr.span)
     elif len(matched) > 1:
         if in_abstract_constraint:
             matched_call = matched[0]
@@ -169,7 +169,7 @@ def compile_FunctionCall(
                 hint=f'Please disambiguate between the following '
                      f'alternatives:\n' +
                      ('\n'.join(alts)),
-                context=expr.span)
+                span=expr.span)
     else:
         matched_call = matched[0]
 
@@ -186,7 +186,7 @@ def compile_FunctionCall(
             raise errors.SchemaDefinitionError(
                 f'mutations are invalid in '
                 f'{ctx.env.options.in_ddl_context_name}',
-                context=expr.span,
+                span=expr.span,
             )
         elif (
             (dv := ctx.defining_view) is not None
@@ -203,7 +203,7 @@ def compile_FunctionCall(
                     f'To resolve this try to factor out the mutation '
                     f'expression into the top-level WITH block.'
                 ),
-                context=expr.span,
+                span=expr.span,
             )
 
     func_name = func.get_shortname(env.schema)
@@ -245,7 +245,7 @@ def compile_FunctionCall(
             raise errors.UnsupportedFeatureError(
                 'newly created or updated objects cannot be passed to '
                 'functions',
-                context=arg.expr.span
+                span=arg.expr.span
             )
 
     if not in_abstract_constraint:
@@ -361,7 +361,7 @@ def compile_operator(
     if opers is None:
         raise errors.QueryError(
             f'no operator matches the given name and argument types',
-            context=qlexpr.span)
+            span=qlexpr.span)
 
     typemods = polyres.find_callable_typemods(
         opers, num_args=len(qlargs), kwargs_names=set(), ctx=ctx)
@@ -385,7 +385,7 @@ def compile_operator(
             raise errors.QueryError(
                 f'could not resolve the type of operand '
                 f'#{ai} of {op_name}',
-                context=qlarg.span)
+                span=qlarg.span)
 
         args.append((arg_type, arg_ir))
 
@@ -400,14 +400,14 @@ def compile_operator(
         if len(opers) > 1:
             raise errors.InternalServerError(
                 f'more than one derived operator of the same name: {op_name}',
-                context=qlarg.span)
+                span=qlarg.span)
 
         derivative_op = opers[0]
         opers = schema.get_operators(origin_op)
         if not opers:
             raise errors.InternalServerError(
                 f'cannot find the origin operator for {op_name}',
-                context=qlarg.span)
+                span=qlarg.span)
         actual_typemods = [
             param.get_typemod(schema)
             for param in derivative_op.get_params(schema).objects(schema)
@@ -549,7 +549,7 @@ def compile_operator(
             raise errors.InvalidTypeError(
                 msg,
                 hint=hint,
-                context=qlexpr.span)
+                span=qlexpr.span)
         elif len(matched) > 1:
             if in_abstract_constraint:
                 matched_call = matched[0]
@@ -562,7 +562,7 @@ def compile_operator(
                     f'operator {str(op_name)!r} is ambiguous for '
                     f'operands of type {types}',
                     hint=f'Possible variants: {detail}.',
-                    context=qlexpr.span)
+                    span=qlexpr.span)
 
     oper = matched_call.func
     assert isinstance(oper, s_oper.Operator)
@@ -676,7 +676,7 @@ def _check_free_shape_op(
         if typ.issubclass(ctx.env.schema, virt_obj):
             raise errors.QueryError(
                 f'cannot use {ir.func_shortname.name} on free shape',
-                context=ir.span)
+                span=ir.span)
 
 
 def validate_recursive_operator(
@@ -738,7 +738,7 @@ def compile_func_call_args(
             raise errors.QueryError(
                 f'could not resolve the type of positional argument '
                 f'#{ai} of function {funcname}',
-                context=arg.span)
+                span=arg.span)
 
         args.append((arg_type, arg_ir))
 
@@ -752,7 +752,7 @@ def compile_func_call_args(
             raise errors.QueryError(
                 f'could not resolve the type of named argument '
                 f'${aname} of function {funcname}',
-                context=arg.span)
+                span=arg.span)
 
         kwargs[aname] = (arg_type, arg_ir)
 
@@ -967,7 +967,7 @@ def _validate_has_fts_index(
         raise errors.InvalidReferenceError(
             f"fts::search requires an fts::index index on type "
             f"'{stype.get_displayname(schema)}'",
-            context=span,
+            span=span,
         )
 
 
@@ -1004,7 +1004,7 @@ def compile_fts_with_options(
     if not irutils.is_const(weight_expr):
         raise errors.InvalidValueError(
             f"fts::search weight_category must be a constant",
-            context=weight_expr.span,
+            span=weight_expr.span,
         )
     weight_const = irutils.as_const(weight_expr)
     if weight_const:

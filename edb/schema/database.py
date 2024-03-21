@@ -66,7 +66,7 @@ class DatabaseCommand(
             raise errors.SchemaDefinitionError(
                 f'Database names longer than {s_def.MAX_NAME_LENGTH} '
                 f'characters are not supported',
-                context=span,
+                span=span,
             )
 
 

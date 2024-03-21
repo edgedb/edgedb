@@ -485,7 +485,7 @@ def sdl_to_ddl(
             # A single schema object with a recursive definition.
             msg = f'{item_vn} is defined recursively'
 
-        raise errors.InvalidDefinitionError(msg, context=node.span) from e
+        raise errors.InvalidDefinitionError(msg, span=node.span) from e
 
     return tuple(mods) + tuple(ordered)
 
@@ -759,7 +759,7 @@ def _trace_item_layout(
             if field_name in ctx.objects:
                 vn = get_verbosename_from_fqname(field_name, ctx)
                 msg = f'{vn} was already declared'
-                raise errors.InvalidDefinitionError(msg, context=decl.span)
+                raise errors.InvalidDefinitionError(msg, span=decl.span)
 
             ctx.objects[field_name] = qltracer.Field(field_name)
 
@@ -1094,7 +1094,7 @@ def _register_item(
     if fq_name in ctx.ddlgraph:
         vn = get_verbosename_from_fqname(fq_name, ctx)
         msg = f'{vn} was already declared'
-        raise errors.InvalidDefinitionError(msg, context=decl.span)
+        raise errors.InvalidDefinitionError(msg, span=decl.span)
 
     if deps:
         deps = set(deps)
@@ -1414,7 +1414,7 @@ def _get_bases(
                 raise errors.SchemaError(
                     f"invalid scalar type definition, enumeration must "
                     f"be the only supertype specified",
-                    context=decl.bases[0].span,
+                    span=decl.bases[0].span,
                 )
 
             bases = [s_name.QualName("std", "anyenum")]
@@ -1504,7 +1504,7 @@ def _get_local_obj(
         raise errors.SchemaError(
             f'invalid type: {obj.get_verbosename(ctx.schema)} is a generic '
             f'type and they are not supported in user-defined schema',
-            context=sourcectx,
+            span=sourcectx,
         )
 
     elif obj is not None and not isinstance(obj, tracer_type):
@@ -1514,7 +1514,7 @@ def _get_local_obj(
             f'{str(refname)!r} exists, but is '
             f'{english.add_a(obj_type.get_schema_class_displayname())}, '
             f'not {english.add_a(real_type.get_schema_class_displayname())}',
-            context=sourcectx,
+            span=sourcectx,
         )
 
     return obj

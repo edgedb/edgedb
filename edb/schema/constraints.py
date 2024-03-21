@@ -431,7 +431,7 @@ class ConstraintCommand(
                 if cname in {'subject', 'subjectexpr'}:
                     raise errors.InvalidConstraintDefinitionError(
                         f'{cname} is not a valid constraint annotation',
-                        context=command.span)
+                        span=command.span)
 
     @classmethod
     def _classname_quals_from_ast(
@@ -764,7 +764,7 @@ class ConstraintCommand(
                 and subjectexpr.text != base_subjectexpr.text):
             raise errors.InvalidConstraintDefinitionError(
                 f'subjectexpr is already defined for {name}',
-                context=sourcectx,
+                span=sourcectx,
             )
 
         if (isinstance(subject_obj, s_scalars.ScalarType)
@@ -772,7 +772,7 @@ class ConstraintCommand(
             raise errors.InvalidConstraintDefinitionError(
                 f'{constr_base.get_verbosename(schema)} may not '
                 f'be used on scalar types',
-                context=sourcectx,
+                span=sourcectx,
             )
 
         if (
@@ -781,7 +781,7 @@ class ConstraintCommand(
         ):
             raise errors.InvalidConstraintDefinitionError(
                 "constraints on object types must have an 'on' clause",
-                context=sourcectx,
+                span=sourcectx,
             )
 
         if subjectexpr is not None:
@@ -861,7 +861,7 @@ class ConstraintCommand(
                 f'{name} constraint expression expected '
                 f'to return a bool value, got '
                 f'{expr_type.get_verbosename(expr_schema)}',
-                context=sourcectx
+                span=sourcectx
             )
 
         except_expr = attrs.get('except_expr')
@@ -869,7 +869,7 @@ class ConstraintCommand(
             if isinstance(subject, s_pointers.Pointer):
                 raise errors.InvalidConstraintDefinitionError(
                     "only object constraints may use EXCEPT",
-                    context=sourcectx
+                    span=sourcectx
                 )
 
         if subjectexpr is not None:
@@ -924,13 +924,13 @@ class ConstraintCommand(
                             raise errors.InvalidConstraintDefinitionError(
                                 "link constraints may not access "
                                 "the link target",
-                                context=sourcectx
+                                span=sourcectx
                             )
                         else:
                             raise errors.InvalidConstraintDefinitionError(
                                 "constraints cannot contain paths with more "
                                 "than one hop",
-                                context=sourcectx
+                                span=sourcectx
                             )
 
                     ref = rptr.source
@@ -939,7 +939,7 @@ class ConstraintCommand(
                 raise errors.InvalidConstraintDefinitionError(
                     "cannot reference multiple links or properties in a "
                     "constraint where at least one link or property is MULTI",
-                    context=sourcectx
+                    span=sourcectx
                 )
 
             if has_any_multi and ir_utils.contains_set_of_op(
@@ -947,7 +947,7 @@ class ConstraintCommand(
                 raise errors.InvalidConstraintDefinitionError(
                     "cannot use aggregate functions or operators "
                     "in a non-aggregating constraint",
-                    context=sourcectx
+                    span=sourcectx
                 )
 
             if (
@@ -956,7 +956,7 @@ class ConstraintCommand(
             ):
                 raise errors.InvalidConstraintDefinitionError(
                     f'constraint expressions must be immutable',
-                    context=final_subjectexpr.irast.span,
+                    span=final_subjectexpr.irast.span,
                 )
 
             if final_except_expr:
@@ -966,13 +966,13 @@ class ConstraintCommand(
                 ):
                     raise errors.InvalidConstraintDefinitionError(
                         f'constraint expressions must be immutable',
-                        context=final_except_expr.irast.context,
+                        span=final_except_expr.irast.context,
                     )
 
         if final_expr.irast.volatility != qltypes.Volatility.Immutable:
             raise errors.InvalidConstraintDefinitionError(
                 f'constraint expressions must be immutable',
-                context=sourcectx,
+                span=sourcectx,
             )
 
         attrs['finalexpr'] = final_expr
@@ -1050,7 +1050,7 @@ class CreateConstraint(
                         f'{self.get_verbosename()} '
                         f'extends multiple constraints '
                         f'with parameters',
-                        context=self.span,
+                        span=self.span,
                     )
                 base_params = params
                 base_with_params = base
@@ -1067,7 +1067,7 @@ class CreateConstraint(
                     f'must define parameters to reflect parameters of '
                     f'the {base_with_params.get_verbosename(schema)} '
                     f'it extends',
-                    context=self.span,
+                    span=self.span,
                 )
 
             if len(params) < len(base_params):
@@ -1076,7 +1076,7 @@ class CreateConstraint(
                     f'has fewer parameters than the '
                     f'{base_with_params.get_verbosename(schema)} '
                     f'it extends',
-                    context=self.span,
+                    span=self.span,
                 )
 
             # Skipping the __subject__ param
@@ -1093,7 +1093,7 @@ class CreateConstraint(
                         f'must be renamed to {base_param_name!r} '
                         f'to match the signature of the base '
                         f'{base_with_params.get_verbosename(schema)} ',
-                        context=self.span,
+                        span=self.span,
                     )
 
                 param_type = param.get_type(schema)
@@ -1110,7 +1110,7 @@ class CreateConstraint(
                         f'parameter of the '
                         f'{base_with_params.get_verbosename(schema)} '
                         f'it extends has a concrete type',
-                        context=self.span,
+                        span=self.span,
                     )
 
                 if (
@@ -1127,7 +1127,7 @@ class CreateConstraint(
                         f'corresponding parameter of the '
                         f'{base_with_params.get_verbosename(schema)} with '
                         f'type {base_param_type.get_displayname(schema)}',
-                        context=self.span,
+                        span=self.span,
                     )
 
     def _create_begin(
@@ -1146,7 +1146,7 @@ class CreateConstraint(
             raise errors.UnsupportedFeatureError(
                 f'constraints cannot be defined on '
                 f'{subject.get_verbosename(schema)}',
-                context=self.span,
+                span=self.span,
             )
 
         if not context.canonical:
@@ -1230,13 +1230,13 @@ class CreateConstraint(
                     raise errors.InvalidConstraintDefinitionError(
                         'named only parameters are not allowed '
                         'in this context',
-                        context=astnode.span)
+                        span=astnode.span)
 
                 if param.get_default(schema) is not None:
                     raise errors.InvalidConstraintDefinitionError(
                         'constraints do not support parameters '
                         'with defaults',
-                        context=astnode.span)
+                        span=astnode.span)
 
             if cmd.get_attribute_value('return_type') is None:
                 cmd.set_attribute_value(
@@ -1533,7 +1533,7 @@ class AlterConstraint(
             raise errors.InvalidConstraintDefinitionError(
                 f'cannot redefine {tgt_repr} as delegated:'
                 f' it is defined as non-delegated in {bases_repr}',
-                context=self.span,
+                span=self.span,
             )
 
     def canonicalize_alter_from_external_ref(

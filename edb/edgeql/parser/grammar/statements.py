@@ -111,14 +111,14 @@ class TransactionStmt(Nonterm):
                 if isolation is not None:
                     raise errors.EdgeQLSyntaxError(
                         f"only one isolation level can be specified",
-                        context=mode_ctx)
+                        span=mode_ctx)
                 isolation = mode
 
             elif isinstance(mode, qltypes.TransactionAccessMode):
                 if access is not None:
                     raise errors.EdgeQLSyntaxError(
                         f"only one access mode can be specified",
-                        context=mode_ctx)
+                        span=mode_ctx)
                 access = mode
 
             else:
@@ -126,7 +126,7 @@ class TransactionStmt(Nonterm):
                 if deferrable is not None:
                     raise errors.EdgeQLSyntaxError(
                         f"deferrable mode can only be specified once",
-                        context=mode_ctx)
+                        span=mode_ctx)
                 deferrable = mode
 
         self.val = qlast.StartTransaction(
@@ -267,12 +267,12 @@ class DescribeStmt(Nonterm):
         ):
             raise errors.InvalidSyntaxError(
                 f'unexpected DESCRIBE format: {lang!r}',
-                context=kids[3].span,
+                span=kids[3].span,
             )
         if kids[3].val.options:
             raise errors.InvalidSyntaxError(
                 f'DESCRIBE CURRENT MIGRATION does not support options',
-                context=kids[3].span,
+                span=kids[3].span,
             )
 
         self.val = qlast.DescribeCurrentMigration(

@@ -211,7 +211,7 @@ def _check_op_volatility(
             if cartesian_cardinality(cards2).is_multi():
                 raise errors.QueryError(
                     "can not take cross product of volatile operation",
-                    context=args[i].span
+                    span=args[i].span
                 )
 
 
@@ -275,13 +275,13 @@ def __infer_config_set(
         raise errors.QueryError(
             f"possibly an empty set returned for "
             f"a global declared as 'required'",
-            context=ir.span,
+            span=ir.span,
         )
     if ir.cardinality.is_single() and not card.is_single():
         raise errors.QueryError(
             f"possibly more than one element returned for "
             f"a global declared as 'single'",
-            context=ir.span,
+            span=ir.span,
         )
 
     return card
@@ -415,7 +415,7 @@ def _infer_pointer_cardinality(
                 raise errors.QueryError(
                     f"possibly more than one element returned by an "
                     f"expression for a {desc} declared as 'single'",
-                    context=source_ctx,
+                    span=source_ctx,
                 )
             upper_bound = spec_upper_bound
 
@@ -430,7 +430,7 @@ def _infer_pointer_cardinality(
                     raise errors.QueryError(
                         f"possibly an empty set returned by an "
                         f"expression for a {desc} declared as 'required'",
-                        context=source_ctx,
+                        span=source_ctx,
                     )
             else:
                 lower_bound = spec_lower_bound
@@ -1174,7 +1174,7 @@ def _infer_singleton_only(
         raise errors.QueryError(
             'possibly more than one element returned by an expression '
             'where only singletons are allowed',
-            context=part.span)
+            span=part.span)
     return card
 
 
@@ -1441,7 +1441,7 @@ def infer_cardinality(
         raise errors.QueryError(
             'could not determine the cardinality of '
             'set produced by expression',
-            context=ir.span)
+            span=ir.span)
 
     ctx.inferred_cardinality[key] = result
 

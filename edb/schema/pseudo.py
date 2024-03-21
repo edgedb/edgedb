@@ -200,7 +200,7 @@ class CreatePseudoType(PseudoTypeCommand, sd.CreateObject[PseudoType]):
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
                 'user-defined pseudotypes are not supported',
-                context=astnode.span
+                span=astnode.span
             )
 
         return super()._cmd_tree_from_ast(schema, astnode, context)

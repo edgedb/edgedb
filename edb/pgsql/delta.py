@@ -1112,7 +1112,7 @@ class FunctionCommand(MetaCommand):
             raise errors.QueryError(
                 f'could not compile parameter type {obj!r} '
                 f'of function {func.get_shortname(schema)}',
-                context=self.span) from None
+                span=self.span) from None
 
     def compile_default(self, func: s_funcs.Function,
                         default: s_expr.Expression, schema):
@@ -1134,7 +1134,7 @@ class FunctionCommand(MetaCommand):
             raise errors.QueryError(
                 f'could not compile default expression {default!r} '
                 f'of function {func.get_shortname(schema)}: {ex}',
-                context=self.span) from ex
+                span=self.span) from ex
 
     def compile_args(self, func: s_funcs.Function, schema):
         func_params = func.get_params(schema)
@@ -1559,7 +1559,7 @@ class FunctionCommand(MetaCommand):
                 raise errors.QueryError(
                     f'cannot compile function {func.get_shortname(schema)}: '
                     f'unsupported language {func_language}',
-                    context=self.span)
+                    span=self.span)
 
             op = dbops.CreateFunction(dbf, or_replace=or_replace)
             return (op,)
@@ -1890,7 +1890,7 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
                 f'cannot create operator {oper.get_shortname(schema)}: '
                 f'only "FROM SQL" and "FROM SQL OPERATOR" operators '
                 f'are currently supported',
-                context=self.span)
+                span=self.span)
 
         return schema
 
@@ -1979,7 +1979,7 @@ class CreateCast(CastCommand, adapts=s_casts.CreateCast):
                 f'cannot create cast: '
                 f'only "FROM SQL" and "FROM SQL FUNCTION" casts '
                 f'are currently supported',
-                context=self.span)
+                span=self.span)
 
         return schema
 
@@ -4849,7 +4849,7 @@ class PointerMetaCommand(
             raise errors.UnsupportedFeatureError(
                 f'{problem} may not be used when converting/populating '
                 f'data in migrations',
-                context=self.span,
+                span=self.span,
             )
 
         # Non-trivial conversion expression means that we
@@ -5725,7 +5725,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                             f'{prop.get_verbosename(schema, with_parent=True)}'
                             f' is too complicated; link property defaults '
                             f'must not depend on database contents',
-                            context=self.span)
+                            span=self.span)
 
                     cols = self.get_columns(
                         prop, schema, default_value, sets_required)

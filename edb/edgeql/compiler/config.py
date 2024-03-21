@@ -96,7 +96,7 @@ def compile_ConfigSet(
     except ireval.UnsupportedExpressionError as e:
         raise errors.QueryError(
             f'non-constant expression in CONFIGURE {expr.scope} SET',
-            context=expr.expr.span
+            span=expr.expr.span
         ) from e
     else:
         if isinstance(val, statypes.ScalarType) and info.backend_setting:
@@ -140,7 +140,7 @@ def compile_ConfigReset(
         raise errors.QueryError(
             'RESET of a primitive configuration parameter '
             'must not have a FILTER clause',
-            context=expr.span,
+            span=expr.span,
         )
 
     elif isinstance(info.param_type, s_objtypes.ObjectType):
@@ -387,7 +387,7 @@ def _validate_op(
         if isinstance(expr, qlast.ConfigSet):
             raise errors.ConfigurationError(
                 f'unrecognized configuration parameter {name!r}',
-                context=expr.span
+                span=expr.span
             )
 
         cfg_type = ctx.env.get_schema_type_and_track(
@@ -399,7 +399,7 @@ def _validate_op(
         if not cfg_type:
             raise errors.ConfigurationError(
                 f'unrecognized configuration object {name!r}',
-                context=expr.span
+                span=expr.span
             )
 
         assert isinstance(cfg_type, s_objtypes.ObjectType)

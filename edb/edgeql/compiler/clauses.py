@@ -111,14 +111,14 @@ def compile_orderby_clause(
                             f'type {sort_type_name!r} cannot be used in '
                             f'ORDER BY clause because ordering is not '
                             f'defined for it',
-                            context=sortexpr.span)
+                            span=sortexpr.span)
 
                     elif len(matched) > 1:
                         raise errors.QueryError(
                             f'type {sort_type_name!r} cannot be used in '
                             f'ORDER BY clause because ordering is '
                             f'ambiguous for it',
-                            context=sortexpr.span)
+                            span=sortexpr.span)
 
             result.append(
                 irast.SortExpr(
