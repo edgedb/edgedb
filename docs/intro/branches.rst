@@ -7,9 +7,9 @@ Branches
 EdgeDB's branches make it easy to prototype app features that impact your
 database schema, even in cases where those features are never released. You can
 create a branch in your EdgeDB database that corresponds to a feature branch in
-your VCS. When you're done, either :ref:`rebase <ref_cli_edgedb_branch_rebase>`
-that branch on your main branch or :ref:`drop <ref_cli_edgedb_branch_drop>` it
-leaving your original schema intact.
+your VCS. When you're done, either :ref:`merge <ref_cli_edgedb_branch_merge>`
+that branch into your main branch or :ref:`drop <ref_cli_edgedb_branch_drop>`
+it leaving your original schema intact.
 
 
 1. Create a new feature branch
