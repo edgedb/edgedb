@@ -826,7 +826,8 @@ def throw_on_shaped_param(
     raise errors.QueryError(
         f'cannot apply a shape to the parameter',
         hint='Consider adding parentheses around the parameter and type cast',
-        context=shape.context)
+        context=shape.span
+    )
 
 
 def throw_on_loose_param(
