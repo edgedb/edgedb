@@ -598,72 +598,23 @@ def _infer_set_inner(
                 ctx=ctx,
             )
 
-    # We have now inferred all of the subtrees we need to, so it is
-    # safe to return.
-    if rptr is not None and not rptr.is_phony:
-        if isinstance(rptrref, irast.TypeIntersectionPointerRef):
-            ind_prefix, ind_ptrs = irutils.collapse_type_intersection(ir)
-            if ind_prefix.rptr is None:
-                # This prefix will be inferred by the source inference above,
-                # so this will just hit the cache and so it is OK for us to
-                # be doing it conditionally.
-                prefix_card = infer_cardinality(
-                    ind_prefix, scope_tree=scope_tree, ctx=ctx,
-                )
-
-                card = cartesian_cardinality([prefix_card, AT_MOST_ONE])
-            else:
-                # Expression before type intersection is a path,
-                # i.e Foo.<bar[IS Type].  In this case we must
-                # take possible intersection specialization of the
-                # link union into account.
-                # We're basically restating the body of this function
-                # in this block, but with extra conditions.
-                if inf_utils.find_visible(ind_prefix, new_scope) is not None:
-                    return AT_MOST_ONE
-                else:
-                    rptr_spec: Set[irast.PointerRef] = set()
-                    for ind_ptr in ind_ptrs:
-                        rptr_spec.update(ind_ptr.ptrref.rptr_specialization)
-
-                    rptr_spec_card = _union_cardinality(
-                        s.dir_cardinality(ind_prefix.rptr.direction)
-                        for s in rptr_spec)
-
-                    # If the intersection has an rptr_specialization,
-                    # then we take a step back and start with
-                    # the source of *that*, which lets us take
-                    # advantage of std::exclusive on links when using
-                    # reverse pointers with multiple possibilities.
-                    if rptr_spec:
-                        # Already inferred, should just be hitting cache.
-                        source_card = infer_cardinality(
-                            ind_prefix.rptr.source,
-                            scope_tree=scope_tree, ctx=ctx,
-                        )
-
-                    # The resulting cardinality is the cartesian
-                    # product of the base to which the type
-                    # intersection is applied and the cardinality due
-                    # to type intersection itself.
-                    card = cartesian_cardinality([source_card, rptr_spec_card])
-
+        if rptrref.union_components:
+            # We use cartesian cardinality instead of union cardinality
+            # because the union of pointers in this context is disjoint
+            # in a sense that for any specific source only a given union
+            # component is used.
+            rptrref_card = cartesian_cardinality(
+                c.dir_cardinality(rptr.direction)
+                for c in rptrref.union_components
+            )
+        elif ctx.ignore_computed_cards and ir.expr:
+            rptrref_card = expr_card
+        elif isinstance(rptrref, irast.TypeIntersectionPointerRef):
+            rptrref_card = AT_MOST_ONE
         else:
-            if rptrref.union_components:
-                # We use cartesian cardinality instead of union cardinality
-                # because the union of pointers in this context is disjoint
-                # in a sense that for any specific source only a given union
-                # component is used.
-                rptrref_card = cartesian_cardinality(
-                    c.dir_cardinality(rptr.direction)
-                    for c in rptrref.union_components
-                )
-            elif ctx.ignore_computed_cards and ir.expr:
-                rptrref_card = expr_card
-            else:
-                rptrref_card = rptrref.dir_cardinality(rptr.direction)
+            rptrref_card = rptrref.dir_cardinality(rptr.direction)
 
-            card = cartesian_cardinality((source_card, rptrref_card))
+        card = cartesian_cardinality((source_card, rptrref_card))
 
     elif isinstance(ir, irast.EmptySet):
         card = AT_MOST_ONE
