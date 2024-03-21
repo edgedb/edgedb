@@ -92,14 +92,15 @@ class VersionedSection(d_rst.Directive):
         node = d_nodes.container()
         node['versioned-section'] = True
         return [node]
-    
+
+
 class VersionedReplaceRole:
 
     def __call__(self, role, rawtext, text, lineno, inliner,
                  options=None, content=None):
         nodes = []
-        if text.startswith('_default:') == False:
-          text = '_default:'+text
+        if not text.startswith('_default:'):
+            text = '_default:' + text
         for section in text.split(';'):
             parts = section.split(':', maxsplit=1)
             node = s_nodes.versionmodified()
