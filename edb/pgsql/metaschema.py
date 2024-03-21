@@ -35,7 +35,6 @@ import re
 
 import edb._edgeql_parser as ql_parser
 
-from edb.common import context as parser_context
 from edb.common import debug
 from edb.common import exceptions
 from edb.common import uuidgen
@@ -7458,8 +7457,9 @@ async def execute_sql_script(
             text = sql_text
 
         if point is not None:
-            pcontext = parser_context.ParserContext(
-                'query', text, start=point, end=point, context_lines=30)
-            exceptions.replace_context(e, pcontext)
+            span = qlast.Span(
+                'query', text, start=point, end=point, context_lines=30
+            )
+            exceptions.replace_context(e, span)
 
         raise

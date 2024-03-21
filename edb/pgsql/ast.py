@@ -24,7 +24,7 @@ import dataclasses
 import typing
 import uuid
 
-from edb.common import ast, parsing
+from edb.common import ast, span
 from edb.common import typeutils
 from edb.edgeql import ast as qlast
 from edb.ir import ast as irast
@@ -38,10 +38,13 @@ from edb.ir import ast as irast
 # compiler.
 
 
-class Base(ast.AST):
-    __ast_hidden__ = {'context'}
+Span = span.Span
 
-    context: typing.Optional[parsing.ParserContext] = None
+
+class Base(ast.AST):
+    __ast_hidden__ = {'span'}
+
+    span: typing.Optional[Span] = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

@@ -85,7 +85,7 @@ class ModuleCommand(
             raise errors.SchemaDefinitionError(
                 f'cannot {self._delta_action} {self.get_verbosename()}: '
                 f'module {first} is read-only',
-                context=self.source_context)
+                span=self.span)
 
 
 class CreateModule(ModuleCommand, sd.CreateObject[Module]):

@@ -77,7 +77,7 @@ def resolve_SelectStmt(
         if len(ltable.columns) != len(rtable.columns):
             raise errors.QueryError(
                 f'{stmt.op} requires equal number of columns in both sides',
-                context=stmt.context,
+                span=stmt.span,
             )
 
         relation = pgast.SelectStmt(
@@ -184,7 +184,7 @@ def resolve_DMLQuery(
 ) -> Tuple[pgast.DMLQuery, context.Table]:
     raise errors.UnsupportedFeatureError(
         'DML queries (INSERT/UPDATE/DELETE) are not supported',
-        context=query.context,
+        span=query.span,
     )
 
 
@@ -206,7 +206,7 @@ def resolve_relation(
     if relation.catalogname and relation.catalogname != 'postgres':
         raise errors.QueryError(
             f'queries cross databases are not supported',
-            context=relation.context,
+            span=relation.span,
         )
 
     # try information_schema, pg_catalog and pg_toast
@@ -273,7 +273,7 @@ def resolve_relation(
         rel_name = pgcodegen.generate_source(relation)
         raise errors.QueryError(
             f'unknown table `{rel_name}`',
-            context=relation.context,
+            span=relation.span,
             pgext_code=pgerror.ERROR_UNDEFINED_TABLE,
         )
 

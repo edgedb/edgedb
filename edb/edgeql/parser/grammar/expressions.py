@@ -22,7 +22,7 @@ from __future__ import annotations
 import collections
 import typing
 
-from edb.common import parsing, context
+from edb.common import parsing, span
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -313,7 +313,7 @@ class SimpleInsert(Nonterm):
             if not subj.expr:
                 raise errors.EdgeQLSyntaxError(
                     "insert shape expressions must have a type name",
-                    context=subj.context
+                    span=subj.span
                 )
             subj_path = subj.expr
             shape = subj.elements
@@ -338,7 +338,7 @@ class SimpleInsert(Nonterm):
                     f"the INSERT will be triggered conditionally in one of "
                     f"the branches."
                 ),
-                context=subj_path.context)
+                span=subj_path.span)
         else:
             raise errors.EdgeQLSyntaxError(
                 f"INSERT only works with object types, not arbitrary "
@@ -348,7 +348,7 @@ class SimpleInsert(Nonterm):
                     f"statement with parentheses in order to separate it "
                     f"from the rest of the expression."
                 ),
-                context=subj_path.context)
+                span=subj_path.span)
 
         self.val = qlast.InsertQuery(
             subject=objtype,
@@ -508,7 +508,7 @@ class SimpleShapePath(Nonterm):
             qlast.Ptr(
                 name=kids[0].val.name,
                 direction=s_pointers.PointerDirection.Outbound,
-                context=kids[0].val.context,
+                span=kids[0].val.span,
             ),
         ]
 
@@ -520,7 +520,7 @@ class SimpleShapePath(Nonterm):
                 qlast.Ptr(
                     name=kids[1].val.name,
                     type='property',
-                    context=kids[1].val.context,
+                    span=kids[1].val.span,
                 )
             ]
         )
@@ -548,7 +548,7 @@ class FreeSimpleShapePointer(Nonterm):
             qlast.Ptr(
                 name=kids[0].val.name,
                 direction=s_pointers.PointerDirection.Outbound,
-                context=kids[0].val.context,
+                span=kids[0].val.span,
             ),
         ]
 
@@ -575,7 +575,7 @@ class ShapePath(Nonterm):
             qlast.Ptr(
                 name=kids[0].val.name,
                 direction=s_pointers.PointerDirection.Outbound,
-                context=kids[0].val.context,
+                span=kids[0].val.span,
             ),
         ]
 
@@ -594,7 +594,7 @@ class ShapePath(Nonterm):
                 qlast.Ptr(
                     name=kids[1].val.name,
                     type='property',
-                    context=kids[1].val.context,
+                    span=kids[1].val.span,
                 )
             ]
         )
@@ -608,7 +608,7 @@ class ShapePath(Nonterm):
             qlast.Ptr(
                 name=kids[2].val.name,
                 direction=s_pointers.PointerDirection.Outbound,
-                context=kids[2].val.context,
+                span=kids[2].val.span,
             ),
         ]
 
@@ -831,7 +831,7 @@ class ComputableShapePointer(Nonterm):
         self.val.required = False
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
+            span=kids[2].span,
         )
 
     def reduce_REQUIRED_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -840,7 +840,7 @@ class ComputableShapePointer(Nonterm):
         self.val.required = True
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
+            span=kids[2].span,
         )
 
     def reduce_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -849,7 +849,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
+            span=kids[2].span,
         )
 
     def reduce_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -858,7 +858,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
+            span=kids[2].span,
         )
 
     def reduce_OPTIONAL_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -868,7 +868,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
+            span=kids[3].span,
         )
 
     def reduce_OPTIONAL_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -878,7 +878,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
+            span=kids[3].span,
         )
 
     def reduce_REQUIRED_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -888,7 +888,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
+            span=kids[3].span,
         )
 
     def reduce_REQUIRED_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -898,7 +898,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
+            span=kids[3].span,
         )
 
     def reduce_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -906,7 +906,7 @@ class ComputableShapePointer(Nonterm):
         self.val.compexpr = kids[2].val
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[1].context,
+            span=kids[1].span,
         )
 
     def reduce_SimpleShapePointer_ADDASSIGN_Expr(self, *kids):
@@ -914,7 +914,7 @@ class ComputableShapePointer(Nonterm):
         self.val.compexpr = kids[2].val
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.APPEND,
-            context=kids[1].context,
+            span=kids[1].span,
         )
 
     def reduce_SimpleShapePointer_REMASSIGN_Expr(self, *kids):
@@ -922,7 +922,7 @@ class ComputableShapePointer(Nonterm):
         self.val.compexpr = kids[2].val
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.SUBTRACT,
-            context=kids[1].context,
+            span=kids[1].span,
         )
 
 
@@ -935,7 +935,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.required = False
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
+            span=kids[2].span,
         )
 
     def reduce_REQUIRED_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -944,7 +944,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.required = True
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
+            span=kids[2].span,
         )
 
     def reduce_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -953,7 +953,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
+            span=kids[2].span,
         )
 
     def reduce_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -962,7 +962,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
+            span=kids[2].span,
         )
 
     def reduce_OPTIONAL_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -972,7 +972,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
+            span=kids[3].span,
         )
 
     def reduce_OPTIONAL_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -982,7 +982,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
+            span=kids[3].span,
         )
 
     def reduce_REQUIRED_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -992,7 +992,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
+            span=kids[3].span,
         )
 
     def reduce_REQUIRED_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -1002,7 +1002,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
+            span=kids[3].span,
         )
 
     def reduce_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -1010,7 +1010,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.compexpr = kids[2].val
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            context=kids[1].context,
+            span=kids[1].span,
         )
 
 
@@ -1526,7 +1526,7 @@ class NamedTuple(Nonterm):
 class NamedTupleElement(Nonterm):
     def reduce_ShortNodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.TupleElement(
-            name=qlast.Ptr(name=kids[0].val.name, context=kids[0].val.context),
+            name=qlast.Ptr(name=kids[0].val.name, span=kids[0].val.span),
             val=kids[2].val
         )
 
@@ -1770,7 +1770,7 @@ class FuncApplication(Nonterm):
                 if argname in kwargs:
                     raise errors.EdgeQLSyntaxError(
                         f"duplicate named argument `{argname}`",
-                        context=argname_ctx)
+                        span=argname_ctx)
 
                 last_named_seen = argname
                 kwargs[argname] = arg
@@ -1780,7 +1780,7 @@ class FuncApplication(Nonterm):
                     raise errors.EdgeQLSyntaxError(
                         f"positional argument after named "
                         f"argument `{last_named_seen}`",
-                        context=arg.context)
+                        span=arg.span)
                 args.append(arg)
 
         self.val = qlast.FunctionCall(func=name, args=args, kwargs=kwargs)
@@ -1803,7 +1803,7 @@ class FuncCallArgExpr(Nonterm):
     def reduce_AnyIdentifier_ASSIGN_Expr(self, *kids):
         self.val = (
             kids[0].val,
-            kids[0].context,
+            kids[0].span,
             kids[2].val,
         )
 
@@ -1811,12 +1811,12 @@ class FuncCallArgExpr(Nonterm):
         if kids[0].val[1].isdigit():
             raise errors.EdgeQLSyntaxError(
                 f"numeric named parameters are not supported",
-                context=kids[0].context)
+                span=kids[0].span)
         else:
             raise errors.EdgeQLSyntaxError(
                 f"named parameters do not need a '$' prefix, "
                 f"rewrite as '{kids[0].val[1:]} := ...'",
-                context=kids[0].context)
+                span=kids[0].span)
 
 
 class FuncCallArg(Nonterm):
@@ -1910,7 +1910,7 @@ class AnyIdentifier(Nonterm):
             # few remaining reserved __keywords__.
             raise errors.EdgeQLSyntaxError(
                 "identifiers surrounded by double underscores are forbidden",
-                context=kids[0].context)
+                span=kids[0].span)
 
         self.val = name
 
@@ -2011,20 +2011,20 @@ class CollectionTypeName(Nonterm):
             # `enum<bbbb, 'aaaa'>`
             raise errors.EdgeQLSyntaxError(
                 "mixing string type literals and type names is not supported",
-                context=lst.context)
+                span=lst.span)
 
         if has_items and has_nonstrval:
             # Prohibit cases like `tuple<a: int64, int32>`
             raise errors.EdgeQLSyntaxError(
                 "mixing named and unnamed subtype declarations "
                 "is not supported",
-                context=lst.context)
+                span=lst.span)
 
     def reduce_NodeName_LANGBRACKET_RANGBRACKET(self, *kids):
         # Constructs like `enum<>` or `array<>` aren't legal.
         raise errors.EdgeQLSyntaxError(
             'parametrized type must have at least one argument',
-            context=kids[1].context,
+            span=kids[1].span,
         )
 
     def reduce_NodeName_LANGBRACKET_SubtypeList_RANGBRACKET(self, *kids):
@@ -2240,7 +2240,7 @@ class KeywordMeta(parsing.NontermMeta):
         for token in keywords.by_type[type].values():
             def method(inst, *kids):
                 inst.val = kids[0].val
-            method = context.has_context(method)
+            method = span.wrap_function_to_infer_spans(method)
             method.__doc__ = "%%reduce %s" % token
             method.__name__ = 'reduce_%s' % token
             setattr(result, method.__name__, method)

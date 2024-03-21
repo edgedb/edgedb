@@ -108,7 +108,7 @@ def eval_TypeCast(
 
             if 'false'.startswith(string) or 'no'.startswith(string):
                 return pgast.BooleanConstant(val=False)
-            raise errors.QueryError('invalid cast', context=expr.arg)
+            raise errors.QueryError('invalid cast', span=expr.arg.span)
 
     return None
 
@@ -138,7 +138,7 @@ def eval_FuncCall(
     ctx: Context,
 ) -> Optional[pgast.BaseExpr]:
     if len(expr.name) >= 3:
-        raise errors.QueryError("unknown function", context=expr.context)
+        raise errors.QueryError("unknown function", span=expr.span)
 
     fn_name = name_in_pg_catalog(expr.name)
     if not fn_name:
@@ -198,7 +198,7 @@ def eval_FuncCall(
                     return value
 
         raise errors.QueryError(
-            "function set_config is not supported", context=expr.context
+            "function set_config is not supported", span=expr.span
         )
 
     if fn_name == 'current_setting':
@@ -214,7 +214,7 @@ def eval_FuncCall(
     if fn_name == "pg_filenode_relation":
         raise errors.QueryError(
             f"function pg_catalog.{fn_name} is not supported",
-            context=expr.context,
+            span=expr.span,
         )
 
     if fn_name == "to_regclass":
@@ -287,7 +287,7 @@ def require_a_string_literal(
     ):
         raise errors.QueryError(
             f"function pg_catalog.{fn_name} requires a string literal",
-            context=expr.context,
+            span=expr.span,
         )
 
     return args[0].val
@@ -309,7 +309,7 @@ def cast_to_regclass(param: pgast.BaseExpr, ctx: Context) -> pgast.BaseExpr:
         return expr
     raise errors.QueryError(
         "casting to `regclass` requires a string or number literal",
-        context=param.context,
+        span=param.span,
     )
 
 

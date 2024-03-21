@@ -148,26 +148,26 @@ class GlobalCommand(
         glob_name = self.get_verbosename()
 
         if spec_required and not required:
-            srcctx = self.get_attribute_source_context('target')
+            srcctx = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'possibly an empty set returned by an '
                 f'expression for the computed '
                 f'{glob_name} '
                 f"explicitly declared as 'required'",
-                context=srcctx
+                span=srcctx
             )
 
         if (
             spec_card is qltypes.SchemaCardinality.One
             and card is not qltypes.SchemaCardinality.One
         ):
-            srcctx = self.get_attribute_source_context('target')
+            srcctx = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'possibly more than one element returned by an '
                 f'expression for the computed '
                 f'{glob_name} '
                 f"explicitly declared as 'single'",
-                context=srcctx
+                span=srcctx
             )
 
         if spec_card is None:
@@ -210,17 +210,17 @@ class GlobalCommand(
             ):
                 raise errors.SchemaDefinitionError(
                     "required globals must have a default",
-                    context=self.source_context,
+                    span=self.span,
                 )
             if scls.get_cardinality(schema) == qltypes.SchemaCardinality.Many:
                 raise errors.SchemaDefinitionError(
                     "non-computed globals may not be multi",
-                    context=self.source_context,
+                    span=self.span,
                 )
             if target.contains_object(schema):
                 raise errors.SchemaDefinitionError(
                     "non-computed globals may not have have object type",
-                    context=self.source_context,
+                    span=self.span,
                 )
 
         default_expr = scls.get_default(schema)
@@ -231,12 +231,12 @@ class GlobalCommand(
             default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
 
-            source_context = self.get_attribute_source_context('default')
+            span = self.get_attribute_span('default')
 
             if is_computable:
                 raise errors.SchemaDefinitionError(
                     f'computed globals may not have default values',
-                    context=source_context,
+                    span=span,
                 )
 
             if not default_type.assignment_castable_to(target, default_schema):
@@ -244,7 +244,7 @@ class GlobalCommand(
                     f'default expression is of invalid type: '
                     f'{default_type.get_displayname(default_schema)}, '
                     f'expected {target.get_displayname(schema)}',
-                    context=source_context,
+                    span=span,
                 )
 
             ptr_cardinality = scls.get_cardinality(schema)
@@ -258,7 +258,7 @@ class GlobalCommand(
                     f'the default expression for '
                     f'{scls.get_verbosename(schema)} declared as '
                     f"'single'",
-                    context=source_context,
+                    span=span,
                 )
 
             if scls.get_required(schema) and not default_required:
@@ -267,14 +267,14 @@ class GlobalCommand(
                     f'the default expression for '
                     f'{scls.get_verbosename(schema)} declared as '
                     f"'required'",
-                    context=source_context,
+                    span=span,
                 )
 
             if default_expr.irast.volatility.is_volatile():
                 raise errors.SchemaDefinitionError(
                     f'{scls.get_verbosename(schema)} has a volatile '
                     f'default expression, which is not allowed',
-                    context=source_context,
+                    span=span,
                 )
 
     def get_dummy_expr_field_value(
@@ -382,14 +382,14 @@ class CreateGlobal(
             cmd.set_attribute_value(
                 'required',
                 astnode.is_required,
-                source_context=astnode.context,
+                span=astnode.span,
             )
 
         if astnode.cardinality is not None:
             cmd.set_attribute_value(
                 'cardinality',
                 astnode.cardinality,
-                source_context=astnode.context,
+                span=astnode.span,
             )
 
         assert astnode.target is not None
@@ -404,7 +404,7 @@ class CreateGlobal(
             cmd.set_attribute_value(
                 'target',
                 type_ref,
-                source_context=astnode.target.context,
+                span=astnode.target.span,
             )
 
         else:
@@ -428,7 +428,7 @@ class CreateGlobal(
         ):
             raise errors.UnsupportedFeatureError(
                 "cannot specify a type and an expression for a global",
-                context=astnode.context,
+                span=astnode.span,
             )
 
         return cmd
@@ -483,7 +483,7 @@ class AlterGlobal(
             ):
                 raise errors.UnsupportedFeatureError(
                     "cannot specify a type and an expression for a global",
-                    context=self.source_context,
+                    span=self.span,
                 )
 
             if clears_expr and old_expr:
@@ -537,7 +537,7 @@ class SetGlobalType(
                 raise errors.UnsupportedFeatureError(
                     f'USING casts for SET TYPE on globals are not supported',
                     hint='Use RESET TO DEFAULT instead',
-                    context=self.source_context,
+                    span=self.span,
                 )
 
             if not self.reset_value:
@@ -545,7 +545,7 @@ class SetGlobalType(
                     f"SET TYPE on global must explicitly reset the "
                     f"global's value",
                     hint='Use RESET TO DEFAULT after the type',
-                    context=self.source_context,
+                    span=self.span,
                 )
 
         return schema

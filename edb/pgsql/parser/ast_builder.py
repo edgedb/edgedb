@@ -31,7 +31,7 @@ from typing import (
     cast,
 )
 
-from edb.common.parsing import ParserContext
+from edb.common.parsing import Span
 
 from edb.pgsql import ast as pgast
 from edb.edgeql import ast as qlast
@@ -172,11 +172,11 @@ def _as_column_ref(name: str) -> pgast.ColumnRef:
     )
 
 
-def _build_context(n: Node, c: Context) -> Optional[ParserContext]:
+def _build_span(n: Node, c: Context) -> Optional[Span]:
     if 'location' not in n:
         return None
 
-    return ParserContext(
+    return Span(
         name="<string>",
         buffer=c.source_sql,
         start=n["location"],
@@ -311,14 +311,14 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
             scope=pgast.OptionsScope.TRANSACTION
             if n["name"] in tx_only_vars
             else pgast.OptionsScope.SESSION,
-            context=_build_context(n, c),
+            span=_build_span(n, c),
         )
 
     if n["kind"] == "VAR_RESET_ALL":
         return pgast.VariableResetStmt(
             name=None,
             scope=pgast.OptionsScope.SESSION,
-            context=_build_context(n, c),
+            span=_build_span(n, c),
         )
 
     if n["kind"] == "VAR_SET_MULTI":
@@ -338,7 +338,7 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
             scope=pgast.OptionsScope.TRANSACTION
             if n["name"] in tx_only_vars or "is_local" in n and n["is_local"]
             else pgast.OptionsScope.SESSION,
-            context=_build_context(n, c),
+            span=_build_span(n, c),
         )
 
     if n["kind"] == "VAR_SET_DEFAULT":
@@ -347,7 +347,7 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
             scope=pgast.OptionsScope.TRANSACTION
             if n["name"] in tx_only_vars or "is_local" in n and n["is_local"]
             else pgast.OptionsScope.SESSION,
-            context=_build_context(n, c),
+            span=_build_span(n, c),
         )
 
     raise PSqlUnsupportedError(n)
@@ -356,7 +356,7 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
 def _build_variable_show_stmt(n: Node, c: Context) -> pgast.Statement:
     return pgast.VariableShowStmt(
         name=n["name"],
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -466,7 +466,7 @@ def _build_create(n: Node, c: Context) -> pgast.CreateStmt:
         relation=_build_relation(relation, c),
         table_elements=_maybe_list(n, c, 'tableElts', _build_table_element)
         or [],
-        context=_build_context(n, c),
+        span=_build_span(n, c),
         on_commit=_maybe(n, c, 'oncommit', _build_on_commit),
     )
 
@@ -500,7 +500,7 @@ def _build_column_def(n: Node, c: Context) -> pgast.ColumnDef:
         typename=_build_type_name(n['typeName'], c),
         default_expr=default_expr,
         is_not_null=is_not_null,
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -609,23 +609,23 @@ def _build_cte(n: Node, c: Context) -> pgast.CommonTableExpr:
         recursive=recursive,
         aliascolnames=_maybe_list(n, c, "aliascolnames", _build_str),
         materialized=materialized,
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
 def _build_keyword(name: str) -> Builder[pgast.Keyword]:
-    return lambda n, c: pgast.Keyword(name=name, context=_build_context(n, c))
+    return lambda n, c: pgast.Keyword(name=name, span=_build_span(n, c))
 
 
 def _build_param_ref(n: Node, c: Context) -> pgast.ParamRef:
-    return pgast.ParamRef(number=n["number"], context=_build_context(n, c))
+    return pgast.ParamRef(number=n["number"], span=_build_span(n, c))
 
 
 def _build_collate_clause(n: Node, c: Context) -> pgast.CollateClause:
     return pgast.CollateClause(
         arg=_build_base_expr(n['arg'], c),
         collname='.'.join(_list(n, c, 'collname', _build_str)),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -641,7 +641,7 @@ def _build_min_max_expr(n: Node, c: Context) -> pgast.MinMaxExpr:
     return pgast.MinMaxExpr(
         op=op,
         args=_list(n, c, 'args', _build_base_expr),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -695,7 +695,7 @@ def _build_sub_link(n: Node, c: Context) -> pgast.SubLink:
         operator=operator,
         expr=_build_query(n["subselect"], c),
         test_expr=_maybe(n, c, 'testexpr', _build_base_expr),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -706,9 +706,9 @@ def _build_row_expr(n: Node, c: Context) -> pgast.BaseExpr:
 
     format = n.get('row_format', None)
     if format in {'COERCE_EXPLICIT_CALL', 'COERCE_EXPLICIT_CAST'}:
-        return pgast.RowExpr(args=args, context=_build_context(n, c))
+        return pgast.RowExpr(args=args, span=_build_span(n, c))
     else:
-        return pgast.ImplicitRowExpr(args=args, context=_build_context(n, c))
+        return pgast.ImplicitRowExpr(args=args, span=_build_span(n, c))
 
 
 def _build_boolean_test(n: Node, c: Context) -> pgast.BooleanTest:
@@ -716,7 +716,7 @@ def _build_boolean_test(n: Node, c: Context) -> pgast.BooleanTest:
         arg=_build_base_expr(n["arg"], c),
         negated=n["booltesttype"].startswith("IS_NOT"),
         is_true=n["booltesttype"].endswith("TRUE"),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -724,7 +724,7 @@ def _build_null_test(n: Node, c: Context) -> pgast.NullTest:
     return pgast.NullTest(
         arg=_build_base_expr(n["arg"], c),
         negated=n["nulltesttype"] == "IS_NOT_NULL",
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -732,7 +732,7 @@ def _build_type_cast(n: Node, c: Context) -> pgast.TypeCast:
     return pgast.TypeCast(
         arg=_build_base_expr(n["arg"], c),
         type_name=_build_type_name(n["typeName"], c),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -753,7 +753,7 @@ def _build_type_name(n: Node, c: Context) -> pgast.TypeName:
         setof=_bool_or_false(n, "setof"),
         typmods=None,
         array_bounds=_maybe_list(n, c, "arrayBounds", unwrap_int),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -762,7 +762,7 @@ def _build_case_expr(n: Node, c: Context) -> pgast.CaseExpr:
         arg=_maybe(n, c, "arg", _build_base_expr),
         args=_list(n, c, "args", _build_case_when),
         defresult=_maybe(n, c, "defresult", _build_base_expr),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -771,7 +771,7 @@ def _build_case_when(n: Node, c: Context) -> pgast.CaseWhen:
     return pgast.CaseWhen(
         expr=_build_base_expr(n["expr"], c),
         result=_build_base_expr(n["result"], c),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -782,14 +782,14 @@ def _build_bool_expr(n: Node, c: Context) -> pgast.Expr:
         name=name,
         lexpr=_build_base_expr(args.pop(0), c) if len(args) > 1 else None,
         rexpr=_build_base_expr(args.pop(0), c) if len(args) > 0 else None,
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
     while len(args) > 0:
         res = pgast.Expr(
             name=_build_str(n["boolop"], c)[0:-5],
             lexpr=res,
             rexpr=_build_base_expr(args.pop(0), c) if len(args) > 0 else None,
-            context=_build_context(n, c),
+            span=_build_span(n, c),
         )
     return res
 
@@ -810,21 +810,21 @@ def _build_base_range_var(n: Node, c: Context) -> pgast.BaseRangeVar:
 
 def _build_const(n: Node, c: Context) -> pgast.BaseConstant:
     val = n["val"]
-    context = _build_context(n, c)
+    span = _build_span(n, c)
 
     if "Integer" in val:
         return pgast.NumericConstant(
-            val=str(val["Integer"]["ival"]), context=context
+            val=str(val["Integer"]["ival"]), span=span
         )
 
     if "Float" in val:
-        return pgast.NumericConstant(val=val["Float"]["str"], context=context)
+        return pgast.NumericConstant(val=val["Float"]["str"], span=span)
 
     if "Null" in val:
-        return pgast.NullConstant(context=context)
+        return pgast.NullConstant(span=span)
 
     if "String" in val:
-        return pgast.StringConstant(val=_build_str(val, c), context=context)
+        return pgast.StringConstant(val=_build_str(val, c), span=span)
 
     raise PSqlUnsupportedError(n)
 
@@ -871,7 +871,7 @@ def _build_rel_range_var(n: Node, c: Context) -> pgast.RelRangeVar:
         alias=_maybe(n, c, "alias", _build_alias) or pgast.Alias(aliasname=""),
         relation=_build_relation(n, c),
         include_inherited=_bool_or_false(n, "inh"),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -900,7 +900,7 @@ def _build_relation(n: Node, c: Context) -> pgast.Relation:
         catalogname=_maybe(n, c, "catalogname", _build_str),
         schemaname=_maybe(n, c, "schemaname", _build_str),
         is_temporary=_maybe(n, c, "relpersistence", lambda n, _c: n == 't'),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -946,7 +946,7 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
             operator=name + " " + operator,
             test_expr=_maybe(n, c, "lexpr", _build_base_expr),
             expr=_build_base_expr(n["rexpr"], c),
-            context=_build_context(n, c),
+            span=_build_span(n, c),
         )
     elif n['kind'] == 'AEXPR_NULLIF':
         return pgast.FuncCall(
@@ -967,7 +967,7 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
         name=name,
         lexpr=_maybe(n, c, "lexpr", _build_base_expr),
         rexpr=_maybe(n, c, "rexpr", _build_base_expr),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -983,7 +983,7 @@ def _build_func_call(n: Node, c: Context) -> pgast.FuncCall:
         agg_distinct=_bool_or_false(n, "agg_distinct"),
         over=_maybe(n, c, "over", _build_window_def),
         with_ordinality=_bool_or_false(n, "withOrdinality"),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -1012,7 +1012,7 @@ def _build_res_target(n: Node, c: Context) -> pgast.ResTarget:
         name=_maybe(n, c, "name", _build_str),
         indirection=_maybe_list(n, c, "indirection", _build_indirection_op),
         val=_build_base_expr(n["val"], c),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -1020,7 +1020,7 @@ def _build_insert_target(n: Node, c: Context) -> pgast.InsertTarget:
     n = _unwrap(n, "ResTarget")
     return pgast.InsertTarget(
         name=_build_str(n['name'], c),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -1030,7 +1030,7 @@ def _build_update_target(n: Node, c: Context) -> pgast.UpdateTarget:
         name=_build_str(n['name'], c),
         val=_build_base_expr(n['val'], c),
         indirection=_maybe_list(n, c, "indirection", _build_indirection_op),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -1045,7 +1045,7 @@ def _build_window_def(n: Node, c: Context) -> pgast.WindowDef:
         frame_options=None,
         start_offset=_maybe(n, c, "startOffset", _build_base_expr),
         end_offset=_maybe(n, c, "endOffset", _build_base_expr),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -1055,7 +1055,7 @@ def _build_sort_by(n: Node, c: Context) -> pgast.SortBy:
         node=_build_base_expr(n["node"], c),
         dir=_maybe(n, c, "sortby_dir", _build_sort_order),
         nulls=_maybe(n, c, "sortby_nulls", _build_nones_order),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -1090,7 +1090,7 @@ def _build_multi_assign_ref(
         columns=[
             _as_column_ref(target['ResTarget']['name']) for target in targets
         ],
-        context=_build_context(targets[0]['ResTarget'], c),
+        span=_build_span(targets[0]['ResTarget'], c),
     )
 
 
@@ -1098,7 +1098,7 @@ def _build_column_ref(n: Node, c: Context) -> pgast.ColumnRef:
     return pgast.ColumnRef(
         name=_list(n, c, "fields", _build_string_or_star),
         optional=_maybe(n, c, "optional", _build_bool),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -1107,7 +1107,7 @@ def _build_infer_clause(n: Node, c: Context) -> pgast.InferClause:
         index_elems=_maybe_list(n, c, "indexElems", _build_str),
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
         conname=_maybe(n, c, "conname", _build_str),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -1117,7 +1117,7 @@ def _build_on_conflict(n: Node, c: Context) -> pgast.OnConflictClause:
         infer=_maybe(n, c, "infer", _build_infer_clause),
         target_list=_build_on_conflict_targets(n, c, "targetList"),
         where=_maybe(n, c, "where", _build_base_expr),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )
 
 
@@ -1213,5 +1213,5 @@ def _build_copy(n: Node, c: Context) -> pgast.CopyStmt:
             _maybe(n, c, 'options', _build_copy_options) or pgast.CopyOptions()
         ),
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
-        context=_build_context(n, c),
+        span=_build_span(n, c),
     )

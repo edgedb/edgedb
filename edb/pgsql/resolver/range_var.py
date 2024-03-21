@@ -23,7 +23,7 @@ import functools
 from typing import Optional, Tuple, Union, Iterable, List, cast
 
 from edb import errors
-from edb.common.parsing import ParserContext
+from edb.common.parsing import Span
 from edb.server.pgcon import errors as pgerror
 
 from edb.pgsql import ast as pgast
@@ -52,7 +52,7 @@ def resolve_BaseRangeVar(
 
     # general case
     node, table = _resolve_range_var(range_var, alias, ctx=ctx)
-    node = node.replace(context=range_var.context)
+    node = node.replace(span=range_var.span)
 
     # infer public name and internal alias
     table.alias = range_var.alias.aliasname
@@ -106,7 +106,7 @@ def _resolve_RelRangeVar(
             static_val=col.static_val,
         )
         for col, alias in _zip_column_alias(
-            table.columns, alias, ctx=range_var.context
+            table.columns, alias, ctx=range_var.span
         )
     ]
 
@@ -135,7 +135,7 @@ def _resolve_RangeSubselect(
                     reference_as=alias or col.name,
                 )
                 for col, alias in _zip_column_alias(
-                    subtable.columns, alias, ctx=range_var.context
+                    subtable.columns, alias, ctx=range_var.span
                 )
             ],
         )
@@ -236,7 +236,7 @@ def resolve_CommonTableExpr(
 
         alias = pgast.Alias(aliasname=cte.name, colnames=aliascolnames)
 
-        for col, al in _zip_column_alias(table.columns, alias, cte.context):
+        for col, al in _zip_column_alias(table.columns, alias, cte.span):
             result.columns.append(
                 context.Column(
                     name=al or col.name,
@@ -250,7 +250,7 @@ def resolve_CommonTableExpr(
 
     node = pgast.CommonTableExpr(
         name=cte.name,
-        context=cte.context,
+        span=cte.span,
         aliascolnames=reference_as,
         query=query,
         recursive=cte.recursive,
@@ -303,7 +303,7 @@ def _resolve_RangeFunction(
                     reference_as=al or ctx.names.get('col'),
                 )
                 for col, al in _zip_column_alias(
-                    inferred_columns, alias, ctx=range_var.context
+                    inferred_columns, alias, ctx=range_var.span
                 )
             ]
         )
@@ -330,7 +330,7 @@ def _resolve_RangeFunction(
 def _zip_column_alias(
     columns: List[context.Column],
     alias: pgast.Alias,
-    ctx: Optional[ParserContext],
+    ctx: Optional[Span],
 ) -> Iterable[Tuple[context.Column, Optional[str]]]:
     if not alias.colnames:
         return map(lambda c: (c, None), columns)
@@ -342,7 +342,7 @@ def _zip_column_alias(
             f'Table alias for `{alias.aliasname}` contains '
             f'{len(alias.colnames)} columns, but the query resolves to '
             f'{len(columns)} columns',
-            context=ctx,
+            span=ctx,
             pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
         )
     return zip(columns, alias.colnames)

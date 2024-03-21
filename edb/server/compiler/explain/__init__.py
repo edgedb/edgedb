@@ -120,8 +120,8 @@ def analyze_explain_output(
 
     if info:
         buffers = info.buffers
-    elif ql.context:
-        buffers = [ql.context.buffer]
+    elif ql.span:
+        buffers = [ql.span.buffer]
     else:
         buffers = []  # should never happen
 

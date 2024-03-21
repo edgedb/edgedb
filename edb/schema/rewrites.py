@@ -155,10 +155,10 @@ class RewriteCommand(
                 subject = source.get_target(schema)
                 assert subject
 
-                source_context = self.get_attribute_source_context('expr')
+                span = self.get_attribute_span('expr')
                 raise errors.SchemaDefinitionError(
                     'rewrites on link properties are not supported',
-                    context=source_context,
+                    span=span,
                 )
             else:
                 raise NotImplementedError('unsupported rewrite source')
@@ -266,20 +266,20 @@ class RewriteCommand(
                 and shape[0].is_id_pointer(compiled_schema)
             )
         ):
-            source_context = self.get_attribute_source_context('expr')
+            span = self.get_attribute_span('expr')
             raise errors.SchemaDefinitionError(
                 f'rewrite expression may not include a shape',
-                context=source_context,
+                span=span,
             )
 
         ptr_target = self.scls.get_ptr_target(compiled_schema)
         if not typ.assignment_castable_to(ptr_target, compiled_schema):
-            source_context = self.get_attribute_source_context('expr')
+            span = self.get_attribute_span('expr')
             raise errors.SchemaDefinitionError(
                 f'rewrite expression is of invalid type: '
                 f'{typ.get_displayname(compiled_schema)}, '
                 f'expected {ptr_target.get_displayname(compiled_schema)}',
-                context=source_context,
+                span=span,
             )
 
     @classmethod
@@ -353,7 +353,7 @@ class CreateRewrite(
                     context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.expr.context,
+                span=astnode.expr.span,
             )
         return group
 
@@ -406,7 +406,7 @@ class AlterRewrite(
             raise errors.SchemaDefinitionError(
                 f'cannot alter the definition of inherited trigger '
                 f'{self.scls.get_displayname(schema)}',
-                context=self.source_context,
+                span=self.span,
             )
 
         return schema
