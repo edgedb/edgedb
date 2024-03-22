@@ -1582,7 +1582,6 @@ def _normalize_view_ptr_expr(
                         partial=True,
                     ),
                     implicit=True,
-                    ctx=ctx,
                 )
             else:
                 raise errors.QueryError(
