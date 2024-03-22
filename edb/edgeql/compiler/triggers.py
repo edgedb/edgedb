@@ -167,9 +167,9 @@ def compile_triggers_phase(
 
         # Process all the types, starting with the base type
         for subtype in sorted(stypes, key=lambda t: t != stype):
-            if (defining_trigger_on and defining_trigger_kinds and
-                kind in defining_trigger_kinds and
-                subtype.issubclass(ctx.env.schema, defining_trigger_on)
+            if (defining_trigger_on and defining_trigger_kinds
+                and kind in defining_trigger_kinds
+                and subtype.issubclass(ctx.env.schema, defining_trigger_on)
             ):
                 name = str(defining_trigger_on.get_name(ctx.env.schema))
                 raise errors.SchemaDefinitionError(
