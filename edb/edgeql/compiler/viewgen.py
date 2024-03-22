@@ -1507,50 +1507,6 @@ def _normalize_view_ptr_expr(
     else:
         base_ptrcls = ptrcls = None
 
-        if shape_el.operation.op in [
-            qlast.ShapeOp.COALESCE_ASSIGN,
-            qlast.ShapeOp.ASSIGN_COALESCE,
-        ]:
-            if shape_el.compexpr is None:
-                ptr_vn = ptrcls.get_verbosename(ctx.env.schema,
-                                                with_parent=True)
-                raise errors.EdgeQLSyntaxError(
-                    f'expected assignment expression for {ptr_vn}',
-                    span=shape_el.span,
-                )
-            if not is_mutation:
-                raise errors.QueryError(
-                    f'coalescing assignments are prohibited outside of insert '
-                    f'and update',
-                    span=shape_el.operation.span
-                )
-
-            left: qlast.Expr
-            right: qlast.Expr
-            if shape_el.operation.op == qlast.ShapeOp.COALESCE_ASSIGN:
-                left = qlast.SelectQuery(
-                    result=qlast.Path(
-                        steps=shape_el.expr.steps.copy(),
-                        partial=True,
-                    ),
-                    implicit=True,
-                    ctx=ctx,
-                )
-                right = shape_el.compexpr
-            elif shape_el.operation.op == qlast.ShapeOp.ASSIGN_COALESCE:
-                left = shape_el.compexpr
-                right = qlast.SelectQuery(
-                    result=qlast.Path(
-                        steps=shape_el.expr.steps.copy(),
-                        partial=True,
-                    ),
-                    implicit=True,
-                    ctx=ctx,
-                )
-
-            shape_el.operation = qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN)
-            compexpr = shape_el.compexpr = qlast.BinOp(left=left, op='??', right=right)
-
         if (is_mutation
                 and ptrname not in ctx.special_computables_in_mutation_shape):
             # If this is a mutation, the pointer must exist.
@@ -1602,6 +1558,56 @@ def _normalize_view_ptr_expr(
                 # computable pointer, it's fine.
                 if is_linkprop_mutation:
                     raise
+
+        if shape_el.operation.op in [
+            qlast.ShapeOp.COALESCE_ASSIGN,
+            qlast.ShapeOp.ASSIGN_COALESCE,
+        ]:
+            assert shape_el.compexpr is not None
+
+            existing_expr: Optional[qlast.Expr] = None
+            if s_ctx.exprtype.is_insert():
+                default_expr = None
+                if ptrcls is not None:
+                    default_expr = ptrcls.get_default(ctx.env.schema)
+                if default_expr is not None:
+                    existing_expr = qlast.DetachedExpr(
+                        expr=default_expr.qlast,
+                        preserve_path_prefix=True,
+                    )
+            elif s_ctx.exprtype.is_update():
+                existing_expr = qlast.SelectQuery(
+                    result=qlast.Path(
+                        steps=shape_el.expr.steps.copy(),
+                        partial=True,
+                    ),
+                    implicit=True,
+                    ctx=ctx,
+                )
+            else:
+                raise errors.QueryError(
+                    f'coalescing assignments are prohibited outside of insert '
+                    f'and update',
+                    span=shape_el.operation.span
+                )
+
+            if existing_expr is not None:
+                left: qlast.Expr
+                right: qlast.Expr
+                if shape_el.operation.op == qlast.ShapeOp.COALESCE_ASSIGN:
+                    left = existing_expr
+                    right = shape_el.compexpr
+                elif shape_el.operation.op == qlast.ShapeOp.ASSIGN_COALESCE:
+                    left = shape_el.compexpr
+                    right = existing_expr
+
+                compexpr = shape_el.compexpr = qlast.BinOp(
+                    left=left,
+                    op='??',
+                    right=right
+                )
+
+            shape_el.operation = qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN)
 
         qlexpr = astutils.ensure_ql_query(compexpr)
         # HACK: For scope tree related reasons, DML inside of free objects

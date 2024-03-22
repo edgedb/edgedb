@@ -6723,3 +6723,183 @@ class TestInsert(tb.QueryTestCase):
             'select Note { note }',
             [{'note': "note"}],
         )
+
+    async def test_edgeql_insert_coalesce_assign_01(self):
+        # coalesce to property with default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag1 ?:= 'bar' };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag1, }; ",
+            [
+                {
+                    'tag1': 'foo',
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_coalesce_assign_02(self):
+        # coalesce to property with default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag1 ?:= {} };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag1, }; ",
+            [
+                {
+                    'tag1': 'foo',
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_coalesce_assign_03(self):
+        # coalesce to property without default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag2 ?:= 'bar' };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag2, }; ",
+            [
+                {
+                    'tag2': 'bar',
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_coalesce_assign_04(self):
+        # coalesce to property without default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag2 ?:= {} };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag2, }; ",
+            [
+                {
+                    'tag2': None,
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_coalesce_assign_05(self):
+        # coalesce to property without default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag3 ?:= 'bar' };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag3, }; ",
+            [
+                {
+                    'tag3': 'bar',
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_coalesce_assign_06(self):
+        # coalesce to property without default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag3 ?:= {} };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag3, }; ",
+            [
+                {
+                    'tag3': None,
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_assign_coalesce_01(self):
+        # coalesce to property with default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag1 :=? 'bar' };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag1, }; ",
+            [
+                {
+                    'tag1': 'bar',
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_assign_coalesce_02(self):
+        # coalesce to property with default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag1 :=? <std::str>{} };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag1, }; ",
+            [
+                {
+                    'tag1': 'foo',
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_assign_coalesce_03(self):
+        # coalesce to property without default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag2 :=? 'bar' };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag2, }; ",
+            [
+                {
+                    'tag2': 'bar',
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_assign_coalesce_04(self):
+        # coalesce to property without default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag2 :=? <std::str>{} };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag2, }; ",
+            [
+                {
+                    'tag2': None,
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_assign_coalesce_05(self):
+        # coalesce to property without default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag3 :=? 'bar' };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag3, }; ",
+            [
+                {
+                    'tag3': 'bar',
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_assign_coalesce_06(self):
+        # coalesce to property without default
+        await self.con.execute('''
+            INSERT CoalesceTest { tag3 :=? {} };
+        ''')
+
+        await self.assert_query_result(
+            r"SELECT CoalesceTest { tag3, }; ",
+            [
+                {
+                    'tag3': None,
+                },
+            ]
+        )
