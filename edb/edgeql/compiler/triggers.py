@@ -173,7 +173,7 @@ def compile_triggers_phase(
             ):
                 name = str(defining_trigger_on.get_name(ctx.env.schema))
                 raise errors.SchemaDefinitionError(
-                    f"trigger on {name} after {kind} is recursive"
+                    f"trigger on {name} after {kind.lower()} is recursive"
                 )
 
             for trigger in subtype.get_relevant_triggers(kind, schema):
@@ -224,7 +224,7 @@ def compile_triggers(
             defining_trigger_kinds,
             ctx=ctx
         )
-        new_causes = {
+        new_causes: set[tuple[irast.TypeRef, qltypes.TriggerKind]] = {
             (affected_type, kind)
             for compiled_trigger in compiled_triggers
             for affected_type in compiled_trigger.all_affected_types
@@ -236,8 +236,8 @@ def compile_triggers(
         # a little unclear otherwise. We might relax this later.
         overlap = new_causes & all_trigger_causes
         if overlap:
-            names = sorted(
-                f"{str(cause[0].name_hint)} after {cause[1]}"
+            names: Collection[str] = sorted(
+                f"{str(cause[0].name_hint)} after {cause[1].lower()}"
                 for cause in overlap
             )
             raise errors.QueryError(

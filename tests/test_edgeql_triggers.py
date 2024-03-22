@@ -1077,7 +1077,7 @@ class TestTriggers(tb.QueryTestCase):
     async def test_edgeql_triggers_chain_02(self):
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaDefinitionError,
-                'trigger on default::InsertTest after Insert is recursive'):
+                'trigger on default::InsertTest after insert is recursive'):
             await self.con.execute('''
                 alter type InsertTest {
                   create trigger log after insert for each do (
@@ -1103,7 +1103,7 @@ class TestTriggers(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
                 'would need to be executed in multiple stages on default::Note '
-                'after Insert'):
+                'after insert'):
             await self.con.execute('''
                 select {
                     (insert InsertTest { name := "foo" }),
