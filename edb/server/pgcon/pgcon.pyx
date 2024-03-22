@@ -33,6 +33,7 @@ import logging
 import os.path
 import socket
 import ssl as ssl_mod
+import sys
 import struct
 import textwrap
 import time
@@ -621,6 +622,7 @@ cdef class PGConnection:
             hex(id(self)),
             f'pgpid: {self.backend_pid}',
             *args,
+            file=sys.stderr,
         )
 
     def get_pgaddr(self):
