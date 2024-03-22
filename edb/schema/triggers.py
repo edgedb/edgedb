@@ -204,7 +204,7 @@ class TriggerCommand(
             scope = self._get_scope(schema)
             kinds = self._get_kinds(schema)
 
-            anchors: dict[str, pathid.PathId | s_types.Type] = {}
+            anchors: dict[str, pathid.PathId] = {}
             if qltypes.TriggerKind.Insert not in kinds:
                 anchors['__old__'] = pathid.PathId.from_type(
                     schema,
@@ -224,7 +224,6 @@ class TriggerCommand(
                 frozenset(anchors.values())
                 if scope == qltypes.TriggerScope.Each else frozenset()
             )
-            anchors['__trigger_type__'] = source
 
             assert isinstance(source, s_types.Type)
 
@@ -241,6 +240,8 @@ class TriggerCommand(
                         track_schema_ref_exprs=track_schema_ref_exprs,
                         # in_ddl_context_name=in_ddl_context_name,
                         detached=True,
+                        trigger_type=source,
+                        trigger_kinds=kinds,
                     ),
                 )
             except errors.QueryError as e:

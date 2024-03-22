@@ -1077,7 +1077,7 @@ class TestTriggers(tb.QueryTestCase):
     async def test_edgeql_triggers_chain_02(self):
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaDefinitionError,
-                'trigger on default::InsertTest is recursive'):
+                'trigger on default::InsertTest after insert is recursive'):
             await self.con.execute('''
                 alter type InsertTest {
                   create trigger log after insert for each do (
@@ -1102,13 +1102,75 @@ class TestTriggers(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                'would need to be executed in multiple stages'):
+                'would need to be executed in multiple stages on default::Note '
+                'after insert'):
             await self.con.execute('''
                 select {
                     (insert InsertTest { name := "foo" }),
                     (insert Note { name := "foo" }),
                 }
             ''')
+
+    async def test_edgeql_triggers_chain_04(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log after update for each do (
+                insert InsertTest { name := __new__.name ++ "!" }
+              );
+            };
+        ''')
+
+        await self.con.execute('''
+            insert InsertTest { name := "test" }
+        ''')
+
+        await self.con.execute('''
+            update InsertTest
+            filter InsertTest.name = "test"
+            set { name := "updated" }
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { name }
+            ''',
+            [{'name': 'updated'}, {'name': 'updated!'}],
+        )
+
+    async def test_edgeql_triggers_chain_05(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log after insert for each do (
+                insert Note { name := "insert", note := __new__.name }
+              );
+            };
+        ''')
+
+        await self.con.execute('''
+            select {
+                (insert Note { name := "foo" }),
+            }
+        ''')
+
+        await self.assert_notes([
+            {'name': "foo", 'notes': set()},
+        ])
+
+        await self.con.execute('''
+            select {
+                (insert InsertTest { name := "foo_insert" }),
+                (
+                  update Note
+                  filter Note.name = "foo"
+                  set { name := "foo_update" }
+                ),
+            }
+        ''')
+
+        await self.assert_notes([
+            {'name': "foo_update", 'notes': set()},
+            {'name': "insert", 'notes': set(["foo_insert"])},
+        ])
 
     async def test_edgeql_triggers_tricky_01(self):
         await self.con.execute('''
