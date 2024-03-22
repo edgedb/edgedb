@@ -466,7 +466,6 @@ class ShapeOp(s_enum.StrEnum):
     APPEND = 'APPEND'
     SUBTRACT = 'SUBTRACT'
     ASSIGN = 'ASSIGN'
-    COALESCE_ASSIGN = 'COALESCE_ASSIGN'
     ASSIGN_COALESCE = 'ASSIGN_COALESCE'
     MATERIALIZE = 'MATERIALIZE'  # This is an internal implementation artifact
 

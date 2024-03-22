@@ -145,18 +145,12 @@ fn question_tokens() {
                [Ident, Coalesce, Ident, NotDistinctFrom, Ident]);
     assert_eq!(tok_str("a ?!= b"), ["a", "?!=", "b"]);
     assert_eq!(tok_typ("a ?!= b"), [Ident, DistinctFrom, Ident]);
-    assert_eq!(tok_str("a ?:= b"), ["a", "?:=", "b"]);
-    assert_eq!(tok_typ("a ?:= b"), [Ident, CoalesceAssign, Ident]);
-    
     assert_eq!(tok_err("a ? b"),
         "Bare `?` is not an operator, \
          did you mean `?=` or `??` ?");
     assert_eq!(tok_err("something ?!"),
         "`?!` is not an operator, \
          did you mean `?!=` ?");
-    assert_eq!(tok_err("something ?:"),
-        "`?:` is not an operator, \
-         did you mean `?:=` ?");
 }
 
 #[test]

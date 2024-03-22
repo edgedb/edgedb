@@ -1559,10 +1559,7 @@ def _normalize_view_ptr_expr(
                 if is_linkprop_mutation:
                     raise
 
-        if shape_el.operation.op in [
-            qlast.ShapeOp.COALESCE_ASSIGN,
-            qlast.ShapeOp.ASSIGN_COALESCE,
-        ]:
+        if shape_el.operation.op == qlast.ShapeOp.ASSIGN_COALESCE:
             assert shape_el.compexpr is not None
 
             existing_expr: Optional[qlast.Expr] = None
@@ -1591,14 +1588,8 @@ def _normalize_view_ptr_expr(
                 )
 
             if existing_expr is not None:
-                left: qlast.Expr
-                right: qlast.Expr
-                if shape_el.operation.op == qlast.ShapeOp.COALESCE_ASSIGN:
-                    left = existing_expr
-                    right = shape_el.compexpr
-                elif shape_el.operation.op == qlast.ShapeOp.ASSIGN_COALESCE:
-                    left = shape_el.compexpr
-                    right = existing_expr
+                left: qlast.Expr = shape_el.compexpr
+                right: qlast.Expr = existing_expr
 
                 compexpr = shape_el.compexpr = qlast.BinOp(
                     left=left,

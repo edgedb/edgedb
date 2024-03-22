@@ -875,14 +875,6 @@ class ComputableShapePointer(Nonterm):
             span=kids[1].span,
         )
 
-    def reduce_SimpleShapePointer_COALESCEASSIGN_Expr(self, *kids):
-        self.val = kids[0].val
-        self.val.compexpr = kids[2].val
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.COALESCE_ASSIGN,
-            span=kids[1].span,
-        )
-
     def reduce_SimpleShapePointer_ASSIGNCOALESCE_Expr(self, *kids):
         self.val = kids[0].val
         self.val.compexpr = kids[2].val

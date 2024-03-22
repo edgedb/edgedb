@@ -76,7 +76,6 @@ pub enum Kind {
     Assign,          // :=
     SubAssign,       // -=
     AddAssign,       // +=
-    CoalesceAssign,  // ?:=
     AssignCoalesce,  // :=?
     Arrow,           // ->
     Coalesce,        // ??
@@ -329,13 +328,6 @@ impl<'a> Tokenizer<'a> {
             '?' => match iter.next() {
                 Some((_, '?')) => Ok((Coalesce, 2)),
                 Some((_, '=')) => Ok((NotDistinctFrom, 2)),
-                Some((_, ':')) => match iter.next() {
-                    Some((_, '=')) => Ok((CoalesceAssign, 3)),
-                    _ => Err(Error::new(
-                        "`?:` is not an operator, \
-                            did you mean `?:=` ?"
-                    ))
-                },
                 Some((_, '!')) => {
                     if let Some((_, '=')) = iter.next() {
                         Ok((DistinctFrom, 3))
@@ -1063,7 +1055,6 @@ impl Kind {
             Arrow => "->",
             Assign => ":=",
             SubAssign => "-=",
-            CoalesceAssign => "?:=",
             AssignCoalesce => ":=?",
 
             Keyword(keywords::Keyword(kw)) => kw,
