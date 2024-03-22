@@ -3795,3 +3795,300 @@ class TestUpdate(tb.QueryTestCase):
                 {"name": "update-test2", "comment": "second"},
             ]
         )
+
+    async def test_edgeql_update_coalesce_assign_01(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment ?:= '!!!' };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                } ORDER BY .name;
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': orig1['name'],
+                    'comment': orig1['comment'],
+                }, {
+                    'id': orig2['id'],
+                    'name': orig2['name'],
+                    'comment': orig2['comment'],
+                }, {
+                    'id': orig3['id'],
+                    'name': orig3['name'],
+                    'comment': orig3['comment'],
+                },
+            ]
+        )
+
+    async def test_edgeql_update_coalesce_assign_02(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment ?:= <std::str>{} };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                } ORDER BY .name;
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': orig1['name'],
+                    'comment': orig1['comment'],
+                }, {
+                    'id': orig2['id'],
+                    'name': orig2['name'],
+                    'comment': orig2['comment'],
+                }, {
+                    'id': orig3['id'],
+                    'name': orig3['name'],
+                    'comment': orig3['comment'],
+                },
+            ]
+        )
+
+    async def test_edgeql_update_coalesce_assign_03(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment := {} };
+        ''')
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment ?:= '!!!' };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                } ORDER BY .name;
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': orig1['name'],
+                    'comment': orig1['comment'],
+                }, {
+                    'id': orig2['id'],
+                    'name': orig2['name'],
+                    'comment': '!!!',
+                }, {
+                    'id': orig3['id'],
+                    'name': orig3['name'],
+                    'comment': orig3['comment'],
+                },
+            ]
+        )
+
+    async def test_edgeql_update_coalesce_assign_04(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment := {} };
+        ''')
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment ?:= <std::str>{} };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                } ORDER BY .name;
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': orig1['name'],
+                    'comment': orig1['comment'],
+                }, {
+                    'id': orig2['id'],
+                    'name': orig2['name'],
+                    'comment': None,
+                }, {
+                    'id': orig3['id'],
+                    'name': orig3['name'],
+                    'comment': orig3['comment'],
+                },
+            ]
+        )
+
+    async def test_edgeql_update_assign_coalesce_01(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment :=? '!!!' };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                } ORDER BY .name;
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': orig1['name'],
+                    'comment': orig1['comment'],
+                }, {
+                    'id': orig2['id'],
+                    'name': orig2['name'],
+                    'comment': '!!!',
+                }, {
+                    'id': orig3['id'],
+                    'name': orig3['name'],
+                    'comment': orig3['comment'],
+                },
+            ]
+        )
+
+    async def test_edgeql_update_assign_coalesce_02(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment :=? <std::str>{} };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                } ORDER BY .name;
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': orig1['name'],
+                    'comment': orig1['comment'],
+                }, {
+                    'id': orig2['id'],
+                    'name': orig2['name'],
+                    'comment': orig2['comment'],
+                }, {
+                    'id': orig3['id'],
+                    'name': orig3['name'],
+                    'comment': orig3['comment'],
+                },
+            ]
+        )
+
+    async def test_edgeql_update_assign_coalesce_03(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment := {} };
+        ''')
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment :=? '!!!' };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                } ORDER BY .name;
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': orig1['name'],
+                    'comment': orig1['comment'],
+                }, {
+                    'id': orig2['id'],
+                    'name': orig2['name'],
+                    'comment': '!!!',
+                }, {
+                    'id': orig3['id'],
+                    'name': orig3['name'],
+                    'comment': orig3['comment'],
+                },
+            ]
+        )
+
+    async def test_edgeql_update_assign_coalesce_04(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment := {} };
+        ''')
+
+        await self.con.execute('''
+            update UpdateTest
+            filter UpdateTest.name = 'update-test2'
+            set { comment :=? <std::str>{} };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                } ORDER BY .name;
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': orig1['name'],
+                    'comment': orig1['comment'],
+                }, {
+                    'id': orig2['id'],
+                    'name': orig2['name'],
+                    'comment': None,
+                }, {
+                    'id': orig3['id'],
+                    'name': orig3['name'],
+                    'comment': orig3['comment'],
+                },
+            ]
+        )
+

@@ -1528,17 +1528,28 @@ def _normalize_view_ptr_expr(
             left: qlast.Expr
             right: qlast.Expr
             if shape_el.operation.op == qlast.ShapeOp.COALESCE_ASSIGN:
-                left = shape_el.expr
+                left = qlast.SelectQuery(
+                    result=qlast.Path(
+                        steps=shape_el.expr.steps.copy(),
+                        partial=True,
+                    ),
+                    implicit=True,
+                    ctx=ctx,
+                )
                 right = shape_el.compexpr
             elif shape_el.operation.op == qlast.ShapeOp.ASSIGN_COALESCE:
                 left = shape_el.compexpr
-                right = shape_el.expr
+                right = qlast.SelectQuery(
+                    result=qlast.Path(
+                        steps=shape_el.expr.steps.copy(),
+                        partial=True,
+                    ),
+                    implicit=True,
+                    ctx=ctx,
+                )
 
             shape_el.operation = qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN)
-            shape_el.compexpr = qlast.SelectQuery(
-                result=qlast.BinOp(left=left, op='??', right=right),
-                implicit=True,
-            )
+            compexpr = shape_el.compexpr = qlast.BinOp(left=left, op='??', right=right)
 
         if (is_mutation
                 and ptrname not in ctx.special_computables_in_mutation_shape):
