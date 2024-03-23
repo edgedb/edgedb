@@ -99,4 +99,14 @@ sys::get_current_branch() -> str
     USING SQL FUNCTION 'edgedb.get_current_database';
 };
 '''),
+    ('edgeql', '''
+alter function fts::search(
+    object: anyobject,
+    query: std::str,
+    named only language: std::str = <std::str>fts::Language.eng,
+    named only weights: optional array<float64> = {},
+) {
+    set volatility := 'Stable';
+};
+'''),
 ])
