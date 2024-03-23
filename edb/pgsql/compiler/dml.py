@@ -715,7 +715,7 @@ def process_insert_body(
         ptrref = shape_el.rptr.ptrref
         if ptrref.material_ptr is not None:
             ptrref = ptrref.material_ptr
-        assert shape_el.expr
+        assert shape_el.old_expr  # XXX
         elements.append((shape_el, ptrref))
 
     external_inserts = process_insert_shape(
@@ -1374,10 +1374,11 @@ def insert_needs_conflict_cte(
 
         # We need to generate a conflict CTE if we have a DML containing
         # pointer stored in the object itself
+        # XXX:
         if (
             ptr_info.table_type == 'ObjectType'
-            and shape_el.expr
-            and irutils.contains_dml(shape_el.expr, skip_bindings=True)
+            and shape_el.old_expr
+            and irutils.contains_dml(shape_el.old_expr, skip_bindings=True)
         ):
             return True
 
@@ -2000,6 +2001,7 @@ def process_update_rewrites(
 def process_update_shape(
     ir_stmt: irast.UpdateStmt,
     rel: pgast.SelectStmt,
+    # XXX: Update type
     elements: Sequence[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
     typeref: irast.TypeRef,
     ctx: context.CompilerContextLevel,
@@ -2020,7 +2022,9 @@ def process_update_shape(
         link_ptr_info = pg_types.get_ptrref_storage_info(
             actual_ptrref, resolve_type=False, link_bias=True
         )
-        updvalue = element.expr
+        # XXX: Slightly nervous about this.
+        assert isinstance(element.expr, irast.Pointer)
+        updvalue = element.expr.expr
 
         if (
             ptr_info.table_type == "ObjectType"
@@ -2664,11 +2668,12 @@ def process_link_update(
             # pgsql/delta.py.
 
             # Turn `foo := <expr>` into just `foo`.
+            assert ir_set.rptr
             ptr_ref_set = irast.Set(
                 path_id=ir_set.path_id,
                 path_scope_id=ir_set.path_scope_id,
                 typeref=ir_set.typeref,
-                rptr=ir_set.rptr,
+                expr=ir_set.rptr.replace(expr=None),
             )
 
             with ctx.new() as subctx:

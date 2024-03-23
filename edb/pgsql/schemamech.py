@@ -174,6 +174,7 @@ def _edgeql_ref_to_pg_constr(
     if isinstance(tree, irast.Statement):
         tree = tree.expr
 
+    # XXX: or old_expr???
     if isinstance(tree, irast.Set) and isinstance(tree.expr, irast.SelectStmt):
         tree = tree.expr.result
 
@@ -345,6 +346,7 @@ def compile_constraint(
             options=origin_options,
         )
 
+        # XXX: or old_expr???
         assert origin_ir.expr.expr
         origin_terminal_refs = ir_utils.get_longest_paths(
             origin_ir.expr.expr

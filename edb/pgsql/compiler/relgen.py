@@ -378,7 +378,7 @@ def _get_expr_set_rvar(
     raise NotImplementedError(f'no relgen handler for {ir.__class__}')
 
 
-T = TypeVar('T', contravariant=True)
+T = TypeVar('T', contravariant=True, bound=Optional[irast.Expr])
 
 
 class _GetExprRvarFunc(Protocol, Generic[T]):
@@ -413,10 +413,6 @@ def _get_set_rvar(
 
     if irutils.is_set_instance(ir_set, irast.Expr):
         return _get_expr_set_rvar(ir_set.expr, ir_set, ctx=ctx)
-
-    if ir_set.rptr is not None:
-        # Regular non-computable path step.
-        return process_set_as_path(ir_set, ctx=ctx)
 
     if isinstance(ir_set, irast.EmptySet):
         # {}
@@ -592,7 +588,7 @@ def can_omit_optional_wrapper(
         return can_omit_optional_wrapper(ir_set.rptr.source, new_scope, ctx=ctx)
 
     return bool(
-        ir_set.expr is None
+        ir_set.old_expr is None  # XXX
         and not ir_set.path_id.is_objtype_path()
         and not ir_set.path_id.is_type_intersection_path()
         and ir_set.rptr
@@ -911,23 +907,25 @@ def process_set_as_link_property_ref(
     return SetRVars(main=SetRVar(link_rvar, ir_set.path_id), new=rvars)
 
 
+@register_get_rvar(irast.TypeIntersectionPointer)
 def process_set_as_path_type_intersection(
-    ir_set: irast.Set,
-    ptrref: irast.TypeIntersectionPointerRef,
+    ir_set: irast.SetE[irast.TypeIntersectionPointer],
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
-    assert ir_set.rptr is not None
-    ir_source = ir_set.rptr.source
+    rptr = ir_set.expr
+    ir_source = rptr.source
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
     stmt = ctx.rel
+
+    assert not rptr.expr, 'type intersection pointer with expr??'
 
     if (not source_is_visible
             and ir_source.rptr is not None
             and not ir_source.path_id.is_type_intersection_path()
-            and not ir_source.expr
+            and not ir_source.old_expr  # XXX
             and (
-                ptrref.is_subtype
+                rptr.ptrref.is_subtype
                 or pg_types.get_ptrref_storage_info(
                     ir_source.rptr.ptrref).table_type != 'ObjectType'
             )):
@@ -963,7 +961,7 @@ def process_set_as_path_type_intersection(
             assert len(intersectors) == 1
             target_typeref = next(iter(intersectors))
         else:
-            target_typeref = ptrref.out_target
+            target_typeref = rptr.ptrref.out_target
 
         poly_rvar = relctx.range_for_typeref(
             target_typeref,
@@ -1028,7 +1026,7 @@ def _source_path_needs_semi_join(
     while (
         ir_source.rptr
         and ir_source.rptr.dir_cardinality.is_single()
-        and not ir_source.expr
+        and not ir_source.rptr.expr
     ):
         ir_source = ir_source.rptr.source
 
@@ -1038,22 +1036,19 @@ def _source_path_needs_semi_join(
     return True
 
 
+@register_get_rvar(irast.Pointer)
 def process_set_as_path(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Pointer],
+    *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
-    rptr = ir_set.rptr
-    assert rptr is not None
+    if ir_set.expr.expr:
+        return process_set_as_subquery(ir_set, ctx=ctx)
 
-    # Type intersection and tuple indirections have their own code paths
-    if isinstance(rptr, irast.TypeIntersectionPointer):
-        return process_set_as_path_type_intersection(
-            ir_set, rptr.ptrref, ctx=ctx)
-    elif isinstance(rptr, irast.TupleIndirectionPointer):
-        return process_set_as_tuple_indirection(ir_set, ctx=ctx)
-
+    rptr = ir_set.expr
     ptrref = rptr.ptrref
     ir_source = rptr.source
     stmt = ctx.rel
+
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
     rvars = []
 
@@ -1315,13 +1310,18 @@ def process_set_as_subquery(
     is_objtype_path = ir_set.path_id.is_objtype_path()
 
     stmt = ctx.rel
-    expr = ir_set.expr
+    if isinstance(ir_set.expr, irast.Pointer):
+        rptr = ir_set.expr
+        expr = rptr.expr
+    else:
+        expr = ir_set.expr
+        rptr = None
 
     ir_source: Optional[irast.Set]
 
     source_set_rvar = None
-    if ir_set.rptr is not None:
-        ir_source = ir_set.rptr.source
+    if rptr is not None:
+        ir_source = rptr.source
 
         if not is_objtype_path:
             source_is_visible = True
@@ -2013,14 +2013,18 @@ def process_set_as_tuple(
     )
 
 
+@register_get_rvar(irast.TupleIndirectionPointer)
 def process_set_as_tuple_indirection(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.TupleIndirectionPointer],
+    *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
-    rptr = ir_set.rptr
-    assert rptr is not None
+    rptr = ir_set.expr
     tuple_set = rptr.source
     stmt = ctx.rel
 
+    assert not rptr.expr, 'tuple indirection pointer with expr??'
+
+    assert not ir_set.old_expr
     with ctx.new() as subctx:
         # Usually the LHS is is not exposed, but when we are directly
         # projecting from an explicit tuple, and the result is a

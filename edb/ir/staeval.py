@@ -143,6 +143,17 @@ def evaluate_Set(
             'expression is not constant', span=ir_set.span)
 
 
+@evaluate.register
+def evaluate_Pointer(
+        ptr: irast.Pointer,
+        schema: s_schema.Schema) -> EvaluationResult:
+    if ptr.expr is not None:
+        return evaluate(ptr.expr, schema=schema)
+    else:
+        raise UnsupportedExpressionError(
+            'expression is not constant', span=ptr.span)
+
+
 @evaluate.register(irast.ConstExpr)
 def evaluate_BaseConstant(
         ir_const: irast.ConstExpr,

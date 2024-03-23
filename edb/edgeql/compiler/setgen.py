@@ -172,7 +172,6 @@ def new_set_from_set(
         path_scope_id: Optional[int | KeepCurrentT]=KeepCurrent,
         path_id: Optional[irast.PathId]=None,
         stype: Optional[s_types.Type]=None,
-        rptr: Optional[irast.Pointer | KeepCurrentT]=KeepCurrent,
         expr: Optional[irast.Expr | KeepCurrentT]=KeepCurrent,
         span: Optional[qlast.Span]=None,
         is_binding: Optional[irast.BindingKind]=None,
@@ -197,8 +196,6 @@ def new_set_from_set(
         stype = get_set_type(ir_set, ctx=ctx)
     if path_scope_id == KeepCurrent:
         path_scope_id = ir_set.path_scope_id
-    if rptr == KeepCurrent:
-        rptr = ir_set.rptr
     if expr == KeepCurrent:
         expr = ir_set.expr
     if span is None:
@@ -218,7 +215,6 @@ def new_set_from_set(
         path_scope_id=path_scope_id,
         stype=stype,
         expr=expr,
-        rptr=rptr,
         span=span,
         is_binding=is_binding,
         is_schema_alias=is_schema_alias,
@@ -981,7 +977,7 @@ def extend_path(
     same_computable_scope: bool = False,
     span: Optional[qlast.Span]=None,
     ctx: context.ContextLevel,
-) -> irast.Set:
+) -> irast.SetE[irast.Pointer]:
     """Return a Set node representing the new path tip."""
 
     if ptrcls.is_link_property(ctx.env.schema):
@@ -1037,7 +1033,7 @@ def extend_path(
         is_definition=False,
     )
 
-    target_set.rptr = ptr
+    target_set.expr = ptr
     is_computable = _is_computable_ptr(ptrcls, direction, ctx=ctx)
     if not ignore_computable and is_computable:
         target_set = computable_ptr_set(
@@ -1048,6 +1044,7 @@ def extend_path(
             ctx=ctx,
         )
 
+    assert irutils.is_set_instance(target_set, irast.Pointer)
     return target_set
 
 
@@ -1215,15 +1212,12 @@ def tuple_indirection_set(
     path_id = pathctx.get_tuple_indirection_path_id(
         path_tip.path_id, el_norm_name, el_type, ctx=ctx)
 
-    ti_set = new_set(stype=el_type, path_id=path_id, ctx=ctx)
-
     ptr = irast.TupleIndirectionPointer(
         source=path_tip,
         ptrref=downcast(irast.TupleIndirectionPointerRef, path_id.rptr()),
         direction=not_none(path_id.rptr_dir()),
     )
-
-    ti_set.rptr = ptr
+    ti_set = new_set(stype=el_type, path_id=path_id, expr=ptr, ctx=ctx)
 
     return ti_set
 
@@ -1306,14 +1300,12 @@ def type_intersection_set(
 
     poly_set.path_id = source_set.path_id.extend(ptrref=ptrref)
 
-    ptr = irast.TypeIntersectionPointer(
+    poly_set.expr = irast.TypeIntersectionPointer(
         source=source_set,
         ptrref=downcast(irast.TypeIntersectionPointerRef, ptrref),
-        direction=not_none(poly_set.path_id.rptr_dir()),
+        direction=s_pointers.PointerDirection.Outbound,
         optional=optional,
     )
-
-    poly_set.rptr = ptr
 
     return poly_set
 
@@ -1485,11 +1477,12 @@ def fixup_computable_source_set(
         source_set = new_set_from_set(
             source_set, stype=source_set_stype, ctx=ctx)
         source_set.shape = ()
+        # XXX: consistency
         if source_set.rptr is not None:
             source_rptrref = source_set.rptr.ptrref
             if source_rptrref.base_ptr is not None:
                 source_rptrref = source_rptrref.base_ptr
-            source_set.rptr = source_set.rptr.replace(
+            source_set.expr = source_set.rptr.replace(
                 ptrref=source_rptrref,
                 is_definition=True,
             )
@@ -1650,8 +1643,10 @@ def computable_ptr_set(
 
         comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
+    # XXX: or should we update rptr in place??
+    rptr = rptr.replace(expr=comp_ir_set.expr)
     comp_ir_set = new_set_from_set(
-        comp_ir_set, path_id=path_id, rptr=rptr, span=srcctx,
+        comp_ir_set, path_id=path_id, expr=rptr, span=srcctx,
         merge_current_ns=True,
         ctx=ctx)
 
@@ -1694,8 +1689,10 @@ def _get_schema_computed_ctx(
                     ctx.env.schema, ptr, namespace=subctx.path_id_namespace,
                     env=ctx.env,
                 ).src_path())
+
+                # XXX: THIS IS DODGY - wait, this is a no-op
                 remapped_source = new_set_from_set(
-                    rptr.source, rptr=rptr.source.rptr, ctx=ctx
+                    rptr.source, expr=rptr.source.expr, ctx=ctx
                 )
                 update_view_map(inner_path_id, remapped_source, ctx=subctx)
 
@@ -1828,8 +1825,9 @@ def _get_computable_ctx(
                 # get remapped first.
                 inner_path_id = remap_path_id(inner_path_id, remapctx)
 
+            # XXX: THIS IS DODGY - wait, this is a no-op
             remapped_source = new_set_from_set(
-                rptr.source, rptr=rptr.source.rptr, ctx=ctx)
+                rptr.source, expr=rptr.source.expr, ctx=ctx)
             update_view_map(inner_path_id, remapped_source, ctx=subctx)
 
             yield subctx

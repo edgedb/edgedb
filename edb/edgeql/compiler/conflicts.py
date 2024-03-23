@@ -136,17 +136,17 @@ def _compile_conflict_select_for_obj_type(
     # produce anchors for them
     ptrs_in_shape = set()
     for elem, _ in stmt.subject.shape:
-        assert elem.rptr is not None
-        name = elem.rptr.ptrref.shortname.name
+        rptr = elem.expr
+        name = rptr.ptrref.shortname.name
         ptrs_in_shape.add(name)
         if name in needed_ptrs and name not in ptr_anchors:
-            assert elem.expr
+            assert rptr.expr
             # We don't properly support hoisting volatile properties out of
             # UNLESS CONFLICT, so disallow it. We *do* support handling DML
             # there, since that gets hoisted into CTEs via its own mechanism.
             # See issue #1699.
             if inference.infer_volatility(
-                elem.expr, ctx.env, exclude_dml=True
+                rptr.expr, ctx.env, exclude_dml=True
             ).is_volatile():
                 if for_inheritance:
                     error = (
@@ -164,7 +164,7 @@ def _compile_conflict_select_for_obj_type(
                 )
 
             # We want to use the same path_scope_id as the original
-            elem_set = setgen.ensure_set(elem.expr, ctx=ctx)
+            elem_set = setgen.ensure_set(rptr.expr, ctx=ctx)
             elem_set.path_scope_id = elem.path_scope_id
 
             # FIXME: The wrong thing will definitely happen if there are

@@ -451,11 +451,30 @@ class TypeIntersectionPointerRef(BasePointerRef):
     rptr_specialization: typing.FrozenSet[PointerRef]
 
 
-class Pointer(Base):
+class Expr(Base):
+    __abstract_node__ = True
+
+    if typing.TYPE_CHECKING:
+        @property
+        @abc.abstractmethod
+        def typeref(self) -> TypeRef:
+            raise NotImplementedError
+
+    # Sets to materialize at this point, keyed by the type/ptr id.
+    materialized_sets: typing.Optional[
+        typing.Dict[uuid.UUID, MaterializedSet]] = None
+
+
+class Pointer(Expr):
 
     source: Set
     ptrref: BasePointerRef
     direction: s_pointers.PointerDirection
+
+    # If the pointer is a computed pointer (or a computed pointer
+    # definition), the expression.
+    expr: typing.Optional[Expr] = None
+
     is_definition: bool
     # Set when we have placed an rptr to help route link properties
     # but it is not a genuine pointer use.
@@ -471,6 +490,10 @@ class Pointer(Base):
     def dir_cardinality(self) -> qltypes.Cardinality:
         return self.ptrref.dir_cardinality(self.direction)
 
+    @property
+    def typeref(self) -> TypeRef:
+        return self.ptrref.dir_target(self.direction)
+
 
 class TypeIntersectionPointer(Pointer):
 
@@ -483,20 +506,6 @@ class TupleIndirectionPointer(Pointer):
 
     ptrref: TupleIndirectionPointerRef
     is_definition: bool = False
-
-
-class Expr(Base):
-    __abstract_node__ = True
-
-    if typing.TYPE_CHECKING:
-        @property
-        @abc.abstractmethod
-        def typeref(self) -> TypeRef:
-            raise NotImplementedError
-
-    # Sets to materialize at this point, keyed by the type/ptr id.
-    materialized_sets: typing.Optional[
-        typing.Dict[uuid.UUID, MaterializedSet]] = None
 
 
 class ImmutableExpr(Expr, ImmutableBase):
@@ -521,7 +530,7 @@ class TypeRoot(Expr):
     skip_subtypes: bool = False
 
 
-T_co = typing.TypeVar('T_co', covariant=True)
+T_co = typing.TypeVar('T_co', covariant=True, bound=typing.Optional[Expr])
 
 
 # SetE is the base 'Set' type, and it is parameterized over what kind
@@ -547,8 +556,7 @@ class SetE(Base, typing.Generic[T_co]):
     path_scope_id: typing.Optional[int] = None
     typeref: TypeRef
     expr: T_co = None  # type: ignore
-    rptr: typing.Optional[Pointer] = None
-    shape: typing.Tuple[typing.Tuple[Set, qlast.ShapeOp], ...] = ()
+    shape: typing.Tuple[typing.Tuple[SetE[Pointer], qlast.ShapeOp], ...] = ()
 
     anchor: typing.Optional[str] = None
     show_as_anchor: typing.Optional[str] = None
@@ -573,6 +581,25 @@ class SetE(Base, typing.Generic[T_co]):
     # N.B: This is defined on Set and not on TypeRoot because we use the Set
     # to join against target types on links, and to ensure rvars.
     ignore_rewrites: bool = False
+
+    # TODO: We would like to get rid of this a medium amount.
+    # It is to ease our migration towards Pointer being an expression.
+    @property
+    def rptr(self) -> typing.Optional[Pointer]:
+        if isinstance(self.expr, Pointer):
+            return self.expr
+        else:
+            return None
+
+    # XXX: We would like to get rid of this very much.
+    # It behaves like the expr field did before we moved Pointer into
+    # expr, and enables some really half-ass migrations.
+    @property
+    def old_expr(self) -> typing.Optional[Expr]:
+        if isinstance(self.expr, Pointer):
+            return self.expr.expr
+        else:
+            return self.expr
 
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'

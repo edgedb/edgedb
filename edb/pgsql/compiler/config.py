@@ -600,7 +600,7 @@ def _rewrite_config_insert(
     ))
 
     for el, _ in ir_set.shape:
-        if isinstance(el.expr, irast.InsertStmt):
+        if isinstance(el.expr.expr, irast.InsertStmt):
             el.shape = tuple(filter(
                 lambda e: (
                     (rptr := e[0].rptr) is not None
@@ -609,10 +609,10 @@ def _rewrite_config_insert(
                 el.shape,
             ))
 
-            result = _rewrite_config_insert(el.expr.subject, ctx=ctx)
-            el.expr = irast.SelectStmt(
+            result = _rewrite_config_insert(el.expr.expr.subject, ctx=ctx)
+            el.expr.expr = irast.SelectStmt(
                 result=result,
-                parent_stmt=el.expr.parent_stmt,
+                parent_stmt=el.expr.expr.parent_stmt,
             )
 
     return ir_set

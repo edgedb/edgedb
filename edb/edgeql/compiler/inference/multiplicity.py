@@ -194,11 +194,13 @@ def _infer_shape(
 ) -> None:
     for shape_set, shape_op in ir.shape:
         new_scope = inf_utils.get_set_scope(shape_set, scope_tree, ctx=ctx)
-        if shape_set.expr and shape_set.rptr:
-            expr_mult = infer_multiplicity(
-                shape_set.expr, scope_tree=new_scope, ctx=ctx)
 
-            ptrref = shape_set.rptr.ptrref
+        rptr = shape_set.expr
+        if rptr.expr:
+            expr_mult = infer_multiplicity(
+                rptr.expr, scope_tree=new_scope, ctx=ctx)
+
+            ptrref = rptr.ptrref
             if (
                 expr_mult.is_duplicate()
                 and shape_op is not qlast.ShapeOp.APPEND
@@ -255,10 +257,12 @@ def _infer_set_inner(
     rptr = ir.rptr
     new_scope = inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
 
-    if ir.expr is None:
+    # TODO: Migrate to Pointer-as-Expr well, and not half-assedly.
+    if ir.old_expr is None:
         expr_mult = None
     else:
-        expr_mult = infer_multiplicity(ir.expr, scope_tree=new_scope, ctx=ctx)
+        expr_mult = infer_multiplicity(
+            ir.old_expr, scope_tree=new_scope, ctx=ctx)
 
     if rptr is not None:
         rptrref = rptr.ptrref

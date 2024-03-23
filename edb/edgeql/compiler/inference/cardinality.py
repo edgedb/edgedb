@@ -500,8 +500,9 @@ def _infer_shape(
 
     for shape_set, shape_op in ir.shape:
         new_scope = inf_utils.get_set_scope(shape_set, scope_tree, ctx=ctx)
-        if shape_set.expr and shape_set.rptr:
-            ptrref = shape_set.rptr.ptrref
+        rptr = shape_set.expr
+        if rptr.expr:
+            ptrref = rptr.ptrref
 
             ctx.env.schema, ptrcls = typeutils.ptrcls_from_ptrref(
                 ptrref, schema=ctx.env.schema)
@@ -509,13 +510,13 @@ def _infer_shape(
             specified_card, specified_required, _ = (
                 ctx.env.pointer_specified_info.get(ptrcls,
                                                    (None, False, None)))
-            assert isinstance(shape_set.expr, irast.Stmt)
+            assert isinstance(rptr.expr, irast.Stmt)
 
             _infer_pointer_cardinality(
                 ptrcls=ptrcls,
                 ptrref=ptrref,
                 source_ctx=shape_set.span,
-                irexpr=shape_set.expr,
+                irexpr=rptr.expr,
                 is_mut_assignment=is_mutation,
                 specified_card=specified_card,
                 specified_required=specified_required,
@@ -565,6 +566,17 @@ def _infer_set(
         return result
 
 
+@_infer_cardinality.register
+def _infer_pointer(
+    ir: irast.Pointer,
+    *,
+    is_mutation: bool=False,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    raise AssertionError('TODO: properly infer Pointer-as-Expr ')
+
+
 def _infer_set_inner(
     ir: irast.Set,
     *,
@@ -575,25 +587,30 @@ def _infer_set_inner(
     rptr = ir.rptr
     new_scope = inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
 
-    if ir.expr:
-        expr_card = infer_cardinality(ir.expr, scope_tree=new_scope, ctx=ctx)
+    # TODO: Migrate to Pointer-as-Expr well, and not half-assedly.
+    if ir.old_expr:
+        expr_card = infer_cardinality(
+            ir.old_expr, scope_tree=new_scope, ctx=ctx)
 
     if rptr is not None and not rptr.is_phony:
         rptrref = rptr.ptrref
 
         assert ir is not rptr.source, "self-referential pointer"
+        # FIXME: The thing blocking extracting Pointer inference from
+        # here is that this source inference relies on using the old
+        # scope_tree. I think this is probably fixable.
         source_card = infer_cardinality(
             rptr.source, scope_tree=scope_tree, ctx=ctx,
         )
 
         ctx.env.schema, ptrcls = typeutils.ptrcls_from_ptrref(
             rptrref, schema=ctx.env.schema)
-        if ir.expr:
+        if rptr.expr:
             assert isinstance(ptrcls, s_pointers.Pointer)
             _infer_pointer_cardinality(
                 ptrcls=ptrcls,
                 ptrref=rptrref,
-                irexpr=ir.expr,
+                irexpr=rptr.expr,
                 scope_tree=scope_tree,
                 ctx=ctx,
             )
@@ -607,7 +624,7 @@ def _infer_set_inner(
                 c.dir_cardinality(rptr.direction)
                 for c in rptrref.union_components
             )
-        elif ctx.ignore_computed_cards and ir.expr:
+        elif ctx.ignore_computed_cards and rptr.expr:
             rptrref_card = expr_card
         elif isinstance(rptrref, irast.TypeIntersectionPointerRef):
             rptrref_card = AT_MOST_ONE
@@ -618,7 +635,7 @@ def _infer_set_inner(
 
     elif isinstance(ir, irast.EmptySet):
         card = AT_MOST_ONE
-    elif ir.expr is not None:
+    elif ir.old_expr is not None:
         card = expr_card
     else:
         # The only things that should be here without an expression or
