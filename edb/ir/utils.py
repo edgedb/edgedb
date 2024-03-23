@@ -61,7 +61,8 @@ def get_longest_paths(ir: irast.Base) -> Set[irast.Set]:
     result = set()
     parents = set()
 
-    ir_sets = ast.find_children(ir, irast.Set, lambda n: n.expr is None)
+    # XXX
+    ir_sets = ast.find_children(ir, irast.Set, lambda n: n.old_expr is None)
     for ir_set in ir_sets:
         result.add(ir_set)
         if ir_set.rptr:
@@ -131,8 +132,14 @@ def is_empty(ir: irast.Base) -> bool:
 def is_subquery_set(ir_expr: irast.Base) -> bool:
     """Return True if the given *ir_expr* expression is a subquery."""
     return (
-        isinstance(ir_expr, irast.Set) and
-        isinstance(ir_expr.expr, irast.Stmt)
+        isinstance(ir_expr, irast.Set)
+        and (
+            isinstance(ir_expr.expr, irast.Stmt)
+            or (
+                isinstance(ir_expr.expr, irast.Pointer)
+                and ir_expr.expr.expr is not None
+            )
+        )
     )
 
 
@@ -265,8 +272,12 @@ class CollectDMLSourceVisitor(ast.NodeVisitor):
         # Visit sub-trees
         if node.expr:
             self.visit(node.expr)
-        elif node.rptr:
-            self.visit(node.rptr.source)
+
+    def visit_Pointer(self, node: irast.Pointer) -> None:
+        if node.expr:
+            self.visit(node.expr)
+        else:
+            self.visit(node.source)
 
 
 def get_dml_sources(
@@ -405,6 +416,10 @@ class FindPotentiallyVisibleVisitor(FindPathScopes):
                     out.update(x)
         return out
 
+    def visit_Pointer(self, node: irast.Pointer) -> Set[irast.Set]:
+        res: Set[irast.Set] = self.visit(node.source)
+        return res
+
     def process_set(self, node: irast.Set) -> Set[irast.Set]:
         if node.path_id in self.to_skip:
             # We only skip nodes in to_skip if their use site is
@@ -420,17 +435,18 @@ class FindPotentiallyVisibleVisitor(FindPathScopes):
             ):
                 return set()
 
+        # XXX(rptr): Do this better
         results = [{node}]
         results.append(self.visit(node.rptr))
         results.append(self.visit(node.shape))
-        if not node.rptr:
+        if node.rptr is None:
             results.append(self.visit(node.expr))
 
         # Bound variables are always potentially visible as are object
-        # references (which have no expr or rptr).
+        # references.
         if (
             node.is_binding
-            or (not node.expr and not node.rptr)
+            or isinstance(node.expr, irast.TypeRoot)
         ):
             results.append({node})
 

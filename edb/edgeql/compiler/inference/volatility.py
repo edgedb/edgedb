@@ -145,11 +145,21 @@ def __infer_type_root(
 
 
 @_infer_volatility_inner.register
+def _infer_pointer(
+    ir: irast.Pointer,
+    env: context.Environment,
+) -> InferredVolatility:
+    raise AssertionError('TODO: properly infer Pointer-as-Expr ')
+
+
+@_infer_volatility_inner.register
 def __infer_set(
     ir: irast.Set,
     env: context.Environment,
 ) -> InferredVolatility:
     vol: InferredVolatility
+
+    # TODO: Migrate to Pointer-as-Expr a little less half-assedly.
     if ir.path_id in env.singletons:
         vol = IMMUTABLE
     elif ir.rptr is not None:
@@ -157,10 +167,10 @@ def __infer_set(
         # If there's an expression on an rptr, and it comes from
         # the schema, we need to actually infer it, since it won't
         # have been processed at a shape declaration.
-        if ir.expr is not None and not ir.rptr.ptrref.defined_here:
+        if ir.rptr.expr is not None and not ir.rptr.ptrref.defined_here:
             vol = _max_volatility((
                 vol,
-                _infer_volatility(ir.expr, env),
+                _infer_volatility(ir.rptr.expr, env),
             ))
 
         # If source is an object, then a pointer reference implies
@@ -186,7 +196,7 @@ def __infer_set(
     if ir.shape:
         vol = _max_volatility([
             _common_volatility(
-                (el.expr for el, _ in ir.shape if el.expr), env
+                (el.expr.expr for el, _ in ir.shape if el.expr.expr), env
             ),
             vol,
         ])
