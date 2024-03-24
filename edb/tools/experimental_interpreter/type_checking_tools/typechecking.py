@@ -182,7 +182,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     result_tp = e.NominalLinkTp(subject=typedef,
                                                 name=expr, 
                                                 linkprop=e.ObjectTp({}))
-                    result_expr = e.MultiSetExpr(expr=subtp_resol.find_all_subtypes_of_tp_in_schema(ctx.schema, expr))
+                    result_expr = e.MultiSetExpr(expr=[name for name in subtp_resol.find_all_subtypes_of_tp_in_schema(ctx.schema, expr) if not mops.tp_name_is_abstract(name, ctx.schema)])
                     result_card = e.CardAny
                 case _:
                     raise ValueError("Unsupported Module Entity", module_entity)

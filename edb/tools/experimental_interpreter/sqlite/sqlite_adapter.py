@@ -242,7 +242,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                     tp_name = result_tp.target_type_name[0]
                 else:
                     tp_name = self.get_type_for_an_id(result_data)
-                return e.RefVal(refid=result_data, tpname=tp_name, val={})
+                return e.RefVal(refid=result_data, tpname=tp_name, val=e.ObjectVal({}))
 
     def create_or_populate_schema_table(self) -> None:
         
@@ -277,10 +277,14 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         id = id_row[0]
         self.cursor.execute("UPDATE next_id_to_return_gen SET id = id + 1")
         return id
+
     
     def query_ids_for_a_type(self, tp: e.QualifiedName, filters: List[db_interface.EdgeDatabaseSelectFilter]) -> List[EdgeID]:
         assert len(filters) == 0, "Filters are not supported yet"
-        self.cursor.execute(f"""SELECT id FROM "{self.get_tp_name(tp)}" """)
+
+        # get all non-abstract subtypes
+        tp_name = self.get_tp_name(tp)
+        self.cursor.execute(f"""SELECT id FROM "{tp_name}" """)
         return [row[0] for row in self.cursor.fetchall()]
 
     def dump_state(self) -> object:

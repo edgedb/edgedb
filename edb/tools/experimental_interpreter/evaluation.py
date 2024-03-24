@@ -296,6 +296,7 @@ def eval_expr(ctx: EvalEnv,
             else:
                 raise ValueError("Variable not found", name)
         case e.QualifiedName(names=names):
+            
                 all_ids: Sequence[Val] = [
                     RefVal(id, e.QualifiedName(names=names), ObjectVal({}))
                     for id in db.storage.query_ids_for_a_type(expr, [])]

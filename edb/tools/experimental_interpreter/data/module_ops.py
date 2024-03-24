@@ -128,3 +128,8 @@ def enumerate_all_object_type_defs(ctx: e.TcCtx) -> List[Tuple[e.QualifiedName, 
 
         
     return result
+
+def tp_name_is_abstract(name: e.QualifiedName, schema: e.DBSchema) -> bool:
+    me = try_resolve_module_entity(schema, name)
+    assert isinstance (me, e.ModuleEntityTypeDef)
+    return me.is_abstract

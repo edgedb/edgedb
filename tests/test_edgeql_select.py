@@ -1965,6 +1965,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 order by .name;
             ''')
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("schema introspection")
     async def test_edgeql_select_id_01(self):
         # allow assigning id to a computed (#4781)
         await self.con.query('SELECT schema::Type { XYZ := .id};')
@@ -7543,6 +7544,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             self.assertEqual(row[0].__tname__, "default::User")
             self.assertEqual(row[1].__tname__, "default::Issue")
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("selecting std::Object is not supported in SQLite")
     async def test_edgeql_select_array_common_type_02(self):
         res = await self.con._fetchall("""
             SELECT [Object];
@@ -8373,6 +8375,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
             await self.con.query("select ($0, <std::int64>$0)")
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("selecting schema::Objects")
     async def test_edgeql_type_pointer_inlining_01(self):
         await self.con._fetchall(
             r'''
@@ -8403,6 +8406,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             __typenames__=True
         )
 
+    @test.decorators.experimental_interpreter_triaged_pending_feature("schema introspection")
     async def test_edgeql_type_pointer_backlink_01(self):
         # Type injection on bare backlinks was broken in 3.x (#5930)
         await self.con._fetchall(
