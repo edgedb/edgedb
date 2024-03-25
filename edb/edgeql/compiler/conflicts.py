@@ -424,7 +424,7 @@ def _compile_conflict_select(
         assert isinstance(select_ir, irast.Set)
 
     # If we have an empty set, remake it with the right type
-    if isinstance(select_ir, irast.EmptySet):
+    if isinstance(select_ir.expr, irast.EmptySetExpr):
         select_ir = setgen.new_empty_set(stype=subject_typ, ctx=ctx)
 
     return select_ir, always_check, from_parent
@@ -706,7 +706,7 @@ def _compile_inheritance_conflict_selects(
             constrs=p,
             obj_constrs=o,
             span=stmt.span, ctx=ctx)
-        if isinstance(select_ir, irast.EmptySet):
+        if isinstance(select_ir.expr, irast.EmptySetExpr):
             continue
         cnstr_ref = irast.ConstraintRef(id=cnstr.id)
         clauses.append(

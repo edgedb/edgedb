@@ -53,7 +53,8 @@ def compile_Set(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if ctx.singleton_mode:
-        return _compile_set_in_singleton_mode(ir_set, ctx=ctx)
+        assert ir_set.expr is not None
+        return dispatch.compile(ir_set.expr, ctx=ctx)
 
     is_toplevel = ctx.toplevel_stmt is context.NO_STMT
 
@@ -80,7 +81,8 @@ def visit_Set(
         ctx: context.CompilerContextLevel) -> None:
 
     if ctx.singleton_mode:
-        _compile_set_in_singleton_mode(ir_set, ctx=ctx)
+        assert ir_set.expr is not None
+        dispatch.compile(ir_set.expr, ctx=ctx)
 
     _compile_set_impl(ir_set, ctx=ctx)
 
@@ -779,14 +781,11 @@ def _compile_shape(
     return result
 
 
-def _compile_set_in_singleton_mode(
-        node: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
-    if isinstance(node, irast.EmptySet):
-        return pgast.NullConstant()
-    else:
-        assert node.expr is not None
-        return dispatch.compile(node.expr, ctx=ctx)
+@dispatch.compile.register
+def compile_EmptySet(
+    expr: irast.EmptySetExpr, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+    return pgast.NullConstant()
 
 
 @dispatch.compile.register

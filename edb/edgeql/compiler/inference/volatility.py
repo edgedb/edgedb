@@ -114,7 +114,7 @@ def __infer_config_command(
 
 @_infer_volatility_inner.register
 def __infer_emptyset(
-    ir: irast.EmptySet,
+    ir: irast.EmptySetExpr,
     env: context.Environment,
 ) -> InferredVolatility:
     return IMMUTABLE

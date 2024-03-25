@@ -423,7 +423,7 @@ def maybe_get_path_var(
 
 
 def new_empty_rvar(
-        ir_set: irast.EmptySet, *,
+        ir_set: irast.SetE[irast.EmptySetExpr], *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     nullrel = pgast.NullRelation(
         path_id=ir_set.path_id, type_or_ptr_ref=ir_set.typeref)

@@ -142,7 +142,11 @@ def new_empty_set(
 
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
     path_id = pathctx.get_expression_path_id(stype, alias, ctx=ctx)
-    ir_set = irast.EmptySet(path_id=path_id, typeref=typeref)
+    ir_set = irast.Set(
+        path_id=path_id,
+        typeref=typeref,
+        expr=irast.EmptySetExpr(typeref=typeref),
+    )
     ctx.env.set_types[ir_set] = stype
     return ir_set
 
@@ -1431,7 +1435,7 @@ def ensure_set(
     if srcctx is not None:
         ir_set = new_set_from_set(ir_set, span=srcctx, ctx=ctx)
 
-    if (isinstance(ir_set, irast.EmptySet)
+    if (irutils.is_set_instance(ir_set, irast.EmptySetExpr)
             and (stype is None or stype.is_any(ctx.env.schema))
             and typehint is not None):
         typegen.amend_empty_set_type(ir_set, typehint, env=ctx.env)

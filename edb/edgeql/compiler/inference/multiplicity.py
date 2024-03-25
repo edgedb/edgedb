@@ -150,7 +150,7 @@ def __infer_config_reset(
 
 @_infer_multiplicity.register
 def __infer_empty_set(
-    ir: irast.EmptySet,
+    ir: irast.EmptySetExpr,
     *,
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
@@ -940,9 +940,7 @@ def infer_multiplicity(
     card = cardinality.infer_cardinality(
         ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
 
-    if isinstance(ir, irast.EmptySet):
-        result = EMPTY
-    elif isinstance(ir, irast.Set):
+    if isinstance(ir, irast.Set):
         result = _infer_set(
             ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx,
         )

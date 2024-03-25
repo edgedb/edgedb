@@ -34,6 +34,7 @@ from typing import (
     Generic,
     TypeVar,
     Type,
+    cast,
 )
 
 import contextlib
@@ -204,7 +205,7 @@ def get_set_rvar(
         # about it later.
         subctx.pending_query = stmt
 
-        is_empty_set = isinstance(ir_set, irast.EmptySet)
+        is_empty_set = isinstance(ir_set.expr, irast.EmptySetExpr)
 
         path_scope = relctx.get_scope(ir_set, ctx=subctx)
         new_scope = path_scope or subctx.scope_tree
@@ -301,7 +302,7 @@ def _process_toplevel_query(
 
     relctx.init_toplevel_query(ir_set, ctx=ctx)
     rvars = _get_set_rvar(ir_set, ctx=ctx)
-    if isinstance(ir_set, irast.EmptySet):
+    if isinstance(ir_set.expr, irast.EmptySetExpr):
         # In cases where the top-level expression is an empty set
         # as opposed to a Set wrapping some expression or path, make
         # sure the generated empty rel gets selected in the toplevel
@@ -415,10 +416,6 @@ def _get_set_rvar(
 
     if irutils.is_set_instance(ir_set, irast.Expr):
         return _get_expr_set_rvar(ir_set.expr, ir_set, ctx=ctx)
-
-    if isinstance(ir_set, irast.EmptySet):
-        # {}
-        return process_set_as_empty(ir_set, ctx=ctx)
 
     raise AssertionError(f'invalid Set! {ir_set}')
 
@@ -640,9 +637,14 @@ def prepare_optional_rel(
 
                 with unionctx.subrel() as scopectx:
                     emptyrel = scopectx.rel
+                    empty_ir = irast.Set(
+                        path_id=ir_set.path_id,
+                        typeref=ir_set.typeref,
+                        expr=irast.EmptySetExpr(typeref=ir_set.typeref),
+                    )
+
                     emptyrvar = relctx.new_empty_rvar(
-                        irast.EmptySet(path_id=ir_set.path_id,
-                                       typeref=ir_set.typeref),
+                        cast('irast.SetE[irast.EmptySetExpr]', empty_ir),
                         ctx=scopectx)
 
                     relctx.include_rvar(
@@ -786,8 +788,9 @@ def process_set_as_root(
 register_get_rvar(irast.TypeRoot)(process_set_as_root)
 
 
+@register_get_rvar(irast.EmptySetExpr)
 def process_set_as_empty(
-    ir_set: irast.EmptySet, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.EmptySetExpr], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
 
     rvar = relctx.new_empty_rvar(ir_set, ctx=ctx)

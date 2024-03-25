@@ -46,8 +46,9 @@ from . import schemactx
 from . import setgen
 
 
+# XXX?
 def amend_empty_set_type(
-    es: irast.EmptySet,
+    es: irast.SetE[irast.EmptySetExpr],
     t: s_types.Type,
     env: context.Environment
 ) -> None:
@@ -77,7 +78,10 @@ def infer_common_type(
     seen_coll = False
 
     for i, arg in enumerate(irs):
-        if isinstance(arg, irast.EmptySet) and env.set_types[arg] is None:
+        if (
+            isinstance(arg.expr, irast.EmptySetExpr)
+            and env.set_types[arg] is None
+        ):
             empties.append(i)
             continue
 
@@ -129,7 +133,7 @@ def infer_common_type(
 
     for i in empties:
         amend_empty_set_type(
-            cast(irast.EmptySet, irs[i]), common_type, env)
+            cast(irast.SetE[irast.EmptySetExpr], irs[i]), common_type, env)
 
     return common_type
 

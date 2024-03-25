@@ -123,7 +123,7 @@ def is_empty(ir: irast.Base) -> bool:
        or an empty array.
     """
     return (
-        isinstance(ir, irast.EmptySet) or
+        isinstance(ir, irast.EmptySetExpr) or
         (isinstance(ir, irast.Array) and not ir.elements) or
         (
             isinstance(ir, irast.Set)
