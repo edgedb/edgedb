@@ -2387,10 +2387,13 @@ def _late_compile_view_shapes_in_set(
     #
     # This is to avoid losing subquery distinctions (in cases
     # like test_edgeql_scope_tuple_15), and generally seems more natural.
+    is_definition_or_not_pointer = (
+        not isinstance(ir_set.expr, irast.Pointer) or ir_set.expr.is_definition
+    )
     expr = ir_set.old_expr
     if (
         isinstance(expr, (irast.SelectStmt, irast.GroupStmt))
-        and not (ir_set.rptr and not ir_set.rptr.is_definition)
+        and is_definition_or_not_pointer
         and (setgen.get_set_type(ir_set, ctx=ctx) ==
              setgen.get_set_type(expr.result, ctx=ctx))
     ):
@@ -2402,9 +2405,12 @@ def _late_compile_view_shapes_in_set(
         with ctx.new() as scopectx:
             if set_scope is not None:
                 scopectx.path_scope = set_scope
+
+            if not rptr and isinstance(ir_set.expr, irast.Pointer):
+                rptr = ir_set.expr
             late_compile_view_shapes(
                 child,
-                rptr=rptr or ir_set.rptr,
+                rptr=rptr,
                 parent_view_type=parent_view_type,
                 ctx=scopectx)
 
