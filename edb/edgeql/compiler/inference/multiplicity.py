@@ -237,7 +237,7 @@ def _infer_set(
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
     result = _infer_set_inner(
-        ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx
+        ir, scope_tree=scope_tree, ctx=ctx
     )
     ctx.inferred_multiplicity[ir, scope_tree, ctx.distinct_iterator] = result
 
@@ -250,7 +250,6 @@ def _infer_set(
 def _infer_set_inner(
     ir: irast.Set,
     *,
-    is_mutation: bool=False,
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
