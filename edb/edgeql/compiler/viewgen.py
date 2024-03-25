@@ -977,12 +977,10 @@ def _compile_rewrites(
             ptr_set = setgen.new_set_from_set(
                 target,
                 path_id=path_id,
-                # rptr=None,
                 ctx=ctx,
             )
 
             # construct a new set with correct path_id
-            # XXX: CHECK?x
             ptr_set.expr = irast.Pointer(
                 source=ir_set,
                 expr=ptr_set.expr,
@@ -990,6 +988,7 @@ def _compile_rewrites(
                 ptrref=actual_ptrref,
                 is_definition=True,
             )
+            assert irutils.is_set_instance(ptr_set, irast.Pointer)
 
             by_type[ty][pn] = (ptr_set, ptrref.real_material_ptr)
 

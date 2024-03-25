@@ -1274,7 +1274,7 @@ class InsertStmt(MutatingStmt):
 
 
 # N.B: The PointerRef corresponds to the *definition* point of the rewrite.
-RewritesOfType = typing.Dict[str, typing.Tuple[Set, BasePointerRef]]
+RewritesOfType = typing.Dict[str, typing.Tuple[SetE[Pointer], BasePointerRef]]
 
 
 @dataclasses.dataclass(kw_only=True, frozen=True)
