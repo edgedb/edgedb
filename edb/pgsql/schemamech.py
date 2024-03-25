@@ -706,7 +706,9 @@ def get_ref_storage_info(
     for ref in refs:
         ptr: s_pointers.PointerLike
         src: s_types.Type | s_pointers.PointerLike
-        if ref.rptr is None:
+
+        rptr = ref.expr if isinstance(ref.expr, irast.Pointer) else None
+        if rptr is None:
             source_typeref = ref.typeref
             if not irtyputils.is_object(source_typeref):
                 continue
@@ -714,13 +716,14 @@ def get_ref_storage_info(
             assert isinstance(t, s_sources.Source)
             ptr = t.getptr(schema, s_name.UnqualName('id'))
         else:
-            ptrref = ref.rptr.ptrref
+            ptrref = rptr.ptrref
             schema, ptr = irtyputils.ptrcls_from_ptrref(ptrref, schema=schema)
-            source_typeref = ref.rptr.source.typeref
+            source_typeref = rptr.source.typeref
 
         if ptr.is_link_property(schema):
-            assert ref.rptr and ref.rptr.source and ref.rptr.source.rptr
-            srcref = ref.rptr.source.rptr.ptrref
+            assert rptr and rptr.source
+            assert isinstance(rptr.source.expr, irast.Pointer)
+            srcref = rptr.source.expr.ptrref
             schema, src = irtyputils.ptrcls_from_ptrref(
                 srcref, schema=schema)
             if src.get_is_derived(schema):
@@ -728,12 +731,12 @@ def get_ref_storage_info(
                 # for the purposes of constraint expr compilation.
                 src = src.get_bases(schema).first(schema)
         elif ptr.is_tuple_indirection():
-            assert ref.rptr
-            refs.append(ref.rptr.source)
+            assert rptr
+            refs.append(rptr.source)
             continue
         elif ptr.is_type_intersection():
-            assert ref.rptr
-            refs.append(ref.rptr.source)
+            assert rptr
+            refs.append(rptr.source)
             continue
         else:
             schema, src = irtyputils.ir_typeref_to_type(schema, source_typeref)
