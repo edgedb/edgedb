@@ -40,7 +40,6 @@ import immutables as immu
 
 from edb import errors
 
-from edb.common.typeutils import not_none
 
 from edb.edgeql import qltypes
 from edb.edgeql import ast as qlast
