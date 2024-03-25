@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from typing_extensions import TypeGuard
 
 import json
+import uuid
 
 from edb import errors
 
@@ -508,3 +509,22 @@ T = TypeVar('T')
 
 def is_set_instance(ir: irast.Set, typ: Type[T]) -> TypeGuard[irast.SetE[T]]:
     return isinstance(ir.expr, typ)
+
+
+def ref_contains_multi(ref: irast.Set, singleton_id: uuid.UUID) -> bool:
+    while isinstance(ref.expr, irast.Pointer):
+        pointer: irast.Pointer = ref.expr
+        if pointer.dir_cardinality.is_multi():
+            return True
+
+        # We don't need to look further than the object that we know is a
+        # singleton.
+        if (
+            singleton_id
+            and isinstance(pointer.ptrref, irast.PointerRef)
+            and pointer.ptrref.id == singleton_id
+        ):
+            break
+        ref = pointer.source
+    return False
+
