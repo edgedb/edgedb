@@ -174,10 +174,10 @@ def is_trivial_select(ir_expr: irast.Base) -> TypeGuard[irast.SelectStmt]:
 
 
 def unwrap_set(ir_set: irast.Set) -> irast.Set:
-    """If the give *ir_set* is an implicit SELECT wrapper, return the
+    """If the given *ir_set* is an implicit SELECT wrapper, return the
        wrapped set.
     """
-    if ir_set.expr is not None and is_implicit_wrapper(ir_set.expr):
+    if is_implicit_wrapper(ir_set.expr):
         return ir_set.expr.result
     else:
         return ir_set
