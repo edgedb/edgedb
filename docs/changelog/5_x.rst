@@ -355,9 +355,6 @@ EdgeQL
 * Support closing all connections to a database on ``drop database``.
   (:eql:gh:`#6780`)
 
-* Add a ``std::get_current_branch()`` function
-  (:eql:gh:`#7001`)
-
 
 Bug fixes
 ---------
@@ -401,6 +398,18 @@ Bug fixes
 
 * Don't leak objects out of access policies when used in a computed global.
   (:eql:gh:`#6926`)
+
+Beta 2
+======
+
+Additional changes
+------------------
+
+* Add a ``std::get_current_branch()`` function
+  (:eql:gh:`#7001`)
+
+Bug fixes
+---------
 
 * Allow grouping to have trailing comma.
   (:eql:gh:`#7002`)
