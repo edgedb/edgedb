@@ -66,8 +66,8 @@ def get_longest_paths(ir: irast.Base) -> Set[irast.Set]:
     ir_sets = ast.find_children(ir, irast.Set, lambda n: n.old_expr is None)
     for ir_set in ir_sets:
         result.add(ir_set)
-        if ir_set.rptr:
-            parents.add(ir_set.rptr.source)
+        if isinstance(ir_set.expr, irast.Pointer):
+            parents.add(ir_set.expr.source)
 
     return result - parents
 
@@ -185,8 +185,8 @@ def unwrap_set(ir_set: irast.Set) -> irast.Set:
 
 def get_path_root(ir_set: irast.Set) -> irast.Set:
     result = ir_set
-    while result.rptr is not None:
-        result = result.rptr.source
+    while isinstance(result.expr, irast.Pointer):
+        result = result.expr.source
     return result
 
 
@@ -217,10 +217,9 @@ def is_type_intersection_reference(ir_expr: irast.Base) -> bool:
     """
     if not isinstance(ir_expr, irast.Set):
         return False
-
-    rptr = ir_expr.rptr
-    if rptr is None:
+    if not isinstance(ir_expr.expr, irast.Pointer):
         return False
+    rptr = ir_expr.expr
 
     ir_source = rptr.source
 
@@ -248,7 +247,7 @@ def collapse_type_intersection(
 
     source = ir_set
     while True:
-        rptr = source.rptr
+        rptr = source.expr
         if not isinstance(rptr, irast.TypeIntersectionPointer):
             break
         result.append(rptr)
@@ -436,11 +435,12 @@ class FindPotentiallyVisibleVisitor(FindPathScopes):
             ):
                 return set()
 
-        # XXX(rptr): Do this better
         results = [{node}]
-        results.append(self.visit(node.rptr))
-        results.append(self.visit(node.shape))
-        if node.rptr is None:
+        if isinstance(node.expr, irast.Pointer):
+            results.append(self.visit(node.expr))
+            results.append(self.visit(node.shape))
+        else:
+            results.append(self.visit(node.shape))
             results.append(self.visit(node.expr))
 
         # Bound variables are always potentially visible as are object
