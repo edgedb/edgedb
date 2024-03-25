@@ -494,20 +494,20 @@ def compile_insert_unless_conflict_on(
 
     # We accept a property, link, or a list of them in the form of a
     # tuple.
-    if cspec_res.rptr is None and isinstance(cspec_res.expr, irast.Tuple):
+    if isinstance(cspec_res.expr, irast.Tuple):
         cspec_args = [elem.val for elem in cspec_res.expr.elements]
     else:
         cspec_args = [cspec_res]
 
     for cspec_arg in cspec_args:
-        if not cspec_arg.rptr:
+        if not isinstance(cspec_arg.expr, irast.Pointer):
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property, link, '
                 'or tuple of properties and links',
                 span=constraint_spec.span,
             )
 
-        if cspec_arg.rptr.source.path_id != stmt.subject.path_id:
+        if cspec_arg.expr.source.path_id != stmt.subject.path_id:
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property of the '
                 'type being inserted',
@@ -519,9 +519,9 @@ def compile_insert_unless_conflict_on(
     ptrs = []
     exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
     for cspec_arg in cspec_args:
-        assert cspec_arg.rptr is not None
+        assert isinstance(cspec_arg.expr, irast.Pointer)
         schema, ptr = (
-            typeutils.ptrcls_from_ptrref(cspec_arg.rptr.ptrref, schema=schema))
+            typeutils.ptrcls_from_ptrref(cspec_arg.expr.ptrref, schema=schema))
         if not isinstance(ptr, s_pointers.Pointer):
             raise errors.QueryError(
                 'UNLESS CONFLICT argument must be a property, link, '
@@ -593,8 +593,8 @@ def compile_insert_unless_conflict_on(
 
 def _has_explicit_id_write(stmt: irast.MutatingStmt) -> bool:
     for elem, _ in stmt.subject.shape:
-        assert elem.rptr is not None
-        if elem.rptr.ptrref.shortname.name == 'id':
+        assert isinstance(elem.expr, irast.Pointer)
+        if elem.expr.ptrref.shortname.name == 'id':
             return elem.span is not None
     return False
 
@@ -656,9 +656,9 @@ def _compile_inheritance_conflict_selects(
 
     shape_ptrs = set()
     for elem, op in stmt.subject.shape:
-        assert elem.rptr is not None
+        assert isinstance(elem.expr, irast.Pointer)
         if op != qlast.ShapeOp.MATERIALIZE:
-            shape_ptrs.add(elem.rptr.ptrref.shortname.name)
+            shape_ptrs.add(elem.expr.ptrref.shortname.name)
 
     # This is a little silly, but for *this* we need to do one per
     # constraint (so that we can properly identify which constraint

@@ -41,12 +41,14 @@ def tuple_element_for_shape_el(
     *,
     ctx: context.CompilerContextLevel
 ) -> pgast.TupleElementBase:
+    from edb.ir import ast as irast
+
     if shape_el.path_id.is_type_intersection_path():
-        assert shape_el.rptr is not None
-        rptr = shape_el.rptr.source.rptr
+        assert isinstance(shape_el.expr, irast.Pointer)
+        rptr = shape_el.expr.source.expr
     else:
-        rptr = shape_el.rptr
-    assert rptr is not None
+        rptr = shape_el.expr
+    assert isinstance(rptr, irast.Pointer)
     ptrref = rptr.ptrref
     ptrname = ptrref.shortname
 
