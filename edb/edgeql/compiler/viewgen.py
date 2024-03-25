@@ -1678,14 +1678,15 @@ def _normalize_view_ptr_expr(
                             )
                         )
 
-                        # XXX: THIS IS MAD DODGY
-                        old_rptr = irexpr.rptr
-                        if old_rptr:
-                            irexpr.expr = old_rptr.expr
+                        # HACK: This is mad dodgy. Hide the Pointer
+                        # when compiling.
+                        old_expr = irexpr.expr
+                        if isinstance(old_expr, irast.Pointer):
+                            irexpr.expr = old_expr.expr
                         irexpr = dispatch.compile(cast_qlexpr, ctx=subctx)
-                        if old_rptr:
-                            old_rptr.expr = irexpr.expr
-                            irexpr.expr = old_rptr
+                        if isinstance(old_expr, irast.Pointer):
+                            old_expr.expr = irexpr.expr
+                            irexpr.expr = old_expr
 
             else:
                 expected = [

@@ -403,8 +403,8 @@ def _fixup_materialized_sets(
 
             assert (
                 not any(use.src_path() for use in mat_set.uses)
-                or mat_set.materialized.rptr
-            ), f"materialized ptr {mat_set.uses} missing rptr"
+                or isinstance(mat_set.materialized.expr, irast.Pointer)
+            ), f"materialized ptr {mat_set.uses} missing pointer"
             mat_set.finalized = True
 
     return to_clear
