@@ -584,18 +584,19 @@ def can_omit_optional_wrapper(
             ctx=ctx,
         )
 
-    if isinstance(ir_set.rptr, irast.TupleIndirectionPointer):
-        return can_omit_optional_wrapper(ir_set.rptr.source, new_scope, ctx=ctx)
+    if isinstance(ir_set.expr, irast.TupleIndirectionPointer):
+        return can_omit_optional_wrapper(ir_set.expr.source, new_scope, ctx=ctx)
 
     return bool(
-        ir_set.old_expr is None  # XXX
+        isinstance(ir_set.expr, irast.Pointer)
+        and (rptr := ir_set.expr)
+        and rptr.expr is None
         and not ir_set.path_id.is_objtype_path()
         and not ir_set.path_id.is_type_intersection_path()
-        and ir_set.rptr
-        and new_scope.is_visible(ir_set.rptr.source.path_id)
-        and not ir_set.rptr.is_inbound
-        and ir_set.rptr.ptrref.out_cardinality.is_single()
-        and not ir_set.rptr.ptrref.is_computable
+        and new_scope.is_visible(rptr.source.path_id)
+        and not rptr.is_inbound
+        and rptr.ptrref.out_cardinality.is_single()
+        and not rptr.ptrref.is_computable
     )
 
 
@@ -750,10 +751,13 @@ def finalize_optional_rel(
 def get_set_rel_alias(ir_set: irast.Set, *,
                       ctx: context.CompilerContextLevel) -> str:
     dname = ir_set.path_id.target_name_hint.name
-    if ir_set.rptr is not None and ir_set.rptr.source.typeref is not None:
+    if (
+        isinstance(ir_set.expr, irast.Pointer)
+        and ir_set.expr.source.typeref is not None
+    ):
         alias_hint = '{}_{}'.format(
             dname,
-            ir_set.rptr.ptrref.shortname.name
+            ir_set.expr.ptrref.shortname.name
         )
     else:
         alias_hint = dname.replace('~', '-')
@@ -798,13 +802,13 @@ def process_external_rel(
 
 
 def process_set_as_link_property_ref(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Pointer], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
-    assert ir_set.rptr is not None
-    ir_source = ir_set.rptr.source
+    rptr = ir_set.expr
+    ir_source = rptr.source
     rvars = []
 
-    lpropref = ir_set.rptr.ptrref
+    lpropref = rptr.ptrref
     ptr_info = pg_types.get_ptrref_storage_info(
         lpropref, resolve_type=False, link_bias=False)
 
@@ -848,7 +852,7 @@ def process_set_as_link_property_ref(
 
         if link_rvar is None:
             src_rvar = get_set_rvar(ir_source, ctx=newctx)
-            assert link_prefix.rptr is not None
+            assert irutils.is_set_instance(link_prefix, irast.Pointer)
             link_rvar = relctx.new_pointer_rvar(
                 link_prefix, src_rvar=src_rvar,
                 link_bias=True, ctx=newctx)
@@ -921,13 +925,13 @@ def process_set_as_path_type_intersection(
     assert not rptr.expr, 'type intersection pointer with expr??'
 
     if (not source_is_visible
-            and ir_source.rptr is not None
+            and isinstance(ir_source.expr, irast.Pointer)
             and not ir_source.path_id.is_type_intersection_path()
-            and not ir_source.old_expr  # XXX
+            and not ir_source.expr.expr
             and (
                 rptr.ptrref.is_subtype
                 or pg_types.get_ptrref_storage_info(
-                    ir_source.rptr.ptrref).table_type != 'ObjectType'
+                    ir_source.expr.ptrref).table_type != 'ObjectType'
             )):
         # Otherwise, if the source link path is not visible,
         # and this is a subtype intersection, or the pointer is not inline,
@@ -1024,11 +1028,11 @@ def _source_path_needs_semi_join(
         return False
 
     while (
-        ir_source.rptr
-        and ir_source.rptr.dir_cardinality.is_single()
-        and not ir_source.rptr.expr
+        isinstance(ir_source.expr, irast.Pointer)
+        and ir_source.expr.dir_cardinality.is_single()
+        and not ir_source.expr.expr
     ):
-        ir_source = ir_source.rptr.source
+        ir_source = ir_source.expr.source
 
         if ctx.scope_tree.is_visible(ir_source.path_id):
             return False
@@ -1075,7 +1079,8 @@ def process_set_as_path(
     )
 
     main_rvar = None
-    source_rptr = ir_source.rptr
+    source_rptr = (
+        ir_source.expr if isinstance(ir_source.expr, irast.Pointer) else None)
     if (irtyputils.is_id_ptrref(ptrref) and source_rptr is not None
             and isinstance(source_rptr.ptrref, irast.PointerRef)
             and not source_rptr.is_inbound
@@ -1123,8 +1128,8 @@ def process_set_as_path(
                                  ['value', 'source']))
 
     elif is_id_ref_to_inline_source:
-        assert ir_source.rptr is not None
-        ir_source = ir_source.rptr.source
+        assert source_rptr is not None
+        ir_source = source_rptr.source
         src_rvar = get_set_rvar(ir_source, ctx=ctx)
 
     elif not source_is_visible:
@@ -1192,7 +1197,6 @@ def process_set_as_path(
             aspects = ['value', 'source']
             src_rvar = get_set_rvar(ir_source, ctx=ctx)
 
-        assert ir_set.rptr is not None
         map_rvar = SetRVar(
             relctx.new_pointer_rvar(ir_set, src_rvar=src_rvar, ctx=ctx),
             path_id=ir_set.path_id.ptr_path(),

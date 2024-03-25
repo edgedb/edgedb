@@ -582,15 +582,6 @@ class SetE(Base, typing.Generic[T_co]):
     # to join against target types on links, and to ensure rvars.
     ignore_rewrites: bool = False
 
-    # TODO: We would like to get rid of this a medium amount.
-    # It is to ease our migration towards Pointer being an expression.
-    @property
-    def rptr(self) -> typing.Optional[Pointer]:
-        if isinstance(self.expr, Pointer):
-            return self.expr
-        else:
-            return None
-
     # XXX: We would like to get rid of this very much.
     # It behaves like the expr field did before we moved Pointer into
     # expr, and enables some really half-ass migrations.
