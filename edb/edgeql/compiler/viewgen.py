@@ -2219,7 +2219,7 @@ def _get_shape_configuration_inner(
             or (ctx.implicit_id_in_shapes and not is_mutation)
             # we are inside an UPDATE shape and this is
             # an explicit expression (link target update)
-            or (is_parent_update and ir_set.old_expr is not None)
+            or (is_parent_update and irutils.sub_expr(ir_set) is not None)
             or all_materialize
         )
         # We actually *always* inject an implicit id, but it's just
@@ -2389,7 +2389,7 @@ def _late_compile_view_shapes_in_set(
     is_definition_or_not_pointer = (
         not isinstance(ir_set.expr, irast.Pointer) or ir_set.expr.is_definition
     )
-    expr = ir_set.old_expr
+    expr = irutils.sub_expr(ir_set)
     if (
         isinstance(expr, (irast.SelectStmt, irast.GroupStmt))
         and is_definition_or_not_pointer

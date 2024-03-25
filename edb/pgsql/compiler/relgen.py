@@ -2028,7 +2028,6 @@ def process_set_as_tuple_indirection(
 
     assert not rptr.expr, 'tuple indirection pointer with expr??'
 
-    assert not ir_set.old_expr
     with ctx.new() as subctx:
         # Usually the LHS is is not exposed, but when we are directly
         # projecting from an explicit tuple, and the result is a

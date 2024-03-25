@@ -501,7 +501,7 @@ def new_primitive_rvar(
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
     # XXX: is this needed?
-    expr = ir_set.old_expr
+    expr = irutils.sub_expr(ir_set)
     if isinstance(expr, irast.TypeRoot):
         skip_subtypes = expr.skip_subtypes
         is_global = expr.is_cached_global

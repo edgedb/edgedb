@@ -63,7 +63,7 @@ def get_longest_paths(ir: irast.Base) -> Set[irast.Set]:
     parents = set()
 
     # XXX
-    ir_sets = ast.find_children(ir, irast.Set, lambda n: n.old_expr is None)
+    ir_sets = ast.find_children(ir, irast.Set, lambda n: sub_expr(n) is None)
     for ir_set in ir_sets:
         result.add(ir_set)
         if isinstance(ir_set.expr, irast.Pointer):
@@ -528,3 +528,14 @@ def ref_contains_multi(ref: irast.Set, singleton_id: uuid.UUID) -> bool:
         ref = pointer.source
     return False
 
+
+def sub_expr(ir: irast.Set) -> Optional[irast.Expr]:
+    """Fetch the "sub-expression" of a set.
+
+    For a non-pointer Set, it's just the expr, but for a Pointer
+    it is the optional computed expression.
+    """
+    if isinstance(ir.expr, irast.Pointer):
+        return ir.expr.expr
+    else:
+        return ir.expr

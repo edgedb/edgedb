@@ -784,12 +784,12 @@ def _compile_set_in_singleton_mode(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     if isinstance(node, irast.EmptySet):
         return pgast.NullConstant()
-    elif node.old_expr is not None:
-        return dispatch.compile(node.old_expr, ctx=ctx)
-    else:
-        assert isinstance(node.expr, irast.Pointer)
+    elif isinstance(node.expr, irast.Pointer):
         ptrref = node.expr.ptrref
         source = node.expr.source
+
+        if node.expr.expr:
+            return dispatch.compile(node.expr.expr, ctx=ctx)
 
         if isinstance(ptrref, irast.TupleIndirectionPointerRef):
             tuple_val = dispatch.compile(source, ctx=ctx)
@@ -820,6 +820,9 @@ def _compile_set_in_singleton_mode(
             nullable=node.expr.dir_cardinality.can_be_zero())
 
         return colref
+    else:
+        assert node.expr is not None
+        return dispatch.compile(node.expr, ctx=ctx)
 
 
 @dispatch.compile.register
