@@ -593,7 +593,6 @@ def compile_insert_unless_conflict_on(
 
 def _has_explicit_id_write(stmt: irast.MutatingStmt) -> bool:
     for elem, _ in stmt.subject.shape:
-        assert isinstance(elem.expr, irast.Pointer)
         if elem.expr.ptrref.shortname.name == 'id':
             return elem.span is not None
     return False
@@ -656,7 +655,6 @@ def _compile_inheritance_conflict_selects(
 
     shape_ptrs = set()
     for elem, op in stmt.subject.shape:
-        assert isinstance(elem.expr, irast.Pointer)
         if op != qlast.ShapeOp.MATERIALIZE:
             shape_ptrs.add(elem.expr.ptrref.shortname.name)
 

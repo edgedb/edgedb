@@ -736,7 +736,7 @@ def _compile_set(
 
 def _compile_shape(
         ir_set: irast.Set,
-        shape: Sequence[Tuple[irast.Set, qlast.ShapeOp]],
+        shape: Sequence[Tuple[irast.SetE[irast.Pointer], qlast.ShapeOp]],
         *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
 

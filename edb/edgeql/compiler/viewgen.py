@@ -535,7 +535,6 @@ def _process_view(
                 ns=ctx.path_id_namespace,
                 ctx=ctx,
             )
-            # XXX: I THINK THIS IS FINE??
             assert not isinstance(ptr_set.expr, irast.Pointer)
             ptr_set.expr = irast.Pointer(
                 source=ir_set,

@@ -1265,9 +1265,6 @@ def type_intersection_set(
             elif stype.issubclass(ctx.env.schema, component_endpoint):
                 assert isinstance(stype, s_objtypes.ObjectType)
                 if rptr.direction is s_pointers.PointerDirection.Inbound:
-                    # assert isinstance(component, irast.PointerRef)
-                    # rptr_specialization.append(component)
-
                     narrow_ptr = stype.getptr(
                         ctx.env.schema,
                         component.shortname.get_local_name(),
