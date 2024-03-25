@@ -185,6 +185,16 @@ def __infer_type_root(
     return UNIQUE
 
 
+@_infer_multiplicity.register
+def __infer_cleared(
+    ir: irast.RefExpr,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    return DUPLICATE
+
+
 def _infer_shape(
     ir: irast.Set,
     *,

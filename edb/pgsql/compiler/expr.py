@@ -53,7 +53,6 @@ def compile_Set(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if ctx.singleton_mode:
-        assert ir_set.expr is not None
         return dispatch.compile(ir_set.expr, ctx=ctx)
 
     is_toplevel = ctx.toplevel_stmt is context.NO_STMT
@@ -81,7 +80,6 @@ def visit_Set(
         ctx: context.CompilerContextLevel) -> None:
 
     if ctx.singleton_mode:
-        assert ir_set.expr is not None
         dispatch.compile(ir_set.expr, ctx=ctx)
 
     _compile_set_impl(ir_set, ctx=ctx)

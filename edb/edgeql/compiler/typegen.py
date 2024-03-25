@@ -46,7 +46,6 @@ from . import schemactx
 from . import setgen
 
 
-# XXX?
 def amend_empty_set_type(
     es: irast.SetE[irast.EmptySet],
     t: s_types.Type,

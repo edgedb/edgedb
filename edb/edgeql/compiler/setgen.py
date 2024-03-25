@@ -90,6 +90,7 @@ PtrDir = s_pointers.PointerDirection
 def new_set(
     *,
     stype: s_types.Type,
+    expr: irast.Expr,
     ctx: context.ContextLevel,
     ircls: Type[irast.Set] = irast.Set,
     **kwargs: Any,
@@ -102,7 +103,6 @@ def new_set(
 
     ignore_rewrites: bool = kwargs.get('ignore_rewrites', False)
 
-    expr: Optional[irast.Expr] = kwargs.get('expr', None)
     skip_subtypes = False
     if isinstance(expr, irast.TypeRoot):
         skip_subtypes = expr.skip_subtypes
@@ -124,7 +124,7 @@ def new_set(
         policies.try_type_rewrite(stype, skip_subtypes=skip_subtypes, ctx=ctx)
 
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
-    ir_set = ircls(typeref=typeref, **kwargs)
+    ir_set = ircls(typeref=typeref, expr=expr, **kwargs)
     ctx.env.set_types[ir_set] = stype
     return ir_set
 
@@ -176,7 +176,7 @@ def new_set_from_set(
         path_scope_id: Optional[int | KeepCurrentT]=KeepCurrent,
         path_id: Optional[irast.PathId]=None,
         stype: Optional[s_types.Type]=None,
-        expr: Optional[irast.Expr | KeepCurrentT]=KeepCurrent,
+        expr: irast.Expr | KeepCurrentT=KeepCurrent,
         span: Optional[qlast.Span]=None,
         is_binding: Optional[irast.BindingKind]=None,
         is_schema_alias: Optional[bool]=None,
@@ -1029,17 +1029,15 @@ def extend_path(
 
     target = orig_ptrcls.get_far_endpoint(ctx.env.schema, direction)
     assert isinstance(target, s_types.Type)
-    target_set = new_set(
-        stype=target, path_id=path_id, span=span, ctx=ctx)
-
     ptr = irast.Pointer(
         source=source_set,
         direction=direction,
         ptrref=typegen.ptr_to_ptrref(ptrcls, ctx=ctx),
         is_definition=False,
     )
+    target_set = new_set(
+        stype=target, path_id=path_id, span=span, expr=ptr, ctx=ctx)
 
-    target_set.expr = ptr
     is_computable = _is_computable_ptr(ptrcls, direction, ctx=ctx)
     if not ignore_computable and is_computable:
         target_set = computable_ptr_set(
@@ -1244,7 +1242,6 @@ def type_intersection_set(
     if result.stype == arg_type:
         return source_set
 
-    poly_set = new_set(stype=result.stype, span=span, ctx=ctx)
     rptr_specialization = []
 
     if (
@@ -1305,13 +1302,17 @@ def type_intersection_set(
         typeref_cache=ctx.env.type_ref_cache,
     )
 
-    poly_set.path_id = source_set.path_id.extend(ptrref=ptrref)
-
-    poly_set.expr = irast.TypeIntersectionPointer(
-        source=source_set,
-        ptrref=downcast(irast.TypeIntersectionPointerRef, ptrref),
-        direction=s_pointers.PointerDirection.Outbound,
-        optional=optional,
+    poly_set = new_set(
+        stype=result.stype,
+        path_id=source_set.path_id.extend(ptrref=ptrref),
+        expr=irast.TypeIntersectionPointer(
+            source=source_set,
+            ptrref=downcast(irast.TypeIntersectionPointerRef, ptrref),
+            direction=s_pointers.PointerDirection.Outbound,
+            optional=optional,
+        ),
+        span=span,
+        ctx=ctx,
     )
 
     return poly_set

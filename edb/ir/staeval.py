@@ -136,11 +136,7 @@ def evaluate_EmptySet(
 def evaluate_Set(
         ir_set: irast.Set,
         schema: s_schema.Schema) -> EvaluationResult:
-    if ir_set.expr is not None:
-        return evaluate(ir_set.expr, schema=schema)
-    else:
-        raise UnsupportedExpressionError(
-            'expression is not constant', span=ir_set.span)
+    return evaluate(ir_set.expr, schema=schema)
 
 
 @evaluate.register

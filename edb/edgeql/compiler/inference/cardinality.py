@@ -344,6 +344,16 @@ def __infer_type_root(
         return MANY
 
 
+@_infer_cardinality.register
+def __infer_cleared(
+    ir: irast.RefExpr,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    return MANY
+
+
 def _infer_pointer_cardinality(
     *,
     ptrcls: s_pointers.Pointer,
