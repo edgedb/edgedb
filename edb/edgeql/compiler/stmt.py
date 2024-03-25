@@ -30,6 +30,7 @@ from typing import (
     Sequence,
     DefaultDict,
     List,
+    cast
 )
 
 from collections import defaultdict
@@ -1406,30 +1407,30 @@ def compile_query_subject(
         ctx: context.ContextLevel) -> irast.Set:
 
     set_stype = setgen.get_set_type(set, ctx=ctx)
-    set_rptr = set.rptr
 
-    while isinstance(set_rptr, irast.TypeIntersectionPointer):
-        set_rptr = set_rptr.source.rptr
+    set_expr = set.expr
+    while isinstance(set_expr, irast.TypeIntersectionPointer):
+        set_expr = set_expr.source.expr
 
     is_ptr_alias = (
         view_rptr is not None
         and view_rptr.ptrcls is None
         and view_rptr.ptrcls_name is not None
-        and set_rptr is not None
-        and set_rptr.source.rptr is None
+        and isinstance(set_expr, irast.Pointer)
+        and not isinstance(set_expr.source.expr, irast.Pointer)
         and (
             view_rptr.source.get_bases(ctx.env.schema).first(ctx.env.schema).id
-            == set_rptr.source.typeref.id
+            == set_expr.source.typeref.id
         )
         and (
             view_rptr.ptrcls_is_linkprop
-            == (set_rptr.ptrref.source_ptr is not None)
+            == (set_expr.ptrref.source_ptr is not None)
         )
     )
 
     if is_ptr_alias:
         assert view_rptr is not None
-        assert set_rptr is not None
+        set_rptr = cast(irast.Pointer, set_expr)
         # We are inside an expression that defines a link alias in
         # the parent shape, ie. Spam { alias := Spam.bar }, so
         # `Spam.alias` should be a subclass of `Spam.bar` inheriting
@@ -1440,11 +1441,11 @@ def compile_query_subject(
         # to a unique type.
         ptrref = set_rptr.ptrref
         if (
-            set.rptr
-            and isinstance(set.rptr.ptrref, irast.TypeIntersectionPointerRef)
-            and len(set.rptr.ptrref.rptr_specialization) == 1
+            isinstance(set.expr, irast.Pointer)
+            and isinstance(set.expr.ptrref, irast.TypeIntersectionPointerRef)
+            and len(set.expr.ptrref.rptr_specialization) == 1
         ):
-            ptrref = list(set.rptr.ptrref.rptr_specialization)[0]
+            ptrref = list(set.expr.ptrref.rptr_specialization)[0]
 
         if (
             set_rptr.direction is not s_pointers.PointerDirection.Outbound
