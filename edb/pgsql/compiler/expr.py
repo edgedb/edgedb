@@ -800,7 +800,7 @@ def _compile_set_in_singleton_mode(
             )
             return set_expr
 
-        if ptrref.source_ptr is None and source.rptr is not None:
+        if ptrref.source_ptr is None and isinstance(source.expr, irast.Pointer):
             raise errors.UnsupportedFeatureError(
                 'unexpectedly long path in simple expr')
 
