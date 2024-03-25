@@ -288,7 +288,7 @@ def _new_delta_context(
 
 
 def _get_delta_context_args(ctx: compiler.CompileContext) -> dict[str, Any]:
-    """Get the args need from delta_and_schema_from_ddl"""
+    """Get the args needed for delta_and_schema_from_ddl"""
     return dict(
         testmode=compiler._get_config_val(ctx, '__internal_testmode'),
         allow_dml_in_functions=(
