@@ -80,8 +80,8 @@ def compile_shape(
             if op == qlast.ShapeOp.MATERIALIZE and not ctx.materializing:
                 continue
 
-            rptr = el.rptr
-            assert rptr is not None
+            rptr = el.expr
+            assert isinstance(rptr, irast.Pointer)
             ptrref = rptr.ptrref
             # As an implementation expedient, we currently represent
             # AT_MOST_ONE materialized values with arrays

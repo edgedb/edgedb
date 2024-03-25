@@ -30,6 +30,7 @@ from typing import (
     Sequence,
     DefaultDict,
     List,
+    cast
 )
 
 from collections import defaultdict
@@ -1391,7 +1392,8 @@ def compile_result_clause(
 
 
 def compile_query_subject(
-        expr: irast.Set, *,
+        set: irast.Set,
+        *,
         shape: Optional[List[qlast.ShapeElement]]=None,
         view_rptr: Optional[context.ViewRPtr]=None,
         view_name: Optional[s_name.QualName]=None,
@@ -1404,31 +1406,31 @@ def compile_query_subject(
         span: Optional[qlast.Span],
         ctx: context.ContextLevel) -> irast.Set:
 
-    expr_stype = setgen.get_set_type(expr, ctx=ctx)
-    expr_rptr = expr.rptr
+    set_stype = setgen.get_set_type(set, ctx=ctx)
 
-    while isinstance(expr_rptr, irast.TypeIntersectionPointer):
-        expr_rptr = expr_rptr.source.rptr
+    set_expr = set.expr
+    while isinstance(set_expr, irast.TypeIntersectionPointer):
+        set_expr = set_expr.source.expr
 
     is_ptr_alias = (
         view_rptr is not None
         and view_rptr.ptrcls is None
         and view_rptr.ptrcls_name is not None
-        and expr_rptr is not None
-        and expr_rptr.source.rptr is None
+        and isinstance(set_expr, irast.Pointer)
+        and not isinstance(set_expr.source.expr, irast.Pointer)
         and (
             view_rptr.source.get_bases(ctx.env.schema).first(ctx.env.schema).id
-            == expr_rptr.source.typeref.id
+            == set_expr.source.typeref.id
         )
         and (
             view_rptr.ptrcls_is_linkprop
-            == (expr_rptr.ptrref.source_ptr is not None)
+            == (set_expr.ptrref.source_ptr is not None)
         )
     )
 
     if is_ptr_alias:
         assert view_rptr is not None
-        assert expr_rptr is not None
+        set_rptr = cast(irast.Pointer, set_expr)
         # We are inside an expression that defines a link alias in
         # the parent shape, ie. Spam { alias := Spam.bar }, so
         # `Spam.alias` should be a subclass of `Spam.bar` inheriting
@@ -1437,16 +1439,16 @@ def compile_query_subject(
         # We also try to detect reverse aliases like `.<bar[IS Spam]`
         # and arange to inherit the linkprops from those if it resolves
         # to a unique type.
-        ptrref = expr_rptr.ptrref
+        ptrref = set_rptr.ptrref
         if (
-            expr.rptr
-            and isinstance(expr.rptr.ptrref, irast.TypeIntersectionPointerRef)
-            and len(expr.rptr.ptrref.rptr_specialization) == 1
+            isinstance(set.expr, irast.Pointer)
+            and isinstance(set.expr.ptrref, irast.TypeIntersectionPointerRef)
+            and len(set.expr.ptrref.rptr_specialization) == 1
         ):
-            ptrref = list(expr.rptr.ptrref.rptr_specialization)[0]
+            ptrref = list(set.expr.ptrref.rptr_specialization)[0]
 
         if (
-            expr_rptr.direction is not s_pointers.PointerDirection.Outbound
+            set_rptr.direction is not s_pointers.PointerDirection.Outbound
             and ptrref.out_source.is_opaque_union
         ):
             base_ptrcls = None
@@ -1456,7 +1458,7 @@ def compile_query_subject(
         if isinstance(base_ptrcls, s_pointers.Pointer):
             view_rptr.base_ptrcls = base_ptrcls
             view_rptr.ptrcls_is_alias = True
-            view_rptr.rptr_dir = expr_rptr.direction
+            view_rptr.rptr_dir = set_rptr.direction
 
     if (
         (
@@ -1466,19 +1468,19 @@ def compile_query_subject(
 
                 and not forward_rptr
                 and viewgen.has_implicit_type_computables(
-                    expr_stype,
+                    set_stype,
                     is_mutation=exprtype.is_mutation(),
                     ctx=ctx,
                 )
-                and not expr_stype.is_view(ctx.env.schema)
+                and not set_stype.is_view(ctx.env.schema)
             )
             or exprtype.is_mutation()
             or (
                 exprtype == s_types.ExprType.Group
-                and not expr_stype.is_view(ctx.env.schema)
+                and not set_stype.is_view(ctx.env.schema)
             )
         )
-        and expr_stype.is_object_type()
+        and set_stype.is_object_type()
         and shape is None
     ):
         # Force the subject to be compiled as a view in these cases:
@@ -1504,16 +1506,16 @@ def compile_query_subject(
                 isinstance(result_alias, s_name.QualName)):
             view_name = result_alias
 
-        if not isinstance(expr_stype, s_objtypes.ObjectType):
+        if not isinstance(set_stype, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f'shapes cannot be applied to '
-                f'{expr_stype.get_verbosename(ctx.env.schema)}',
+                f'{set_stype.get_verbosename(ctx.env.schema)}',
                 span=span,
             )
 
-        view_scls, expr = viewgen.process_view(
-            expr,
-            stype=expr_stype,
+        view_scls, set = viewgen.process_view(
+            set,
+            stype=set_stype,
             elements=shape,
             view_rptr=view_rptr,
             view_name=view_name,
@@ -1523,16 +1525,16 @@ def compile_query_subject(
         )
 
     if view_scls is not None:
-        expr = setgen.ensure_set(expr, type_override=view_scls, ctx=ctx)
-        expr_stype = view_scls
+        set = setgen.ensure_set(set, type_override=view_scls, ctx=ctx)
+        set_stype = view_scls
 
     if compile_views:
-        viewgen.late_compile_view_shapes(expr, ctx=ctx)
+        viewgen.late_compile_view_shapes(set, ctx=ctx)
 
-    if (shape is not None or view_scls is not None) and len(expr.path_id) == 1:
-        ctx.class_view_overrides[expr.path_id.target.id] = expr_stype
+    if (shape is not None or view_scls is not None) and len(set.path_id) == 1:
+        ctx.class_view_overrides[set.path_id.target.id] = set_stype
 
-    return expr
+    return set
 
 
 def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:

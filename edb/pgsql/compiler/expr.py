@@ -787,9 +787,9 @@ def _compile_set_in_singleton_mode(
     elif node.old_expr is not None:
         return dispatch.compile(node.old_expr, ctx=ctx)
     else:
-        assert node.rptr
-        ptrref = node.rptr.ptrref
-        source = node.rptr.source
+        assert isinstance(node.expr, irast.Pointer)
+        ptrref = node.expr.ptrref
+        source = node.expr.source
 
         if isinstance(ptrref, irast.TupleIndirectionPointerRef):
             tuple_val = dispatch.compile(source, ctx=ctx)
@@ -800,7 +800,7 @@ def _compile_set_in_singleton_mode(
             )
             return set_expr
 
-        if ptrref.source_ptr is None and source.rptr is not None:
+        if ptrref.source_ptr is None and isinstance(source.expr, irast.Pointer):
             raise errors.UnsupportedFeatureError(
                 'unexpectedly long path in simple expr')
 
@@ -817,7 +817,7 @@ def _compile_set_in_singleton_mode(
 
         colref = pgast.ColumnRef(
             name=rvar_name + [ptr_stor_info.column_name],
-            nullable=node.rptr.dir_cardinality.can_be_zero())
+            nullable=node.expr.dir_cardinality.can_be_zero())
 
         return colref
 

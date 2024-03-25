@@ -584,7 +584,6 @@ def _infer_set_inner(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    rptr = ir.rptr
     new_scope = inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
 
     # TODO: Migrate to Pointer-as-Expr well, and not half-assedly.
@@ -592,44 +591,44 @@ def _infer_set_inner(
         expr_card = infer_cardinality(
             ir.old_expr, scope_tree=new_scope, ctx=ctx)
 
-    if rptr is not None and not rptr.is_phony:
-        rptrref = rptr.ptrref
+    if isinstance(ir.expr, irast.Pointer) and not ir.expr.is_phony:
+        ptr = ir.expr
 
-        assert ir is not rptr.source, "self-referential pointer"
+        assert ir is not ptr.source, "self-referential pointer"
         # FIXME: The thing blocking extracting Pointer inference from
         # here is that this source inference relies on using the old
         # scope_tree. I think this is probably fixable.
         source_card = infer_cardinality(
-            rptr.source, scope_tree=scope_tree, ctx=ctx,
+            ptr.source, scope_tree=scope_tree, ctx=ctx,
         )
 
         ctx.env.schema, ptrcls = typeutils.ptrcls_from_ptrref(
-            rptrref, schema=ctx.env.schema)
-        if rptr.expr:
+            ptr.ptrref, schema=ctx.env.schema)
+        if ptr.expr:
             assert isinstance(ptrcls, s_pointers.Pointer)
             _infer_pointer_cardinality(
                 ptrcls=ptrcls,
-                ptrref=rptrref,
-                irexpr=rptr.expr,
+                ptrref=ptr.ptrref,
+                irexpr=ptr.expr,
                 scope_tree=scope_tree,
                 ctx=ctx,
             )
 
-        if rptrref.union_components:
+        if ptr.ptrref.union_components:
             # We use cartesian cardinality instead of union cardinality
             # because the union of pointers in this context is disjoint
             # in a sense that for any specific source only a given union
             # component is used.
             rptrref_card = cartesian_cardinality(
-                c.dir_cardinality(rptr.direction)
-                for c in rptrref.union_components
+                c.dir_cardinality(ptr.direction)
+                for c in ptr.ptrref.union_components
             )
-        elif ctx.ignore_computed_cards and rptr.expr:
+        elif ctx.ignore_computed_cards and ptr.expr:
             rptrref_card = expr_card
-        elif isinstance(rptrref, irast.TypeIntersectionPointerRef):
+        elif isinstance(ptr.ptrref, irast.TypeIntersectionPointerRef):
             rptrref_card = AT_MOST_ONE
         else:
-            rptrref_card = rptrref.dir_cardinality(rptr.direction)
+            rptrref_card = ptr.ptrref.dir_cardinality(ptr.direction)
 
         card = cartesian_cardinality((source_card, rptrref_card))
 
@@ -851,34 +850,31 @@ def __infer_typecast(
 
 
 def _is_ptr_or_self_ref(
-    ir_expr: irast.Base,
+    set: irast.Base,
     result_expr: irast.Set,
     env: context.Environment,
 ) -> bool:
-    if not isinstance(ir_expr, irast.Set):
+    if not isinstance(set, irast.Set):
         return False
-    else:
-        ir_set = ir_expr
-        srccls = env.set_types[result_expr]
 
+    srccls = env.set_types[result_expr]
+    if not isinstance(srccls, s_objtypes.ObjectType):
+        return False
+
+    if set.path_id == result_expr.path_id:
+        return True
+
+    if isinstance(set.expr, irast.Pointer):
+        rptr = set.expr
         return (
-            isinstance(srccls, s_objtypes.ObjectType)
-            and (
-                ir_expr.path_id == result_expr.path_id
-                or (
-                    (rptr := ir_set.rptr) is not None
-                    and isinstance(rptr.ptrref, irast.PointerRef)
-                    and not rptr.ptrref.is_computable
-                    and _is_ptr_or_self_ref(rptr.source, result_expr, env)
-                )
-                or (
-                    ir_set.rptr is None
-                    and irutils.is_implicit_wrapper(ir_set.expr)
-                    and _is_ptr_or_self_ref(
-                        ir_set.expr.result, result_expr, env)
-                )
-            )
+            isinstance(rptr.ptrref, irast.PointerRef)
+            and not rptr.ptrref.is_computable
+            and _is_ptr_or_self_ref(rptr.source, result_expr, env)
         )
+    elif irutils.is_implicit_wrapper(set.expr):
+        return _is_ptr_or_self_ref(set.expr.result, result_expr, env)
+    else:
+        return False
 
 
 def extract_filters(
@@ -915,24 +911,26 @@ def extract_filters(
                 if infer_cardinality(
                     right, scope_tree=scope_tree, ctx=ctx,
                 ).is_single():
-                    ptrs = []
+                    pointers = []
                     left_stype = env.set_types[left]
                     if left_stype == result_stype:
                         assert isinstance(left_stype, s_objtypes.ObjectType)
-                        _ptr = left_stype.getptr(schema, sn.UnqualName('id'))
-                        ptrs.append(_ptr)
+                        ptr = left_stype.getptr(schema, sn.UnqualName('id'))
+                        pointers.append(ptr)
                     else:
-                        if left.rptr is None:
-                            left = irutils.unwrap_set(left)
-                        while left.path_id != result_set.path_id:
-                            assert left.rptr is not None
-                            _ptr = env.schema.get(left.rptr.ptrref.name,
-                                                  type=s_pointers.Pointer)
-                            ptrs.append(_ptr)
-                            left = left.rptr.source
-                        ptrs.reverse()
+                        left = irutils.unwrap_set(left)
 
-                    return [(ptrs, right)]
+                        while left.path_id != result_set.path_id:
+                            assert isinstance(left.expr, irast.Pointer)
+                            ptr = env.schema.get(
+                                left.expr.ptrref.name,
+                                type=s_pointers.Pointer
+                            )
+                            pointers.append(ptr)
+                            left = left.expr.source
+                        pointers.reverse()
+
+                    return [(pointers, right)]
 
         elif str(expr.func_shortname) == 'std::AND':
             left, right = (irutils.unwrap_set(a.expr) for a in expr.args)

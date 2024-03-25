@@ -1315,13 +1315,13 @@ def administer_reindex(
         if (
             not expr.expr
             or not isinstance(expr.expr, irast.SelectStmt)
-            or not expr.expr.result.rptr
+            or not isinstance(expr.expr.result.expr, irast.Pointer)
         ):
             raise errors.QueryError(
                 'invalid pointer argument to reindex()',
                 span=arg.span,
             )
-        rptr = expr.expr.result.rptr
+        rptr = expr.expr.result.expr
         source = rptr.source
     else:
         rptr = None
@@ -1465,13 +1465,13 @@ def administer_vacuum(
             if (
                 not expr.expr
                 or not isinstance(expr.expr, irast.SelectStmt)
-                or not expr.expr.result.rptr
+                or not isinstance(expr.expr.result.expr, irast.Pointer)
             ):
                 raise errors.QueryError(
                     'invalid pointer argument to vacuum()',
                     span=arg.span,
                 )
-            rptr = expr.expr.result.rptr
+            rptr = expr.expr.result.expr
             source = rptr.source
         else:
             rptr = None

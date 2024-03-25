@@ -632,7 +632,6 @@ class IndexCommand(
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.CompiledExpression:
         from edb.ir import utils as irutils
-        from edb.ir import ast as irast
 
         if field.name in {'expr', 'except_expr'}:
             # type ignore below, for the class is used as mixin
@@ -678,21 +677,11 @@ class IndexCommand(
             has_multi = False
             for ref in refs:
                 assert subject
-                while ref.rptr:
-                    rptr = ref.rptr
-                    if rptr.dir_cardinality.is_multi():
-                        has_multi = True
-
-                    # We don't need to look further than the subject,
-                    # which is always valid. (And which is a singleton
-                    # in an index expression if it is itself a
-                    # singleton, regardless of other parts of the path.)
-                    if (
-                        isinstance(rptr.ptrref, irast.PointerRef)
-                        and rptr.ptrref.id == subject.id
-                    ):
-                        break
-                    ref = rptr.source
+                # Subject is a singleton in an index expression if it is itself
+                # a singleton, regardless of other parts of the path.
+                if irutils.ref_contains_multi(ref, subject.id):
+                    has_multi = True
+                    break
 
             if has_multi and irutils.contains_set_of_op(expr.irast):
                 raise errors.SchemaDefinitionError(
