@@ -36,6 +36,7 @@ import itertools
 from edb import errors
 
 from edb import edgeql
+from edb.common import debug
 from edb.common import uuidgen
 from edb.common import verutils
 from edb.edgeql import ast as qlast
@@ -623,7 +624,7 @@ def apply_ddl_script_ex(
     for ddl_stmt in edgeql.parse_block(ddl_text):
         if not isinstance(ddl_stmt, qlast.DDLCommand):
             raise AssertionError(f'expected DDLCommand node, got {ddl_stmt!r}')
-        schema, cmd = _delta_from_ddl(
+        schema, cmd = delta_and_schema_from_ddl(
             ddl_stmt,
             schema=schema,
             modaliases=modaliases,
@@ -653,7 +654,7 @@ def delta_from_ddl(
     ]=None,
     compat_ver: Optional[verutils.Version] = None,
 ) -> sd.DeltaRoot:
-    _, cmd = _delta_from_ddl(
+    _, cmd = delta_and_schema_from_ddl(
         ddl_stmt,
         schema=schema,
         modaliases=modaliases,
@@ -666,7 +667,7 @@ def delta_from_ddl(
     return cmd
 
 
-def _delta_from_ddl(
+def delta_and_schema_from_ddl(
     ddl_stmt: qlast.DDLCommand,
     *,
     schema: s_schema.Schema,
@@ -700,6 +701,10 @@ def _delta_from_ddl(
             context=context,
             testmode=testmode,
         )
+        if debug.flags.delta_plan:
+            debug.header('Delta Plan Input')
+            debug.dump(cmd)
+
         schema = cmd.apply(schema, context)
 
         if not stdmode:
