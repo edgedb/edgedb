@@ -26,6 +26,13 @@ Description
 Creates a new branch that is based on the target branch, but also contains any new migrations on the
 current branch.
 
+.. note::
+
+    When rebasing, the data of the target branch is preserved. This means that
+    if you switch to a branch ``feature`` and run ``edgedb branch rebase
+    main``, you will end up with a branch with the schema from ``main`` and any
+    new migrations from ``feature`` and the data from ``main``.
+
 For more about how rebasing works, check out the breakdown :ref:`in our schema
 migrations guide <ref_migration_guide_branches_rebasing>`.
 
