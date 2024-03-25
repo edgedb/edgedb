@@ -406,7 +406,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if ptr_expr.type == 'property':
                 # Link property reference; the source is the
                 # link immediately preceding this step in the path.
-                if path_tip.rptr is None:
+                if not isinstance(path_tip.expr, irast.Pointer):
                     raise errors.EdgeQLSyntaxError(
                         f"unexpected reference to link property {ptr_name!r} "
                         "outside of a path expression",
@@ -427,22 +427,23 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         'constraint definitions',
                         span=step.span)
 
-                if isinstance(path_tip.rptr.ptrref,
-                              irast.TypeIntersectionPointerRef):
+                if isinstance(
+                    path_tip.expr.ptrref, irast.TypeIntersectionPointerRef
+                ):
                     ind_prefix, ptrs = typegen.collapse_type_intersection_rptr(
                         path_tip,
                         ctx=ctx,
                     )
 
-                    assert ind_prefix.rptr is not None
-                    prefix_type = get_set_type(ind_prefix.rptr.source, ctx=ctx)
+                    assert isinstance(ind_prefix.expr, irast.Pointer)
+                    prefix_type = get_set_type(ind_prefix.expr.source, ctx=ctx)
                     assert isinstance(prefix_type, s_objtypes.ObjectType)
 
                     if not ptrs:
                         tip_type = get_set_type(path_tip, ctx=ctx)
                         s_vn = prefix_type.get_verbosename(ctx.env.schema)
                         t_vn = tip_type.get_verbosename(ctx.env.schema)
-                        pn = ind_prefix.rptr.ptrref.shortname.name
+                        pn = ind_prefix.expr.ptrref.shortname.name
                         if direction is s_pointers.PointerDirection.Inbound:
                             s_vn, t_vn = t_vn, s_vn
                         raise errors.InvalidReferenceError(
@@ -458,13 +459,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     ptr = schemactx.get_union_pointer(
                         ptrname=prefix_ptr_name,
                         source=prefix_type,
-                        direction=ind_prefix.rptr.direction,
+                        direction=ind_prefix.expr.direction,
                         components=ptrs,
                         ctx=ctx,
                     )
                 else:
                     ptr = typegen.ptrcls_from_ptrref(
-                        path_tip.rptr.ptrref, ctx=ctx)
+                        path_tip.expr.ptrref, ctx=ctx)
 
                 if isinstance(ptr, s_links.Link):
                     source = ptr
@@ -503,9 +504,9 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     ignore_computable=True,
                     span=step.span, ctx=ctx)
 
-                assert path_tip.rptr is not None
+                assert isinstance(path_tip.expr, irast.Pointer)
                 ptrcls = typegen.ptrcls_from_ptrref(
-                    path_tip.rptr.ptrref, ctx=ctx)
+                    path_tip.expr.ptrref, ctx=ctx)
                 if _is_computable_ptr(ptrcls, direction, ctx=ctx):
                     is_computable = True
 
@@ -564,8 +565,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         ctx=subctx)
 
                 if path_tip.path_id.is_type_intersection_path():
-                    assert path_tip.rptr is not None
-                    scope_set = path_tip.rptr.source
+                    assert isinstance(path_tip.expr, irast.Pointer)
+                    scope_set = path_tip.expr.source
                 else:
                     scope_set = path_tip
 
@@ -612,13 +613,14 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
         with ctx.new() as subctx:
             subctx.path_scope = scope
-            assert ir_set.rptr is not None
+            assert isinstance(ir_set.expr, irast.Pointer)
             comp_ir_set = computable_ptr_set(
-                ir_set.rptr, ir_set.path_id, srcctx=ir_set.span, ctx=subctx)
+                ir_set.expr, ir_set.path_id, srcctx=ir_set.span, ctx=subctx
+            )
             i = path_sets.index(ir_set)
             if i != len(path_sets) - 1:
-                prptr = path_sets[i + 1].rptr
-                assert prptr is not None
+                prptr = path_sets[i + 1].expr
+                assert isinstance(prptr, irast.Pointer)
                 prptr.source = comp_ir_set
             else:
                 path_tip = comp_ir_set
@@ -1239,17 +1241,21 @@ def type_intersection_set(
         return source_set
 
     poly_set = new_set(stype=result.stype, span=span, ctx=ctx)
-    rptr = source_set.rptr
     rptr_specialization = []
 
-    if rptr is not None and rptr.ptrref.union_components:
+    if (
+        isinstance(source_set.expr, irast.Pointer)
+        and source_set.expr.ptrref.union_components
+    ):
+        rptr = source_set.expr
+
         # This is a type intersection of a union pointer, most likely
         # a reverse link path specification.  If so, test the union
         # components against the type expression and record which
         # components match.  This information will be used later
         # when evaluating the path cardinality, as well as to
         # route link property references accordingly.
-        for component in rptr.ptrref.union_components:
+        for component in source_set.expr.ptrref.union_components:
             component_endpoint_ref = component.dir_target(rptr.direction)
             ctx.env.schema, component_endpoint = irtyputils.ir_typeref_to_type(
                 ctx.env.schema, component_endpoint_ref)
@@ -1477,12 +1483,12 @@ def fixup_computable_source_set(
         source_set = new_set_from_set(
             source_set, stype=source_set_stype, ctx=ctx)
         source_set.shape = ()
-        # XXX: consistency
-        if source_set.rptr is not None:
-            source_rptrref = source_set.rptr.ptrref
+
+        if isinstance(source_set.expr, irast.Pointer):
+            source_rptrref = source_set.expr.ptrref
             if source_rptrref.base_ptr is not None:
                 source_rptrref = source_rptrref.base_ptr
-            source_set.expr = source_set.rptr.replace(
+            source_set.expr = source_set.expr.replace(
                 ptrref=source_rptrref,
                 is_definition=True,
             )

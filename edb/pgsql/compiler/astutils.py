@@ -41,6 +41,8 @@ def tuple_element_for_shape_el(
     *,
     ctx: context.CompilerContextLevel
 ) -> pgast.TupleElementBase:
+    from edb.ir import ast as irast
+
     if shape_el.path_id.is_type_intersection_path():
         assert isinstance(shape_el.expr, irast.Pointer)
         rptr = shape_el.expr.source.expr
