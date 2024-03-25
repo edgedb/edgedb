@@ -784,42 +784,6 @@ def _compile_set_in_singleton_mode(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     if isinstance(node, irast.EmptySet):
         return pgast.NullConstant()
-    elif isinstance(node.expr, irast.Pointer):
-        ptrref = node.expr.ptrref
-        source = node.expr.source
-
-        if node.expr.expr:
-            return dispatch.compile(node.expr.expr, ctx=ctx)
-
-        if isinstance(ptrref, irast.TupleIndirectionPointerRef):
-            tuple_val = dispatch.compile(source, ctx=ctx)
-            set_expr = astutils.tuple_getattr(
-                tuple_val,
-                source.typeref,
-                ptrref.shortname.name,
-            )
-            return set_expr
-
-        if ptrref.source_ptr is None and isinstance(source.expr, irast.Pointer):
-            raise errors.UnsupportedFeatureError(
-                'unexpectedly long path in simple expr')
-
-        # In most cases, we don't need to reference the rvar (since there
-        # will be only one in scope), but sometimes we do (for example NEW
-        # in trigger functions).
-        rvar_name = []
-        if src := ctx.env.external_rvars.get((source.path_id, 'source')):
-            rvar_name = [src.alias.aliasname]
-
-        # compile column name
-        ptr_stor_info = pg_types.get_ptrref_storage_info(
-            ptrref, resolve_type=False)
-
-        colref = pgast.ColumnRef(
-            name=rvar_name + [ptr_stor_info.column_name],
-            nullable=node.expr.dir_cardinality.can_be_zero())
-
-        return colref
     else:
         assert node.expr is not None
         return dispatch.compile(node.expr, ctx=ctx)
@@ -834,6 +798,53 @@ def compile_TypeRoot(
         name.append('id')
 
     return pgast.ColumnRef(name=name)
+
+
+@dispatch.compile.register
+def compile_Pointer(
+    rptr: irast.Pointer, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+    assert ctx.singleton_mode
+
+    if rptr.expr:
+        return dispatch.compile(rptr.expr, ctx=ctx)
+
+    ptrref = rptr.ptrref
+    source = rptr.source
+
+    if ptrref.source_ptr is None and isinstance(source.expr, irast.Pointer):
+        raise errors.UnsupportedFeatureError(
+            'unexpectedly long path in simple expr')
+
+    # In most cases, we don't need to reference the rvar (since there
+    # will be only one in scope), but sometimes we do (for example NEW
+    # in trigger functions).
+    rvar_name = []
+    if src := ctx.env.external_rvars.get((source.path_id, 'source')):
+        rvar_name = [src.alias.aliasname]
+
+    # compile column name
+    ptr_stor_info = pg_types.get_ptrref_storage_info(
+        ptrref, resolve_type=False)
+
+    colref = pgast.ColumnRef(
+        name=rvar_name + [ptr_stor_info.column_name],
+        nullable=rptr.dir_cardinality.can_be_zero())
+
+    return colref
+
+
+@dispatch.compile.register
+def compile_TupleIndirectionPointer(
+    rptr: irast.TupleIndirectionPointer, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+    tuple_val = dispatch.compile(rptr.source, ctx=ctx)
+    set_expr = astutils.tuple_getattr(
+        tuple_val,
+        rptr.source.typeref,
+        rptr.ptrref.shortname.name,
+    )
+    return set_expr
 
 
 @dispatch.compile.register(irast.FTSDocument)
