@@ -216,29 +216,6 @@ def toppath_for_factoring(expr: Expr, dbschema: e.TcCtx) -> List[Expr]:
         list(set(all_factoring_paths)),
         key=path_lexicographic_key)
 
-def insert_conditional_dedup(path):
-    return path
-    # match path:
-    #     case FreeVarExpr(_):
-    #         return path
-    #     case LinkPropProjExpr(subject=subject, linkprop=linkprop):
-    #         return e.ConditionalDedupExpr(
-    #             e.LinkPropProjExpr(subject=insert_conditional_dedup(subject), 
-    #                                linkprop=linkprop))
-    #     case ObjectProjExpr(subject=subject, label=label):
-    #         return e.ConditionalDedupExpr(
-    #             e.ObjectProjExpr(subject=insert_conditional_dedup(subject), 
-    #                              label=label))
-    #     case e.TpIntersectExpr(subject=subject, tp=tp):
-    #         return e.ConditionalDedupExpr(
-    #             e.TpIntersectExpr(subject=insert_conditional_dedup(subject),
-    #                               tp=tp))
-    #     case BackLinkExpr(subject=subject, label=label):
-    #         return e.ConditionalDedupExpr(
-    #             e.BackLinkExpr(subject=insert_conditional_dedup(subject), 
-    #                            label=label))
-    #     case _:
-    #         raise ValueError("not a path", e)
 
 
 def trace_input_output(func):
@@ -274,11 +251,7 @@ def sub_select_hoist(top_e: Expr, dbschema: e.TcCtx) -> Expr:
 
 
 def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
-    # Optimization: do not factor single path, this helps to
-    # keep select_hoist as an idempotent operation
-    # this is not good for link properties
-    # if is_path(expr):
-    #     return insert_conditional_dedup(expr)
+
     top_paths = toppath_for_factoring(expr, dbschema)
     fresh_names: List[str] = [next_name() for p in top_paths]
     # print("Paths and Names:", top_paths, fresh_names)
@@ -358,7 +331,7 @@ def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
     for i in reversed(list(range(len(for_paths)))):
         # print ("abstracting over path = ", for_paths[i], "on result", result)
         result = OptionalForExpr(
-            insert_conditional_dedup(for_paths[i]), abstract_over_expr(result, fresh_names[i]))
+            for_paths[i], abstract_over_expr(result, fresh_names[i]))
 
     result = post_process_transform(result)
     # result = popt.path_optimize(result)

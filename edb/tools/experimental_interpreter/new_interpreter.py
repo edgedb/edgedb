@@ -21,7 +21,7 @@ from .data.data_ops import DB, DBSchema, MultiSetVal, ResultTp
 from .data.data_ops import *
 from .data.expr_to_str import show_expr, show_result_tp, show_schema
 from .data.path_factor import select_hoist
-from .data.deduplicaiton_insert import insert_conditional_dedup
+from .post_processing_tools import post_processing
 from .data.val_to_json import (json_like, multi_set_val_to_json_like,
                                typed_multi_set_val_to_json_like)
 from .elab_schema import add_module_from_sdl_defs, add_module_from_sdl_file
@@ -119,10 +119,10 @@ def run_statement(db: EdgeDatabase,
         debug.print(show_result_tp(tp))
         reverse_elabed = reverse_elab(type_checked)
         debug.dump_edgeql(reverse_elabed)
-        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Deduplicating")
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Post Processing")
 
 
-    deduped = insert_conditional_dedup(type_checked)
+    deduped = post_processing.post_process(type_checked)
 
     if should_print:
         debug.print(pp.show(deduped))

@@ -138,8 +138,8 @@ def get_table_view_from_property_view(schema_property_view: Dict[str, Dict[str, 
                             }},
                 primary_key=["source", "target"])
 
-    if "objects" in result_table:
-        raise ValueError("objects table is reserved")
+    if "objects" in result_table or "next_id_to_return_gen" in result_table or "sdl_schema" in result_table:
+        raise ValueError("objects, next_id_to_return_gen, sdl_schema tables are reserved")
     else:
         result_table["objects"] = TableSpec(columns={"id": ColumnSpec(type="INTEGER", is_nullable=False),
                                                     "tp": ColumnSpec(type="TEXT", is_nullable=False)},
