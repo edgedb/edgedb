@@ -62,8 +62,11 @@ def get_longest_paths(ir: irast.Base) -> Set[irast.Set]:
     result = set()
     parents = set()
 
-    # XXX
-    ir_sets = ast.find_children(ir, irast.Set, lambda n: sub_expr(n) is None)
+    ir_sets = ast.find_children(
+        ir,
+        irast.Set,
+        lambda n: sub_expr(n) is None or isinstance(n.expr, irast.TypeRoot),
+    )
     for ir_set in ir_sets:
         result.add(ir_set)
         if isinstance(ir_set.expr, irast.Pointer):
