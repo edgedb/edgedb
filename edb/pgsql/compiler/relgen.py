@@ -34,6 +34,7 @@ from typing import (
     Generic,
     TypeVar,
     Type,
+    cast,
 )
 
 import contextlib
@@ -204,7 +205,7 @@ def get_set_rvar(
         # about it later.
         subctx.pending_query = stmt
 
-        is_empty_set = isinstance(ir_set, irast.EmptySet)
+        is_empty_set = isinstance(ir_set.expr, irast.EmptySet)
 
         path_scope = relctx.get_scope(ir_set, ctx=subctx)
         new_scope = path_scope or subctx.scope_tree
@@ -234,7 +235,7 @@ def get_set_rvar(
             relctx.update_scope(ir_set, stmt, ctx=subctx)
 
         # Actually compile the set
-        rvars = _get_set_rvar(ir_set, ctx=subctx)
+        rvars = _get_expr_set_rvar(ir_set.expr, ir_set, ctx=subctx)
         relctx.update_scope_masks(ir_set, rvars.main.rvar, ctx=subctx)
 
         if ctx.env.expand_inhviews:
@@ -300,8 +301,8 @@ def _process_toplevel_query(
 ) -> pgast.PathRangeVar:
 
     relctx.init_toplevel_query(ir_set, ctx=ctx)
-    rvars = _get_set_rvar(ir_set, ctx=ctx)
-    if isinstance(ir_set, irast.EmptySet):
+    rvars = _get_expr_set_rvar(ir_set.expr, ir_set, ctx=ctx)
+    if isinstance(ir_set.expr, irast.EmptySet):
         # In cases where the top-level expression is an empty set
         # as opposed to a Set wrapping some expression or path, make
         # sure the generated empty rel gets selected in the toplevel
@@ -380,47 +381,25 @@ def _get_expr_set_rvar(
     raise NotImplementedError(f'no relgen handler for {ir.__class__}')
 
 
-T = TypeVar('T', contravariant=True, bound=Optional[irast.Expr])
+T_expr = TypeVar('T_expr', contravariant=True, bound=irast.Expr)
 
 
-class _GetExprRvarFunc(Protocol, Generic[T]):
+class _GetExprRvarFunc(Protocol, Generic[T_expr]):
     def __call__(
-        self, __ir_set: irast.SetE[T], *, ctx: context.CompilerContextLevel
+        self, __ir_set: irast.SetE[T_expr], *, ctx: context.CompilerContextLevel
     ) -> SetRVars:
         pass
 
 
 def register_get_rvar(
-    typ: Type[T],
-) -> Callable[[_GetExprRvarFunc[T]], _GetExprRvarFunc[T]]:
-    def func(f: _GetExprRvarFunc[T]) -> _GetExprRvarFunc[T]:
+    typ: Type[T_expr],
+) -> Callable[[_GetExprRvarFunc[T_expr]], _GetExprRvarFunc[T_expr]]:
+    def func(f: _GetExprRvarFunc[T_expr]) -> _GetExprRvarFunc[T_expr]:
         _get_expr_set_rvar.register(typ)(
             lambda _, ir, *, ctx: f(ir, ctx=ctx))
         return f
 
     return func
-
-
-def _get_set_rvar(
-    ir_set: irast.Set,
-    *,
-    ctx: context.CompilerContextLevel,
-) -> SetRVars:
-    # TODO: Turn *all* of these into expr fields we can dispatch on too.
-
-    if ir_set.is_materialized_ref:
-        # Sets that are materialized_refs get initial processing like
-        # a subquery, but might be missing the expr.
-        return process_set_as_subquery(ir_set, ctx=ctx)
-
-    if irutils.is_set_instance(ir_set, irast.Expr):
-        return _get_expr_set_rvar(ir_set.expr, ir_set, ctx=ctx)
-
-    if isinstance(ir_set, irast.EmptySet):
-        # {}
-        return process_set_as_empty(ir_set, ctx=ctx)
-
-    raise AssertionError(f'invalid Set! {ir_set}')
 
 
 def _get_source_rvar(
@@ -640,9 +619,14 @@ def prepare_optional_rel(
 
                 with unionctx.subrel() as scopectx:
                     emptyrel = scopectx.rel
+                    empty_ir = irast.Set(
+                        path_id=ir_set.path_id,
+                        typeref=ir_set.typeref,
+                        expr=irast.EmptySet(typeref=ir_set.typeref),
+                    )
+
                     emptyrvar = relctx.new_empty_rvar(
-                        irast.EmptySet(path_id=ir_set.path_id,
-                                       typeref=ir_set.typeref),
+                        cast('irast.SetE[irast.EmptySet]', empty_ir),
                         ctx=scopectx)
 
                     relctx.include_rvar(
@@ -767,6 +751,7 @@ def get_set_rel_alias(ir_set: irast.Set, *,
     return alias_hint
 
 
+# N.B: registered for get_rvar for TypeRoot below
 def process_set_as_root(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -776,7 +761,7 @@ def process_set_as_root(
         return process_external_rel(ir_set, ctx=ctx)
 
     assert not ir_set.is_visible_binding_ref, (
-        f"Can't compile ref to visible binding {ir_set.path_id}"
+        f"Can't compile ref to visible binding root {ir_set.path_id}"
     )
 
     rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
@@ -786,8 +771,19 @@ def process_set_as_root(
 register_get_rvar(irast.TypeRoot)(process_set_as_root)
 
 
+@register_get_rvar(irast.VisibleBindingExpr)
+def process_set_as_visible_binding(
+    ir_set: irast.SetE[irast.VisibleBindingExpr],
+    *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    raise AssertionError(
+        f"Can't compile ref to visible binding {ir_set.path_id}"
+    )
+
+
+@register_get_rvar(irast.EmptySet)
 def process_set_as_empty(
-    ir_set: irast.EmptySet, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.EmptySet], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
 
     rvar = relctx.new_empty_rvar(ir_set, ctx=ctx)
@@ -1310,6 +1306,10 @@ def _lookup_set_rvar_in_source(
     return None
 
 
+# N.B: registered for get_rvar for Stmt and MaterializedExpr below
+# Also, called explicitly for Pointer when expr is not None
+# TODO: This is a tangled mess that handles several cases.
+# Most of the code is for computed pointers.
 def process_set_as_subquery(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -1495,6 +1495,7 @@ def process_set_as_subquery(
 
 
 register_get_rvar(irast.Stmt)(process_set_as_subquery)
+register_get_rvar(irast.MaterializedExpr)(process_set_as_subquery)
 
 
 @_special_case('std::IN')
@@ -2186,7 +2187,6 @@ def process_set_as_expr(
 ) -> SetRVars:
     with ctx.new() as newctx:
         newctx.expr_exposed = False
-        assert ir_set.expr is not None
         set_expr = dispatch.compile(ir_set.expr, ctx=newctx)
 
     pathctx.put_path_value_var_if_not_exists(ctx.rel, ir_set.path_id, set_expr)

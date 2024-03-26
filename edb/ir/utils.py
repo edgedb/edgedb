@@ -127,7 +127,6 @@ def is_empty(ir: irast.Base) -> bool:
         (isinstance(ir, irast.Array) and not ir.elements) or
         (
             isinstance(ir, irast.Set)
-            and ir.expr is not None
             and is_empty(ir.expr)
         )
     )

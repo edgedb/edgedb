@@ -83,9 +83,12 @@ def compile_cast(
                  '"any" types or abstract scalars.',
             span=span)
 
-    if isinstance(ir_expr, irast.EmptySet):
+    if (
+        isinstance(ir_expr, irast.Set)
+        and isinstance(ir_expr.expr, irast.EmptySet)
+    ):
         # For the common case of casting an empty set, we simply
-        # generate a new EmptySet node of the requested type.
+        # generate a new empty set node of the requested type.
         return setgen.new_empty_set(
             stype=new_stype,
             alias=ir_expr.path_id.target_name_hint.name,

@@ -308,8 +308,7 @@ def __infer_empty_set(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    return _infer_set(
-        ir, scope_tree=scope_tree, ctx=ctx)
+    return AT_MOST_ONE
 
 
 @_infer_cardinality.register
@@ -343,6 +342,16 @@ def __infer_type_root(
         return ONE
     else:
         return MANY
+
+
+@_infer_cardinality.register
+def __infer_cleared(
+    ir: irast.RefExpr,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    return MANY
 
 
 def _infer_pointer_cardinality(
@@ -632,8 +641,6 @@ def _infer_set_inner(
 
         card = cartesian_cardinality((source_card, rptrref_card))
 
-    elif isinstance(ir, irast.EmptySet):
-        card = AT_MOST_ONE
     elif sub_expr is not None:
         card = expr_card
     else:

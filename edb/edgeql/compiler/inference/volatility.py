@@ -145,6 +145,14 @@ def __infer_type_root(
 
 
 @_infer_volatility_inner.register
+def __infer_cleared_expr(
+    ir: irast.RefExpr,
+    env: context.Environment,
+) -> InferredVolatility:
+    return IMMUTABLE
+
+
+@_infer_volatility_inner.register
 def _infer_pointer(
     ir: irast.Pointer,
     env: context.Environment,
@@ -184,10 +192,8 @@ def __infer_set(
             and ir.expr.source.path_id not in env.singletons
         ):
             vol = _max_volatility((vol, STABLE))
-    elif ir.expr is not None:
-        vol = _infer_volatility(ir.expr, env)
     else:
-        vol = STABLE
+        vol = _infer_volatility(ir.expr, env)
 
     # Cache our best-known as to this point volatility, to prevent
     # infinite recursion.
