@@ -125,9 +125,9 @@ def evaluate_TypeCast(
     return ir_cast
 
 
-@evaluate.register(irast.EmptySetExpr)
-def evaluate_EmptySetExpr(
-        ir_set: irast.EmptySetExpr,
+@evaluate.register(irast.EmptySet)
+def evaluate_EmptySet(
+        ir_set: irast.EmptySet,
         schema: s_schema.Schema) -> EvaluationResult:
     return ir_set
 
@@ -290,7 +290,7 @@ def _evaluate_union(
                         f'{el!r} not supported in UNION',
                         span=opcall.span)
                 elements.append(el)
-        elif isinstance(val, irast.EmptySetExpr):
+        elif isinstance(val, irast.EmptySet):
             empty_set = val
         elif isinstance(val, irast.BaseConstant):
             elements.append(val)
@@ -319,9 +319,9 @@ def const_to_python(
         f'cannot convert {ir!r} to Python value')
 
 
-@const_to_python.register(irast.EmptySetExpr)
+@const_to_python.register(irast.EmptySet)
 def empty_set_to_python(
-    ir: irast.EmptySetExpr,
+    ir: irast.EmptySet,
     schema: s_schema.Schema,
 ) -> None:
     return None

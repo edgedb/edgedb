@@ -85,7 +85,7 @@ def compile_cast(
 
     if (
         isinstance(ir_expr, irast.Set)
-        and isinstance(ir_expr.expr, irast.EmptySetExpr)
+        and isinstance(ir_expr.expr, irast.EmptySet)
     ):
         # For the common case of casting an empty set, we simply
         # generate a new empty set node of the requested type.

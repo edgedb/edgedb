@@ -150,7 +150,7 @@ def __infer_config_reset(
 
 @_infer_multiplicity.register
 def __infer_empty_set(
-    ir: irast.EmptySetExpr,
+    ir: irast.EmptySet,
     *,
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,

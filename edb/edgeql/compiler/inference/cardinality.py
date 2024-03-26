@@ -303,7 +303,7 @@ def __infer_config_reset(
 
 @_infer_cardinality.register
 def __infer_empty_set(
-    ir: irast.EmptySetExpr,
+    ir: irast.EmptySet,
     *,
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,

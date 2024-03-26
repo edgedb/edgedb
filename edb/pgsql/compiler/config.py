@@ -631,7 +631,7 @@ def _compile_config_value(
             output_format = context.OutputFormat.JSONB
 
         with context.output_format(ctx, output_format):
-            if isinstance(expr.expr, irast.EmptySetExpr):
+            if isinstance(expr.expr, irast.EmptySet):
                 # Special handling for empty sets, because we want a
                 # singleton representation of the value and not an empty rel
                 # in this context.

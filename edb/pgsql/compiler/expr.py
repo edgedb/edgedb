@@ -783,7 +783,7 @@ def _compile_shape(
 
 @dispatch.compile.register
 def compile_EmptySet(
-    expr: irast.EmptySetExpr, *, ctx: context.CompilerContextLevel
+    expr: irast.EmptySet, *, ctx: context.CompilerContextLevel
 ) -> pgast.BaseExpr:
     return pgast.NullConstant()
 

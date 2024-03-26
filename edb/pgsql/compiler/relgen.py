@@ -205,7 +205,7 @@ def get_set_rvar(
         # about it later.
         subctx.pending_query = stmt
 
-        is_empty_set = isinstance(ir_set.expr, irast.EmptySetExpr)
+        is_empty_set = isinstance(ir_set.expr, irast.EmptySet)
 
         path_scope = relctx.get_scope(ir_set, ctx=subctx)
         new_scope = path_scope or subctx.scope_tree
@@ -302,7 +302,7 @@ def _process_toplevel_query(
 
     relctx.init_toplevel_query(ir_set, ctx=ctx)
     rvars = _get_set_rvar(ir_set, ctx=ctx)
-    if isinstance(ir_set.expr, irast.EmptySetExpr):
+    if isinstance(ir_set.expr, irast.EmptySet):
         # In cases where the top-level expression is an empty set
         # as opposed to a Set wrapping some expression or path, make
         # sure the generated empty rel gets selected in the toplevel
@@ -640,11 +640,11 @@ def prepare_optional_rel(
                     empty_ir = irast.Set(
                         path_id=ir_set.path_id,
                         typeref=ir_set.typeref,
-                        expr=irast.EmptySetExpr(typeref=ir_set.typeref),
+                        expr=irast.EmptySet(typeref=ir_set.typeref),
                     )
 
                     emptyrvar = relctx.new_empty_rvar(
-                        cast('irast.SetE[irast.EmptySetExpr]', empty_ir),
+                        cast('irast.SetE[irast.EmptySet]', empty_ir),
                         ctx=scopectx)
 
                     relctx.include_rvar(
@@ -788,9 +788,9 @@ def process_set_as_root(
 register_get_rvar(irast.TypeRoot)(process_set_as_root)
 
 
-@register_get_rvar(irast.EmptySetExpr)
+@register_get_rvar(irast.EmptySet)
 def process_set_as_empty(
-    ir_set: irast.SetE[irast.EmptySetExpr], *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.EmptySet], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
 
     rvar = relctx.new_empty_rvar(ir_set, ctx=ctx)

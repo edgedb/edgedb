@@ -792,7 +792,7 @@ class ConstExpr(Expr):
     typeref: TypeRef
 
 
-class EmptySetExpr(ConstExpr):
+class EmptySet(ConstExpr):
     pass
 
 
