@@ -215,3 +215,13 @@ type ExceptTest {
     constraint exclusive on (.name) except (.deleted);
 };
 type ExceptTestSub extending ExceptTest;
+
+type CoalesceTest {
+    required property tag1 -> str {
+        default := 'foo';
+    }
+    property tag2 -> str {
+        default := <std::str>{};
+    }
+    property tag3 -> str;
+}

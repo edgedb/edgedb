@@ -8255,3 +8255,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             __typenames__=True
         )
+
+    async def test_edgeql_select_assign_coalesce_01(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "coalescing assignments are prohibited outside of insert and "
+                "update"):
+            await self.con.execute('''
+                select File { foo :=? .name };
+            ''')
