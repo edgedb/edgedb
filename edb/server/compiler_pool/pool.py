@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Any, Dict, NamedTuple, TYPE_CHECKING
+from typing import Any, Dict, NamedTuple
 
 import asyncio
 import collections
@@ -41,6 +41,7 @@ from edb.common import debug
 from edb.pgsql import params as pgparams
 
 from edb.server import args as srvargs
+from edb.server import dbview
 from edb.server import defines
 from edb.server import metrics
 
@@ -48,8 +49,6 @@ from . import amsg
 from . import queue
 from . import state
 
-if TYPE_CHECKING:
-    from edb.server import dbview
 
 PROCESS_INITIAL_RESPONSE_TIMEOUT: float = 60.0
 KILL_TIMEOUT: float = 10.0
@@ -734,7 +733,7 @@ class BaseLocalPool(
         if debug.flags.server:
             env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
         if self._query_cache_mode:
-            env = {'EDGEDB_COMPILER_QUERY_CACHE_MODE': self._query_cache_mode}
+            env['EDGEDB_COMPILER_QUERY_CACHE_MODE'] = self._query_cache_mode
 
         cmdline = [sys.executable]
         if sys.flags.isolated:
