@@ -1276,7 +1276,6 @@ def process_with_block(
                     had_materialized = True
                     typ = setgen.get_set_type(binding, ctx=ctx)
                     ctx.env.materialized_sets[typ] = edgeql_tree, reason
-                    assert binding.expr
                     setgen.maybe_materialize(typ, binding, ctx=ctx)
 
         else:

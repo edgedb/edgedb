@@ -473,7 +473,7 @@ def _compile_dml_ifelse(
 
         els: list[qlast.Expr] = []
 
-        if not isinstance(irutils.unwrap_set(if_ir), irast.EmptySet):
+        if not isinstance(irutils.unwrap_set(if_ir).expr, irast.EmptySet):
             if_b = qlast.ForQuery(
                 iterator_alias=ctx.aliases.get('_ifelse_true_dummy'),
                 iterator=qlast.SelectQuery(
@@ -484,7 +484,7 @@ def _compile_dml_ifelse(
             )
             els.append(if_b)
 
-        if not isinstance(irutils.unwrap_set(else_ir), irast.EmptySet):
+        if not isinstance(irutils.unwrap_set(else_ir).expr, irast.EmptySet):
             else_b = qlast.ForQuery(
                 iterator_alias=ctx.aliases.get('_ifelse_false_dummy'),
                 iterator=qlast.SelectQuery(

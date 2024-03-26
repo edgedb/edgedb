@@ -185,6 +185,16 @@ def __infer_type_root(
     return UNIQUE
 
 
+@_infer_multiplicity.register
+def __infer_cleared(
+    ir: irast.RefExpr,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    return DUPLICATE
+
+
 def _infer_shape(
     ir: irast.Set,
     *,
@@ -940,9 +950,7 @@ def infer_multiplicity(
     card = cardinality.infer_cardinality(
         ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
 
-    if isinstance(ir, irast.EmptySet):
-        result = EMPTY
-    elif isinstance(ir, irast.Set):
+    if isinstance(ir, irast.Set):
         result = _infer_set(
             ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx,
         )

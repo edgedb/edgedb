@@ -964,7 +964,7 @@ def _compile_rewrites(
         by_type[ty] = {}
         for element in rewrites_of_type.values():
             target = element.target_set
-            assert target and target.expr
+            assert target
 
             ptrref = typegen.ptr_to_ptrref(element.ptrcls, ctx=ctx)
             actual_ptrref = irtypeutils.find_actual_ptrref(ty, ptrref)
@@ -1241,9 +1241,10 @@ def prepare_rewrite_anchors(
             namespace=ctx.path_id_namespace, env=ctx.env,
         )
         old_set = setgen.new_set(
-            stype=stype, path_id=old_path_id, ctx=ctx
+            stype=stype, path_id=old_path_id, ctx=ctx,
+            expr=irast.TriggerAnchor(
+                typeref=typegen.type_to_typeref(stype, env=ctx.env)),
         )
-        old_set.expr = irast.TriggerAnchor(typeref=old_set.typeref)
     else:
         old_set = None
 
@@ -1681,6 +1682,7 @@ def _normalize_view_ptr_expr(
                         # when compiling.
                         old_expr = irexpr.expr
                         if isinstance(old_expr, irast.Pointer):
+                            assert old_expr.expr
                             irexpr.expr = old_expr.expr
                         irexpr = dispatch.compile(cast_qlexpr, ctx=subctx)
                         if isinstance(old_expr, irast.Pointer):
