@@ -144,8 +144,8 @@ class flags(metaclass=FlagsMeta):
     server_clobber_pg_conns = Flag(
         doc="Discard Postgres connections when releasing them to the pool.")
 
-    preserve_queries = Flag(
-        doc="Include the EdgeQL query text in the SQL sent to postgres.")
+    edgeql_text_in_sql = Flag(
+        doc="Include the EdgeQL query text in the SQL sent to Postgres.")
 
     print_locals = Flag(
         doc="Include values of local variables in tracebacks.")
