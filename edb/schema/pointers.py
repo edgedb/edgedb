@@ -1260,7 +1260,7 @@ class PointerCommandOrFragment(
             orig_expr = irutils.unwrap_set(orig_expr)
         result_expr = orig_expr
         if isinstance(result_expr, irast.Set):
-            if result_expr.rptr is not None:
+            if isinstance(result_expr.expr, irast.Pointer):
                 result_expr, _ = irutils.collapse_type_intersection(
                     result_expr)
 
@@ -1270,9 +1270,10 @@ class PointerCommandOrFragment(
         computed_link_alias_is_backward = None
         if (
             isinstance(result_expr, irast.Set)
-            and (expr_rptr := result_expr.rptr) is not None
+            and isinstance(result_expr.expr, irast.Pointer)
+            and (expr_rptr := result_expr.expr)
             and expr_rptr.direction is PointerDirection.Outbound
-            and expr_rptr.source.rptr is None
+            and not isinstance(expr_rptr.source.expr, irast.Pointer)
             and isinstance(expr_rptr.ptrref, irast.PointerRef)
             and schema.has_object(expr_rptr.ptrref.id)
         ):
@@ -1297,14 +1298,14 @@ class PointerCommandOrFragment(
         if (
             computed_link_alias is None
             and isinstance(orig_expr, irast.Set)
-            and orig_expr.rptr
+            and isinstance(orig_expr.expr, irast.Pointer)
             and isinstance(
-                orig_expr.rptr.ptrref, irast.TypeIntersectionPointerRef)
-            and len(orig_expr.rptr.ptrref.rptr_specialization) == 1
+                orig_expr.expr.ptrref, irast.TypeIntersectionPointerRef)
+            and len(orig_expr.expr.ptrref.rptr_specialization) == 1
             and expr_rptr
             and expr_rptr.direction is not PointerDirection.Outbound
         ):
-            ptrref = list(orig_expr.rptr.ptrref.rptr_specialization)[0]
+            ptrref = list(orig_expr.expr.ptrref.rptr_specialization)[0]
             new_schema, aliased_ptr = irtyputils.ptrcls_from_ptrref(
                 ptrref, schema=schema
             )

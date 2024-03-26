@@ -735,7 +735,7 @@ class ConstraintCommand(
         args: Any = None,
         **kwargs: Any
     ) -> None:
-        from edb.ir import ast as ir_ast
+        from edb.ir import ast as irast
         from edb.ir import utils as ir_utils
         from . import pointers as s_pointers
         from . import links as s_links
@@ -897,8 +897,8 @@ class ConstraintCommand(
             has_any_multi = has_non_subject_multi = False
             for ref in refs:
                 assert subject_obj
-                while ref.rptr:
-                    rptr = ref.rptr
+                while isinstance(ref.expr, irast.Pointer):
+                    rptr = ref.expr
 
                     if rptr.dir_cardinality.is_multi():
                         has_any_multi = True
@@ -908,7 +908,7 @@ class ConstraintCommand(
                     # in a constraint expression if it is itself a
                     # singleton, regardless of other parts of the path.)
                     if (
-                        isinstance(rptr.ptrref, ir_ast.PointerRef)
+                        isinstance(rptr.ptrref, irast.PointerRef)
                         and rptr.ptrref.id == subject_obj.id
                     ):
                         break
@@ -917,9 +917,9 @@ class ConstraintCommand(
                         has_non_subject_multi = True
 
                     if (not isinstance(rptr.ptrref,
-                                       ir_ast.TupleIndirectionPointerRef)
+                                       irast.TupleIndirectionPointerRef)
                             and rptr.ptrref.source_ptr is None
-                            and rptr.source.rptr is not None):
+                            and isinstance(rptr.source.expr, irast.Pointer)):
                         if isinstance(subject, s_links.Link):
                             raise errors.InvalidConstraintDefinitionError(
                                 "link constraints may not access "

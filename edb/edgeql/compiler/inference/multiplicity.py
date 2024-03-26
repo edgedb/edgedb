@@ -256,11 +256,11 @@ def _infer_set_inner(
     new_scope = inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
 
     # TODO: Migrate to Pointer-as-Expr well, and not half-assedly.
-    if ir.old_expr is None:
+    sub_expr = irutils.sub_expr(ir)
+    if sub_expr is None:
         expr_mult = None
     else:
-        expr_mult = infer_multiplicity(
-            ir.old_expr, scope_tree=new_scope, ctx=ctx)
+        expr_mult = infer_multiplicity(sub_expr, scope_tree=new_scope, ctx=ctx)
 
     if isinstance(ir.expr, irast.Pointer):
         ptr = ir.expr

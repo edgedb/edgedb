@@ -129,18 +129,20 @@ class FindAggregatingUses(ast_visitor.NodeVisitor):
 
         self.visit(node.shape)
 
-        # XXX: old_expr
         if isinstance(node.expr, irast.Pointer):
-            if not node.old_expr:
+            sub_expr = node.expr.expr
+            if not sub_expr:
                 self.visit(node.expr.source)
             else:
                 if node.expr.source.path_id not in self.seen:
                     self.seen[node.expr.source.path_id] = False
-
-        if isinstance(node.expr, irast.Call):
-            self.process_call(node.expr, node)
         else:
-            self.visit(node.old_expr)
+            sub_expr = node.expr
+
+        if isinstance(sub_expr, irast.Call):
+            self.process_call(sub_expr, node)
+        else:
+            self.visit(sub_expr)
 
         self.aggregate = old
         self.scope_tree = old_scope

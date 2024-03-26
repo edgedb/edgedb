@@ -535,7 +535,6 @@ def _process_view(
                 ns=ctx.path_id_namespace,
                 ctx=ctx,
             )
-            # XXX: I THINK THIS IS FINE??
             assert not isinstance(ptr_set.expr, irast.Pointer)
             ptr_set.expr = irast.Pointer(
                 source=ir_set,
@@ -978,12 +977,10 @@ def _compile_rewrites(
             ptr_set = setgen.new_set_from_set(
                 target,
                 path_id=path_id,
-                # rptr=None,
                 ctx=ctx,
             )
 
             # construct a new set with correct path_id
-            # XXX: CHECK?x
             ptr_set.expr = irast.Pointer(
                 source=ir_set,
                 expr=ptr_set.expr,
@@ -991,6 +988,7 @@ def _compile_rewrites(
                 ptrref=actual_ptrref,
                 is_definition=True,
             )
+            assert irutils.is_set_instance(ptr_set, irast.Pointer)
 
             by_type[ty][pn] = (ptr_set, ptrref.real_material_ptr)
 
@@ -1679,14 +1677,15 @@ def _normalize_view_ptr_expr(
                             )
                         )
 
-                        # XXX: THIS IS MAD DODGY
-                        old_rptr = irexpr.rptr
-                        if old_rptr:
-                            irexpr.expr = old_rptr.expr
+                        # HACK: This is mad dodgy. Hide the Pointer
+                        # when compiling.
+                        old_expr = irexpr.expr
+                        if isinstance(old_expr, irast.Pointer):
+                            irexpr.expr = old_expr.expr
                         irexpr = dispatch.compile(cast_qlexpr, ctx=subctx)
-                        if old_rptr:
-                            old_rptr.expr = irexpr.expr
-                            irexpr.expr = old_rptr
+                        if isinstance(old_expr, irast.Pointer):
+                            old_expr.expr = irexpr.expr
+                            irexpr.expr = old_expr
 
             else:
                 expected = [
@@ -2220,7 +2219,7 @@ def _get_shape_configuration_inner(
             or (ctx.implicit_id_in_shapes and not is_mutation)
             # we are inside an UPDATE shape and this is
             # an explicit expression (link target update)
-            or (is_parent_update and ir_set.old_expr is not None)
+            or (is_parent_update and irutils.sub_expr(ir_set) is not None)
             or all_materialize
         )
         # We actually *always* inject an implicit id, but it's just
@@ -2390,7 +2389,7 @@ def _late_compile_view_shapes_in_set(
     is_definition_or_not_pointer = (
         not isinstance(ir_set.expr, irast.Pointer) or ir_set.expr.is_definition
     )
-    expr = ir_set.old_expr
+    expr = irutils.sub_expr(ir_set)
     if (
         isinstance(expr, (irast.SelectStmt, irast.GroupStmt))
         and is_definition_or_not_pointer
@@ -2474,7 +2473,6 @@ def _late_compile_view_shapes_in_set(
 
         ir_set.shape = tuple(shape)
 
-    # XXX: old_expr
     elif expr is not None:
         set_scope = pathctx.get_set_scope(ir_set, ctx=ctx)
         if set_scope is not None:
