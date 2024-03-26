@@ -149,7 +149,9 @@ cdef class Database:
 
         self._cache_worker_task = self._cache_queue = None
         self._cache_notify_task = self._cache_notify_queue = None
-        if not debug.flags.disable_persistent_cache:
+        if self.tenant.query_cache_mode in (
+            config.QueryCacheMode.RegInline, config.QueryCacheMode.PgFunc
+        ):
             self._cache_queue = asyncio.Queue()
             self._cache_worker_task = asyncio.create_task(
                 self.monitor(self.cache_worker, 'cache_worker'))
@@ -377,7 +379,10 @@ cdef class Database:
                 if self.user_schema_pickle is None:
                     await self.tenant.introspect_db(
                         self.name,
-                        hydrate_cache=not debug.flags.disable_persistent_cache,
+                        hydrate_cache=self.tenant.query_cache_mode in (
+                            config.QueryCacheMode.RegInline,
+                            config.QueryCacheMode.PgFunc,
+                        ),
                     )
 
 

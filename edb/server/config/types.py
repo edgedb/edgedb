@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import Any, TypeVar, TYPE_CHECKING, TypeGuard
 
+import enum
+
 from edb import errors
 from edb.common import typeutils
 from edb.common import typing_inspect
@@ -251,3 +253,10 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
     ) -> errors.ConfigurationError:
         return errors.ConfigurationError(
             f'invalid {tspec.name.lower()!r} value: {msg}')
+
+
+class QueryCacheMode(enum.StrEnum):
+    InMemory = "InMemory"
+    RegInline = "RegInline"
+    PgFunc = "PgFunc"
+    Default = "Default"

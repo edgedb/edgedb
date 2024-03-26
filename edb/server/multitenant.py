@@ -360,6 +360,9 @@ class MultiTenantServer(server.BaseServer):
     def _get_compiler_args(self) -> dict[str, Any]:
         args = super()._get_compiler_args()
         args["cache_size"] = self._compiler_pool_tenant_cache_size
+        args["query_cache_mode"] = config.get_query_cache_mode(
+            self._sys_config, self._config_settings
+        ).value
         return args
 
 

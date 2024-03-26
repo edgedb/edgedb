@@ -20,6 +20,8 @@
 from __future__ import annotations
 from typing import Any, Mapping
 
+import platform
+
 import immutables
 
 from edb import errors
@@ -34,6 +36,7 @@ from .spec import (
     load_ext_settings_from_schema,
 )
 from .types import ConfigType, CompositeConfigType
+from .types import QueryCacheMode
 
 
 __all__ = (
@@ -47,6 +50,7 @@ __all__ = (
     'load_ext_settings_from_schema',
     'get_compilation_config',
     'coerce_single_value',
+    'QueryCacheMode', 'get_query_cache_mode',
 )
 
 
@@ -108,3 +112,18 @@ def debug_serialize_config(
         else _serialize_val(value.value)
         for name, value in cfg.items()
     }
+
+
+def get_query_cache_mode(
+    config: Mapping[str, SettingValue], spec: Spec
+) -> QueryCacheMode:
+    value = lookup("_query_cache_mode", config, spec=spec)
+    rv = QueryCacheMode(value)
+    if rv is QueryCacheMode.Default:
+        # Persistent cache disabled for now by default on arm64 linux
+        # because of observed problems in CI test runs.
+        if platform.system() == 'Linux' and platform.machine() == 'arm64':
+            rv = QueryCacheMode.InMemory
+        else:
+            rv = QueryCacheMode.RegInline
+    return rv

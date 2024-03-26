@@ -121,6 +121,11 @@ class Tenant(ha_base.ClusterProtocol):
     _jwt_revocation_list_file: pathlib.Path | None
     _jwt_revocation_list: frozenset[str] | None
 
+    # Query cache mode is really a server-wide config; it's only added here
+    # temporarily to be compatible with static system config and multi-tenant
+    # settings in a cleaner way.
+    _query_cache_mode: config.QueryCacheMode
+
     def __init__(
         self,
         cluster: pgcluster.BaseCluster,
@@ -380,6 +385,34 @@ class Tenant(ha_base.ClusterProtocol):
         default_sysconfig = await self._load_sys_config("sysconfig_default")
         await self._load_reported_config()
 
+        cache_mode = config.get_query_cache_mode(
+            sys_config, self.server.config_settings
+        )
+        self._query_cache_mode = cache_mode
+        async with self.use_sys_pgcon() as syscon:
+            prev_cache_mode_data = await syscon.sql_fetch_val(
+                b'''
+                    SELECT text FROM edgedbinstdata.instdata
+                    WHERE key = 'query_cache_mode';
+                '''
+            )
+            if prev_cache_mode_data:
+                prev_cache_mode = config.QueryCacheMode(
+                    prev_cache_mode_data.decode('utf-8')
+                )
+            else:
+                # 5.0b2 and earlier versions default to RegInline
+                prev_cache_mode = config.QueryCacheMode.RegInline
+            if not prev_cache_mode_data or cache_mode != prev_cache_mode:
+                await syscon.sql_fetch(
+                    b'''
+                        INSERT INTO edgedbinstdata.instdata (key, text)
+                        VALUES ('query_cache_mode', $1)
+                        ON CONFLICT (key) DO UPDATE SET text = $1
+                    ''',
+                    args=(cache_mode.encode('utf-8'),)
+                )
+
         self._dbindex = dbview.DatabaseIndex(
             self,
             std_schema=self._server.get_std_schema(),
@@ -389,7 +422,9 @@ class Tenant(ha_base.ClusterProtocol):
             sys_config_spec=self._server.config_settings,
         )
 
-        await self._introspect_dbs()
+        await self._introspect_dbs(
+            reset_query_cache=cache_mode != prev_cache_mode
+        )
 
         # Now, once all DBs have been introspected, start listening on
         # any notifications about schema/roles/etc changes.
@@ -402,6 +437,10 @@ class Tenant(ha_base.ClusterProtocol):
         self.reload_readiness_state()
         self._start_watching_files()
         self._initing = False
+
+    @property
+    def query_cache_mode(self) -> config.QueryCacheMode:
+        return self._query_cache_mode
 
     def _start_watching_files(self):
         if self._readiness_state_file is not None:
@@ -944,7 +983,9 @@ class Tenant(ha_base.ClusterProtocol):
         if query_cache:
             db.hydrate_cache(query_cache)
 
-    async def _early_introspect_db(self, dbname: str) -> None:
+    async def _early_introspect_db(
+        self, dbname: str, *, reset_query_cache: bool = False
+    ) -> None:
         """We need to always introspect the extensions for each database.
 
         Otherwise, we won't know to accept connections for graphql or
@@ -972,10 +1013,13 @@ class Tenant(ha_base.ClusterProtocol):
                         extensions=extensions,
                         ext_config_settings=None,
                     )
+            if reset_query_cache:
+                logger.info("clearing query cache for database '%s'", dbname)
+                await conn.sql_execute(b'SELECT edgedb._clear_query_cache()')
         finally:
             self.release_pgcon(dbname, conn)
 
-    async def _introspect_dbs(self) -> None:
+    async def _introspect_dbs(self, reset_query_cache: bool = False) -> None:
         async with self.use_sys_pgcon() as syscon:
             dbnames = await self._server.get_dbnames(syscon)
 
@@ -984,7 +1028,9 @@ class Tenant(ha_base.ClusterProtocol):
                 # There's a risk of the DB being dropped by another server
                 # between us building the list of databases and loading
                 # information about them.
-                g.create_task(self._early_introspect_db(dbname))
+                g.create_task(self._early_introspect_db(
+                    dbname, reset_query_cache=reset_query_cache
+                ))
 
     async def _load_reported_config(self) -> None:
         async with self.use_sys_pgcon() as syscon:

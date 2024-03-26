@@ -2087,6 +2087,7 @@ class TestStaticServerConfig(tb.TestCase):
             "EDGEDB_SERVER_CONFIG_cfg::session_idle_timeout": "1m22s",
             "EDGEDB_SERVER_CONFIG_cfg::query_execution_timeout": "403",
             "EDGEDB_SERVER_CONFIG_cfg::apply_access_policies": "false",
+            "EDGEDB_SERVER_CONFIG_cfg::allow_user_specified_id": "true",
         }
         async with tb.start_edgedb_server(env=env) as sd:
             conn = await sd.connect()
@@ -2114,6 +2115,17 @@ class TestStaticServerConfig(tb.TestCase):
                     await conn.query_single("""\
                         select assert_single(cfg::Config.apply_access_policies)
                     """)
+                )
+                await conn.execute("create type Foo")
+                self.assertEqual(
+                    str(await conn.query_single(
+                        """
+                        select (insert Foo {
+                            id := <uuid>'8c425e34-d1c3-11ee-8c78-8f34556d1111'
+                        }).id
+                        """
+                    )),
+                    "8c425e34-d1c3-11ee-8c78-8f34556d1111",
                 )
             finally:
                 await conn.aclose()

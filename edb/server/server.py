@@ -1678,6 +1678,7 @@ class Server(BaseServer):
     def _get_compiler_args(self) -> dict[str, Any]:
         rv = super()._get_compiler_args()
         rv.update(self._tenant.get_compiler_args())
+        rv["query_cache_mode"] = self._tenant.query_cache_mode.value
         return rv
 
 
