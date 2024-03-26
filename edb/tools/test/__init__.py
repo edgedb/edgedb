@@ -53,58 +53,108 @@ __all__ = ('not_implemented', 'xerror', 'xfail', 'skip')
 
 @edbcommands.command()
 @click.argument('files', nargs=-1, metavar='[file or directory]...')
-@click.option('-v', '--verbose', is_flag=True,
-              help='increase verbosity')
-@click.option('-q', '--quiet', is_flag=True,
-              help='decrease verbosity')
-@click.option('--debug', is_flag=True,
-              help='output internal debug logs')
-@click.option('--output-format',
-              type=click.Choice(runner.OutputFormat),  # type: ignore
-              help='test progress output style',
-              default=runner.OutputFormat.auto)
-@click.option('--warnings/--no-warnings',
-              help='enable or disable warnings (enabled by default)',
-              default=True)
-@click.option('-j', '--jobs', type=int,
-              default=0,
-              help='number of parallel processes to use, default is 0, which '
-                   'means choose automatically based on the number of '
-                   'available CPU cores')
-@click.option('-s', '--shard', type=str,
-              default='1/1',
-              help='run tests in shards (current/total)')
-@click.option('-k', '--include', type=str, multiple=True, metavar='REGEXP',
-              help='only run tests which match the given regular expression')
-@click.option('-e', '--exclude', type=str, multiple=True, metavar='REGEXP',
-              help='do not run tests which match the given regular expression')
-@click.option('-x', '--failfast', is_flag=True,
-              help='stop tests after a first failure/error')
-@click.option('--shuffle', is_flag=True,
-              help='shuffle the order in which tests are run')
-@click.option('--repeat', type=int, default=1,
-              help='repeat tests N times or until first unsuccessful run')
-@click.option('--cov', type=str, multiple=True,
-              help='package name to measure code coverage for, '
-                   'can be specified multiple times '
-                   '(e.g --cov edb.common --cov edb.server)')
-@click.option('--running-times-log', 'running_times_log_file',
-              type=click.File('a+'), metavar='FILEPATH',
-              help='maintain a running time log file at FILEPATH')
-@click.option('--log-result/--no-log-result', is_flag=True,
-              help='write the test result to a log file',
-              default=True)
-@click.option('--include-unsuccessful', is_flag=True,
-              help='include the tests that were not successful in the last run')
-@click.option('--list', 'list_tests', is_flag=True,
-              help='list all the tests and exit')
-@click.option('--backend-dsn', type=str,
-              help='use the specified backend cluster instead of starting a '
-                   'temporary local one.')
-@click.option('--use-db-cache', is_flag=True,
-              help='attempt to use a cache of the test databases (unsound!)')
-@click.option('--data-dir', type=str,
-              help='use a specified data dir')
+@click.option('-v', '--verbose', is_flag=True, help='increase verbosity')
+@click.option('-q', '--quiet', is_flag=True, help='decrease verbosity')
+@click.option('--debug', is_flag=True, help='output internal debug logs')
+@click.option(
+    '--output-format',
+    type=click.Choice(runner.OutputFormat),  # type: ignore
+    help='test progress output style',
+    default=runner.OutputFormat.auto,
+)
+@click.option(
+    '--warnings/--no-warnings',
+    help='enable or disable warnings (enabled by default)',
+    default=True,
+)
+@click.option(
+    '-j',
+    '--jobs',
+    type=int,
+    default=0,
+    help='number of parallel processes to use, default is 0, which '
+    'means choose automatically based on the number of '
+    'available CPU cores',
+)
+@click.option(
+    '-s',
+    '--shard',
+    type=str,
+    default='1/1',
+    help='run tests in shards (current/total)',
+)
+@click.option(
+    '-k',
+    '--include',
+    type=str,
+    multiple=True,
+    metavar='REGEXP',
+    help='only run tests which match the given regular expression',
+)
+@click.option(
+    '-e',
+    '--exclude',
+    type=str,
+    multiple=True,
+    metavar='REGEXP',
+    help='do not run tests which match the given regular expression',
+)
+@click.option(
+    '-x',
+    '--failfast',
+    is_flag=True,
+    help='stop tests after a first failure/error',
+)
+@click.option(
+    '--shuffle', is_flag=True, help='shuffle the order in which tests are run'
+)
+@click.option(
+    '--repeat',
+    type=int,
+    default=1,
+    help='repeat tests N times or until first unsuccessful run',
+)
+@click.option(
+    '--cov',
+    type=str,
+    multiple=True,
+    help='package name to measure code coverage for, '
+    'can be specified multiple times '
+    '(e.g --cov edb.common --cov edb.server)',
+)
+@click.option(
+    '--running-times-log',
+    'running_times_log_file',
+    type=click.File('a+'),
+    metavar='FILEPATH',
+    help='maintain a running time log file at FILEPATH',
+)
+@click.option(
+    '--log-result/--no-log-result',
+    is_flag=True,
+    help='write the test result to a log file',
+    default=True,
+)
+@click.option(
+    '--include-unsuccessful',
+    is_flag=True,
+    help='include the tests that were not successful in the last run',
+)
+@click.option(
+    '--list', 'list_tests', is_flag=True, help='list all the tests and exit'
+)
+@click.option(
+    '--backend-dsn',
+    type=str,
+    help='use the specified backend cluster instead of starting a '
+    'temporary local one.',
+)
+@click.option(
+    '--use-db-cache',
+    is_flag=True,
+    help='attempt to use a cache of the test databases (unsound!)',
+)
+@click.option('--data-dir', type=str, help='use a specified data dir')
 def test(
     *,
     files: typing.Sequence[str],

@@ -1648,10 +1648,7 @@ class ChainedSchema(Schema):
     __slots__ = ('_base_schema', '_top_schema', '_global_schema')
 
     def __init__(
-        self,
-        base_schema: Schema,
-        top_schema: Schema,
-        global_schema: Schema
+        self, base_schema: Schema, top_schema: Schema, global_schema: Schema
     ) -> None:
         self._base_schema = base_schema
         self._top_schema = top_schema
@@ -2078,16 +2075,14 @@ class ChainedSchema(Schema):
         )
 
     def has_module(self, module: str) -> bool:
-        return (
-            self._base_schema.has_module(module)
-            or self._top_schema.has_module(module)
-        )
+        return self._base_schema.has_module(
+            module
+        ) or self._top_schema.has_module(module)
 
     def has_migration(self, name: str) -> bool:
-        return (
-            self._base_schema.has_migration(name)
-            or self._top_schema.has_migration(name)
-        )
+        return self._base_schema.has_migration(
+            name
+        ) or self._top_schema.has_migration(name)
 
     def get_objects(
         self,
@@ -2117,10 +2112,7 @@ class ChainedSchema(Schema):
         )
 
     def get_modules(self) -> Tuple[s_mod.Module, ...]:
-        return (
-            self._base_schema.get_modules()
-            + self._top_schema.get_modules()
-        )
+        return self._base_schema.get_modules() + self._top_schema.get_modules()
 
     def get_last_migration(self) -> Optional[s_migrations.Migration]:
         migration = self._top_schema.get_last_migration()

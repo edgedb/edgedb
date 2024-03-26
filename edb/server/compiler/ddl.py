@@ -277,7 +277,7 @@ def compile_and_apply_ddl_stmt(
 
 
 def _new_delta_context(
-    ctx: compiler.CompileContext, args: Any=None
+    ctx: compiler.CompileContext, args: Any = None
 ) -> s_delta.CommandContext:
     return s_delta.CommandContext(
         backend_runtime_params=ctx.compiler_state.backend_runtime_params,

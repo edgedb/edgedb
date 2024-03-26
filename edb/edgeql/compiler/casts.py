@@ -66,11 +66,12 @@ if TYPE_CHECKING:
 
 
 def compile_cast(
-        ir_expr: Union[irast.Set, irast.Expr],
-        new_stype: s_types.Type, *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel,
-        cardinality_mod: Optional[qlast.CardinalityModifier]=None
+    ir_expr: Union[irast.Set, irast.Expr],
+    new_stype: s_types.Type,
+    *,
+    span: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+    cardinality_mod: Optional[qlast.CardinalityModifier] = None,
 ) -> irast.Set:
 
     if new_stype.is_polymorphic(ctx.env.schema) and span is not None:
@@ -351,9 +352,11 @@ def compile_cast(
 
 
 def _has_common_concrete_scalar(
-        orig_stype: s_types.Type,
-        new_stype: s_types.Type, *,
-        ctx: context.ContextLevel) -> bool:
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    *,
+    ctx: context.ContextLevel,
+) -> bool:
     schema = ctx.env.schema
     return bool(
         isinstance(orig_stype, s_scalars.ScalarType)
@@ -365,8 +368,7 @@ def _has_common_concrete_scalar(
 
 
 def _get_concrete_scalar_base(
-    stype: s_types.Type,
-    ctx: context.ContextLevel
+    stype: s_types.Type, ctx: context.ContextLevel
 ) -> Optional[s_types.Type]:
     """Returns None if stype is not scalar or if it is already topmost"""
 
@@ -382,12 +384,14 @@ def _get_concrete_scalar_base(
 
 
 def _compile_cast(
-        ir_expr: Union[irast.Set, irast.Expr],
-        orig_stype: s_types.Type,
-        new_stype: s_types.Type, *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel,
-        cardinality_mod: Optional[qlast.CardinalityModifier]) -> irast.Set:
+    ir_expr: Union[irast.Set, irast.Expr],
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    *,
+    span: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+    cardinality_mod: Optional[qlast.CardinalityModifier],
+) -> irast.Set:
 
     ir_set = setgen.ensure_set(ir_expr, ctx=ctx)
     cast = _find_cast(orig_stype, new_stype, span=span, ctx=ctx)
@@ -404,13 +408,14 @@ def _compile_cast(
 
 
 def _cast_to_ir(
-        ir_set: irast.Set,
-        cast: s_casts.Cast,
-        orig_stype: s_types.Type,
-        new_stype: s_types.Type,
-        cardinality_mod: Optional[qlast.CardinalityModifier]=None,
-        *,
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    cast: s_casts.Cast,
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    cardinality_mod: Optional[qlast.CardinalityModifier] = None,
+    *,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     orig_typeref = typegen.type_to_typeref(orig_stype, env=ctx.env)
     new_typeref = typegen.type_to_typeref(new_stype, env=ctx.env)
@@ -430,12 +435,13 @@ def _cast_to_ir(
 
 
 def _inheritance_cast_to_ir(
-        ir_set: irast.Set,
-        orig_stype: s_types.Type,
-        new_stype: s_types.Type,
-        *,
-        cardinality_mod: Optional[qlast.CardinalityModifier],
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    *,
+    cardinality_mod: Optional[qlast.CardinalityModifier],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     orig_typeref = typegen.type_to_typeref(orig_stype, env=ctx.env)
     new_typeref = typegen.type_to_typeref(new_stype, env=ctx.env)
@@ -561,10 +567,12 @@ class CastCallableWrapper(s_func.CallableLike):
 
 
 def _find_cast(
-        orig_stype: s_types.Type,
-        new_stype: s_types.Type, *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel) -> Optional[s_casts.Cast]:
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    *,
+    span: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+) -> Optional[s_casts.Cast]:
 
     # Don't try to pick up casts when there is a direct subtyping
     # relationship.
@@ -605,13 +613,14 @@ def _find_cast(
 
 
 def _cast_json_to_tuple(
-        ir_set: irast.Set,
-        orig_stype: s_types.Type,
-        new_stype: s_types.Tuple,
-        cardinality_mod: Optional[qlast.CardinalityModifier],
-        *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    orig_stype: s_types.Type,
+    new_stype: s_types.Tuple,
+    cardinality_mod: Optional[qlast.CardinalityModifier],
+    *,
+    span: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
@@ -667,11 +676,13 @@ def _cast_json_to_tuple(
 
 
 def _cast_tuple(
-        ir_set: irast.Set,
-        orig_stype: s_types.Type,
-        new_stype: s_types.Type, *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    *,
+    span: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     assert isinstance(orig_stype, s_types.Tuple)
 
@@ -752,11 +763,13 @@ def _cast_tuple(
 
 
 def _cast_range(
-        ir_set: irast.Set,
-        orig_stype: s_types.Type,
-        new_stype: s_types.Type, *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    *,
+    span: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     assert isinstance(orig_stype, s_types.Range)
 
@@ -828,11 +841,13 @@ def _cast_range(
 
 
 def _cast_multirange(
-        ir_set: irast.Set,
-        orig_stype: s_types.Type,
-        new_stype: s_types.Type, *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    *,
+    span: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     assert isinstance(orig_stype, s_types.MultiRange)
 
@@ -895,13 +910,14 @@ def _cast_multirange(
 
 
 def _cast_json_to_range(
-        ir_set: irast.Set,
-        orig_stype: s_types.Type,
-        new_stype: s_types.Range,
-        cardinality_mod: Optional[qlast.CardinalityModifier],
-        *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    orig_stype: s_types.Type,
+    new_stype: s_types.Range,
+    cardinality_mod: Optional[qlast.CardinalityModifier],
+    *,
+    span: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
@@ -1003,13 +1019,14 @@ def _cast_json_to_range(
 
 
 def _cast_json_to_multirange(
-        ir_set: irast.Set,
-        orig_stype: s_types.Type,
-        new_stype: s_types.MultiRange,
-        cardinality_mod: Optional[qlast.CardinalityModifier],
-        *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    orig_stype: s_types.Type,
+    new_stype: s_types.MultiRange,
+    cardinality_mod: Optional[qlast.CardinalityModifier],
+    *,
+    srcctx: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     ctx.env.schema, new_range_type = s_types.Range.from_subtypes(
         ctx.env.schema, new_stype.get_subtypes(ctx.env.schema))
@@ -1054,11 +1071,13 @@ def _cast_to_base_array(
 
 
 def _cast_array(
-        ir_set: irast.Set,
-        orig_stype: s_types.Type,
-        new_stype: s_types.Type, *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    *,
+    span: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     assert isinstance(orig_stype, s_types.Array)
 
@@ -1155,11 +1174,13 @@ def _cast_array(
 
 
 def _cast_array_literal(
-        ir_set: irast.Set,
-        orig_stype: s_types.Type,
-        new_stype: s_types.Type, *,
-        span: Optional[parsing.Span],
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    *,
+    span: Optional[parsing.Span],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     assert isinstance(ir_set.expr, irast.Array)
 

@@ -55,8 +55,7 @@ class SetStmt(Nonterm):
 
 class ResetStmt(Nonterm):
     def reduce_RESET_ALIAS_Identifier(self, *kids):
-        self.val = qlast.SessionResetAliasDecl(
-            alias=kids[2].val)
+        self.val = qlast.SessionResetAliasDecl(alias=kids[2].val)
 
     def reduce_RESET_MODULE(self, *kids):
         self.val = qlast.SessionResetModule()

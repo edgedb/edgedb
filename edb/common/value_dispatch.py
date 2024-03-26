@@ -42,8 +42,7 @@ class _ValueDispatchCallable(Generic[_T], Protocol):
     ) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
         ...
 
-    def __call__(__self, *args: Any, **kwargs: Any) -> _T:
-        ...
+    def __call__(__self, *args: Any, **kwargs: Any) -> _T: ...
 
 
 def value_dispatch(func: Callable[..., _T]) -> _ValueDispatchCallable[_T]:
@@ -52,23 +51,23 @@ def value_dispatch(func: Callable[..., _T]) -> _ValueDispatchCallable[_T]:
     Example:
 
       @value_dispatch
-      def eat(fruit):
+      def  eat(fruit):
           return f"I don't want a {fruit}..."
 
       @eat.register('apple')
-      def _eat_apple(fruit):
+      def  _eat_apple(fruit):
           return "I love apples!"
 
       @eat.register('eggplant')
       @eat.register('squash')
-      def _eat_what(fruit):
+      def  _eat_what(fruit):
           return f"I didn't know {fruit} is a fruit!"
 
     An alternative to applying multuple `register` decorators is to
     use the `register_for_all` helper:
 
       @eat.register_for_all({'eggplant', 'squash'})
-      def _eat_what(fruit):
+      def  _eat_what(fruit):
           return f"I didn't know {fruit} is a fruit!"
     """
 

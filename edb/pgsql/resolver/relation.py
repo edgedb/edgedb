@@ -300,11 +300,7 @@ def resolve_relation(
             columns.append(context.Column(name=c, reference_as=c))
 
     def column_order_key(c: context.Column) -> Tuple[int, str]:
-        spec = {
-            'id': 0,
-            'source': 0,
-            'target': 1
-        }
+        spec = {'id': 0, 'source': 0, 'target': 1}
         return (spec.get(c.reference_as or '', 2), c.name or '')
 
     # sort by name but put `id` first

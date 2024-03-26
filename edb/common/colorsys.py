@@ -195,7 +195,7 @@ class Color:
         return cls(color.r, color.g, color.b, color.a)
 
     @classmethod
-    def from_string(cls, value, alpha=1.):
+    def from_string(cls, value, alpha=1.0):
         if not value.startswith('#'):
             if value == 'transparent':
                 return cls(0, 0, 0, 0)
@@ -217,7 +217,7 @@ class Color:
         return cls(r, g, b, a=alpha)
 
     @classmethod
-    def from_hls(cls, h, l, s, alpha=1.):  # NoQA: E741
+    def from_hls(cls, h, l, s, alpha=1.0):  # NoQA: E741
         return cls(*(int(c * 255) for c in hls_to_rgb(h, l, s)), a=alpha)
 
     def rgb_channels(self, *, as_floats=False):

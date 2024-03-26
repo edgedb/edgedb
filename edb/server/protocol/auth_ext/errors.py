@@ -236,9 +236,7 @@ class PKCEVerificationFailed(AuthExtError):
 class WebAuthnAuthenticationFailed(AuthExtError):
     """WebAuthn authentication failed"""
 
-    def __init__(
-        self, description: str = "WebAuthn authentication failed"
-    ):
+    def __init__(self, description: str = "WebAuthn authentication failed"):
         self.description = description
 
     def __repr__(self):

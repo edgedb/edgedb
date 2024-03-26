@@ -25,7 +25,7 @@ import pathlib
 import sys
 
 
-def rustcli(*, args: Optional[List[str]]=None) -> NoReturn:
+def rustcli(*, args: Optional[List[str]] = None) -> NoReturn:
     thisdir = pathlib.Path(__file__).parent
 
     if args is None:

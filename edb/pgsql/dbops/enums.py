@@ -34,7 +34,8 @@ class EnumExists(base.Condition):
         self.name = name
 
     def code(self, block: base.PLBlock) -> str:
-        return textwrap.dedent(f'''\
+        return textwrap.dedent(
+            f'''\
             SELECT
                 t.typname
             FROM
@@ -81,8 +82,9 @@ class AlterEnum(ddl.DDLOperation):
 
 
 class AlterEnumAddValue(AlterEnum):
-    def __init__(self, name, value, *, before=None, after=None,
-                 conditional=False):
+    def __init__(
+        self, name, value, *, before=None, after=None, conditional=False
+    ):
         super().__init__(name)
         self.value = value
         self.before = before

@@ -41,7 +41,7 @@ def exp_backoff(
     jitter_scale: float = 0.001,
 ) -> Callable[[int], float]:
     def _f(i: int) -> float:
-        delay: int = 2 ** i
+        delay: int = 2**i
         return delay * factor + random.randrange(100) * jitter_scale
     return _f
 

@@ -1352,9 +1352,7 @@ def _get_pointer_deps(
 
 
 def _get_hard_deps(
-    expr: qlast.TypeExpr,
-    *,
-    ctx: DepTraceContext
+    expr: qlast.TypeExpr, *, ctx: DepTraceContext
 ) -> MutableSet[s_name.QualName]:
     deps: MutableSet[s_name.QualName] = set()
 
@@ -1395,9 +1393,7 @@ def _get_hard_deps(
 
 
 def _get_bases(
-    decl: qlast.CreateObject,
-    *,
-    ctx: LayoutTraceContext
+    decl: qlast.CreateObject, *, ctx: LayoutTraceContext
 ) -> List[s_name.QualName]:
     """Resolve object bases from the "extends" declaration."""
     if not isinstance(decl, qlast.BasedOnTuple):

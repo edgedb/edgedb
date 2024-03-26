@@ -61,8 +61,7 @@ def amend_empty_set_type(
 
 
 def infer_common_type(
-    irs: Sequence[irast.Set],
-    env: context.Environment
+    irs: Sequence[irast.Set], env: context.Environment
 ) -> Optional[s_types.Type]:
     if not irs:
         raise errors.QueryError(
@@ -151,8 +150,8 @@ def type_to_ql_typeref(
 
 
 def ql_typeexpr_to_ir_typeref(
-        ql_t: qlast.TypeExpr, *,
-        ctx: context.ContextLevel) -> irast.TypeRef:
+    ql_t: qlast.TypeExpr, *, ctx: context.ContextLevel
+) -> irast.TypeRef:
 
     stype = ql_typeexpr_to_type(ql_t, ctx=ctx)
     return irtyputils.type_to_typeref(
@@ -161,8 +160,8 @@ def ql_typeexpr_to_ir_typeref(
 
 
 def ql_typeexpr_to_type(
-        ql_t: qlast.TypeExpr, *,
-        ctx: context.ContextLevel) -> s_types.Type:
+    ql_t: qlast.TypeExpr, *, ctx: context.ContextLevel
+) -> s_types.Type:
 
     types = _ql_typeexpr_to_type(ql_t, ctx=ctx)
     if len(types) > 1:
@@ -172,8 +171,8 @@ def ql_typeexpr_to_type(
 
 
 def _ql_typeexpr_to_type(
-        ql_t: qlast.TypeExpr, *,
-        ctx: context.ContextLevel) -> List[s_types.Type]:
+    ql_t: qlast.TypeExpr, *, ctx: context.ContextLevel
+) -> List[s_types.Type]:
 
     if isinstance(ql_t, qlast.TypeOf):
         with ctx.new() as subctx:
@@ -224,8 +223,8 @@ def _ql_typeexpr_to_type(
 
 
 def _ql_typename_to_type(
-        ql_t: qlast.TypeName, *,
-        ctx: context.ContextLevel) -> s_types.Type:
+    ql_t: qlast.TypeName, *, ctx: context.ContextLevel
+) -> s_types.Type:
     if ql_t.subtypes:
         assert isinstance(ql_t.maintype, qlast.ObjectRef)
         coll = s_types.Collection.get_class(ql_t.maintype.name)
@@ -259,7 +258,8 @@ def _ql_typename_to_type(
 
 @overload
 def ptrcls_from_ptrref(
-    ptrref: irast.PointerRef, *,
+    ptrref: irast.PointerRef,
+    *,
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
     ...
@@ -267,7 +267,8 @@ def ptrcls_from_ptrref(
 
 @overload
 def ptrcls_from_ptrref(
-    ptrref: irast.TupleIndirectionPointerRef, *,
+    ptrref: irast.TupleIndirectionPointerRef,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.TupleIndirectionLink:
     ...
@@ -275,7 +276,8 @@ def ptrcls_from_ptrref(
 
 @overload
 def ptrcls_from_ptrref(
-    ptrref: irast.TypeIntersectionPointerRef, *,
+    ptrref: irast.TypeIntersectionPointerRef,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.TypeIntersectionLink:
     ...
@@ -283,14 +285,16 @@ def ptrcls_from_ptrref(
 
 @overload
 def ptrcls_from_ptrref(
-    ptrref: irast.BasePointerRef, *,
+    ptrref: irast.BasePointerRef,
+    *,
     ctx: context.ContextLevel,
 ) -> s_pointers.PointerLike:
     ...
 
 
 def ptrcls_from_ptrref(
-    ptrref: irast.BasePointerRef, *,
+    ptrref: irast.BasePointerRef,
+    *,
     ctx: context.ContextLevel,
 ) -> s_pointers.PointerLike:
 
@@ -305,7 +309,8 @@ def ptrcls_from_ptrref(
 
 
 def ptr_to_ptrref(
-    ptrcls: s_pointers.Pointer, *,
+    ptrcls: s_pointers.Pointer,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.PointerRef:
     return irtyputils.ptrref_from_ptrcls(
@@ -317,7 +322,8 @@ def ptr_to_ptrref(
 
 
 def collapse_type_intersection_rptr(
-    ir_set: irast.Set, *,
+    ir_set: irast.Set,
+    *,
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, List[s_pointers.Pointer]]:
 

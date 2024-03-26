@@ -129,8 +129,10 @@ class ErrorsTree:
         # names in some popular languages
         for lang, names in self.errors_names.items():
             if desc.name in names:
-                raise ValueError(f'error name {desc.name!r} conflicts with '
-                                 f'{lang} exception')
+                raise ValueError(
+                    f'error name {desc.name!r} conflicts with '
+                    f'{lang} exception'
+                )
 
         if desc.code in self._tree:
             raise ValueError(f'duplicate error code for error {desc.name!r}')
@@ -197,8 +199,10 @@ class ErrorsTree:
         try:
             return self._tree[parent_code]
         except KeyError:
-            raise ValueError(f'No base class for code '
-                             f'0x_{b1:0>2X}_{b2:0>2X}_{b3:0>2X}_{b4:0>2X}')
+            raise ValueError(
+                f'No base class for code '
+                f'0x_{b1:0>2X}_{b2:0>2X}_{b3:0>2X}_{b4:0>2X}'
+            )
 
     def generate_classes(self, *, message_base_class, base_class, client):
         classes = []
@@ -229,12 +233,14 @@ class ErrorsTree:
 
         return classes
 
-    def generate_pycode(self, *, message_base_class, base_class,
-                        base_import, extra_all, client):
+    def generate_pycode(
+        self, *, message_base_class, base_class, base_import, extra_all, client
+    ):
         classes = self.generate_classes(
             message_base_class=message_base_class,
             base_class=base_class,
-            client=client)
+            client=client,
+        )
 
         lines = []
         all_lines = []
@@ -253,17 +259,10 @@ class ErrorsTree:
 
         all_lines = '    ' + ',\n    '.join(repr(ln) for ln in all_lines) + ','
         all_lines = (
-            f'__all__ = {extra_all} + (  # type: ignore\n'
-            f'{all_lines}\n)'
+            f'__all__ = {extra_all} + (  # type: ignore\n' f'{all_lines}\n)'
         )
 
-        code = (
-            f'{base_import}'
-            f'\n\n\n'
-            f'{all_lines}'
-            f'\n\n\n'
-            f'{lines}'
-        )
+        code = f'{base_import}' f'\n\n\n' f'{all_lines}' f'\n\n\n' f'{lines}'
 
         return code
 
@@ -273,9 +272,16 @@ def die(msg):
     sys.exit(1)
 
 
-def main(*, base_class, message_base_class,
-         base_import, stdout, extra_all, client,
-         language):
+def main(
+    *,
+    base_class,
+    message_base_class,
+    base_import,
+    stdout,
+    extra_all,
+    client,
+    language,
+):
 
     for p in edb.__path__:
         ep = pathlib.Path(p) / 'api' / 'errors.txt'
@@ -327,38 +333,38 @@ def main(*, base_class, message_base_class,
 
 
 @edbcommands.command('gen-errors')
+@click.option('--base-class', type=str, default=ErrorsTree.DEFAULT_BASE_CLASS)
 @click.option(
-    '--base-class', type=str, default=ErrorsTree.DEFAULT_BASE_CLASS)
+    '--message-base-class',
+    type=str,
+    default=ErrorsTree.DEFAULT_MESSAGE_BASE_CLASS,
+)
 @click.option(
-    '--message-base-class', type=str,
-    default=ErrorsTree.DEFAULT_MESSAGE_BASE_CLASS)
-@click.option(
-    '--import', 'base_import', type=str,
-    default=ErrorsTree.DEFAULT_BASE_IMPORT)
-@click.option(
-    '--extra-all', type=str, default=ErrorsTree.DEFAULT_EXTRA_ALL)
-@click.option(
-    '--stdout', type=bool, default=False, is_flag=True)
-@click.option(
-    '--client', type=bool, default=False, is_flag=True)
-def gen_errors(*, base_class, message_base_class, base_import,
-               stdout, extra_all, client):
+    '--import', 'base_import', type=str, default=ErrorsTree.DEFAULT_BASE_IMPORT
+)
+@click.option('--extra-all', type=str, default=ErrorsTree.DEFAULT_EXTRA_ALL)
+@click.option('--stdout', type=bool, default=False, is_flag=True)
+@click.option('--client', type=bool, default=False, is_flag=True)
+def gen_errors(
+    *, base_class, message_base_class, base_import, stdout, extra_all, client
+):
     """Generate edb/errors.py from edb/api/errors.txt"""
     try:
-        main(base_class=base_class,
-             message_base_class=message_base_class,
-             base_import=base_import,
-             stdout=stdout,
-             extra_all=extra_all,
-             client=client,
-             language='python')
+        main(
+            base_class=base_class,
+            message_base_class=message_base_class,
+            base_import=base_import,
+            stdout=stdout,
+            extra_all=extra_all,
+            client=client,
+            language='python',
+        )
     except Exception as ex:
         die(str(ex))
 
 
 @edbcommands.command('gen-errors-json')
-@click.option(
-    '--client', type=bool, default=False, is_flag=True)
+@click.option('--client', type=bool, default=False, is_flag=True)
 def gen_errors_json(*, client):
     """Generate JSON from edb/api/errors.txt"""
     for p in edb.__path__:
@@ -373,7 +379,8 @@ def gen_errors_json(*, client):
         tree.load(ep)
 
         clss = tree.generate_classes(
-            message_base_class=None, base_class=None, client=client)
+            message_base_class=None, base_class=None, client=client
+        )
         print(json.dumps(clss))
     except Exception as ex:
         die(str(ex))

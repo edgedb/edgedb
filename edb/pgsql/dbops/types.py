@@ -50,7 +50,8 @@ class TypeExists(base.Condition):
         self.name = name
 
     def code(self, block: base.PLBlock) -> str:
-        return textwrap.dedent(f'''\
+        return textwrap.dedent(
+            f'''\
             SELECT
                 typname
             FROM
@@ -60,7 +61,8 @@ class TypeExists(base.Condition):
             WHERE
                 nsp.nspname = {ql(self.name[0])}
                 AND typ.typname = {ql(self.name[1])}
-        ''')
+        '''
+        )
 
 
 def type_oid(name):
@@ -94,7 +96,8 @@ class CompositeTypeAttributeExists(base.Condition):
         self.attribute_name = attribute_name
 
     def code(self, block: base.PLBlock) -> str:
-        return textwrap.dedent(f'''\
+        return textwrap.dedent(
+            f'''\
             SELECT
                 attribute_name
             FROM
@@ -103,7 +106,8 @@ class CompositeTypeAttributeExists(base.Condition):
                 udt_schema = {ql(self.type_name[0])}
                 AND udt_name = {ql(self.type_name[1])}
                 AND attribute_name = {ql(self.attribute_name)}
-        ''')
+        '''
+        )
 
 
 class CreateCompositeType(ddl.SchemaObjectOperation):
@@ -135,8 +139,7 @@ class AlterCompositeTypeBaseMixin:
 
 
 class AlterCompositeTypeBase(AlterCompositeTypeBaseMixin, ddl.DDLOperation):
-    def __init__(
-            self, name, *, conditions=None, neg_conditions=None):
+    def __init__(self, name, *, conditions=None, neg_conditions=None):
         ddl.DDLOperation.__init__(
             self, conditions=conditions, neg_conditions=neg_conditions)
         AlterCompositeTypeBaseMixin.__init__(self, name=name)
@@ -148,7 +151,8 @@ class AlterCompositeTypeFragment(ddl.DDLOperation):
 
 
 class AlterCompositeType(
-        AlterCompositeTypeBaseMixin, base.CompositeCommandGroup):
+    AlterCompositeTypeBaseMixin, base.CompositeCommandGroup
+):
     def __init__(self, name, *, conditions=None, neg_conditions=None):
         base.CompositeCommandGroup.__init__(
             self, conditions=conditions, neg_conditions=neg_conditions)
@@ -156,7 +160,8 @@ class AlterCompositeType(
 
 
 class AlterCompositeTypeAddAttribute(  # type: ignore
-        composites.AlterCompositeAddAttribute, AlterCompositeTypeFragment):
+    composites.AlterCompositeAddAttribute, AlterCompositeTypeFragment
+):
     def code(self, block: base.PLBlock) -> str:
         return 'ADD {} {}'.format(
             self.get_attribute_term(), self.attribute.code(block, short=True))

@@ -131,6 +131,7 @@ class Source(NamedObject):
     pointers: Dict[sn.UnqualName, Union[s_pointers.Pointer, Pointer]]
 
     '''Abstract type that mocks the s_sources.Source for tracing purposes.'''
+
     def __init__(self, name: sn.QualName) -> None:
         super().__init__(name)
         self.pointers = {}
@@ -182,10 +183,7 @@ class Alias(ObjectType):
 
 class UnionType(Type):
 
-    def __init__(
-        self,
-        types: List[Union[Type, UnionType, so.Object]]
-    ) -> None:
+    def __init__(self, types: List[Union[Type, UnionType, so.Object]]) -> None:
         self.types = types
 
     def get_name(self, schema: s_schema.Schema) -> sn.QualName:
@@ -365,7 +363,8 @@ def trace_refs(
 
 
 def resolve_name(
-    ref: qlast.ObjectRef, *,
+    ref: qlast.ObjectRef,
+    *,
     current_module: str,
     schema: s_schema.Schema,
     objects: Dict[sn.QualName, Optional[ObjectLike]],
@@ -459,9 +458,7 @@ class TracerContext:
             local_modules=self.local_modules,
         )
 
-    def get_ref_name_startswith(
-        self, ref: qlast.ObjectRef
-    ) -> Set[sn.QualName]:
+    def get_ref_name_startswith(self, ref: qlast.ObjectRef) -> Set[sn.QualName]:
         refs = set()
         prefixes = set()
 
@@ -627,9 +624,7 @@ def trace_UnaryOp(node: qlast.UnaryOp, *, ctx: TracerContext) -> None:
 
 @trace.register
 def trace_Detached(
-    node: qlast.DetachedExpr,
-    *,
-    ctx: TracerContext
+    node: qlast.DetachedExpr, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
     # DETACHED works with partial paths same as its inner expression.
     return trace(node.expr, ctx=ctx)
@@ -637,7 +632,8 @@ def trace_Detached(
 
 @trace.register
 def trace_Global(
-        node: qlast.GlobalExpr, *, ctx: TracerContext) -> Optional[ObjectLike]:
+    node: qlast.GlobalExpr, *, ctx: TracerContext
+) -> Optional[ObjectLike]:
     refname = ctx.get_ref_name(node.name)
     if refname in ctx.objects:
         ctx.refs.add(refname)
@@ -671,8 +667,7 @@ def trace_Introspect(node: qlast.Introspect, *, ctx: TracerContext) -> None:
 
 
 @trace.register
-def trace_FunctionCall(node: qlast.FunctionCall, *,
-                       ctx: TracerContext) -> None:
+def trace_FunctionCall(node: qlast.FunctionCall, *, ctx: TracerContext) -> None:
 
     if isinstance(node.func, tuple):
         fname = qlast.ObjectRef(module=node.func[0], name=node.func[1])
@@ -757,7 +752,7 @@ def trace_Path(
 
             if step.type == 'property':
                 if ptr is None:
-                    # This is either a computable def or unknown link, bail.
+                    # This is either a computable def  or unknown link, bail.
                     # Do a weak dependency on anything with the same name.
                     ctx.weak_refs.update(ctx.pointers.get(pname, ()))
                     tip = None
@@ -953,8 +948,9 @@ def _resolve_type_expr(
 
 
 @trace.register
-def trace_TypeIntersection(node: qlast.TypeIntersection, *,
-                           ctx: TracerContext) -> None:
+def trace_TypeIntersection(
+    node: qlast.TypeIntersection, *, ctx: TracerContext
+) -> None:
     trace(node.type, ctx=ctx)
 
 
@@ -996,9 +992,7 @@ def trace_IfElse(node: qlast.IfElse, *, ctx: TracerContext) -> None:
 
 @trace.register
 def trace_Shape(
-    node: qlast.Shape,
-    *,
-    ctx: TracerContext
+    node: qlast.Shape, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
     tip = trace(node.expr, ctx=ctx)
     if isinstance(node.expr, qlast.Path):
@@ -1020,8 +1014,7 @@ def trace_Shape(
 
 
 @trace.register
-def trace_ShapeElement(node: qlast.ShapeElement, *,
-                       ctx: TracerContext) -> None:
+def trace_ShapeElement(node: qlast.ShapeElement, *, ctx: TracerContext) -> None:
     trace(node.expr, ctx=ctx)
     if node.elements:
         for element in node.elements:
@@ -1044,9 +1037,7 @@ def _update_path_prefix(tip: Optional[ObjectLike], ctx: TracerContext) -> None:
 
 @trace.register
 def trace_Select(
-    node: qlast.SelectQuery,
-    *,
-    ctx: TracerContext
+    node: qlast.SelectQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.result, ctx=ctx)
@@ -1067,8 +1058,7 @@ def trace_Select(
         return tip
 
 
-def trace_GroupingAtom(
-        node: qlast.GroupingAtom, *, ctx: TracerContext) -> None:
+def trace_GroupingAtom(node: qlast.GroupingAtom, *, ctx: TracerContext) -> None:
     if isinstance(node, qlast.ObjectRef):
         trace(qlast.Path(steps=[node]), ctx=ctx)
     elif isinstance(node, qlast.Path):
@@ -1080,29 +1070,28 @@ def trace_GroupingAtom(
 
 @trace.register
 def trace_GroupingSimple(
-        node: qlast.GroupingSimple, *, ctx: TracerContext) -> None:
+    node: qlast.GroupingSimple, *, ctx: TracerContext
+) -> None:
     trace_GroupingAtom(node.element, ctx=ctx)
 
 
 @trace.register
-def trace_GroupingSets(
-        node: qlast.GroupingSets, *, ctx: TracerContext) -> None:
+def trace_GroupingSets(node: qlast.GroupingSets, *, ctx: TracerContext) -> None:
     for s in node.sets:
         trace(s, ctx=ctx)
 
 
 @trace.register
 def trace_GroupingOperation(
-        node: qlast.GroupingOperation, *, ctx: TracerContext) -> None:
+    node: qlast.GroupingOperation, *, ctx: TracerContext
+) -> None:
     for s in node.elements:
         trace(s, ctx=ctx)
 
 
 @trace.register
 def trace_Group(
-    node: qlast.GroupQuery,
-    *,
-    ctx: TracerContext
+    node: qlast.GroupQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.subject, ctx=ctx)
@@ -1151,9 +1140,7 @@ def trace_InsertQuery(node: qlast.InsertQuery, *, ctx: TracerContext) -> None:
 
 @trace.register
 def trace_UpdateQuery(
-    node: qlast.UpdateQuery,
-    *,
-    ctx: TracerContext
+    node: qlast.UpdateQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.subject, ctx=ctx)
@@ -1171,9 +1158,7 @@ def trace_UpdateQuery(
 
 @trace.register
 def trace_DeleteQuery(
-    node: qlast.DeleteQuery,
-    *,
-    ctx: TracerContext
+    node: qlast.DeleteQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.subject, ctx=ctx)
@@ -1196,9 +1181,7 @@ def trace_DeleteQuery(
 
 @trace.register
 def trace_For(
-    node: qlast.ForQuery,
-    *,
-    ctx: TracerContext
+    node: qlast.ForQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         obj = trace(node.iterator, ctx=ctx)
@@ -1212,7 +1195,8 @@ def trace_For(
 
 @trace.register
 def trace_DescribeStmt(
-    node: qlast.DescribeStmt, *,
+    node: qlast.DescribeStmt,
+    *,
     ctx: TracerContext,
 ) -> None:
 
@@ -1223,7 +1207,8 @@ def trace_DescribeStmt(
 
 @trace.register
 def trace_ExplainStmt(
-    node: qlast.ExplainStmt, *,
+    node: qlast.ExplainStmt,
+    *,
     ctx: TracerContext,
 ) -> None:
     pass
@@ -1231,7 +1216,8 @@ def trace_ExplainStmt(
 
 @trace.register
 def trace_AdministerStmt(
-    node: qlast.AdministerStmt, *,
+    node: qlast.AdministerStmt,
+    *,
     ctx: TracerContext,
 ) -> None:
     pass

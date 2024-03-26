@@ -262,7 +262,8 @@ class ScalarType(
         return f"{clsname} '{dname}'"
 
     def resolve_sql_type_scheme(
-        self, schema: s_schema.Schema,
+        self,
+        schema: s_schema.Schema,
     ) -> tuple[Optional[str], Optional[str]]:
         if sql := self.get_sql_type(schema):
             return sql, None
@@ -278,7 +279,8 @@ class ScalarType(
         return None, None
 
     def resolve_sql_type(
-        self, schema: s_schema.Schema,
+        self,
+        schema: s_schema.Schema,
     ) -> Optional[str]:
         type, scheme = self.resolve_sql_type_scheme(schema)
         if scheme:

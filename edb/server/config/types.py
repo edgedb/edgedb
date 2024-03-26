@@ -114,10 +114,14 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
         return f'{self._tspec.name}({body})'
 
     @classmethod
-    def from_pyvalue(cls, data, *,
-                     tspec: statypes.CompositeTypeSpec,
-                     spec: spec.Spec,
-                     allow_missing=False) -> CompositeConfigType:
+    def from_pyvalue(
+        cls,
+        data,
+        *,
+        tspec: statypes.CompositeTypeSpec,
+        spec: spec.Spec,
+        allow_missing=False,
+    ) -> CompositeConfigType:
         if allow_missing and data is None:
             return None  # type: ignore
 
@@ -226,7 +230,7 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
     def from_json_value(cls, s, *, tspec: statypes.CompositeTypeSpec, spec):
         return cls.from_pyvalue(s, tspec=tspec, spec=spec)
 
-    def to_json_value(self, redacted: bool=False):
+    def to_json_value(self, redacted: bool = False):
         dct = {}
         dct['_tname'] = self._tspec.name
 

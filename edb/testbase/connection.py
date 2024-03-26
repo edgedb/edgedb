@@ -98,8 +98,7 @@ class BaseTransaction(abc.ABC):
         return qry
 
     @abc.abstractmethod
-    def _make_start_query_inner(self):
-        ...
+    def _make_start_query_inner(self): ...
 
     def _make_commit_query(self):
         self.__check_state('commit')

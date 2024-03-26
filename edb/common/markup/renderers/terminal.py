@@ -47,8 +47,13 @@ HEADER = 101
 
 class Buffer:
     def __init__(
-            self, *, max_width=None, styled=False, indentation=0,
-            indent_with=' ' * 4):
+        self,
+        *,
+        max_width=None,
+        styled=False,
+        indentation=0,
+        indent_with=' ' * 4,
+    ):
         self.data = []
         self.indentation = 0
         self.indent_with = indent_with
@@ -79,18 +84,18 @@ class Buffer:
 
     @contextlib.contextmanager
     def foldable_lines(self):
-        self.data.append((FOLDABLE_LINES_START, ))
+        self.data.append((FOLDABLE_LINES_START,))
         yield
         self.data.append((FOLDABLE_LINES_END, ))
 
     @contextlib.contextmanager
     def non_foldable_lines(self):
-        self.data.append((FOLDABLE_LINES_END, ))
+        self.data.append((FOLDABLE_LINES_END,))
         yield
         self.data.append((FOLDABLE_LINES_START, ))
 
     def mark_line_break(self):
-        self.data.append((LINE_BREAK, ))
+        self.data.append((LINE_BREAK,))
 
     def write(self, s, style=None):
         st = None

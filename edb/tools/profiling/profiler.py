@@ -367,7 +367,8 @@ def gradient_from_name(name: str) -> float:
 
 
 def calc_callers(
-    stats: Stats, threshold: float,
+    stats: Stats,
+    threshold: float,
 ) -> Tuple[Dict[FunctionID, Function], Dict[Call, Stat]]:
     """Calculate flattened stats of calls between functions."""
     roots: List[FunctionID] = []
@@ -490,9 +491,9 @@ class ScopeRecorder(ast.NodeVisitor):
 
     def __init__(self):
         self.reset()
-        self.visit_FunctionDef = self.handle_scopes
-        self.visit_AsyncFunctionDef = self.handle_scopes
-        self.visit_ClassDef = self.handle_scopes
+        self.visit_Functiondef = self.handle_scopes
+        self.visit_AsyncFunctiondef = self.handle_scopes
+        self.visit_Classdef = self.handle_scopes
         super().__init__()
 
     def reset(self) -> None:
@@ -547,9 +548,7 @@ class ScopeCache:
 def count_calls(funcs: Dict[FunctionID, Function]) -> Counter[Call]:
     call_counter: Counter[Call] = Counter()
 
-    def _counts(
-        caller: FunctionID, visited: Set[Call], level: int = 0
-    ) -> None:
+    def _counts(caller: FunctionID, visited: Set[Call], level: int = 0) -> None:
         for callee in funcs[caller].calls:
             call = caller, callee
             call_counter[call] += 1

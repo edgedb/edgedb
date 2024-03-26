@@ -150,8 +150,8 @@ def get_schema_type(
 
 
 def resolve_schema_name(
-        name: str, module: str, *,
-        ctx: context.ContextLevel) -> Optional[sn.QualName]:
+    name: str, module: str, *, ctx: context.ContextLevel
+) -> Optional[sn.QualName]:
     schema_module = ctx.modaliases.get(module)
     if schema_module is None:
         return None
@@ -505,10 +505,7 @@ class TypeIntersectionResult(NamedTuple):
 
 
 def apply_intersection(
-    left: s_types.Type,
-    right: s_types.Type,
-    *,
-    ctx: context.ContextLevel
+    left: s_types.Type, right: s_types.Type, *, ctx: context.ContextLevel
 ) -> TypeIntersectionResult:
     """Compute an intersection of two types: *left* and *right*.
 

@@ -1539,7 +1539,9 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
     def on_remote_query_cache_change(
-        self, dbname: str, keys: Optional[list[str]],
+        self,
+        dbname: str,
+        keys: Optional[list[str]],
     ) -> None:
         if not self._accept_new_tasks:
             return

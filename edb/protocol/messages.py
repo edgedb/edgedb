@@ -42,10 +42,7 @@ class Scalar(CType):
     cname = None
 
     def __init__(
-        self,
-        doc: typing.Optional[str]=None,
-        *,
-        default: typing.Any=None
+        self, doc: typing.Optional[str] = None, *, default: typing.Any = None
     ) -> None:
         self.doc = doc
         self.default = default
@@ -60,9 +57,7 @@ class Scalar(CType):
         raise NotImplementedError
 
     def render_field(
-        self,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
+        self, fieldname: str, buf: render_utils.RenderBuffer
     ) -> None:
         cname = self.cname
         if cname is None:
@@ -98,7 +93,7 @@ class UInt16(Scalar):
     cname = 'uint16'
 
     def validate(self, val: typing.Any) -> bool:
-        return isinstance(val, int) and (0 <= val <= 2 ** 16 - 1)
+        return isinstance(val, int) and (0 <= val <= 2**16 - 1)
 
     def parse(self, buffer: binwrapper.BinWrapper) -> any:
         return buffer.read_ui16()
@@ -112,7 +107,7 @@ class UInt32(Scalar):
     cname = 'uint32'
 
     def validate(self, val: typing.Any) -> bool:
-        return isinstance(val, int) and (0 <= val <= 2 ** 32 - 1)
+        return isinstance(val, int) and (0 <= val <= 2**32 - 1)
 
     def parse(self, buffer: binwrapper.BinWrapper) -> any:
         return buffer.read_ui32()
@@ -126,7 +121,7 @@ class UInt64(Scalar):
     cname = 'uint64'
 
     def validate(self, val: typing.Any) -> bool:
-        return isinstance(val, int) and (0 <= val <= 2 ** 64 - 1)
+        return isinstance(val, int) and (0 <= val <= 2**64 - 1)
 
     def parse(self, buffer: binwrapper.BinWrapper) -> any:
         return buffer.read_ui64()
@@ -212,9 +207,7 @@ class ArrayOf(CType):
             self.element.dump(el, buffer)
 
     def render_field(
-        self,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
+        self, fieldname: str, buf: render_utils.RenderBuffer
     ) -> None:
         self.length_in.render_field(f'num_{fieldname}', buf)
         self.element.render_field(f'{fieldname}[num_{fieldname}]', buf)
@@ -254,9 +247,7 @@ class FixedArrayOf(CType):
             self.element.dump(el, buffer)
 
     def render_field(
-        self,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
+        self, fieldname: str, buf: render_utils.RenderBuffer
     ) -> None:
         self.element.render_field(f'{fieldname}[{self.length}]', buf)
 
@@ -293,9 +284,7 @@ class EnumOf(CType):
         self.value_in.dump(val.value, buffer)
 
     def render_field(
-        self,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
+        self, fieldname: str, buf: render_utils.RenderBuffer
     ) -> None:
         typename = f'{self.value_in.cname}<{self.enum.__name__}>'
         buf.write(f'{typename.ljust(_PAD - 1)} {fieldname};')
@@ -381,9 +370,7 @@ class Struct:
 
     @classmethod
     def render_field(
-        cls,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
+        cls, fieldname: str, buf: render_utils.RenderBuffer
     ) -> None:
         buf.write(f'{cls.__name__.ljust(_PAD - 1)} {fieldname};')
 

@@ -266,7 +266,8 @@ def _type_to_typeref(
 ) -> irast.TypeRef:
 
     def _typeref(
-        t: s_types.Type, *,
+        t: s_types.Type,
+        *,
         include_children: bool = include_children,
         include_ancestors: bool = include_ancestors,
     ) -> irast.TypeRef:
@@ -779,7 +780,8 @@ def ptrref_from_ptrcls(
 
 @overload
 def ptrcls_from_ptrref(
-    ptrref: irast.PointerRef, *,
+    ptrref: irast.PointerRef,
+    *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.Pointer]:
     ...
@@ -787,14 +789,16 @@ def ptrcls_from_ptrref(
 
 @overload
 def ptrcls_from_ptrref(
-    ptrref: irast.BasePointerRef, *,
+    ptrref: irast.BasePointerRef,
+    *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:
     ...
 
 
 def ptrcls_from_ptrref(
-    ptrref: irast.BasePointerRef, *,
+    ptrref: irast.BasePointerRef,
+    *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:
     """Return a schema pointer for a given IR PointerRef.

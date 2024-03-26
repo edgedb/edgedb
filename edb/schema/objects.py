@@ -90,8 +90,9 @@ if TYPE_CHECKING:
     class CollectionFactory(Collection[CovT], Protocol):
         """An unknown collection that can be instantiated from an iterable."""
 
-        def __init__(self, from_iter: Optional[Iterable[CovT]] = None) -> None:
-            ...
+        def __init__(
+            self, from_iter: Optional[Iterable[CovT]] = None
+        ) -> None: ...
 
 
 class NoDefaultT(enum.Enum):
@@ -541,6 +542,7 @@ class SchemaField(Field[Type_T]):
 
     def _make_get_default(self) -> Callable[[], Any]:
         if self.default is NoDefault:
+
             def _get_error() -> Any:
                 raise ValueError(
                     f'field {self.name!r} is required and has no default')
@@ -553,7 +555,8 @@ class SchemaField(Field[Type_T]):
             else:
                 return self.type
         else:
-            def _get_simple(value: Any=self.default) -> Any:
+
+            def _get_simple(value: Any = self.default) -> Any:
                 return value
 
             return _get_simple
@@ -730,6 +733,7 @@ class ObjectMeta(type):
             # attribute access, so be mindful about what you are adding
             # into the callables below.
             if issubclass(ftype, s_abc.Reducible):
+
                 def reducible_getter(
                     self: Any,
                     schema: s_schema.Schema,
@@ -762,6 +766,7 @@ class ObjectMeta(type):
                 field.default is not NoDefault
                 and field.default is not DEFAULT_CONSTRUCTOR
             ):
+
                 def regular_default_getter(
                     self: Any,
                     schema: s_schema.Schema,
@@ -779,6 +784,7 @@ class ObjectMeta(type):
                 setattr(cls, getter_name, regular_default_getter)
 
             else:
+
                 def regular_getter(
                     self: Any,
                     schema: s_schema.Schema,
@@ -966,8 +972,7 @@ class ObjectMeta(type):
 
     @classmethod
     def get_schema_metaclass_for_ql_class(
-        mcls,
-        qlkind: qltypes.SchemaObjectClass
+        mcls, qlkind: qltypes.SchemaObjectClass
     ) -> Type[Object]:
         cls = mcls._ql_map.get(qlkind)
         if cls is None:
@@ -2371,9 +2376,7 @@ class ObjectCollection(
     ) -> FrozenSet[uuid.UUID]:
         return frozenset(data[2])
 
-    def __reduce__(
-        self
-    ) -> Tuple[
+    def __reduce__(self) -> Tuple[
         Callable[..., ObjectCollection[Any]],
         Tuple[
             Optional[Union[Tuple[builtins.type, ...], builtins.type]],
@@ -2441,9 +2444,7 @@ class ObjectCollection(
         return cls(cls._container(), _private_init=True)
 
     @classmethod
-    def _validate_value(
-        cls, schema: s_schema.Schema, v: Object
-    ) -> uuid.UUID:
+    def _validate_value(cls, schema: s_schema.Schema, v: Object) -> uuid.UUID:
         if not isinstance(v, cls.type):
             raise TypeError(
                 f'invalid input data for ObjectIndexByShortname: '
@@ -2474,12 +2475,10 @@ class ObjectCollection(
             schema.get_by_id(iid) for iid in self._ids  # type: ignore
         ])
 
-    def _object_keys(self, schema: s_schema.Schema) -> Set[
-            Tuple[Type[Object], sn.Name]]:
-        return {
-            (type(x), x.get_name(schema))
-            for x in (self.objects(schema))
-        }
+    def _object_keys(
+        self, schema: s_schema.Schema
+    ) -> Set[Tuple[Type[Object], sn.Name]]:
+        return {(type(x), x.get_name(schema)) for x in (self.objects(schema))}
 
     @classmethod
     def compare_values(
@@ -2873,8 +2872,10 @@ class ObjectDict(
         return hash((self._ids, self._keys))
 
     def dump(self, schema: s_schema.Schema) -> str:
-        objs = ", ".join(f"{self._keys[i]}: {o.dump(schema)}"
-                         for i, o in enumerate(self.objects(schema)))
+        objs = ", ".join(
+            f"{self._keys[i]}: {o.dump(schema)}"
+            for i, o in enumerate(self.objects(schema))
+        )
         return f'<{type(self).__name__} objects={objs} at {id(self):#x}>'
 
     def __repr__(self) -> str:
@@ -2977,9 +2978,7 @@ class ObjectList(
     def __repr__(self) -> str:
         return f'[{", ".join(str(id) for id in self._ids)}]'
 
-    def first(
-        self, schema: s_schema.Schema, default: Any = NoDefault
-    ) -> Any:
+    def first(self, schema: s_schema.Schema, default: Any = NoDefault) -> Any:
         # The `Any` return type is so that using methods on Object subclasses
         # doesn't cause Mypy to complain.
         try:
@@ -3102,8 +3101,7 @@ class InheritingObject(SubclassableObject):
         return self.get_bases(schema).names(schema)
 
     def maybe_get_topmost_concrete_base(
-        self: InheritingObjectT,
-        schema: s_schema.Schema
+        self: InheritingObjectT, schema: s_schema.Schema
     ) -> Optional[InheritingObjectT]:
         """Get the topmost non-abstract base."""
         lineage = self.get_ancestors(schema).objects(schema)
@@ -3117,8 +3115,7 @@ class InheritingObject(SubclassableObject):
         return None
 
     def get_topmost_concrete_base(
-        self: InheritingObjectT,
-        schema: s_schema.Schema
+        self: InheritingObjectT, schema: s_schema.Schema
     ) -> InheritingObjectT:
         """Get the topmost non-abstract base."""
         base = self.maybe_get_topmost_concrete_base(schema)

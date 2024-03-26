@@ -103,7 +103,7 @@ class FindAggregatingUses(ast_visitor.NodeVisitor):
         if isinstance(node, irast.Set):
             self.seen[node.path_id] = True
 
-    def visit_Set(self, node: irast.Set, skip_rptr: bool=False) -> None:
+    def visit_Set(self, node: irast.Set, skip_rptr: bool = False) -> None:
         self.seen[node.path_id] = True
 
         if node.path_id == self.target:

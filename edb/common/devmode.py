@@ -46,9 +46,7 @@ class CoverageConfig(NamedTuple):
         return cls(**dct)
 
     def save_to_environ(self):
-        os.environ.update({
-            'EDGEDB_TEST_COVERAGE': self.to_json()
-        })
+        os.environ.update({'EDGEDB_TEST_COVERAGE': self.to_json()})
 
     @classmethod
     def from_environ(cls) -> Optional['CoverageConfig']:
@@ -103,7 +101,7 @@ class CoverageConfig(NamedTuple):
                 cov.save()
 
 
-def enable_dev_mode(enabled: bool=True):
+def enable_dev_mode(enabled: bool = True):
     os.environ['__EDGEDB_DEVMODE'] = '1' if enabled else ''
 
 

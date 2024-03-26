@@ -88,6 +88,7 @@ from .scopetree import ScopeTreeNode  # noqa
 
 Span = span.Span
 
+
 def new_scope_tree() -> ScopeTreeNode:
     return ScopeTreeNode(fenced=True)
 
@@ -99,15 +100,12 @@ class Base(ast.AST):
     span: typing.Optional[Span] = None
 
     def __repr__(self) -> str:
-        return (
-            f'<ir.{self.__class__.__name__} at 0x{id(self):x}>'
-        )
+        return f'<ir.{self.__class__.__name__} at 0x{id(self):x}>'
 
 
 # DEBUG: Probably don't actually keep this forever?
 @markup.serializer.serializer.register(Base)
-def _serialize_to_markup_base(
-        ir: Base, *, ctx: typing.Any) -> typing.Any:
+def _serialize_to_markup_base(ir: Base, *, ctx: typing.Any) -> typing.Any:
     node = ast.serialize_to_markup(ir, ctx=ctx)
     has_span = bool(ir.span)
     node.add_child(
@@ -332,8 +330,7 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
         return self._name
 
     def get_cardinality(
-        self,
-        schema: s_schema.Schema
+        self, schema: s_schema.Schema
     ) -> qltypes.SchemaCardinality:
         return qltypes.SchemaCardinality.One
 
@@ -398,8 +395,7 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
         return self._name
 
     def get_cardinality(
-        self,
-        schema: s_schema.Schema
+        self, schema: s_schema.Schema
     ) -> qltypes.SchemaCardinality:
         return self._cardinality
 
@@ -639,8 +635,8 @@ class Param:
 
     @property
     def is_sub_param(self) -> bool:
-        return (
-            self.name.startswith('__edb_decoded_') and self.name.endswith('__')
+        return self.name.startswith('__edb_decoded_') and self.name.endswith(
+            '__'
         )
 
 
@@ -696,9 +692,8 @@ class ParamTuple(ParamTransType):
     typs: tuple[tuple[typing.Optional[str], ParamTransType], ...]
 
     def flatten(self) -> tuple[typing.Any, ...]:
-        return (
-            (int(qltypes.TypeTag.TUPLE), self.idx)
-            + tuple(x.flatten() for _, x in self.typs)
+        return (int(qltypes.TypeTag.TUPLE), self.idx) + tuple(
+            x.flatten() for _, x in self.typs
         )
 
 
@@ -747,7 +742,8 @@ class MaterializeVisible(Base):
 
 @markup.serializer.serializer.register(MaterializeVisible)
 def _serialize_to_markup_mat_vis(
-        ir: MaterializeVisible, *, ctx: typing.Any) -> typing.Any:
+    ir: MaterializeVisible, *, ctx: typing.Any
+) -> typing.Any:
     # We want to show the path_ids but *not* to show the full sets
     node = ast.serialize_to_markup(ir, ctx=ctx)
     fixed = {(x, y.path_id) for x, y in ir.sets}
@@ -1096,7 +1092,8 @@ class MaterializedSet(Base):
 
 @markup.serializer.serializer.register(MaterializedSet)
 def _serialize_to_markup_mat_set(
-        ir: MaterializedSet, *, ctx: typing.Any) -> typing.Any:
+    ir: MaterializedSet, *, ctx: typing.Any
+) -> typing.Any:
     # We want to show the path_ids but *not* to show the full uses
     node = ast.serialize_to_markup(ir, ctx=ctx)
     node.add_child(label='uses', node=markup.serialize(ir.uses, ctx=ctx))

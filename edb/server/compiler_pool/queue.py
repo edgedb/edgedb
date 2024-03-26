@@ -111,7 +111,7 @@ class WorkerQueue(typing.Generic[W]):
 
         return self._queue.popleft()
 
-    def release(self, worker: W, *, put_in_front: bool=True) -> None:
+    def release(self, worker: W, *, put_in_front: bool = True) -> None:
         if put_in_front:
             self._queue.appendleft(worker)
         else:

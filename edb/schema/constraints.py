@@ -180,7 +180,8 @@ class Constraint(
         bool, default=False, compcoef=0.971, allow_ddl_set=False)
 
     def get_name_impacting_ancestors(
-        self, schema: s_schema.Schema,
+        self,
+        schema: s_schema.Schema,
     ) -> List[Constraint]:
         if self.is_non_concrete(schema):
             return []
@@ -229,16 +230,12 @@ class Constraint(
         return [self] if not origins else list(origins)
 
     def is_independent(self, schema: s_schema.Schema) -> bool:
-        return (
-            not self.descendants(schema)
-            and self.get_constraint_origins(schema) == [self]
-        )
+        return not self.descendants(schema) and self.get_constraint_origins(
+            schema
+        ) == [self]
 
     def get_verbosename(
-        self,
-        schema: s_schema.Schema,
-        *,
-        with_parent: bool = False
+        self, schema: s_schema.Schema, *, with_parent: bool = False
     ) -> str:
         vn = super().get_verbosename(schema, with_parent=with_parent)
         if self.is_non_concrete(schema):
@@ -355,9 +352,7 @@ class Constraint(
 
     @classmethod
     def get_root_classes(cls) -> Tuple[sn.QualName, ...]:
-        return (
-            sn.QualName(module='std', name='constraint'),
-        )
+        return (sn.QualName(module='std', name='constraint'),)
 
     @classmethod
     def get_default_base_name(self) -> sn.QualName:
@@ -466,10 +461,7 @@ class ConstraintCommand(
         return (cls._name_qual_from_exprs(schema, exprs),)
 
     @classmethod
-    def _classname_quals_from_name(
-        cls,
-        name: sn.QualName
-    ) -> Tuple[str, ...]:
+    def _classname_quals_from_name(cls, name: sn.QualName) -> Tuple[str, ...]:
         quals = sn.quals_from_fullname(name)
         return (quals[-1],)
 

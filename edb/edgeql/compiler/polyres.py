@@ -93,10 +93,12 @@ _SINGLETON = ft.TypeModifier.SingletonType
 
 
 def find_callable_typemods(
-        candidates: Sequence[s_func.CallableLike], *,
-        num_args: int,
-        kwargs_names: AbstractSet[str],
-        ctx: context.ContextLevel) -> Dict[Union[int, str], ft.TypeModifier]:
+    candidates: Sequence[s_func.CallableLike],
+    *,
+    num_args: int,
+    kwargs_names: AbstractSet[str],
+    ctx: context.ContextLevel,
+) -> Dict[Union[int, str], ft.TypeModifier]:
     """Find the type modifiers for a callable.
 
     We do this early, before we've compiled/checked the arguments,
@@ -142,11 +144,13 @@ def find_callable_typemods(
 
 
 def find_callable(
-        candidates: Iterable[s_func.CallableLike], *,
-        args: Sequence[Tuple[s_types.Type, irast.Set]],
-        kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
-        basic_matching_only: bool=False,
-        ctx: context.ContextLevel) -> List[BoundCall]:
+    candidates: Iterable[s_func.CallableLike],
+    *,
+    args: Sequence[Tuple[s_types.Type, irast.Set]],
+    kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
+    basic_matching_only: bool = False,
+    ctx: context.ContextLevel,
+) -> List[BoundCall]:
 
     implicit_cast_distance = None
     matched = []
@@ -206,12 +210,13 @@ def find_callable(
 
 
 def try_bind_call_args(
-        args: Sequence[Tuple[s_types.Type, irast.Set]],
-        kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
-        func: s_func.CallableLike,
-        basic_matching_only: bool,
-        *,
-        ctx: context.ContextLevel) -> Optional[BoundCall]:
+    args: Sequence[Tuple[s_types.Type, irast.Set]],
+    kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
+    func: s_func.CallableLike,
+    basic_matching_only: bool,
+    *,
+    ctx: context.ContextLevel,
+) -> Optional[BoundCall]:
 
     return_type = func.get_return_type(ctx.env.schema)
     is_abstract = func.get_abstract(ctx.env.schema)

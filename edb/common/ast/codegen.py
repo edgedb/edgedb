@@ -76,11 +76,7 @@ class SourceGenerator(NodeVisitor):
             self.new_lines = 1
         return res
 
-    def write(
-        self,
-        *x: str,
-        delimiter: Optional[str] = None
-    ) -> None:
+    def write(self, *x: str, delimiter: Optional[str] = None) -> None:
         if not x:
             return
         if self.new_lines:

@@ -65,11 +65,7 @@ __all__ = ('Registry', 'Unit', 'calc_buckets')
 
 
 def calc_buckets(
-    start: float,
-    upper_bound: float,
-    /,
-    *,
-    increment_ratio: float = 1.20
+    start: float, upper_bound: float, /, *, increment_ratio: float = 1.20
 ) -> tuple[float, ...]:
     """Calculate histogram buckets on a logarithmic scale."""
     # See https://amplitude.com/blog/2014/08/06/optimal-streaming-histograms
@@ -118,13 +114,7 @@ class Registry:
     def now(self) -> float:
         return time.time()
 
-    def set_info(
-        self,
-        name: str,
-        desc: str,
-        /,
-        **kwargs: str
-    ) -> None:
+    def set_info(self, name: str, desc: str, /, **kwargs: str) -> None:
         self._add_metric(Info(self, name, desc, **kwargs))
 
     def new_counter(
@@ -265,8 +255,9 @@ class BaseMetric:
         return self._name
 
     def _validate_name(self, name: str) -> None:
-        if (name.startswith(self.PROHIBITED_PREFIXES) or
-                name.endswith(self.PROHIBITED_SUFFIXES)):
+        if name.startswith(self.PROHIBITED_PREFIXES) or name.endswith(
+            self.PROHIBITED_SUFFIXES
+        ):
             raise ValueError(f'invalid metrics name: {name!r}')
 
     def _validate_label_names(self, labels: tuple[str, ...]) -> None:
@@ -275,9 +266,7 @@ class BaseMetric:
                 raise ValueError(f'invalid label name: {label!r}')
 
     def _validate_label_values(
-        self,
-        labels: tuple[str, ...],
-        values: tuple[str, ...]
+        self, labels: tuple[str, ...], values: tuple[str, ...]
     ) -> None:
         if len(values) != len(labels):
             raise ValueError(
@@ -323,11 +312,7 @@ class Info(BaseMetric):
     _registry: Registry
     _labels: dict[str, str]
 
-    def __init__(
-        self,
-        *args: typing.Any,
-        **labels: str
-    ) -> None:
+    def __init__(self, *args: typing.Any, **labels: str) -> None:
         super().__init__(*args)
         self._validate_label_names(tuple(labels.keys()))
         self._labels = labels
@@ -523,9 +508,7 @@ class BaseHistogram(BaseMetric):
     ]
 
     def __init__(
-        self,
-        *args: typing.Any,
-        buckets: list[float] | None = None
+        self, *args: typing.Any, buckets: list[float] | None = None
     ) -> None:
         if buckets is None:
             buckets = self.DEFAULT_BUCKETS
@@ -550,9 +533,7 @@ class Histogram(BaseHistogram):
     _sum: float
 
     def __init__(
-        self,
-        *args: typing.Any,
-        buckets: list[float] | None = None
+        self, *args: typing.Any, buckets: list[float] | None = None
     ) -> None:
         super().__init__(*args, buckets=buckets)
         self._sum = 0.0
@@ -682,6 +663,4 @@ def _format_desc(desc: str) -> str:
 
 @functools.lru_cache(maxsize=1024)
 def _format_label_val(desc: str) -> str:
-    return (
-        desc.replace('\\', r'\\').replace('\n', r'\n').replace('"', r'\"')
-    )
+    return desc.replace('\\', r'\\').replace('\n', r'\n').replace('"', r'\"')

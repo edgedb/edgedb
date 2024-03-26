@@ -64,8 +64,9 @@ class Setting:
     protected: bool = False
 
     def __post_init__(self) -> None:
-        if (self.type not in SETTING_TYPES and
-                not isinstance(self.type, types.ConfigTypeSpec)):
+        if self.type not in SETTING_TYPES and not isinstance(
+            self.type, types.ConfigTypeSpec
+        ):
             raise ValueError(
                 f'invalid config setting {self.name!r}: '
                 f'type is expected to be either one of '

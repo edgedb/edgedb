@@ -63,9 +63,7 @@ DEFAULT_INDEX = sn.QualName(module='__', name='idx')
 
 
 def is_index_valid_for_type(
-    index: Index,
-    expr_type: s_types.Type,
-    schema: s_schema.Schema
+    index: Index, expr_type: s_types.Type, schema: s_schema.Schema
 ) -> bool:
     # HACK: currently this helper just hardcodes the permitted index & type
     # combinations, but this should be inferred based on index definition.
@@ -259,10 +257,7 @@ class Index(
         return delta
 
     def get_verbosename(
-        self,
-        schema: s_schema.Schema,
-        *,
-        with_parent: bool = False
+        self, schema: s_schema.Schema, *, with_parent: bool = False
     ) -> str:
         # baseline name for indexes
         vn = self.get_displayname(schema)
@@ -480,10 +475,7 @@ class IndexCommand(
         return (cls._name_qual_from_exprs(schema, exprs),)
 
     @classmethod
-    def _classname_quals_from_name(
-        cls,
-        name: sn.QualName
-    ) -> Tuple[str, ...]:
+    def _classname_quals_from_name(cls, name: sn.QualName) -> Tuple[str, ...]:
         quals = sn.quals_from_fullname(name)
         return tuple(quals[-1:])
 

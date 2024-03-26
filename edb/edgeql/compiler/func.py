@@ -74,7 +74,8 @@ if TYPE_CHECKING:
 
 @dispatch.compile.register(qlast.FunctionCall)
 def compile_FunctionCall(
-        expr: qlast.FunctionCall, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.FunctionCall, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     env = ctx.env
 
@@ -351,8 +352,12 @@ def _special_case(name: str) -> Callable[[_SpecialCaseFunc], _SpecialCaseFunc]:
 
 
 def compile_operator(
-        qlexpr: qlast.Base, op_name: str, qlargs: List[qlast.Expr], *,
-        ctx: context.ContextLevel) -> irast.Set:
+    qlexpr: qlast.Base,
+    op_name: str,
+    qlargs: List[qlast.Expr],
+    *,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     env = ctx.env
     schema = env.schema
@@ -664,8 +669,7 @@ INVALID_FREE_SHAPE_OPS: Final = {
 }
 
 
-def _check_free_shape_op(
-        ir: irast.Call, *, ctx: context.ContextLevel) -> None:
+def _check_free_shape_op(ir: irast.Call, *, ctx: context.ContextLevel) -> None:
     if ir.func_shortname not in INVALID_FREE_SHAPE_OPS:
         return
 
@@ -680,10 +684,12 @@ def _check_free_shape_op(
 
 
 def validate_recursive_operator(
-        opers: Iterable[s_func.CallableObject],
-        larg: Tuple[s_types.Type, irast.Set],
-        rarg: Tuple[s_types.Type, irast.Set], *,
-        ctx: context.ContextLevel) -> List[polyres.BoundCall]:
+    opers: Iterable[s_func.CallableObject],
+    larg: Tuple[s_types.Type, irast.Set],
+    rarg: Tuple[s_types.Type, irast.Set],
+    *,
+    ctx: context.ContextLevel,
+) -> List[polyres.BoundCall]:
 
     matched: List[polyres.BoundCall] = []
 
@@ -800,7 +806,8 @@ def get_globals(
 
 
 def finalize_args(
-    bound_call: polyres.BoundCall, *,
+    bound_call: polyres.BoundCall,
+    *,
     actual_typemods: Sequence[ft.TypeModifier] = (),
     guessed_typemods: Dict[Union[int, str], ft.TypeModifier],
     is_polymorphic: bool = False,

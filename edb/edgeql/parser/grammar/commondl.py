@@ -91,8 +91,9 @@ class NewNontermHelper:
     def __init__(self, modname):
         self.name = modname
 
-    def _new_nonterm(self, clsname, clsdict=None, clskwds=None,
-                     clsbases=(Nonterm,)):
+    def _new_nonterm(
+        self, clsname, clsdict=None, clskwds=None, clsbases=(Nonterm,)
+    ):
         if clsdict is None:
             clsdict = {}
         if clskwds is None:
@@ -408,7 +409,7 @@ class FromFunction(Nonterm):
 
 
 class ProcessFunctionBlockMixin:
-    def _process_function_body(self, block, *, optional_using: bool=False):
+    def _process_function_body(self, block, *, optional_using: bool = False):
         props: typing.Dict[str, typing.Any] = {}
 
         commands = []
@@ -751,7 +752,7 @@ class ProcessIndexMixin(ProcessFunctionParamsMixin):
 
         return params, kwargs
 
-    def _process_sql_body(self, block, *, optional_using: bool=False):
+    def _process_sql_body(self, block, *, optional_using: bool = False):
         props: typing.Dict[str, typing.Any] = {}
 
         commands = []

@@ -235,17 +235,27 @@ class ChannelingTestResultMeta(type):
         return _wrapper
 
     def __new__(mcls, name, bases, dct):
-        for meth in {'startTest', 'addSuccess', 'addError', 'addFailure',
-                     'addSkip', 'addExpectedFailure', 'addUnexpectedSuccess',
-                     'addSubTest', 'addWarning', 'record_test_stats',
-                     'annotate_test'}:
+        for meth in {
+            'startTest',
+            'addSuccess',
+            'addError',
+            'addFailure',
+            'addSkip',
+            'addExpectedFailure',
+            'addUnexpectedSuccess',
+            'addSubTest',
+            'addWarning',
+            'record_test_stats',
+            'annotate_test',
+        }:
             dct[meth] = mcls.get_wrapper(meth)
 
         return super().__new__(mcls, name, bases, dct)
 
 
-class ChannelingTestResult(unittest.result.TestResult,
-                           metaclass=ChannelingTestResultMeta):
+class ChannelingTestResult(
+    unittest.result.TestResult, metaclass=ChannelingTestResultMeta
+):
     def __init__(self, queue):
         super().__init__(io.StringIO(), False, 1)
         self._queue = queue

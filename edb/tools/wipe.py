@@ -79,7 +79,8 @@ class AbsPath(click.Path):
 @click.option(
     '--list-tenants',
     is_flag=True,
-    help='list cluster tenants instead of performing a wipe')
+    help='list cluster tenants instead of performing a wipe',
+)
 def wipe(
     *,
     backend_dsn,

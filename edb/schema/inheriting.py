@@ -763,9 +763,7 @@ class CreateInheritingObject(
                 'inherited_fields', frozenset(inherited_fields))
 
     def _create_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super()._create_begin(schema, context)
 
@@ -1150,9 +1148,11 @@ class RebaseInheritingObject(
     EXTRA_INHERITED_FIELDS: set[str] = set()
 
     def __repr__(self) -> str:
-        return '<%s.%s "%s">' % (self.__class__.__module__,
-                                 self.__class__.__name__,
-                                 self.classname)
+        return '<%s.%s "%s">' % (
+            self.__class__.__module__,
+            self.__class__.__name__,
+            self.classname,
+        )
 
     def get_verb(self) -> str:
         # FIXME: We just say 'alter' because it is currently somewhat
@@ -1164,9 +1164,7 @@ class RebaseInheritingObject(
         return 'alter'
 
     def _alter_finalize(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super()._alter_finalize(schema, context)
 

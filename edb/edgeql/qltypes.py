@@ -138,9 +138,7 @@ class Cardinality(s_enum.StrEnum):
 
     @classmethod
     def from_schema_value(
-        cls,
-        required: bool,
-        card: SchemaCardinality
+        cls, required: bool, card: SchemaCardinality
     ) -> Cardinality:
         return _TUPLE_TO_CARD[(required, card)]
 

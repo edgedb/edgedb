@@ -139,21 +139,22 @@ class Link(
         return False
 
     def has_user_defined_properties(self, schema: s_schema.Schema) -> bool:
-        return bool([p for p in self.get_pointers(schema).objects(schema)
-                     if not p.is_special_pointer(schema)
-                     and not p.is_pure_computable(schema)])
+        return bool(
+            [
+                p
+                for p in self.get_pointers(schema).objects(schema)
+                if not p.is_special_pointer(schema)
+                and not p.is_pure_computable(schema)
+            ]
+        )
 
     def get_source(
-        self,
-        schema: s_schema.Schema
+        self, schema: s_schema.Schema
     ) -> Optional[s_objtypes.ObjectType]:
         return self.get_field_value(  # type: ignore[no-any-return]
             schema, 'source')
 
-    def get_source_type(
-        self,
-        schema: s_schema.Schema
-    ) -> s_objtypes.ObjectType:
+    def get_source_type(self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
         source = self.get_source(schema)
         assert source
         return source

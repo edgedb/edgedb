@@ -135,10 +135,7 @@ def is_null_const(expr: pgast.BaseExpr) -> bool:
 
 
 def is_set_op_query(query: pgast.BaseExpr) -> TypeGuard[pgast.SelectStmt]:
-    return (
-        isinstance(query, pgast.SelectStmt)
-        and query.op is not None
-    )
+    return isinstance(query, pgast.SelectStmt) and query.op is not None
 
 
 def get_leftmost_query(query: pgast.Query) -> pgast.Query:
@@ -251,10 +248,7 @@ def extend_select_op(
 
 
 def new_unop(op: str, expr: pgast.BaseExpr) -> pgast.Expr:
-    return pgast.Expr(
-        name=op,
-        rexpr=expr
-    )
+    return pgast.Expr(name=op, rexpr=expr)
 
 
 def join_condition(
@@ -308,10 +302,12 @@ def find_column_in_subselect_rvar(
 
 
 def get_column(
-        rvar: pgast.BaseRangeVar,
-        colspec: Union[str, pgast.ColumnRef], *,
-        is_packed_multi: bool=True,
-        nullable: Optional[bool]=None) -> pgast.ColumnRef:
+    rvar: pgast.BaseRangeVar,
+    colspec: Union[str, pgast.ColumnRef],
+    *,
+    is_packed_multi: bool = True,
+    nullable: Optional[bool] = None,
+) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
         colname = colspec.name[-1]
@@ -366,8 +362,8 @@ def get_column(
 
 
 def get_rvar_var(
-        rvar: pgast.BaseRangeVar,
-        var: pgast.OutputVar) -> pgast.OutputVar:
+    rvar: pgast.BaseRangeVar, var: pgast.OutputVar
+) -> pgast.OutputVar:
 
     fieldref: pgast.OutputVar
 
@@ -401,9 +397,11 @@ def get_rvar_var(
 
 
 def strip_output_var(
-        var: pgast.OutputVar, *,
-        optional: Optional[bool]=None,
-        nullable: Optional[bool]=None) -> pgast.OutputVar:
+    var: pgast.OutputVar,
+    *,
+    optional: Optional[bool] = None,
+    nullable: Optional[bool] = None,
+) -> pgast.OutputVar:
 
     result: pgast.OutputVar
 

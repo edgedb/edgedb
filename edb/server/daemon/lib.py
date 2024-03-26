@@ -143,6 +143,7 @@ def detach_process_context():
     Reference: “Advanced Programming in the Unix Environment”,
     section 13.3, by W. Richard Stevens.
     """
+
     def fork_and_exit_parent(error_message):
         try:
             if os.fork() > 0:
@@ -201,7 +202,7 @@ def is_detach_process_context_required():
     ) and not is_process_started_by_superserver()
 
 
-def get_max_fileno(default: int=2048):
+def get_max_fileno(default: int = 2048):
     """Return the maximum number of open file descriptors."""
     limit = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
     if limit == resource.RLIM_INFINITY:

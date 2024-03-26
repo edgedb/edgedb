@@ -62,7 +62,8 @@ from . import func  # NOQA
 
 @dispatch.compile.register(qlast._Optional)
 def compile__Optional(
-        expr: qlast._Optional, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast._Optional, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     result = dispatch.compile(expr.expr, ctx=ctx)
 
@@ -72,8 +73,7 @@ def compile__Optional(
 
 
 @dispatch.compile.register(qlast.Path)
-def compile_Path(
-        expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
+def compile_Path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     return stmt.maybe_add_view(setgen.compile_path(expr, ctx=ctx), ctx=ctx)
 
 
@@ -115,8 +115,7 @@ REBALANCE_THRESHOLD = 10
 
 @dispatch.compile.register(qlast.SetConstructorOp)
 @dispatch.compile.register(qlast.BinOp)
-def compile_BinOp(
-        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
+def compile_BinOp(expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
     # Rebalance some associative operations to avoid deeply nested ASTs
     if expr.op in REBALANCED_OPS and not expr.rebalanced:
         elements = collect_binop(expr)
@@ -141,8 +140,7 @@ def compile_BinOp(
 
 
 @dispatch.compile.register(qlast.IsOp)
-def compile_IsOp(
-        expr: qlast.IsOp, *, ctx: context.ContextLevel) -> irast.Set:
+def compile_IsOp(expr: qlast.IsOp, *, ctx: context.ContextLevel) -> irast.Set:
     op_node = compile_type_check_op(expr, ctx=ctx)
     return setgen.ensure_set(op_node, ctx=ctx)
 
@@ -165,11 +163,7 @@ def compile_DetachedExpr(
 
 
 @dispatch.compile.register(qlast.Set)
-def compile_Set(
-    expr: qlast.Set,
-    *,
-    ctx: context.ContextLevel
-) -> irast.Set:
+def compile_Set(expr: qlast.Set, *, ctx: context.ContextLevel) -> irast.Set:
     # after flattening the set may still end up with 0 or 1 element,
     # which are treated as a special case
     elements = flatten_set(expr)
@@ -206,7 +200,8 @@ def compile_Set(
 
 @dispatch.compile.register(qlast.BaseConstant)
 def compile_BaseConstant(
-        expr: qlast.BaseConstant, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.BaseConstant, *, ctx: context.ContextLevel
+) -> irast.Set:
     value = expr.value
 
     node_cls: Type[irast.BaseConstant]
@@ -261,7 +256,8 @@ def compile_BaseConstant(
 
 @dispatch.compile.register(qlast.NamedTuple)
 def compile_NamedTuple(
-        expr: qlast.NamedTuple, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.NamedTuple, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     names = set()
     elements = []
@@ -283,8 +279,7 @@ def compile_NamedTuple(
 
 
 @dispatch.compile.register(qlast.Tuple)
-def compile_Tuple(
-        expr: qlast.Tuple, *, ctx: context.ContextLevel) -> irast.Set:
+def compile_Tuple(expr: qlast.Tuple, *, ctx: context.ContextLevel) -> irast.Set:
 
     elements = []
     for i, el in enumerate(expr.elements):
@@ -298,12 +293,8 @@ def compile_Tuple(
 
 
 @dispatch.compile.register(qlast.Array)
-def compile_Array(
-        expr: qlast.Array, *, ctx: context.ContextLevel) -> irast.Set:
-    elements = [
-        dispatch.compile(e, ctx=ctx)
-        for e in expr.elements
-    ]
+def compile_Array(expr: qlast.Array, *, ctx: context.ContextLevel) -> irast.Set:
+    elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
     # check that none of the elements are themselves arrays
     for el, expr_el in zip(elements, expr.elements):
         if isinstance(setgen.get_set_type(el, ctx=ctx), s_abc.Array):
@@ -345,7 +336,8 @@ def _move_fenced_anchor(ir: irast.Set, *, ctx: context.ContextLevel) -> None:
 
 
 def _compile_dml_coalesce(
-        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.BinOp, *, ctx: context.ContextLevel
+) -> irast.Set:
     """Transform a coalesce that contains DML into FOR loops
 
     The basic approach is to extract the pieces from the ?? and
@@ -425,7 +417,8 @@ def _compile_dml_coalesce(
 
 
 def _compile_dml_ifelse(
-        expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.IfElse, *, ctx: context.ContextLevel
+) -> irast.Set:
     """Transform an IF/ELSE that contains DML into FOR loops
 
     The basic approach is to extract the pieces from the if/then/else and
@@ -516,7 +509,8 @@ def _compile_dml_ifelse(
 
 @dispatch.compile.register(qlast.IfElse)
 def compile_IfElse(
-        expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.IfElse, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     if (
         utils.contains_dml(expr.if_expr)
@@ -533,7 +527,8 @@ def compile_IfElse(
 
 @dispatch.compile.register(qlast.UnaryOp)
 def compile_UnaryOp(
-        expr: qlast.UnaryOp, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.UnaryOp, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     return func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.operand], ctx=ctx)
@@ -541,7 +536,8 @@ def compile_UnaryOp(
 
 @dispatch.compile.register(qlast.GlobalExpr)
 def compile_GlobalExpr(
-        expr: qlast.GlobalExpr, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.GlobalExpr, *, ctx: context.ContextLevel
+) -> irast.Set:
     glob = ctx.env.get_schema_object_and_track(
         s_utils.ast_ref_to_name(expr.name), expr.name,
         modaliases=ctx.modaliases, type=s_globals.Global)
@@ -648,7 +644,8 @@ def compile_GlobalExpr(
 
 @dispatch.compile.register(qlast.TypeCast)
 def compile_TypeCast(
-        expr: qlast.TypeCast, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.TypeCast, *, ctx: context.ContextLevel
+) -> irast.Set:
     target_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
     ir_expr: Union[irast.Set, irast.Expr]
 
@@ -797,7 +794,8 @@ def _infer_type_introspection(
 
 @dispatch.compile.register(qlast.Introspect)
 def compile_Introspect(
-        expr: qlast.Introspect, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.Introspect, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     typeref = typegen.ql_typeexpr_to_ir_typeref(expr.type, ctx=ctx)
     if typeref.material_type and not irtyputils.is_object(typeref):
@@ -1003,7 +1001,8 @@ def compile_Indirection(
 
 
 def compile_type_check_op(
-        expr: qlast.IsOp, *, ctx: context.ContextLevel) -> irast.TypeCheckOp:
+    expr: qlast.IsOp, *, ctx: context.ContextLevel
+) -> irast.TypeCheckOp:
     # <Expr> IS <TypeExpr>
     left = dispatch.compile(expr.left, ctx=ctx)
     ltype = setgen.get_set_type(left, ctx=ctx)
