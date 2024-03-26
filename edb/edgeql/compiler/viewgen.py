@@ -2433,15 +2433,15 @@ def _late_compile_view_shapes_in_set(
 
         shape = []
         for path_tip, ptr, shape_op, _ in shape_ptrs:
-            srcctx = None
+            span = None
             if ptr in ctx.env.pointer_specified_info:
-                _, _, srcctx = ctx.env.pointer_specified_info[ptr]
+                _, _, span = ctx.env.pointer_specified_info[ptr]
 
             element = setgen.extend_path(
                 path_tip,
                 ptr,
                 same_computable_scope=True,
-                span=srcctx,
+                span=span,
                 ctx=ctx,
             )
 

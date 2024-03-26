@@ -261,7 +261,7 @@ class LinkCommand(
         assert target is not None
 
         if not target.is_object_type():
-            srcctx = self.get_attribute_span('target')
+            span = self.get_attribute_span('target')
             if isinstance(target, s_types.Array):
                 # Custom error message for link -> array<...>
                 link_dn = scls.get_displayname(schema)
@@ -273,15 +273,15 @@ class LinkCommand(
             raise errors.InvalidLinkTargetError(
                 f'invalid link target type, expected object type, got '
                 f'{target.get_verbosename(schema)}',
-                span=srcctx,
+                span=span,
                 hint=hint,
             )
 
         if target.is_free_object_type(schema):
-            srcctx = self.get_attribute_span('target')
+            span = self.get_attribute_span('target')
             raise errors.InvalidLinkTargetError(
                 f'{target.get_verbosename(schema)} is not a valid link target',
-                span=srcctx,
+                span=span,
             )
 
         if (
@@ -289,11 +289,11 @@ class LinkCommand(
             and not scls.get_from_alias(schema)
             and target.is_view(schema)
         ):
-            srcctx = self.get_attribute_span('target')
+            span = self.get_attribute_span('target')
             raise errors.InvalidLinkTargetError(
                 f'invalid link type: {target.get_displayname(schema)!r}'
                 f' is an expression alias, not a proper object type',
-                span=srcctx,
+                span=span,
             )
 
         if (

@@ -3417,14 +3417,14 @@ def materialize_type_in_attribute(
     if type_ref is None:
         return schema
 
-    srcctx = cmd.get_attribute_span('target')
+    span = cmd.get_attribute_span('target')
 
     if isinstance(type_ref, TypeExprShell):
         cc_cmd = ensure_schema_type_expr_type(
             schema,
             type_ref,
             parent_cmd=cmd,
-            span=srcctx,
+            span=span,
             context=context,
         )
         if cc_cmd is not None:
@@ -3453,11 +3453,11 @@ def materialize_type_in_attribute(
                     modaliases=context.modaliases,
                     schema=schema,
                     item_type=Type,
-                    span=srcctx,
+                    span=span,
                 )
             raise
         except errors.InvalidPropertyDefinitionError as e:
-            e.set_span(srcctx)
+            e.set_span(span)
             raise
     elif not isinstance(type_ref, Type):
         raise AssertionError(

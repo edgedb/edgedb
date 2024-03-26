@@ -788,7 +788,7 @@ def get_globals(
         and not ctx.env.options.json_parameters
     ):
         glob_set = setgen.get_globals_as_json(
-            tuple(globs), ctx=ctx, srcctx=expr.span)
+            tuple(globs), ctx=ctx, span=expr.span)
     else:
         if ctx.env.options.func_params is not None:
             # Make sure that we properly track the globals we use in functions

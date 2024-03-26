@@ -770,7 +770,7 @@ def compile_TypeCast(
 def _infer_type_introspection(
     typeref: irast.TypeRef,
     env: context.Environment,
-    srcctx: Optional[parsing.Span]=None,
+    span: Optional[parsing.Span]=None,
 ) -> s_types.Type:
     if irtyputils.is_scalar(typeref):
         return cast(s_objtypes.ObjectType,
@@ -792,7 +792,7 @@ def _infer_type_introspection(
                     env.schema.get('schema::MultiRange'))
     else:
         raise errors.QueryError(
-            'unexpected type in INTROSPECT', span=srcctx)
+            'unexpected type in INTROSPECT', span=span)
 
 
 @dispatch.compile.register(qlast.Introspect)

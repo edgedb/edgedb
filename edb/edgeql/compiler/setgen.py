@@ -614,7 +614,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             subctx.path_scope = scope
             assert ir_set.rptr is not None
             comp_ir_set = computable_ptr_set(
-                ir_set.rptr, ir_set.path_id, srcctx=ir_set.span, ctx=subctx)
+                ir_set.expr, ir_set.path_id, span=ir_set.span, ctx=subctx
+            )
             i = path_sets.index(ir_set)
             if i != len(path_sets) - 1:
                 prptr = path_sets[i + 1].rptr
@@ -651,7 +652,7 @@ def resolve_name(
         ),
         label='object type or alias',
         item_type=s_types.QualifiedType,
-        srcctx=name.span,
+        span=name.span,
         ctx=ctx,
     )
     return (None, stype)
@@ -942,7 +943,7 @@ def resolve_ptr_with_intersections(
 def _check_secret_ptr(
     ptrcls: s_pointers.Pointer,
     *,
-    srcctx: Optional[qlast.Span]=None,
+    span: Optional[qlast.Span]=None,
     ctx: context.ContextLevel,
 ) -> None:
     module = ptrcls.get_name(ctx.env.schema).module
@@ -963,7 +964,7 @@ def _check_secret_ptr(
     vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
     raise errors.QueryError(
         f"cannot access {vn} because it is secret",
-        span=srcctx,
+        span=span,
     )
 
 
@@ -1019,7 +1020,7 @@ def extend_path(
     )
 
     if ptrcls.get_secret(ctx.env.schema):
-        _check_secret_ptr(ptrcls, srcctx=span, ctx=ctx)
+        _check_secret_ptr(ptrcls, span=span, ctx=ctx)
 
     target = orig_ptrcls.get_far_endpoint(ctx.env.schema, direction)
     assert isinstance(target, s_types.Type)
@@ -1040,7 +1041,7 @@ def extend_path(
             ptr,
             path_id,
             same_computable_scope=same_computable_scope,
-            srcctx=span,
+            span=span,
             ctx=ctx,
         )
 
@@ -1408,7 +1409,7 @@ def ensure_set(
         type_override: Optional[s_types.Type]=None,
         typehint: Optional[s_types.Type]=None,
         path_id: Optional[irast.PathId]=None,
-        srcctx: Optional[qlast.Span]=None,
+        span: Optional[qlast.Span]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
     if not isinstance(expr, irast.Set):
@@ -1425,8 +1426,8 @@ def ensure_set(
 
         stype = type_override
 
-    if srcctx is not None:
-        ir_set = new_set_from_set(ir_set, span=srcctx, ctx=ctx)
+    if span is not None:
+        ir_set = new_set_from_set(ir_set, span=span, ctx=ctx)
 
     if (isinstance(ir_set, irast.EmptySet)
             and (stype is None or stype.is_any(ctx.env.schema))
@@ -1494,7 +1495,7 @@ def computable_ptr_set(
     path_id: irast.PathId,
     *,
     same_computable_scope: bool=False,
-    srcctx: Optional[qlast.Span]=None,
+    span: Optional[qlast.Span]=None,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Return ir.Set for a pointer defined as a computable."""
@@ -1646,7 +1647,7 @@ def computable_ptr_set(
     # XXX: or should we update rptr in place??
     rptr = rptr.replace(expr=comp_ir_set.expr)
     comp_ir_set = new_set_from_set(
-        comp_ir_set, path_id=path_id, expr=rptr, span=srcctx,
+        comp_ir_set, path_id=path_id, expr=rptr, span=span,
         merge_current_ns=True,
         ctx=ctx)
 
@@ -2070,7 +2071,7 @@ def get_func_global_param_sets(
 def get_globals_as_json(
     globs: Sequence[s_globals.Global], *,
     ctx: context.ContextLevel,
-    srcctx: Optional[qlast.Span],
+    span: Optional[qlast.Span],
 ) -> irast.Set:
     """Build a json object that contains the values of `globs`
 
@@ -2099,7 +2100,7 @@ def get_globals_as_json(
         raise errors.SchemaDefinitionError(
             f'functions that reference global variables cannot be called '
             f'from {typname}',
-            span=srcctx)
+            span=span)
 
     null_expr = qlast.FunctionCall(
         func=('__std__', 'to_json'),

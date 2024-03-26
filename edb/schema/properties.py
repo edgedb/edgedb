@@ -257,23 +257,23 @@ class PropertyCommand(
             raise TypeError(f'missing target type in scls {scls}')
 
         if target_type.is_polymorphic(schema):
-            srcctx = self.get_attribute_span('target')
+            span = self.get_attribute_span('target')
             raise errors.InvalidPropertyTargetError(
                 f'invalid property type: '
                 f'{target_type.get_verbosename(schema)} '
                 f'is a generic type',
-                span=srcctx,
+                span=span,
             )
 
         if (target_type.is_object_type()
                 or (isinstance(target_type, s_types.Collection)
                     and target_type.contains_object(schema))):
-            srcctx = self.get_attribute_span('target')
+            span = self.get_attribute_span('target')
             raise errors.InvalidPropertyTargetError(
                 f'invalid property type: expected a scalar type, '
                 f'or a scalar collection, got '
                 f'{target_type.get_verbosename(schema)}',
-                span=srcctx,
+                span=span,
             )
 
     def _check_linkprop_errors(self, node: qlast.DDLOperation) -> None:

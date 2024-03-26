@@ -162,33 +162,33 @@ class AccessPolicyCommand(
                 value=expr,
             )
 
-            srcctx = self.get_attribute_span(field)
+            span = self.get_attribute_span(field)
 
             if expression.irast.cardinality.can_be_zero():
                 raise errors.SchemaDefinitionError(
                     f'possibly an empty set returned by {vname} '
                     f'expression for the {pol_name} ',
-                    span=srcctx
+                    span=span
                 )
 
             if expression.irast.cardinality.is_multi():
                 raise errors.SchemaDefinitionError(
                     f'possibly more than one element returned by {vname} '
                     f'expression for the {pol_name} ',
-                    span=srcctx
+                    span=span
                 )
 
             if expression.irast.volatility.is_volatile():
                 raise errors.SchemaDefinitionError(
                     f'{pol_name} has a volatile {vname} expression, '
                     f'which is not allowed',
-                    span=srcctx
+                    span=span
                 )
 
             target = schema.get(sn.QualName('std', 'bool'), type=s_types.Type)
             expr_type = expression.irast.stype
             if not expr_type.issubclass(expression.irast.schema, target):
-                srcctx = self.get_attribute_span(field)
+                span = self.get_attribute_span(field)
                 raise errors.SchemaDefinitionError(
                     f'{vname} expression for {pol_name} is of invalid type: '
                     f'{expr_type.get_displayname(schema)}, '
