@@ -5944,6 +5944,29 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_index_12(self):
+        """
+        CREATE TYPE Foo {
+            CREATE DEFERRED INDEX myindex0 ON (.bar);
+
+            CREATE DEFERRED INDEX
+                myindex1(a := 13, b := 'ab', conf := [4, 3, 2]) ON (.baz);
+
+            CREATE DEFERRED INDEX myindex2(num := 13, val := 'ab')
+                ON (.foo);
+
+            CREATE DEFERRED INDEX ON (.bar);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_index_13(self):
+        """
+        ALTER TYPE Foo {
+            ALTER INDEX myindex0 ON (.bar) SET DEFERRED;
+            ALTER INDEX ON (.bar) DROP DEFERRED;
+        };
+        """
+
     def test_edgeql_syntax_ddl_global_01(self):
         """
         CREATE GLOBAL Foo := (SELECT User);

@@ -7812,6 +7812,29 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_deferred_index_01(self):
+        self._assert_migration_equivalence([r"""
+            abstract index test() {
+                code := ' ((__col__) NULLS FIRST)';
+                deferrability := 'Permitted';
+            };
+
+            type Foo {
+                property bar -> str;
+                deferred index test on (.bar);
+            };
+        """, r"""
+            abstract index test() {
+                code := ' ((__col__) NULLS FIRST)';
+                deferrability := 'Permitted';
+            };
+
+            type Foo {
+                property bar -> str;
+                index test on (.bar);
+            };
+        """])
+
     def test_schema_migrations_drop_parent_01(self):
         self._assert_migration_equivalence([r"""
             type Parent {

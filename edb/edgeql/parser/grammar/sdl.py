@@ -659,13 +659,28 @@ sdl_commands_block(
 
 
 class ConcreteIndexDeclarationBlock(Nonterm, commondl.ProcessIndexMixin):
-    def reduce_INDEX_OnExpr_OptExceptExpr_CreateConcreteIndexSDLCommandsBlock(
-            self, *kids):
+    def reduce_CreateConcreteAnonymousIndex(self, *kids):
+        r"""%reduce INDEX OnExpr OptExceptExpr
+                    CreateConcreteIndexSDLCommandsBlock
+        """
         _, on_expr, except_expr, commands = kids
         self.val = qlast.CreateConcreteIndex(
             name=qlast.ObjectRef(module='__', name='idx'),
             expr=on_expr.val,
             except_expr=except_expr.val,
+            commands=commands.val,
+        )
+
+    def reduce_CreateConcreteAnonymousDeferredIndex(self, *kids):
+        r"""%reduce DEFERRED INDEX OnExpr OptExceptExpr
+                    CreateConcreteIndexSDLCommandsBlock
+        """
+        _, _, on_expr, except_expr, commands = kids
+        self.val = qlast.CreateConcreteIndex(
+            name=qlast.ObjectRef(module='__', name='idx'),
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
             commands=commands.val,
         )
 
@@ -679,6 +694,20 @@ class ConcreteIndexDeclarationBlock(Nonterm, commondl.ProcessIndexMixin):
             name=name.val,
             expr=on_expr.val,
             except_expr=except_expr.val,
+            commands=commands.val,
+        )
+
+    def reduce_CreateConcreteDeferredIndex(self, *kids):
+        r"""%reduce DEFERRED INDEX NodeName \
+                    OnExpr OptExceptExpr \
+                    CreateConcreteIndexSDLCommandsBlock \
+        """
+        _, _, name, on_expr, except_expr, commands = kids
+        self.val = qlast.CreateConcreteIndex(
+            name=name.val,
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
             commands=commands.val,
         )
 
@@ -697,6 +726,22 @@ class ConcreteIndexDeclarationBlock(Nonterm, commondl.ProcessIndexMixin):
             commands=commands.val,
         )
 
+    def reduce_CreateConcreteDeferredIndexWithArgs(self, *kids):
+        r"""%reduce DEFERRED INDEX NodeName IndexExtArgList \
+                    OnExpr OptExceptExpr \
+                    CreateConcreteIndexSDLCommandsBlock \
+        """
+        _, _, name, arg_list, on_expr, except_expr, commands = kids
+        kwargs = self._process_arguments(arg_list.val)
+        self.val = qlast.CreateConcreteIndex(
+            name=name.val,
+            kwargs=kwargs,
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
+            commands=commands.val,
+        )
+
 
 class ConcreteIndexDeclarationShort(Nonterm, commondl.ProcessIndexMixin):
     def reduce_INDEX_OnExpr_OptExceptExpr(self, *kids):
@@ -707,15 +752,34 @@ class ConcreteIndexDeclarationShort(Nonterm, commondl.ProcessIndexMixin):
             except_expr=except_expr.val,
         )
 
+    def reduce_DEFERRED_INDEX_OnExpr_OptExceptExpr(self, *kids):
+        _, _, on_expr, except_expr = kids
+        self.val = qlast.CreateConcreteIndex(
+            name=qlast.ObjectRef(module='__', name='idx'),
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
+        )
+
     def reduce_CreateConcreteIndex(self, *kids):
-        r"""%reduce INDEX NodeName \
-                    OnExpr OptExceptExpr \
+        r"""%reduce INDEX NodeName OnExpr OptExceptExpr
         """
         _, name, on_expr, except_expr = kids
         self.val = qlast.CreateConcreteIndex(
             name=name.val,
             expr=on_expr.val,
             except_expr=except_expr.val,
+        )
+
+    def reduce_CreateConcreteDeferredIndex(self, *kids):
+        r"""%reduce DEFERRED INDEX NodeName OnExpr OptExceptExpr
+        """
+        _, _, name, on_expr, except_expr = kids
+        self.val = qlast.CreateConcreteIndex(
+            name=name.val,
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
         )
 
     def reduce_CreateConcreteIndexWithArgs(self, *kids):
@@ -729,6 +793,20 @@ class ConcreteIndexDeclarationShort(Nonterm, commondl.ProcessIndexMixin):
             kwargs=kwargs,
             expr=on_expr.val,
             except_expr=except_expr.val,
+        )
+
+    def reduce_CreateConcreteDeferredIndexWithArgs(self, *kids):
+        r"""%reduce DEFERRED INDEX NodeName IndexExtArgList
+                    OnExpr OptExceptExpr
+        """
+        _, _, name, arg_list, on_expr, except_expr = kids
+        kwargs = self._process_arguments(arg_list.val)
+        self.val = qlast.CreateConcreteIndex(
+            name=name.val,
+            kwargs=kwargs,
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
         )
 
 

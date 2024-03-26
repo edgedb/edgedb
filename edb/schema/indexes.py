@@ -63,7 +63,10 @@ DEFAULT_INDEX = sn.QualName(module='__', name='idx')
 
 
 def is_index_valid_for_type(
-    index: Index, expr_type: s_types.Type, schema: s_schema.Schema
+    index: Index,
+    expr_type: s_types.Type,
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
 ) -> bool:
     # HACK: currently this helper just hardcodes the permitted index & type
     # combinations, but this should be inferred based on index definition.
@@ -148,6 +151,13 @@ def is_index_valid_for_type(
                 schema.get('std::str', type=s_scalars.ScalarType),
             )
 
+    if context.testmode and index_name == 'default::test':
+        # For functional tests of abstract indexes.
+        return expr_type.issubclass(
+            schema,
+            schema.get('std::str', type=s_scalars.ScalarType),
+        )
+
     return False
 
 
@@ -163,6 +173,95 @@ def is_subclass_or_tuple(
         return True
     else:
         return ty.issubclass(schema, parent)
+
+
+def _merge_deferrability(
+    a: qltypes.IndexDeferrability,
+    b: qltypes.IndexDeferrability,
+) -> qltypes.IndexDeferrability:
+    if a is b:
+        return a
+    else:
+        if a is qltypes.IndexDeferrability.Prohibited:
+            raise ValueError(f"{a} and {b} are incompatible")
+        elif a is qltypes.IndexDeferrability.Permitted:
+            return b
+        else:
+            return a
+
+
+def merge_deferrability(
+    idx: Index,
+    bases: List[Index],
+    field_name: str,
+    *,
+    ignore_local: bool = False,
+    schema: s_schema.Schema,
+) -> Optional[qltypes.IndexDeferrability]:
+    """Merge function for abstract index deferrability."""
+
+    return utils.merge_reduce(
+        idx,
+        bases,
+        field_name=field_name,
+        ignore_local=ignore_local,
+        schema=schema,
+        f=_merge_deferrability,
+        type=qltypes.IndexDeferrability,
+    )
+
+
+def merge_deferred(
+    idx: Index,
+    bases: List[Index],
+    field_name: str,
+    *,
+    ignore_local: bool = False,
+    schema: s_schema.Schema,
+) -> Optional[bool]:
+    """Merge function for the DEFERRED qualifier on indexes."""
+
+    if idx.is_non_concrete(schema):
+        return None
+
+    if bases:
+        deferrability = next(iter(bases)).get_deferrability(schema)
+    else:
+        deferrability = qltypes.IndexDeferrability.Prohibited
+
+    local_deferred = idx.get_explicit_local_field_value(
+        schema, field_name, None)
+
+    idx_repr = idx.get_verbosename(schema, with_parent=True)
+
+    if ignore_local:
+        return deferrability is qltypes.IndexDeferrability.Required
+    elif local_deferred is None:
+        # No explicit local declaration, derive from abstract index
+        # deferrability.
+        if deferrability is qltypes.IndexDeferrability.Required:
+            raise errors.SchemaDefinitionError(
+                f"{idx_repr} must be declared as deferred"
+            )
+        else:
+            return False
+    else:
+        if (
+            local_deferred
+            and deferrability is qltypes.IndexDeferrability.Prohibited
+        ):
+            raise errors.SchemaDefinitionError(
+                f"{idx_repr} cannot be declared as deferred"
+            )
+        elif (
+            not local_deferred
+            and deferrability is qltypes.IndexDeferrability.Required
+        ):
+            raise errors.SchemaDefinitionError(
+                f"{idx_repr} must be declared as deferred"
+            )
+
+        return local_deferred  # type: ignore
 
 
 class Index(
@@ -206,6 +305,7 @@ class Index(
         default=None,
         compcoef=None,
         inheritable=False,
+        allow_ddl_set=True,
     )
 
     # These can appear in abstract indexes extending an existing one in order
@@ -234,6 +334,26 @@ class Index(
         coerce=True,
         compcoef=0.0,
         ddl_identity=True,
+    )
+
+    deferrability = so.SchemaField(
+        qltypes.IndexDeferrability,
+        default=qltypes.IndexDeferrability.Prohibited,
+        coerce=True,
+        compcoef=0.909,
+        merge_fn=merge_deferrability,
+        allow_ddl_set=True,
+    )
+
+    deferred = so.SchemaField(
+        bool,
+        default=False,
+        compcoef=0.909,
+        special_ddl_syntax=True,
+        describe_visibility=(
+            so.DescribeVisibilityPolicy.SHOW_IF_EXPLICIT_OR_DERIVED
+        ),
+        merge_fn=merge_deferred,
     )
 
     def __repr__(self) -> str:
@@ -593,6 +713,11 @@ class IndexCommand(
     ) -> Optional[str]:
         if field in ('kwargs', 'expr', 'except_expr'):
             return field
+        elif (
+            field == 'deferred'
+            and astnode is qlast.CreateConcreteIndex
+        ):
+            return field
         else:
             return super().get_ast_attr_for_field(field, astnode)
 
@@ -699,6 +824,28 @@ class IndexCommand(
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+
+        referrer_ctx = self.get_referrer_context(context)
+        if referrer_ctx is not None:
+            # Concrete index
+            deferrability = self.get_attribute_value("deferrability")
+            if deferrability is not None:
+                raise errors.SchemaDefinitionError(
+                    "deferrability can only be specified on abstract indexes",
+                    span=self.get_attribute_span("deferrability"),
+                )
+        return schema
+
+    def ast_ignore_field_ownership(self, field: str) -> bool:
+        """Whether to force generating an AST even though field isn't owned"""
+        return field == "deferred"
+
 
 class CreateIndex(
     IndexCommand,
@@ -791,6 +938,13 @@ class CreateIndex(
                     ),
                 )
 
+            if astnode.deferred is not None:
+                cmd.set_attribute_value(
+                    'deferred',
+                    astnode.deferred,
+                    span=astnode.span,
+                )
+
         return cmd
 
     @classmethod
@@ -823,6 +977,7 @@ class CreateIndex(
             kwargs=qlkwargs,
             expr=expr_ql,
             except_expr=except_expr_ql,
+            deferred=parent.get_deferred(schema),
         )
 
     @classmethod
@@ -1031,7 +1186,9 @@ class CreateIndex(
             )
             expr_type = comp_expr.irast.stype
 
-            if not is_index_valid_for_type(root, expr_type, comp_expr.schema):
+            if not is_index_valid_for_type(
+                root, expr_type, comp_expr.schema, context,
+            ):
                 hint = None
                 if str(name) == 'fts::index':
                     hint = (

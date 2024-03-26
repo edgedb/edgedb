@@ -64,6 +64,9 @@ CREATE SCALAR TYPE schema::RewriteKind
 CREATE SCALAR TYPE schema::MigrationGeneratedBy
     EXTENDING enum<DevMode, DDLStatement>;
 
+CREATE SCALAR TYPE schema::IndexDeferrability
+    EXTENDING enum<Prohibited, Permitted, `Required`>;
+
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
     CREATE REQUIRED PROPERTY name -> std::str;
@@ -267,6 +270,8 @@ CREATE TYPE schema::Index
 {
     CREATE PROPERTY expr -> std::str;
     CREATE PROPERTY except_expr -> std::str;
+    CREATE PROPERTY deferrability -> schema::IndexDeferrability;
+    CREATE PROPERTY deferred -> std::bool;
     CREATE MULTI LINK params EXTENDING schema::ordered -> schema::Parameter {
         ON TARGET DELETE ALLOW;
     };
