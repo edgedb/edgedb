@@ -68,7 +68,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
             shape = ir.expr.expr.result.shape
             for el, _ in shape:
                 if str(el.path_id.rptr_name()).endswith(field):
-                    card = el.rptr.ptrref.out_cardinality
+                    card = el.expr.ptrref.out_cardinality
                     self.assertEqual(card, expected_cardinality,
                                      'unexpected cardinality:\n' + source)
                     break

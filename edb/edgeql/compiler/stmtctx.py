@@ -255,10 +255,15 @@ def fini_expression(
 
     # Clear out exprs that we decided to omit from the IR
     for ir_set in exprs_to_clear:
+        new = (
+            irast.MaterializedExpr(typeref=ir_set.typeref)
+            if ir_set.is_materialized_ref
+            else irast.VisibleBindingExpr(typeref=ir_set.typeref)
+        )
         if isinstance(ir_set.expr, irast.Pointer):
-            ir_set.expr.expr = None
+            ir_set.expr.expr = new
         else:
-            ir_set.expr = None
+            ir_set.expr = new
 
     # Analyze GROUP statements to find aggregates that can be optimized
     group.infer_group_aggregates(all_exprs, ctx=ctx)
@@ -403,8 +408,8 @@ def _fixup_materialized_sets(
 
             assert (
                 not any(use.src_path() for use in mat_set.uses)
-                or mat_set.materialized.rptr
-            ), f"materialized ptr {mat_set.uses} missing rptr"
+                or isinstance(mat_set.materialized.expr, irast.Pointer)
+            ), f"materialized ptr {mat_set.uses} missing pointer"
             mat_set.finalized = True
 
     return to_clear

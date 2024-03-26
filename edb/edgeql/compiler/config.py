@@ -269,12 +269,12 @@ def _validate_config_object(
         ctx: context.ContextLevel) -> None:
 
     for element, _ in expr.shape:
-        assert element.rptr is not None
-        if element.rptr.ptrref.shortname.name == 'id':
+        assert isinstance(element.expr, irast.Pointer)
+        if element.expr.ptrref.shortname.name == 'id':
             continue
 
         ptr = typegen.ptrcls_from_ptrref(
-            element.rptr.ptrref.real_material_ptr,
+            element.expr.ptrref.real_material_ptr,
             ctx=ctx,
         )
         if isinstance(ptr, s_pointers.Pointer):

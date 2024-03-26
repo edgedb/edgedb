@@ -47,7 +47,7 @@ from . import setgen
 
 
 def amend_empty_set_type(
-    es: irast.EmptySet,
+    es: irast.SetE[irast.EmptySet],
     t: s_types.Type,
     env: context.Environment
 ) -> None:
@@ -77,7 +77,10 @@ def infer_common_type(
     seen_coll = False
 
     for i, arg in enumerate(irs):
-        if isinstance(arg, irast.EmptySet) and env.set_types[arg] is None:
+        if (
+            isinstance(arg.expr, irast.EmptySet)
+            and env.set_types[arg] is None
+        ):
             empties.append(i)
             continue
 
@@ -129,7 +132,7 @@ def infer_common_type(
 
     for i in empties:
         amend_empty_set_type(
-            cast(irast.EmptySet, irs[i]), common_type, env)
+            cast(irast.SetE[irast.EmptySet], irs[i]), common_type, env)
 
     return common_type
 
@@ -330,10 +333,10 @@ def collapse_type_intersection_rptr(
                     ind_ptr.ptrref.rptr_specialization)
             elif (
                 not ind_ptr.ptrref.is_empty
-                and ind_ptr.source.rptr is not None
+                and isinstance(ind_ptr.source.expr, irast.Pointer)
             ):
-                assert isinstance(ind_ptr.source.rptr.ptrref, irast.PointerRef)
-                rptr_specialization.add(ind_ptr.source.rptr.ptrref)
+                assert isinstance(ind_ptr.source.expr.ptrref, irast.PointerRef)
+                rptr_specialization.add(ind_ptr.source.expr.ptrref)
 
     ptrs = [ptrcls_from_ptrref(ptrref, ctx=ctx)
             for ptrref in rptr_specialization]

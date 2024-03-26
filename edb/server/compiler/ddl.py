@@ -113,7 +113,7 @@ def compile_and_apply_ddl_stmt(
         return compile_and_apply_ddl_stmt(ctx, cm)
 
     assert isinstance(stmt, qlast.DDLCommand)
-    delta = s_ddl.delta_from_ddl(
+    new_schema, delta = s_ddl.delta_and_schema_from_ddl(
         stmt,
         schema=schema,
         modaliases=current_tx.get_modaliases(),
@@ -121,16 +121,13 @@ def compile_and_apply_ddl_stmt(
     )
 
     if debug.flags.delta_plan:
-        debug.header('Delta Plan Input')
-        debug.dump(delta)
+        debug.header('Canonical Delta Plan')
+        debug.dump(delta, schema=schema)
 
     if mstate := current_tx.get_migration_state():
         mstate = mstate._replace(
             accepted_cmds=mstate.accepted_cmds + (stmt,),
         )
-
-        context = _new_delta_context(ctx)
-        schema = delta.apply(schema, context=context)
 
         last_proposed = mstate.last_proposed
         if last_proposed:
@@ -159,7 +156,7 @@ def compile_and_apply_ddl_stmt(
                     mstate = mstate._replace(last_proposed=None)
 
         current_tx.update_migration_state(mstate)
-        current_tx.update_schema(schema)
+        current_tx.update_schema(new_schema)
 
         return dbstate.DDLQuery(
             sql=(b'SELECT LIMIT 0',),
@@ -182,23 +179,13 @@ def compile_and_apply_ddl_stmt(
         )
         current_tx.update_migration_rewrite_state(mrstate)
 
-        context = _new_delta_context(ctx)
-        schema = delta.apply(schema, context=context)
-
-        current_tx.update_schema(schema)
+        current_tx.update_schema(new_schema)
 
         return dbstate.DDLQuery(
             sql=(b'SELECT LIMIT 0',),
             user_schema=current_tx.get_user_schema(),
             is_transactional=True,
         )
-
-    # Do a dry-run on test_schema to canonicalize
-    # the schema delta-commands.
-    test_schema = current_tx.get_schema(ctx.compiler_state.std_schema)
-    context = _new_delta_context(ctx)
-    delta.apply(test_schema, context=context)
-    delta.canonical = True
 
     # Apply and adapt delta, build native delta plan, which
     # will also update the schema.
@@ -301,7 +288,7 @@ def _new_delta_context(
 
 
 def _get_delta_context_args(ctx: compiler.CompileContext) -> dict[str, Any]:
-    """Get the args need from delta_from_ddl"""
+    """Get the args needed for delta_and_schema_from_ddl"""
     return dict(
         testmode=compiler._get_config_val(ctx, '__internal_testmode'),
         allow_dml_in_functions=(
@@ -319,10 +306,6 @@ def _process_delta(
 
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
-
-    if debug.flags.delta_plan:
-        debug.header('Canonical Delta Plan')
-        debug.dump(delta, schema=schema)
 
     pgdelta = pg_delta.CommandMeta.adapt(delta)
     assert isinstance(pgdelta, pg_delta.DeltaRoot)
@@ -1315,13 +1298,13 @@ def administer_reindex(
         if (
             not expr.expr
             or not isinstance(expr.expr, irast.SelectStmt)
-            or not expr.expr.result.rptr
+            or not isinstance(expr.expr.result.expr, irast.Pointer)
         ):
             raise errors.QueryError(
                 'invalid pointer argument to reindex()',
                 span=arg.span,
             )
-        rptr = expr.expr.result.rptr
+        rptr = expr.expr.result.expr
         source = rptr.source
     else:
         rptr = None
@@ -1465,13 +1448,13 @@ def administer_vacuum(
             if (
                 not expr.expr
                 or not isinstance(expr.expr, irast.SelectStmt)
-                or not expr.expr.result.rptr
+                or not isinstance(expr.expr.result.expr, irast.Pointer)
             ):
                 raise errors.QueryError(
                     'invalid pointer argument to vacuum()',
                     span=arg.span,
                 )
-            rptr = expr.expr.result.rptr
+            rptr = expr.expr.result.expr
             source = rptr.source
         else:
             rptr = None

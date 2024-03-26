@@ -251,9 +251,9 @@ def _process_view(
     # Maybe rematerialize the set. The old ir_set might have already
     # been materialized, but the new version would be missing from the
     # use_sets.
-    if ir_set.rptr:
+    if isinstance(ir_set.expr, irast.Pointer):
         ctx.env.schema, remat_ptrcls = typeutils.ptrcls_from_ptrref(
-            ir_set.rptr.ptrref, schema=ctx.env.schema
+            ir_set.expr.ptrref, schema=ctx.env.schema
         )
         setgen.maybe_materialize(remat_ptrcls, ir_set, ctx=ctx)
 
@@ -535,7 +535,6 @@ def _process_view(
                 ns=ctx.path_id_namespace,
                 ctx=ctx,
             )
-            # XXX: I THINK THIS IS FINE??
             assert not isinstance(ptr_set.expr, irast.Pointer)
             ptr_set.expr = irast.Pointer(
                 source=ir_set,
@@ -965,7 +964,7 @@ def _compile_rewrites(
         by_type[ty] = {}
         for element in rewrites_of_type.values():
             target = element.target_set
-            assert target and target.expr
+            assert target
 
             ptrref = typegen.ptr_to_ptrref(element.ptrcls, ctx=ctx)
             actual_ptrref = irtypeutils.find_actual_ptrref(ty, ptrref)
@@ -978,12 +977,10 @@ def _compile_rewrites(
             ptr_set = setgen.new_set_from_set(
                 target,
                 path_id=path_id,
-                # rptr=None,
                 ctx=ctx,
             )
 
             # construct a new set with correct path_id
-            # XXX: CHECK?x
             ptr_set.expr = irast.Pointer(
                 source=ir_set,
                 expr=ptr_set.expr,
@@ -991,6 +988,7 @@ def _compile_rewrites(
                 ptrref=actual_ptrref,
                 is_definition=True,
             )
+            assert irutils.is_set_instance(ptr_set, irast.Pointer)
 
             by_type[ty][pn] = (ptr_set, ptrref.real_material_ptr)
 
@@ -1243,9 +1241,10 @@ def prepare_rewrite_anchors(
             namespace=ctx.path_id_namespace, env=ctx.env,
         )
         old_set = setgen.new_set(
-            stype=stype, path_id=old_path_id, ctx=ctx
+            stype=stype, path_id=old_path_id, ctx=ctx,
+            expr=irast.TriggerAnchor(
+                typeref=typegen.type_to_typeref(stype, env=ctx.env)),
         )
-        old_set.expr = irast.TriggerAnchor(typeref=old_set.typeref)
     else:
         old_set = None
 
@@ -1679,14 +1678,16 @@ def _normalize_view_ptr_expr(
                             )
                         )
 
-                        # XXX: THIS IS MAD DODGY
-                        old_rptr = irexpr.rptr
-                        if old_rptr:
-                            irexpr.expr = old_rptr.expr
+                        # HACK: This is mad dodgy. Hide the Pointer
+                        # when compiling.
+                        old_expr = irexpr.expr
+                        if isinstance(old_expr, irast.Pointer):
+                            assert old_expr.expr
+                            irexpr.expr = old_expr.expr
                         irexpr = dispatch.compile(cast_qlexpr, ctx=subctx)
-                        if old_rptr:
-                            old_rptr.expr = irexpr.expr
-                            irexpr.expr = old_rptr
+                        if isinstance(old_expr, irast.Pointer):
+                            old_expr.expr = irexpr.expr
+                            irexpr.expr = old_expr
 
             else:
                 expected = [
@@ -2220,7 +2221,7 @@ def _get_shape_configuration_inner(
             or (ctx.implicit_id_in_shapes and not is_mutation)
             # we are inside an UPDATE shape and this is
             # an explicit expression (link target update)
-            or (is_parent_update and ir_set.old_expr is not None)
+            or (is_parent_update and irutils.sub_expr(ir_set) is not None)
             or all_materialize
         )
         # We actually *always* inject an implicit id, but it's just
@@ -2311,14 +2312,16 @@ def _get_late_shape_configuration(
     is_objtype = ir_set.path_id.is_objtype_path()
 
     if rptr is None:
-        rptr = ir_set.rptr
-    # If we have a specified rptr but no rptr on the set itself,
-    # construct a version of the set with the rptr added to use
-    # as the path tip for applying pointers. This ensures that
-    # we can find link properties on late shapes.
-    elif ir_set.rptr is None and ir_set.expr:
+        if isinstance(ir_set.expr, irast.Pointer):
+            rptr = ir_set.expr
+    elif ir_set.expr and not isinstance(ir_set.expr, irast.Pointer):
+        # If we have a specified rptr but set is not a pointer itself,
+        # construct a version of the set that is pointer so it can be used
+        # as the path tip for applying pointers. This ensures that
+        # we can find link properties on late shapes.
         ir_set = setgen.new_set_from_set(
-            ir_set, expr=rptr.replace(expr=ir_set.expr, is_phony=True), ctx=ctx)
+            ir_set, expr=rptr.replace(expr=ir_set.expr, is_phony=True), ctx=ctx
+        )
 
     rptrcls: Optional[s_pointers.PointerLike]
     if rptr is not None:
@@ -2370,8 +2373,8 @@ def late_compile_view_shapes(
 @late_compile_view_shapes.register(irast.Set)
 def _late_compile_view_shapes_in_set(
         ir_set: irast.Set, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
+        rptr: Optional[irast.Pointer] = None,
+        parent_view_type: Optional[s_types.ExprType] = None,
         ctx: context.ContextLevel) -> None:
 
     shape_ptrs = _get_late_shape_configuration(
@@ -2385,10 +2388,13 @@ def _late_compile_view_shapes_in_set(
     #
     # This is to avoid losing subquery distinctions (in cases
     # like test_edgeql_scope_tuple_15), and generally seems more natural.
-    expr = ir_set.old_expr
+    is_definition_or_not_pointer = (
+        not isinstance(ir_set.expr, irast.Pointer) or ir_set.expr.is_definition
+    )
+    expr = irutils.sub_expr(ir_set)
     if (
         isinstance(expr, (irast.SelectStmt, irast.GroupStmt))
-        and not (ir_set.rptr and not ir_set.rptr.is_definition)
+        and is_definition_or_not_pointer
         and (setgen.get_set_type(ir_set, ctx=ctx) ==
              setgen.get_set_type(expr.result, ctx=ctx))
     ):
@@ -2400,9 +2406,12 @@ def _late_compile_view_shapes_in_set(
         with ctx.new() as scopectx:
             if set_scope is not None:
                 scopectx.path_scope = set_scope
+
+            if not rptr and isinstance(ir_set.expr, irast.Pointer):
+                rptr = ir_set.expr
             late_compile_view_shapes(
                 child,
-                rptr=rptr or ir_set.rptr,
+                rptr=rptr,
                 parent_view_type=parent_view_type,
                 ctx=scopectx)
 
@@ -2466,7 +2475,6 @@ def _late_compile_view_shapes_in_set(
 
         ir_set.shape = tuple(shape)
 
-    # XXX: old_expr
     elif expr is not None:
         set_scope = pathctx.get_set_scope(ir_set, ctx=ctx)
         if set_scope is not None:
@@ -2476,8 +2484,8 @@ def _late_compile_view_shapes_in_set(
         else:
             late_compile_view_shapes(expr, ctx=ctx)
 
-    elif isinstance(ir_set.rptr, irast.TupleIndirectionPointer):
-        late_compile_view_shapes(ir_set.rptr.source, ctx=ctx)
+    elif isinstance(ir_set.expr, irast.TupleIndirectionPointer):
+        late_compile_view_shapes(ir_set.expr.source, ctx=ctx)
 
 
 @late_compile_view_shapes.register(irast.SelectStmt)

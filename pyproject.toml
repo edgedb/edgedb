@@ -240,3 +240,7 @@ exclude = ["postgres", ".github"]
 lint.flake8-bugbear.extend-immutable-calls = [
     "immutables.Map"
 ]
+
+[tool.pyright]
+# Pyright has no idea about metaclass-generated getters for schema fields.
+reportAttributeAccessIssue = false

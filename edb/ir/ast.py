@@ -530,22 +530,34 @@ class TypeRoot(Expr):
     skip_subtypes: bool = False
 
 
-T_co = typing.TypeVar('T_co', covariant=True, bound=typing.Optional[Expr])
+class RefExpr(Expr):
+    '''Different expressions sorts that refer to some kind of binding.'''
+    __abstract_node__ = True
+    typeref: TypeRef
+
+
+class MaterializedExpr(RefExpr):
+    pass
+
+
+class VisibleBindingExpr(RefExpr):
+    pass
+
+
+T_expr_co = typing.TypeVar('T_expr_co', covariant=True, bound=Expr)
 
 
 # SetE is the base 'Set' type, and it is parameterized over what kind
-# of expression it might hold. Most code uses the Set alias below, which
-# instantiates it with Optional[Expr].
+# of expression it holds. Most code uses the Set alias below, which
+# instantiates it with Expr.
 # irutils.is_set_instance can be used to refine the type.
-class SetE(Base, typing.Generic[T_co]):
+class SetE(Base, typing.Generic[T_expr_co]):
     '''A somewhat overloaded metadata container for expressions.
 
-    Its primary notional purpose is to be the holder for expression metadata
+    Its primary purpose is to be the holder for expression metadata
     such as path_id.
 
-    It *also*, when rptr is set, represents pointer dereferences.
-
-    Also also, it contains shape applications.
+    It *also* contains shape applications.
     '''
 
     __ast_frozen_fields__ = frozenset({'typeref'})
@@ -555,7 +567,7 @@ class SetE(Base, typing.Generic[T_co]):
     path_id: PathId
     path_scope_id: typing.Optional[int] = None
     typeref: TypeRef
-    expr: T_co = None  # type: ignore
+    expr: T_expr_co
     shape: typing.Tuple[typing.Tuple[SetE[Pointer], qlast.ShapeOp], ...] = ()
 
     anchor: typing.Optional[str] = None
@@ -582,25 +594,6 @@ class SetE(Base, typing.Generic[T_co]):
     # to join against target types on links, and to ensure rvars.
     ignore_rewrites: bool = False
 
-    # TODO: We would like to get rid of this a medium amount.
-    # It is to ease our migration towards Pointer being an expression.
-    @property
-    def rptr(self) -> typing.Optional[Pointer]:
-        if isinstance(self.expr, Pointer):
-            return self.expr
-        else:
-            return None
-
-    # XXX: We would like to get rid of this very much.
-    # It behaves like the expr field did before we moved Pointer into
-    # expr, and enables some really half-ass migrations.
-    @property
-    def old_expr(self) -> typing.Optional[Expr]:
-        if isinstance(self.expr, Pointer):
-            return self.expr.expr
-        else:
-            return self.expr
-
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
 
@@ -608,7 +601,7 @@ class SetE(Base, typing.Generic[T_co]):
 SetE.__name__ = 'Set'
 
 if typing.TYPE_CHECKING:
-    Set = SetE[typing.Optional[Expr]]
+    Set = SetE[Expr]
 else:
     Set = SetE
 
@@ -813,7 +806,7 @@ class ConstExpr(Expr):
     typeref: TypeRef
 
 
-class EmptySet(Set, ConstExpr):
+class EmptySet(ConstExpr):
     pass
 
 
@@ -1274,7 +1267,7 @@ class InsertStmt(MutatingStmt):
 
 
 # N.B: The PointerRef corresponds to the *definition* point of the rewrite.
-RewritesOfType = typing.Dict[str, typing.Tuple[Set, BasePointerRef]]
+RewritesOfType = typing.Dict[str, typing.Tuple[SetE[Pointer], BasePointerRef]]
 
 
 @dataclasses.dataclass(kw_only=True, frozen=True)

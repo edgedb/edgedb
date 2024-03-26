@@ -185,6 +185,16 @@ def __infer_type_root(
     return UNIQUE
 
 
+@_infer_multiplicity.register
+def __infer_cleared(
+    ir: irast.RefExpr,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    return DUPLICATE
+
+
 def _infer_shape(
     ir: irast.Set,
     *,
@@ -237,7 +247,7 @@ def _infer_set(
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
     result = _infer_set_inner(
-        ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx
+        ir, scope_tree=scope_tree, ctx=ctx
     )
     ctx.inferred_multiplicity[ir, scope_tree, ctx.distinct_iterator] = result
 
@@ -250,28 +260,27 @@ def _infer_set(
 def _infer_set_inner(
     ir: irast.Set,
     *,
-    is_mutation: bool=False,
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
-    rptr = ir.rptr
     new_scope = inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
 
     # TODO: Migrate to Pointer-as-Expr well, and not half-assedly.
-    if ir.old_expr is None:
+    sub_expr = irutils.sub_expr(ir)
+    if sub_expr is None:
         expr_mult = None
     else:
-        expr_mult = infer_multiplicity(
-            ir.old_expr, scope_tree=new_scope, ctx=ctx)
+        expr_mult = infer_multiplicity(sub_expr, scope_tree=new_scope, ctx=ctx)
 
-    if rptr is not None:
-        rptrref = rptr.ptrref
+    if isinstance(ir.expr, irast.Pointer):
+        ptr = ir.expr
         src_mult = infer_multiplicity(
-            rptr.source, scope_tree=new_scope, ctx=ctx)
+            ptr.source, scope_tree=new_scope, ctx=ctx
+        )
 
-        if isinstance(rptrref, irast.TupleIndirectionPointerRef):
+        if isinstance(ptr.ptrref, irast.TupleIndirectionPointerRef):
             if isinstance(src_mult, ContainerMultiplicityInfo):
-                idx = irtyputils.get_tuple_element_index(rptrref)
+                idx = irtyputils.get_tuple_element_index(ptr.ptrref)
                 path_mult = src_mult.elements[idx]
             else:
                 # All bets are off for tuple elements coming from
@@ -284,16 +293,18 @@ def _infer_set_inner(
             # unless we also have an exclusive constraint.
             if (
                 expr_mult is not None
-                and inf_utils.find_visible(rptr.source, new_scope) is not None
+                and inf_utils.find_visible(ptr.source, new_scope) is not None
             ):
                 path_mult = expr_mult
             else:
                 schema = ctx.env.schema
                 # We should only have some kind of path terminating in a
                 # property here.
-                assert isinstance(rptrref, irast.PointerRef)
-                ptr = schema.get_by_id(rptrref.id, type=s_pointers.Pointer)
-                if ptr.is_exclusive(schema):
+                assert isinstance(ptr.ptrref, irast.PointerRef)
+                pointer = schema.get_by_id(
+                    ptr.ptrref.id, type=s_pointers.Pointer
+                )
+                if pointer.is_exclusive(schema):
                     # Got an exclusive constraint
                     path_mult = UNIQUE
                 else:
@@ -939,9 +950,7 @@ def infer_multiplicity(
     card = cardinality.infer_cardinality(
         ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
 
-    if isinstance(ir, irast.EmptySet):
-        result = EMPTY
-    elif isinstance(ir, irast.Set):
+    if isinstance(ir, irast.Set):
         result = _infer_set(
             ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx,
         )

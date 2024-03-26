@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from typing_extensions import TypeGuard
 
 import json
+import uuid
 
 from edb import errors
 
@@ -61,12 +62,15 @@ def get_longest_paths(ir: irast.Base) -> Set[irast.Set]:
     result = set()
     parents = set()
 
-    # XXX
-    ir_sets = ast.find_children(ir, irast.Set, lambda n: n.old_expr is None)
+    ir_sets = ast.find_children(
+        ir,
+        irast.Set,
+        lambda n: sub_expr(n) is None or isinstance(n.expr, irast.TypeRoot),
+    )
     for ir_set in ir_sets:
         result.add(ir_set)
-        if ir_set.rptr:
-            parents.add(ir_set.rptr.source)
+        if isinstance(ir_set.expr, irast.Pointer):
+            parents.add(ir_set.expr.source)
 
     return result - parents
 
@@ -123,7 +127,6 @@ def is_empty(ir: irast.Base) -> bool:
         (isinstance(ir, irast.Array) and not ir.elements) or
         (
             isinstance(ir, irast.Set)
-            and ir.expr is not None
             and is_empty(ir.expr)
         )
     )
@@ -173,10 +176,10 @@ def is_trivial_select(ir_expr: irast.Base) -> TypeGuard[irast.SelectStmt]:
 
 
 def unwrap_set(ir_set: irast.Set) -> irast.Set:
-    """If the give *ir_set* is an implicit SELECT wrapper, return the
+    """If the given *ir_set* is an implicit SELECT wrapper, return the
        wrapped set.
     """
-    if ir_set.expr is not None and is_implicit_wrapper(ir_set.expr):
+    if is_implicit_wrapper(ir_set.expr):
         return ir_set.expr.result
     else:
         return ir_set
@@ -184,8 +187,8 @@ def unwrap_set(ir_set: irast.Set) -> irast.Set:
 
 def get_path_root(ir_set: irast.Set) -> irast.Set:
     result = ir_set
-    while result.rptr is not None:
-        result = result.rptr.source
+    while isinstance(result.expr, irast.Pointer):
+        result = result.expr.source
     return result
 
 
@@ -216,10 +219,9 @@ def is_type_intersection_reference(ir_expr: irast.Base) -> bool:
     """
     if not isinstance(ir_expr, irast.Set):
         return False
-
-    rptr = ir_expr.rptr
-    if rptr is None:
+    if not isinstance(ir_expr.expr, irast.Pointer):
         return False
+    rptr = ir_expr.expr
 
     ir_source = rptr.source
 
@@ -247,7 +249,7 @@ def collapse_type_intersection(
 
     source = ir_set
     while True:
-        rptr = source.rptr
+        rptr = source.expr
         if not isinstance(rptr, irast.TypeIntersectionPointer):
             break
         result.append(rptr)
@@ -435,11 +437,12 @@ class FindPotentiallyVisibleVisitor(FindPathScopes):
             ):
                 return set()
 
-        # XXX(rptr): Do this better
         results = [{node}]
-        results.append(self.visit(node.rptr))
-        results.append(self.visit(node.shape))
-        if node.rptr is None:
+        if isinstance(node.expr, irast.Pointer):
+            results.append(self.visit(node.expr))
+            results.append(self.visit(node.shape))
+        else:
+            results.append(self.visit(node.shape))
             results.append(self.visit(node.expr))
 
         # Bound variables are always potentially visible as are object
@@ -508,3 +511,33 @@ T = TypeVar('T')
 
 def is_set_instance(ir: irast.Set, typ: Type[T]) -> TypeGuard[irast.SetE[T]]:
     return isinstance(ir.expr, typ)
+
+
+def ref_contains_multi(ref: irast.Set, singleton_id: uuid.UUID) -> bool:
+    while isinstance(ref.expr, irast.Pointer):
+        pointer: irast.Pointer = ref.expr
+        if pointer.dir_cardinality.is_multi():
+            return True
+
+        # We don't need to look further than the object that we know is a
+        # singleton.
+        if (
+            singleton_id
+            and isinstance(pointer.ptrref, irast.PointerRef)
+            and pointer.ptrref.id == singleton_id
+        ):
+            break
+        ref = pointer.source
+    return False
+
+
+def sub_expr(ir: irast.Set) -> Optional[irast.Expr]:
+    """Fetch the "sub-expression" of a set.
+
+    For a non-pointer Set, it's just the expr, but for a Pointer
+    it is the optional computed expression.
+    """
+    if isinstance(ir.expr, irast.Pointer):
+        return ir.expr.expr
+    else:
+        return ir.expr

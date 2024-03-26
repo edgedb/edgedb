@@ -10,7 +10,7 @@ Branch
 
 
 This section describes the administrative commands pertaining to
-:ref:`branchs <ref_datamodel_branches>`.
+:ref:`branches <ref_datamodel_branches>`.
 
 
 Create empty branch

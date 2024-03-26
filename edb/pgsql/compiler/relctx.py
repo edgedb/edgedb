@@ -40,7 +40,6 @@ import immutables as immu
 
 from edb import errors
 
-from edb.common.typeutils import not_none
 
 from edb.edgeql import qltypes
 from edb.edgeql import ast as qlast
@@ -424,7 +423,7 @@ def maybe_get_path_var(
 
 
 def new_empty_rvar(
-        ir_set: irast.EmptySet, *,
+        ir_set: irast.SetE[irast.EmptySet], *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     nullrel = pgast.NullRelation(
         path_id=ir_set.path_id, type_or_ptr_ref=ir_set.typeref)
@@ -502,7 +501,7 @@ def new_primitive_rvar(
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
     # XXX: is this needed?
-    expr = ir_set.old_expr
+    expr = irutils.sub_expr(ir_set)
     if isinstance(expr, irast.TypeRoot):
         skip_subtypes = expr.skip_subtypes
         is_global = expr.is_cached_global
@@ -522,11 +521,13 @@ def new_primitive_rvar(
     pathctx.put_rvar_path_bond(set_rvar, path_id)
 
     # FIXME: This feels like it should all not be here.
-    rptr = ir_set.rptr
-    if rptr is not None:
-        if (isinstance(rptr.ptrref, irast.TypeIntersectionPointerRef)
-                and rptr.source.rptr):
-            rptr = rptr.source.rptr
+    if isinstance(ir_set.expr, irast.Pointer):
+        rptr = ir_set.expr
+        if (
+            isinstance(rptr.ptrref, irast.TypeIntersectionPointerRef)
+            and isinstance(rptr.source.expr, irast.Pointer)
+        ):
+            rptr = rptr.source.expr
 
         # If the set comes from an backlink, and the link is stored inline,
         # we want to output the source path.
@@ -584,11 +585,13 @@ def new_root_rvar(
 
 
 def new_pointer_rvar(
-        ir_set: irast.Set, *,
-        link_bias: bool=False,
-        src_rvar: pgast.PathRangeVar,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-    ir_ptr = not_none(ir_set.rptr)
+    ir_set: irast.SetE[irast.Pointer],
+    *,
+    link_bias: bool=False,
+    src_rvar: pgast.PathRangeVar,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+    ir_ptr = ir_set.expr
     ptrref = ir_ptr.ptrref
 
     ptr_info = pg_types.get_ptrref_storage_info(
@@ -604,12 +607,12 @@ def new_pointer_rvar(
 
 
 def _new_inline_pointer_rvar(
-        ir_set: irast.Set, *,
+        ir_set: irast.SetE[irast.Pointer], *,
         lateral: bool=True,
         ptr_info: pg_types.PointerStorageInfo,
         src_rvar: pgast.PathRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-    ir_ptr = not_none(ir_set.rptr)
+    ir_ptr = ir_set.expr
 
     ptr_rel = pgast.SelectStmt()
     ptr_rvar = rvar_for_rel(ptr_rel, lateral=lateral, ctx=ctx)
@@ -632,9 +635,9 @@ def _new_inline_pointer_rvar(
 
 
 def _new_mapped_pointer_rvar(
-        ir_set: irast.Set, *,
+        ir_set: irast.SetE[irast.Pointer], *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-    ir_ptr = not_none(ir_set.rptr)
+    ir_ptr = ir_set.expr
 
     ptrref = ir_ptr.ptrref
     dml_source = irutils.get_dml_sources(ir_ptr.source)
@@ -700,11 +703,10 @@ def new_rel_rvar(
 
 def semi_join(
         stmt: pgast.SelectStmt,
-        ir_set: irast.Set, src_rvar: pgast.PathRangeVar, *,
+        ir_set: irast.SetE[irast.Pointer], src_rvar: pgast.PathRangeVar, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     """Join an IR Set using semi-join."""
-    rptr = ir_set.rptr
-    assert rptr is not None
+    rptr = ir_set.expr
 
     # Target set range.
     set_rvar = new_root_rvar(ir_set, lateral=True, ctx=ctx)
@@ -1085,8 +1087,7 @@ def unpack_var(
 
                 el_id = path_id.ptr_path().extend(ptrref=el_ptrref)
 
-                assert el.rptr
-                card = el.rptr.ptrref.dir_cardinality(el.rptr.direction)
+                card = el.expr.dir_cardinality
                 is_singleton = card.is_single() and not card.can_be_zero()
                 must_pack = not is_singleton
 
@@ -2090,12 +2091,12 @@ def range_for_ptrref(
 
 
 def range_for_pointer(
-    ir_set: irast.Set,
+    ir_set: irast.SetE[irast.Pointer],
     *,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
-    pointer = not_none(ir_set.rptr)
+    pointer = ir_set.expr
 
     path_id = ir_set.path_id.ptr_path()
     external_rvar = ctx.env.external_rvars.get((path_id, 'source'))
