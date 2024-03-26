@@ -86,7 +86,7 @@ def generate_source(
     *,
     indent_with: str = ' ' * 4,
     add_line_information: bool = False,
-    pretty: bool = True,
+    pretty: bool = False,
     reordered: bool = False,
 ) -> str:
     # Simplified entrypoint
