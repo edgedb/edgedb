@@ -1340,7 +1340,7 @@ class Function(
         self,
         schema: s_schema.Schema,
         *,
-        srcctx: Optional[parsing.Span] = None,
+        span: Optional[parsing.Span] = None,
     ) -> Optional[Tuple[List[Function], int]]:
         """Find if this function overloads another in object parameter.
 
@@ -1417,7 +1417,7 @@ class Function(
                         f'overloading an object type-receiving '
                         f'function with differences in the remaining '
                         f'parameters is not supported',
-                        span=srcctx,
+                        span=span,
                         details=(
                             f"Other function is defined as `{other_sig}`"
                         )
@@ -1437,7 +1437,7 @@ class Function(
                         f'function: overloading an object type-receiving '
                         f'function with differences in the names of '
                         f'parameters is not supported',
-                        span=srcctx,
+                        span=span,
                         details=(
                             f"Other function is defined as `{other_sig}`"
                         )
@@ -1457,7 +1457,7 @@ class Function(
                         f'function: overloading an object type-receiving '
                         f'function with differences in the type modifiers of '
                         f'parameters is not supported',
-                        span=srcctx,
+                        span=span,
                         details=(
                             f"Other function is defined as `{other_sig}`"
                         )
@@ -1473,7 +1473,7 @@ class Function(
                         f'object type-receiving '
                         f'functions may not be overloaded on an OPTIONAL '
                         f'parameter',
-                        span=srcctx,
+                        span=span,
                     )
 
                 diff_param = this_diff_param
@@ -1887,7 +1887,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
 
         if has_objects:
             self.scls.find_object_param_overloads(
-                schema, srcctx=self.span)
+                schema, span=self.span)
 
         if has_from_function:
             # Ignore the generic fallback when considering

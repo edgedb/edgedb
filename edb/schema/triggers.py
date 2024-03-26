@@ -149,13 +149,13 @@ class TriggerCommand(
                     sn.QualName('std', 'bool'), type=s_types.Type)
                 expr_type = expression.irast.stype
                 if not expr_type.issubclass(expression.irast.schema, target):
-                    srcctx = self.get_attribute_span(field)
+                    span = self.get_attribute_span(field)
                     raise errors.SchemaDefinitionError(
                         f'{vname} expression for {trig_name} is of invalid '
                         f'type: '
                         f'{expr_type.get_displayname(schema)}, '
                         f'expected {target.get_displayname(schema)}',
-                        span=srcctx,
+                        span=span,
                     )
 
                 if expression.irast.dml_exprs:

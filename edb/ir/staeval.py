@@ -174,7 +174,7 @@ def _process_op_result(
     typeref: irast.TypeRef,
     schema: s_schema.Schema,
     *,
-    srcctx: Optional[parsing.Span]=None,
+    span: Optional[parsing.Span]=None,
 ) -> irast.ConstExpr:
     qlconst: qlast.BaseConstant
     if isinstance(value, str):
@@ -183,7 +183,7 @@ def _process_op_result(
         qlconst = qlast.BooleanConstant.from_python(value)
     else:
         raise UnsupportedExpressionError(
-            f"unsupported result type: {type(value)}", span=srcctx
+            f"unsupported result type: {type(value)}", span=span
         )
 
     result = qlcompiler.compile_constant_tree_to_ir(
@@ -237,7 +237,7 @@ def evaluate_OperatorCall(
 
     value = eval_func(*args)
     return _process_op_result(
-        value, opcall.typeref, schema, srcctx=opcall.span)
+        value, opcall.typeref, schema, span=opcall.span)
 
 
 @evaluate.register(irast.SliceIndirection)
@@ -267,7 +267,7 @@ def evaluate_SliceIndirection(
 
     value = base[start:stop]
     return _process_op_result(
-        value, slice.expr.typeref, schema, srcctx=slice.span)
+        value, slice.expr.typeref, schema, span=slice.span)
 
 
 def _evaluate_union(
