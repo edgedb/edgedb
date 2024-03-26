@@ -264,7 +264,7 @@ def compile_IndexIndirection(
 
     # line, column and filename are captured here to be used with the
     # error message
-    srcctx = pgast.StringConstant(
+    span = pgast.StringConstant(
         val=irutils.get_span_as_json(
             expr.index, errors.InvalidValueError
         )
@@ -277,7 +277,7 @@ def compile_IndexIndirection(
 
     result = pgast.FuncCall(
         name=('edgedb', '_index'),
-        args=[subj, index, srcctx]
+        args=[subj, index, span]
     )
 
     return result

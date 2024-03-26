@@ -1200,11 +1200,11 @@ class PointerCommandOrFragment(
             inf_target_ref = None
 
         if inf_target_ref is not None:
-            srcctx = self.get_attribute_span('target')
+            span = self.get_attribute_span('target')
             self.set_attribute_value(
                 'target',
                 inf_target_ref,
-                span=srcctx,
+                span=span,
                 computed=True,
             )
 
@@ -1329,12 +1329,12 @@ class PointerCommandOrFragment(
         # and best to consistently give an understandable error.
         for schema_ref in expression.irast.schema_refs:
             if isinstance(schema_ref, s_expraliases.Alias):
-                srcctx = self.get_attribute_span('target')
+                span = self.get_attribute_span('target')
                 an = schema_ref.get_verbosename(expression.irast.schema)
                 raise errors.UnsupportedFeatureError(
                     f'referring to {an} from computed {ptr_name} '
                     f'is unsupported',
-                    span=srcctx,
+                    span=span,
                 )
 
         if (
@@ -1377,37 +1377,37 @@ class PointerCommandOrFragment(
                 expression.irast.schema)
 
             if spec_target_type != inferred_target_type:
-                srcctx = self.get_attribute_span('target')
+                span = self.get_attribute_span('target')
                 raise errors.SchemaDefinitionError(
                     f'the type inferred from the expression '
                     f'of the computed {ptr_name} '
                     f'is {inferred_target_type.get_verbosename(mschema)}, '
                     f'which does not match the explicitly specified '
                     f'{spec_target_type.get_verbosename(schema)}',
-                    span=srcctx
+                    span=span
                 )
 
         if spec_required and not required:
-            srcctx = self.get_attribute_span('target')
+            span = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'possibly an empty set returned by an '
                 f'expression for the computed '
                 f'{ptr_name} '
                 f"explicitly declared as 'required'",
-                span=srcctx
+                span=span
             )
 
         if (
             spec_card is qltypes.SchemaCardinality.One
             and card is not qltypes.SchemaCardinality.One
         ):
-            srcctx = self.get_attribute_span('target')
+            span = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'possibly more than one element returned by an '
                 f'expression for the computed '
                 f'{ptr_name} '
                 f"explicitly declared as 'single'",
-                span=srcctx
+                span=span
             )
 
         if spec_card is None:
@@ -1420,11 +1420,11 @@ class PointerCommandOrFragment(
             not is_view_source(source, schema)
             and expression.irast.volatility == qltypes.Volatility.Volatile
         ):
-            srcctx = self.get_attribute_span('target')
+            span = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'volatile functions are not permitted in schema-defined '
                 f'computed expressions',
-                span=srcctx
+                span=span
             )
 
         self.set_attribute_value('computable', True)
