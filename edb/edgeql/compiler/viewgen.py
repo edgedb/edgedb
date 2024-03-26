@@ -2473,7 +2473,6 @@ def _late_compile_view_shapes_in_set(
 
         ir_set.shape = tuple(shape)
 
-    # XXX: old_expr
     elif expr is not None:
         set_scope = pathctx.get_set_scope(ir_set, ctx=ctx)
         if set_scope is not None:

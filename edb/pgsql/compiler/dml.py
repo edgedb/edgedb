@@ -1369,7 +1369,6 @@ def insert_needs_conflict_cte(
 
         # We need to generate a conflict CTE if we have a DML containing
         # pointer stored in the object itself
-        # XXX:
         if (
             ptr_info.table_type == 'ObjectType'
             and shape_el.expr.expr

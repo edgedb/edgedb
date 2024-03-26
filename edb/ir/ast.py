@@ -534,18 +534,16 @@ T_co = typing.TypeVar('T_co', covariant=True, bound=typing.Optional[Expr])
 
 
 # SetE is the base 'Set' type, and it is parameterized over what kind
-# of expression it might hold. Most code uses the Set alias below, which
+# of expression it holds. Most code uses the Set alias below, which
 # instantiates it with Optional[Expr].
 # irutils.is_set_instance can be used to refine the type.
 class SetE(Base, typing.Generic[T_co]):
     '''A somewhat overloaded metadata container for expressions.
 
-    Its primary notional purpose is to be the holder for expression metadata
+    Its primary purpose is to be the holder for expression metadata
     such as path_id.
 
-    It *also*, when rptr is set, represents pointer dereferences.
-
-    Also also, it contains shape applications.
+    It *also* contains shape applications.
     '''
 
     __ast_frozen_fields__ = frozenset({'typeref'})
