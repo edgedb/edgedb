@@ -323,7 +323,9 @@ def _process_toplevel_query(
 
 class _SpecialCaseFunc(Protocol):
     def __call__(
-        self, ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+        self, ir_set: irast.SetE[irast.Call],
+        *,
+        ctx: context.CompilerContextLevel,
     ) -> SetRVars:
         pass
 
@@ -1503,7 +1505,7 @@ register_get_rvar(irast.MaterializedExpr)(process_set_as_subquery)
 @_special_case('std::IN')
 @_special_case('std::NOT IN')
 def process_set_as_membership_expr(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
     expr = ir_set.expr
     assert isinstance(expr, irast.OperatorCall)
@@ -1603,10 +1605,9 @@ def process_set_as_membership_expr(
 @_special_case('std::EXCEPT')
 @_special_case('std::INTERSECT')
 def process_set_as_setop(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
     expr = ir_set.expr
-    assert isinstance(expr, irast.OperatorCall)
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
@@ -1653,11 +1654,10 @@ def process_set_as_setop(
 
 @_special_case('std::DISTINCT')
 def process_set_as_distinct(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
     expr = ir_set.expr
     stmt = ctx.rel
-    assert isinstance(expr, irast.OperatorCall)
 
     with ctx.subrel() as subctx:
         subqry = subctx.rel
@@ -1685,12 +1685,11 @@ def process_set_as_distinct(
 
 @_special_case('std::IF')
 def process_set_as_ifelse(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
     # A IF Cond ELSE B is transformed into:
     # SELECT A WHERE Cond UNION ALL SELECT B WHERE NOT Cond
     expr = ir_set.expr
-    assert isinstance(expr, irast.OperatorCall)
     stmt = ctx.rel
 
     if_expr, condition, else_expr = (a.expr for a in expr.args)
@@ -1796,10 +1795,9 @@ def process_set_as_ifelse(
 
 @_special_case('std::??')
 def process_set_as_coalesce(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
     expr = ir_set.expr
-    assert isinstance(expr, irast.OperatorCall)
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
@@ -2227,12 +2225,11 @@ def process_set_as_expr(
 
 @_special_case('std::assert_single')
 def process_set_as_singleton_assertion(
-    ir_set: irast.Set,
+    ir_set: irast.SetE[irast.Call],
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
     expr = ir_set.expr
-    assert isinstance(expr, irast.FunctionCall)
     stmt = ctx.rel
 
     msg_arg = expr.args[0]
@@ -2336,13 +2333,12 @@ def process_set_as_singleton_assertion(
 
 @_special_case('std::assert_exists')
 def process_set_as_existence_assertion(
-    ir_set: irast.Set,
+    ir_set: irast.SetE[irast.Call],
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
     """Implementation of std::assert_exists"""
     expr = ir_set.expr
-    assert isinstance(expr, irast.FunctionCall)
     stmt = ctx.rel
 
     msg_arg = expr.args[0]
@@ -2425,14 +2421,12 @@ def process_set_as_existence_assertion(
 
 @_special_case('std::assert_distinct')
 def process_set_as_multiplicity_assertion(
-    ir_set: irast.Set,
+    ir_set: irast.SetE[irast.Call],
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
     """Implementation of std::assert_distinct"""
     expr = ir_set.expr
-    assert isinstance(expr, irast.FunctionCall)
-
     msg_arg = expr.args[0]
     ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
@@ -2664,11 +2658,9 @@ def process_set_as_simple_enumerate(
 
 @_special_case('std::enumerate')
 def process_set_as_enumerate(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
-    assert isinstance(ir_set.expr, irast.FunctionCall)
     expr = ir_set.expr
-
     arg_set = expr.args[0].expr
     arg_expr = arg_set.expr
     arg_subj = irutils.unwrap_set(arg_set).expr
@@ -2696,7 +2688,7 @@ def process_set_as_enumerate(
 @_special_case('std::max', only_as_fallback=True)
 @_special_case('std::min', only_as_fallback=True)
 def process_set_as_std_min_max(
-    ir_set: irast.Set,
+    ir_set: irast.SetE[irast.Call],
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
@@ -2720,8 +2712,6 @@ def process_set_as_std_min_max(
     # type.
 
     expr = ir_set.expr
-    assert isinstance(expr, irast.FunctionCall)
-
     with ctx.subrel() as newctx:
         ir_arg = expr.args[0].expr
         dispatch.visit(ir_arg, ctx=newctx)
@@ -2892,7 +2882,7 @@ def process_set_as_std_is_exclusive(
 
 @_special_case('std::multirange', only_as_fallback=True)
 def process_set_as_std_multirange(
-    ir_set: irast.Set,
+    ir_set: irast.SetE[irast.Call],
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
@@ -2906,7 +2896,6 @@ def process_set_as_std_multirange(
     #
     #   <pg_range_type>(variadic ranges)
     expr = ir_set.expr
-    assert isinstance(expr, irast.FunctionCall)
 
     ranges = dispatch.compile(expr.args[0].expr, ctx=ctx)
     pg_type = pg_types.pg_type_from_ir_typeref(expr.typeref)
@@ -3688,11 +3677,9 @@ def process_set_as_agg_expr(
 
 @_special_case('std::EXISTS')
 def process_set_as_exists_expr(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
     expr = ir_set.expr
-    assert isinstance(expr, irast.OperatorCall)
-
     with ctx.subrel() as subctx:
         wrapper = subctx.rel
         subctx.expr_exposed = False
@@ -3713,12 +3700,9 @@ def process_set_as_exists_expr(
 
 @_special_case('std::json_object_pack')
 def process_set_as_json_object_pack(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
-    expr = ir_set.expr
-    assert isinstance(expr, irast.FunctionCall)
-
-    ir_arg = expr.args[0].expr
+    ir_arg = ir_set.expr.args[0].expr
 
     # compile IR to pg AST
     dispatch.visit(ir_arg, ctx=ctx)
@@ -3889,11 +3873,9 @@ def process_encoded_param(
 
 @_special_case('fts::search')
 def process_set_as_fts_search(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
     func_call = ir_set.expr
-    assert isinstance(func_call, irast.FunctionCall)
-
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
