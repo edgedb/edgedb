@@ -1812,6 +1812,7 @@ def _compile_ql_query(
     ql: qlast.Query | qlast.Command,
     *,
     script_info: Optional[irast.ScriptInfo] = None,
+    source: Optional[edgeql.Source] = None,
     cacheable: bool = True,
     migration_block_query: bool = False,
     explain_data: object = None,
@@ -1880,6 +1881,9 @@ def _compile_ql_query(
         return dbstate.NullQuery()
 
     sql_text = pg_codegen.generate_source(sql_ast)
+    # If requested, embed the EdgeQL text in the SQL.
+    if debug.flags.preserve_queries and source:
+        sql_text += '\n-- ' + repr(source.text())
     sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
     globals = None
@@ -2514,7 +2518,8 @@ def _compile_dispatch_ql(
 
     else:
         assert isinstance(ql, (qlast.Query, qlast.Command))
-        query = _compile_ql_query(ctx, ql, script_info=script_info)
+        query = _compile_ql_query(
+            ctx, ql, source=source, script_info=script_info)
         caps = enums.Capability(0)
         if (
             isinstance(query, (dbstate.Query, dbstate.SimpleQuery))
