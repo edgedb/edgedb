@@ -8217,7 +8217,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                     "cannot apply a shape to the parameter"):
             await self.con.query("select <std::int64>$0 { id }")
 
-
     async def test_edgeql_type_pointer_inlining_01(self):
         await self.con._fetchall(
             r'''

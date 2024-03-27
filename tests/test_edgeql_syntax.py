@@ -4840,6 +4840,7 @@ aa';
             baz: std::str
         > USING (SELECT smth());
         """
+
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "AAA is not a valid language", line=3)
     def test_edgeql_syntax_ddl_function_16(self):
@@ -6008,6 +6009,7 @@ aa';
             drop annotation title;
         };
         """
+
     def test_edgeql_syntax_ddl_global_07(self):
         """
         CREATE GLOBAL test::foo -> str;

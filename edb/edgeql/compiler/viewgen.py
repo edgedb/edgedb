@@ -928,6 +928,7 @@ def _compile_rewrites(
     # Computing anchors isn't cheap, so we want to only do it once,
     # and only do it when it is necessary.
     anchors: Dict[s_objtypes.ObjectType, RewriteAnchors] = {}
+
     def get_anchors(stype: s_objtypes.ObjectType) -> RewriteAnchors:
         if stype not in anchors:
             anchors[stype] = prepare_rewrite_anchors(stype, r_ctx, s_ctx, ctx)

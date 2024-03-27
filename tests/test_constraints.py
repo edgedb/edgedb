@@ -1161,7 +1161,6 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 """
             )
 
-
         # testing interpolation
         await self.con.execute(r"""
             CREATE type ConstraintOnTest4_2 {
