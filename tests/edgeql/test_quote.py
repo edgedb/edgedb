@@ -20,6 +20,7 @@ import unittest
 
 import edb.edgeql.quote as qlquote
 
+
 class QuoteTests(unittest.TestCase):
 
     def test_quote_string(self):

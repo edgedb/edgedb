@@ -88,6 +88,7 @@ from .scopetree import ScopeTreeNode  # noqa
 
 Span = span.Span
 
+
 def new_scope_tree() -> ScopeTreeNode:
     return ScopeTreeNode(fenced=True)
 
@@ -595,6 +596,8 @@ class SetE(Base, typing.Generic[T_expr_co]):
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
 
 # We set its name to Set because that's what we want visitors to use.
+
+
 SetE.__name__ = 'Set'
 
 if typing.TYPE_CHECKING:

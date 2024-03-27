@@ -508,6 +508,7 @@ def as_const(ir: irast.Base) -> Optional[irast.BaseConstant]:
 
 T = TypeVar('T')
 
+
 def is_set_instance(ir: irast.Set, typ: Type[T]) -> TypeGuard[irast.SetE[T]]:
     return isinstance(ir.expr, typ)
 

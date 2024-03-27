@@ -132,6 +132,7 @@ class Params:
     ] = field(default_factory=list)
     loose_params: List[qlast.Parameter] = field(default_factory=list)
 
+
 class FindParams(ast.NodeVisitor):
     """Visitor to find all the parameters.
 

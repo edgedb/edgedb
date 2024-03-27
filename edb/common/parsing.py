@@ -98,7 +98,6 @@ def inline(argument_index: int):
     return decorator
 
 
-
 class Nonterm(parsing.Nonterm):
 
     def __init_subclass__(cls, *, is_internal=False, **kwargs):
@@ -212,7 +211,6 @@ class ListNonterm(Nonterm, is_internal=True):
                     lambda self, inner, sep: (
                         ListNonterm._reduce_inner(self, inner)
                     ))
-
 
         # reduce functions must be present before calling superclass
         super().__init_subclass__(is_internal=is_internal, **kwargs)
