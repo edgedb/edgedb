@@ -208,15 +208,14 @@ def ast_to_type_shell(
 
         assert node.subtypes
 
+        elements: List[str] = []
+        element_spans: List[parsing.Span] = []
+
         if isinstance(node.subtypes[0], qlast.TypeExprLiteral):
-            return s_scalars.AnonymousEnumTypeShell(  # type: ignore
-                elements=[
-                    est.val.value
-                    for est in cast(List[qlast.TypeExprLiteral], node.subtypes)
-                ],
-            )
+            for est in cast(List[qlast.TypeExprLiteral], node.subtypes):
+                elements.append(est.val.value)
+                element_spans.append(est.val.span)
         else:
-            elements: List[str] = []
             for est in cast(List[qlast.TypeName], node.subtypes):
                 if (not isinstance(est, qlast.TypeName) or
                         not isinstance(est.maintype, qlast.ObjectRef)):
@@ -225,9 +224,21 @@ def ast_to_type_shell(
                         span=est.span,
                     )
                 elements.append(est.maintype.name)
-            return s_scalars.AnonymousEnumTypeShell(  # type: ignore
-                elements=elements
-            )
+                element_spans.append(est.maintype.span)
+
+        for element, element_span in zip(elements, element_spans):
+            if len(element) > 63:
+                # This is a postgres limitation.
+                # Note that this can be overridden in custom builds.
+                # https://www.postgresql.org/docs/current/datatype-enum.html
+                raise errors.SchemaDefinitionError(
+                    f'enum labels cannot exceed 63 characters',
+                    span=element_span,
+                )
+
+        return s_scalars.AnonymousEnumTypeShell(  # type: ignore
+            elements=elements
+        )
 
     elif node.subtypes is not None:
         from . import types as s_types
