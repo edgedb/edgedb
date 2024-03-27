@@ -80,6 +80,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 \t      required property bar: str;
 };
         """
+
     def test_eschema_syntax_semicolon_01(self):
         """
         abstract type test::OwnedObject {

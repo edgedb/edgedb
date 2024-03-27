@@ -719,6 +719,7 @@ class AlterType(sd.AlterObject[TypeT]):
         else:
             return super()._get_ast(schema, context, parent_node=parent_node)
 
+
 class RenameType(sd.RenameObject[TypeT]):
 
     def _canonicalize(

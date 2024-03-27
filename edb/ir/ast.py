@@ -572,6 +572,8 @@ class SetE(Base, typing.Generic[T_co]):
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
 
 # We set its name to Set because that's what we want visitors to use.
+
+
 SetE.__name__ = 'Set'
 
 if typing.TYPE_CHECKING:

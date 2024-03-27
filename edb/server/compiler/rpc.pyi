@@ -25,7 +25,6 @@ from edb import edgeql
 from edb.server import defines, config
 from edb.server.compiler import sertypes, enums
 
-
 class CompilationRequest:
     source: edgeql.Source
     protocol_version: defines.ProtocolVersion

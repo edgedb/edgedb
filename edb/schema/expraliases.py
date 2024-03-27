@@ -421,6 +421,7 @@ class AlterAliasLike(
 
         return super()._alter_begin(schema, context)
 
+
 class AlterAlias(
     AlterAliasLike[Alias],
     AliasCommand,
