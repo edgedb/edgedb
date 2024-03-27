@@ -76,12 +76,14 @@ def compile_shape(
             if iterator:
                 shapectx.path_scope[iterator.path_id] = ctx.rel
 
+        has_id = False
         for el, op in shape:
             if op == qlast.ShapeOp.MATERIALIZE and not ctx.materializing:
                 continue
 
             rptr = el.expr
             ptrref = rptr.ptrref
+            has_id |= ptrref.shortname.name == 'id'
             # As an implementation expedient, we currently represent
             # AT_MOST_ONE materialized values with arrays
             card = rptr.dir_cardinality
@@ -111,5 +113,12 @@ def compile_shape(
 
             assert isinstance(tuple_el, pgast.TupleElement)
             elements.append(tuple_el)
+
+        # If there wasn't an id (because its a FreeObject), add a fake one.
+        if ctx.materializing and not has_id:
+            elements.append(pgast.TupleElement(
+                path_id=ir_set.path_id,
+                val=var,
+            ))
 
     return pgast.TupleVar(elements=elements, named=True)
