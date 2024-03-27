@@ -363,3 +363,35 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             sql,
             "Card being selected when SpecialCard should suffice"
         )
+
+    def test_codegen_materialized_01(self):
+        sql = self._compile('''
+            with x := materialized(1 + 2)
+            select ({x}, {x})
+        ''')
+
+        count = sql.count('+')
+        self.assertEqual(
+            count,
+            1,
+            f"addition not materialized")
+
+    def test_codegen_materialized_02(self):
+        sql = self._compile('''
+            with x := materialized((
+              select User { x := (1 + 2) } filter .name = 'Alice'
+            ))
+            select ({x {x}}, {x {x}})
+        ''')
+
+        count = sql.count('+')
+        self.assertEqual(
+            count,
+            1,
+            f"addition not materialized")
+
+        count = sql.count('Alice')
+        self.assertEqual(
+            count,
+            1,
+            f"filter not materialized")

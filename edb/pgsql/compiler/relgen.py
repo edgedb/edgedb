@@ -2544,6 +2544,23 @@ def process_set_as_multiplicity_assertion(
     return new_stmt_set_rvar(ir_set, ctx.rel, aspects=aspects, ctx=ctx)
 
 
+@_special_case('std::materialized')
+def process_set_as_materialized_call(
+    ir_set: irast.SetE[irast.Call],
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    # It's a pure pass-through. Just an identity function marked volatile.
+    stmt = ctx.rel
+
+    ir_arg_set = ir_set.expr.args[0].expr
+
+    arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
+    pathctx.put_path_value_var(stmt, ir_set.path_id, arg_ref)
+    pathctx.put_path_id_map(stmt, ir_set.path_id, ir_arg_set.path_id)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
 def process_set_as_simple_enumerate(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
