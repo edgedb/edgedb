@@ -50,3 +50,5 @@ Enums
         properly reflected. To address this, consider using only
         identifier-like enum values in cases where such compatibility
         is needed.
+
+        Currently, enum values cannot be longer than 63 characters.
