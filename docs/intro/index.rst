@@ -15,6 +15,7 @@ Get Started
     projects
     schema
     migrations
+    branches
     edgeql
     clients
 
