@@ -275,7 +275,6 @@ class T_EOF(Token):
 # explicitly define tokens which are referenced elsewhere
 T_THEN: typing.Optional[Token] = None
 
-
 def _gen_keyword_tokens():
     # Define keyword tokens
 

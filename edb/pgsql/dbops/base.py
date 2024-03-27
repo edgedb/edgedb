@@ -106,10 +106,8 @@ class SQLBlock:
         return body
 
     def get_statements(self) -> List[str]:
-        return [
-            (cmd if isinstance(cmd, str) else cmd.to_string()).rstrip()
-            for cmd in self.commands
-        ]
+        return [(cmd if isinstance(cmd, str) else cmd.to_string()).rstrip()
+                for cmd in self.commands]
 
     def add_command(self, stmt) -> None:
         self.commands.append(stmt)

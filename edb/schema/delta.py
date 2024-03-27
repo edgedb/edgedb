@@ -145,7 +145,6 @@ def delta_objects(
         def can_delete(obj: so.Object_T, name: sn.Name) -> bool:
             return (type(obj), name) not in guidance.banned_deletions
     else:
-
         def can_create(obj: so.Object_T, name: sn.Name) -> bool:
             return True
 
@@ -1650,7 +1649,10 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
         return schema
 
     def is_data_safe(self) -> bool:
-        return all(subcmd.is_data_safe() for subcmd in self.get_subcommands())
+        return all(
+            subcmd.is_data_safe()
+            for subcmd in self.get_subcommands()
+        )
 
 
 class Query(Command):
@@ -2447,11 +2449,11 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 self._append_subcmd_ast(schema, node, op, context)
 
         if isinstance(node, qlast.DropObject):
-
             def _is_drop(ddl: qlast.DDLOperation) -> bool:
-                return isinstance(
-                    ddl, (qlast.DropObject, qlast.AlterObject)
-                ) and all(_is_drop(sub) for sub in ddl.commands)
+                return (
+                    isinstance(ddl, (qlast.DropObject, qlast.AlterObject))
+                    and all(_is_drop(sub) for sub in ddl.commands)
+                )
 
             # Deletes in the AST shouldn't have subcommands, so we
             # drop them.  To try to make sure we aren't papering

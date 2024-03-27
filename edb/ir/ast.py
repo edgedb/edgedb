@@ -88,7 +88,6 @@ from .scopetree import ScopeTreeNode  # noqa
 
 Span = span.Span
 
-
 def new_scope_tree() -> ScopeTreeNode:
     return ScopeTreeNode(fenced=True)
 
@@ -100,7 +99,9 @@ class Base(ast.AST):
     span: typing.Optional[Span] = None
 
     def __repr__(self) -> str:
-        return f'<ir.{self.__class__.__name__} at 0x{id(self):x}>'
+        return (
+            f'<ir.{self.__class__.__name__} at 0x{id(self):x}>'
+        )
 
 
 # DEBUG: Probably don't actually keep this forever?
@@ -635,8 +636,8 @@ class Param:
 
     @property
     def is_sub_param(self) -> bool:
-        return self.name.startswith('__edb_decoded_') and self.name.endswith(
-            '__'
+        return (
+            self.name.startswith('__edb_decoded_') and self.name.endswith('__')
         )
 
 
@@ -692,8 +693,9 @@ class ParamTuple(ParamTransType):
     typs: tuple[tuple[typing.Optional[str], ParamTransType], ...]
 
     def flatten(self) -> tuple[typing.Any, ...]:
-        return (int(qltypes.TypeTag.TUPLE), self.idx) + tuple(
-            x.flatten() for _, x in self.typs
+        return (
+            (int(qltypes.TypeTag.TUPLE), self.idx)
+            + tuple(x.flatten() for _, x in self.typs)
         )
 
 

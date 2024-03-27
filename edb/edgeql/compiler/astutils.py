@@ -137,7 +137,6 @@ class FindParams(ast.NodeVisitor):
 
     The annoying bit is that we also need all the modaliases.
     """
-
     def __init__(self, modaliases: Dict[Optional[str], str]) -> None:
         super().__init__()
         self.params: Params = Params()

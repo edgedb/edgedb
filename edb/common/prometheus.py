@@ -255,9 +255,8 @@ class BaseMetric:
         return self._name
 
     def _validate_name(self, name: str) -> None:
-        if name.startswith(self.PROHIBITED_PREFIXES) or name.endswith(
-            self.PROHIBITED_SUFFIXES
-        ):
+        if (name.startswith(self.PROHIBITED_PREFIXES) or
+                name.endswith(self.PROHIBITED_SUFFIXES)):
             raise ValueError(f'invalid metrics name: {name!r}')
 
     def _validate_label_names(self, labels: tuple[str, ...]) -> None:
@@ -663,4 +662,6 @@ def _format_desc(desc: str) -> str:
 
 @functools.lru_cache(maxsize=1024)
 def _format_label_val(desc: str) -> str:
-    return desc.replace('\\', r'\\').replace('\n', r'\n').replace('"', r'\"')
+    return (
+        desc.replace('\\', r'\\').replace('\n', r'\n').replace('"', r'\"')
+    )

@@ -230,9 +230,10 @@ class Constraint(
         return [self] if not origins else list(origins)
 
     def is_independent(self, schema: s_schema.Schema) -> bool:
-        return not self.descendants(schema) and self.get_constraint_origins(
-            schema
-        ) == [self]
+        return (
+            not self.descendants(schema)
+            and self.get_constraint_origins(schema) == [self]
+        )
 
     def get_verbosename(
         self, schema: s_schema.Schema, *, with_parent: bool = False
@@ -352,7 +353,9 @@ class Constraint(
 
     @classmethod
     def get_root_classes(cls) -> Tuple[sn.QualName, ...]:
-        return (sn.QualName(module='std', name='constraint'),)
+        return (
+            sn.QualName(module='std', name='constraint'),
+        )
 
     @classmethod
     def get_default_base_name(self) -> sn.QualName:

@@ -65,7 +65,7 @@ class FlagsMeta(type):
 
 
 class Flag:
-    def __init__(self, *, doc: str, default: bool = False):
+    def __init__(self, *, doc: str, default: bool=False):
         self.name = None
         self.doc = doc
         self.default = default

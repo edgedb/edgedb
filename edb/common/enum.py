@@ -25,7 +25,6 @@ import functools
 
 class StrEnum(str, enum.Enum):
     """A version of string enum with reasonable __str__."""
-
     def __str__(self):
         return self._value_
 

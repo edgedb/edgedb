@@ -89,7 +89,8 @@ def main(*, stdout: bool):
 
 
 @edbcommands.command('gen-types')
-@click.option('--stdout', type=bool, default=False, is_flag=True)
+@click.option(
+    '--stdout', type=bool, default=False, is_flag=True)
 def gen_types(*, stdout):
     """Generate edb/schema/_types.py from edb/api/types.txt"""
     try:

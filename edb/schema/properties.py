@@ -162,7 +162,9 @@ class Property(
 
     @classmethod
     def get_root_classes(cls) -> Tuple[sn.QualName, ...]:
-        return (sn.QualName(module='std', name='property'),)
+        return (
+            sn.QualName(module='std', name='property'),
+        )
 
     @classmethod
     def get_default_base_name(self) -> sn.QualName:

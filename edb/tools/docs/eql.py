@@ -613,7 +613,8 @@ class EQLTypeDirective(BaseEQLDirective):
         return fullname
 
     def add_target_and_index(self, name, sig, signode):
-        return super().add_target_and_index(f'type::{name}', sig, signode)
+        return super().add_target_and_index(
+            f'type::{name}', sig, signode)
 
 
 class EQLKeywordDirective(BaseEQLDirective):
@@ -630,7 +631,8 @@ class EQLKeywordDirective(BaseEQLDirective):
         return sig
 
     def add_target_and_index(self, name, sig, signode):
-        return super().add_target_and_index(f'keyword::{name}', sig, signode)
+        return super().add_target_and_index(
+            f'keyword::{name}', sig, signode)
 
 
 class EQLSynopsisDirective(shared.CodeBlock):
@@ -738,7 +740,8 @@ class EQLOperatorDirective(BaseEQLDirective):
         return name
 
     def add_target_and_index(self, name, sig, signode):
-        return super().add_target_and_index(f'operator::{name}', sig, signode)
+        return super().add_target_and_index(
+            f'operator::{name}', sig, signode)
 
 
 class EQLFunctionDirective(BaseEQLDirective):
@@ -812,7 +815,8 @@ class EQLFunctionDirective(BaseEQLDirective):
         return fullname
 
     def add_target_and_index(self, name, sig, signode):
-        return super().add_target_and_index(f'function::{name}', sig, signode)
+        return super().add_target_and_index(
+            f'function::{name}', sig, signode)
 
 
 class EQLConstraintDirective(BaseEQLDirective):
@@ -885,15 +889,15 @@ class EQLConstraintDirective(BaseEQLDirective):
         return fullname
 
     def add_target_and_index(self, name, sig, signode):
-        return super().add_target_and_index(f'constraint::{name}', sig, signode)
+        return super().add_target_and_index(
+            f'constraint::{name}', sig, signode)
 
 
 class EQLTypeXRef(s_roles.XRefRole):
 
     @staticmethod
     def filter_target(target):
-        new_target = re.sub(
-            r'''(?xi)
+        new_target = re.sub(r'''(?xi)
             ^ \s*\bSET\s+OF\s+ | \s*\bOPTIONAL\s+
         ''', '', target)
 

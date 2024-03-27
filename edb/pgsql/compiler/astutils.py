@@ -135,7 +135,10 @@ def is_null_const(expr: pgast.BaseExpr) -> bool:
 
 
 def is_set_op_query(query: pgast.BaseExpr) -> TypeGuard[pgast.SelectStmt]:
-    return isinstance(query, pgast.SelectStmt) and query.op is not None
+    return (
+        isinstance(query, pgast.SelectStmt)
+        and query.op is not None
+    )
 
 
 def get_leftmost_query(query: pgast.Query) -> pgast.Query:

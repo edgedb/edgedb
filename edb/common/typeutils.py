@@ -49,7 +49,9 @@ def _is_container_type(cls):
 
 @functools.lru_cache(1024)
 def _is_iterable_type(cls):
-    return issubclass(cls, collections.abc.Iterable)
+    return (
+        issubclass(cls, collections.abc.Iterable)
+    )
 
 
 def is_container(obj):

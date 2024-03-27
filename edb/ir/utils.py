@@ -90,25 +90,31 @@ def is_const(ir: irast.Base) -> bool:
 def is_union_expr(ir: irast.Base) -> bool:
     """Return True if the given *ir* expression is a UNION expression."""
     return (
-        isinstance(ir, irast.OperatorCall)
-        and ir.operator_kind is ft.OperatorKind.Infix
-        and str(ir.func_shortname) == 'std::UNION'
+        isinstance(ir, irast.OperatorCall) and
+        ir.operator_kind is ft.OperatorKind.Infix and
+        str(ir.func_shortname) == 'std::UNION'
     )
 
 
 def is_empty_array_expr(ir: Optional[irast.Base]) -> TypeGuard[irast.Array]:
-    """Return True if the given *ir* expression is an empty array expression."""
-    return isinstance(ir, irast.Array) and not ir.elements
+    """Return True if the given *ir* expression is an empty array expression.
+    """
+    return (
+        isinstance(ir, irast.Array)
+        and not ir.elements
+    )
 
 
 def is_untyped_empty_array_expr(
     ir: Optional[irast.Base],
 ) -> TypeGuard[irast.Array]:
     """Return True if the given *ir* expression is an empty
-    array expression of an uknown type.
+       array expression of an uknown type.
     """
-    return is_empty_array_expr(ir) and (
-        ir.typeref is None or typeutils.is_generic(ir.typeref)
+    return (
+        is_empty_array_expr(ir)
+        and (ir.typeref is None
+             or typeutils.is_generic(ir.typeref))
     )
 
 
@@ -117,9 +123,9 @@ def is_empty(ir: irast.Base) -> bool:
     or an empty array.
     """
     return (
-        isinstance(ir, irast.EmptySet)
-        or (isinstance(ir, irast.Array) and not ir.elements)
-        or (
+        isinstance(ir, irast.EmptySet) or
+        (isinstance(ir, irast.Array) and not ir.elements) or
+        (
             isinstance(ir, irast.Set)
             and is_empty(ir.expr)
         )
@@ -128,11 +134,14 @@ def is_empty(ir: irast.Base) -> bool:
 
 def is_subquery_set(ir_expr: irast.Base) -> bool:
     """Return True if the given *ir_expr* expression is a subquery."""
-    return isinstance(ir_expr, irast.Set) and (
-        isinstance(ir_expr.expr, irast.Stmt)
-        or (
-            isinstance(ir_expr.expr, irast.Pointer)
-            and ir_expr.expr.expr is not None
+    return (
+        isinstance(ir_expr, irast.Set)
+        and (
+            isinstance(ir_expr.expr, irast.Stmt)
+            or (
+                isinstance(ir_expr.expr, irast.Pointer)
+                and ir_expr.expr.expr is not None
+            )
         )
     )
 
@@ -141,14 +150,17 @@ def is_implicit_wrapper(
     ir_expr: Optional[irast.Base],
 ) -> TypeGuard[irast.SelectStmt]:
     """Return True if the given *ir_expr* expression is an implicit
-    SELECT wrapper.
+       SELECT wrapper.
     """
-    return isinstance(ir_expr, irast.SelectStmt) and ir_expr.implicit_wrapper
+    return (
+        isinstance(ir_expr, irast.SelectStmt) and
+        ir_expr.implicit_wrapper
+    )
 
 
 def is_trivial_select(ir_expr: irast.Base) -> TypeGuard[irast.SelectStmt]:
     """Return True if the given *ir_expr* expression is a trivial
-    SELECT expression, i.e `SELECT <expr>`.
+       SELECT expression, i.e `SELECT <expr>`.
     """
     if not isinstance(ir_expr, irast.SelectStmt):
         return False
@@ -203,7 +215,7 @@ def get_span_as_json(
 
 def is_type_intersection_reference(ir_expr: irast.Base) -> bool:
     """Return True if the given *ir_expr* is a type intersection, i.e
-    ``Foo[IS Type]``.
+       ``Foo[IS Type]``.
     """
     if not isinstance(ir_expr, irast.Set):
         return False
@@ -223,9 +235,10 @@ def is_type_intersection_reference(ir_expr: irast.Base) -> bool:
 
 def is_trivial_free_object(ir: irast.Set) -> bool:
     ir = unwrap_set(ir)
-    return isinstance(
-        ir.expr, irast.TypeRoot
-    ) and typeutils.is_exactly_free_object(ir.typeref)
+    return (
+        isinstance(ir.expr, irast.TypeRoot)
+        and typeutils.is_exactly_free_object(ir.typeref)
+    )
 
 
 def collapse_type_intersection(
@@ -292,7 +305,8 @@ class ContainsDMLVisitor(ast.NodeVisitor):
 
     def combine_field_results(self, xs: List[Optional[bool]]) -> bool:
         return any(
-            x is True or (isinstance(x, list) and self.combine_field_results(x))
+            x is True
+            or (isinstance(x, list) and self.combine_field_results(x))
             for x in xs
         )
 
@@ -476,9 +490,8 @@ def find_potentially_visible(
 
 
 def contains_set_of_op(ir: irast.Base) -> bool:
-    flt = lambda n: any(
-        x == ft.TypeModifier.SetOfType for x in n.params_typemods
-    )
+    flt = (lambda n: any(x == ft.TypeModifier.SetOfType
+                         for x in n.params_typemods))
     return bool(ast.find_children(ir, irast.Call, flt, terminate_early=True))
 
 
@@ -494,7 +507,6 @@ def as_const(ir: irast.Base) -> Optional[irast.BaseConstant]:
 
 
 T = TypeVar('T')
-
 
 def is_set_instance(ir: irast.Set, typ: Type[T]) -> TypeGuard[irast.SetE[T]]:
     return isinstance(ir.expr, typ)

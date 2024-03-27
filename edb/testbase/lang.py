@@ -63,10 +63,9 @@ def must_fail(exc_type, exc_msg_re=None, **kwargs):
 
         @must_fail(EdgeQLSyntaxError,
                    'non-default argument follows', line=2, col=61)
-        def  test_edgeql_syntax_1(self):
+        def test_edgeql_syntax_1(self):
             ...
     """
-
     def wrap(func):
         args = (exc_type,)
         if exc_msg_re is not None:

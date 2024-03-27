@@ -1000,9 +1000,8 @@ class Collection(Type, s_abc.Collection):
         raise NotImplementedError
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
-        return any(
-            st.is_polymorphic(schema) for st in self.get_subtypes(schema)
-        )
+        return any(st.is_polymorphic(schema)
+                   for st in self.get_subtypes(schema))
 
     def find_predicate(
         self,
@@ -1108,7 +1107,10 @@ class Collection(Type, s_abc.Collection):
         raise NotImplementedError
 
     def __repr__(self) -> str:
-        return f'<{self.__class__.__name__} ' f'{self.id} at 0x{id(self):x}>'
+        return (
+            f'<{self.__class__.__name__} '
+            f'{self.id} at 0x{id(self):x}>'
+        )
 
     def dump(self, schema: s_schema.Schema) -> str:
         return repr(self)
@@ -1271,7 +1273,8 @@ class Array(
         return self.get_element_type(schema).is_tuple(schema)
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
-        return f'array<{self.get_element_type(schema).get_displayname(schema)}>'
+        return (
+            f'array<{self.get_element_type(schema).get_displayname(schema)}>')
 
     def is_array(self) -> bool:
         return True
@@ -2055,9 +2058,8 @@ class TupleTypeShell(CollectionTypeShell[Tuple_T_co]):
         self.typemods = typemods
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
-        st_names = ', '.join(
-            st.get_displayname(schema) for st in self.get_subtypes(schema)
-        )
+        st_names = ', '.join(st.get_displayname(schema)
+                             for st in self.get_subtypes(schema))
         return f'tuple<{st_names}>'
 
     def get_subtypes(
@@ -2205,7 +2207,8 @@ class Range(
         )
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
-        return f'range<{self.get_element_type(schema).get_displayname(schema)}>'
+        return (
+            f'range<{self.get_element_type(schema).get_displayname(schema)}>')
 
     def is_range(self) -> bool:
         return True

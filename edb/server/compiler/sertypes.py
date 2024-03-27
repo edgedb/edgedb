@@ -259,7 +259,8 @@ def _get_object_shape_id(
 
 
 def _get_set_type_id(basetype_id: uuid.UUID) -> uuid.UUID:
-    return uuidgen.uuid5(s_obj.TYPE_ID_NAMESPACE, 'set-of::' + str(basetype_id))
+    return uuidgen.uuid5(
+        s_obj.TYPE_ID_NAMESPACE, 'set-of::' + str(basetype_id))
 
 
 def _register_type_id(
@@ -1109,7 +1110,6 @@ def _parse(desc: binwrapper.BinWrapper, ctx: ParseContext) -> None:
 #
 # Parsing helpers
 #
-
 
 def _parse_type_id(desc: binwrapper.BinWrapper) -> uuid.UUID:
     return uuidgen.from_bytes(desc.read_bytes(16))

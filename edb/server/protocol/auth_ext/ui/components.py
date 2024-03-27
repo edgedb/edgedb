@@ -139,9 +139,10 @@ def oauth_buttons(
 
 
 def _oauth_button(provider, params: dict, *, label_prefix: str) -> str:
-    href = '../authorize?' + urllib.parse.urlencode(
-        {'provider': provider.name, **params}
-    )
+    href = '../authorize?' + urllib.parse.urlencode({
+        'provider': provider.name,
+        **params
+    })
     img = (
         f'''<img src="_static/icon_{provider.name[15:]}.svg"
             alt="{provider.display_name} Icon" />'''

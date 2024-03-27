@@ -165,7 +165,9 @@ class TableColumn(base.DBObject):
         return 'COLUMN'
 
     def get_id(self):
-        return qn(self.table_name[0], self.table_name[1], self.column.name)
+        return qn(
+            self.table_name[0], self.table_name[1], self.column.name
+        )
 
 
 class ColumnConstraint:
@@ -344,7 +346,9 @@ class CreateTable(ddl.SchemaObjectOperation):
         self.temporary = temporary
 
     def code(self, block: base.PLBlock) -> str:
-        elems = [c.code(block) for c in self.table.iter_columns(only_self=True)]
+        elems = [
+            c.code(block) for c in self.table.iter_columns(only_self=True)
+        ]
         for c in self.table.constraints:
             elems.append(c.constraint_code(block))
 

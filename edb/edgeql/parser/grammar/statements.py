@@ -62,22 +62,24 @@ class Stmt(Nonterm):
 class TransactionMode(Nonterm):
 
     def reduce_ISOLATION_SERIALIZABLE(self, *kids):
-        self.val = (
-            qltypes.TransactionIsolationLevel.SERIALIZABLE,
-            kids[0].span,
-        )
+        self.val = (qltypes.TransactionIsolationLevel.SERIALIZABLE,
+                    kids[0].span)
 
     def reduce_READ_WRITE(self, *kids):
-        self.val = (qltypes.TransactionAccessMode.READ_WRITE, kids[0].span)
+        self.val = (qltypes.TransactionAccessMode.READ_WRITE,
+                    kids[0].span)
 
     def reduce_READ_ONLY(self, *kids):
-        self.val = (qltypes.TransactionAccessMode.READ_ONLY, kids[0].span)
+        self.val = (qltypes.TransactionAccessMode.READ_ONLY,
+                    kids[0].span)
 
     def reduce_DEFERRABLE(self, *kids):
-        self.val = (qltypes.TransactionDeferMode.DEFERRABLE, kids[0].span)
+        self.val = (qltypes.TransactionDeferMode.DEFERRABLE,
+                    kids[0].span)
 
     def reduce_NOT_DEFERRABLE(self, *kids):
-        self.val = (qltypes.TransactionDeferMode.NOT_DEFERRABLE, kids[0].span)
+        self.val = (qltypes.TransactionDeferMode.NOT_DEFERRABLE,
+                    kids[0].span)
 
 
 class TransactionModeList(ListNonterm, element=TransactionMode,

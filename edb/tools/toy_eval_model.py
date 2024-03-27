@@ -172,8 +172,8 @@ def bslink(n: int, **kwargs: Data) -> Data:
 
 
 def mk_free_object(
-    shape: Optional[Dict[str, Data]] = None,
-    data: Optional[Dict[str, Data]] = None,
+    shape: Optional[Dict[str, Data]]=None,
+    data: Optional[Dict[str, Data]]=None,
 ) -> Obj:
     id = uuid.uuid4()
     base_data = {'id': id, '__type__': 'FreeObject'}
@@ -269,7 +269,6 @@ def lift(f: Callable[..., Data]) -> LiftedFunc:
     """Lifts a function operating on base data to operator on sets.
 
     The result is the usual cartesian product."""
-
     def inner(*args: Result) -> Result:
         out = []
         for args1 in itertools.product(*args):
@@ -1273,13 +1272,11 @@ class PathFinder(NodeVisitor):
     def visit_Path(
         self, path: qlast.Path, always_partial: bool = False
     ) -> None:
-        self.paths.append(
-            (
-                graft(self.current_path, path, always_partial=always_partial),
-                self.optional_counter if self.in_optional else None,
-                self.in_subquery,
-            )
-        )
+        self.paths.append((
+            graft(self.current_path, path, always_partial=always_partial),
+            self.optional_counter if self.in_optional else None,
+            self.in_subquery,
+        ))
         self.generic_visit(path)
 
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:

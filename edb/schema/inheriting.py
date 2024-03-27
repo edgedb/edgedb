@@ -1148,11 +1148,9 @@ class RebaseInheritingObject(
     EXTRA_INHERITED_FIELDS: set[str] = set()
 
     def __repr__(self) -> str:
-        return '<%s.%s "%s">' % (
-            self.__class__.__module__,
-            self.__class__.__name__,
-            self.classname,
-        )
+        return '<%s.%s "%s">' % (self.__class__.__module__,
+                                 self.__class__.__name__,
+                                 self.classname)
 
     def get_verb(self) -> str:
         # FIXME: We just say 'alter' because it is currently somewhat

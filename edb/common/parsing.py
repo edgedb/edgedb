@@ -282,7 +282,6 @@ class ListNonterm(Nonterm, is_internal=True):
 
 def precedence(precedence):
     """Decorator to set production precedence."""
-
     def decorator(func):
         func.__parsing_precedence__ = precedence.__name__
         return func

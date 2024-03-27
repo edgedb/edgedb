@@ -35,7 +35,7 @@ For example, you could write:
 
   class sum_view(ViewPattern[int], targets=(IntPair,)):
       @staticmethod
-      def  match(obj: object) -> int:
+      def match(obj: object) -> int:
           match obj:
               case IntPair(lhs, rhs):
                   return lhs + rhs

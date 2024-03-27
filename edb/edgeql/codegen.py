@@ -73,17 +73,14 @@ def _bytes_escape(match: Match[bytes]) -> bytes:
 
 def param_to_str(ident: str) -> str:
     return '$' + edgeql_quote.quote_ident(
-        ident, allow_reserved=True, allow_num=True
-    )
+        ident, allow_reserved=True, allow_num=True)
 
 
-def ident_to_str(ident: str, allow_num: bool = False) -> str:
-    return '::'.join(
-        [
-            edgeql_quote.quote_ident(part, allow_num=allow_num)
-            for part in ident.split('::')
-        ]
-    )
+def ident_to_str(ident: str, allow_num: bool=False) -> str:
+    return '::'.join([
+        edgeql_quote.quote_ident(part, allow_num=allow_num)
+        for part in ident.split('::')
+    ])
 
 
 class EdgeQLSourceGeneratorError(errors.InternalServerError):
@@ -2028,27 +2025,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self, node: qlast.CreateConcreteIndex
     ) -> None:
         self._visit_CreateObject(
-            node,
-            'INDEX',
-            named=node.name.name != 'idx',
-            after_name=lambda: self._after_index(node),
-        )
+            node, 'INDEX', named=node.name.name != 'idx',
+            after_name=lambda: self._after_index(node))
 
     def visit_AlterConcreteIndex(self, node: qlast.AlterConcreteIndex) -> None:
         self._visit_AlterObject(
-            node,
-            'INDEX',
-            named=node.name.name != 'idx',
-            after_name=lambda: self._after_index(node),
-        )
+            node, 'INDEX', named=node.name.name != 'idx',
+            after_name=lambda: self._after_index(node))
 
     def visit_DropConcreteIndex(self, node: qlast.DropConcreteIndex) -> None:
         self._visit_DropObject(
-            node,
-            'INDEX',
-            named=node.name.name != 'idx',
-            after_name=lambda: self._after_index(node),
-        )
+            node, 'INDEX', named=node.name.name != 'idx',
+            after_name=lambda: self._after_index(node))
 
     def visit_CreateOperator(self, node: qlast.CreateOperator) -> None:
         def after_name() -> None:
@@ -2110,9 +2098,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             op_type.append(node.kind.upper())
         op_type.append('OPERATOR')
 
-        self._visit_CreateObject(
-            node, *op_type, after_name=after_name, render_commands=False
-        )
+        self._visit_CreateObject(node, *op_type, after_name=after_name,
+                                 render_commands=False)
 
     def visit_AlterOperator(self, node: qlast.AlterOperator) -> None:
         def after_name() -> None:
@@ -2189,11 +2176,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateFunction(self, node: qlast.CreateFunction) -> None:
         self._visit_CreateObject(
-            node,
-            'FUNCTION',
+            node, 'FUNCTION',
             after_name=lambda: self._function_after_name(node),
-            render_commands=False,
-        )
+            render_commands=False)
 
     def visit_AlterFunction(self, node: qlast.AlterFunction) -> None:
         def after_name() -> None:
@@ -2204,15 +2189,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_AlterObject(
             node, 'FUNCTION',
             after_name=lambda: self._function_after_name(node),
-            ignored_cmds=set(node.commands),
-        )
+            ignored_cmds=set(node.commands))
 
     def visit_DropFunction(self, node: qlast.DropFunction) -> None:
         def after_name() -> None:
             self.write('(')
             self.visit_list(node.params, newlines=False)
             self.write(')')
-
         self._visit_DropObject(node, 'FUNCTION', after_name=after_name)
 
     def visit_FuncParam(self, node: qlast.FuncParam) -> None:
@@ -2353,11 +2336,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write(')')
 
         self._visit_CreateObject(
-            node,
-            *keywords,
-            after_name=after_name,
-            render_commands=not pure_computable,
-        )
+            node, *keywords, after_name=after_name,
+            render_commands=not pure_computable)
 
     def visit_AlterGlobal(self, node: qlast.AlterGlobal) -> None:
         self._visit_AlterObject(node, 'GLOBAL')

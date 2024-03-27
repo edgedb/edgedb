@@ -660,8 +660,7 @@ sdl_commands_block(
 
 class ConcreteIndexDeclarationBlock(Nonterm, commondl.ProcessIndexMixin):
     def reduce_INDEX_OnExpr_OptExceptExpr_CreateConcreteIndexSDLCommandsBlock(
-        self, *kids
-    ):
+            self, *kids):
         _, on_expr, except_expr, commands = kids
         self.val = qlast.CreateConcreteIndex(
             name=qlast.ObjectRef(module='__', name='idx'),

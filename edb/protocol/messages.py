@@ -93,7 +93,7 @@ class UInt16(Scalar):
     cname = 'uint16'
 
     def validate(self, val: typing.Any) -> bool:
-        return isinstance(val, int) and (0 <= val <= 2**16 - 1)
+        return isinstance(val, int) and (0 <= val <= 2 ** 16 - 1)
 
     def parse(self, buffer: binwrapper.BinWrapper) -> any:
         return buffer.read_ui16()
@@ -107,7 +107,7 @@ class UInt32(Scalar):
     cname = 'uint32'
 
     def validate(self, val: typing.Any) -> bool:
-        return isinstance(val, int) and (0 <= val <= 2**32 - 1)
+        return isinstance(val, int) and (0 <= val <= 2 ** 32 - 1)
 
     def parse(self, buffer: binwrapper.BinWrapper) -> any:
         return buffer.read_ui32()
@@ -121,7 +121,7 @@ class UInt64(Scalar):
     cname = 'uint64'
 
     def validate(self, val: typing.Any) -> bool:
-        return isinstance(val, int) and (0 <= val <= 2**64 - 1)
+        return isinstance(val, int) and (0 <= val <= 2 ** 64 - 1)
 
     def parse(self, buffer: binwrapper.BinWrapper) -> any:
         return buffer.read_ui64()

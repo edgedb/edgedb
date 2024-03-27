@@ -197,7 +197,6 @@ def infer_span_from_children(node, span: Span):
 
 def wrap_function_to_infer_spans(func):
     """Provide automatic span for Nonterm production rules."""
-
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
         obj, *args = args

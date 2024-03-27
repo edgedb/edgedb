@@ -438,11 +438,8 @@ class RTStruct(Struct):
         super().__setattr__(name, value)
 
     def _check_field_type(self, field: Field[T], name: str, value: Any) -> T:
-        if (
-            field.type
-            and value is not None
-            and not isinstance(value, field.type)
-        ):
+        if (field.type and value is not None and
+                not isinstance(value, field.type)):
             if field.coerce:
                 ftype = field.type
 

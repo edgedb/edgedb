@@ -148,7 +148,6 @@ def has_table(obj: Optional[so.InheritingObject], schema: s_schema.Schema):
         )
 
 
-
 def is_cfg_view(
     obj: so.Object,
     schema: s_schema.Schema,

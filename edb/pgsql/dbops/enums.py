@@ -34,8 +34,7 @@ class EnumExists(base.Condition):
         self.name = name
 
     def code(self, block: base.PLBlock) -> str:
-        return textwrap.dedent(
-            f'''\
+        return textwrap.dedent(f'''\
             SELECT
                 t.typname
             FROM

@@ -153,7 +153,6 @@ class DMLDummyTable(dbops.Table):
     This is used by scan_check_ctes in the pgsql compiler to
     force the evaluation of error checking.
     """
-
     def __init__(self) -> None:
         super().__init__(name=('edgedb', '_dml_dummy'))
 
@@ -262,7 +261,6 @@ class BigintDomain(dbops.Domain):
     the numeric bounds, because using bounds severly restricts the range
     of the numeric type (1000 vs 131072 digits).
     """
-
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'bigint_t'),
@@ -285,7 +283,6 @@ class ConfigMemoryDomain(dbops.Domain):
       of data beyond petabytes;
     * enforces zero digits after the dot.
     """
-
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'memory_t'),
@@ -306,7 +303,6 @@ class TimestampTzDomain(dbops.Domain):
     Postgres isn't ISO compliant with years out of the 1-9999 range and
     language compatibility is questionable.
     """
-
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'timestamptz_t'),
@@ -327,7 +323,6 @@ class TimestampDomain(dbops.Domain):
     Postgres isn't ISO compliant with years out of the 1-9999 range and
     language compatibility is questionable.
     """
-
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'timestamp_t'),
@@ -348,7 +343,6 @@ class DateDomain(dbops.Domain):
     Postgres isn't ISO compliant with years out of the 1-9999 range and
     language compatibility is questionable.
     """
-
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'date_t'),
@@ -1739,7 +1733,6 @@ class GetNameModuleFunction(dbops.Function):
 
 class NullIfArrayNullsFunction(dbops.Function):
     """Check if array contains NULLs and if so, return NULL."""
-
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_nullif_array_nulls'),
@@ -2956,7 +2949,6 @@ class SysConfigScopeType(dbops.Enum):
 
 class SysConfigValueType(dbops.CompositeType):
     """Type of values returned by _read_sys_config."""
-
     def __init__(self) -> None:
         super().__init__(name=('edgedb', '_sys_config_val_t'))
 
@@ -2970,7 +2962,6 @@ class SysConfigValueType(dbops.CompositeType):
 
 class SysConfigEntryType(dbops.CompositeType):
     """Type of values returned by _read_sys_config_full."""
-
     def __init__(self) -> None:
         super().__init__(name=('edgedb', '_sys_config_entry_t'))
 
@@ -5717,7 +5708,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 nspub AS (
                     SELECT oid FROM pg_namespace WHERE nspname = 'edgedbpub'
                 ),
-                nsdef  AS (
+                nsdef AS (
                     SELECT edgedbsql.uuid_to_oid(id) AS oid
                     FROM edgedb."_SchemaModule"
                     WHERE name = 'default'
@@ -5735,7 +5726,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             FROM
                 nspub,
                 nsdef
-        ''',
+        '''
     )
 
     sql_ident = 'information_schema.sql_identifier'
@@ -5944,7 +5935,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             name=("edgedbsql", "pg_class"),
             query="""
         WITH
-            nsdef  AS (
+            nsdef AS (
                 SELECT edgedbsql.uuid_to_oid(id) AS oid
                 FROM edgedb."_SchemaModule"
                 WHERE name = 'default'

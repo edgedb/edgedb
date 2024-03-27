@@ -402,13 +402,14 @@ def get_version_metadata() -> VersionMetadata:
 
 
 def _decode_build_target(val: str) -> str:
-    return base64.b32decode(val + "=" * (-len(val) % 8), casefold=True).decode()
+    return (
+        base64.b32decode(val + "=" * (-len(val) % 8), casefold=True).decode()
+    )
 
 
 def _decode_build_date(val: str) -> datetime.datetime:
     return datetime.datetime.strptime(val, r"%Y%m%d%H%M").replace(
-        tzinfo=datetime.timezone.utc
-    )
+        tzinfo=datetime.timezone.utc)
 
 
 def get_version_from_scm(root: pathlib.Path) -> str:

@@ -542,7 +542,6 @@ class SchemaField(Field[Type_T]):
 
     def _make_get_default(self) -> Callable[[], Any]:
         if self.default is NoDefault:
-
             def _get_error() -> Any:
                 raise ValueError(
                     f'field {self.name!r} is required and has no default')
@@ -555,8 +554,7 @@ class SchemaField(Field[Type_T]):
             else:
                 return self.type
         else:
-
-            def _get_simple(value: Any = self.default) -> Any:
+            def _get_simple(value: Any=self.default) -> Any:
                 return value
 
             return _get_simple
@@ -733,7 +731,6 @@ class ObjectMeta(type):
             # attribute access, so be mindful about what you are adding
             # into the callables below.
             if issubclass(ftype, s_abc.Reducible):
-
                 def reducible_getter(
                     self: Any,
                     schema: s_schema.Schema,
@@ -766,7 +763,6 @@ class ObjectMeta(type):
                 field.default is not NoDefault
                 and field.default is not DEFAULT_CONSTRUCTOR
             ):
-
                 def regular_default_getter(
                     self: Any,
                     schema: s_schema.Schema,
@@ -784,7 +780,6 @@ class ObjectMeta(type):
                 setattr(cls, getter_name, regular_default_getter)
 
             else:
-
                 def regular_getter(
                     self: Any,
                     schema: s_schema.Schema,
@@ -2872,10 +2867,8 @@ class ObjectDict(
         return hash((self._ids, self._keys))
 
     def dump(self, schema: s_schema.Schema) -> str:
-        objs = ", ".join(
-            f"{self._keys[i]}: {o.dump(schema)}"
-            for i, o in enumerate(self.objects(schema))
-        )
+        objs = ", ".join(f"{self._keys[i]}: {o.dump(schema)}"
+                         for i, o in enumerate(self.objects(schema)))
         return f'<{type(self).__name__} objects={objs} at {id(self):#x}>'
 
     def __repr__(self) -> str:

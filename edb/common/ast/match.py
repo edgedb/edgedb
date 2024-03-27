@@ -129,9 +129,8 @@ def group(name, node):
 
 
 def _match_node(pattern, node, context):
-    if not isinstance(pattern, Object) and not issubclass(
-        node.__class__, pattern.__class__.get_adaptee()
-    ):
+    if (not isinstance(pattern, Object) and
+            not issubclass(node.__class__, pattern.__class__.get_adaptee())):
         return None
 
     for field_name, field_value in pattern:

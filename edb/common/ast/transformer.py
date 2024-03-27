@@ -39,7 +39,7 @@ class NodeTransformer(visitor.NodeVisitor):
 
        class RewriteName(NodeTransformer):
 
-           def  visit_Name(self, node):
+           def visit_Name(self, node):
                return copy_location(Subscript(
                    value=Name(id='data', ctx=Load()),
                    slice=Index(value=Str(s=node.id)),

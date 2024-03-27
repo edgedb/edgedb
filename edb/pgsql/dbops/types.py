@@ -50,8 +50,7 @@ class TypeExists(base.Condition):
         self.name = name
 
     def code(self, block: base.PLBlock) -> str:
-        return textwrap.dedent(
-            f'''\
+        return textwrap.dedent(f'''\
             SELECT
                 typname
             FROM
@@ -61,8 +60,7 @@ class TypeExists(base.Condition):
             WHERE
                 nsp.nspname = {ql(self.name[0])}
                 AND typ.typname = {ql(self.name[1])}
-        '''
-        )
+        ''')
 
 
 def type_oid(name):
@@ -96,8 +94,7 @@ class CompositeTypeAttributeExists(base.Condition):
         self.attribute_name = attribute_name
 
     def code(self, block: base.PLBlock) -> str:
-        return textwrap.dedent(
-            f'''\
+        return textwrap.dedent(f'''\
             SELECT
                 attribute_name
             FROM
@@ -106,8 +103,7 @@ class CompositeTypeAttributeExists(base.Condition):
                 udt_schema = {ql(self.type_name[0])}
                 AND udt_name = {ql(self.type_name[1])}
                 AND attribute_name = {ql(self.attribute_name)}
-        '''
-        )
+        ''')
 
 
 class CreateCompositeType(ddl.SchemaObjectOperation):

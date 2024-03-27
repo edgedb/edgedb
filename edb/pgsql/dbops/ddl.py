@@ -161,12 +161,12 @@ class PutMetadata(DDLOperation):
         self.metadata = metadata
 
     def __repr__(self):
-        return '<{mod}.{cls} {object!r} {metadata!r}>'.format(
-            mod=self.__class__.__module__,
-            cls=self.__class__.__name__,
-            object=self.object,
-            metadata=self.metadata,
-        )
+        return \
+            '<{mod}.{cls} {object!r} {metadata!r}>'.format(
+                mod=self.__class__.__module__,
+                cls=self.__class__.__name__,
+                object=self.object,
+                metadata=self.metadata)
 
 
 class PutSingleDBMetadata(DDLOperation):
@@ -180,12 +180,12 @@ class PutSingleDBMetadata(DDLOperation):
         return f'{self.dbname}metadata'
 
     def __repr__(self):
-        return '<{mod}.{cls} Database({dbname!r}) {metadata!r}>'.format(
-            mod=self.__class__.__module__,
-            cls=self.__class__.__name__,
-            dbname=self.dbname,
-            metadata=self.metadata,
-        )
+        return \
+            '<{mod}.{cls} Database({dbname!r}) {metadata!r}>'.format(
+                mod=self.__class__.__module__,
+                cls=self.__class__.__name__,
+                dbname=self.dbname,
+                metadata=self.metadata)
 
 
 class SetMetadata(PutMetadata):

@@ -1007,7 +1007,10 @@ class Pool(BasePool[C]):
         return True
 
     def _try_shrink_block(self, block: Block[C]) -> None:
-        while block.count_conns_over_quota() and self._should_free_conn(block):
+        while (
+            block.count_conns_over_quota() and
+            self._should_free_conn(block)
+        ):
             if (conn := block.try_steal()) is not None:
                 _, to_block = self._find_most_starving_block()
                 if to_block is not None:

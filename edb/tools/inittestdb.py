@@ -73,32 +73,17 @@ def die(msg):
     help='database cluster directory',
 )
 @click.option(
-    '-t',
-    '--tests-dir',
-    type=str,
-    default=str(
-        pathlib.Path(__file__).parent.parent.parent.resolve() / 'tests'
-    ),
-    help='directory to start test discovery from',
-)
-@click.option(
-    '-j',
-    '--jobs',
-    type=int,
-    default=lambda: round((os.cpu_count() or 1) * 0.75),
-    help='number of parallel processes to use',
-)
-@click.option(
-    '-k',
-    '--include',
-    type=str,
-    multiple=True,
-    metavar='REGEXP',
-    help='only use tests which match the given regular expression',
-)
-@click.option(
-    '-u', '--update', is_flag=True, help='add the tests to the existing db'
-)
+    '-t', '--tests-dir', type=str,
+    default=str(pathlib.Path(__file__).parent.parent.parent.resolve() /
+                'tests'),
+    help='directory to start test discovery from')
+@click.option('-j', '--jobs', type=int,
+              default=lambda: round((os.cpu_count() or 1) * 0.75),
+              help='number of parallel processes to use')
+@click.option('-k', '--include', type=str, multiple=True, metavar='REGEXP',
+              help='only use tests which match the given regular expression')
+@click.option('-u', '--update', is_flag=True,
+              help='add the tests to the existing db')
 def inittestdb(*, data_dir, jobs, tests_dir, include, update):
     if os.path.exists(data_dir):
         if not os.path.isdir(data_dir):

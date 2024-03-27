@@ -33,7 +33,6 @@ import edgedb
 
 class bag(list):
     """Wrapper for list that tells assert_query_result to ignore order"""
-
     def __repr__(self):
         return f'bag({list.__repr__(self)})'
 

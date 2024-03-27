@@ -323,7 +323,6 @@ def delta_schemas(
                 incl_modules = None
             else:
                 if issubclass(sclass, so.DerivableObject):
-
                     def _only_generic(
                         schema: s_schema.Schema,
                         obj: so.Object,

@@ -573,39 +573,35 @@ class AbstractPool:
 
     async def interpret_backend_error(self, *args, **kwargs):
         return await self._simple_call(
-            'interpret_backend_error', *args, **kwargs
-        )
+            'interpret_backend_error', *args, **kwargs)
 
     async def parse_global_schema(self, *args, **kwargs):
-        return await self._simple_call('parse_global_schema', *args, **kwargs)
+        return await self._simple_call(
+            'parse_global_schema', *args, **kwargs)
 
     async def parse_user_schema_db_config(self, *args, **kwargs):
         return await self._simple_call(
-            'parse_user_schema_db_config', *args, **kwargs
-        )
+            'parse_user_schema_db_config', *args, **kwargs)
 
     async def make_state_serializer(self, *args, **kwargs):
-        return await self._simple_call('make_state_serializer', *args, **kwargs)
+        return await self._simple_call(
+            'make_state_serializer', *args, **kwargs)
 
     async def make_compilation_config_serializer(self, *args, **kwargs):
         return await self._simple_call(
-            'make_compilation_config_serializer', *args, **kwargs
-        )
+            'make_compilation_config_serializer', *args, **kwargs)
 
     async def describe_database_dump(self, *args, **kwargs):
         return await self._simple_call(
-            'describe_database_dump', *args, **kwargs
-        )
+            'describe_database_dump', *args, **kwargs)
 
     async def describe_database_restore(self, *args, **kwargs):
         return await self._simple_call(
-            'describe_database_restore', *args, **kwargs
-        )
+            'describe_database_restore', *args, **kwargs)
 
     async def analyze_explain_output(self, *args, **kwargs):
         return await self._simple_call(
-            'analyze_explain_output', *args, **kwargs
-        )
+            'analyze_explain_output', *args, **kwargs)
 
     def get_debug_info(self):
         return {}
@@ -717,7 +713,8 @@ class BaseLocalPool(
 
     async def _wait_ready(self):
         await asyncio.wait_for(
-            self._ready_evt.wait(), PROCESS_INITIAL_RESPONSE_TIMEOUT
+            self._ready_evt.wait(),
+            PROCESS_INITIAL_RESPONSE_TIMEOUT
         )
 
     async def _create_compiler_process(self, numproc=None, version=0):

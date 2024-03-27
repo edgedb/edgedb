@@ -449,7 +449,7 @@ class BaseStructTransformer(BaseTransformer):
         )
 
     def _get_default(self, call) -> Optional[nodes.Expression]:
-        for n, v in zip(call.arg_names, call.args):
+        for (n, v) in zip(call.arg_names, call.args):
             if n == 'default':
                 return v
         else:
