@@ -550,9 +550,9 @@ class QualifiedName:
         return hash(tuple(self.names))
 
 
-    # def __post_init__(self):
-    #     if not isinstance(self.names, list) or not all(isinstance(name, str) for name in self.names):
-    #         raise ValueError("The 'names' attribute must be a non-empty list of strings.")
+    def __post_init__(self):
+        if not isinstance(self.names, list) or not all(isinstance(name, str) for name in self.names):
+            raise ValueError("The 'names' attribute must be a non-empty list of strings.")
 
 
 @dataclass(frozen=True)
@@ -631,6 +631,19 @@ class IfElseExpr:
     then_branch: Expr
     condition: Expr
     else_branch: Expr
+
+
+@dataclass
+class EdgeDatabaseEqFilter:
+    propname: str
+    arg: Val
+
+EdgeDatabaseSelectFilter = Sequence[EdgeDatabaseEqFilter]
+
+@dataclass(frozen=True)
+class QualifiedNameWithFilter:
+    name: QualifiedName
+    filter: EdgeDatabaseSelectFilter # treated as conjunction
 
 @dataclass(frozen=True)
 class FilterOrderExpr:
@@ -820,7 +833,7 @@ VarExpr = (FreeVarExpr | BoundVarExpr)
 Expr = (
     ScalarVal | TypeCastExpr | FunAppExpr | FreeVarExpr | BoundVarExpr | CheckedTypeCastExpr |
     ObjectProjExpr | LinkPropProjExpr | WithExpr | ForExpr | OptionalForExpr |
-    TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
+    TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr | QualifiedNameWithFilter |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
     FreeObjectExpr | ConditionalDedupExpr | TupleProjExpr |  IsTpExpr |
     # ObjectExpr | 

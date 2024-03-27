@@ -108,7 +108,8 @@ def map_expr(
 
         match expr:
             case (FreeVarExpr(_) | BoundVarExpr(_) | e.ScalarVal(_) | RefVal(_) 
-                    | ArrVal(_) | UnnamedTupleVal(_) |e.QualifiedName(_) | e.UnqualifiedName(_)):
+                    | ArrVal(_) | UnnamedTupleVal(_) |e.QualifiedName(_) | e.UnqualifiedName(_)
+                    | e.QualifiedNameWithFilter(_, _)):
                 return expr
             case BindingExpr(var=var, body=body):
                 return BindingExpr(var=var, body=map_expr(f, body))

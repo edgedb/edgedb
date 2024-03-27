@@ -205,6 +205,8 @@ def show_expr(expr: e.Expr) -> str:
             return "{<free>}"
         case e.ParameterExpr(name=name):
             return "${name}"
+        case e.QualifiedNameWithFilter(name=name, filter=filter):
+            return "with_filter(" + show_qname(name) + ", " + str([f.propname for f in filter])+")"
         case _:
             raise ValueError('Unimplemented', expr)
 

@@ -344,5 +344,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                 expr=qlast.Parameter(name=name),
                 is_required=is_required
             )
+        case e.QualifiedNameWithFilter(name=name, filter=filter):
+            return reverse_elab_raw_name(name)
         case _:
             raise ValueError("Unimplemented", ir_expr)

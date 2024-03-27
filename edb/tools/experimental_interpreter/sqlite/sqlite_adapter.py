@@ -279,12 +279,24 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         return id
 
     
-    def query_ids_for_a_type(self, tp: e.QualifiedName, filters: List[db_interface.EdgeDatabaseSelectFilter]) -> List[EdgeID]:
-        assert len(filters) == 0, "Filters are not supported yet"
-
-        # get all non-abstract subtypes
+    def query_ids_for_a_type(self, tp: e.QualifiedName, filters: e.EdgeDatabaseSelectFilter) -> List[EdgeID]:
         tp_name = self.get_tp_name(tp)
-        self.cursor.execute(f"""SELECT id FROM "{tp_name}" """)
+
+        filter_clause = ""
+        query_args = []
+        if len(filters) > 0:
+            def convert_eq_filter(f: e.EdgeDatabaseEqFilter) -> str:
+                this_view = self.schema_property_view[tp_name][f.propname]
+                query_args.append(convert_val_to_sqlite_val(e.MultiSetVal([f.arg])))
+                if this_view.is_singular:
+                    return f"({f.propname} = ?)"
+                else:
+                    return f"(EXISTS (SELECT 1 FROM '{tp_name}.{f.propname}' WHERE source = id AND target = ?))"
+            filter_clause = "WHERE " + " AND ".join([convert_eq_filter(f) for f in filters])
+        
+
+        sql_query = f"""SELECT id FROM "{tp_name}" {filter_clause} """
+        self.cursor.execute(sql_query, (*query_args,))
         return [row[0] for row in self.cursor.fetchall()]
 
     def dump_state(self) -> object:
@@ -447,6 +459,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                         self.cursor.execute(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v]))))
 
+    def commit(self) -> None:
+        self.conn.commit()
     
 def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):
     # Connect to the SQLite database

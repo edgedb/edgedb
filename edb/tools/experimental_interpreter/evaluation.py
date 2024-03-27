@@ -301,6 +301,12 @@ def eval_expr(ctx: EvalEnv,
                     RefVal(id, e.QualifiedName(names=names), ObjectVal({}))
                     for id in db.storage.query_ids_for_a_type(expr, [])]
                 return e.ResultMultiSetVal(all_ids)
+        case e.QualifiedNameWithFilter(name=name, filter=filter):
+            all_ids: Sequence[Val] = [
+                RefVal(id, name, ObjectVal({}))
+                for id in db.storage.query_ids_for_a_type(name, filter)]
+            return e.ResultMultiSetVal(all_ids)
+        
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):
             assert idx is not None, "overloading index must be set in type checking"
             argsv = eval_expr_list(ctx, db, args)

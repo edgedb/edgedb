@@ -6,17 +6,10 @@ from .data.type_ops import *
 from .data.data_ops import *
 import copy
 
-@dataclass
-class EdgeDatabaseEqFilter:
-    propname: str
-    arg: Val
-
-EdgeDatabaseSelectFilter = EdgeDatabaseEqFilter
-
 class EdgeDatabaseStorageProviderInterface:
 
     # filters have intersection semantics
-    def query_ids_for_a_type(self, tp: e.QualifiedName, filters: List[EdgeDatabaseSelectFilter]) -> List[EdgeID]:
+    def query_ids_for_a_type(self, tp: e.QualifiedName, filters: EdgeDatabaseSelectFilter) -> List[EdgeID]:
         raise NotImplementedError()
 
     def get_schema(self) -> DBSchema:
@@ -54,6 +47,9 @@ class EdgeDatabaseStorageProviderInterface:
     def restore_state(self, dumped_state) -> None:
         raise NotImplementedError()
 
+    def commit() -> None:
+        raise NotImplementedError()
+
 class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
     def __init__(self, schema) -> None:
@@ -65,9 +61,16 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
     def get_schema(self) -> DBSchema:
         return self.schema
 
-    def query_ids_for_a_type(self, tp: e.QualifiedName, filters: List[EdgeDatabaseSelectFilter]) -> List[EdgeID]:
-        assert len(filters) == 0, "Filters are not supported yet"
-        return [id for id in self.db.dbdata.keys() if self.db.dbdata[id].tp == tp]
+    def query_ids_for_a_type(self, tp: e.QualifiedName, filters: EdgeDatabaseSelectFilter) -> List[EdgeID]:
+        def check_filter(filter: EdgeDatabaseEqFilter, id: EdgeID) -> bool:
+            data_to_check = self.db.dbdata[id].data
+            target_vals = data_to_check[filter.propname]
+            return filter.arg in target_vals.getVals()
+            
+        def check_filter_top(filter: EdgeDatabaseSelectFilter, id: EdgeID) -> bool:
+            return all(check_filter(f, id) for f in filter)
+        # assert len(filters) == 0, "Filters are not supported yet"
+        return [id for id in self.db.dbdata.keys() if self.db.dbdata[id].tp == tp and check_filter_top(filters, id)]
 
     def dump_state(self) -> object:
         return {
@@ -139,6 +142,8 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             }
         )
 
+    def commit(self) -> None:
+        pass
 
     
 
@@ -221,7 +226,9 @@ class EdgeDatabase:
         self.to_delete = []
         self.to_update = {}
         self.to_insert = DB({})
+        self.storage.commit()
         
 
     def get_schema(self) -> DBSchema:
         return self.storage.get_schema()
+    
