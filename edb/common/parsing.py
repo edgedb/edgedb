@@ -30,9 +30,9 @@ import types
 
 import parsing
 
-from edb.common import context as pctx, debug
+from edb.common import debug, span
 
-ParserContext = pctx.ParserContext
+Span = span.Span
 
 logger = logging.getLogger('edb.common.parsing')
 
@@ -46,7 +46,8 @@ class Token(parsing.Token):
     _token: str = ""
 
     def __init_subclass__(
-            cls, *, token=None, lextoken=None, is_internal=False, **kwargs):
+        cls, *, token=None, lextoken=None, is_internal=False, **kwargs
+    ):
         super().__init_subclass__(**kwargs)
 
         if is_internal:
@@ -74,11 +75,11 @@ class Token(parsing.Token):
 
             cls.__doc__ = doc
 
-    def __init__(self, val, clean_value, context=None):
+    def __init__(self, val, clean_value, span=None):
         super().__init__()
         self.val = val
         self.clean_value = clean_value
-        self.context = context
+        self.span = span
 
     def __repr__(self):
         return '<Token %s "%s">' % (self.__class__._token, self.val)
@@ -140,7 +141,7 @@ class Nonterm(parsing.Nonterm):
                     attr = lambda self, *args, meth=attr: meth(self, *args)
                     attr.__doc__ = doc
 
-                a = pctx.has_context(attr)
+                a = span.wrap_function_to_infer_spans(attr)
 
                 a.__doc__ = attr.__doc__
                 a.inline_index = inline_index
@@ -148,8 +149,15 @@ class Nonterm(parsing.Nonterm):
 
 
 class ListNonterm(Nonterm, is_internal=True):
-    def __init_subclass__(cls, *, element, separator=None, is_internal=False,
-                          allow_trailing_separator=False, **kwargs):
+    def __init_subclass__(
+        cls,
+        *,
+        element,
+        separator=None,
+        is_internal=False,
+        allow_trailing_separator=False,
+        **kwargs,
+    ):
         """Create reductions for list classes.
 
         If trailing separator is not allowed, the class can handle all
@@ -284,8 +292,15 @@ class Precedence(parsing.Precedence):
     last: Dict[Any, Any] = {}
 
     def __init_subclass__(
-            cls, *, assoc, tokens=None, prec_group=None, rel_to_last='>',
-            is_internal=False, **kwargs):
+        cls,
+        *,
+        assoc,
+        tokens=None,
+        prec_group=None,
+        rel_to_last='>',
+        is_internal=False,
+        **kwargs,
+    ):
         super().__init_subclass__(**kwargs)
 
         if is_internal:
@@ -319,9 +334,7 @@ class Precedence(parsing.Precedence):
         return Precedence.token_prec_map.get(token_name)
 
 
-def load_parser_spec(
-    mod: types.ModuleType
-) -> parsing.Spec:
+def load_parser_spec(mod: types.ModuleType) -> parsing.Spec:
     return parsing.Spec(
         mod,
         skinny=not debug.flags.edgeql_parser,
@@ -337,8 +350,7 @@ def _localpath(mod, type):
 
 
 def load_spec_productions(
-    production_names: List[Tuple[str, str]],
-    mod: types.ModuleType
+    production_names: List[Tuple[str, str]], mod: types.ModuleType
 ) -> List[Tuple[Type, Callable]]:
     productions: List[Tuple[Any, Callable]] = []
     for class_name, method_name in production_names:
@@ -427,7 +439,7 @@ def spec_to_json(spec: parsing.Spec) -> str:
 
 
 def sort_productions(
-    productions_all: Set[Any]
+    productions_all: Set[Any],
 ) -> Tuple[List[Any], Dict[Any, int]]:
     productions = list(productions_all)
     productions.sort(key=production_name)

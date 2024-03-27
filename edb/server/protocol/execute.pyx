@@ -70,7 +70,7 @@ cdef class ExecutionGroup:
     async def execute(
         self,
         pgcon.PGConnection be_conn,
-        dbview.DatabaseConnectionView dbv,
+        object dbv,  # can be DatabaseConnectionView or Database
         fe_conn: frontend.AbstractFrontendConnection = None,
         bytes state = None,
     ):
@@ -166,7 +166,6 @@ async def execute(
         bytes state = None, orig_state = None
         WriteBuffer bound_args_buf
         ExecutionGroup group
-        bint persist_cache, persist_recompiled_query_cache
 
     query_unit = compiled.query_unit_group[0]
 
@@ -176,16 +175,6 @@ async def execute(
     new_types = None
     server = dbv.server
     tenant = dbv.tenant
-
-    # If we have both the compilation request and a pair of SQLs for the cache
-    # (persist, evict), we should follow the persistent cache route.
-    persist_cache = bool(compiled.request and query_unit.cache_sql)
-
-    # Recompilation is a standalone feature than persistent cache.
-    # This flag indicates both features are in use, and we actually have
-    # recompiled the query cache to persist.
-    persist_recompiled_query_cache = bool(
-        debug.flags.persistent_cache and compiled.recompiled_cache)
 
     data = None
 
@@ -213,24 +202,7 @@ async def execute(
 
             if query_unit.sql:
                 if query_unit.user_schema:
-                    if persist_recompiled_query_cache:
-                        # If we have recompiled the query cache, writeback to
-                        # the cache table here in an implicit transaction (if
-                        # not in one already), so that whenever the transaction
-                        # commits, we flip to using the new cache at once.
-                        group = build_cache_persistence_units(
-                            compiled.recompiled_cache)
-                        group.append(query_unit)
-                        if query_unit.ddl_stmt_id is None:
-                            await group.execute(be_conn, dbv)
-                            ddl_ret = None
-                        else:
-                            ddl_ret = be_conn.load_ddl_return(
-                                query_unit,
-                                await group.execute(be_conn, dbv, state=state),
-                            )
-                    else:
-                        ddl_ret = await be_conn.run_ddl(query_unit, state)
+                    ddl_ret = await be_conn.run_ddl(query_unit, state)
                     if ddl_ret and ddl_ret['new_types']:
                         new_types = ddl_ret['new_types']
                 else:
@@ -244,31 +216,14 @@ async def execute(
                     read_data = (
                         query_unit.needs_readback or query_unit.is_explain)
 
-                    if persist_cache:
-                        # Persistent cache needs to happen before the actual
-                        # query because the query may depend on the function
-                        # created persisting the cache entry.
-                        group = build_cache_persistence_units(
-                            [(compiled.request, compiled.query_unit_group)]
-                        )
-                        if not use_prep_stmt:
-                            query_unit.sql_hash = b''
-                        group.append(query_unit, bound_args_buf)
-                        data = await group.execute(
-                            be_conn,
-                            dbv,
-                            fe_conn=fe_conn if not read_data else None,
-                            state=state,
-                        )
-                    else:
-                        data = await be_conn.parse_execute(
-                            query=query_unit,
-                            fe_conn=fe_conn if not read_data else None,
-                            bind_data=bound_args_buf,
-                            use_prep_stmt=use_prep_stmt,
-                            state=state,
-                            dbver=dbv.dbver,
-                        )
+                    data = await be_conn.parse_execute(
+                        query=query_unit,
+                        fe_conn=fe_conn if not read_data else None,
+                        bind_data=bound_args_buf,
+                        use_prep_stmt=use_prep_stmt,
+                        state=state,
+                        dbver=dbv.dbver,
+                    )
 
                     if query_unit.needs_readback and data:
                         config_ops = [
@@ -363,8 +318,6 @@ async def execute(
         if compiled.recompiled_cache:
             for req, qu_group in compiled.recompiled_cache:
                 dbv.cache_compiled_query(req, qu_group)
-        if persist_cache or persist_recompiled_query_cache:
-            signal_query_cache_changes(dbv)
     finally:
         if query_unit.drop_db:
             tenant.allow_database_connections(query_unit.drop_db)
@@ -646,26 +599,6 @@ def signal_side_effects(dbv, side_effects):
             ),
             interruptable=False,
         )
-
-
-def signal_query_cache_changes(dbv):
-    # FIXME: This is disabled because the increased sysevent traffic
-    # caused by doing this was causing test failures on aarch64 when
-    # sometimes the signals failed due to a failure to look up
-    # transactions. We need to figure out what is going on with that
-    # and restore it. We also probably want to rate limit
-    # query-cache-changes, or include a more detailed payload, since
-    # it can force pretty aggressive amounts of cache reloading work
-    # on the targets.
-
-    # dbv.tenant.create_task(
-    #     dbv.tenant.signal_sysevent(
-    #         'query-cache-changes',
-    #         dbname=dbv.dbname,
-    #     ),
-    #     interruptable=False,
-    # )
-    pass
 
 
 async def parse_execute_json(

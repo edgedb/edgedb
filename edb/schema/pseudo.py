@@ -91,9 +91,7 @@ class PseudoType(
         return self.is_anytuple(schema)
 
     def implicitly_castable_to(
-        self,
-        other: s_types.Type,
-        schema: s_schema.Schema
+        self, other: s_types.Type, schema: s_schema.Schema
     ) -> bool:
         return self == other
 
@@ -108,9 +106,7 @@ class PseudoType(
             return schema, None
 
     def get_common_parent_type_distance(
-        self,
-        other: s_types.Type,
-        schema: s_schema.Schema
+        self, other: s_types.Type, schema: s_schema.Schema
     ) -> int:
         if self == other:
             return 0
@@ -118,23 +114,17 @@ class PseudoType(
             return s_types.MAX_TYPE_DISTANCE
 
     def _test_polymorphic(
-        self,
-        schema: s_schema.Schema,
-        other: s_types.Type
+        self, schema: s_schema.Schema, other: s_types.Type
     ) -> bool:
         return self == other
 
     def _to_nonpolymorphic(
-        self,
-        schema: s_schema.Schema,
-        concrete_type: s_types.Type
+        self, schema: s_schema.Schema, concrete_type: s_types.Type
     ) -> Tuple[s_schema.Schema, s_types.Type]:
         return schema, concrete_type
 
     def _resolve_polymorphic(
-        self,
-        schema: s_schema.Schema,
-        concrete_type: s_types.Type
+        self, schema: s_schema.Schema, concrete_type: s_types.Type
     ) -> Optional[s_types.Type]:
         if self.is_any(schema):
             return concrete_type
@@ -163,7 +153,7 @@ class PseudoTypeShell(s_types.TypeShell[PseudoType]):
         self,
         *,
         name: sn.Name,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> None:
         super().__init__(
             name=name, schemaclass=PseudoType, sourcectx=sourcectx)
@@ -200,7 +190,7 @@ class CreatePseudoType(PseudoTypeCommand, sd.CreateObject[PseudoType]):
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
                 'user-defined pseudotypes are not supported',
-                context=astnode.context
+                span=astnode.span
             )
 
         return super()._cmd_tree_from_ast(schema, astnode, context)

@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import builtins
 import contextlib
+import platform
 import os
 import sys
 import time
@@ -54,7 +55,7 @@ class FlagsMeta(type):
                 continue
             flag.name = flagname
             flags[flagname] = flag
-            dct[flagname] = False
+            dct[flagname] = flag.default
 
         dct['_items'] = flags
         return super().__new__(mcls, name, bases, dct)
@@ -64,9 +65,10 @@ class FlagsMeta(type):
 
 
 class Flag:
-    def __init__(self, *, doc: str):
+    def __init__(self, *, doc: str, default: bool=False):
         self.name = None
         self.doc = doc
+        self.default = default
 
 
 class flags(metaclass=FlagsMeta):
@@ -142,6 +144,9 @@ class flags(metaclass=FlagsMeta):
     server_clobber_pg_conns = Flag(
         doc="Discard Postgres connections when releasing them to the pool.")
 
+    edgeql_text_in_sql = Flag(
+        doc="Include the EdgeQL query text in the SQL sent to Postgres.")
+
     print_locals = Flag(
         doc="Include values of local variables in tracebacks.")
 
@@ -176,7 +181,15 @@ class flags(metaclass=FlagsMeta):
 
     zombodb = Flag(doc="Enabled zombodb and disables postgres FTS")
 
-    persistent_cache = Flag(doc="Use persistent cache")
+    disable_persistent_cache = Flag(
+        doc="Don't use persistent cache",
+        # Persistent cache disabled for now by default on arm64 linux
+        # because of observed problems in CI test runs.
+        default=(
+            platform.system() == 'Linux'
+            and platform.machine() == 'arm64'
+        ),
+    )
 
     # Function cache is an experimental feature that may not fully work
     func_cache = Flag(doc="Use stored functions for persistent cache")
@@ -255,10 +268,8 @@ def init_debug_flags():
             warnings.warn(f'Unknown debug flag: {env_name!r}', stacklevel=2)
             continue
 
-        if env_val.strip() in {'', '0'}:
-            continue
-
-        setattr(flags, name, True)
+        value = env_val.strip() not in {'', '0'}
+        setattr(flags, name, value)
 
 
 init_debug_flags()

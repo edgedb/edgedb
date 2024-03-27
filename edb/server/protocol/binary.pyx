@@ -79,7 +79,6 @@ from edb.schema import objects as s_obj
 from edb import errors
 from edb.errors import base as base_errors, EdgeQLSyntaxError
 from edb.common import debug
-from edb.common import context as pctx
 
 from edb.protocol import messages
 
@@ -839,14 +838,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             await _dbview.reload_state_serializer()
         query_req, allow_capabilities = self.parse_execute_request()
         compiled = await self._parse(query_req, allow_capabilities)
-        units = compiled.query_unit_group
-        if len(units) == 1 and units[0].cache_sql:
-           conn = await self.get_pgcon()
-           try:
-               g = execute.build_cache_persistence_units([(query_req, units)])
-               await g.execute(conn, _dbview)
-           finally:
-               self.maybe_release_pgcon(conn)
 
         buf = self.make_command_data_description_msg(compiled)
 

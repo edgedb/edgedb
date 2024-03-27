@@ -19,6 +19,7 @@
 import asyncio
 import os
 import pathlib
+import platform
 import signal
 import ssl
 import tempfile
@@ -581,6 +582,11 @@ class TestServerAuth(tb.ConnectedTestCase):
                 DROP ROLE foo;
             ''')
 
+    @unittest.skipIf(
+        platform.system() == "Darwin" and platform.machine() == 'x86_64',
+        "Postgres is not getting getting enough shared memory on macos-14 "
+        "GitHub runner by default"
+    )
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
         "cannot use CONFIGURE INSTANCE in multi-tenant mode",

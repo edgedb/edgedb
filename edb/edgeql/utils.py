@@ -45,8 +45,9 @@ class ParameterInliner(ast.NodeTransformer):
         self.args_map = args_map
 
     def visit_Path(self, node: qlast.Path) -> qlast.Base:
-        if (len(node.steps) != 1 or
-                not isinstance(node.steps[0], qlast.ObjectRef)):
+        if len(node.steps) != 1 or not isinstance(
+            node.steps[0], qlast.ObjectRef
+        ):
             self.visit(node.steps[0])
             return node
 
@@ -61,8 +62,7 @@ class ParameterInliner(ast.NodeTransformer):
 
 
 def inline_parameters(
-    ql_expr: qlast.Base,
-    args: Mapping[str, qlast.Base]
+    ql_expr: qlast.Base, args: Mapping[str, qlast.Base]
 ) -> None:
 
     inliner = ParameterInliner(args)
@@ -88,7 +88,7 @@ def index_parameters(
         raise errors.SchemaDefinitionError(
             f'Expected {len(params) - 1} arguments, but found '
             f'{len(ql_args) - 1}',
-            context=ql_args[-1].context,
+            span=ql_args[-1].span,
             details='Did you mean to use ON (...) for specifying the subject?',
         )
 
@@ -137,8 +137,7 @@ class AnchorInliner(ast.NodeTransformer):
 
 
 def inline_anchors(
-    ql_expr: qlast.Base,
-    anchors: Mapping[Any, qlast.Base]
+    ql_expr: qlast.Base, anchors: Mapping[Any, qlast.Base]
 ) -> None:
 
     inliner = AnchorInliner(anchors)
@@ -188,7 +187,8 @@ def subject_paths_substitute(
 
 
 def subject_substitute(
-        ast: qlast.Base_T, new_subject: qlast.Expr) -> qlast.Base_T:
+    ast: qlast.Base_T, new_subject: qlast.Expr
+) -> qlast.Base_T:
     ast = copy.deepcopy(ast)
     for path in find_paths(ast):
         if isinstance(path.steps[0], qlast.Subject):

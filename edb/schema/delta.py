@@ -455,7 +455,7 @@ class Command(
     markup.MarkupCapableMixin,
     metaclass=CommandMeta,
 ):
-    source_context = struct.Field(parsing.ParserContext, default=None)
+    span = struct.Field(parsing.Span, default=None)
     canonical = struct.Field(bool, default=False)
 
     _context_class: Optional[Type[CommandContextToken[Command]]] = None
@@ -537,7 +537,8 @@ class Command(
         return []
 
     def record_diff_annotations(
-        self, *,
+        self,
+        *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
@@ -691,13 +692,13 @@ class Command(
         else:
             return False
 
-    def get_attribute_source_context(
+    def get_attribute_span(
         self,
         attr_name: str,
-    ) -> Optional[parsing.ParserContext]:
+    ) -> Optional[parsing.Span]:
         op = self._get_attribute_set_cmd(attr_name)
         if op is not None:
-            return op.source_context
+            return op.span
         else:
             return None
 
@@ -712,7 +713,7 @@ class Command(
         computed: bool = False,
         from_default: bool = False,
         orig_computed: Optional[bool] = None,
-        source_context: Optional[parsing.ParserContext] = None,
+        span: Optional[parsing.Span] = None,
     ) -> Command:
         orig_op = op = self._get_simple_attribute_set_cmd(attr_name)
         if op is None:
@@ -731,8 +732,8 @@ class Command(
         op.old_computed = orig_computed
         op.from_default = from_default
 
-        if source_context is not None:
-            op.source_context = source_context
+        if span is not None:
+            op.span = span
         if orig_value is not None:
             op.old_value = orig_value
 
@@ -1098,7 +1099,7 @@ class Command(
         context: CommandContext,
     ) -> Command:
         cmd = cls._cmd_from_ast(schema, astnode, context)
-        cmd.source_context = astnode.context
+        cmd.span = astnode.span
         cmd.qlast = astnode
         ctx = context.current()
         if ctx is not None and type(ctx) is cls.get_context_class():
@@ -1226,6 +1227,13 @@ class CommandContextToken(Generic[Command_T_co]):
     mark_derived: Optional[bool]
     enable_recursion: Optional[bool]
     transient_derivation: Optional[bool]
+    # Whether to skip creating @source/@target properties on links.
+    # Typically this is set whenever transient_derivation is,
+    # (so that it doesn't get set on transiet views, etc),
+    # except when compiling aliases where we need to produce
+    # fully populated links.
+    # This is a surprisingly valuable optimization (25% on a big schema).
+    slim_links: Optional[bool]
 
     def __init__(
         self,
@@ -1246,6 +1254,7 @@ class CommandContextToken(Generic[Command_T_co]):
         self.mark_derived = None
         self.enable_recursion = None
         self.transient_derivation = None
+        self.slim_links = None
 
 
 class CommandContextWrapper(Generic[Command_T_co]):
@@ -1371,6 +1380,10 @@ class CommandContext:
         return False
 
     @property
+    def slim_links(self) -> bool:
+        return any(ctx.slim_links for ctx in self.stack)
+
+    @property
     def canonical(self) -> bool:
         return any(ctx.op.canonical for ctx in self.stack)
 
@@ -1419,7 +1432,8 @@ class CommandContext:
         return self.stack.pop()
 
     def get_referrer_name(
-        self, referrer_ctx: CommandContextToken[ObjectCommand[so.Object]],
+        self,
+        referrer_ctx: CommandContextToken[ObjectCommand[so.Object]],
     ) -> sn.QualName:
         referrer_name = referrer_ctx.op.classname
         renamed = self.early_renames.get(referrer_name)
@@ -1659,7 +1673,7 @@ class Query(Command):
         context: CommandContext,
     ) -> Command:
         return cls(
-            source_context=astnode.context,
+            span=astnode.span,
             expr=s_expr.Expression.from_ast(
                 astnode,  # type: ignore
                 schema=schema,
@@ -1962,7 +1976,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         computed: bool = False,
         orig_computed: Optional[bool] = None,
         from_default: bool = False,
-        source_context: Optional[parsing.ParserContext] = None,
+        span: Optional[parsing.Span] = None,
     ) -> Command:
         special = type(self)._get_special_handler(attr_name)
         op = self._get_attribute_set_cmd(attr_name)
@@ -1984,7 +1998,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 new_computed=computed,
                 old_computed=orig_computed,
                 from_default=from_default,
-                source_context=source_context,
+                span=span,
             )
 
             top_op = self._special_attrs.get(attr_name)
@@ -2009,8 +2023,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             op.old_computed = orig_computed
             op.from_default = from_default
 
-            if source_context is not None:
-                op.source_context = source_context
+            if span is not None:
+                op.span = span
             if orig_value is not None:
                 op.old_value = orig_value
 
@@ -2534,7 +2548,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 raise errors.SchemaDefinitionError(
                     f'cannot {self._delta_action} {self.get_verbosename()}: '
                     f'module {modroot} is read-only',
-                    context=self.source_context)
+                    span=self.span)
 
     def get_verbosename(self, parent: Optional[str] = None) -> str:
         mcls = self.get_schema_metaclass()
@@ -2580,7 +2594,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> so.Object_T:
         ...
 
@@ -2592,7 +2606,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.Object_T]:
         ...
 
@@ -2603,7 +2617,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.Object_T]:
         metaclass = self.get_schema_metaclass()
         if name is None:
@@ -2925,7 +2939,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         if module is None:
             raise errors.SchemaDefinitionError(
                 f'unqualified name and no default module set',
-                context=objref.context,
+                span=objref.span,
             )
 
         return sn.QualName(module=module, name=objref.name)
@@ -2938,7 +2952,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.QualifiedObject_T, so.NoDefaultT] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> so.QualifiedObject_T:
         ...
 
@@ -2950,7 +2964,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.QualifiedObject_T]:
         ...
 
@@ -2962,7 +2976,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         name: Optional[sn.Name] = None,
         default: Union[
             so.QualifiedObject_T, so.NoDefaultT, None] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.QualifiedObject_T]:
         if name is None:
             name = self.classname
@@ -2971,7 +2985,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
                 name = rename
         metaclass = self.get_schema_metaclass()
         if sourcectx is None:
-            sourcectx = self.source_context
+            sourcectx = self.span
         return schema.get(
             name, type=metaclass, default=default, sourcectx=sourcectx)
 
@@ -4078,7 +4092,7 @@ class AlterObjectProperty(Command):
             except LookupError:
                 raise errors.SchemaDefinitionError(
                     f'{propname!r} is not a valid field',
-                    context=astnode.context)
+                    span=astnode.span)
 
         if not (
             astnode.special_syntax
@@ -4088,12 +4102,12 @@ class AlterObjectProperty(Command):
         ):
             raise errors.SchemaDefinitionError(
                 f'{propname!r} is not a valid field',
-                context=astnode.context)
+                span=astnode.span)
 
         if field.name == 'id' and not isinstance(parent_op, CreateObject):
             raise errors.SchemaDefinitionError(
                 f'cannot alter object id',
-                context=astnode.context)
+                span=astnode.span)
 
         new_value: Any
 
@@ -4179,7 +4193,7 @@ class AlterObjectProperty(Command):
         return cls(
             property=propname,
             new_value=new_value,
-            source_context=astnode.context,
+            span=astnode.span,
         )
 
     def is_data_safe(self) -> bool:
@@ -4216,7 +4230,7 @@ class AlterObjectProperty(Command):
         if field is None:
             raise errors.SchemaDefinitionError(
                 f'{self.property!r} is not a valid field',
-                context=self.source_context)
+                span=self.span)
 
         if self.property == 'id':
             return None

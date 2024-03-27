@@ -47,7 +47,7 @@ from . import setgen
 
 
 def amend_empty_set_type(
-    es: irast.EmptySet,
+    es: irast.SetE[irast.EmptySet],
     t: s_types.Type,
     env: context.Environment
 ) -> None:
@@ -61,13 +61,12 @@ def amend_empty_set_type(
 
 
 def infer_common_type(
-    irs: Sequence[irast.Set],
-    env: context.Environment
+    irs: Sequence[irast.Set], env: context.Environment
 ) -> Optional[s_types.Type]:
     if not irs:
         raise errors.QueryError(
             'cannot determine common type of an empty set',
-            context=irs[0].context)
+            span=irs[0].span)
 
     types = []
     empties = []
@@ -77,7 +76,10 @@ def infer_common_type(
     seen_coll = False
 
     for i, arg in enumerate(irs):
-        if isinstance(arg, irast.EmptySet) and env.set_types[arg] is None:
+        if (
+            isinstance(arg.expr, irast.EmptySet)
+            and env.set_types[arg] is None
+        ):
             empties.append(i)
             continue
 
@@ -93,12 +95,12 @@ def infer_common_type(
     if seen_coll + seen_scalar + seen_object > 1:
         raise errors.QueryError(
             'cannot determine common type',
-            context=irs[0].context)
+            span=irs[0].span)
 
     if not types:
         raise errors.QueryError(
             'cannot determine common type of an empty set',
-            context=irs[0].context)
+            span=irs[0].span)
 
     common_type = None
     if seen_scalar or seen_coll:
@@ -129,7 +131,7 @@ def infer_common_type(
 
     for i in empties:
         amend_empty_set_type(
-            cast(irast.EmptySet, irs[i]), common_type, env)
+            cast(irast.SetE[irast.EmptySet], irs[i]), common_type, env)
 
     return common_type
 
@@ -148,8 +150,8 @@ def type_to_ql_typeref(
 
 
 def ql_typeexpr_to_ir_typeref(
-        ql_t: qlast.TypeExpr, *,
-        ctx: context.ContextLevel) -> irast.TypeRef:
+    ql_t: qlast.TypeExpr, *, ctx: context.ContextLevel
+) -> irast.TypeRef:
 
     stype = ql_typeexpr_to_type(ql_t, ctx=ctx)
     return irtyputils.type_to_typeref(
@@ -158,8 +160,8 @@ def ql_typeexpr_to_ir_typeref(
 
 
 def ql_typeexpr_to_type(
-        ql_t: qlast.TypeExpr, *,
-        ctx: context.ContextLevel) -> s_types.Type:
+    ql_t: qlast.TypeExpr, *, ctx: context.ContextLevel
+) -> s_types.Type:
 
     types = _ql_typeexpr_to_type(ql_t, ctx=ctx)
     if len(types) > 1:
@@ -169,8 +171,8 @@ def ql_typeexpr_to_type(
 
 
 def _ql_typeexpr_to_type(
-        ql_t: qlast.TypeExpr, *,
-        ctx: context.ContextLevel) -> List[s_types.Type]:
+    ql_t: qlast.TypeExpr, *, ctx: context.ContextLevel
+) -> List[s_types.Type]:
 
     if isinstance(ql_t, qlast.TypeOf):
         with ctx.new() as subctx:
@@ -199,30 +201,30 @@ def _ql_typeexpr_to_type(
                 raise errors.UnsupportedFeatureError(
                     f'cannot use type operator {ql_t.op!r} with non-object '
                     f'type {left[0].get_displayname(ctx.env.schema)}',
-                    context=ql_t.left.context)
+                    span=ql_t.left.span)
             if len(right) == 1 and not right[0].is_object_type():
                 raise errors.UnsupportedFeatureError(
                     f'cannot use type operator {ql_t.op!r} with non-object '
                     f'type {right[0].get_displayname(ctx.env.schema)}',
-                    context=ql_t.right.context)
+                    span=ql_t.right.span)
 
             return left + right
 
         raise errors.UnsupportedFeatureError(
             f'type operator {ql_t.op!r} is not implemented',
-            context=ql_t.context)
+            span=ql_t.span)
 
     elif isinstance(ql_t, qlast.TypeName):
         return [_ql_typename_to_type(ql_t, ctx=ctx)]
 
     else:
         raise errors.EdgeQLSyntaxError("Unexpected type expression",
-                                       context=ql_t.context)
+                                       span=ql_t.span)
 
 
 def _ql_typename_to_type(
-        ql_t: qlast.TypeName, *,
-        ctx: context.ContextLevel) -> s_types.Type:
+    ql_t: qlast.TypeName, *, ctx: context.ContextLevel
+) -> s_types.Type:
     if ql_t.subtypes:
         assert isinstance(ql_t.maintype, qlast.ObjectRef)
         coll = s_types.Collection.get_class(ql_t.maintype.name)
@@ -256,7 +258,8 @@ def _ql_typename_to_type(
 
 @overload
 def ptrcls_from_ptrref(
-    ptrref: irast.PointerRef, *,
+    ptrref: irast.PointerRef,
+    *,
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
     ...
@@ -264,7 +267,8 @@ def ptrcls_from_ptrref(
 
 @overload
 def ptrcls_from_ptrref(
-    ptrref: irast.TupleIndirectionPointerRef, *,
+    ptrref: irast.TupleIndirectionPointerRef,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.TupleIndirectionLink:
     ...
@@ -272,7 +276,8 @@ def ptrcls_from_ptrref(
 
 @overload
 def ptrcls_from_ptrref(
-    ptrref: irast.TypeIntersectionPointerRef, *,
+    ptrref: irast.TypeIntersectionPointerRef,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.TypeIntersectionLink:
     ...
@@ -280,14 +285,16 @@ def ptrcls_from_ptrref(
 
 @overload
 def ptrcls_from_ptrref(
-    ptrref: irast.BasePointerRef, *,
+    ptrref: irast.BasePointerRef,
+    *,
     ctx: context.ContextLevel,
 ) -> s_pointers.PointerLike:
     ...
 
 
 def ptrcls_from_ptrref(
-    ptrref: irast.BasePointerRef, *,
+    ptrref: irast.BasePointerRef,
+    *,
     ctx: context.ContextLevel,
 ) -> s_pointers.PointerLike:
 
@@ -302,7 +309,8 @@ def ptrcls_from_ptrref(
 
 
 def ptr_to_ptrref(
-    ptrcls: s_pointers.Pointer, *,
+    ptrcls: s_pointers.Pointer,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.PointerRef:
     return irtyputils.ptrref_from_ptrcls(
@@ -314,7 +322,8 @@ def ptr_to_ptrref(
 
 
 def collapse_type_intersection_rptr(
-    ir_set: irast.Set, *,
+    ir_set: irast.Set,
+    *,
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, List[s_pointers.Pointer]]:
 
@@ -330,10 +339,10 @@ def collapse_type_intersection_rptr(
                     ind_ptr.ptrref.rptr_specialization)
             elif (
                 not ind_ptr.ptrref.is_empty
-                and ind_ptr.source.rptr is not None
+                and isinstance(ind_ptr.source.expr, irast.Pointer)
             ):
-                assert isinstance(ind_ptr.source.rptr.ptrref, irast.PointerRef)
-                rptr_specialization.add(ind_ptr.source.rptr.ptrref)
+                assert isinstance(ind_ptr.source.expr.ptrref, irast.PointerRef)
+                rptr_specialization.add(ind_ptr.source.expr.ptrref)
 
     ptrs = [ptrcls_from_ptrref(ptrref, ctx=ctx)
             for ptrref in rptr_specialization]

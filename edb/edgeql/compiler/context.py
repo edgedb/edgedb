@@ -168,7 +168,7 @@ class Environment:
     set_types: Dict[irast.Set, s_types.Type]
     """A dictionary of all Set instances and their schema types."""
 
-    type_origins: Dict[s_types.Type, Optional[parsing.ParserContext]]
+    type_origins: Dict[s_types.Type, Optional[parsing.Span]]
     """A dictionary of notable types and their source origins.
 
     This is used to trace where a particular type instance originated in
@@ -197,7 +197,7 @@ class Environment:
         Tuple[
             Optional[qltypes.SchemaCardinality],
             Optional[bool],
-            Optional[parsing.ParserContext],
+            Optional[parsing.Span],
         ],
     ]
     """Cardinality/source context for pointers with unclear cardinality."""
@@ -330,7 +330,8 @@ class Environment:
         self.dml_rewrites = {}
 
     def add_schema_ref(
-            self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
+        self, sobj: s_obj.Object, expr: Optional[qlast.Base]
+    ) -> None:
         self.schema_refs.add(sobj)
         if self.schema_ref_exprs is not None and expr:
             self.schema_ref_exprs.setdefault(sobj, set()).add(expr)
@@ -748,7 +749,7 @@ class ContextLevel(compiler.ContextLevel):
         return self.new(ContextSwitchMode.DETACHED)
 
     def create_anchor(
-        self, ir: irast.Set, name: str='v', *, check_dml: bool=False
+        self, ir: irast.Set, name: str = 'v', *, check_dml: bool = False
     ) -> qlast.Path:
         alias = self.aliases.get(name)
         # TODO: We should probably always check for DML, but I'm
@@ -760,7 +761,9 @@ class ContextLevel(compiler.ContextLevel):
         )
 
     def maybe_create_anchor(
-        self, ir: Union[irast.Set, qlast.Expr], name: str='v',
+        self,
+        ir: Union[irast.Set, qlast.Expr],
+        name: str = 'v',
     ) -> qlast.Expr:
         if isinstance(ir, irast.Set):
             return self.create_anchor(ir, name)

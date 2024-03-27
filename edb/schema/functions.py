@@ -325,7 +325,8 @@ class ParameterDesc(ParameterLike):
 
 
 def _params_are_all_required_singletons(
-    params: Sequence[ParameterLike], schema: s_schema.Schema,
+    params: Sequence[ParameterLike],
+    schema: s_schema.Schema,
 ) -> bool:
     return all(
         param.get_kind(schema) is not ft.ParameterKind.VariadicParam
@@ -672,19 +673,23 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
         return '(' + ', '.join(ret) + ')'
 
     def has_polymorphic(self, schema: s_schema.Schema) -> bool:
-        return any(p.get_type(schema).is_polymorphic(schema)
-                   for p in self.objects(schema))
+        return any(
+            p.get_type(schema).is_polymorphic(schema)
+            for p in self.objects(schema)
+        )
 
     def has_type_mod(
-            self, schema: s_schema.Schema, mod: ft.TypeModifier) -> bool:
+        self, schema: s_schema.Schema, mod: ft.TypeModifier
+    ) -> bool:
         return any(p.get_typemod(schema) is mod for p in self.objects(schema))
 
     def has_set_of(self, schema: s_schema.Schema) -> bool:
         return self.has_type_mod(schema, ft.TypeModifier.SetOfType)
 
     def has_objects(self, schema: s_schema.Schema) -> bool:
-        return any(p.get_type(schema).is_object_type()
-                   for p in self.objects(schema))
+        return any(
+            p.get_type(schema).is_object_type() for p in self.objects(schema)
+        )
 
     def find_named_only(
         self,
@@ -1340,7 +1345,7 @@ class Function(
         self,
         schema: s_schema.Schema,
         *,
-        srcctx: Optional[parsing.ParserContext] = None,
+        span: Optional[parsing.Span] = None,
     ) -> Optional[Tuple[List[Function], int]]:
         """Find if this function overloads another in object parameter.
 
@@ -1417,7 +1422,7 @@ class Function(
                         f'overloading an object type-receiving '
                         f'function with differences in the remaining '
                         f'parameters is not supported',
-                        context=srcctx,
+                        span=span,
                         details=(
                             f"Other function is defined as `{other_sig}`"
                         )
@@ -1437,7 +1442,7 @@ class Function(
                         f'function: overloading an object type-receiving '
                         f'function with differences in the names of '
                         f'parameters is not supported',
-                        context=srcctx,
+                        span=span,
                         details=(
                             f"Other function is defined as `{other_sig}`"
                         )
@@ -1457,7 +1462,7 @@ class Function(
                         f'function: overloading an object type-receiving '
                         f'function with differences in the type modifiers of '
                         f'parameters is not supported',
-                        context=srcctx,
+                        span=span,
                         details=(
                             f"Other function is defined as `{other_sig}`"
                         )
@@ -1473,7 +1478,7 @@ class Function(
                         f'object type-receiving '
                         f'functions may not be overloaded on an OPTIONAL '
                         f'parameter',
-                        context=srcctx,
+                        span=span,
                     )
 
                 diff_param = this_diff_param
@@ -1651,7 +1656,7 @@ class FunctionCommand(
                 raise errors.InvalidFunctionDefinitionError(
                     'data-modifying statements are not allowed in function'
                     ' bodies',
-                    context=ir.dml_exprs[0].context,
+                    span=ir.dml_exprs[0].span,
                 )
 
         spec_volatility: Optional[ft.Volatility] = (
@@ -1676,7 +1681,7 @@ class FunctionCommand(
                     f'{str(spec_volatility).lower()}',
                     details=f'Actual volatility is '
                             f'{str(ir.volatility).lower()}',
-                    context=body.qlast.context,
+                    span=body.qlast.span,
                 )
 
         globs = {schema.get(glob.global_name, type=s_globals.Global)
@@ -1721,7 +1726,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 f'cannot create the `{signature}` function: '
                 f'a function with the same signature '
                 f'is already defined',
-                context=self.source_context)
+                span=self.span)
 
         if not context.canonical:
             fullname = self.classname
@@ -1778,14 +1783,14 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 f'cannot create `{signature}` function: '
                 f'"preserves_optionality" makes no sense '
                 f'in a non-aggregate function',
-                context=self.source_context)
+                span=self.span)
 
         if preserves_upper_card and not has_set_of:
             raise errors.InvalidFunctionDefinitionError(
                 f'cannot create `{signature}` function: '
                 f'"preserves_upper_cardinality" makes no sense '
                 f'in a non-aggregate function',
-                context=self.source_context)
+                span=self.span)
 
         if preserves_upper_card and (
             return_typemod is not ft.TypeModifier.SetOfType
@@ -1794,7 +1799,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 f'cannot create `{signature}` function: '
                 f'"preserves_upper_cardinality" makes no sense '
                 f'in a function not returning SET OF',
-                context=self.source_context)
+                span=self.span)
 
         # Certain syntax is only allowed in "EdgeDB developer" mode,
         # i.e. when populating std library, etc.
@@ -1804,26 +1809,26 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'cannot create `{signature}` function: '
                     f'generic types are not supported in '
                     f'user-defined functions',
-                    context=self.source_context)
+                    span=self.span)
             elif from_function:
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create `{signature}` function: '
                     f'"USING SQL FUNCTION" is not supported in '
                     f'user-defined functions',
-                    context=self.source_context)
+                    span=self.span)
             elif language != qlast.Language.EdgeQL:
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create `{signature}` function: '
                     f'"USING {language}" is not supported in '
                     f'user-defined functions',
-                    context=self.source_context)
+                    span=self.span)
 
         if polymorphic_return_type and not has_polymorphic:
             raise errors.InvalidFunctionDefinitionError(
                 f'cannot create `{signature}` function: '
                 f'function returns a generic type but has no '
                 f'generic parameters',
-                context=self.source_context)
+                span=self.span)
 
         overloaded_funcs = schema.get_functions(shortname, ())
         has_from_function = from_function
@@ -1842,7 +1847,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'overloading another function with different '
                     f'named only parameters: '
                     f'"{func.get_signature_as_str(schema)}"',
-                    context=self.source_context)
+                    span=self.span)
 
             if ((has_polymorphic or func_params.has_polymorphic(schema)) and (
                     func.get_return_typemod(schema) != return_typemod)):
@@ -1855,7 +1860,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'function: overloading another function with different '
                     f'return type {func_return_typemod.to_edgeql()} '
                     f'{func.get_return_type(schema).get_displayname(schema)}',
-                    context=self.source_context)
+                    span=self.span)
 
             if fallback and func.get_fallback(schema) and self.scls != func:
                 raise errors.InvalidFunctionDefinitionError(
@@ -1864,7 +1869,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'{return_type.get_displayname(schema)}` '
                     f'function: only one generic fallback per polymorphic '
                     f'function is allowed',
-                    context=self.source_context)
+                    span=self.span)
 
             if func_from_function:
                 has_from_function = func_from_function
@@ -1875,7 +1880,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'overloading another function with different '
                     f'"preserves_optionality" attribute: '
                     f'`{func.get_signature_as_str(schema)}`',
-                    context=self.source_context)
+                    span=self.span)
 
             if func_preserves_upper_card != preserves_upper_card:
                 raise errors.InvalidFunctionDefinitionError(
@@ -1883,11 +1888,11 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'overloading another function with different '
                     f'"preserves_upper_cardinality" attribute: '
                     f'`{func.get_signature_as_str(schema)}`',
-                    context=self.source_context)
+                    span=self.span)
 
         if has_objects:
             self.scls.find_object_param_overloads(
-                schema, srcctx=self.source_context)
+                schema, span=self.span)
 
         if has_from_function:
             # Ignore the generic fallback when considering
@@ -1901,7 +1906,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'overloading "USING SQL FUNCTION" functions is '
                     f'allowed only when all functions point to the same '
                     f'SQL function',
-                    context=self.source_context)
+                    span=self.span)
 
         if (language == qlast.Language.EdgeQL and
                 any(p.get_typemod(schema) is ft.TypeModifier.SetOfType
@@ -1910,7 +1915,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 f'cannot create the `{signature}` function: '
                 f'SET OF parameters in user-defined EdgeQL functions are '
                 f'not supported',
-                context=self.source_context)
+                span=self.span)
 
         # check that params of type 'anytype' don't have defaults
         for p in params.objects(schema):
@@ -1927,7 +1932,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'cannot create the `{signature}` function: '
                     f'invalid default value {p_default.text!r} of parameter '
                     f'{p.get_displayname(schema)!r}: {ex}',
-                    context=self.source_context)
+                    span=self.span)
 
             check_default_type = True
             if p_type.is_polymorphic(schema):
@@ -1939,7 +1944,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                         f'polymorphic parameter of type '
                         f'{p_type.get_displayname(schema)} cannot '
                         f'have a non-empty default value',
-                        context=self.source_context)
+                        span=self.span)
             elif (p.get_typemod(schema) is ft.TypeModifier.OptionalType and
                     irutils.is_empty(ir_default.expr)):
                 check_default_type = False
@@ -1954,7 +1959,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                         f'unexpected type of the default expression: '
                         f'{default_type.get_displayname(schema)}, expected '
                         f'{p_type.get_displayname(schema)}',
-                        context=self.source_context)
+                        span=self.span)
 
         # Make sure variadic parameters do not contain optional types in
         # user-defined functions
@@ -1968,7 +1973,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                         f'`{variadic.get_displayname(schema)}` '
                         f'illegally declared with optional type in '
                         f'user-defined function',
-                        context=self.source_context)
+                        span=self.span)
 
         return schema
 
@@ -2114,7 +2119,7 @@ class RenameFunction(RenameCallableObject[Function], FunctionCommand):
         if len(existing) > 1:
             raise errors.SchemaError(
                 'renaming an overloaded function is not allowed',
-                context=self.source_context)
+                span=self.span)
 
         target = schema.get_functions(new_name, ())
         if target:
@@ -2122,7 +2127,7 @@ class RenameFunction(RenameCallableObject[Function], FunctionCommand):
                 f"can not rename function to '{new_name!s}' because "
                 f"a function with the same name already exists, and "
                 f"renaming into an overload is not supported",
-                context=self.source_context)
+                span=self.span)
 
 
 class AlterFunction(AlterCallableObject[Function], FunctionCommand):
@@ -2151,7 +2156,7 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
                     f'{self.scls.get_verbosename(schema)}: '
                     f'only one generic fallback per polymorphic '
                     f'function is allowed',
-                    context=self.source_context)
+                    span=self.span)
 
         # If volatility or nativecode changed, propagate that to
         # referring exprs
@@ -2204,7 +2209,7 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
                 raise errors.EdgeQLSyntaxError(
                     'altering function code is only supported for '
                     'pure EdgeQL functions',
-                    context=astnode.context
+                    span=astnode.span
                 )
 
             nativecode_expr: Optional[qlast.Expr] = None
@@ -2416,7 +2421,7 @@ def compile_function(
             f'{return_type.get_verbosename(schema)}',
             details=f'Actual return type is '
                     f'{ir.stype.get_verbosename(schema)}',
-            context=body.qlast.context,
+            span=body.qlast.span,
         )
 
     if (return_typemod is not ft.TypeModifier.SetOfType
@@ -2427,7 +2432,7 @@ def compile_function(
             details=(
                 f'Function may return a set with more than one element.'
             ),
-            context=body.qlast.context,
+            span=body.qlast.span,
         )
     elif (return_typemod is ft.TypeModifier.SingletonType
             and ir.cardinality.can_be_zero()):
@@ -2437,7 +2442,7 @@ def compile_function(
             details=(
                 f'Function may return an empty set.'
             ),
-            context=body.qlast.context,
+            span=body.qlast.span,
         )
 
     return compiled

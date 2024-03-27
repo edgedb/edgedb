@@ -36,13 +36,11 @@ def maybe_get_config_unchecked(db: Any, key: str) -> Any:
 
 
 @overload
-def maybe_get_config(db: Any, key: str, expected_type: Type[T]) -> T | None:
-    ...
+def maybe_get_config(db: Any, key: str, expected_type: Type[T]) -> T | None: ...
 
 
 @overload
-def maybe_get_config(db: Any, key: str) -> str | None:
-    ...
+def maybe_get_config(db: Any, key: str) -> str | None: ...
 
 
 def maybe_get_config(
@@ -63,13 +61,11 @@ def maybe_get_config(
 
 
 @overload
-def get_config(db: Any, key: str, expected_type: Type[T]) -> T:
-    ...
+def get_config(db: Any, key: str, expected_type: Type[T]) -> T: ...
 
 
 @overload
-def get_config(db: Any, key: str) -> str:
-    ...
+def get_config(db: Any, key: str) -> str: ...
 
 
 def get_config(db: Any, key: str, expected_type: Type[object] = str) -> object:

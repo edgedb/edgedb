@@ -44,7 +44,7 @@ import textwrap
 import weakref
 
 from edb import errors
-from edb.common import context as pctx
+from edb.common import span
 from edb.common import term
 from . import pathid
 from . import ast as irast
@@ -171,7 +171,7 @@ class ScopeTreeNode:
             name = self.path_id.pformat_internal(debug=debug)
         return f'{name}{" [OPT]" if self.optional else ""}'
 
-    def debugname(self, fuller: bool=False) -> str:
+    def debugname(self, fuller: bool = False) -> str:
         parts = [f'{self._name(debug=fuller)}']
         if self.unique_id:
             parts.append(f'uid:{self.unique_id}')
@@ -210,8 +210,9 @@ class ScopeTreeNode:
             node = node.parent
 
     @property
-    def ancestors_and_namespaces(self) \
-            -> Iterator[Tuple[ScopeTreeNode, FrozenSet[pathid.Namespace]]]:
+    def ancestors_and_namespaces(
+        self,
+    ) -> Iterator[Tuple[ScopeTreeNode, FrozenSet[pathid.Namespace]]]:
         """An iterator of node's ancestors and namespaces, including self."""
         namespaces: FrozenSet[str] = frozenset()
         node: Optional[ScopeTreeNode] = self
@@ -383,8 +384,9 @@ class ScopeTreeNode:
         for pd in self.path_descendants:
             pd.path_id = pd.path_id.strip_namespace(ns)
 
-    def attach_child(self, node: ScopeTreeNode,
-                     context: Optional[pctx.ParserContext]=None) -> None:
+    def attach_child(
+        self, node: ScopeTreeNode, span: Optional[span.Span] = None
+    ) -> None:
         """Attach a child node to this node.
 
         This is a low-level operation, no tree validation is
@@ -395,7 +397,7 @@ class ScopeTreeNode:
                 if child.path_id == node.path_id:
                     raise errors.InvalidReferenceError(
                         f'{node.path_id} is already present in {self!r}',
-                        context=context,
+                        span=span,
                     )
 
         if node.unique_id is not None:
@@ -422,7 +424,7 @@ class ScopeTreeNode:
         path_id: pathid.PathId,
         *,
         optional: bool=False,
-        context: Optional[pctx.ParserContext],
+        span: Optional[span.Span],
     ) -> None:
         """Attach a scope subtree representing *path_id*."""
 
@@ -492,11 +494,14 @@ class ScopeTreeNode:
             if not prefix.is_tuple_indirection_path():
                 parent = new_child
 
-        self.attach_subtree(subtree, context=context)
+        self.attach_subtree(subtree, span=span)
 
-    def attach_subtree(self, node: ScopeTreeNode,
-                       was_fenced: bool=False,
-                       context: Optional[pctx.ParserContext]=None) -> None:
+    def attach_subtree(
+        self,
+        node: ScopeTreeNode,
+        was_fenced: bool = False,
+        span: Optional[span.Span] = None,
+    ) -> None:
         """Attach a subtree to this node.
 
         *node* is expected to be a balanced scope tree and may be modified
@@ -533,7 +538,7 @@ class ScopeTreeNode:
                     raise errors.InvalidReferenceError(
                         f'cannot reference correlated set '
                         f'{path_id.pformat()!r} here',
-                        context=context,
+                        span=span,
                     )
 
                 # This path is already present in the tree, discard,
@@ -551,7 +556,7 @@ class ScopeTreeNode:
                     descendant,
                     self_fenced=False,
                     node_fenced=desc_fenced,
-                    context=context)
+                    span=span)
 
             elif descendant.parent_fence is node:
                 # Unfenced path.
@@ -588,7 +593,7 @@ class ScopeTreeNode:
 
                     self._check_factoring_errors(
                         path_id, descendant, factor_point, existing,
-                        unnest_fence, existing_finfo, context,
+                        unnest_fence, existing_finfo, span,
                     )
 
                     existing_fenced = existing.parent_fence is not factor_point
@@ -610,7 +615,7 @@ class ScopeTreeNode:
                         current,
                         self_fenced=existing_fenced,
                         node_fenced=node_fenced,
-                        context=context)
+                        span=span)
 
                     current = existing
 
@@ -631,7 +636,7 @@ class ScopeTreeNode:
         existing: ScopeTreeNodeWithPathId,
         unnest_fence: bool,
         existing_finfo: FenceInfo,
-        context: Optional[pctx.ParserContext],
+        span: Optional[span.Span],
     ) -> None:
         if existing_finfo.factoring_fence:
             # This node is already present in the surrounding
@@ -641,7 +646,7 @@ class ScopeTreeNode:
             raise errors.InvalidReferenceError(
                 f'cannot reference correlated set '
                 f'{path_id.pformat()!r} here',
-                context=context,
+                span=span,
             )
 
         if (
@@ -681,7 +686,7 @@ class ScopeTreeNode:
                 f'{imp}reference to {offending_id} '
                 f'changes the interpretation of {existing_id} '
                 f'elsewhere in the query',
-                context=context,
+                span=span,
             )
 
     def _node_paths_are_not_links(self) -> bool:
@@ -713,7 +718,7 @@ class ScopeTreeNode:
         node: ScopeTreeNode,
         self_fenced: bool=False,
         node_fenced: bool=False,
-        context: Optional[pctx.ParserContext]=None,
+        span: Optional[span.Span]=None,
     ) -> None:
         node.remove()
 
@@ -730,7 +735,7 @@ class ScopeTreeNode:
         else:
             subtree = node
 
-        self.attach_subtree(subtree, was_fenced=self_fenced, context=context)
+        self.attach_subtree(subtree, was_fenced=self_fenced, span=span)
 
     def remove_subtree(self, node: ScopeTreeNode) -> None:
         """Remove the given subtree from this node."""
@@ -740,7 +745,8 @@ class ScopeTreeNode:
         node._set_parent(None)
 
     def remove_descendants(
-            self, path_id: pathid.PathId, new: ScopeTreeNode) -> None:
+        self, path_id: pathid.PathId, new: ScopeTreeNode
+    ) -> None:
         """Remove all descendant nodes matching *path_id*."""
 
         matching = set()
@@ -862,13 +868,14 @@ class ScopeTreeNode:
         return found, finfo, namespaces
 
     def find_visible(
-        self, path_id: pathid.PathId, *, allow_group: bool=False
+        self, path_id: pathid.PathId, *, allow_group: bool = False
     ) -> Optional[ScopeTreeNode]:
         node, _, _ = self.find_visible_ex(path_id, allow_group=allow_group)
         return node
 
     def is_visible(
-            self, path_id: pathid.PathId, *, allow_group: bool=False) -> bool:
+        self, path_id: pathid.PathId, *, allow_group: bool = False
+    ) -> bool:
         return self.find_visible(path_id, allow_group=allow_group) is not None
 
     def is_any_prefix_visible(self, path_id: pathid.PathId) -> bool:
@@ -934,10 +941,7 @@ class ScopeTreeNode:
 
         return matched
 
-    def find_descendant_and_ns(
-        self,
-        path_id: pathid.PathId
-    ) -> Tuple[
+    def find_descendant_and_ns(self, path_id: pathid.PathId) -> Tuple[
         Optional[ScopeTreeNode],
         AbstractSet[pathid.Namespace],
         Optional[FenceInfo],
@@ -1065,7 +1069,7 @@ class ScopeTreeNode:
     def dump(self) -> None:
         print(self.pdebugformat())
 
-    def dump_full(self, others: Collection[ScopeTreeNode]=()) -> None:
+    def dump_full(self, others: Collection[ScopeTreeNode] = ()) -> None:
         """Do a debug dump of the root but hilight the current node."""
         styles = {}
         if term.supports_colors(sys.stdout.fileno()):
@@ -1095,8 +1099,11 @@ class ScopeTreeNodeWithPathId(ScopeTreeNode):
     path_id: pathid.PathId
 
 
-def _paths_equal(path_id_1: pathid.PathId, path_id_2: pathid.PathId,
-                 namespaces: AbstractSet[str]) -> bool:
+def _paths_equal(
+    path_id_1: pathid.PathId,
+    path_id_2: pathid.PathId,
+    namespaces: AbstractSet[str],
+) -> bool:
     if namespaces:
         path_id_1 = path_id_1.strip_namespace(namespaces)
         path_id_2 = path_id_2.strip_namespace(namespaces)

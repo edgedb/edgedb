@@ -45,8 +45,7 @@ ql = common.quote_literal
 
 
 def compile_describe_config(
-    scope: qltypes.ConfigScope,
-    ctx: context.ContextLevel
+    scope: qltypes.ConfigScope, ctx: context.ContextLevel
 ) -> irast.Set:
     config_edgeql = _describe_config(
         ctx.env.schema, scope, ctx.env.options.testmode)

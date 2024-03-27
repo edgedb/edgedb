@@ -57,7 +57,8 @@ def make_free_object(els: Dict[str, qlast.Expr]) -> qlast.Shape:
 
 
 def collect_grouping_atoms(
-        els: List[qlast.GroupingElement]) -> AbstractSet[str]:
+    els: List[qlast.GroupingElement],
+) -> AbstractSet[str]:
     atoms: ordered.OrderedSet[str] = ordered.OrderedSet()
 
     def _collect_atom(el: qlast.GroupingAtom) -> None:
@@ -107,20 +108,20 @@ def desugar_group(
             return qlast.ObjectRef(name=alias)
         else:
             return qlast.GroupingIdentList(
-                context=el.context,
+                span=el.span,
                 elements=tuple(rewrite_atom(at) for at in el.elements),
             )
 
     def rewrite(el: qlast.GroupingElement) -> qlast.GroupingElement:
         if isinstance(el, qlast.GroupingSimple):
             return qlast.GroupingSimple(
-                context=el.context, element=rewrite_atom(el.element))
+                span=el.span, element=rewrite_atom(el.element))
         elif isinstance(el, qlast.GroupingSets):
             return qlast.GroupingSets(
-                context=el.context, sets=[rewrite(s) for s in el.sets])
+                span=el.span, sets=[rewrite(s) for s in el.sets])
         elif isinstance(el, qlast.GroupingOperation):
             return qlast.GroupingOperation(
-                context=el.context,
+                span=el.span,
                 oper=el.oper,
                 elements=[rewrite_atom(a) for a in el.elements])
         raise AssertionError
@@ -152,7 +153,7 @@ def desugar_group(
     output_shape = make_free_object(output_dict)
 
     return qlast.InternalGroupQuery(
-        context=node.context,
+        span=node.span,
         aliases=node.aliases,
         subject_alias=node.subject_alias,
         subject=node.subject,

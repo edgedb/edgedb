@@ -1112,10 +1112,11 @@ class FunctionCommand(MetaCommand):
             raise errors.QueryError(
                 f'could not compile parameter type {obj!r} '
                 f'of function {func.get_shortname(schema)}',
-                context=self.source_context) from None
+                span=self.span) from None
 
-    def compile_default(self, func: s_funcs.Function,
-                        default: s_expr.Expression, schema):
+    def compile_default(
+        self, func: s_funcs.Function, default: s_expr.Expression, schema
+    ):
         try:
             comp = default.compiled(
                 schema=schema,
@@ -1134,7 +1135,7 @@ class FunctionCommand(MetaCommand):
             raise errors.QueryError(
                 f'could not compile default expression {default!r} '
                 f'of function {func.get_shortname(schema)}: {ex}',
-                context=self.source_context) from ex
+                span=self.span) from ex
 
     def compile_args(self, func: s_funcs.Function, schema):
         func_params = func.get_params(schema)
@@ -1559,7 +1560,7 @@ class FunctionCommand(MetaCommand):
                 raise errors.QueryError(
                     f'cannot compile function {func.get_shortname(schema)}: '
                     f'unsupported language {func_language}',
-                    context=self.source_context)
+                    span=self.span)
 
             op = dbops.CreateFunction(dbf, or_replace=or_replace)
             return (op,)
@@ -1890,7 +1891,7 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
                 f'cannot create operator {oper.get_shortname(schema)}: '
                 f'only "FROM SQL" and "FROM SQL OPERATOR" operators '
                 f'are currently supported',
-                context=self.source_context)
+                span=self.span)
 
         return schema
 
@@ -1979,7 +1980,7 @@ class CreateCast(CastCommand, adapts=s_casts.CreateCast):
                 f'cannot create cast: '
                 f'only "FROM SQL" and "FROM SQL FUNCTION" casts '
                 f'are currently supported',
-                context=self.source_context)
+                span=self.span)
 
         return schema
 
@@ -2116,8 +2117,7 @@ class ConstraintCommand(MetaCommand):
 
     @classmethod
     def fixup_base_constraint_triggers(
-        cls, constraint, orig_schema, schema, context,
-        source_context=None, *, is_delete
+        cls, constraint, orig_schema, schema, context, span=None, *, is_delete
     ):
         base_schema = orig_schema if is_delete else schema
 
@@ -2137,7 +2137,7 @@ class ConstraintCommand(MetaCommand):
             ):
                 subject = base.get_subject(schema)
                 bconstr = schemamech.compile_constraint(
-                    subject, base, schema, source_context
+                    subject, base, schema, span
                 )
                 op.add_command(bconstr.alter_ops(
                     bconstr, only_modify_enabled=True))
@@ -2149,7 +2149,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.ParserContext] = None,
+        span: Optional[parsing.Span] = None,
     ) -> dbops.Command:
         op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
@@ -2157,7 +2157,7 @@ class ConstraintCommand(MetaCommand):
 
             if subject is not None:
                 bconstr = schemamech.compile_constraint(
-                    subject, constraint, schema, source_context
+                    subject, constraint, schema, span
                 )
 
                 op.add_command(bconstr.create_ops())
@@ -2169,7 +2169,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.ParserContext] = None,
+        span: Optional[parsing.Span] = None,
     ) -> dbops.Command:
         op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
@@ -2177,7 +2177,7 @@ class ConstraintCommand(MetaCommand):
 
             if subject is not None:
                 bconstr = schemamech.compile_constraint(
-                    subject, constraint, schema, source_context
+                    subject, constraint, schema, span
                 )
 
                 op.add_command(bconstr.delete_ops())
@@ -2189,7 +2189,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.ParserContext] = None,
+        span: Optional[parsing.Span] = None,
     ) -> dbops.Command:
 
         if cls.constraint_is_effective(schema, constraint):
@@ -2197,7 +2197,7 @@ class ConstraintCommand(MetaCommand):
 
             if subject is not None:
                 bconstr = schemamech.compile_constraint(
-                    subject, constraint, schema, source_context
+                    subject, constraint, schema, span
                 )
 
                 return bconstr.enforce_ops()
@@ -2215,10 +2215,10 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
         schema = super().apply(schema, context)
         constraint = self.scls
 
-        op = self.create_constraint(constraint, schema, self.source_context)
+        op = self.create_constraint(constraint, schema, self.span)
         self.pgops.add(op)
         self.pgops.add(self.fixup_base_constraint_triggers(
-            constraint, orig_schema, schema, context, self.source_context,
+            constraint, orig_schema, schema, context, self.span,
             is_delete=False))
 
         # If the constraint is being added to existing data,
@@ -2232,7 +2232,7 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
             and not context.is_creating(subject)
         ):
             op = self.enforce_constraint(
-                constraint, schema, self.source_context
+                constraint, schema, self.span
             )
 
             # XXX: PostCommand or maybe even pg_ops have incorrect type
@@ -2284,14 +2284,14 @@ class AlterConstraint(
 
         if subject is not None:
             bconstr = schemamech.compile_constraint(
-                subject, constraint, schema, self.source_context
+                subject, constraint, schema, self.span
             )
 
             orig_bconstr = schemamech.compile_constraint(
                 constraint.get_subject(orig_schema),
                 constraint,
                 orig_schema,
-                self.source_context,
+                self.span,
             )
 
             op = dbops.CommandGroup()
@@ -2304,13 +2304,13 @@ class AlterConstraint(
                         child.get_subject(orig_schema),
                         child,
                         orig_schema,
-                        self.source_context,
+                        self.span,
                     )
                     cbconstr = schemamech.compile_constraint(
                         child.get_subject(schema),
                         child,
                         schema,
-                        self.source_context,
+                        self.span,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
             elif not self.constraint_is_effective(schema, constraint):
@@ -2321,13 +2321,13 @@ class AlterConstraint(
                         child.get_subject(orig_schema),
                         child,
                         orig_schema,
-                        self.source_context,
+                        self.span,
                     )
                     cbconstr = schemamech.compile_constraint(
                         child.get_subject(schema),
                         child,
                         schema,
-                        self.source_context,
+                        self.span,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
             else:
@@ -2342,7 +2342,7 @@ class AlterConstraint(
                 and not context.is_deleting(subject)
             ):
                 op = self.enforce_constraint(
-                    constraint, schema, self.source_context
+                    constraint, schema, self.span
                 )
                 self.schedule_post_inhview_update_command(
                     schema,
@@ -2352,7 +2352,7 @@ class AlterConstraint(
                     s_sources.SourceCommandContext)
 
             self.pgops.add(self.fixup_base_constraint_triggers(
-                constraint, orig_schema, schema, context, self.source_context,
+                constraint, orig_schema, schema, context, self.span,
                 is_delete=False))
 
         return schema
@@ -2370,12 +2370,12 @@ class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
 
         schema = super().apply(schema, context)
         op = self.delete_constraint(
-            constraint, orig_schema, self.source_context
+            constraint, orig_schema, self.span
         )
         self.pgops.add(op)
 
         self.pgops.add(self.fixup_base_constraint_triggers(
-            constraint, orig_schema, schema, context, self.source_context,
+            constraint, orig_schema, schema, context, self.span,
             is_delete=True))
 
         return schema
@@ -3014,8 +3014,15 @@ class CompositeMetaCommand(MetaCommand):
         self.post_inhview_update_commands = []
 
     def _get_multicommand(
-            self, context, cmdtype, object_name, *,
-            force_new=False, manual=False, cmdkwargs=None):
+        self,
+        context,
+        cmdtype,
+        object_name,
+        *,
+        force_new=False,
+        manual=False,
+        cmdkwargs=None,
+    ):
         if cmdkwargs is None:
             cmdkwargs = {}
         key = (object_name, frozenset(cmdkwargs.items()))
@@ -3055,8 +3062,14 @@ class CompositeMetaCommand(MetaCommand):
                 self.pgops.update(commands)
 
     def get_alter_table(
-            self, schema, context, force_new=False,
-            contained=False, manual=False, table_name=None):
+        self,
+        schema,
+        context,
+        force_new=False,
+        contained=False,
+        manual=False,
+        table_name=None,
+    ):
 
         tabname = table_name if table_name else self.table_name
 
@@ -3724,13 +3737,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             # Don't do anything for abstract indexes
             return schema
 
-        try:
+        with errors.ensure_span(self.span):
             self.pgops.add(self.create_index(index, schema, context))
-
-        except errors.EdgeDBError as e:
-            if not e.has_source_context():
-                e.set_source_context(self.source_context)
-            raise e
 
         # FTS
         if index.has_base_with_name(schema, sn.QualName('fts', 'index')):
@@ -3863,8 +3871,7 @@ class CreateUnionType(
     pass
 
 
-class ObjectTypeMetaCommand(AliasCapableMetaCommand,
-                            CompositeMetaCommand):
+class ObjectTypeMetaCommand(AliasCapableMetaCommand, CompositeMetaCommand):
     def schedule_endpoint_delete_action_update(self, obj, schema, context):
         endpoint_delete_actions = context.get(
             sd.DeltaRootContext).op.update_endpoint_delete_actions
@@ -3926,8 +3933,9 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         # need to fix that when we have patching configs.
 
 
-class CreateObjectType(ObjectTypeMetaCommand,
-                       adapts=s_objtypes.CreateObjectType):
+class CreateObjectType(
+    ObjectTypeMetaCommand, adapts=s_objtypes.CreateObjectType
+):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -3992,8 +4000,9 @@ class RenameObjectType(
     pass
 
 
-class RebaseObjectType(ObjectTypeMetaCommand,
-                       adapts=s_objtypes.RebaseObjectType):
+class RebaseObjectType(
+    ObjectTypeMetaCommand, adapts=s_objtypes.RebaseObjectType
+):
     def _alter_innards(
         self,
         schema: s_schema.Schema,
@@ -4009,8 +4018,7 @@ class RebaseObjectType(ObjectTypeMetaCommand,
         return schema
 
 
-class AlterObjectType(ObjectTypeMetaCommand,
-                      adapts=s_objtypes.AlterObjectType):
+class AlterObjectType(ObjectTypeMetaCommand, adapts=s_objtypes.AlterObjectType):
     def _alter_begin(
         self,
         schema: s_schema.Schema,
@@ -4079,8 +4087,9 @@ class AlterObjectType(ObjectTypeMetaCommand,
         self.pgops.add(dbops.Query(check_qry))
 
 
-class DeleteObjectType(ObjectTypeMetaCommand,
-                       adapts=s_objtypes.DeleteObjectType):
+class DeleteObjectType(
+    ObjectTypeMetaCommand, adapts=s_objtypes.DeleteObjectType
+):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -4854,7 +4863,7 @@ class PointerMetaCommand(
             raise errors.UnsupportedFeatureError(
                 f'{problem} may not be used when converting/populating '
                 f'data in migrations',
-                context=self.source_context,
+                span=self.span,
             )
 
         # Non-trivial conversion expression means that we
@@ -5089,7 +5098,8 @@ class PointerMetaCommand(
             return (select_sql, nullable)
 
     def schedule_endpoint_delete_action_update(
-            self, link, orig_schema, schema, context):
+        self, link, orig_schema, schema, context
+    ):
         endpoint_delete_actions = context.get(
             sd.DeltaRootContext).op.update_endpoint_delete_actions
         link_ops = endpoint_delete_actions.link_ops
@@ -5730,7 +5740,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                             f'{prop.get_verbosename(schema, with_parent=True)}'
                             f' is too complicated; link property defaults '
                             f'must not depend on database contents',
-                            context=self.source_context)
+                            span=self.span)
 
                     cols = self.get_columns(
                         prop, schema, default_value, sets_required)
@@ -6099,7 +6109,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
 
     def _get_inline_link_table_union(
-            self, schema, links, include_children) -> str:
+        self, schema, links, include_children
+    ) -> str:
         selects = []
         aspect = 'inhview' if include_children else None
         for link in links:
@@ -6151,8 +6162,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
         else:
             return {link}
 
-    def get_trigger_name(self, schema, target,
-                         disposition, deferred=False, inline=False):
+    def get_trigger_name(
+        self, schema, target, disposition, deferred=False, inline=False
+    ):
         if disposition == 'target':
             aspect = 'target-del'
         else:
@@ -6184,8 +6196,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
         name = common.get_backend_name(schema, target, catenate=False)
         return f'{order_prefix}_{name[1]}_{aspect}'
 
-    def get_trigger_proc_name(self, schema, target,
-                              disposition, deferred=False, inline=False):
+    def get_trigger_proc_name(
+        self, schema, target, disposition, deferred=False, inline=False
+    ):
         if disposition == 'target':
             aspect = 'target-del'
         else:
@@ -6206,8 +6219,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
         name = common.get_backend_name(schema, target, catenate=False)
         return (name[0], f'{name[1]}_{aspect}')
 
-    def get_trigger_proc_text(self, target, links, *,
-                              disposition, inline, schema):
+    def get_trigger_proc_text(
+        self, target, links, *, disposition, inline, schema
+    ):
         if inline:
             return self._get_inline_link_trigger_proc_text(
                 target, links, disposition=disposition, schema=schema)
@@ -6216,7 +6230,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 target, links, disposition=disposition, schema=schema)
 
     def _get_outline_link_trigger_proc_text(
-            self, target, links, *, disposition, schema):
+        self, target, links, *, disposition, schema
+    ):
 
         chunks = []
 
@@ -6440,7 +6455,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return text
 
     def _get_inline_link_trigger_proc_text(
-            self, target, links, *, disposition, schema):
+        self, target, links, *, disposition, schema
+    ):
 
         chunks = []
 
@@ -6915,13 +6931,15 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return schema
 
     def _update_action_triggers(
-            self,
-            schema,
-            objtype: s_objtypes.ObjectType,
-            links: List[s_links.Link], *,
-            disposition: str,
-            deferred: bool=False,
-            inline: bool=False) -> None:
+        self,
+        schema,
+        objtype: s_objtypes.ObjectType,
+        links: List[s_links.Link],
+        *,
+        disposition: str,
+        deferred: bool = False,
+        inline: bool = False,
+    ) -> None:
 
         table_name = common.get_backend_name(
             schema, objtype, catenate=False)

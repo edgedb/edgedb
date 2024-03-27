@@ -91,9 +91,12 @@ def quote_bytea_literal(data: bytes) -> str:
         return "''::bytea"
 
 
-def needs_quoting(string: str, column: bool=False) -> bool:
-    isalnum = (string and not string[0].isdecimal() and
-               string.replace('_', 'a').isalnum())
+def needs_quoting(string: str, column: bool = False) -> bool:
+    isalnum = (
+        string
+        and not string[0].isdecimal()
+        and string.replace('_', 'a').isalnum()
+    )
     return (
         not isalnum or
         string.lower() in pg_keywords.by_type[
@@ -106,7 +109,7 @@ def needs_quoting(string: str, column: bool=False) -> bool:
     )
 
 
-def qname(*parts: str | pgast.Star, column: bool=False) -> str:
+def qname(*parts: str | pgast.Star, column: bool = False) -> str:
     assert len(parts) <= 3, parts
     return '.'.join([quote_ident(q, column=column) for q in parts])
 
@@ -370,8 +373,7 @@ def get_function_backend_name(name, backend_name, catenate=False):
         return schema, func_name
 
 
-def get_constraint_backend_name(
-        id, module_name, catenate=True, *, aspect=None):
+def get_constraint_backend_name(id, module_name, catenate=True, *, aspect=None):
     if aspect not in ('trigproc', 'index'):
         raise ValueError(
             f'unexpected aspect for constraint backend name: {aspect!r}')

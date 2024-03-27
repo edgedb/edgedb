@@ -298,6 +298,7 @@ class ReferencedInheritingObject(
         inheritance_merge: bool = True,
         inheritance_refdicts: Optional[AbstractSet[str]] = None,
         transient: bool = False,
+        preserve_endpoint_ptrs: bool = False,
         name: Optional[sn.QualName] = None,
         **kwargs: Any,
     ) -> Tuple[s_schema.Schema, ReferencedInheritingObjectT]:
@@ -388,6 +389,8 @@ class ReferencedInheritingObject(
 
             if transient:
                 context.current().transient_derivation = True
+                if not preserve_endpoint_ptrs:
+                    context.current().slim_links = True
 
             parent_cmd.add(cmd)
             schema = delta.apply(schema, context)
@@ -491,11 +494,12 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
         return sn.QualName(name=pnn, module=referrer_name.module)
 
     @classmethod
-    def _classname_from_ast(cls,
-                            schema: s_schema.Schema,
-                            astnode: qlast.NamedDDL,
-                            context: sd.CommandContext
-                            ) -> sn.QualName:
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.QualName:
         parent_ctx = cls.get_referrer_context(context)
         if parent_ctx is not None:
             assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
@@ -539,18 +543,17 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
         return ()
 
     @classmethod
-    def _name_qual_from_exprs(cls,
-                              schema: s_schema.Schema,
-                              exprs: Iterable[str]) -> str:
+    def _name_qual_from_exprs(
+        cls, schema: s_schema.Schema, exprs: Iterable[str]
+    ) -> str:
         m = hashlib.sha1()
         for expr in exprs:
             m.update(expr.encode())
         return m.hexdigest()
 
-    def _get_ast_node(self,
-                      schema: s_schema.Schema,
-                      context: sd.CommandContext
-                      ) -> Type[qlast.DDLOperation]:
+    def _get_ast_node(
+        self, schema: s_schema.Schema, context: sd.CommandContext
+    ) -> Type[qlast.DDLOperation]:
         subject_ctx = self.get_referrer_context(context)
         ref_astnode: Optional[Type[qlast.DDLOperation]] = (
             getattr(self, 'referenced_astnode', None))
@@ -772,9 +775,7 @@ class ReferencedInheritingObjectCommand(
         )
 
     def _validate(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> None:
         scls = self.scls
         implicit_bases = [
@@ -806,7 +807,7 @@ class ReferencedInheritingObjectCommand(
                     f'{self.scls.get_verbosename(schema, with_parent=True)} '
                     f'must be declared using the `overloaded` keyword because '
                     f'it is defined in the following ancestor(s): {alist}',
-                    context=self.source_context,
+                    span=self.span,
                 )
             elif (not implicit_bases
                     and self.get_attribute_value('declared_overloaded')):
@@ -815,7 +816,7 @@ class ReferencedInheritingObjectCommand(
                     f'{self.scls.get_verbosename(schema, with_parent=True)}: '
                     f'cannot be declared `overloaded` as there are no '
                     f'ancestors defining it.',
-                    context=self.source_context,
+                    span=self.span,
                 )
 
     def get_implicit_bases(
@@ -937,7 +938,7 @@ class ReferencedInheritingObjectCommand(
                         f'{vn} is inherited from '
                         f'{bases_str}'
                     ),
-                    context=self.source_context,
+                    span=self.span,
                 )
 
         value = self.get_attribute_value(field_name)
@@ -1389,7 +1390,7 @@ class RenameReferencedInheritingObject(
                             f'{vn} is inherited from '
                             f'{bases_str}, which {verb} not being renamed'
                         ),
-                        context=self.source_context,
+                        span=self.span,
                     )
 
             self._propagate_ref_rename(schema, context, scls)
@@ -1486,7 +1487,7 @@ class DeleteReferencedInheritingObject(
 
                 raise errors.SchemaError(
                     f'cannot drop inherited {vn}',
-                    context=self.source_context,
+                    span=self.span,
                     details=f'{vn} is inherited from:\n- {pnames}'
                 )
 
@@ -1602,7 +1603,7 @@ class AlterOwned(
                 raise errors.InvalidDefinitionError(
                     f'cannot drop owned {vn}, as it is not inherited, '
                     f'use DROP {sn} instead',
-                    context=self.source_context,
+                    span=self.span,
                 )
 
             # DROP OWNED requires special handling: the object in question

@@ -42,7 +42,7 @@ from . import pathctx
 
 def compile_shape(
         ir_set: irast.Set,
-        shape: Sequence[Tuple[irast.Set, qlast.ShapeOp]], *,
+        shape: Sequence[Tuple[irast.SetE[irast.Pointer], qlast.ShapeOp]], *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
     elements = []
 
@@ -80,8 +80,7 @@ def compile_shape(
             if op == qlast.ShapeOp.MATERIALIZE and not ctx.materializing:
                 continue
 
-            rptr = el.rptr
-            assert rptr is not None
+            rptr = el.expr
             ptrref = rptr.ptrref
             # As an implementation expedient, we currently represent
             # AT_MOST_ONE materialized values with arrays

@@ -358,9 +358,11 @@ def pg_type_from_object(
 
 
 def pg_type_from_ir_typeref(
-        ir_typeref: irast.TypeRef, *,
-        serialized: bool = False,
-        persistent_tuples: bool = False) -> Tuple[str, ...]:
+    ir_typeref: irast.TypeRef,
+    *,
+    serialized: bool = False,
+    persistent_tuples: bool = False,
+) -> Tuple[str, ...]:
 
     if irtyputils.is_array(ir_typeref):
         if (irtyputils.is_generic(ir_typeref)
@@ -598,22 +600,22 @@ class PointerStorageInfo:
 
 @overload
 def get_ptrref_storage_info(
-    ptrref: irast.BasePointerRef, *,
-    resolve_type: bool=...,
-    link_bias: Literal[False]=False,
-    allow_missing: Literal[False]=False,
-) -> PointerStorageInfo:
-    ...
+    ptrref: irast.BasePointerRef,
+    *,
+    resolve_type: bool = ...,
+    link_bias: Literal[False] = False,
+    allow_missing: Literal[False] = False,
+) -> PointerStorageInfo: ...
 
 
 @overload
 def get_ptrref_storage_info(
-    ptrref: irast.BasePointerRef, *,
-    resolve_type: bool=...,
-    link_bias: bool=...,
-    allow_missing: bool=...,
-) -> Optional[PointerStorageInfo]:
-    ...
+    ptrref: irast.BasePointerRef,
+    *,
+    resolve_type: bool = ...,
+    link_bias: bool = ...,
+    allow_missing: bool = ...,
+) -> Optional[PointerStorageInfo]: ...
 
 
 def get_ptrref_storage_info(

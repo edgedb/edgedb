@@ -33,6 +33,7 @@ import logging
 import os.path
 import socket
 import ssl as ssl_mod
+import sys
 import struct
 import textwrap
 import time
@@ -621,6 +622,7 @@ cdef class PGConnection:
             hex(id(self)),
             f'pgpid: {self.backend_pid}',
             *args,
+            file=sys.stderr,
         )
 
     def get_pgaddr(self):
@@ -2247,10 +2249,10 @@ cdef class PGConnection:
         object query_unit,
         bytes state=None
     ):
+        data = await self.sql_fetch(query_unit.sql, state=state)
         if query_unit.ddl_stmt_id is None:
-            return await self.sql_execute(query_unit.sql)
+            return
         else:
-            data = await self.sql_fetch(query_unit.sql, state=state)
             return self.load_ddl_return(query_unit, data)
 
     def load_ddl_return(self, object query_unit, data):
@@ -2932,7 +2934,8 @@ cdef class PGConnection:
                     self.tenant.on_remote_database_quarantine(dbname)
                 elif event == 'query-cache-changes':
                     dbname = event_payload['dbname']
-                    self.tenant.on_remote_query_cache_change(dbname)
+                    keys = event_payload.get('keys')
+                    self.tenant.on_remote_query_cache_change(dbname, keys=keys)
                 else:
                     raise AssertionError(f'unexpected system event: {event!r}')
 

@@ -63,23 +63,23 @@ class TransactionMode(Nonterm):
 
     def reduce_ISOLATION_SERIALIZABLE(self, *kids):
         self.val = (qltypes.TransactionIsolationLevel.SERIALIZABLE,
-                    kids[0].context)
+                    kids[0].span)
 
     def reduce_READ_WRITE(self, *kids):
         self.val = (qltypes.TransactionAccessMode.READ_WRITE,
-                    kids[0].context)
+                    kids[0].span)
 
     def reduce_READ_ONLY(self, *kids):
         self.val = (qltypes.TransactionAccessMode.READ_ONLY,
-                    kids[0].context)
+                    kids[0].span)
 
     def reduce_DEFERRABLE(self, *kids):
         self.val = (qltypes.TransactionDeferMode.DEFERRABLE,
-                    kids[0].context)
+                    kids[0].span)
 
     def reduce_NOT_DEFERRABLE(self, *kids):
         self.val = (qltypes.TransactionDeferMode.NOT_DEFERRABLE,
-                    kids[0].context)
+                    kids[0].span)
 
 
 class TransactionModeList(ListNonterm, element=TransactionMode,
@@ -111,14 +111,14 @@ class TransactionStmt(Nonterm):
                 if isolation is not None:
                     raise errors.EdgeQLSyntaxError(
                         f"only one isolation level can be specified",
-                        context=mode_ctx)
+                        span=mode_ctx)
                 isolation = mode
 
             elif isinstance(mode, qltypes.TransactionAccessMode):
                 if access is not None:
                     raise errors.EdgeQLSyntaxError(
                         f"only one access mode can be specified",
-                        context=mode_ctx)
+                        span=mode_ctx)
                 access = mode
 
             else:
@@ -126,7 +126,7 @@ class TransactionStmt(Nonterm):
                 if deferrable is not None:
                     raise errors.EdgeQLSyntaxError(
                         f"deferrable mode can only be specified once",
-                        context=mode_ctx)
+                        span=mode_ctx)
                 deferrable = mode
 
         self.val = qlast.StartTransaction(
@@ -191,7 +191,7 @@ class DescribeFormat(Nonterm):
             language=qltypes.DescribeLanguage.TEXT,
             options=qlast.Options(
                 options={'VERBOSE': qlast.OptionFlag(
-                    name='VERBOSE', val=True, context=kids[2].context)}
+                    name='VERBOSE', val=True, span=kids[2].span)}
             ),
         )
 
@@ -267,12 +267,12 @@ class DescribeStmt(Nonterm):
         ):
             raise errors.InvalidSyntaxError(
                 f'unexpected DESCRIBE format: {lang!r}',
-                context=kids[3].context,
+                span=kids[3].span,
             )
         if kids[3].val.options:
             raise errors.InvalidSyntaxError(
                 f'DESCRIBE CURRENT MIGRATION does not support options',
-                context=kids[3].context,
+                span=kids[3].span,
             )
 
         self.val = qlast.DescribeCurrentMigration(

@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from edb.schema import types as s_types
     from edb.schema import pointers as s_pointers
     from edb.ir import pathid
+    from edb.edgeql import qltypes
 
     SourceOrPathId = s_types.Type | s_pointers.Pointer | pathid.PathId
 
@@ -146,3 +147,9 @@ class CompilerOptions(GlobalCompilerOptions):
     )
 
     detached: bool = False
+
+    #: In order to prevent recursive triggers, these fields are used to track
+    #: the sources of a given trigger. These will only be present if
+    #: schema_object_context is set to Trigger.
+    trigger_type: Optional[s_types.Type] = None
+    trigger_kinds: Optional[Collection[qltypes.TriggerKind]] = None

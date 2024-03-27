@@ -35,6 +35,7 @@ from edb import buildmeta
 from edb import errors
 from edb.common import retryloop
 from edb.common import signalctl
+from edb.common.log import current_tenant
 from edb.pgsql import params as pgparams
 from edb.server import compiler as edbcompiler
 
@@ -278,6 +279,7 @@ class MultiTenantServer(server.BaseServer):
             )
 
         async def _add_tenant():
+            current_tenant.set(conf["instance-name"])
             rloop = retryloop.RetryLoop(
                 backoff=retryloop.exp_backoff(),
                 timeout=300,
@@ -313,6 +315,7 @@ class MultiTenantServer(server.BaseServer):
                 if serial > self._tenants_serial.get(sni, 0):
                     if sni in self._tenants:
                         tenant = self._tenants.pop(sni)
+                        current_tenant.set(tenant.get_instance_name())
                         await self._destroy_tenant(tenant)
                         logger.info("Removed Tenant %s", sni)
                     self._tenants_serial[sni] = serial
@@ -324,6 +327,7 @@ class MultiTenantServer(server.BaseServer):
             async with self._tenants_lock[sni]:
                 if serial > self._tenants_serial.get(sni, 0):
                     if tenant := self._tenants.get(sni):
+                        current_tenant.set(tenant.get_instance_name())
                         tenant.set_reloadable_files(
                             readiness_state_file=conf.get(
                                 "readiness-state-file"),

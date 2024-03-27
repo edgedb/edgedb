@@ -41,12 +41,14 @@ def tuple_element_for_shape_el(
     *,
     ctx: context.CompilerContextLevel
 ) -> pgast.TupleElementBase:
+    from edb.ir import ast as irast
+
     if shape_el.path_id.is_type_intersection_path():
-        assert shape_el.rptr is not None
-        rptr = shape_el.rptr.source.rptr
+        assert isinstance(shape_el.expr, irast.Pointer)
+        rptr = shape_el.expr.source.expr
     else:
-        rptr = shape_el.rptr
-    assert rptr is not None
+        rptr = shape_el.expr
+    assert isinstance(rptr, irast.Pointer)
     ptrref = rptr.ptrref
     ptrname = ptrref.shortname
 
@@ -249,10 +251,7 @@ def extend_select_op(
 
 
 def new_unop(op: str, expr: pgast.BaseExpr) -> pgast.Expr:
-    return pgast.Expr(
-        name=op,
-        rexpr=expr
-    )
+    return pgast.Expr(name=op, rexpr=expr)
 
 
 def join_condition(
@@ -306,10 +305,12 @@ def find_column_in_subselect_rvar(
 
 
 def get_column(
-        rvar: pgast.BaseRangeVar,
-        colspec: Union[str, pgast.ColumnRef], *,
-        is_packed_multi: bool=True,
-        nullable: Optional[bool]=None) -> pgast.ColumnRef:
+    rvar: pgast.BaseRangeVar,
+    colspec: Union[str, pgast.ColumnRef],
+    *,
+    is_packed_multi: bool = True,
+    nullable: Optional[bool] = None,
+) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
         colname = colspec.name[-1]
@@ -364,8 +365,8 @@ def get_column(
 
 
 def get_rvar_var(
-        rvar: pgast.BaseRangeVar,
-        var: pgast.OutputVar) -> pgast.OutputVar:
+    rvar: pgast.BaseRangeVar, var: pgast.OutputVar
+) -> pgast.OutputVar:
 
     fieldref: pgast.OutputVar
 
@@ -399,9 +400,11 @@ def get_rvar_var(
 
 
 def strip_output_var(
-        var: pgast.OutputVar, *,
-        optional: Optional[bool]=None,
-        nullable: Optional[bool]=None) -> pgast.OutputVar:
+    var: pgast.OutputVar,
+    *,
+    optional: Optional[bool] = None,
+    nullable: Optional[bool] = None,
+) -> pgast.OutputVar:
 
     result: pgast.OutputVar
 

@@ -641,7 +641,8 @@ class PathId:
                 yield path_id
 
     def startswith(
-            self, path_id: PathId, permissive_ptr_path: bool=False) -> bool:
+        self, path_id: PathId, permissive_ptr_path: bool = False
+    ) -> bool:
         """Return true if this ``PathId`` has *path_id* as a prefix."""
         base = self._get_prefix(len(path_id))
         return base == path_id or (

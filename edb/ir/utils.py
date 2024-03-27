@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from typing_extensions import TypeGuard
 
 import json
+import uuid
 
 from edb import errors
 
@@ -61,11 +62,15 @@ def get_longest_paths(ir: irast.Base) -> Set[irast.Set]:
     result = set()
     parents = set()
 
-    ir_sets = ast.find_children(ir, irast.Set, lambda n: n.expr is None)
+    ir_sets = ast.find_children(
+        ir,
+        irast.Set,
+        lambda n: sub_expr(n) is None or isinstance(n.expr, irast.TypeRoot),
+    )
     for ir_set in ir_sets:
         result.add(ir_set)
-        if ir_set.rptr:
-            parents.add(ir_set.rptr.source)
+        if isinstance(ir_set.expr, irast.Pointer):
+            parents.add(ir_set.expr.source)
 
     return result - parents
 
@@ -101,7 +106,7 @@ def is_empty_array_expr(ir: Optional[irast.Base]) -> TypeGuard[irast.Array]:
 
 
 def is_untyped_empty_array_expr(
-    ir: Optional[irast.Base]
+    ir: Optional[irast.Base],
 ) -> TypeGuard[irast.Array]:
     """Return True if the given *ir* expression is an empty
        array expression of an uknown type.
@@ -115,14 +120,13 @@ def is_untyped_empty_array_expr(
 
 def is_empty(ir: irast.Base) -> bool:
     """Return True if the given *ir* expression is an empty set
-       or an empty array.
+    or an empty array.
     """
     return (
         isinstance(ir, irast.EmptySet) or
         (isinstance(ir, irast.Array) and not ir.elements) or
         (
             isinstance(ir, irast.Set)
-            and ir.expr is not None
             and is_empty(ir.expr)
         )
     )
@@ -131,13 +135,19 @@ def is_empty(ir: irast.Base) -> bool:
 def is_subquery_set(ir_expr: irast.Base) -> bool:
     """Return True if the given *ir_expr* expression is a subquery."""
     return (
-        isinstance(ir_expr, irast.Set) and
-        isinstance(ir_expr.expr, irast.Stmt)
+        isinstance(ir_expr, irast.Set)
+        and (
+            isinstance(ir_expr.expr, irast.Stmt)
+            or (
+                isinstance(ir_expr.expr, irast.Pointer)
+                and ir_expr.expr.expr is not None
+            )
+        )
     )
 
 
 def is_implicit_wrapper(
-    ir_expr: Optional[irast.Base]
+    ir_expr: Optional[irast.Base],
 ) -> TypeGuard[irast.SelectStmt]:
     """Return True if the given *ir_expr* expression is an implicit
        SELECT wrapper.
@@ -166,10 +176,10 @@ def is_trivial_select(ir_expr: irast.Base) -> TypeGuard[irast.SelectStmt]:
 
 
 def unwrap_set(ir_set: irast.Set) -> irast.Set:
-    """If the give *ir_set* is an implicit SELECT wrapper, return the
+    """If the given *ir_set* is an implicit SELECT wrapper, return the
        wrapped set.
     """
-    if ir_set.expr is not None and is_implicit_wrapper(ir_set.expr):
+    if is_implicit_wrapper(ir_set.expr):
         return ir_set.expr.result
     else:
         return ir_set
@@ -177,21 +187,21 @@ def unwrap_set(ir_set: irast.Set) -> irast.Set:
 
 def get_path_root(ir_set: irast.Set) -> irast.Set:
     result = ir_set
-    while result.rptr is not None:
-        result = result.rptr.source
+    while isinstance(result.expr, irast.Pointer):
+        result = result.expr.source
     return result
 
 
-def get_source_context_as_json(
+def get_span_as_json(
     expr: irast.Base,
     exctype: Type[errors.EdgeDBError] = errors.InternalServerError,
 ) -> str:
-    if expr.context:
+    if expr.span:
         details = json.dumps({
             # TODO(tailhook) should we add offset, utf16column here?
-            'line': expr.context.start_point.line,
-            'column': expr.context.start_point.column,
-            'name': expr.context.name,
+            'line': expr.span.start_point.line,
+            'column': expr.span.start_point.column,
+            'name': expr.span.name,
             'code': exctype.get_code(),
         })
 
@@ -209,10 +219,9 @@ def is_type_intersection_reference(ir_expr: irast.Base) -> bool:
     """
     if not isinstance(ir_expr, irast.Set):
         return False
-
-    rptr = ir_expr.rptr
-    if rptr is None:
+    if not isinstance(ir_expr.expr, irast.Pointer):
         return False
+    rptr = ir_expr.expr
 
     ir_source = rptr.source
 
@@ -240,7 +249,7 @@ def collapse_type_intersection(
 
     source = ir_set
     while True:
-        rptr = source.rptr
+        rptr = source.expr
         if not isinstance(rptr, irast.TypeIntersectionPointer):
             break
         result.append(rptr)
@@ -265,13 +274,15 @@ class CollectDMLSourceVisitor(ast.NodeVisitor):
         # Visit sub-trees
         if node.expr:
             self.visit(node.expr)
-        elif node.rptr:
-            self.visit(node.rptr.source)
+
+    def visit_Pointer(self, node: irast.Pointer) -> None:
+        if node.expr:
+            self.visit(node.expr)
+        else:
+            self.visit(node.source)
 
 
-def get_dml_sources(
-    ir_set: irast.Set
-) -> Sequence[irast.MutatingLikeStmt]:
+def get_dml_sources(ir_set: irast.Set) -> Sequence[irast.MutatingLikeStmt]:
     """Find the DML expressions that can contribute to the value of a set
 
     This is used to compute which overlays to use during SQL compilation.
@@ -310,7 +321,7 @@ class ContainsDMLVisitor(ast.NodeVisitor):
         return bool(self.generic_visit(node))
 
 
-def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
+def contains_dml(stmt: irast.Base, *, skip_bindings: bool = False) -> bool:
     """Check whether a statement contains any DML in a subtree."""
     # TODO: Make this caching.
     visitor = ContainsDMLVisitor(skip_bindings=skip_bindings)
@@ -327,7 +338,8 @@ class FindPathScopes(ast.NodeVisitor):
     This is set up so that another visitor could inherit from it,
     override process_set, and also collect the scope tree info.
     """
-    def __init__(self, init_scope: Optional[int]=None) -> None:
+
+    def __init__(self, init_scope: Optional[int] = None) -> None:
         super().__init__()
         self.path_scope_ids: List[Optional[int]] = [init_scope]
         self.use_scopes: Dict[irast.Set, Optional[int]] = {}
@@ -373,7 +385,7 @@ class FindPathScopes(ast.NodeVisitor):
 
 
 def find_path_scopes(
-    stmt: irast.Base | Sequence[irast.Base]
+    stmt: irast.Base | Sequence[irast.Base],
 ) -> Dict[irast.Set, Optional[int]]:
     visitor = FindPathScopes()
     visitor.visit(stmt)
@@ -405,6 +417,10 @@ class FindPotentiallyVisibleVisitor(FindPathScopes):
                     out.update(x)
         return out
 
+    def visit_Pointer(self, node: irast.Pointer) -> Set[irast.Set]:
+        res: Set[irast.Set] = self.visit(node.source)
+        return res
+
     def process_set(self, node: irast.Set) -> Set[irast.Set]:
         if node.path_id in self.to_skip:
             # We only skip nodes in to_skip if their use site is
@@ -421,16 +437,18 @@ class FindPotentiallyVisibleVisitor(FindPathScopes):
                 return set()
 
         results = [{node}]
-        results.append(self.visit(node.rptr))
-        results.append(self.visit(node.shape))
-        if not node.rptr:
+        if isinstance(node.expr, irast.Pointer):
+            results.append(self.visit(node.expr))
+            results.append(self.visit(node.shape))
+        else:
+            results.append(self.visit(node.shape))
             results.append(self.visit(node.expr))
 
         # Bound variables are always potentially visible as are object
-        # references (which have no expr or rptr).
+        # references.
         if (
             node.is_binding
-            or (not node.expr and not node.rptr)
+            or isinstance(node.expr, irast.TypeRoot)
         ):
             results.append({node})
 
@@ -493,3 +511,33 @@ T = TypeVar('T')
 
 def is_set_instance(ir: irast.Set, typ: Type[T]) -> TypeGuard[irast.SetE[T]]:
     return isinstance(ir.expr, typ)
+
+
+def ref_contains_multi(ref: irast.Set, singleton_id: uuid.UUID) -> bool:
+    while isinstance(ref.expr, irast.Pointer):
+        pointer: irast.Pointer = ref.expr
+        if pointer.dir_cardinality.is_multi():
+            return True
+
+        # We don't need to look further than the object that we know is a
+        # singleton.
+        if (
+            singleton_id
+            and isinstance(pointer.ptrref, irast.PointerRef)
+            and pointer.ptrref.id == singleton_id
+        ):
+            break
+        ref = pointer.source
+    return False
+
+
+def sub_expr(ir: irast.Set) -> Optional[irast.Expr]:
+    """Fetch the "sub-expression" of a set.
+
+    For a non-pointer Set, it's just the expr, but for a Pointer
+    it is the optional computed expression.
+    """
+    if isinstance(ir.expr, irast.Pointer):
+        return ir.expr.expr
+    else:
+        return ir.expr

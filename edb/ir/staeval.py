@@ -85,29 +85,27 @@ def evaluate_to_python_val(
 
 
 @functools.singledispatch
-def evaluate(
-        ir: irast.Base,
-        schema: s_schema.Schema) -> EvaluationResult:
+def evaluate(ir: irast.Base, schema: s_schema.Schema) -> EvaluationResult:
     raise UnsupportedExpressionError(
         f'no static IR evaluation handler for {ir.__class__}')
 
 
 @evaluate.register(irast.SelectStmt)
 def evaluate_SelectStmt(
-        ir_stmt: irast.SelectStmt,
-        schema: s_schema.Schema) -> EvaluationResult:
+    ir_stmt: irast.SelectStmt, schema: s_schema.Schema
+) -> EvaluationResult:
 
     if irutils.is_trivial_select(ir_stmt) and not ir_stmt.result.is_binding:
         return evaluate(ir_stmt.result, schema)
     else:
         raise UnsupportedExpressionError(
-            'expression is not constant', context=ir_stmt.context)
+            'expression is not constant', span=ir_stmt.span)
 
 
 @evaluate.register(irast.TypeCast)
 def evaluate_TypeCast(
-        ir_cast: irast.TypeCast,
-        schema: s_schema.Schema) -> EvaluationResult:
+    ir_cast: irast.TypeCast, schema: s_schema.Schema
+) -> EvaluationResult:
 
     schema, from_type = irtyputils.ir_typeref_to_type(
         schema, ir_cast.from_type)
@@ -127,8 +125,8 @@ def evaluate_TypeCast(
 
 @evaluate.register(irast.EmptySet)
 def evaluate_EmptySet(
-        ir_set: irast.EmptySet,
-        schema: s_schema.Schema) -> EvaluationResult:
+    ir_set: irast.EmptySet, schema: s_schema.Schema
+) -> EvaluationResult:
     return ir_set
 
 
@@ -136,24 +134,31 @@ def evaluate_EmptySet(
 def evaluate_Set(
         ir_set: irast.Set,
         schema: s_schema.Schema) -> EvaluationResult:
-    if ir_set.expr is not None:
-        return evaluate(ir_set.expr, schema=schema)
+    return evaluate(ir_set.expr, schema=schema)
+
+
+@evaluate.register
+def evaluate_Pointer(
+    ptr: irast.Pointer, schema: s_schema.Schema
+) -> EvaluationResult:
+    if ptr.expr is not None:
+        return evaluate(ptr.expr, schema=schema)
     else:
         raise UnsupportedExpressionError(
-            'expression is not constant', context=ir_set.context)
+            'expression is not constant', span=ptr.span)
 
 
 @evaluate.register(irast.ConstExpr)
 def evaluate_BaseConstant(
-        ir_const: irast.ConstExpr,
-        schema: s_schema.Schema) -> EvaluationResult:
+    ir_const: irast.ConstExpr, schema: s_schema.Schema
+) -> EvaluationResult:
     return ir_const
 
 
 @evaluate.register(irast.Array)
 def evaluate_Array(
-        ir: irast.Array,
-        schema: s_schema.Schema) -> EvaluationResult:
+    ir: irast.Array, schema: s_schema.Schema
+) -> EvaluationResult:
     return irast.Array(
         elements=tuple(
             x.replace(expr=evaluate(x, schema)) for x in ir.elements
@@ -167,7 +172,7 @@ def _process_op_result(
     typeref: irast.TypeRef,
     schema: s_schema.Schema,
     *,
-    srcctx: Optional[parsing.ParserContext]=None,
+    span: Optional[parsing.Span]=None,
 ) -> irast.ConstExpr:
     qlconst: qlast.BaseConstant
     if isinstance(value, str):
@@ -176,7 +181,7 @@ def _process_op_result(
         qlconst = qlast.BooleanConstant.from_python(value)
     else:
         raise UnsupportedExpressionError(
-            f"unsupported result type: {type(value)}", context=srcctx
+            f"unsupported result type: {type(value)}", span=span
         )
 
     result = qlcompiler.compile_constant_tree_to_ir(
@@ -200,8 +205,8 @@ op_table = {
 
 @evaluate.register(irast.OperatorCall)
 def evaluate_OperatorCall(
-        opcall: irast.OperatorCall,
-        schema: s_schema.Schema) -> irast.ConstExpr:
+    opcall: irast.OperatorCall, schema: s_schema.Schema
+) -> irast.ConstExpr:
 
     if irutils.is_union_expr(opcall):
         return _evaluate_union(opcall, schema)
@@ -212,7 +217,7 @@ def evaluate_OperatorCall(
     if eval_func is None:
         raise UnsupportedExpressionError(
             f'unsupported operator: {opcall.func_shortname}',
-            context=opcall.context)
+            span=opcall.span)
 
     args = []
     for arg in opcall.args:
@@ -220,23 +225,23 @@ def evaluate_OperatorCall(
         if isinstance(arg_val, tuple):
             raise UnsupportedExpressionError(
                 f'non-singleton operations are not supported',
-                context=opcall.context)
+                span=opcall.span)
         if arg_val is None:
             raise UnsupportedExpressionError(
                 f'empty operations are not supported',
-                context=opcall.context)
+                span=opcall.span)
 
         args.append(arg_val)
 
     value = eval_func(*args)
     return _process_op_result(
-        value, opcall.typeref, schema, srcctx=opcall.context)
+        value, opcall.typeref, schema, span=opcall.span)
 
 
 @evaluate.register(irast.SliceIndirection)
 def evaluate_SliceIndirection(
-        slice: irast.SliceIndirection,
-        schema: s_schema.Schema) -> irast.ConstExpr:
+    slice: irast.SliceIndirection, schema: s_schema.Schema
+) -> irast.ConstExpr:
 
     args = [slice.expr, slice.start, slice.stop]
     vals = [
@@ -250,22 +255,22 @@ def evaluate_SliceIndirection(
         if isinstance(arg_val, tuple):
             raise UnsupportedExpressionError(
                 f'non-singleton operations are not supported',
-                context=slice.context)
+                span=slice.span)
         if arg_val is None:
             raise UnsupportedExpressionError(
                 f'empty operations are not supported',
-                context=slice.context)
+                span=slice.span)
 
     base, start, stop = vals
 
     value = base[start:stop]
     return _process_op_result(
-        value, slice.expr.typeref, schema, srcctx=slice.context)
+        value, slice.expr.typeref, schema, span=slice.span)
 
 
 def _evaluate_union(
-        opcall: irast.OperatorCall,
-        schema: s_schema.Schema) -> irast.ConstExpr:
+    opcall: irast.OperatorCall, schema: s_schema.Schema
+) -> irast.ConstExpr:
 
     elements: List[irast.BaseConstant] = []
     for arg in opcall.args:
@@ -277,7 +282,7 @@ def _evaluate_union(
                 if isinstance(el, irast.Parameter):
                     raise UnsupportedExpressionError(
                         f'{el!r} not supported in UNION',
-                        context=opcall.context)
+                        span=opcall.span)
                 elements.append(el)
         elif isinstance(val, irast.EmptySet):
             empty_set = val
@@ -286,7 +291,7 @@ def _evaluate_union(
         else:
             raise UnsupportedExpressionError(
                 f'{val!r} not supported in UNION',
-                context=opcall.context)
+                span=opcall.span)
 
     if elements:
         return irast.ConstantSet(
@@ -301,11 +306,8 @@ def _evaluate_union(
 
 
 @functools.singledispatch
-def const_to_python(
-        ir: irast.Expr | None,
-        schema: s_schema.Schema) -> Any:
-    raise UnsupportedExpressionError(
-        f'cannot convert {ir!r} to Python value')
+def const_to_python(ir: irast.Expr | None, schema: s_schema.Schema) -> Any:
+    raise UnsupportedExpressionError(f'cannot convert {ir!r} to Python value')
 
 
 @const_to_python.register(irast.EmptySet)
@@ -318,22 +320,20 @@ def empty_set_to_python(
 
 @const_to_python.register(irast.ConstantSet)
 def const_set_to_python(
-        ir: irast.ConstantSet,
-        schema: s_schema.Schema) -> Tuple[Any, ...]:
+    ir: irast.ConstantSet, schema: s_schema.Schema
+) -> Tuple[Any, ...]:
     return tuple(const_to_python(v, schema) for v in ir.elements)
 
 
 @const_to_python.register(irast.Array)
-def array_const_to_python(
-        ir: irast.Array,
-        schema: s_schema.Schema) -> Any:
+def array_const_to_python(ir: irast.Array, schema: s_schema.Schema) -> Any:
     return [const_to_python(x.expr, schema) for x in ir.elements]
 
 
 @const_to_python.register(irast.IntegerConstant)
 def int_const_to_python(
-        ir: irast.IntegerConstant,
-        schema: s_schema.Schema) -> Any:
+    ir: irast.IntegerConstant, schema: s_schema.Schema
+) -> Any:
 
     stype = schema.get_by_id(ir.typeref.id)
     assert isinstance(stype, s_types.Type)
@@ -346,8 +346,8 @@ def int_const_to_python(
 
 @const_to_python.register(irast.FloatConstant)
 def float_const_to_python(
-        ir: irast.FloatConstant,
-        schema: s_schema.Schema) -> Any:
+    ir: irast.FloatConstant, schema: s_schema.Schema
+) -> Any:
 
     stype = schema.get_by_id(ir.typeref.id)
     assert isinstance(stype, s_types.Type)
@@ -360,24 +360,22 @@ def float_const_to_python(
 
 @const_to_python.register(irast.StringConstant)
 def str_const_to_python(
-        ir: irast.StringConstant,
-        schema: s_schema.Schema) -> Any:
+    ir: irast.StringConstant, schema: s_schema.Schema
+) -> Any:
 
     return ir.value
 
 
 @const_to_python.register(irast.BooleanConstant)
 def bool_const_to_python(
-        ir: irast.BooleanConstant,
-        schema: s_schema.Schema) -> Any:
+    ir: irast.BooleanConstant, schema: s_schema.Schema
+) -> Any:
 
     return ir.value == 'true'
 
 
 @const_to_python.register(irast.TypeCast)
-def cast_const_to_python(
-        ir: irast.TypeCast,
-        schema: s_schema.Schema) -> Any:
+def cast_const_to_python(ir: irast.TypeCast, schema: s_schema.Schema) -> Any:
 
     schema, stype = irtyputils.ir_typeref_to_type(schema, ir.to_type)
     pytype = scalar_type_to_python_type(stype, schema)
@@ -391,8 +389,8 @@ def cast_const_to_python(
 
 
 def schema_type_to_python_type(
-        stype: s_types.Type,
-        schema: s_schema.Schema) -> type | statypes.CompositeTypeSpec:
+    stype: s_types.Type, schema: s_schema.Schema
+) -> type | statypes.CompositeTypeSpec:
     if isinstance(stype, s_scalars.ScalarType):
         return scalar_type_to_python_type(stype, schema)
     elif isinstance(stype, s_objtypes.ObjectType):
@@ -535,16 +533,16 @@ def object_type_to_spec(
 
 @functools.singledispatch
 def evaluate_to_config_op(
-        ir: irast.Base,
-        schema: s_schema.Schema) -> config.Operation:
+    ir: irast.Base, schema: s_schema.Schema
+) -> config.Operation:
     raise UnsupportedExpressionError(
         f'no config op evaluation handler for {ir.__class__}')
 
 
 @evaluate_to_config_op.register(irast.ConfigSet)
 def evaluate_config_set(
-        ir: irast.ConfigSet,
-        schema: s_schema.Schema) -> config.Operation:
+    ir: irast.ConfigSet, schema: s_schema.Schema
+) -> config.Operation:
 
     if ir.scope == qltypes.ConfigScope.GLOBAL:
         raise UnsupportedExpressionError(
@@ -568,8 +566,8 @@ def evaluate_config_set(
 
 @evaluate_to_config_op.register(irast.ConfigReset)
 def evaluate_config_reset(
-        ir: irast.ConfigReset,
-        schema: s_schema.Schema) -> config.Operation:
+    ir: irast.ConfigReset, schema: s_schema.Schema
+) -> config.Operation:
 
     if ir.selector is not None:
         raise UnsupportedExpressionError(

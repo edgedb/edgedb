@@ -136,7 +136,7 @@ def process_view(
     view_name: Optional[sn.QualName] = None,
     exprtype: s_types.ExprType = s_types.ExprType.Select,
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext],
+    span: Optional[parsing.Span],
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
 
     cache_key = (stype, exprtype, tuple(elements))
@@ -170,7 +170,7 @@ def process_view(
         elements=elements,
         ctx=ctx,
         s_ctx=s_ctx,
-        srcctx=srcctx,
+        span=span,
     )
 
     ctx.env.shape_type_cache[cache_key] = view_scls
@@ -185,7 +185,7 @@ def _process_view(
     elements: Optional[Sequence[qlast.ShapeElement]],
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext],
+    span: Optional[parsing.Span],
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
     path_id = ir_set.path_id
     view_rptr = s_ctx.view_rptr
@@ -251,9 +251,9 @@ def _process_view(
     # Maybe rematerialize the set. The old ir_set might have already
     # been materialized, but the new version would be missing from the
     # use_sets.
-    if ir_set.rptr:
+    if isinstance(ir_set.expr, irast.Pointer):
         ctx.env.schema, remat_ptrcls = typeutils.ptrcls_from_ptrref(
-            ir_set.rptr.ptrref, schema=ctx.env.schema
+            ir_set.expr.ptrref, schema=ctx.env.schema
         )
         setgen.maybe_materialize(remat_ptrcls, ir_set, ctx=ctx)
 
@@ -295,13 +295,13 @@ def _process_view(
         if s_ctx.exprtype is not s_types.ExprType.Select:
             raise errors.QueryError(
                 "unexpected splat operator in non-SELECT shape",
-                context=shape_el.expr.context,
+                span=shape_el.expr.span,
             )
 
         if ctx.env.options.func_params is not None:
             raise errors.UnsupportedFeatureError(
                 "splat operators in function bodies are not supported",
-                context=shape_el.expr.context,
+                span=shape_el.expr.span,
             )
 
         splat = shape_el.expr.steps[0]
@@ -311,7 +311,7 @@ def _process_view(
                 vn = splat_type.get_verbosename(schema=ctx.env.schema)
                 raise errors.QueryError(
                     f"splat operator expects an object type, got {vn}",
-                    context=splat.type.context,
+                    span=splat.type.span,
                 )
 
             if not stype.issubclass(ctx.env.schema, splat_type):
@@ -320,7 +320,7 @@ def _process_view(
                 raise errors.QueryError(
                     f"splat type must be {vn} or its parent type, "
                     f"got {vn2}",
-                    context=splat.type.context,
+                    span=splat.type.span,
                 )
 
             if splat.intersection is not None:
@@ -340,7 +340,7 @@ def _process_view(
                 vn = splat_type.get_verbosename(schema=ctx.env.schema)
                 raise errors.QueryError(
                     f"splat operator expects an object type, got {vn}",
-                    context=splat.intersection.type.context,
+                    span=splat.intersection.type.span,
                 )
         else:
             splat_type = stype
@@ -395,7 +395,7 @@ def _process_view(
                     raise errors.QueryError(
                         f"link or property '{desc.ptr_name}' appears in splats "
                         f"for unrelated types: {vn1} and {vn2}",
-                        context=splat.context,
+                        span=splat.span,
                     )
 
             else:
@@ -485,7 +485,7 @@ def _process_view(
         rewrites = None
 
     if s_ctx.exprtype.is_insert():
-        _raise_on_missing(pointers, stype, rewrites, ctx, srcctx=srcctx)
+        _raise_on_missing(pointers, stype, rewrites, ctx, span=span)
 
     set_shape = []
     shape_ptrs: List[ShapePtr] = []
@@ -520,9 +520,9 @@ def _process_view(
     # Produce the shape. The main thing here is that we need to fixup
     # all of the rptrs to properly point back at ir_set.
     for _, ptrcls, shape_op, ptr_set in shape_ptrs:
-        psrcctx = None
+        ptr_span = None
         if ptrcls in ctx.env.pointer_specified_info:
-            _, _, psrcctx = ctx.env.pointer_specified_info[ptrcls]
+            _, _, ptr_span = ctx.env.pointer_specified_info[ptrcls]
 
         if ptr_set:
             src_path_id = path_id
@@ -535,8 +535,10 @@ def _process_view(
                 ns=ctx.path_id_namespace,
                 ctx=ctx,
             )
-            ptr_set.rptr = irast.Pointer(
+            assert not isinstance(ptr_set.expr, irast.Pointer)
+            ptr_set.expr = irast.Pointer(
                 source=ir_set,
+                expr=ptr_set.expr,
                 direction=s_pointers.PointerDirection.Outbound,
                 ptrref=not_none(ptr_set.path_id.rptr()),
                 is_definition=True,
@@ -545,7 +547,7 @@ def _process_view(
             # already has a context, since for explain output that
             # seems nicer, but this is what we want for producing
             # actual error messages.
-            ptr_set.context = psrcctx
+            ptr_set.span = ptr_span
 
         else:
             # The set must be something pretty trivial, so just do it
@@ -553,10 +555,11 @@ def _process_view(
                 ir_set,
                 ptrcls,
                 same_computable_scope=True,
-                srcctx=psrcctx or srcctx,
+                span=ptr_span or span,
                 ctx=ctx,
             )
 
+        assert irutils.is_set_instance(ptr_set, irast.Pointer)
         set_shape.append((ptr_set, shape_op))
 
     ir_set.shape = tuple(set_shape)
@@ -601,7 +604,7 @@ def _shape_el_ql_to_shape_el_desc(
             if view_rptr is None or view_rptr.ptrcls is None:
                 raise errors.QueryError(
                     'invalid reference to link property '
-                    'in top level shape', context=lexpr.context)
+                    'in top level shape', span=lexpr.span)
             assert isinstance(view_rptr.ptrcls, s_links.Link)
             source = view_rptr.ptrcls
     elif plen == 2 and isinstance(steps[0], qlast.TypeIntersection):
@@ -612,14 +615,14 @@ def _shape_el_ql_to_shape_el_desc(
         if not isinstance(ptype, qlast.TypeName):
             raise errors.QueryError(
                 'complex type expressions are not supported here',
-                context=ptype.context,
+                span=ptype.span,
             )
         source_spec = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
         if not isinstance(source_spec, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f"expected object type, got "
                 f"{source_spec.get_verbosename(ctx.env.schema)}",
-                context=ptype.context,
+                span=ptype.span,
             )
         source = source_spec
         is_polymorphic = True
@@ -789,7 +792,7 @@ def _gen_pointers_from_defaults(
             # add __source__ to anchors
             source_set = ir_set
             scopectx.path_scope.attach_path(
-                source_set.path_id, context=None,
+                source_set.path_id, span=None,
                 optional=False,
             )
             scopectx.iterator_path_ids |= {source_set.path_id}
@@ -848,7 +851,7 @@ def _raise_on_missing(
     stype: s_objtypes.ObjectType,
     rewrites: Optional[irast.Rewrites],
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext],
+    span: Optional[parsing.Span],
 ) -> None:
     pointer_names = {
         ptr.get_local_name(ctx.env.schema) for ptr in pointers
@@ -886,17 +889,23 @@ def _raise_on_missing(
                 continue
 
         vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
+        msg = f"missing value for required {vn}"
         # If this is happening in the context of DDL, report a
         # QueryError because it is weird to report an ExecutionError
         # (MissingRequiredError) when nothing is really executing.
-        errcls = (
-            errors.SchemaDefinitionError
-            if ctx.env.options.schema_object_context
-            else errors.MissingRequiredError
-        )
-        raise errcls(
-            f"missing value for required {vn}", context=srcctx
-        )
+        if ctx.env.options.schema_object_context:
+            raise errors.SchemaDefinitionError(msg, span=span)
+        else:
+            raise errors.MissingRequiredError(msg, span=span)
+
+
+@dataclasses.dataclass(kw_only=True, repr=False, eq=False)
+class RewriteContext:
+    specified_ptrs: Set[sn.UnqualName]
+    kind: qltypes.RewriteKind
+
+    base_type: s_objtypes.ObjectType
+    shape_type: s_objtypes.ObjectType
 
 
 def _compile_rewrites(
@@ -909,18 +918,24 @@ def _compile_rewrites(
     ctx: context.ContextLevel,
 ) -> Optional[irast.Rewrites]:
     # init
-    anchors = None
+    r_ctx = RewriteContext(
+        specified_ptrs=specified_ptrs,
+        kind=kind,
+        base_type=stype,
+        shape_type=view_scls,
+    )
 
     # Computing anchors isn't cheap, so we want to only do it once,
     # and only do it when it is necessary.
-    def get_anchors() -> RewriteAnchors:
-        nonlocal anchors
-        if anchors is None:
-            anchors = prepare_rewrite_anchors(specified_ptrs, kind, stype, ctx)
-        return anchors
+    anchors: Dict[s_objtypes.ObjectType, RewriteAnchors] = {}
+
+    def get_anchors(stype: s_objtypes.ObjectType) -> RewriteAnchors:
+        if stype not in anchors:
+            anchors[stype] = prepare_rewrite_anchors(stype, r_ctx, s_ctx, ctx)
+        return anchors[stype]
 
     rewrites = _compile_rewrites_for_stype(
-        stype, kind, view_scls, ir_set, get_anchors, s_ctx, ctx=ctx
+        stype, kind, ir_set, get_anchors, s_ctx, ctx=ctx
     )
 
     if kind == qltypes.RewriteKind.Insert:
@@ -936,7 +951,7 @@ def _compile_rewrites(
         # statement later.
 
         rewrites_by_type = _compile_rewrites_of_children(
-            stype, rewrites, kind, view_scls, ir_set, get_anchors, s_ctx, ctx
+            stype, rewrites, kind, ir_set, get_anchors, s_ctx, ctx
         )
 
     else:
@@ -950,7 +965,7 @@ def _compile_rewrites(
         by_type[ty] = {}
         for element in rewrites_of_type.values():
             target = element.target_set
-            assert target and target.expr
+            assert target
 
             ptrref = typegen.ptr_to_ptrref(element.ptrcls, ctx=ctx)
             actual_ptrref = irtypeutils.find_actual_ptrref(ty, ptrref)
@@ -963,26 +978,28 @@ def _compile_rewrites(
             ptr_set = setgen.new_set_from_set(
                 target,
                 path_id=path_id,
-                rptr=None,
                 ctx=ctx,
             )
 
             # construct a new set with correct path_id
-            ptr_set.rptr = irast.Pointer(
+            ptr_set.expr = irast.Pointer(
                 source=ir_set,
+                expr=ptr_set.expr,
                 direction=s_pointers.PointerDirection.Outbound,
                 ptrref=actual_ptrref,
                 is_definition=True,
             )
+            assert irutils.is_set_instance(ptr_set, irast.Pointer)
 
             by_type[ty][pn] = (ptr_set, ptrref.real_material_ptr)
 
-    if not anchors:
+    anc = next(iter(anchors.values()), None)
+    if not anc:
         return None
 
     return irast.Rewrites(
-        subject_path_id=anchors[0].path_id,
-        old_path_id=anchors[2].path_id if anchors[2] else None,
+        subject_path_id=anc.subject_set.path_id,
+        old_path_id=anc.old_set.path_id if anc.old_set else None,
         by_type=by_type,
     )
 
@@ -991,9 +1008,8 @@ def _compile_rewrites_of_children(
     stype: s_objtypes.ObjectType,
     parent_rewrites: Dict[sn.UnqualName, EarlyShapePtr],
     kind: qltypes.RewriteKind,
-    view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
-    get_anchors: Callable[[], RewriteAnchors],
+    get_anchors: Callable[[s_objtypes.ObjectType], RewriteAnchors],
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Dict[irast.TypeRef, Dict[sn.UnqualName, EarlyShapePtr]]:
@@ -1013,7 +1029,7 @@ def _compile_rewrites_of_children(
         child_rewrites = parent_rewrites.copy()
         # override with rewrites defined here
         rewrites_defined_here = _compile_rewrites_for_stype(
-            child, kind, view_scls, ir_set, get_anchors, s_ctx,
+            child, kind, ir_set, get_anchors, s_ctx,
             already_defined_rewrites=child_rewrites,
             ctx=ctx
         )
@@ -1025,7 +1041,6 @@ def _compile_rewrites_of_children(
                 child,
                 child_rewrites,
                 kind,
-                view_scls,
                 ir_set,
                 get_anchors,
                 s_ctx,
@@ -1039,9 +1054,8 @@ def _compile_rewrites_of_children(
 def _compile_rewrites_for_stype(
     stype: s_objtypes.ObjectType,
     kind: qltypes.RewriteKind,
-    view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
-    get_anchors: Callable[[], RewriteAnchors],
+    get_anchors: Callable[[s_objtypes.ObjectType], RewriteAnchors],
     s_ctx: ShapeContext,
     *,
     already_defined_rewrites: Optional[
@@ -1089,27 +1103,7 @@ def _compile_rewrites_for_stype(
         ):
             continue
 
-        subject_set, specified_set, old_set = get_anchors()
-
-        rewrite_view = view_scls
-        if stype != view_scls.get_nearest_non_derived_parent(schema):
-            # FIXME: Caching?
-            rewrite_view = downcast(
-                s_objtypes.ObjectType,
-                schemactx.derive_view(
-                    stype,
-                    exprtype=s_ctx.exprtype,
-                    ctx=ctx,
-                )
-            )
-            subject_set = setgen.class_set(
-                rewrite_view, path_id=subject_set.path_id, ctx=ctx)
-            if old_set:
-                old_set = setgen.class_set(
-                    rewrite_view, path_id=old_set.path_id, ctx=ctx)
-
-            ir_set = setgen.class_set(
-                rewrite_view, path_id=ir_set.path_id, ctx=ctx)
+        anchors = get_anchors(stype)
 
         rewrite_expr = rewrite.get_expr(ctx.env.schema)
         assert rewrite_expr
@@ -1118,17 +1112,18 @@ def _compile_rewrites_for_stype(
             scopectx.active_rewrites |= {stype}
 
             # prepare context
-            scopectx.partial_path_prefix = subject_set
+            scopectx.partial_path_prefix = anchors.subject_set
             nanchors = {}
-            nanchors["__specified__"] = specified_set
-            nanchors["__subject__"] = subject_set
-            if old_set:
-                nanchors["__old__"] = old_set
+            nanchors["__specified__"] = anchors.specified_set
+            nanchors["__subject__"] = anchors.subject_set
+            if anchors.old_set:
+                nanchors["__old__"] = anchors.old_set
 
             for key, anchor in nanchors.items():
                 scopectx.path_scope.attach_path(
-                    anchor.path_id, context=None,
-                    optional=(anchor is subject_set),
+                    anchor.path_id,
+                    optional=(anchor is anchors.subject_set),
+                    span=None,
                 )
                 scopectx.iterator_path_ids |= {anchor.path_id}
                 scopectx.anchors[key] = anchor
@@ -1136,9 +1131,9 @@ def _compile_rewrites_for_stype(
             # XXX: I am pretty sure this must be wrong, but we get
             # a failure without due to volatility issues in
             # test_edgeql_rewrites_16
-            scopectx.env.singletons.append(subject_set.path_id)
+            scopectx.env.singletons.append(anchors.subject_set.path_id)
 
-            ctx.path_scope.factoring_allowlist.add(subject_set.path_id)
+            ctx.path_scope.factoring_allowlist.add(anchors.subject_set.path_id)
 
             # prepare expression
             ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
@@ -1153,16 +1148,16 @@ def _compile_rewrites_for_stype(
             )
             shape_ql_desc = _shape_el_ql_to_shape_el_desc(
                 shape_ql,
-                source=rewrite_view,
+                source=anchors.rewrite_type,
                 s_ctx=s_ctx,
                 ctx=scopectx,
             )
 
             # compile as normal shape element
             pointer, ptr_set = _normalize_view_ptr_expr(
-                subject_set,
+                anchors.subject_set,
                 shape_ql_desc,
-                rewrite_view,
+                anchors.rewrite_type,
                 path_id=path_id,
                 from_default=True,
                 s_ctx=s_ctx,
@@ -1174,13 +1169,19 @@ def _compile_rewrites_for_stype(
     return res
 
 
-RewriteAnchors = Tuple[irast.Set, irast.Set, Optional[irast.Set]]
+@dataclasses.dataclass(kw_only=True, repr=False, eq=False)
+class RewriteAnchors:
+    subject_set: irast.Set
+    specified_set: irast.Set
+    old_set: Optional[irast.Set]
+
+    rewrite_type: s_objtypes.ObjectType
 
 
 def prepare_rewrite_anchors(
-    specified_ptrs: Set[sn.UnqualName],
-    rewrite_kind: qltypes.RewriteKind,
     stype: s_objtypes.ObjectType,
+    r_ctx: RewriteContext,
+    s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> RewriteAnchors:
     schema = ctx.env.schema
@@ -1189,11 +1190,11 @@ def prepare_rewrite_anchors(
     # TODO: Do we really need a separate path id for __subject__?
     subject_name = sn.QualName("__derived__", "__subject__")
     subject_path_id = irast.PathId.from_type(
-        schema, stype, typename=subject_name, namespace=ctx.path_id_namespace,
-        env=ctx.env,
+        schema, stype, typename=subject_name,
+        namespace=ctx.path_id_namespace, env=ctx.env,
     )
     subject_set = setgen.class_set(
-        stype=stype, path_id=subject_path_id, ctx=ctx
+        stype, path_id=subject_path_id, ctx=ctx
     )
 
     # init reference to std::bool
@@ -1221,7 +1222,7 @@ def prepare_rewrite_anchors(
                 name=pn.name,
                 val=setgen.ensure_set(
                     irast.BooleanConstant(
-                        value=str(pn in specified_ptrs),
+                        value=str(pn in r_ctx.specified_ptrs),
                         typeref=bool_path.target,
                     ),
                     ctx=ctx
@@ -1234,20 +1235,42 @@ def prepare_rewrite_anchors(
     )
 
     # init set for __old__
-    if rewrite_kind == qltypes.RewriteKind.Update:
+    if r_ctx.kind == qltypes.RewriteKind.Update:
         old_name = sn.QualName("__derived__", "__old__")
         old_path_id = irast.PathId.from_type(
-            schema, stype, typename=old_name, namespace=ctx.path_id_namespace,
-            env=ctx.env,
+            schema, stype, typename=old_name,
+            namespace=ctx.path_id_namespace, env=ctx.env,
         )
         old_set = setgen.new_set(
-            stype=stype, path_id=old_path_id, ctx=ctx
+            stype=stype, path_id=old_path_id, ctx=ctx,
+            expr=irast.TriggerAnchor(
+                typeref=typegen.type_to_typeref(stype, env=ctx.env)),
         )
-        old_set.expr = irast.TriggerAnchor(typeref=old_set.typeref)
     else:
         old_set = None
 
-    return (subject_set, specified_set, old_set)
+    rewrite_type = r_ctx.shape_type
+    if stype != r_ctx.shape_type.get_nearest_non_derived_parent(schema):
+        rewrite_type = downcast(
+            s_objtypes.ObjectType,
+            schemactx.derive_view(
+                stype,
+                exprtype=s_ctx.exprtype,
+                ctx=ctx,
+            )
+        )
+        subject_set = setgen.class_set(
+            rewrite_type, path_id=subject_set.path_id, ctx=ctx)
+        if old_set:
+            old_set = setgen.class_set(
+                rewrite_type, path_id=old_set.path_id, ctx=ctx)
+
+    return RewriteAnchors(
+        subject_set=subject_set,
+        specified_set=specified_set,
+        old_set=old_set,
+        rewrite_type=rewrite_type,
+    )
 
 
 def _compile_qlexpr(
@@ -1335,7 +1358,7 @@ def _normalize_view_ptr_expr(
     if compexpr is None and is_mutation:
         raise errors.QueryError(
             "mutation queries must specify values with ':='",
-            context=shape_el.expr.steps[-1].context,
+            span=shape_el.expr.steps[-1].span,
         )
 
     ptrcls: Optional[s_pointers.Pointer]
@@ -1346,7 +1369,7 @@ def _normalize_view_ptr_expr(
             ptrname,
             track_ref=shape_el_desc.ptr_ql,
             ctx=ctx,
-            source_context=shape_el.context,
+            span=shape_el.span,
         )
         real_ptrcls = None
         if is_polymorphic:
@@ -1362,7 +1385,7 @@ def _normalize_view_ptr_expr(
                     ptrname,
                     track_ref=shape_el_desc.ptr_ql,
                     ctx=ctx,
-                    source_context=shape_el.context,
+                    span=shape_el.span,
                 )
             except errors.InvalidReferenceError:
                 is_independent_polymorphic = True
@@ -1460,7 +1483,7 @@ def _normalize_view_ptr_expr(
             # We do not know the parent's pointer cardinality yet.
             ctx.env.pointer_derivation_map[base_ptrcls].append(ptrcls)
             ctx.env.pointer_specified_info[ptrcls] = (
-                shape_el.cardinality, shape_el.required, shape_el.context)
+                shape_el.cardinality, shape_el.required, shape_el.span)
 
         # If we generated qlexpr for the element, we process the
         # subview by just compiling the qlexpr. This is so that we can
@@ -1500,7 +1523,7 @@ def _normalize_view_ptr_expr(
                                                 with_parent=True)
                 raise errors.QueryError(
                     f'modification of computed {ptr_vn} is prohibited',
-                    context=shape_el.context)
+                    span=shape_el.span)
 
             base_ptrcls = ptrcls.get_bases(
                 ctx.env.schema).first(ctx.env.schema)
@@ -1589,10 +1612,10 @@ def _normalize_view_ptr_expr(
                 )
                 raise errors.EdgeQLSyntaxError(
                     f"unexpected '{op}'",
-                    context=shape_el.operation.context,
+                    span=shape_el.operation.span,
                 )
 
-        irexpr.context = compexpr.context
+        irexpr.span = compexpr.span
 
         is_inbound_alias = False
         if base_ptrcls is None:
@@ -1614,7 +1637,7 @@ def _normalize_view_ptr_expr(
         if generic_type is not None:
             raise errors.QueryError(
                 'expression returns value of indeterminate type',
-                context=ctx.env.type_origins.get(generic_type),
+                span=ctx.env.type_origins.get(generic_type),
             )
 
         # Validate that the insert/update expression is
@@ -1656,10 +1679,16 @@ def _normalize_view_ptr_expr(
                             )
                         )
 
-                        old_rptr = irexpr.rptr
-                        irexpr.rptr = None
+                        # HACK: This is mad dodgy. Hide the Pointer
+                        # when compiling.
+                        old_expr = irexpr.expr
+                        if isinstance(old_expr, irast.Pointer):
+                            assert old_expr.expr
+                            irexpr.expr = old_expr.expr
                         irexpr = dispatch.compile(cast_qlexpr, ctx=subctx)
-                        irexpr.rptr = old_rptr
+                        if isinstance(old_expr, irast.Pointer):
+                            old_expr.expr = irexpr.expr
+                            irexpr.expr = old_expr
 
             else:
                 expected = [
@@ -1690,7 +1719,7 @@ def _normalize_view_ptr_expr(
         raise errors.QueryError(
             f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
             f'it is declared as read-only',
-            context=compexpr and compexpr.context,
+            span=compexpr.span if compexpr else None,
         )
 
     if (
@@ -1708,7 +1737,7 @@ def _normalize_view_ptr_expr(
         raise errors.QueryError(
             f'cannot assign to {ptrcls.get_verbosename(ctx.env.schema)}: '
             f'it is protected',
-            context=compexpr and compexpr.context,
+            span=compexpr.span if compexpr else None,
         )
 
     # Prohibit invalid operations on id
@@ -1741,7 +1770,7 @@ def _normalize_view_ptr_expr(
         else:
             hint = None
 
-        raise errors.QueryError(msg, context=shape_el.context, hint=hint)
+        raise errors.QueryError(msg, span=shape_el.span, hint=hint)
 
     # Common code for computed/not computed
 
@@ -1753,7 +1782,7 @@ def _normalize_view_ptr_expr(
         vnp = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
         raise errors.QueryError(
             f'duplicate definition of {vnp}',
-            context=shape_el.context)
+            span=shape_el.span)
 
     if qlexpr is not None or ptrcls is None:
         src_scls: s_sources.Source
@@ -1810,13 +1839,13 @@ def _normalize_view_ptr_expr(
                 t2_vn = ptr_target.get_verbosename(ctx.env.schema)
 
                 if compexpr is not None:
-                    source_context = compexpr.context
+                    span = compexpr.span
                 else:
-                    source_context = shape_el.expr.steps[-1].context
+                    span = shape_el.expr.steps[-1].span
                 raise errors.SchemaError(
                     f'cannot redefine {vnp} as {t2_vn}',
                     details=f'{vnp} is defined as {t1_vn}',
-                    context=source_context,
+                    span=span,
                 )
         else:
             ptrcls = schemactx.derive_ptr(
@@ -1843,7 +1872,7 @@ def _normalize_view_ptr_expr(
     ):
         raise errors.QueryError(
             f'cannot refer to volatile WITH bindings from DML',
-            context=compexpr and compexpr.context,
+            span=compexpr.span if compexpr else None,
         )
 
     if materialized and not is_mutation and ctx.qlstmt:
@@ -1935,7 +1964,7 @@ def _normalize_view_ptr_expr(
                     f'{ptrcls.get_verbosename(ctx.env.schema)}: '
                     f'it is defined as {base_cardinality.as_ptr_qual()!r} '
                     f'in the base {base_src_name}',
-                    context=compexpr and compexpr.context,
+                    span=compexpr.span if compexpr else None,
                 )
 
             if (
@@ -1951,23 +1980,24 @@ def _normalize_view_ptr_expr(
                     f'{ptrcls.get_verbosename(ctx.env.schema)} '
                     f'as optional: it is defined as required '
                     f'in the base {base_src_name}',
-                    context=compexpr and compexpr.context,
+                    span=compexpr.span if compexpr else None,
                 )
 
         ctx.env.pointer_specified_info[ptrcls] = (
-            specified_cardinality, specified_required, shape_el.context)
+            specified_cardinality, specified_required, shape_el.span)
 
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.Unknown)
 
-    if irexpr and not irexpr.context:
-        irexpr.context = shape_el.context
+    if irexpr and not irexpr.span:
+        irexpr.span = shape_el.span
 
     return ptrcls, irexpr
 
 
 def derive_ptrcls(
-    view_rptr: context.ViewRPtr, *,
+    view_rptr: context.ViewRPtr,
+    *,
     target_scls: s_types.Type,
     ctx: context.ContextLevel
 ) -> s_pointers.Pointer:
@@ -2013,8 +2043,8 @@ def derive_ptrcls(
 
 
 def _link_has_shape(
-        ptrcls: s_pointers.PointerLike, *,
-        ctx: context.ContextLevel) -> bool:
+    ptrcls: s_pointers.PointerLike, *, ctx: context.ContextLevel
+) -> bool:
     if not isinstance(ptrcls, s_links.Link):
         return False
 
@@ -2044,9 +2074,8 @@ def _get_base_ptr_cardinality(
 
 
 def has_implicit_tid(
-        stype: s_types.Type, *,
-        is_mutation: bool,
-        ctx: context.ContextLevel) -> bool:
+    stype: s_types.Type, *, is_mutation: bool, ctx: context.ContextLevel
+) -> bool:
 
     return (
         stype.is_object_type()
@@ -2056,9 +2085,8 @@ def has_implicit_tid(
 
 
 def has_implicit_tname(
-        stype: s_types.Type, *,
-        is_mutation: bool,
-        ctx: context.ContextLevel) -> bool:
+    stype: s_types.Type, *, is_mutation: bool, ctx: context.ContextLevel
+) -> bool:
 
     return (
         stype.is_object_type()
@@ -2068,9 +2096,8 @@ def has_implicit_tname(
 
 
 def has_implicit_type_computables(
-        stype: s_types.Type, *,
-        is_mutation: bool,
-        ctx: context.ContextLevel) -> bool:
+    stype: s_types.Type, *, is_mutation: bool, ctx: context.ContextLevel
+) -> bool:
 
     return (
         has_implicit_tid(stype, is_mutation=is_mutation, ctx=ctx)
@@ -2193,7 +2220,7 @@ def _get_shape_configuration_inner(
             or (ctx.implicit_id_in_shapes and not is_mutation)
             # we are inside an UPDATE shape and this is
             # an explicit expression (link target update)
-            or (is_parent_update and ir_set.expr is not None)
+            or (is_parent_update and irutils.sub_expr(ir_set) is not None)
             or all_materialize
         )
         # We actually *always* inject an implicit id, but it's just
@@ -2284,15 +2311,16 @@ def _get_late_shape_configuration(
     is_objtype = ir_set.path_id.is_objtype_path()
 
     if rptr is None:
-        rptr = ir_set.rptr
-    # If we have a specified rptr but no rptr on the set itself,
-    # construct a version of the set with the rptr added to use
-    # as the path tip for applying pointers. This ensures that
-    # we can find link properties on late shapes.
-    elif ir_set.rptr is None and ir_set.expr:
-        ir_set = setgen.new_set_from_set(ir_set, rptr=rptr, ctx=ctx)
-        assert ir_set.rptr
-        ir_set.rptr = ir_set.rptr.replace(target=ir_set, is_phony=True)
+        if isinstance(ir_set.expr, irast.Pointer):
+            rptr = ir_set.expr
+    elif ir_set.expr and not isinstance(ir_set.expr, irast.Pointer):
+        # If we have a specified rptr but set is not a pointer itself,
+        # construct a version of the set that is pointer so it can be used
+        # as the path tip for applying pointers. This ensures that
+        # we can find link properties on late shapes.
+        ir_set = setgen.new_set_from_set(
+            ir_set, expr=rptr.replace(expr=ir_set.expr, is_phony=True), ctx=ctx
+        )
 
     rptrcls: Optional[s_pointers.PointerLike]
     if rptr is not None:
@@ -2327,10 +2355,12 @@ def _get_late_shape_configuration(
 
 @functools.singledispatch
 def late_compile_view_shapes(
-        expr: irast.Base, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) -> None:
+    expr: irast.Base,
+    *,
+    rptr: Optional[irast.Pointer] = None,
+    parent_view_type: Optional[s_types.ExprType] = None,
+    ctx: context.ContextLevel,
+) -> None:
     """Do a late insertion of any unprocessed shapes.
 
     We mainly compile shapes in process_view, but late_compile_view_shapes
@@ -2344,8 +2374,8 @@ def late_compile_view_shapes(
 @late_compile_view_shapes.register(irast.Set)
 def _late_compile_view_shapes_in_set(
         ir_set: irast.Set, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
+        rptr: Optional[irast.Pointer] = None,
+        parent_view_type: Optional[s_types.ExprType] = None,
         ctx: context.ContextLevel) -> None:
 
     shape_ptrs = _get_late_shape_configuration(
@@ -2359,12 +2389,17 @@ def _late_compile_view_shapes_in_set(
     #
     # This is to avoid losing subquery distinctions (in cases
     # like test_edgeql_scope_tuple_15), and generally seems more natural.
+    is_definition_or_not_pointer = (
+        not isinstance(ir_set.expr, irast.Pointer) or ir_set.expr.is_definition
+    )
+    expr = irutils.sub_expr(ir_set)
     if (
-            isinstance(ir_set.expr, (irast.SelectStmt, irast.GroupStmt))
-            and not (ir_set.rptr and not ir_set.rptr.is_definition)
-            and (setgen.get_set_type(ir_set, ctx=ctx) ==
-                 setgen.get_set_type(ir_set.expr.result, ctx=ctx))):
-        child = ir_set.expr.result
+        isinstance(expr, (irast.SelectStmt, irast.GroupStmt))
+        and is_definition_or_not_pointer
+        and (setgen.get_set_type(ir_set, ctx=ctx) ==
+             setgen.get_set_type(expr.result, ctx=ctx))
+    ):
+        child = expr.result
         set_scope = pathctx.get_set_scope(ir_set, ctx=ctx)
 
         if shape_ptrs:
@@ -2372,9 +2407,12 @@ def _late_compile_view_shapes_in_set(
         with ctx.new() as scopectx:
             if set_scope is not None:
                 scopectx.path_scope = set_scope
+
+            if not rptr and isinstance(ir_set.expr, irast.Pointer):
+                rptr = ir_set.expr
             late_compile_view_shapes(
                 child,
-                rptr=rptr or ir_set.rptr,
+                rptr=rptr,
                 parent_view_type=parent_view_type,
                 ctx=scopectx)
 
@@ -2405,15 +2443,15 @@ def _late_compile_view_shapes_in_set(
 
         shape = []
         for path_tip, ptr, shape_op, _ in shape_ptrs:
-            srcctx = None
+            span = None
             if ptr in ctx.env.pointer_specified_info:
-                _, _, srcctx = ctx.env.pointer_specified_info[ptr]
+                _, _, span = ctx.env.pointer_specified_info[ptr]
 
             element = setgen.extend_path(
                 path_tip,
                 ptr,
                 same_computable_scope=True,
-                srcctx=srcctx,
+                span=span,
                 ctx=ctx,
             )
 
@@ -2438,35 +2476,39 @@ def _late_compile_view_shapes_in_set(
 
         ir_set.shape = tuple(shape)
 
-    elif ir_set.expr is not None:
+    elif expr is not None:
         set_scope = pathctx.get_set_scope(ir_set, ctx=ctx)
         if set_scope is not None:
             with ctx.new() as scopectx:
                 scopectx.path_scope = set_scope
-                late_compile_view_shapes(ir_set.expr, ctx=scopectx)
+                late_compile_view_shapes(expr, ctx=scopectx)
         else:
-            late_compile_view_shapes(ir_set.expr, ctx=ctx)
+            late_compile_view_shapes(expr, ctx=ctx)
 
-    elif isinstance(ir_set.rptr, irast.TupleIndirectionPointer):
-        late_compile_view_shapes(ir_set.rptr.source, ctx=ctx)
+    elif isinstance(ir_set.expr, irast.TupleIndirectionPointer):
+        late_compile_view_shapes(ir_set.expr.source, ctx=ctx)
 
 
 @late_compile_view_shapes.register(irast.SelectStmt)
 def _late_compile_view_shapes_in_select(
-        stmt: irast.SelectStmt, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) -> None:
+    stmt: irast.SelectStmt,
+    *,
+    rptr: Optional[irast.Pointer] = None,
+    parent_view_type: Optional[s_types.ExprType] = None,
+    ctx: context.ContextLevel,
+) -> None:
     late_compile_view_shapes(
         stmt.result, rptr=rptr, parent_view_type=parent_view_type, ctx=ctx)
 
 
 @late_compile_view_shapes.register(irast.Call)
 def _late_compile_view_shapes_in_call(
-        expr: irast.Call, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) -> None:
+    expr: irast.Call,
+    *,
+    rptr: Optional[irast.Pointer] = None,
+    parent_view_type: Optional[s_types.ExprType] = None,
+    ctx: context.ContextLevel,
+) -> None:
 
     if expr.func_polymorphic:
         for call_arg in expr.args:
@@ -2482,20 +2524,24 @@ def _late_compile_view_shapes_in_call(
 
 @late_compile_view_shapes.register(irast.Tuple)
 def _late_compile_view_shapes_in_tuple(
-        expr: irast.Tuple, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) -> None:
+    expr: irast.Tuple,
+    *,
+    rptr: Optional[irast.Pointer] = None,
+    parent_view_type: Optional[s_types.ExprType] = None,
+    ctx: context.ContextLevel,
+) -> None:
     for element in expr.elements:
         late_compile_view_shapes(element.val, ctx=ctx)
 
 
 @late_compile_view_shapes.register(irast.Array)
 def _late_compile_view_shapes_in_array(
-        expr: irast.Array, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) -> None:
+    expr: irast.Array,
+    *,
+    rptr: Optional[irast.Pointer] = None,
+    parent_view_type: Optional[s_types.ExprType] = None,
+    ctx: context.ContextLevel,
+) -> None:
     for element in expr.elements:
         late_compile_view_shapes(element, ctx=ctx)
 

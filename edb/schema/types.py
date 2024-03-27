@@ -175,6 +175,7 @@ class Type(
         attrs: Optional[Mapping[str, Any]] = None,
         inheritance_merge: bool = True,
         transient: bool = False,
+        preserve_endpoint_ptrs: bool = False,
         inheritance_refdicts: Optional[AbstractSet[str]] = None,
         stdmode: bool = False,
         **kwargs: Any,
@@ -223,6 +224,8 @@ class Type(
 
             if transient:
                 context.current().transient_derivation = True
+                if not preserve_endpoint_ptrs:
+                    context.current().slim_links = True
 
             delta.add(cmd)
             schema = delta.apply(schema, context)
@@ -594,7 +597,7 @@ class TypeShell(so.ObjectShell[TypeT_co]):
         displayname: Optional[str] = None,
         expr: Optional[str] = None,
         schemaclass: typing.Type[TypeT_co],
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
         extra_args: tuple[qlast.Expr] | None = None,
     ) -> None:
         super().__init__(
@@ -622,7 +625,7 @@ class TypeShell(so.ObjectShell[TypeT_co]):
             f'unsupported type intersection in schema {str(view_name)}',
             hint=f'Type intersections are currently '
                  f'unsupported as valid link targets.',
-            context=self.sourcectx,
+            span=self.sourcectx,
         )
 
 
@@ -636,7 +639,7 @@ class TypeExprShell(TypeShell[TypeT_co]):
         name: s_name.Name,
         components: Iterable[TypeShell[TypeT_co]],
         schemaclass: typing.Type[TypeT_co],
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> None:
         super().__init__(
             name=name,
@@ -667,7 +670,7 @@ class UnionTypeShell(TypeExprShell[TypeT_co]):
         components: Iterable[TypeShell[TypeT_co]],
         opaque: bool = False,
         schemaclass: typing.Type[TypeT_co],
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> None:
         name = get_union_type_name(
             (c.name for c in components),
@@ -906,7 +909,7 @@ class IntersectionTypeShell(TypeExprShell[TypeT_co]):
         module: str,
         components: Iterable[TypeShell[TypeT_co]],
         schemaclass: type[TypeT_co],
-        sourcectx: parsing.ParserContext | None = None,
+        sourcectx: parsing.Span | None = None,
     ) -> None:
         name = get_intersection_type_name(
             (c.name for c in components),
@@ -1019,7 +1022,8 @@ class Collection(Type, s_abc.Collection):
         return True
 
     def get_common_parent_type_distance(
-            self, other: Type, schema: s_schema.Schema) -> int:
+        self, other: Type, schema: s_schema.Schema
+    ) -> int:
         if other.is_any(schema):
             return 1
 
@@ -1086,9 +1090,7 @@ class Collection(Type, s_abc.Collection):
         return ()
 
     @classmethod
-    def get_class(
-        cls, schema_name: str
-    ) -> typing.Type[Collection]:
+    def get_class(cls, schema_name: str) -> typing.Type[Collection]:
         coll_type = _collection_impls.get(schema_name)
         if coll_type:
             return coll_type
@@ -2875,7 +2877,7 @@ def ensure_schema_type_expr_type(
     type_shell: TypeExprShell[Type],
     parent_cmd: sd.Command,
     *,
-    src_context: typing.Optional[parsing.ParserContext] = None,
+    span: typing.Optional[parsing.Span] = None,
     context: sd.CommandContext,
 ) -> Optional[sd.Command]:
 
@@ -2897,7 +2899,9 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
         expr = qlast.get_ddl_field_value(astnode, 'expr')
         if expr is None:
             raise errors.InvalidAliasDefinitionError(
-                f'missing required view expression', context=astnode.context)
+                f'missing required view expression',
+                span=astnode.span
+            )
         assert isinstance(expr, qlast.Expr)
         return expr
 
@@ -2988,7 +2992,7 @@ class InheritingTypeCommand(
                 shell = shells.get(base.get_name(schema))
                 raise errors.SchemaError(
                     f"{base_type_name!r} cannot be a parent type",
-                    context=shell.sourcectx if shell is not None else None,
+                    span=shell.sourcectx if shell is not None else None,
                 )
 
 
@@ -3413,14 +3417,14 @@ def materialize_type_in_attribute(
     if type_ref is None:
         return schema
 
-    srcctx = cmd.get_attribute_source_context('target')
+    span = cmd.get_attribute_span('target')
 
     if isinstance(type_ref, TypeExprShell):
         cc_cmd = ensure_schema_type_expr_type(
             schema,
             type_ref,
             parent_cmd=cmd,
-            src_context=srcctx,
+            span=span,
             context=context,
         )
         if cc_cmd is not None:
@@ -3449,11 +3453,11 @@ def materialize_type_in_attribute(
                     modaliases=context.modaliases,
                     schema=schema,
                     item_type=Type,
-                    context=srcctx,
+                    span=span,
                 )
             raise
         except errors.InvalidPropertyDefinitionError as e:
-            e.set_source_context(srcctx)
+            e.set_span(span)
             raise
     elif not isinstance(type_ref, Type):
         raise AssertionError(

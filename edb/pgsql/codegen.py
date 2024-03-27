@@ -86,7 +86,7 @@ def generate_source(
     *,
     indent_with: str = ' ' * 4,
     add_line_information: bool = False,
-    pretty: bool = True,
+    pretty: bool = False,
     reordered: bool = False,
 ) -> str:
     # Simplified entrypoint
@@ -183,7 +183,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit(self, node):  # type: ignore
         if self.with_translation_data:
             translation_data = TranslationData(
-                source_start=node.context.start if node.context else 0,
+                source_start=node.span.start if node.span else 0,
                 output_start=self.write_index,
             )
             old_top = self.translation_data

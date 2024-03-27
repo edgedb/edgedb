@@ -90,7 +90,7 @@ def compile_and_apply_ddl_stmt(
                     f"to avoid accidental schema changes outside of "
                     f"the migration flow."
                 ),
-                context=stmt.context,
+                span=stmt.span,
             )
         cm = qlast.CreateMigration(  # type: ignore
             body=qlast.NestedQLBlock(
@@ -113,7 +113,7 @@ def compile_and_apply_ddl_stmt(
         return compile_and_apply_ddl_stmt(ctx, cm)
 
     assert isinstance(stmt, qlast.DDLCommand)
-    delta = s_ddl.delta_from_ddl(
+    new_schema, delta = s_ddl.delta_and_schema_from_ddl(
         stmt,
         schema=schema,
         modaliases=current_tx.get_modaliases(),
@@ -121,16 +121,13 @@ def compile_and_apply_ddl_stmt(
     )
 
     if debug.flags.delta_plan:
-        debug.header('Delta Plan Input')
-        debug.dump(delta)
+        debug.header('Canonical Delta Plan')
+        debug.dump(delta, schema=schema)
 
     if mstate := current_tx.get_migration_state():
         mstate = mstate._replace(
             accepted_cmds=mstate.accepted_cmds + (stmt,),
         )
-
-        context = _new_delta_context(ctx)
-        schema = delta.apply(schema, context=context)
 
         last_proposed = mstate.last_proposed
         if last_proposed:
@@ -159,7 +156,7 @@ def compile_and_apply_ddl_stmt(
                     mstate = mstate._replace(last_proposed=None)
 
         current_tx.update_migration_state(mstate)
-        current_tx.update_schema(schema)
+        current_tx.update_schema(new_schema)
 
         return dbstate.DDLQuery(
             sql=(b'SELECT LIMIT 0',),
@@ -182,23 +179,13 @@ def compile_and_apply_ddl_stmt(
         )
         current_tx.update_migration_rewrite_state(mrstate)
 
-        context = _new_delta_context(ctx)
-        schema = delta.apply(schema, context=context)
-
-        current_tx.update_schema(schema)
+        current_tx.update_schema(new_schema)
 
         return dbstate.DDLQuery(
             sql=(b'SELECT LIMIT 0',),
             user_schema=current_tx.get_user_schema(),
             is_transactional=True,
         )
-
-    # Do a dry-run on test_schema to canonicalize
-    # the schema delta-commands.
-    test_schema = current_tx.get_schema(ctx.compiler_state.std_schema)
-    context = _new_delta_context(ctx)
-    delta.apply(test_schema, context=context)
-    delta.canonical = True
 
     # Apply and adapt delta, build native delta plan, which
     # will also update the schema.
@@ -290,7 +277,7 @@ def compile_and_apply_ddl_stmt(
 
 
 def _new_delta_context(
-    ctx: compiler.CompileContext, args: Any=None
+    ctx: compiler.CompileContext, args: Any = None
 ) -> s_delta.CommandContext:
     return s_delta.CommandContext(
         backend_runtime_params=ctx.compiler_state.backend_runtime_params,
@@ -301,7 +288,7 @@ def _new_delta_context(
 
 
 def _get_delta_context_args(ctx: compiler.CompileContext) -> dict[str, Any]:
-    """Get the args need from delta_from_ddl"""
+    """Get the args needed for delta_and_schema_from_ddl"""
     return dict(
         testmode=compiler._get_config_val(ctx, '__internal_testmode'),
         allow_dml_in_functions=(
@@ -319,10 +306,6 @@ def _process_delta(
 
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
-
-    if debug.flags.delta_plan:
-        debug.header('Canonical Delta Plan')
-        debug.dump(delta, schema=schema)
 
     pgdelta = pg_delta.CommandMeta.adapt(delta)
     assert isinstance(pgdelta, pg_delta.DeltaRoot)
@@ -721,8 +704,6 @@ def _describe_current_migration(
                     **extra,
                 }
             )
-            .encode('unicode_escape')
-            .decode('utf-8')
         )
 
         desc_ql = edgeql.parse_query(
@@ -813,7 +794,7 @@ def _commit_migration(
                 ' to let the system populate the outstanding DDL'
                 ' automatically.'
             ),
-            context=ql.context,
+            span=ql.span,
         )
 
     if debug.flags.delta_plan:
@@ -1003,7 +984,7 @@ def _commit_migration_rewrite(
         raise errors.QueryError(
             'cannot commit migration rewrite: schema resulting '
             'from rewrite does not match committed schema',
-            context=ql.context,
+            span=ql.span,
         )
 
     schema = mrstate.target_schema
@@ -1101,7 +1082,7 @@ def _reset_schema(
         raise errors.QueryError(
             f'Unknown schema version "{ql.target.name}". '
             'Currently, only revision supported is "initial"',
-            context=ql.target.context,
+            span=ql.target.span,
         )
 
     current_tx = ctx.state.current_tx()
@@ -1245,7 +1226,7 @@ def administer_repair_schema(
     if ql.expr.args or ql.expr.kwargs:
         raise errors.QueryError(
             'repair_schema() does not take arguments',
-            context=ql.expr.context,
+            span=ql.expr.span,
         )
 
     current_tx = ctx.state.current_tx()
@@ -1280,7 +1261,7 @@ def administer_reindex(
     if len(ql.expr.args) != 1 or ql.expr.kwargs:
         raise errors.QueryError(
             'reindex() takes exactly one position argument',
-            context=ql.expr.context,
+            span=ql.expr.span,
         )
 
     arg = ql.expr.args[0]
@@ -1298,7 +1279,7 @@ def administer_reindex(
         case _:
             raise errors.QueryError(
                 'argument to reindex() must be an object type',
-                context=arg.context,
+                span=arg.span,
             )
 
     current_tx = ctx.state.current_tx()
@@ -1317,13 +1298,13 @@ def administer_reindex(
         if (
             not expr.expr
             or not isinstance(expr.expr, irast.SelectStmt)
-            or not expr.expr.result.rptr
+            or not isinstance(expr.expr.result.expr, irast.Pointer)
         ):
             raise errors.QueryError(
                 'invalid pointer argument to reindex()',
-                context=arg.context,
+                span=arg.span,
             )
-        rptr = expr.expr.result.rptr
+        rptr = expr.expr.result.expr
         source = rptr.source
     else:
         rptr = None
@@ -1336,7 +1317,7 @@ def administer_reindex(
     ):
         raise errors.QueryError(
             'argument to reindex() must be a regular object type',
-            context=arg.context,
+            span=arg.span,
         )
 
     tables: set[s_pointers.Pointer | s_objtypes.ObjectType] = set()
@@ -1357,7 +1338,7 @@ def administer_reindex(
         if not isinstance(rptr.ptrref, irast.PointerRef):
             raise errors.QueryError(
                 'invalid pointer argument to reindex()',
-                context=arg.context,
+                span=arg.span,
             )
         schema, ptrcls = irtypeutils.ptrcls_from_ptrref(
             rptr.ptrref, schema=schema)
@@ -1421,12 +1402,12 @@ def administer_vacuum(
         if name != 'full':
             raise errors.QueryError(
                 f'unrecognized keyword argument {name!r} for vacuum()',
-                context=val.context,
+                span=val.span,
             )
         elif not isinstance(val, qlast.BooleanConstant):
             raise errors.QueryError(
                 f'argument {name!r} for vacuum() must be a boolean literal',
-                context=val.context,
+                span=val.span,
             )
         kwargs[name] = val.value
 
@@ -1452,7 +1433,7 @@ def administer_vacuum(
                 raise errors.QueryError(
                     'argument to vacuum() must be an object type '
                     'or a link or property reference',
-                    context=arg.context,
+                    span=arg.span,
                 )
 
         ir: irast.Statement = qlcompiler.compile_ast_to_ir(
@@ -1467,13 +1448,13 @@ def administer_vacuum(
             if (
                 not expr.expr
                 or not isinstance(expr.expr, irast.SelectStmt)
-                or not expr.expr.result.rptr
+                or not isinstance(expr.expr.result.expr, irast.Pointer)
             ):
                 raise errors.QueryError(
                     'invalid pointer argument to vacuum()',
-                    context=arg.context,
+                    span=arg.span,
                 )
-            rptr = expr.expr.result.rptr
+            rptr = expr.expr.result.expr
             source = rptr.source
         else:
             rptr = None
@@ -1487,7 +1468,7 @@ def administer_vacuum(
             raise errors.QueryError(
                 'argument to vacuum() must be an object type '
                 'or a link or property reference',
-                context=arg.context,
+                span=arg.span,
             )
         args.append((rptr, obj))
 
@@ -1506,7 +1487,7 @@ def administer_vacuum(
             if not isinstance(rptr.ptrref, irast.PointerRef):
                 raise errors.QueryError(
                     'invalid pointer argument to vacuum()',
-                    context=arg.context,
+                    span=arg.span,
                 )
             schema, ptrcls = irtypeutils.ptrcls_from_ptrref(
                 rptr.ptrref, schema=schema)
@@ -1520,14 +1501,14 @@ def administer_vacuum(
                     raise errors.QueryError(
                         f'{vn} is not a valid argument to vacuum() '
                         f'because it is not a multi property',
-                        context=arg.context,
+                        span=arg.span,
                     )
                 else:
                     raise errors.QueryError(
                         f'{vn} is not a valid argument to vacuum() '
                         f'because it is neither a multi link nor '
                         f'does it have link properties',
-                        context=arg.context,
+                        span=arg.span,
                     )
 
             ptrclses = {ptrcls} | {

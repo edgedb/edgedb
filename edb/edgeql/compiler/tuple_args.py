@@ -127,7 +127,8 @@ def _lmost_is_array(typ: irast.ParamTransType) -> bool:
 
 
 def translate_type(
-    typeref: irast.TypeRef, *,
+    typeref: irast.TypeRef,
+    *,
     schema: s_schema.Schema,
 ) -> tuple[irast.ParamTransType, tuple[irast.TypeRef, ...]]:
     """Translate the type of a tuple-containing param to multiple params.
@@ -360,7 +361,10 @@ def make_decoder(
 
 
 def create_sub_params(
-    name: str, required: bool, typeref: irast.TypeRef, pt: s_types.Type,
+    name: str,
+    required: bool,
+    typeref: irast.TypeRef,
+    pt: s_types.Type,
     *,
     ctx: context.ContextLevel,
 ) -> Optional[irast.SubParams]:
@@ -397,7 +401,9 @@ def create_sub_params(
 
 
 def finish_sub_params(
-    subps: irast.SubParams, *, ctx: context.ContextLevel,
+    subps: irast.SubParams,
+    *,
+    ctx: context.ContextLevel,
 ) -> Optional[irast.SubParams]:
     """Finalize the subparams by compiling the IR in the proper context.
 

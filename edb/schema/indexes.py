@@ -63,9 +63,7 @@ DEFAULT_INDEX = sn.QualName(module='__', name='idx')
 
 
 def is_index_valid_for_type(
-    index: Index,
-    expr_type: s_types.Type,
-    schema: s_schema.Schema
+    index: Index, expr_type: s_types.Type, schema: s_schema.Schema
 ) -> bool:
     # HACK: currently this helper just hardcodes the permitted index & type
     # combinations, but this should be inferred based on index definition.
@@ -259,10 +257,7 @@ class Index(
         return delta
 
     def get_verbosename(
-        self,
-        schema: s_schema.Schema,
-        *,
-        with_parent: bool = False
+        self, schema: s_schema.Schema, *, with_parent: bool = False
     ) -> str:
         # baseline name for indexes
         vn = self.get_displayname(schema)
@@ -480,10 +475,7 @@ class IndexCommand(
         return (cls._name_qual_from_exprs(schema, exprs),)
 
     @classmethod
-    def _classname_quals_from_name(
-        cls,
-        name: sn.QualName
-    ) -> Tuple[str, ...]:
+    def _classname_quals_from_name(cls, name: sn.QualName) -> Tuple[str, ...]:
         quals = sn.quals_from_fullname(name)
         return tuple(quals[-1:])
 
@@ -513,7 +505,7 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Index:
         ...
 
@@ -525,7 +517,7 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[Index]:
         ...
 
@@ -536,7 +528,7 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT, None] = so.NoDefault,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[Index]:
         try:
             return super().get_object(
@@ -632,7 +624,6 @@ class IndexCommand(
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.CompiledExpression:
         from edb.ir import utils as irutils
-        from edb.ir import ast as irast
 
         if field.name in {'expr', 'except_expr'}:
             # type ignore below, for the class is used as mixin
@@ -664,13 +655,13 @@ class IndexCommand(
                     f'possibly more than one element returned by '
                     f'the index expression where only singletons '
                     f'are allowed',
-                    context=value.qlast.context,
+                    span=value.qlast.span,
                 )
 
             if expr.irast.volatility != qltypes.Volatility.Immutable:
                 raise errors.SchemaDefinitionError(
                     f'index expressions must be immutable',
-                    context=value.qlast.context,
+                    span=value.qlast.span,
                 )
 
             refs = irutils.get_longest_paths(expr.irast)
@@ -678,27 +669,17 @@ class IndexCommand(
             has_multi = False
             for ref in refs:
                 assert subject
-                while ref.rptr:
-                    rptr = ref.rptr
-                    if rptr.dir_cardinality.is_multi():
-                        has_multi = True
-
-                    # We don't need to look further than the subject,
-                    # which is always valid. (And which is a singleton
-                    # in an index expression if it is itself a
-                    # singleton, regardless of other parts of the path.)
-                    if (
-                        isinstance(rptr.ptrref, irast.PointerRef)
-                        and rptr.ptrref.id == subject.id
-                    ):
-                        break
-                    ref = rptr.source
+                # Subject is a singleton in an index expression if it is itself
+                # a singleton, regardless of other parts of the path.
+                if irutils.ref_contains_multi(ref, subject.id):
+                    has_multi = True
+                    break
 
             if has_multi and irutils.contains_set_of_op(expr.irast):
                 raise errors.SchemaDefinitionError(
                     "cannot use aggregate functions or operators "
                     "in an index expression",
-                    context=self.source_context,
+                    span=self.span,
                 )
 
             return expr
@@ -868,7 +849,7 @@ class CreateIndex(
         if not params:
             raise errors.SchemaDefinitionError(
                 f'the {ancestor_name} does not support any parameters',
-                context=self.source_context
+                span=self.span
             )
 
         # Make sure that the kwargs are valid.
@@ -878,7 +859,7 @@ class CreateIndex(
             if param is None:
                 raise errors.SchemaDefinitionError(
                     f'the {ancestor_name} does not have a parameter {key!r}',
-                    context=self.source_context
+                    span=self.span
                 )
 
             param_type = param.get_type(schema)
@@ -899,7 +880,7 @@ class CreateIndex(
                     f'corresponding parameter of the '
                     f'{ancestor_name} with type '
                     f'{param_type.get_displayname(schema)}',
-                    context=self.source_context,
+                    span=self.span,
                 )
 
     def validate_object(
@@ -939,7 +920,7 @@ class CreateIndex(
                         raise errors.SchemaDefinitionError(
                             f'cannot create {self.get_verbosename()} '
                             f'because it extends incompatible abstract indxes',
-                            context=self.source_context
+                            span=self.span
                         )
 
                 # We should have found a root because we have bases.
@@ -960,7 +941,7 @@ class CreateIndex(
                         f'cannot create {self.get_verbosename()} '
                         f'because user-defined abstract indexes are not '
                         f'supported',
-                        context=self.source_context
+                        span=self.span
                     )
 
             return
@@ -975,7 +956,7 @@ class CreateIndex(
             if isinstance(subject, s_pointers.Pointer):
                 raise errors.SchemaDefinitionError(
                     "fts::index cannot be declared on links",
-                    context=self.source_context
+                    span=self.span
                 )
 
         # Ensure that the name of the index (if given) matches an existing
@@ -1028,7 +1009,7 @@ class CreateIndex(
                     f'cannot create {self.get_verbosename()} '
                     f'because the following parameters are still undefined: '
                     f'{names}.',
-                    context=self.source_context
+                    span=self.span
                 )
 
             # Make sure that the concrete index expression type matches the
@@ -1062,7 +1043,7 @@ class CreateIndex(
                     f'index expression ({expr.text}) '
                     f'is not of a valid type for the '
                     f'{self.scls.get_verbosename(comp_expr.schema)}',
-                    context=self.source_context,
+                    span=self.span,
                     details=hint,
                 )
 

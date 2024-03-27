@@ -40,8 +40,8 @@ from . import pathctx
 
 @dispatch.compile.register(irast.SelectStmt)
 def compile_SelectStmt(
-        stmt: irast.SelectStmt, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    stmt: irast.SelectStmt, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
 
     if ctx.singleton_mode:
         if not irutils.is_trivial_select(stmt):
@@ -140,15 +140,15 @@ def compile_SelectStmt(
 
 @dispatch.compile.register(irast.GroupStmt)
 def compile_GroupStmt(
-        stmt: irast.GroupStmt, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    stmt: irast.GroupStmt, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
     return group.compile_group(stmt, ctx=ctx)
 
 
 @dispatch.compile.register(irast.InsertStmt)
 def compile_InsertStmt(
-        stmt: irast.InsertStmt, *,
-        ctx: context.CompilerContextLevel) -> pgast.Query:
+    stmt: irast.InsertStmt, *, ctx: context.CompilerContextLevel
+) -> pgast.Query:
 
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
@@ -174,8 +174,8 @@ def compile_InsertStmt(
 
 @dispatch.compile.register(irast.UpdateStmt)
 def compile_UpdateStmt(
-        stmt: irast.UpdateStmt, *,
-        ctx: context.CompilerContextLevel) -> pgast.Query:
+    stmt: irast.UpdateStmt, *, ctx: context.CompilerContextLevel
+) -> pgast.Query:
 
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
@@ -202,8 +202,8 @@ def compile_UpdateStmt(
 
 @dispatch.compile.register(irast.DeleteStmt)
 def compile_DeleteStmt(
-        stmt: irast.DeleteStmt, *,
-        ctx: context.CompilerContextLevel) -> pgast.Query:
+    stmt: irast.DeleteStmt, *, ctx: context.CompilerContextLevel
+) -> pgast.Query:
 
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:

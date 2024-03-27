@@ -40,7 +40,6 @@ import immutables as immu
 
 from edb import errors
 
-from edb.common.typeutils import not_none
 
 from edb.edgeql import qltypes
 from edb.edgeql import ast as qlast
@@ -424,7 +423,7 @@ def maybe_get_path_var(
 
 
 def new_empty_rvar(
-        ir_set: irast.EmptySet, *,
+        ir_set: irast.SetE[irast.EmptySet], *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     nullrel = pgast.NullRelation(
         path_id=ir_set.path_id, type_or_ptr_ref=ir_set.typeref)
@@ -501,25 +500,34 @@ def new_primitive_rvar(
     lateral: bool,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
-    if isinstance(ir_set.expr, irast.TypeRoot):
-        skip_subtypes = ir_set.expr.skip_subtypes
+    # XXX: is this needed?
+    expr = irutils.sub_expr(ir_set)
+    if isinstance(expr, irast.TypeRoot):
+        skip_subtypes = expr.skip_subtypes
+        is_global = expr.is_cached_global
     else:
         skip_subtypes = False
+        is_global = False
 
     typeref = ir_set.typeref
     dml_source = irutils.get_dml_sources(ir_set)
     set_rvar = range_for_typeref(
         typeref, path_id, lateral=lateral, dml_source=dml_source,
         include_descendants=not skip_subtypes,
-        ignore_rewrites=ir_set.ignore_rewrites, ctx=ctx)
+        ignore_rewrites=ir_set.ignore_rewrites,
+        is_global=is_global,
+        ctx=ctx,
+    )
     pathctx.put_rvar_path_bond(set_rvar, path_id)
 
     # FIXME: This feels like it should all not be here.
-    rptr = ir_set.rptr
-    if rptr is not None:
-        if (isinstance(rptr.ptrref, irast.TypeIntersectionPointerRef)
-                and rptr.source.rptr):
-            rptr = rptr.source.rptr
+    if isinstance(ir_set.expr, irast.Pointer):
+        rptr = ir_set.expr
+        if (
+            isinstance(rptr.ptrref, irast.TypeIntersectionPointerRef)
+            and isinstance(rptr.source.expr, irast.Pointer)
+        ):
+            rptr = rptr.source.expr
 
         # If the set comes from an backlink, and the link is stored inline,
         # we want to output the source path.
@@ -577,11 +585,13 @@ def new_root_rvar(
 
 
 def new_pointer_rvar(
-        ir_set: irast.Set, *,
-        link_bias: bool=False,
-        src_rvar: pgast.PathRangeVar,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-    ir_ptr = not_none(ir_set.rptr)
+    ir_set: irast.SetE[irast.Pointer],
+    *,
+    link_bias: bool=False,
+    src_rvar: pgast.PathRangeVar,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+    ir_ptr = ir_set.expr
     ptrref = ir_ptr.ptrref
 
     ptr_info = pg_types.get_ptrref_storage_info(
@@ -597,12 +607,12 @@ def new_pointer_rvar(
 
 
 def _new_inline_pointer_rvar(
-        ir_set: irast.Set, *,
+        ir_set: irast.SetE[irast.Pointer], *,
         lateral: bool=True,
         ptr_info: pg_types.PointerStorageInfo,
         src_rvar: pgast.PathRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-    ir_ptr = not_none(ir_set.rptr)
+    ir_ptr = ir_set.expr
 
     ptr_rel = pgast.SelectStmt()
     ptr_rvar = rvar_for_rel(ptr_rel, lateral=lateral, ctx=ctx)
@@ -625,9 +635,9 @@ def _new_inline_pointer_rvar(
 
 
 def _new_mapped_pointer_rvar(
-        ir_set: irast.Set, *,
+        ir_set: irast.SetE[irast.Pointer], *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-    ir_ptr = not_none(ir_set.rptr)
+    ir_ptr = ir_set.expr
 
     ptrref = ir_ptr.ptrref
     dml_source = irutils.get_dml_sources(ir_ptr.source)
@@ -693,11 +703,10 @@ def new_rel_rvar(
 
 def semi_join(
         stmt: pgast.SelectStmt,
-        ir_set: irast.Set, src_rvar: pgast.PathRangeVar, *,
+        ir_set: irast.SetE[irast.Pointer], src_rvar: pgast.PathRangeVar, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     """Join an IR Set using semi-join."""
-    rptr = ir_set.rptr
-    assert rptr is not None
+    rptr = ir_set.expr
 
     # Target set range.
     set_rvar = new_root_rvar(ir_set, lateral=True, ctx=ctx)
@@ -1078,8 +1087,7 @@ def unpack_var(
 
                 el_id = path_id.ptr_path().extend(ptrref=el_ptrref)
 
-                assert el.rptr
-                card = el.rptr.ptrref.dir_cardinality(el.rptr.direction)
+                card = el.expr.dir_cardinality
                 is_singleton = card.is_single() and not card.can_be_zero()
                 must_pack = not is_singleton
 
@@ -1413,20 +1421,15 @@ def range_for_material_objtype(
     include_overlays: bool=True,
     include_descendants: bool=True,
     ignore_rewrites: bool=False,
+    is_global: bool=False,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
     env = ctx.env
 
-    # If this is a view type, but it still appears in rewrites, that is
-    # because it is a global that we are caching.
-    if (
-        typeref.material_type is not None
-        and (typeref.id, include_descendants) not in ctx.env.type_rewrites
-    ):
-        typeref = typeref.material_type
-    is_global = typeref.material_type is not None
+    if not is_global:
+        typeref = typeref.real_material_type
 
     if not is_global and not path_id.is_objtype_path():
         raise ValueError('cannot create root rvar for non-object path')
@@ -1562,7 +1565,7 @@ def range_for_material_objtype(
         )
 
     else:
-
+        assert not typeref.is_view, "attempting to generate range from view"
         table_schema_name, table_name = common.get_objtype_backend_name(
             typeref.id,
             typeref.name_hint.module,
@@ -1661,6 +1664,7 @@ def range_for_typeref(
     for_mutation: bool=False,
     include_descendants: bool=True,
     ignore_rewrites: bool=False,
+    is_global: bool=False,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
@@ -1743,6 +1747,7 @@ def range_for_typeref(
             ignore_rewrites=ignore_rewrites,
             include_overlays=not for_mutation,
             for_mutation=for_mutation,
+            is_global=is_global,
             dml_source=dml_source,
             ctx=ctx,
         )
@@ -2086,12 +2091,12 @@ def range_for_ptrref(
 
 
 def range_for_pointer(
-    ir_set: irast.Set,
+    ir_set: irast.SetE[irast.Pointer],
     *,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
-    pointer = not_none(ir_set.rptr)
+    pointer = ir_set.expr
 
     path_id = ir_set.path_id.ptr_path()
     external_rvar = ctx.env.external_rvars.get((path_id, 'source'))

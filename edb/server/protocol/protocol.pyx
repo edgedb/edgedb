@@ -34,6 +34,7 @@ import httptools
 from edb import errors
 from edb.common import debug
 from edb.common import markup
+from edb.common.log import current_tenant
 
 from edb.graphql import extension as graphql_ext
 
@@ -359,7 +360,7 @@ cdef class HttpProtocol:
             response.content_type,
             response.custom_headers,
             response.body,
-            response.close_connection)
+            response.close_connection or not request.should_keep_alive)
 
     def _switch_to_binary_protocol(self, data=None):
         binproto = binary.new_edge_connection(
@@ -405,6 +406,8 @@ cdef class HttpProtocol:
         )
         sslobj = self.transport.get_extra_info('ssl_object')
         self.tenant = self.server.retrieve_tenant(sslobj)
+        if self.tenant is not None:
+            current_tenant.set(self.get_tenant_label())
         if sslobj.selected_alpn_protocol() == 'edgedb-binary':
             self._switch_to_binary_protocol()
         else:
@@ -717,6 +720,7 @@ cdef class HttpProtocol:
             await metrics.handle_request(
                 request,
                 response,
+                self.tenant,
             )
         elif (path_parts == ['server-info'] and
             request.method == b'GET' and

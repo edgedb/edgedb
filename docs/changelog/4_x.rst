@@ -670,3 +670,82 @@ Bug fixes
 
 * Make overloading a link when omitting ``link`` keyword work
   (:eql:gh:`#6718`)
+
+4.6
+===
+
+* Fix issues with empty sets leaking out of optional scopes
+  (:eql:gh:`#6747`)
+
+* Fix empty array literals in SQL adapter
+  (:eql:gh:`#6806`)
+
+* Fix duration/memory config in config objects
+  (:eql:gh:`#6827`)
+
+* Fix hanging backend pool with fast connect
+  (:eql:gh:`#6813`)
+
+* Fix changing index expressions in migrations
+  (:eql:gh:`#6843`)
+
+* Properly report errors involving newly created types
+  (:eql:gh:`#6852`)
+
+* Make constraint error details contain useful information for developers
+  (:eql:gh:`#6796`)
+
+* Fix DML coalesce inside of IF/ELSE
+  (:eql:gh:`#6917`)
+
+* Allow trailing comma for GROUP's BY clause
+  (:eql:gh:`#7002`)
+
+* Fix computed single scalar globals
+  (:eql:gh:`#6999`)
+
+* Fix query cache dbver issue with concurrent DDL
+  (:eql:gh:`#6819`)
+
+* Several UI fixes
+
+  * Update behaviour of datatable editor to save input by default on closing
+    (:eql:gh:`edgedb/edgedb-ui/#325`)
+
+  * Store instance version with schema data, so schema is refreshed when
+    instance is upgraded (:eql:gh:`edgedb/edgedb-ui/#333`)
+
+  * De-duplicate queries when navigating repl history with ctrl+up/down
+    (:eql:gh:`edgedb/edgedb-ui/7916ee70`)
+
+  * Add max height to inline editor in dataview
+    (:eql:gh:`edgedb/edgedb-ui/b2fedb72`)
+
+  * Always order ``id`` column first in dataview
+    (:eql:gh:`edgedb/edgedb-ui/9a7c352e`)
+
+  * Improve rendering of long/multiline strings in dataview changes preview
+    (:eql:gh:`edgedb/edgedb-ui/13511ebd`)
+
+  * Fix link props in visual query builder
+    (:eql:gh:`edgedb/edgedb-ui/42492465`)
+
+  * And `many more UI fixes <https://github.com/edgedb/edgedb-ui/commits/4.x/?since=2024-02-25&until=2024-03-15>`__
+
+4.7
+===
+
+* UI: revert a few changes that were meant for 5.x only.
+
+* Revert "Compile single globals into materialized CTEs", since it introduced
+  multiple bugs. These bugs were already fixed in 5.x.
+  (:eql:gh:`#6613`)
+
+* Add optional PKCE challenge in email verification
+  (:eql:gh:`#7037`)
+
+* Fix very slow parsing performance of large files with unrecoverable errors
+  (:eql:gh:`#7046`)
+
+* Fix update rewrites on types that are children of updated type
+  (:eql:gh:`#7073`)

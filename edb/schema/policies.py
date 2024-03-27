@@ -116,7 +116,8 @@ class AccessPolicy(
         return subj
 
     def get_original_subject(
-            self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
+        self, schema: s_schema.Schema
+    ) -> s_objtypes.ObjectType:
         ancs = (self,) + self.get_ancestors(schema).objects(schema)
         return ancs[-1].get_subject(schema)
 
@@ -162,38 +163,38 @@ class AccessPolicyCommand(
                 value=expr,
             )
 
-            srcctx = self.get_attribute_source_context(field)
+            span = self.get_attribute_span(field)
 
             if expression.irast.cardinality.can_be_zero():
                 raise errors.SchemaDefinitionError(
                     f'possibly an empty set returned by {vname} '
                     f'expression for the {pol_name} ',
-                    context=srcctx
+                    span=span
                 )
 
             if expression.irast.cardinality.is_multi():
                 raise errors.SchemaDefinitionError(
                     f'possibly more than one element returned by {vname} '
                     f'expression for the {pol_name} ',
-                    context=srcctx
+                    span=span
                 )
 
             if expression.irast.volatility.is_volatile():
                 raise errors.SchemaDefinitionError(
                     f'{pol_name} has a volatile {vname} expression, '
                     f'which is not allowed',
-                    context=srcctx
+                    span=span
                 )
 
             target = schema.get(sn.QualName('std', 'bool'), type=s_types.Type)
             expr_type = expression.irast.stype
             if not expr_type.issubclass(expression.irast.schema, target):
-                srcctx = self.get_attribute_source_context(field)
+                span = self.get_attribute_span(field)
                 raise errors.SchemaDefinitionError(
                     f'{vname} expression for {pol_name} is of invalid type: '
                     f'{expr_type.get_displayname(schema)}, '
                     f'expected {target.get_displayname(schema)}',
-                    context=self.source_context,
+                    span=self.span,
                 )
 
         return schema
@@ -277,7 +278,7 @@ class AccessPolicyCommand(
                         f'insert and update write access policies may not '
                         f'refer to link properties with default values: '
                         f'{pol_name} refers to {obj_name}',
-                        context=self.source_context,
+                        span=self.span,
                     )
 
 
@@ -319,7 +320,7 @@ class CreateAccessPolicy(
                     astnode.condition, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.condition.context,
+                span=astnode.condition.span,
             )
 
         if astnode.expr:
@@ -329,7 +330,7 @@ class CreateAccessPolicy(
                     astnode.expr, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.expr.context,
+                span=astnode.expr.span,
             )
 
         cmd.set_attribute_value('action', astnode.action)
@@ -389,7 +390,7 @@ class AlterAccessPolicy(
             raise errors.SchemaDefinitionError(
                 f'cannot alter the definition of inherited access policy '
                 f'{self.scls.get_displayname(schema)}',
-                context=self.source_context
+                span=self.span
             )
 
         return schema
@@ -436,14 +437,14 @@ class AlterAccessPolicyPerms(
             sd.AlterObjectProperty(
                 property='action',
                 new_value=astnode.action,
-                source_context=astnode.context,
+                span=astnode.span,
             )
         )
         cmd.add(
             sd.AlterObjectProperty(
                 property='access_kinds',
                 new_value=astnode.access_kinds,
-                source_context=astnode.context,
+                span=astnode.span,
             )
         )
         return cmd

@@ -233,9 +233,7 @@ class ObjectType(
         ]
 
     def implicitly_castable_to(
-        self,
-        other: s_types.Type,
-        schema: s_schema.Schema
+        self, other: s_types.Type, schema: s_schema.Schema
     ) -> bool:
         return self.issubclass(schema, other)
 
@@ -273,9 +271,7 @@ class ObjectType(
         return sn.QualName(module='std', name='Object')
 
     def _issubclass(
-        self,
-        schema: s_schema.Schema,
-        parent: so.SubclassableObject
+        self, schema: s_schema.Schema, parent: so.SubclassableObject
     ) -> bool:
         if self == parent:
             return True
@@ -513,7 +509,7 @@ class ObjectTypeCommand(
                 ):
                     raise errors.SchemaDefinitionError(
                         f"cannot extend system type '{name}'",
-                        context=self.source_context,
+                        span=self.span,
                     )
 
     def get_dummy_expr_field_value(
@@ -552,9 +548,7 @@ class CreateObjectType(
             return super()._get_ast(schema, context, parent_node=parent_node)
 
     def _get_ast_node(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> Type[qlast.DDLOperation]:
         if self.get_attribute_value('expr_type'):
             return qlast.CreateAlias

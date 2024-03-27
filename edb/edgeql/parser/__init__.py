@@ -157,7 +157,7 @@ def parse(
         message, span, hint, details = error
         position = qltokenizer.inflate_position(source.text(), span)
 
-        pcontext = parsing.ParserContext(
+        parsing_span = parsing.Span(
             'query',
             source.text(),
             start=position[2],
@@ -169,7 +169,7 @@ def parse(
             position=position,
             hint=hint,
             details=details,
-            context=pcontext
+            span=parsing_span
         )
 
     return _cst_to_ast(
@@ -208,7 +208,7 @@ def _cst_to_ast(
 
             if terminal := node.terminal:
                 # Terminal is simple: just convert to parsing.Token
-                context = parsing.ParserContext(
+                span = parsing.Span(
                     name=filename,
                     buffer=source.text(),
                     start=terminal.start,
@@ -216,7 +216,7 @@ def _cst_to_ast(
                 )
                 result.append(
                     parsing.Token(
-                        terminal.text, terminal.value, context
+                        terminal.text, terminal.value, span
                     )
                 )
 

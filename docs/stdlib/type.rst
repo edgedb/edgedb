@@ -27,6 +27,36 @@ Types
       - :eql:op-desc:`introspect`
 
 
+Finding an object's type
+------------------------
+
+You can find the type of an object via that object's ``__type__`` link, which
+carries various information about the object's type, including the type's
+``name``.
+
+.. code-block:: edgeql-repl
+
+    db> select <json>Person {
+    ...  __type__: {
+    ...    name
+    ...    }
+    ...  } limit 1;
+    {Json("{\"__type__\": {\"name\": \"default::Villain\"}}")}
+
+This information can be pulled into the top level by assigning a name to
+the ``name`` property inside ``__type__``:
+
+.. code-block:: edgeql-repl
+
+    db> select <json>Person { type := .__type__.name } limit 1;
+    {Json("{\"type\": \"default::Villain\"}")}
+
+.. note::
+
+    There's nothing magical about the ``__type__`` link: it's a standard link
+    that exists on every object due to their inheritance from
+    :eql:type:`BaseObject`, linking to the current object's type.
+
 ----------
 
 

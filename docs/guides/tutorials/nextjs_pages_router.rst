@@ -1,10 +1,11 @@
-.. _ref_guide_nextjs:
+.. _ref_guide_nextjs_pages_router:
 
-=======
-Next.js
-=======
+======================
+Next.js (Pages Router)
+======================
 
-:edb-alt-title: Building a simple blog application with EdgeDB and Next.js
+:edb-alt-title: Building a simple blog application with EdgeDB and 
+   Next.js (Pages Router)
 
 We're going to build a simple blog application with
 `Next.js <https://nextjs.org/>`_ and EdgeDB. Let's start by scaffolding our

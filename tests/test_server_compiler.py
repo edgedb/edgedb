@@ -446,6 +446,8 @@ class TestCompilerPool(tbs.TestCase):
                 ).set_schema_version(uuid.uuid4())
 
                 await asyncio.gather(*(pool_.compile_in_tx(
+                    None,
+                    pickle.dumps(context.state.root_user_schema),
                     context.state.current_tx().id,
                     pickle.dumps(context.state),
                     0,

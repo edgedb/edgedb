@@ -55,6 +55,7 @@ from edb.common import devmode
 from edb.common import lru
 from edb.common import secretkey
 from edb.common import windowedsum
+from edb.common.log import current_tenant
 
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
@@ -350,7 +351,8 @@ class BaseServer:
             conn.cancel(secret)
 
     def monitor_fs(
-        self, path: str | pathlib.Path,
+        self,
+        path: str | pathlib.Path,
         cb: Callable[[str, int], None],
     ) -> Callable[[], None]:
         if not self._use_monitor_fs:
@@ -462,9 +464,9 @@ class BaseServer:
             for conn in self._binary_conns:
                 try:
                     if conn.is_idle(expiry_time):
-                        metrics.idle_client_connections.inc(
-                            1.0, conn.get_tenant_label()
-                        )
+                        label = conn.get_tenant_label()
+                        metrics.idle_client_connections.inc(1.0, label)
+                        current_tenant.set(label)
                         conn.close_for_idling()
                     elif conn.is_alive():
                         # We are sorting connections in
@@ -1064,7 +1066,7 @@ class BaseServer:
         )
 
     def get_report_config_typedesc(
-        self
+        self,
     ) -> dict[defines.ProtocolVersion, bytes]:
         return self._report_config_typedesc
 
@@ -1681,7 +1683,7 @@ class Server(BaseServer):
 
 
 def _cleanup_wildcard_addrs(
-    hosts: Sequence[str]
+    hosts: Sequence[str],
 ) -> tuple[list[str], list[str], bool, bool]:
     """Filter out conflicting addresses in presence of INADDR_ANY wildcards.
 
@@ -1777,7 +1779,7 @@ async def _resolve_host(host: str) -> list[str] | Exception:
 
 
 async def _resolve_interfaces(
-    hosts: Sequence[str]
+    hosts: Sequence[str],
 ) -> Tuple[Sequence[str], bool, bool]:
 
     async with asyncio.TaskGroup() as g:

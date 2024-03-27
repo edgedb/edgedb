@@ -106,7 +106,7 @@ def init_context(
             had_optional |= optional
             path_id = compile_anchor('__', singleton, ctx=ctx).path_id
             ctx.env.path_scope.attach_path(
-                path_id, optional=optional, context=None)
+                path_id, optional=optional, span=None)
             if not optional:
                 ctx.env.singletons.append(path_id)
             ctx.iterator_path_ids |= {path_id}
@@ -251,11 +251,19 @@ def fini_expression(
             raise errors.QueryError(
                 'expression returns value of indeterminate type',
                 hint='Consider using an explicit type cast.',
-                context=ctx.env.type_origins.get(anytype))
+                span=ctx.env.type_origins.get(anytype))
 
     # Clear out exprs that we decided to omit from the IR
     for ir_set in exprs_to_clear:
-        ir_set.expr = None
+        new = (
+            irast.MaterializedExpr(typeref=ir_set.typeref)
+            if ir_set.is_materialized_ref
+            else irast.VisibleBindingExpr(typeref=ir_set.typeref)
+        )
+        if isinstance(ir_set.expr, irast.Pointer):
+            ir_set.expr.expr = new
+        else:
+            ir_set.expr = new
 
     # Analyze GROUP statements to find aggregates that can be optimized
     group.infer_group_aggregates(all_exprs, ctx=ctx)
@@ -400,8 +408,8 @@ def _fixup_materialized_sets(
 
             assert (
                 not any(use.src_path() for use in mat_set.uses)
-                or mat_set.materialized.rptr
-            ), f"materialized ptr {mat_set.uses} missing rptr"
+                or isinstance(mat_set.materialized.expr, irast.Pointer)
+            ), f"materialized ptr {mat_set.uses} missing pointer"
             mat_set.finalized = True
 
     return to_clear
@@ -467,9 +475,7 @@ def _rewrite_weak_namespaces(
                 ir_set.path_id = _try_namespace_fix(scope, ir_set.path_id)
 
 
-def _fixup_schema_view(
-    *, ctx: context.ContextLevel
-) -> None:
+def _fixup_schema_view(*, ctx: context.ContextLevel) -> None:
     """Finalize schema view types for inclusion in the real schema.
 
     This includes setting from_alias flags and collapsing opaque
@@ -521,8 +527,7 @@ def _fixup_schema_view(
 
 
 def _get_nearest_non_source_derived_parent(
-    obj: s_obj.DerivableInheritingObjectT,
-    ctx: context.ContextLevel
+    obj: s_obj.DerivableInheritingObjectT, ctx: context.ContextLevel
 ) -> s_obj.DerivableInheritingObjectT:
     """Find the nearest ancestor of obj whose "root source" is not derived"""
     schema = ctx.env.schema
@@ -536,8 +541,9 @@ def _get_nearest_non_source_derived_parent(
 
 
 def _elide_derived_ancestors(
-    obj: Union[s_types.InheritingType, s_pointers.Pointer], *,
-    ctx: context.ContextLevel
+    obj: Union[s_types.InheritingType, s_pointers.Pointer],
+    *,
+    ctx: context.ContextLevel,
 ) -> None:
     """Collapse references to derived objects in bases.
 
@@ -744,8 +750,8 @@ def declare_view(
 
 
 def _declare_view_from_schema(
-        viewcls: s_types.Type, *,
-        ctx: context.ContextLevel) -> tuple[s_types.Type, irast.Set]:
+    viewcls: s_types.Type, *, ctx: context.ContextLevel
+) -> tuple[s_types.Type, irast.Set]:
     # We need to include "security context" things (currently just
     # access policy state) in the cache key, here.
     #
@@ -785,8 +791,8 @@ def _declare_view_from_schema(
 
 
 def declare_view_from_schema(
-        viewcls: s_types.Type, *,
-        ctx: context.ContextLevel) -> s_types.Type:
+    viewcls: s_types.Type, *, ctx: context.ContextLevel
+) -> s_types.Type:
     vc, view_set = _declare_view_from_schema(viewcls, ctx=ctx)
 
     viewcls_name = viewcls.get_name(ctx.env.schema)
@@ -818,47 +824,60 @@ def check_params(params: Dict[str, irast.Param]) -> None:
                 f'{"s" if len(missing_args) > 1 else ""}')
 
 
+def throw_on_shaped_param(
+    param: qlast.Parameter, shape: qlast.Shape, ctx: context.ContextLevel
+) -> None:
+    raise errors.QueryError(
+        f'cannot apply a shape to the parameter',
+        hint='Consider adding parentheses around the parameter and type cast',
+        span=shape.span
+    )
+
+
 def throw_on_loose_param(
-    param: qlast.Parameter,
-    ctx: context.ContextLevel
+    param: qlast.Parameter, ctx: context.ContextLevel
 ) -> None:
     if ctx.env.options.func_params is not None:
         if ctx.env.options.schema_object_context is s_constr.Constraint:
             raise errors.InvalidConstraintDefinitionError(
                 f'dollar-prefixed "$parameters" cannot be used here',
-                context=param.context)
+                span=param.span)
         else:
             raise errors.InvalidFunctionDefinitionError(
                 f'dollar-prefixed "$parameters" cannot be used here',
-                context=param.context)
+                span=param.span)
     raise errors.QueryError(
         f'missing a type cast before the parameter',
-        context=param.context)
+        span=param.span)
 
 
 def preprocess_script(
-    stmts: List[qlast.Base],
-    *,
-    ctx: context.ContextLevel
+    stmts: List[qlast.Base], *, ctx: context.ContextLevel
 ) -> irast.ScriptInfo:
     """Extract parameters from all statements in a script.
 
     Doing this in advance makes it easy to check that they have
     consistent types.
     """
-    param_lists = [
+    params_lists = [
         astutils.find_parameters(stmt, ctx.modaliases)
         for stmt in stmts
     ]
 
     if loose_params := [
-        loose for _, loose_list in param_lists
-        for loose in loose_list
+        loose for params in params_lists
+        for loose in params.loose_params
     ]:
         throw_on_loose_param(loose_params[0], ctx)
 
+    if shaped_params := [
+        shaped for params in params_lists
+        for shaped in params.shaped_params
+    ]:
+        throw_on_shaped_param(shaped_params[0][0], shaped_params[0][1], ctx)
+
     casts = [
-        cast for cast_lists, _ in param_lists for cast in cast_lists
+        cast for params in params_lists for cast in params.cast_params
     ]
     params = {}
     for cast, modaliases in casts:

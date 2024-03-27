@@ -73,6 +73,12 @@ To execute a GraphQL query against the database ``edgedb`` on the instance
 named ``inst2``, we would send an HTTP request to
 ``http://localhost:10702/db/edgedb/graphql``.
 
+To determine the URL of an EdgeDB Cloud instance, find the host by running
+``edgedb instance credentials -I <org-name>/<instance-name>``. Use the
+``host`` and ``port`` from that table in the URL format at the top of this
+section. Change the protocol to ``https`` since EdgeDB Cloud instances are
+secured with TLS.
+
 .. note::
 
   The endpoint also provides a `GraphiQL`_ interface to explore the GraphQL

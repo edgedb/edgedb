@@ -144,16 +144,12 @@ class Link(
                      and not p.is_pure_computable(schema)])
 
     def get_source(
-        self,
-        schema: s_schema.Schema
+        self, schema: s_schema.Schema
     ) -> Optional[s_objtypes.ObjectType]:
         return self.get_field_value(  # type: ignore[no-any-return]
             schema, 'source')
 
-    def get_source_type(
-        self,
-        schema: s_schema.Schema
-    ) -> s_objtypes.ObjectType:
+    def get_source_type(self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
         source = self.get_source(schema)
         assert source
         return source
@@ -182,8 +178,9 @@ class Link(
         target: s_types.Type,
     ) -> s_schema.Schema:
         schema = super().set_target(schema, target)
-        tgt_prop = self.getptr(schema, sn.UnqualName('target'))
-        schema = tgt_prop.set_target(schema, target)
+        tgt_prop = self.maybe_get_ptr(schema, sn.UnqualName('target'))
+        if tgt_prop:
+            schema = tgt_prop.set_target(schema, target)
         return schema
 
     @classmethod
@@ -260,7 +257,7 @@ class LinkCommand(
         assert target is not None
 
         if not target.is_object_type():
-            srcctx = self.get_attribute_source_context('target')
+            span = self.get_attribute_span('target')
             if isinstance(target, s_types.Array):
                 # Custom error message for link -> array<...>
                 link_dn = scls.get_displayname(schema)
@@ -272,15 +269,15 @@ class LinkCommand(
             raise errors.InvalidLinkTargetError(
                 f'invalid link target type, expected object type, got '
                 f'{target.get_verbosename(schema)}',
-                context=srcctx,
+                span=span,
                 hint=hint,
             )
 
         if target.is_free_object_type(schema):
-            srcctx = self.get_attribute_source_context('target')
+            span = self.get_attribute_span('target')
             raise errors.InvalidLinkTargetError(
                 f'{target.get_verbosename(schema)} is not a valid link target',
-                context=srcctx,
+                span=span,
             )
 
         if (
@@ -288,11 +285,11 @@ class LinkCommand(
             and not scls.get_from_alias(schema)
             and target.is_view(schema)
         ):
-            srcctx = self.get_attribute_source_context('target')
+            span = self.get_attribute_span('target')
             raise errors.InvalidLinkTargetError(
                 f'invalid link type: {target.get_displayname(schema)!r}'
                 f' is an expression alias, not a proper object type',
-                context=srcctx,
+                span=span,
             )
 
         if (
@@ -303,7 +300,7 @@ class LinkCommand(
             raise errors.InvalidLinkTargetError(
                 'required links may not use `on target delete '
                 'deferred restrict`',
-                context=self.source_context,
+                span=self.span,
             )
 
     def _get_ast(
@@ -463,6 +460,11 @@ class CreateLink(
         if parent_ctx is None:
             return cmd
 
+        # Skip source and target when compiling stuff that won't ever
+        # go into a real schema.
+        if context.slim_links:
+            return cmd
+
         base_prop_name = sn.QualName('std', 'source')
         s_name = sn.get_specialized_name(
             sn.QualName('__', 'source'), str(self.classname))
@@ -565,11 +567,12 @@ class SetLinkType(
 
         if not context.canonical:
             # We need to update the target link prop as well
-            tgt_prop = scls.getptr(schema, sn.UnqualName('target'))
-            tgt_prop_alter = tgt_prop.init_delta_command(
-                schema, sd.AlterObject)
-            tgt_prop_alter.set_attribute_value('target', new_target)
-            self.add(tgt_prop_alter)
+            tgt_prop = scls.maybe_get_ptr(schema, sn.UnqualName('target'))
+            if tgt_prop:
+                tgt_prop_alter = tgt_prop.init_delta_command(
+                    schema, sd.AlterObject)
+                tgt_prop_alter.set_attribute_value('target', new_target)
+                self.add(tgt_prop_alter)
 
         return schema
 

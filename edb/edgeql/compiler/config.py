@@ -66,7 +66,8 @@ class SettingInfo(NamedTuple):
 
 @dispatch.compile.register
 def compile_ConfigSet(
-    expr: qlast.ConfigSet, *,
+    expr: qlast.ConfigSet,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
 
@@ -85,7 +86,7 @@ def compile_ConfigSet(
             )
         else:
             param_val = casts.compile_cast(
-                param_val, param_type, srcctx=None, ctx=ctx)
+                param_val, param_type, span=None, ctx=ctx)
 
     try:
         if expr.scope != qltypes.ConfigScope.GLOBAL:
@@ -96,7 +97,7 @@ def compile_ConfigSet(
     except ireval.UnsupportedExpressionError as e:
         raise errors.QueryError(
             f'non-constant expression in CONFIGURE {expr.scope} SET',
-            context=expr.expr.context
+            span=expr.expr.span
         ) from e
     else:
         if isinstance(val, statypes.ScalarType) and info.backend_setting:
@@ -119,7 +120,7 @@ def compile_ConfigSet(
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
         is_system_config=info.is_system_config,
-        context=expr.context,
+        span=expr.span,
         expr=param_val,
         backend_expr=backend_expr,
     )
@@ -128,7 +129,8 @@ def compile_ConfigSet(
 
 @dispatch.compile.register
 def compile_ConfigReset(
-    expr: qlast.ConfigReset, *,
+    expr: qlast.ConfigReset,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
 
@@ -140,7 +142,7 @@ def compile_ConfigReset(
         raise errors.QueryError(
             'RESET of a primitive configuration parameter '
             'must not have a FILTER clause',
-            context=expr.context,
+            span=expr.span,
         )
 
     elif isinstance(info.param_type, s_objtypes.ObjectType):
@@ -181,7 +183,7 @@ def compile_ConfigReset(
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
         is_system_config=info.is_system_config,
-        context=expr.context,
+        span=expr.span,
         selector=select_ir,
     )
     return setgen.ensure_set(config_reset, ctx=ctx)
@@ -189,7 +191,8 @@ def compile_ConfigReset(
 
 @dispatch.compile.register
 def compile_ConfigInsert(
-        expr: qlast.ConfigInsert, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.ConfigInsert, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     info = _validate_op(expr, ctx=ctx)
 
@@ -229,15 +232,15 @@ def compile_ConfigInsert(
             backend_setting=info.backend_setting,
             is_system_config=info.is_system_config,
             expr=insert_subject,
-            context=expr.context,
+            span=expr.span,
         ),
         ctx=ctx,
     )
 
 
 def _inject_tname(
-        insert_stmt: qlast.InsertQuery, *,
-        ctx: context.ContextLevel) -> None:
+    insert_stmt: qlast.InsertQuery, *, ctx: context.ContextLevel
+) -> None:
 
     for el in insert_stmt.shape:
         if isinstance(el.compexpr, qlast.InsertQuery):
@@ -264,17 +267,16 @@ def _inject_tname(
 
 
 def _validate_config_object(
-        expr: irast.Set, *,
-        scope: str,
-        ctx: context.ContextLevel) -> None:
+    expr: irast.Set, *, scope: str, ctx: context.ContextLevel
+) -> None:
 
     for element, _ in expr.shape:
-        assert element.rptr is not None
-        if element.rptr.ptrref.shortname.name == 'id':
+        assert isinstance(element.expr, irast.Pointer)
+        if element.expr.ptrref.shortname.name == 'id':
             continue
 
         ptr = typegen.ptrcls_from_ptrref(
-            element.rptr.ptrref.real_material_ptr,
+            element.expr.ptrref.real_material_ptr,
             ctx=ctx,
         )
         if isinstance(ptr, s_pointers.Pointer):
@@ -287,8 +289,8 @@ def _validate_config_object(
 
 
 def _validate_global_op(
-        expr: qlast.ConfigOp, *,
-        ctx: context.ContextLevel) -> SettingInfo:
+    expr: qlast.ConfigOp, *, ctx: context.ContextLevel
+) -> SettingInfo:
     glob = ctx.env.get_schema_object_and_track(
         s_utils.ast_ref_to_name(expr.name), expr.name,
         modaliases=ctx.modaliases, type=s_globals.Global)
@@ -308,9 +310,12 @@ def _validate_global_op(
 
 
 def _enforce_pointer_constraints(
-        ptr: s_pointers.Pointer, expr: irast.Set, *,
-        ctx: context.ContextLevel,
-        for_obj: bool) -> None:
+    ptr: s_pointers.Pointer,
+    expr: irast.Set,
+    *,
+    ctx: context.ContextLevel,
+    for_obj: bool,
+) -> None:
     constraints = ptr.get_constraints(ctx.env.schema)
     for constraint in constraints.objects(ctx.env.schema):
         if constraint.issubclass(
@@ -341,8 +346,8 @@ def _enforce_pointer_constraints(
 
 
 def _validate_op(
-        expr: qlast.ConfigOp, *,
-        ctx: context.ContextLevel) -> SettingInfo:
+    expr: qlast.ConfigOp, *, ctx: context.ContextLevel
+) -> SettingInfo:
 
     if expr.scope == qltypes.ConfigScope.GLOBAL:
         return _validate_global_op(expr, ctx=ctx)
@@ -387,7 +392,7 @@ def _validate_op(
         if isinstance(expr, qlast.ConfigSet):
             raise errors.ConfigurationError(
                 f'unrecognized configuration parameter {name!r}',
-                context=expr.context
+                span=expr.span
             )
 
         cfg_type = ctx.env.get_schema_type_and_track(
@@ -399,7 +404,7 @@ def _validate_op(
         if not cfg_type:
             raise errors.ConfigurationError(
                 f'unrecognized configuration object {name!r}',
-                context=expr.context
+                span=expr.span
             )
 
         assert isinstance(cfg_type, s_objtypes.ObjectType)

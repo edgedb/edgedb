@@ -162,9 +162,7 @@ def _descend(
     if cmd_filter:
         commands = tuple(filter(cmd_filter, commands))
 
-    def _write_subcommands(
-        commands: Collection[sd.Command]
-    ) -> None:
+    def _write_subcommands(commands: Collection[sd.Command]) -> None:
         for subcmd in commands:
             if not isinstance(subcmd, sd.AlterObjectProperty):
                 write_meta(

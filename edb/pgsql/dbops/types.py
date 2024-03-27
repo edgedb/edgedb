@@ -135,8 +135,7 @@ class AlterCompositeTypeBaseMixin:
 
 
 class AlterCompositeTypeBase(AlterCompositeTypeBaseMixin, ddl.DDLOperation):
-    def __init__(
-            self, name, *, conditions=None, neg_conditions=None):
+    def __init__(self, name, *, conditions=None, neg_conditions=None):
         ddl.DDLOperation.__init__(
             self, conditions=conditions, neg_conditions=neg_conditions)
         AlterCompositeTypeBaseMixin.__init__(self, name=name)
@@ -148,7 +147,8 @@ class AlterCompositeTypeFragment(ddl.DDLOperation):
 
 
 class AlterCompositeType(
-        AlterCompositeTypeBaseMixin, base.CompositeCommandGroup):
+    AlterCompositeTypeBaseMixin, base.CompositeCommandGroup
+):
     def __init__(self, name, *, conditions=None, neg_conditions=None):
         base.CompositeCommandGroup.__init__(
             self, conditions=conditions, neg_conditions=neg_conditions)
@@ -156,7 +156,8 @@ class AlterCompositeType(
 
 
 class AlterCompositeTypeAddAttribute(  # type: ignore
-        composites.AlterCompositeAddAttribute, AlterCompositeTypeFragment):
+    composites.AlterCompositeAddAttribute, AlterCompositeTypeFragment
+):
     def code(self, block: base.PLBlock) -> str:
         return 'ADD {} {}'.format(
             self.get_attribute_term(), self.attribute.code(block, short=True))

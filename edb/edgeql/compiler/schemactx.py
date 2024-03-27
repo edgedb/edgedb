@@ -65,12 +65,12 @@ def get_schema_object(
     condition: Optional[Callable[[s_obj.Object], bool]]=None,
     label: Optional[str]=None,
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext] = None,
+    span: Optional[parsing.Span] = None,
 ) -> s_obj.Object:
 
     if isinstance(ref, qlast.ObjectRef):
-        if srcctx is None:
-            srcctx = ref.context
+        if span is None:
+            span = ref.span
         module = ref.module
         lname = ref.name
     elif isinstance(ref, qlast.PseudoObjectRef):
@@ -103,7 +103,7 @@ def get_schema_object(
             item_type=item_type,
             pointer_parent=_get_partial_path_prefix_type(ctx),
             condition=condition,
-            context=srcctx,
+            span=span,
         )
         raise
 
@@ -112,7 +112,7 @@ def get_schema_object(
         # not yet a valid schema object
         raise errors.SchemaDefinitionError(
             f'illegal self-reference in definition of {str(name)!r}',
-            context=srcctx)
+            span=span)
 
     return stype
 
@@ -138,20 +138,20 @@ def get_schema_type(
     label: Optional[str] = None,
     condition: Optional[Callable[[s_obj.Object], bool]] = None,
     item_type: Optional[Type[s_obj.Object]] = None,
-    srcctx: Optional[parsing.ParserContext] = None,
+    span: Optional[parsing.Span] = None,
 ) -> s_types.Type:
     if item_type is None:
         item_type = s_types.Type
     obj = get_schema_object(name, module, item_type=item_type,
                             condition=condition, label=label,
-                            ctx=ctx, srcctx=srcctx)
+                            ctx=ctx, span=span)
     assert isinstance(obj, s_types.Type)
     return obj
 
 
 def resolve_schema_name(
-        name: str, module: str, *,
-        ctx: context.ContextLevel) -> Optional[sn.QualName]:
+    name: str, module: str, *, ctx: context.ContextLevel
+) -> Optional[sn.QualName]:
     schema_module = ctx.modaliases.get(module)
     if schema_module is None:
         return None
@@ -241,6 +241,10 @@ def derive_view(
                 inheritance_refdicts={'pointers'},
                 mark_derived=True,
                 transient=True,
+                # When compiling aliases, we can't elide
+                # @source/@target pointers, which normally we would
+                # when creating a view.
+                preserve_endpoint_ptrs=ctx.env.options.schema_view_mode,
                 attrs=attrs,
                 stdmode=ctx.env.options.bootstrap_mode,
             )
@@ -335,7 +339,12 @@ def derive_ptr(
         inheritance_refdicts={'pointers'},
         mark_derived=True,
         transient=True,
-        attrs=attrs)
+        # When compiling aliases, we can't elide
+        # @source/@target pointers, which normally we would
+        # when creating a view.
+        preserve_endpoint_ptrs=ctx.env.options.schema_view_mode,
+        attrs=attrs,
+    )
 
     if not ptr.is_non_concrete(ctx.env.schema):
         if isinstance(derived, s_sources.Source):
@@ -496,10 +505,7 @@ class TypeIntersectionResult(NamedTuple):
 
 
 def apply_intersection(
-    left: s_types.Type,
-    right: s_types.Type,
-    *,
-    ctx: context.ContextLevel
+    left: s_types.Type, right: s_types.Type, *, ctx: context.ContextLevel
 ) -> TypeIntersectionResult:
     """Compute an intersection of two types: *left* and *right*.
 
@@ -587,7 +593,6 @@ def derive_dummy_ptr(
             },
             name=derived_name,
             mark_derived=True,
-            transient=True,
         )
         ctx.env.created_schema_objects.add(derived)
 

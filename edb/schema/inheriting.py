@@ -37,7 +37,7 @@ from typing import (
 
 from edb import errors
 
-from edb.common import context as ctx_utils
+from edb.common import span as edb_span
 from edb.common import struct
 from edb.edgeql import ast as qlast
 from edb.schema import schema as s_schema
@@ -142,8 +142,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     schema=schema,
                 )
             except errors.SchemaDefinitionError as e:
-                if (srcctx := self.get_attribute_source_context(field_name)):
-                    e.set_source_context(srcctx)
+                if (span := self.get_attribute_span(field_name)):
+                    e.set_span(span)
                 raise
 
             if not ignore_local_field:
@@ -766,9 +766,7 @@ class CreateInheritingObject(
                 'inherited_fields', frozenset(inherited_fields))
 
     def _create_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super()._create_begin(schema, context)
 
@@ -811,15 +809,15 @@ class CreateInheritingObject(
 
         assert isinstance(astnode, qlast.ObjectDDL)
         bases = cls._classbases_from_ast(schema, astnode, context)
-        ctxes = [b.sourcectx for b in bases if b.sourcectx is not None]
-        if ctxes:
-            srcctx = ctx_utils.merge_context(ctxes)
+        spans = [b.sourcectx for b in bases if b.sourcectx is not None]
+        if spans:
+            span = edb_span.merge_spans(spans)
         else:
-            srcctx = None
+            span = None
         cmd.set_attribute_value(
             'bases',
             so.ObjectCollectionShell(bases, collection_type=so.ObjectList),
-            source_context=srcctx,
+            span=span,
         )
 
         return cmd
@@ -1177,9 +1175,7 @@ class RebaseInheritingObject(
         return 'alter'
 
     def _alter_finalize(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super()._alter_finalize(schema, context)
 
