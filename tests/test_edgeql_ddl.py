@@ -11868,6 +11868,112 @@ type default::Foo {
                     EXTENDING enum<Green>;
             ''')
 
+    async def test_edgeql_ddl_enum_06(self):
+        await self.con.execute(
+            "CREATE SCALAR TYPE default::LongLabel EXTENDING enum<\n"
+            "    AAAAAAAAAA"
+                "BBBBBBBBBB"
+                "CCCCCCCCCC"
+                "DDDDDDDDDD"
+                "EEEEEEEEEE"
+                "FFFFFFFFFF"
+                "GGG\n"
+            ">"
+        )
+
+    async def test_edgeql_ddl_enum_07(self):
+        await self.con.execute(
+            "CREATE SCALAR TYPE default::LongLabel EXTENDING enum<\n"
+            "    'AAAAAAAAAA"
+                "BBBBBBBBBB"
+                "CCCCCCCCCC"
+                "DDDDDDDDDD"
+                "EEEEEEEEEE"
+                "FFFFFFFFFF"
+                "GGG'\n"
+            ">"
+        )
+
+    async def test_edgeql_ddl_enum_08(self):
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            r'enum labels cannot exceed 63 characters'
+        ):
+            await self.con.execute(
+                "CREATE SCALAR TYPE default::LongLabel EXTENDING enum<\n"
+                "    AAAAAAAAAA"
+                    "BBBBBBBBBB"
+                    "CCCCCCCCCC"
+                    "DDDDDDDDDD"
+                    "EEEEEEEEEE"
+                    "FFFFFFFFFF"
+                    "GGGG\n"
+                ">"
+            )
+
+    async def test_edgeql_ddl_enum_09(self):
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            r'enum labels cannot exceed 63 characters'
+        ):
+            await self.con.execute(
+                "CREATE SCALAR TYPE default::LongLabel EXTENDING enum<\n"
+                "    'AAAAAAAAAA"
+                    "BBBBBBBBBB"
+                    "CCCCCCCCCC"
+                    "DDDDDDDDDD"
+                    "EEEEEEEEEE"
+                    "FFFFFFFFFF"
+                    "GGGG'\n"
+                ">"
+            )
+
+    async def test_edgeql_ddl_enum_10(self):
+        await self.con.execute(
+            "CREATE SCALAR TYPE default::LongLabel EXTENDING enum<\n"
+            "    AAAAAAAAAA\n"
+            ">"
+        )
+
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            r'enum labels cannot exceed 63 characters'
+        ):
+            await self.con.execute(
+                "ALTER SCALAR TYPE default::LongLabel EXTENDING enum<\n"
+                "    AAAAAAAAAA"
+                    "BBBBBBBBBB"
+                    "CCCCCCCCCC"
+                    "DDDDDDDDDD"
+                    "EEEEEEEEEE"
+                    "FFFFFFFFFF"
+                    "GGGG\n"
+                ">"
+            )
+
+    async def test_edgeql_ddl_enum_11(self):
+        await self.con.execute(
+            "CREATE SCALAR TYPE default::LongLabel EXTENDING enum<\n"
+            "    'AAAAAAAAAA'\n"
+            ">"
+        )
+
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            r'enum labels cannot exceed 63 characters'
+        ):
+            await self.con.execute(
+                "ALTER SCALAR TYPE default::LongLabel EXTENDING enum<\n"
+                "    'AAAAAAAAAA"
+                    "BBBBBBBBBB"
+                    "CCCCCCCCCC"
+                    "DDDDDDDDDD"
+                    "EEEEEEEEEE"
+                    "FFFFFFFFFF"
+                    "GGGG'\n"
+                ">"
+            )
+
     async def test_edgeql_ddl_explicit_id(self):
         await self.con.execute('''
             CREATE TYPE ExID {
