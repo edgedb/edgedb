@@ -10668,7 +10668,7 @@ type default::Foo {
                             (distinct __subject__ = __subject__)
                         );
                     };
-                }; 
+                };
             """)
 
     async def test_edgeql_ddl_constraint_28(self):

@@ -1399,8 +1399,8 @@ def type_shell_substitute(
 
 def try_compile_irast_to_sql_tree(
     compiled_expr: s_expr.CompiledExpression,
-    span: parsing.Span
-):
+    span: Optional[parsing.Span]
+) -> None:
     # compile the expression to sql to preempt errors downstream
 
     from edb.pgsql import compiler as pg_compiler
