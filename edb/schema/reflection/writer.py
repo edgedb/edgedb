@@ -530,39 +530,39 @@ def _build_object_mutation_shape(
 
         variables[var_n] = json.dumps(target_value)
 
-    if isinstance(cmd, sd.CreateObject):
-        if (
-            issubclass(mcls, (s_scalars.ScalarType, s_types.Collection))
-            and not issubclass(mcls, s_types.CollectionExprAlias)
-            and not cmd.get_attribute_value('abstract')
-            and not cmd.get_attribute_value('transient')
-        ):
-            kind = f'"schema::{mcls.__name__}"'
+    object_actually_exists = schema.has_object(cmd.scls.id)
+    if (
+        isinstance(cmd, sd.CreateObject)
+        and object_actually_exists
+        and issubclass(mcls, (s_scalars.ScalarType, s_types.Collection))
+        and not issubclass(mcls, s_types.CollectionExprAlias)
+        and not cmd.get_attribute_value('abstract')
+        and not cmd.get_attribute_value('transient')
+    ):
+        kind = f'"schema::{mcls.__name__}"'
 
-            if issubclass(mcls, (s_types.Array,
-                                 s_types.Range,
-                                 s_types.MultiRange)):
-                assignments.append(
-                    f'backend_id := sys::_get_pg_type_for_edgedb_type('
-                    f'<uuid>$__{var_prefix}id, '
-                    f'{kind}, '
-                    f'<uuid>$__{var_prefix}element_type, '
-                    f'<str>$__{var_prefix}sql_type2), '
-                )
-            else:
-                assignments.append(
-                    f'backend_id := sys::_get_pg_type_for_edgedb_type('
-                    f'<uuid>$__{var_prefix}id, {kind}, <uuid>{{}}, '
-                    f'<str>$__{var_prefix}sql_type2), '
-                )
-            sql_type = None
-            if isinstance(cmd.scls, s_scalars.ScalarType):
-                sql_type, _ = cmd.scls.resolve_sql_type_scheme(schema)
+        if issubclass(mcls, (s_types.Array, s_types.Range, s_types.MultiRange)):
+            assignments.append(
+                f'backend_id := sys::_get_pg_type_for_edgedb_type('
+                f'<uuid>$__{var_prefix}id, '
+                f'{kind}, '
+                f'<uuid>$__{var_prefix}element_type, '
+                f'<str>$__{var_prefix}sql_type2), '
+            )
+        else:
+            assignments.append(
+                f'backend_id := sys::_get_pg_type_for_edgedb_type('
+                f'<uuid>$__{var_prefix}id, {kind}, <uuid>{{}}, '
+                f'<str>$__{var_prefix}sql_type2), '
+            )
+        sql_type = None
+        if isinstance(cmd.scls, s_scalars.ScalarType):
+            sql_type, _ = cmd.scls.resolve_sql_type_scheme(schema)
 
-            variables[f'__{var_prefix}id'] = json.dumps(
-                str(cmd.get_attribute_value('id')))
-            variables[f'__{var_prefix}sql_type2'] = json.dumps(
-                sql_type)
+        variables[f'__{var_prefix}id'] = json.dumps(
+            str(cmd.get_attribute_value('id'))
+        )
+        variables[f'__{var_prefix}sql_type2'] = json.dumps(sql_type)
 
     shape = ',\n'.join(assignments)
 

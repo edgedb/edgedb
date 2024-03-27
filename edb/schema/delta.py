@@ -2248,36 +2248,52 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         # fix up (a computed property and a constraint on it, for
         # example, requires us to fix up the computed property first),
         # so sort by dependency order.
-        objs_to_cmds = {}
+        objs_to_cmds: Dict[
+            so.Object, List[Tuple[Command, AlterObject[so.Object], List[str]]]
+        ] = {}
         for delta, cmd, refdesc in context.affected_finalization.get(self, []):
             if schema.has_object(cmd.scls.id):
-                objs_to_cmds[cmd.scls] = delta, cmd, refdesc
+                cmds = objs_to_cmds.setdefault(cmd.scls, [])
+                cmds.append((delta, cmd, refdesc))
         objs = sort_by_cross_refs(schema, objs_to_cmds.keys())
 
         for obj in reversed(objs):
-            delta, cmd, refdesc = objs_to_cmds[obj]
-            try:
-                cmd.canonicalize_alter_from_external_ref(schema, context)
-                schema = delta.apply(schema, context)
+            for delta, cmd, refdesc in objs_to_cmds[obj]:
+                try:
+                    cmd.canonicalize_alter_from_external_ref(schema, context)
+                    schema = delta.apply(schema, context)
 
-                if not context.canonical and delta:
-                    # We need to force the attributes to be resolved so
-                    # that expressions get compiled *now* under a schema
-                    # where they are correct, and not later, when more
-                    # renames may have broken them.
-                    assert isinstance(cmd, ObjectCommand)
-                    for key, value in cmd.get_resolved_attributes(
-                            schema, context).items():
-                        cmd.set_attribute_value(key, value)
-                    self.add(delta)
-            except errors.QueryError as e:
-                orig_schema = context.current().original_schema
-                desc = self.get_friendly_description(schema=orig_schema)
-                raise errors.SchemaDefinitionError(
-                    f'cannot {desc} because this affects'
-                    f' {" and ".join(refdesc)}',
-                    details=e.args[0],
-                ) from e
+                    if not context.canonical and delta:
+                        # We need to force the attributes to be resolved so
+                        # that expressions get compiled *now* under a schema
+                        # where they are correct, and not later, when more
+                        # renames may have broken them.
+                        assert isinstance(cmd, ObjectCommand)
+                        res_attrs = cmd.get_resolved_attributes(schema, context)
+                        for key, value in res_attrs.items():
+                            cmd.set_attribute_value(key, value)
+
+                        # HACK: Apply constraint of pointers in innards, because
+                        # when converting a pointer to a computed pointer,
+                        # constraints need to be adjusted before the column is
+                        # dropped. We cannot drop the column later because we
+                        # need mainain the ordering of drops of any children
+                        # pointers.
+                        from . import constraints as s_constraints
+
+                        if isinstance(cmd, s_constraints.ConstraintCommand):
+                            self.add(delta)
+                        else:
+                            # base case
+                            self.add_caused(delta)
+                except errors.QueryError as e:
+                    orig_schema = context.current().original_schema
+                    desc = self.get_friendly_description(schema=orig_schema)
+                    raise errors.SchemaDefinitionError(
+                        f'cannot {desc} because this affects'
+                        f' {" and ".join(refdesc)}',
+                        details=e.args[0],
+                    ) from e
 
         return schema
 

@@ -373,12 +373,7 @@ class AlterAliasLike(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if (
-            not context.canonical
-            # FIXME: This is not really correct, but alias altering is
-            # currently too broken to accept expr propagations.
-            and not self.from_expr_propagation
-        ):
+        if not context.canonical:
             expr = self.get_attribute_value('expr')
             is_computable = self._is_computable(self.scls, schema)
             if expr:
