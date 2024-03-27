@@ -1024,7 +1024,7 @@ def _cast_json_to_multirange(
     new_stype: s_types.MultiRange,
     cardinality_mod: Optional[qlast.CardinalityModifier],
     *,
-    srcctx: Optional[parsing.Span],
+    span: Optional[parsing.Span],
     ctx: context.ContextLevel,
 ) -> irast.Set:
 

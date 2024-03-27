@@ -832,8 +832,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_TypeName(self, node: qlast.TypeName) -> None:
         parenthesize = (
             isinstance(
-                node._parent,
-                (qlast.IsOp, qlast.TypeOp, qlast.Introspect),  # type: ignore
+                node._parent,  # type: ignore
+                (qlast.IsOp, qlast.TypeOp, qlast.Introspect),
             )
             and node.subtypes is not None
         )
