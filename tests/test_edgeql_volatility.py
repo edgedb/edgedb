@@ -699,6 +699,16 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
             self.assertEqual(len(res), 3)
 
+    async def test_edgeql_volatility_select_with_objects_11(self):
+        for query in self._test_loop(10):
+            res = await query("""
+                WITH W := materialized((SELECT Obj FILTER .n != 2)),
+                SELECT ((SELECT W {n}), (SELECT W {n}))
+            """)
+
+            self._check_crossproduct(
+                [(row[0]['n'], row[1]['n']) for row in res])
+
     async def test_edgeql_volatility_select_objects_optional_01(self):
         for _ in range(10):
             await self.assert_query_result(
