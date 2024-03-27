@@ -107,7 +107,8 @@ class AliasLikeCommand(
 
     @classmethod
     def _is_computable(
-            cls, obj: so.QualifiedObject_T, schema: s_schema.Schema) -> bool:
+        cls, obj: so.QualifiedObject_T, schema: s_schema.Schema
+    ) -> bool:
         raise NotImplementedError
 
     # Generic code
@@ -261,11 +262,12 @@ class AliasCommand(
         return True
 
     @classmethod
-    def _classname_from_ast(cls,
-                            schema: s_schema.Schema,
-                            astnode: qlast.NamedDDL,
-                            context: sd.CommandContext
-                            ) -> sn.QualName:
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.QualName:
         type_name = super()._classname_from_ast(schema, astnode, context)
         return cls._mangle_name(type_name)
 

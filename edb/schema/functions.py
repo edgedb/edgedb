@@ -325,7 +325,8 @@ class ParameterDesc(ParameterLike):
 
 
 def _params_are_all_required_singletons(
-    params: Sequence[ParameterLike], schema: s_schema.Schema,
+    params: Sequence[ParameterLike],
+    schema: s_schema.Schema,
 ) -> bool:
     return all(
         param.get_kind(schema) is not ft.ParameterKind.VariadicParam
@@ -672,19 +673,23 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
         return '(' + ', '.join(ret) + ')'
 
     def has_polymorphic(self, schema: s_schema.Schema) -> bool:
-        return any(p.get_type(schema).is_polymorphic(schema)
-                   for p in self.objects(schema))
+        return any(
+            p.get_type(schema).is_polymorphic(schema)
+            for p in self.objects(schema)
+        )
 
     def has_type_mod(
-            self, schema: s_schema.Schema, mod: ft.TypeModifier) -> bool:
+        self, schema: s_schema.Schema, mod: ft.TypeModifier
+    ) -> bool:
         return any(p.get_typemod(schema) is mod for p in self.objects(schema))
 
     def has_set_of(self, schema: s_schema.Schema) -> bool:
         return self.has_type_mod(schema, ft.TypeModifier.SetOfType)
 
     def has_objects(self, schema: s_schema.Schema) -> bool:
-        return any(p.get_type(schema).is_object_type()
-                   for p in self.objects(schema))
+        return any(
+            p.get_type(schema).is_object_type() for p in self.objects(schema)
+        )
 
     def find_named_only(
         self,

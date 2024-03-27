@@ -98,8 +98,7 @@ class CardinalityBound(int, enum.Enum):
 
     @classmethod
     def from_schema_value(
-        cls,
-        card: qltypes.SchemaCardinality
+        cls, card: qltypes.SchemaCardinality
     ) -> CardinalityBound:
         if card >= qltypes.SchemaCardinality.Many:
             return CB_MANY
@@ -117,9 +116,7 @@ class CardinalityBounds(NamedTuple):
     upper: CardinalityBound
 
 
-def _card_to_bounds(
-    card: qltypes.Cardinality
-) -> CardinalityBounds:
+def _card_to_bounds(card: qltypes.Cardinality) -> CardinalityBounds:
     lower, upper = card.to_schema_value()
     return CardinalityBounds(
         CardinalityBound.from_required(lower),
@@ -479,8 +476,8 @@ def _infer_pointer_cardinality(
 
 
 def _update_cardinality_in_derived(
-        ptrcls: s_pointers.Pointer, *,
-        env: context.Environment) -> None:
+    ptrcls: s_pointers.Pointer, *, env: context.Environment
+) -> None:
 
     children = env.pointer_derivation_map.get(ptrcls)
     if children:
@@ -1471,8 +1468,7 @@ def infer_cardinality(
 
 
 def is_subset_cardinality(
-    card0: qltypes.Cardinality,
-    card1: qltypes.Cardinality
+    card0: qltypes.Cardinality, card1: qltypes.Cardinality
 ) -> bool:
     '''Determine if card0 is a subset of card1.'''
     l0, u0 = _card_to_bounds(card0)

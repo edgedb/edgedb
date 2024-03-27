@@ -81,8 +81,9 @@ class AlterEnum(ddl.DDLOperation):
 
 
 class AlterEnumAddValue(AlterEnum):
-    def __init__(self, name, value, *, before=None, after=None,
-                 conditional=False):
+    def __init__(
+        self, name, value, *, before=None, after=None, conditional=False
+    ):
         super().__init__(name)
         self.value = value
         self.before = before

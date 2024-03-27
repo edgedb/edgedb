@@ -42,8 +42,7 @@ class _ValueDispatchCallable(Generic[_T], Protocol):
     ) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
         ...
 
-    def __call__(__self, *args: Any, **kwargs: Any) -> _T:
-        ...
+    def __call__(__self, *args: Any, **kwargs: Any) -> _T: ...
 
 
 def value_dispatch(func: Callable[..., _T]) -> _ValueDispatchCallable[_T]:

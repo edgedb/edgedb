@@ -68,7 +68,7 @@ class ContainerMultiplicityInfo(inf_ctx.MultiplicityInfo):
 
 
 def _max_multiplicity(
-    args: Iterable[inf_ctx.MultiplicityInfo]
+    args: Iterable[inf_ctx.MultiplicityInfo],
 ) -> inf_ctx.MultiplicityInfo:
     arg_list = [a.own for a in args]
     if not arg_list:
@@ -80,7 +80,7 @@ def _max_multiplicity(
 
 
 def _min_multiplicity(
-    args: Iterable[inf_ctx.MultiplicityInfo]
+    args: Iterable[inf_ctx.MultiplicityInfo],
 ) -> inf_ctx.MultiplicityInfo:
     arg_list = [a.own for a in args]
     if not arg_list:

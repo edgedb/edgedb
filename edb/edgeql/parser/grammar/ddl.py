@@ -622,8 +622,9 @@ class OptPosition(Nonterm):
 
 class AlterSimpleExtending(Nonterm):
     def reduce_EXTENDING_SimpleTypeNameList_OptPosition(self, *kids):
-        self.val = qlast.AlterAddInherit(bases=kids[1].val,
-                                         position=kids[2].val)
+        self.val = qlast.AlterAddInherit(
+            bases=kids[1].val, position=kids[2].val
+        )
 
     def reduce_DROP_EXTENDING_SimpleTypeNameList(self, *kids):
         self.val = qlast.AlterDropInherit(bases=kids[2].val)
@@ -635,8 +636,9 @@ class AlterSimpleExtending(Nonterm):
 
 class AlterExtending(Nonterm):
     def reduce_EXTENDING_TypeNameList_OptPosition(self, *kids):
-        self.val = qlast.AlterAddInherit(bases=kids[1].val,
-                                         position=kids[2].val)
+        self.val = qlast.AlterAddInherit(
+            bases=kids[1].val, position=kids[2].val
+        )
 
     def reduce_DROP_EXTENDING_TypeNameList(self, *kids):
         self.val = qlast.AlterDropInherit(bases=kids[2].val)
@@ -671,10 +673,7 @@ class AlterOwnedStmt(Nonterm):
 class DatabaseName(Nonterm):
 
     def reduce_Identifier(self, kid):
-        self.val = qlast.ObjectRef(
-            module=None,
-            name=kid.val
-        )
+        self.val = qlast.ObjectRef(module=None, name=kid.val)
 
     def reduce_ReservedKeyword(self, *kids):
         name = kids[0].val
@@ -925,9 +924,9 @@ class CreateExtensionPackageBodyBlock(NestedQLBlock):
 
     @property
     def allowed_fields(self) -> typing.FrozenSet[str]:
-        return frozenset({
-            'internal', 'ext_module', 'sql_extensions', 'dependencies'
-        })
+        return frozenset(
+            {'internal', 'ext_module', 'sql_extensions', 'dependencies'}
+        )
 
     @property
     def result(self) -> typing.Any:
@@ -1045,8 +1044,7 @@ class FutureStmt(Nonterm):
 class CreateFutureStmt(Nonterm):
 
     def reduce_CreateFutureStmt(self, *kids):
-        r"""%reduce CREATE FUTURE ShortNodeName
-        """
+        r"""%reduce CREATE FUTURE ShortNodeName"""
         self.val = qlast.CreateFuture(
             name=kids[2].val,
         )
@@ -1414,9 +1412,7 @@ class AlterScalarTypeStmt(Nonterm):
 
 class DropScalarTypeStmt(Nonterm):
     def reduce_DROP_SCALAR_TYPE_NodeName(self, *kids):
-        self.val = qlast.DropScalarType(
-            name=kids[3].val
-        )
+        self.val = qlast.DropScalarType(name=kids[3].val)
 
 
 #
@@ -1574,7 +1570,8 @@ commands_block(
 #
 class CreateConcreteIndexStmt(Nonterm, commondl.ProcessIndexMixin):
     def reduce_CREATE_INDEX_OnExpr_OptExceptExpr_OptCreateCommandsBlock(
-            self, *kids):
+        self, *kids
+    ):
         self.val = qlast.CreateConcreteIndex(
             name=qlast.ObjectRef(module='__', name='idx'),
             expr=kids[2].val,
@@ -2698,7 +2695,8 @@ class DropAliasStmt(Nonterm):
 #
 class CreateModuleStmt(Nonterm):
     def reduce_CREATE_MODULE_ModuleName_OptIfNotExists_OptCreateCommandsBlock(
-            self, *kids):
+        self, *kids
+    ):
         self.val = qlast.CreateModule(
             name=qlast.ObjectRef(module=None, name='::'.join(kids[2].val)),
             create_if_not_exists=kids[3].val,
@@ -2710,8 +2708,7 @@ class CreateModuleStmt(Nonterm):
 # ALTER MODULE
 #
 class AlterModuleStmt(Nonterm):
-    def reduce_ALTER_MODULE_ModuleName_AlterCommandsBlock(
-            self, *kids):
+    def reduce_ALTER_MODULE_ModuleName_AlterCommandsBlock(self, *kids):
         self.val = qlast.AlterModule(
             name=qlast.ObjectRef(module=None, name='::'.join(kids[2].val)),
             commands=kids[3].val
@@ -2933,7 +2930,7 @@ class CreateOperatorStmt(Nonterm):
             **self._process_operator_body(kids[9], abstract=True)
         )
 
-    def _process_operator_body(self, block, abstract: bool=False):
+    def _process_operator_body(self, block, abstract: bool = False):
         props: typing.Dict[str, typing.Any] = {}
 
         commands = []

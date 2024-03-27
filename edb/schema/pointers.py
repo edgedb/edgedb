@@ -383,7 +383,8 @@ def get_root_source(
 
 
 def is_view_source(
-        source: Optional[so.Object], schema: s_schema.Schema) -> bool:
+    source: Optional[so.Object], schema: s_schema.Schema
+) -> bool:
     source = get_root_source(source, schema)
     return isinstance(source, s_types.Type) and source.is_view(schema)
 
@@ -790,7 +791,8 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         return self.get_source(schema)
 
     def get_exclusive_constraints(
-            self, schema: s_schema.Schema) -> Sequence[constraints.Constraint]:
+        self, schema: s_schema.Schema
+    ) -> Sequence[constraints.Constraint]:
         if self.is_non_concrete(schema):
             raise ValueError(f'{self!r} is not a concrete pointer')
 
@@ -1027,8 +1029,7 @@ class PseudoPointer(s_abc.Pointer):
         return True
 
     def get_cardinality(
-        self,
-        schema: s_schema.Schema
+        self, schema: s_schema.Schema
     ) -> qltypes.SchemaCardinality:
         raise NotImplementedError
 
@@ -1596,9 +1597,7 @@ class PointerCommand(
 ):
 
     def _validate_computables(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> None:
         scls = self.scls
 
@@ -2317,7 +2316,8 @@ class SetPointerType(
         return self.is_attribute_computed('target')
 
     def record_diff_annotations(
-        self, *,
+        self,
+        *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
@@ -2734,7 +2734,8 @@ class AlterPointerUpperCardinality(
         return schema
 
     def record_diff_annotations(
-        self, *,
+        self,
+        *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
@@ -2962,7 +2963,8 @@ class AlterPointerLowerCardinality(
         return schema
 
     def record_diff_annotations(
-        self, *,
+        self,
+        *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,

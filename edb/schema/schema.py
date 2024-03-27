@@ -1648,10 +1648,7 @@ class ChainedSchema(Schema):
     __slots__ = ('_base_schema', '_top_schema', '_global_schema')
 
     def __init__(
-        self,
-        base_schema: Schema,
-        top_schema: Schema,
-        global_schema: Schema
+        self, base_schema: Schema, top_schema: Schema, global_schema: Schema
     ) -> None:
         self._base_schema = base_schema
         self._top_schema = top_schema

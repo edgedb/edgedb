@@ -47,8 +47,13 @@ HEADER = 101
 
 class Buffer:
     def __init__(
-            self, *, max_width=None, styled=False, indentation=0,
-            indent_with=' ' * 4):
+        self,
+        *,
+        max_width=None,
+        styled=False,
+        indentation=0,
+        indent_with=' ' * 4,
+    ):
         self.data = []
         self.indentation = 0
         self.indent_with = indent_with

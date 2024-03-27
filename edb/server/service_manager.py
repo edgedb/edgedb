@@ -160,9 +160,9 @@ if sys.platform == "darwin":
         else:
             raise LaunchActivateSocketError(result)
 
-    def launchd_get_activation_listen_sockets() -> dict[
-        str, list[socket.socket]
-    ]:
+    def launchd_get_activation_listen_sockets() -> (
+        dict[str, list[socket.socket]]
+    ):
         names = ["edgedb-server"]
         sockets: dict[str, list[socket.socket]] = {}
 
@@ -184,9 +184,10 @@ if sys.platform == "darwin":
         return sockets
 
 else:
-    def launchd_get_activation_listen_sockets() -> dict[
-        str, list[socket.socket]
-    ]:
+
+    def launchd_get_activation_listen_sockets() -> (
+        dict[str, list[socket.socket]]
+    ):
         return {}
 
 

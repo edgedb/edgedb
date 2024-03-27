@@ -94,6 +94,24 @@ class VersionedSection(d_rst.Directive):
         return [node]
 
 
+class VersionedReplaceRole:
+
+    def __call__(
+        self, role, rawtext, text, lineno, inliner, options=None, content=None
+    ):
+        nodes = []
+        if not text.startswith('_default:'):
+            text = '_default:' + text
+        for section in text.split(';'):
+            parts = section.split(':', maxsplit=1)
+            node = s_nodes.versionmodified()
+            node['type'] = 'versionchanged'
+            node['version'] = parts[0].strip()
+            node += d_nodes.Text(parts[1].strip())
+            nodes.append(node)
+        return nodes, []
+
+
 def setup(app):
     edb.setup_domain(app)
     cli.setup_domain(app)

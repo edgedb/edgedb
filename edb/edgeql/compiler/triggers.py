@@ -200,7 +200,8 @@ def compile_triggers_phase(
 
 
 def compile_triggers(
-    *, ctx: context.ContextLevel,
+    *,
+    ctx: context.ContextLevel,
 ) -> tuple[tuple[irast.Trigger, ...], ...]:
     defining_trigger = (
         ctx.env.options.schema_object_context == s_triggers.Trigger)

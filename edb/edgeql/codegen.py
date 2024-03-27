@@ -94,7 +94,8 @@ class EdgeSchemaSourceGeneratorError(errors.InternalServerError):
 class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def __init__(
-        self, *args: Any,
+        self,
+        *args: Any,
         sdlmode: bool = False,
         descmode: bool = False,
         # Uppercase keywords for backwards compatibility with older migrations.
@@ -112,9 +113,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.limit_ref_classes = limit_ref_classes
 
     def visit(
-        self,
-        node: Union[qlast.Base, List[qlast.Base]],
-        **kwargs: Any
+        self, node: Union[qlast.Base, List[qlast.Base]], **kwargs: Any
     ) -> None:
         if isinstance(node, list):
             self.visit_list(node, terminator=';')
@@ -151,14 +150,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             )
         )
 
-    def generic_visit(self, node: qlast.Base,
-                      *args: Any, **kwargs: Any) -> None:
+    def generic_visit(
+        self, node: qlast.Base, *args: Any, **kwargs: Any
+    ) -> None:
         if isinstance(node, qlast.SDL):
             raise EdgeQLSourceGeneratorError(
                 f'No method to generate code for {node.__class__.__name__}')
         else:
             raise EdgeQLSourceGeneratorError(
-                f'No method to generate code for {node.__class__.__name__}')
+                f'No method to generate code for {node.__class__.__name__}'
+            )
 
     def _block_ws(self, change: int, newlines: bool = True) -> None:
         """Block whitespace"""
@@ -368,7 +369,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_GroupQuery(
-            self, node: qlast.GroupQuery, no_paren: bool=False) -> None:
+        self, node: qlast.GroupQuery, no_paren: bool = False
+    ) -> None:
         # need to parenthesise when GROUP appears as an expression
         parenthesise = self._needs_parentheses(node) and not no_paren
 
@@ -829,9 +831,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_TypeName(self, node: qlast.TypeName) -> None:
         parenthesize = (
-            isinstance(node._parent, (qlast.IsOp, qlast.TypeOp,  # type: ignore
-                                      qlast.Introspect)) and
-            node.subtypes is not None
+            isinstance(
+                node._parent,  # type: ignore
+                (qlast.IsOp, qlast.TypeOp, qlast.Introspect),
+            )
+            and node.subtypes is not None
         )
         if parenthesize:
             self.write('(')
@@ -1093,6 +1097,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if node.branch_type == qlast.BranchType.EMPTY:
                 self._visit_CreateObject(node, 'EMPTY BRANCH')
             else:
+
                 def after_name() -> None:
                     self._write_keywords(' FROM ')
                     assert node.template
@@ -1103,7 +1108,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._visit_CreateObject(node, 'DATABASE')
         else:
             raise EdgeQLSourceGeneratorError(
-                f'unknown branch command flavor: {node.flavor!r}')
+                f'unknown branch command flavor: {node.flavor!r}'
+            )
 
     def visit_AlterDatabase(self, node: qlast.AlterDatabase) -> None:
         self._visit_AlterObject(node, node.flavor)
@@ -1150,8 +1156,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         def after_name() -> None:
             self._write_keywords(' VERSION ')
             self.visit(node.version)
-        self._visit_DropObject(
-            node, 'EXTENSION PACKAGE', after_name=after_name)
+
+        self._visit_DropObject(node, 'EXTENSION PACKAGE', after_name=after_name)
 
     def visit_CreateExtension(
         self,
@@ -1237,15 +1243,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._write_keywords('POPULATE MIGRATION')
 
     def visit_StartMigrationRewrite(
-            self, node: qlast.StartMigrationRewrite) -> None:
+        self, node: qlast.StartMigrationRewrite
+    ) -> None:
         self._write_keywords('START MIGRATION REWRITE')
 
     def visit_CommitMigrationRewrite(
-            self, node: qlast.CommitMigrationRewrite) -> None:
+        self, node: qlast.CommitMigrationRewrite
+    ) -> None:
         self._write_keywords('COMMIT MIGRATION REWRITE')
 
     def visit_AbortMigrationRewrite(
-            self, node: qlast.AbortMigrationRewrite) -> None:
+        self, node: qlast.AbortMigrationRewrite
+    ) -> None:
         self._write_keywords('ABORT MIGRATION REWRITE')
 
     def visit_DescribeCurrentMigration(
@@ -1267,8 +1276,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropMigration(self, node: qlast.DropMigration) -> None:
         self._visit_DropObject(node, 'MIGRATION')
 
-    def visit_ResetSchema(
-            self, node: qlast.ResetSchema) -> None:
+    def visit_ResetSchema(self, node: qlast.ResetSchema) -> None:
         self._write_keywords(f'RESET SCHEMA TO {node.target}')
 
     def visit_CreateModule(self, node: qlast.CreateModule) -> None:
@@ -1284,9 +1292,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'MODULE')
 
     def visit_CreateAlias(self, node: qlast.CreateAlias) -> None:
-        if (len(node.commands) == 1
-                and isinstance(node.commands[0], qlast.SetField)
-                and node.commands[0].name == 'expr'):
+        if (
+            len(node.commands) == 1
+            and isinstance(node.commands[0], qlast.SetField)
+            and node.commands[0].name == 'expr'
+        ):
 
             self._visit_CreateObject(node, 'ALIAS', render_commands=False)
             self.write(' := (')
@@ -1364,10 +1374,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             raise AssertionError(f'expected StringConstant, got {expr!r}')
         return enum_type(expr.value)
 
-    def _process_special_set(
-        self,
-        node: qlast.SetField
-    ) -> List[str]:
+    def _process_special_set(self, node: qlast.SetField) -> List[str]:
 
         keywords: List[str] = []
         fname = node.name
@@ -1428,8 +1435,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'ABSTRACT ANNOTATION')
 
     def visit_CreateAnnotationValue(
-        self,
-        node: qlast.CreateAnnotationValue
+        self, node: qlast.CreateAnnotationValue
     ) -> None:
         if self.sdlmode:
             self._write_keywords('annotation ')
@@ -1440,8 +1446,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.value)
 
     def visit_AlterAnnotationValue(
-        self,
-        node: qlast.AlterAnnotationValue
+        self, node: qlast.AlterAnnotationValue
     ) -> None:
         self._write_keywords('ALTER ANNOTATION ')
         self.visit(node.name)
@@ -1455,8 +1460,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.commands[0])
 
     def visit_DropAnnotationValue(
-        self,
-        node: qlast.DropAnnotationValue
+        self, node: qlast.DropAnnotationValue
     ) -> None:
         self._write_keywords('DROP ANNOTATION ')
         self.visit(node.name)
@@ -1475,8 +1479,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
             self._ddl_visit_bases(node)
 
-        self._visit_CreateObject(node, 'ABSTRACT CONSTRAINT',
-                                 after_name=after_name)
+        self._visit_CreateObject(
+            node, 'ABSTRACT CONSTRAINT', after_name=after_name
+        )
 
     def visit_AlterConstraint(self, node: qlast.AlterConstraint) -> None:
         self._visit_AlterObject(node, 'ABSTRACT CONSTRAINT')
@@ -1501,30 +1506,32 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(')')
 
     def visit_CreateConcreteConstraint(
-        self,
-        node: qlast.CreateConcreteConstraint
+        self, node: qlast.CreateConcreteConstraint
     ) -> None:
         keywords = []
         if node.delegated:
             keywords.append('DELEGATED')
         keywords.append('CONSTRAINT')
         self._visit_CreateObject(
-            node, *keywords, after_name=lambda: self._after_constraint(node))
+            node, *keywords, after_name=lambda: self._after_constraint(node)
+        )
 
     def visit_AlterConcreteConstraint(
-        self,
-        node: qlast.AlterConcreteConstraint
+        self, node: qlast.AlterConcreteConstraint
     ) -> None:
         self._visit_AlterObject(
-            node, 'CONSTRAINT', allow_short=False,
-            after_name=lambda: self._after_constraint(node))
+            node,
+            'CONSTRAINT',
+            allow_short=False,
+            after_name=lambda: self._after_constraint(node),
+        )
 
     def visit_DropConcreteConstraint(
-        self,
-        node: qlast.DropConcreteConstraint
+        self, node: qlast.DropConcreteConstraint
     ) -> None:
-        self._visit_DropObject(node, 'CONSTRAINT',
-                               after_name=lambda: self._after_constraint(node))
+        self._visit_DropObject(
+            node, 'CONSTRAINT', after_name=lambda: self._after_constraint(node)
+        )
 
     def _format_access_kinds(self, kinds: List[qltypes.AccessKind]) -> str:
         # Canonicalize the order, since the schema loses track
@@ -1536,10 +1543,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         skinds = skinds.replace("update read, update write", "update")
         return skinds
 
-    def visit_CreateAccessPolicy(
-        self,
-        node: qlast.CreateAccessPolicy
-    ) -> None:
+    def visit_CreateAccessPolicy(self, node: qlast.CreateAccessPolicy) -> None:
         def after_name() -> None:
             if node.condition:
                 self._block_ws(1)
@@ -1583,10 +1587,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         skinds = ', '.join(str(kind).lower() for kind in kinds)
         return skinds
 
-    def visit_CreateTrigger(
-        self,
-        node: qlast.CreateTrigger
-    ) -> None:
+    def visit_CreateTrigger(self, node: qlast.CreateTrigger) -> None:
         def after_name() -> None:
             self._block_ws(1)
             self._write_keywords(str(node.timing) + ' ')
@@ -1629,10 +1630,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         skinds = ', '.join(str(kind).lower() for kind in kinds)
         return skinds
 
-    def visit_CreateRewrite(
-        self,
-        node: qlast.CreateRewrite
-    ) -> None:
+    def visit_CreateRewrite(self, node: qlast.CreateRewrite) -> None:
         def an() -> None:
             self._block_ws(1)
             self._write_keywords(self._format_rewrite_kinds(node.kinds) + ' ')
@@ -1704,8 +1702,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'ABSTRACT PROPERTY')
 
     def visit_CreateConcreteProperty(
-        self,
-        node: qlast.CreateConcreteProperty
+        self, node: qlast.CreateConcreteProperty
     ) -> None:
         self.visit_CreateConcretePointer(node, kind='PROPERTY')
 
@@ -1729,14 +1726,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         return keywords, frozenset(specials)
 
     def visit_AlterConcreteProperty(
-        self,
-        node: qlast.AlterConcreteProperty
+        self, node: qlast.AlterConcreteProperty
     ) -> None:
         self.visit_AlterConcretePointer(node, kind='PROPERTY')
 
     def visit_DropConcreteProperty(
-        self,
-        node: qlast.DropConcreteProperty
+        self, node: qlast.DropConcreteProperty
     ) -> None:
         self._visit_DropObject(node, 'PROPERTY', unqualified=True)
 
@@ -1796,25 +1791,24 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         )
 
         self._visit_CreateObject(
-            node, *keywords, after_name=after_name, unqualified=True,
-            render_commands=not pure_computable)
+            node,
+            *keywords,
+            after_name=after_name,
+            unqualified=True,
+            render_commands=not pure_computable,
+        )
 
     def visit_CreateConcreteUnknownPointer(
-        self,
-        node: qlast.CreateConcreteLink
+        self, node: qlast.CreateConcreteLink
     ) -> None:
         self.visit_CreateConcretePointer(node, kind=None)
 
     def visit_AlterConcreteUnknownPointer(
-        self,
-        node: qlast.AlterConcreteLink
+        self, node: qlast.AlterConcreteLink
     ) -> None:
         self.visit_AlterConcretePointer(node, kind=None)
 
-    def visit_CreateConcreteLink(
-        self,
-        node: qlast.CreateConcreteLink
-    ) -> None:
+    def visit_CreateConcreteLink(self, node: qlast.CreateConcreteLink) -> None:
         self.visit_CreateConcretePointer(node, kind='LINK')
 
     def visit_AlterConcretePointer(
@@ -1860,8 +1854,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if kind:
             keywords.append(kind)
         self._visit_AlterObject(
-            node, *keywords, ignored_cmds=ignored_cmds,
-            allow_short=False, unqualified=True, after_name=after_name)
+            node,
+            *keywords,
+            ignored_cmds=ignored_cmds,
+            allow_short=False,
+            unqualified=True,
+            after_name=after_name,
+        )
 
     def visit_AlterConcreteLink(self, node: qlast.AlterConcreteLink) -> None:
         self.visit_AlterConcretePointer(node, kind='LINK')
@@ -1931,8 +1930,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         keywords.append('TYPE')
 
         after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(
-            node, *keywords, after_name=after_name)
+        self._visit_CreateObject(node, *keywords, after_name=after_name)
 
     def visit_AlterObjectType(self, node: qlast.AlterObjectType) -> None:
         self._visit_AlterObject(node, 'TYPE')
@@ -1961,10 +1959,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.except_expr)
             self.write(')')
 
-    def visit_IndexType(
-        self,
-        node: qlast.IndexType
-    ) -> None:
+    def visit_IndexType(self, node: qlast.IndexType) -> None:
         self.visit(node.name)
 
         if node.kwargs:
@@ -2014,8 +2009,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self._block_ws(-1)
                 self.write('}')
 
-        self._visit_CreateObject(node, 'ABSTRACT INDEX',
-                                 after_name=after_name)
+        self._visit_CreateObject(node, 'ABSTRACT INDEX', after_name=after_name)
 
     def visit_AlterIndex(self, node: qlast.AlterIndex) -> None:
         self._visit_AlterObject(node, 'ABSTRACT INDEX')
@@ -2025,29 +2019,21 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_IndexCode(self, node: qlast.IndexCode) -> None:
         self._write_keywords('USING', node.language)
-        self.write(edgeql_quote.dollar_quote_literal(
-            node.code))
+        self.write(edgeql_quote.dollar_quote_literal(node.code))
 
     def visit_CreateConcreteIndex(
-        self,
-        node: qlast.CreateConcreteIndex
+        self, node: qlast.CreateConcreteIndex
     ) -> None:
         self._visit_CreateObject(
             node, 'INDEX', named=node.name.name != 'idx',
             after_name=lambda: self._after_index(node))
 
-    def visit_AlterConcreteIndex(
-        self,
-        node: qlast.AlterConcreteIndex
-    ) -> None:
+    def visit_AlterConcreteIndex(self, node: qlast.AlterConcreteIndex) -> None:
         self._visit_AlterObject(
             node, 'INDEX', named=node.name.name != 'idx',
             after_name=lambda: self._after_index(node))
 
-    def visit_DropConcreteIndex(
-        self,
-        node: qlast.DropConcreteIndex
-    ) -> None:
+    def visit_DropConcreteIndex(self, node: qlast.DropConcreteIndex) -> None:
         self._visit_DropObject(
             node, 'INDEX', named=node.name.name != 'idx',
             after_name=lambda: self._after_index(node))
@@ -2318,10 +2304,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             elif node.reset_value:
                 self._write_keywords(' RESET TO DEFAULT')
 
-    def visit_CreateGlobal(
-        self,
-        node: qlast.CreateGlobal
-    ) -> None:
+    def visit_CreateGlobal(self, node: qlast.CreateGlobal) -> None:
         keywords = []
         if node.is_required is True:
             keywords.append('REQUIRED')
@@ -2393,8 +2376,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_filter(node)
 
     def visit_SessionSetAliasDecl(
-        self,
-        node: qlast.SessionSetAliasDecl
+        self, node: qlast.SessionSetAliasDecl
     ) -> None:
         self._write_keywords('SET ')
         if node.decl.alias:
@@ -2402,8 +2384,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit_ModuleAliasDecl(node.decl)
 
     def visit_SessionResetAllAliases(
-        self,
-        node: qlast.SessionResetAllAliases
+        self, node: qlast.SessionResetAllAliases
     ) -> None:
         self._write_keywords('RESET ALIAS *')
 
@@ -2411,8 +2392,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._write_keywords('RESET MODULE')
 
     def visit_SessionResetAliasDecl(
-        self,
-        node: qlast.SessionResetAliasDecl
+        self, node: qlast.SessionResetAliasDecl
     ) -> None:
         self._write_keywords('RESET ALIAS ')
         self.write(node.alias)
@@ -2435,8 +2415,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._write_keywords(' ' + ', '.join(mods))
 
     def visit_RollbackTransaction(
-        self,
-        node: qlast.RollbackTransaction
+        self, node: qlast.RollbackTransaction
     ) -> None:
         self._write_keywords('ROLLBACK')
 
@@ -2448,8 +2427,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(node.name)
 
     def visit_RollbackToSavepoint(
-        self,
-        node: qlast.RollbackToSavepoint
+        self, node: qlast.RollbackToSavepoint
     ) -> None:
         self._write_keywords('ROLLBACK TO SAVEPOINT ')
         self.write(node.name)

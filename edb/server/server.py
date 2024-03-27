@@ -351,7 +351,8 @@ class BaseServer:
             conn.cancel(secret)
 
     def monitor_fs(
-        self, path: str | pathlib.Path,
+        self,
+        path: str | pathlib.Path,
         cb: Callable[[str, int], None],
     ) -> Callable[[], None]:
         if not self._use_monitor_fs:
@@ -1065,7 +1066,7 @@ class BaseServer:
         )
 
     def get_report_config_typedesc(
-        self
+        self,
     ) -> dict[defines.ProtocolVersion, bytes]:
         return self._report_config_typedesc
 
@@ -1682,7 +1683,7 @@ class Server(BaseServer):
 
 
 def _cleanup_wildcard_addrs(
-    hosts: Sequence[str]
+    hosts: Sequence[str],
 ) -> tuple[list[str], list[str], bool, bool]:
     """Filter out conflicting addresses in presence of INADDR_ANY wildcards.
 
@@ -1778,7 +1779,7 @@ async def _resolve_host(host: str) -> list[str] | Exception:
 
 
 async def _resolve_interfaces(
-    hosts: Sequence[str]
+    hosts: Sequence[str],
 ) -> Tuple[Sequence[str], bool, bool]:
 
     async with asyncio.TaskGroup() as g:

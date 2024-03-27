@@ -622,8 +622,9 @@ def _get_all_subcommands(
     return cmds
 
 
-def _get_schema_object_ids(delta: sd.Command) -> Mapping[
-        Tuple[sn.Name, Optional[str]], uuid.UUID]:
+def _get_schema_object_ids(
+    delta: sd.Command,
+) -> Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]:
     schema_object_ids = {}
     for cmd in _get_all_subcommands(delta, sd.CreateObject):
         assert isinstance(cmd, sd.CreateObject)

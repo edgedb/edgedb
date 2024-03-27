@@ -709,8 +709,7 @@ def is_nontrivial_container(value: Any) -> Optional[Iterable[Any]]:
 
 
 def get_class_nearest_common_ancestors(
-    schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectT]
+    schema: s_schema.Schema, classes: Iterable[so.InheritingObjectT]
 ) -> List[so.InheritingObjectT]:
     # First, find the intersection of parents
     classes = list(classes)
@@ -731,8 +730,7 @@ def get_class_nearest_common_ancestors(
 
 
 def minimize_class_set_by_most_generic(
-    schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectT]
+    schema: s_schema.Schema, classes: Iterable[so.InheritingObjectT]
 ) -> List[so.InheritingObjectT]:
     """Minimize the given set of objects by filtering out all subclasses."""
 
@@ -753,8 +751,7 @@ def minimize_class_set_by_most_generic(
 
 
 def minimize_class_set_by_least_generic(
-    schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectT]
+    schema: s_schema.Schema, classes: Iterable[so.InheritingObjectT]
 ) -> List[so.InheritingObjectT]:
     """Minimize the given set of objects by filtering out all superclasses."""
 
@@ -1106,8 +1103,9 @@ def get_non_overlapping_union(
         return frozenset(all_objects), True
 
 
-def _union_error(schema: s_schema.Schema, components: Iterable[s_types.Type]) \
-        -> errors.SchemaError:
+def _union_error(
+    schema: s_schema.Schema, components: Iterable[s_types.Type]
+) -> errors.SchemaError:
     names = ', '.join(sorted(c.get_displayname(schema) for c in components))
     return errors.SchemaError(f'cannot create a union of {names}')
 
@@ -1182,9 +1180,9 @@ def get_intersection_type(
     return schema, intersection
 
 
-def _intersection_error(schema: s_schema.Schema,
-                        components: Iterable[s_types.Type]) \
-        -> errors.SchemaError:
+def _intersection_error(
+    schema: s_schema.Schema, components: Iterable[s_types.Type]
+) -> errors.SchemaError:
     names = ', '.join(sorted(c.get_displayname(schema) for c in components))
     return errors.SchemaError(f'cannot create an intersection of {names}')
 

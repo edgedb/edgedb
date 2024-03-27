@@ -1021,7 +1021,8 @@ class Collection(Type, s_abc.Collection):
         return True
 
     def get_common_parent_type_distance(
-            self, other: Type, schema: s_schema.Schema) -> int:
+        self, other: Type, schema: s_schema.Schema
+    ) -> int:
         if other.is_any(schema):
             return 1
 
@@ -1088,9 +1089,7 @@ class Collection(Type, s_abc.Collection):
         return ()
 
     @classmethod
-    def get_class(
-        cls, schema_name: str
-    ) -> typing.Type[Collection]:
+    def get_class(cls, schema_name: str) -> typing.Type[Collection]:
         coll_type = _collection_impls.get(schema_name)
         if coll_type:
             return coll_type

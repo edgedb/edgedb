@@ -171,7 +171,7 @@ class ScopeTreeNode:
             name = self.path_id.pformat_internal(debug=debug)
         return f'{name}{" [OPT]" if self.optional else ""}'
 
-    def debugname(self, fuller: bool=False) -> str:
+    def debugname(self, fuller: bool = False) -> str:
         parts = [f'{self._name(debug=fuller)}']
         if self.unique_id:
             parts.append(f'uid:{self.unique_id}')
@@ -210,8 +210,9 @@ class ScopeTreeNode:
             node = node.parent
 
     @property
-    def ancestors_and_namespaces(self) \
-            -> Iterator[Tuple[ScopeTreeNode, FrozenSet[pathid.Namespace]]]:
+    def ancestors_and_namespaces(
+        self,
+    ) -> Iterator[Tuple[ScopeTreeNode, FrozenSet[pathid.Namespace]]]:
         """An iterator of node's ancestors and namespaces, including self."""
         namespaces: FrozenSet[str] = frozenset()
         node: Optional[ScopeTreeNode] = self
@@ -383,8 +384,9 @@ class ScopeTreeNode:
         for pd in self.path_descendants:
             pd.path_id = pd.path_id.strip_namespace(ns)
 
-    def attach_child(self, node: ScopeTreeNode,
-                     span: Optional[span.Span]=None) -> None:
+    def attach_child(
+        self, node: ScopeTreeNode, span: Optional[span.Span] = None
+    ) -> None:
         """Attach a child node to this node.
 
         This is a low-level operation, no tree validation is
@@ -494,9 +496,12 @@ class ScopeTreeNode:
 
         self.attach_subtree(subtree, span=span)
 
-    def attach_subtree(self, node: ScopeTreeNode,
-                       was_fenced: bool=False,
-                       span: Optional[span.Span]=None) -> None:
+    def attach_subtree(
+        self,
+        node: ScopeTreeNode,
+        was_fenced: bool = False,
+        span: Optional[span.Span] = None,
+    ) -> None:
         """Attach a subtree to this node.
 
         *node* is expected to be a balanced scope tree and may be modified
@@ -740,7 +745,8 @@ class ScopeTreeNode:
         node._set_parent(None)
 
     def remove_descendants(
-            self, path_id: pathid.PathId, new: ScopeTreeNode) -> None:
+        self, path_id: pathid.PathId, new: ScopeTreeNode
+    ) -> None:
         """Remove all descendant nodes matching *path_id*."""
 
         matching = set()
@@ -862,13 +868,14 @@ class ScopeTreeNode:
         return found, finfo, namespaces
 
     def find_visible(
-        self, path_id: pathid.PathId, *, allow_group: bool=False
+        self, path_id: pathid.PathId, *, allow_group: bool = False
     ) -> Optional[ScopeTreeNode]:
         node, _, _ = self.find_visible_ex(path_id, allow_group=allow_group)
         return node
 
     def is_visible(
-            self, path_id: pathid.PathId, *, allow_group: bool=False) -> bool:
+        self, path_id: pathid.PathId, *, allow_group: bool = False
+    ) -> bool:
         return self.find_visible(path_id, allow_group=allow_group) is not None
 
     def is_any_prefix_visible(self, path_id: pathid.PathId) -> bool:
@@ -934,10 +941,7 @@ class ScopeTreeNode:
 
         return matched
 
-    def find_descendant_and_ns(
-        self,
-        path_id: pathid.PathId
-    ) -> Tuple[
+    def find_descendant_and_ns(self, path_id: pathid.PathId) -> Tuple[
         Optional[ScopeTreeNode],
         AbstractSet[pathid.Namespace],
         Optional[FenceInfo],
@@ -1065,7 +1069,7 @@ class ScopeTreeNode:
     def dump(self) -> None:
         print(self.pdebugformat())
 
-    def dump_full(self, others: Collection[ScopeTreeNode]=()) -> None:
+    def dump_full(self, others: Collection[ScopeTreeNode] = ()) -> None:
         """Do a debug dump of the root but hilight the current node."""
         styles = {}
         if term.supports_colors(sys.stdout.fileno()):
@@ -1095,8 +1099,11 @@ class ScopeTreeNodeWithPathId(ScopeTreeNode):
     path_id: pathid.PathId
 
 
-def _paths_equal(path_id_1: pathid.PathId, path_id_2: pathid.PathId,
-                 namespaces: AbstractSet[str]) -> bool:
+def _paths_equal(
+    path_id_1: pathid.PathId,
+    path_id_2: pathid.PathId,
+    namespaces: AbstractSet[str],
+) -> bool:
     if namespaces:
         path_id_1 = path_id_1.strip_namespace(namespaces)
         path_id_2 = path_id_2.strip_namespace(namespaces)

@@ -1114,8 +1114,9 @@ class FunctionCommand(MetaCommand):
                 f'of function {func.get_shortname(schema)}',
                 span=self.span) from None
 
-    def compile_default(self, func: s_funcs.Function,
-                        default: s_expr.Expression, schema):
+    def compile_default(
+        self, func: s_funcs.Function, default: s_expr.Expression, schema
+    ):
         try:
             comp = default.compiled(
                 schema=schema,
@@ -2116,8 +2117,7 @@ class ConstraintCommand(MetaCommand):
 
     @classmethod
     def fixup_base_constraint_triggers(
-        cls, constraint, orig_schema, schema, context,
-        span=None, *, is_delete
+        cls, constraint, orig_schema, schema, context, span=None, *, is_delete
     ):
         base_schema = orig_schema if is_delete else schema
 
@@ -3014,8 +3014,15 @@ class CompositeMetaCommand(MetaCommand):
         self.post_inhview_update_commands = []
 
     def _get_multicommand(
-            self, context, cmdtype, object_name, *,
-            force_new=False, manual=False, cmdkwargs=None):
+        self,
+        context,
+        cmdtype,
+        object_name,
+        *,
+        force_new=False,
+        manual=False,
+        cmdkwargs=None,
+    ):
         if cmdkwargs is None:
             cmdkwargs = {}
         key = (object_name, frozenset(cmdkwargs.items()))
@@ -3055,8 +3062,14 @@ class CompositeMetaCommand(MetaCommand):
                 self.pgops.update(commands)
 
     def get_alter_table(
-            self, schema, context, force_new=False,
-            contained=False, manual=False, table_name=None):
+        self,
+        schema,
+        context,
+        force_new=False,
+        contained=False,
+        manual=False,
+        table_name=None,
+    ):
 
         tabname = table_name if table_name else self.table_name
 
@@ -3858,8 +3871,7 @@ class CreateUnionType(
     pass
 
 
-class ObjectTypeMetaCommand(AliasCapableMetaCommand,
-                            CompositeMetaCommand):
+class ObjectTypeMetaCommand(AliasCapableMetaCommand, CompositeMetaCommand):
     def schedule_endpoint_delete_action_update(self, obj, schema, context):
         endpoint_delete_actions = context.get(
             sd.DeltaRootContext).op.update_endpoint_delete_actions
@@ -3921,8 +3933,9 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         # need to fix that when we have patching configs.
 
 
-class CreateObjectType(ObjectTypeMetaCommand,
-                       adapts=s_objtypes.CreateObjectType):
+class CreateObjectType(
+    ObjectTypeMetaCommand, adapts=s_objtypes.CreateObjectType
+):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -3987,8 +4000,9 @@ class RenameObjectType(
     pass
 
 
-class RebaseObjectType(ObjectTypeMetaCommand,
-                       adapts=s_objtypes.RebaseObjectType):
+class RebaseObjectType(
+    ObjectTypeMetaCommand, adapts=s_objtypes.RebaseObjectType
+):
     def _alter_innards(
         self,
         schema: s_schema.Schema,
@@ -4004,8 +4018,7 @@ class RebaseObjectType(ObjectTypeMetaCommand,
         return schema
 
 
-class AlterObjectType(ObjectTypeMetaCommand,
-                      adapts=s_objtypes.AlterObjectType):
+class AlterObjectType(ObjectTypeMetaCommand, adapts=s_objtypes.AlterObjectType):
     def _alter_begin(
         self,
         schema: s_schema.Schema,
@@ -4074,8 +4087,9 @@ class AlterObjectType(ObjectTypeMetaCommand,
         self.pgops.add(dbops.Query(check_qry))
 
 
-class DeleteObjectType(ObjectTypeMetaCommand,
-                       adapts=s_objtypes.DeleteObjectType):
+class DeleteObjectType(
+    ObjectTypeMetaCommand, adapts=s_objtypes.DeleteObjectType
+):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -5084,7 +5098,8 @@ class PointerMetaCommand(
             return (select_sql, nullable)
 
     def schedule_endpoint_delete_action_update(
-            self, link, orig_schema, schema, context):
+        self, link, orig_schema, schema, context
+    ):
         endpoint_delete_actions = context.get(
             sd.DeltaRootContext).op.update_endpoint_delete_actions
         link_ops = endpoint_delete_actions.link_ops
@@ -6094,7 +6109,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
 
     def _get_inline_link_table_union(
-            self, schema, links, include_children) -> str:
+        self, schema, links, include_children
+    ) -> str:
         selects = []
         aspect = 'inhview' if include_children else None
         for link in links:
@@ -6146,8 +6162,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
         else:
             return {link}
 
-    def get_trigger_name(self, schema, target,
-                         disposition, deferred=False, inline=False):
+    def get_trigger_name(
+        self, schema, target, disposition, deferred=False, inline=False
+    ):
         if disposition == 'target':
             aspect = 'target-del'
         else:
@@ -6179,8 +6196,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
         name = common.get_backend_name(schema, target, catenate=False)
         return f'{order_prefix}_{name[1]}_{aspect}'
 
-    def get_trigger_proc_name(self, schema, target,
-                              disposition, deferred=False, inline=False):
+    def get_trigger_proc_name(
+        self, schema, target, disposition, deferred=False, inline=False
+    ):
         if disposition == 'target':
             aspect = 'target-del'
         else:
@@ -6201,8 +6219,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
         name = common.get_backend_name(schema, target, catenate=False)
         return (name[0], f'{name[1]}_{aspect}')
 
-    def get_trigger_proc_text(self, target, links, *,
-                              disposition, inline, schema):
+    def get_trigger_proc_text(
+        self, target, links, *, disposition, inline, schema
+    ):
         if inline:
             return self._get_inline_link_trigger_proc_text(
                 target, links, disposition=disposition, schema=schema)
@@ -6211,7 +6230,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 target, links, disposition=disposition, schema=schema)
 
     def _get_outline_link_trigger_proc_text(
-            self, target, links, *, disposition, schema):
+        self, target, links, *, disposition, schema
+    ):
 
         chunks = []
 
@@ -6435,7 +6455,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return text
 
     def _get_inline_link_trigger_proc_text(
-            self, target, links, *, disposition, schema):
+        self, target, links, *, disposition, schema
+    ):
 
         chunks = []
 
@@ -6910,13 +6931,15 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return schema
 
     def _update_action_triggers(
-            self,
-            schema,
-            objtype: s_objtypes.ObjectType,
-            links: List[s_links.Link], *,
-            disposition: str,
-            deferred: bool=False,
-            inline: bool=False) -> None:
+        self,
+        schema,
+        objtype: s_objtypes.ObjectType,
+        links: List[s_links.Link],
+        *,
+        disposition: str,
+        deferred: bool = False,
+        inline: bool = False,
+    ) -> None:
 
         table_name = common.get_backend_name(
             schema, objtype, catenate=False)

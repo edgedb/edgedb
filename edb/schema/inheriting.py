@@ -763,9 +763,7 @@ class CreateInheritingObject(
                 'inherited_fields', frozenset(inherited_fields))
 
     def _create_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super()._create_begin(schema, context)
 
@@ -1164,9 +1162,7 @@ class RebaseInheritingObject(
         return 'alter'
 
     def _alter_finalize(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super()._alter_finalize(schema, context)
 

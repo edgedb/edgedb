@@ -1255,16 +1255,24 @@ class GQLCoreSchema:
         )
 
     def define_generic_insert_types(self) -> None:
-        for itype in [GraphQLBoolean, GraphQLID, GraphQLInt, GraphQLInt64,
-                      GraphQLBigint, GraphQLFloat, GraphQLDecimal,
-                      GraphQLString, GraphQLJSON]:
+        for itype in [
+            GraphQLBoolean,
+            GraphQLID,
+            GraphQLInt,
+            GraphQLInt64,
+            GraphQLBigint,
+            GraphQLFloat,
+            GraphQLDecimal,
+            GraphQLString,
+            GraphQLJSON,
+        ]:
             self._gql_inobjtypes[f'Insert{itype.name}'] = itype
 
     def define_generic_order_types(self) -> None:
-        self._gql_ordertypes['directionEnum'] = \
-            self._gql_enums['directionEnum']
-        self._gql_ordertypes['nullsOrderingEnum'] = \
-            self._gql_enums['nullsOrderingEnum']
+        self._gql_ordertypes['directionEnum'] = self._gql_enums['directionEnum']
+        self._gql_ordertypes['nullsOrderingEnum'] = self._gql_enums[
+            'nullsOrderingEnum'
+        ]
         self._gql_ordertypes['Ordering'] = GraphQLInputObjectType(
             'Ordering',
             fields=dict(
@@ -1329,8 +1337,7 @@ class GQLCoreSchema:
         return fields
 
     def get_input_range_type(
-        self,
-        subtype: s_types.Type
+        self, subtype: s_types.Type
     ) -> GraphQLInputObjectType:
         sub_gqltype = self._convert_edb_type(subtype)
         assert isinstance(sub_gqltype, GraphQLScalarType)
@@ -1392,6 +1399,7 @@ class GQLCoreSchema:
                     description=self._get_description(t),
                 )
             else:
+
                 def _type_resolver(
                     obj: GraphQLObjectType,
                     info: GraphQLResolveInfo,
@@ -1860,11 +1868,14 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return False
 
     def issubclass(self, other: Any) -> bool:
-        if (self.edb_base is not None and
-            other.edb_base is not None and
-                isinstance(other, GQLShadowType)):
-            return self.edb_base.issubclass(self._schema.edb_schema,
-                                            other.edb_base)
+        if (
+            self.edb_base is not None
+            and other.edb_base is not None
+            and isinstance(other, GQLShadowType)
+        ):
+            return self.edb_base.issubclass(
+                self._schema.edb_schema, other.edb_base
+            )
         else:
             return False
 

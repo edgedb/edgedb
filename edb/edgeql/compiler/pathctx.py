@@ -36,9 +36,12 @@ from edb.schema import types as s_types
 from . import context
 
 
-def get_path_id(stype: s_types.Type, *,
-                typename: Optional[s_name.QualName]=None,
-                ctx: context.ContextLevel) -> irast.PathId:
+def get_path_id(
+    stype: s_types.Type,
+    *,
+    typename: Optional[s_name.QualName] = None,
+    ctx: context.ContextLevel,
+) -> irast.PathId:
     return irast.PathId.from_type(
         ctx.env.schema,
         stype,
@@ -48,9 +51,12 @@ def get_path_id(stype: s_types.Type, *,
 
 
 def get_tuple_indirection_path_id(
-        tuple_path_id: irast.PathId, element_name: str,
-        element_type: s_types.Type, *,
-        ctx: context.ContextLevel) -> irast.PathId:
+    tuple_path_id: irast.PathId,
+    element_name: str,
+    element_type: s_types.Type,
+    *,
+    ctx: context.ContextLevel,
+) -> irast.PathId:
 
     ctx.env.schema, src_t = irtyputils.ir_typeref_to_type(
         ctx.env.schema, tuple_path_id.target)
@@ -71,8 +77,11 @@ def get_tuple_indirection_path_id(
 
 
 def get_expression_path_id(
-        stype: s_types.Type, alias: Optional[str] = None, *,
-        ctx: context.ContextLevel) -> irast.PathId:
+    stype: s_types.Type,
+    alias: Optional[str] = None,
+    *,
+    ctx: context.ContextLevel,
+) -> irast.PathId:
     if alias is None:
         alias = ctx.aliases.get('expr')
     typename = s_name.QualName(module='__derived__', name=alias)
@@ -80,10 +89,12 @@ def get_expression_path_id(
 
 
 def register_set_in_scope(
-        ir_set: irast.Set, *,
-        path_scope: Optional[irast.ScopeTreeNode]=None,
-        optional: bool=False,
-        ctx: context.ContextLevel) -> None:
+    ir_set: irast.Set,
+    *,
+    path_scope: Optional[irast.ScopeTreeNode] = None,
+    optional: bool = False,
+    ctx: context.ContextLevel,
+) -> None:
     if path_scope is None:
         path_scope = ctx.path_scope
 
@@ -95,8 +106,11 @@ def register_set_in_scope(
 
 
 def assign_set_scope(
-        ir_set: irast.Set, scope: Optional[irast.ScopeTreeNode], *,
-        ctx: context.ContextLevel) -> irast.Set:
+    ir_set: irast.Set,
+    scope: Optional[irast.ScopeTreeNode],
+    *,
+    ctx: context.ContextLevel,
+) -> irast.Set:
     if scope is None:
         ir_set.path_scope_id = None
     else:
@@ -151,17 +165,19 @@ def extend_path_id(
 
 
 def ban_inserting_path(
-        path_id: irast.PathId, *,
-        location: Literal['body'] | Literal['else'],
-        ctx: context.ContextLevel) -> None:
+    path_id: irast.PathId,
+    *,
+    location: Literal['body'] | Literal['else'],
+    ctx: context.ContextLevel,
+) -> None:
 
     ctx.inserting_paths = ctx.inserting_paths.copy()
     ctx.inserting_paths[path_id] = location
 
 
 def path_is_inserting(
-        path_id: irast.PathId, *,
-        ctx: context.ContextLevel) -> bool:
+    path_id: irast.PathId, *, ctx: context.ContextLevel
+) -> bool:
 
     node = ctx.path_scope.find_visible(path_id)
     return bool(

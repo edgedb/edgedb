@@ -195,11 +195,7 @@ def compile(
 
 
 def compile_in_tx(
-    dbname: Optional[str],
-    user_schema: Optional[bytes],
-    cstate,
-    *args,
-    **kwargs
+    dbname: Optional[str], user_schema: Optional[bytes], cstate, *args, **kwargs
 ):
     global LAST_STATE
     if cstate == state.REUSE_LAST_STATE_MARKER:

@@ -438,7 +438,8 @@ class BaseSchemaTest(BaseDocTest):
 
     @classmethod
     def load_schema(
-            cls, source: str, modname: Optional[str]=None) -> s_schema.Schema:
+        cls, source: str, modname: Optional[str] = None
+    ) -> s_schema.Schema:
         if not modname:
             modname = cls.DEFAULT_MODULE
         sdl_schema = qlparser.parse_sdl(f'module {modname} {{ {source} }}')

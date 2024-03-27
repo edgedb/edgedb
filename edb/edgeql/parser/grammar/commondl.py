@@ -91,8 +91,9 @@ class NewNontermHelper:
     def __init__(self, modname):
         self.name = modname
 
-    def _new_nonterm(self, clsname, clsdict=None, clskwds=None,
-                     clsbases=(Nonterm,)):
+    def _new_nonterm(
+        self, clsname, clsdict=None, clskwds=None, clsbases=(Nonterm,)
+    ):
         if clsdict is None:
             clsdict = {}
         if clskwds is None:

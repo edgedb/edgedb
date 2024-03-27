@@ -62,9 +62,9 @@ _FutureBehaviorHandler = Callable[
 FUTURE_HANDLERS: dict[str, _FutureBehaviorHandler] = {}
 
 
-def register_handler(name: str) -> Callable[
-    [_FutureBehaviorHandler], _FutureBehaviorHandler
-]:
+def register_handler(
+    name: str,
+) -> Callable[[_FutureBehaviorHandler], _FutureBehaviorHandler]:
     def func(f: _FutureBehaviorHandler) -> _FutureBehaviorHandler:
         FUTURE_HANDLERS[name] = f
         return f

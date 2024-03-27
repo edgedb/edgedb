@@ -95,8 +95,15 @@ INT_FLOAT_ERROR = re.compile(
 
 
 class GraphQLTranslatorContext:
-    def __init__(self, *, gqlcore: gt.GQLCoreSchema,
-                 variables, query, document_ast, operation_name):
+    def __init__(
+        self,
+        *,
+        gqlcore: gt.GQLCoreSchema,
+        variables,
+        query,
+        document_ast,
+        operation_name,
+    ):
         self.variables = variables
         self.fragments = {}
         self.validated_fragments = {}
@@ -215,10 +222,9 @@ class GraphQLTranslator:
         return self._context.gqlcore.get(name)
 
     def is_list_type(self, node):
-        return (
-            isinstance(node, gql_ast.ListTypeNode) or
-            (isinstance(node, gql_ast.NonNullTypeNode) and
-                self.is_list_type(node.type))
+        return isinstance(node, gql_ast.ListTypeNode) or (
+            isinstance(node, gql_ast.NonNullTypeNode)
+            and self.is_list_type(node.type)
         )
 
     def get_field_type(self, base, name, *, args=None):
@@ -1874,8 +1880,7 @@ class TokenLexer(graphql.language.lexer.Lexer):
 
 
 def parse_tokens(
-    text: str,
-    tokens: List[Tuple[gql_lexer.TokenKind, int, int, int, int, str]]
+    text: str, tokens: List[Tuple[gql_lexer.TokenKind, int, int, int, int, str]]
 ) -> graphql.Document:
     try:
         src = graphql.Source(text)
@@ -1889,7 +1894,8 @@ def parse_tokens(
 
 
 def convert_errors(
-    errs: List[gql_error.GraphQLError], *,
+    errs: List[gql_error.GraphQLError],
+    *,
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
 ) -> List[gql_error.GraphQLErrors]:
     result = []
@@ -1983,8 +1989,7 @@ def augment_error_message(gqlcore: gt.GQLCoreSchema, message: str):
 
 
 def convert_default(
-    node: gql_ast.ValueNode,
-    varname: str
+    node: gql_ast.ValueNode, varname: str
 ) -> Union[str, float, int, bool]:
     if isinstance(node, (gql_ast.StringValueNode,
                          gql_ast.BooleanValueNode,

@@ -57,7 +57,8 @@ def make_free_object(els: Dict[str, qlast.Expr]) -> qlast.Shape:
 
 
 def collect_grouping_atoms(
-        els: List[qlast.GroupingElement]) -> AbstractSet[str]:
+    els: List[qlast.GroupingElement],
+) -> AbstractSet[str]:
     atoms: ordered.OrderedSet[str] = ordered.OrderedSet()
 
     def _collect_atom(el: qlast.GroupingAtom) -> None:

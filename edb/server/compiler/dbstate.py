@@ -608,8 +608,7 @@ class SQLTransactionState:
                 self.set(name, value, query_unit.is_local)
 
     def set(
-        self, name: Optional[str], value: str | list[str] | None,
-        is_local: bool
+        self, name: Optional[str], value: str | list[str] | None, is_local: bool
     ) -> None:
         def _set(attr_name: str) -> None:
             settings = getattr(self, attr_name)
@@ -862,9 +861,9 @@ class Transaction:
     def get_system_config(self) -> immutables.Map[str, config.SettingValue]:
         return self._current.system_config
 
-    def get_cached_reflection_if_updated(self) -> Optional[
-        immutables.Map[str, Tuple[str, ...]]
-    ]:
+    def get_cached_reflection_if_updated(
+        self,
+    ) -> Optional[immutables.Map[str, Tuple[str, ...]]]:
         if self._current.cached_reflection == self._state0.cached_reflection:
             return None
         else:
@@ -911,9 +910,7 @@ class Transaction:
     ) -> None:
         self._current = self._current._replace(cached_reflection=new)
 
-    def update_migration_state(
-        self, mstate: Optional[MigrationState]
-    ) -> None:
+    def update_migration_state(self, mstate: Optional[MigrationState]) -> None:
         self._current = self._current._replace(migration_state=mstate)
 
     def update_migration_rewrite_state(

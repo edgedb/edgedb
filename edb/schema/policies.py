@@ -116,7 +116,8 @@ class AccessPolicy(
         return subj
 
     def get_original_subject(
-            self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
+        self, schema: s_schema.Schema
+    ) -> s_objtypes.ObjectType:
         ancs = (self,) + self.get_ancestors(schema).objects(schema)
         return ancs[-1].get_subject(schema)
 

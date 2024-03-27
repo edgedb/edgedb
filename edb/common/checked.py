@@ -155,12 +155,10 @@ class FrozenCheckedList(
     #
 
     @overload
-    def __getitem__(self, index: int) -> T:
-        ...
+    def __getitem__(self, index: int) -> T: ...
 
     @overload
-    def __getitem__(self, index: slice) -> FrozenCheckedList[T]:
-        ...
+    def __getitem__(self, index: slice) -> FrozenCheckedList[T]: ...
 
     def __getitem__(self, index: Union[int, slice]) -> Any:
         if isinstance(index, slice):
@@ -202,12 +200,10 @@ class CheckedList(
     #
 
     @overload
-    def __getitem__(self, index: int) -> T:
-        ...
+    def __getitem__(self, index: int) -> T: ...
 
     @overload
-    def __getitem__(self, index: slice) -> CheckedList[T]:
-        ...
+    def __getitem__(self, index: slice) -> CheckedList[T]: ...
 
     def __getitem__(self, index: Union[int, slice]) -> Any:
         if isinstance(index, slice):
@@ -220,19 +216,12 @@ class CheckedList(
     #
 
     @overload
-    def __setitem__(self, index: int, value: T) -> None:
-        ...
+    def __setitem__(self, index: int, value: T) -> None: ...
 
     @overload
-    def __setitem__(
-        self,
-        index: slice,
-        value: Iterable[T]
-    ) -> None:
-        ...
+    def __setitem__(self, index: slice, value: Iterable[T]) -> None: ...
 
-    def __setitem__(
-            self, index: Union[int, slice], value: Any) -> None:
+    def __setitem__(self, index: Union[int, slice], value: Any) -> None:
         if isinstance(index, int):
             self._container[index] = self._check_type(value)
             return
@@ -241,12 +230,10 @@ class CheckedList(
         self._container[_slice] = filter(self._check_type, value)
 
     @overload
-    def __delitem__(self, index: int) -> None:
-        ...
+    def __delitem__(self, index: int) -> None: ...
 
     @overload
-    def __delitem__(self, index: slice) -> None:
-        ...
+    def __delitem__(self, index: slice) -> None: ...
 
     def __delitem__(self, index: Union[int, slice]) -> None:
         del self._container[index]

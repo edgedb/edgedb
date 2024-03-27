@@ -152,14 +152,14 @@ def new_empty_set(
 
 
 def get_set_type(
-        ir_set: irast.Set, *,
-        ctx: context.ContextLevel) -> s_types.Type:
+    ir_set: irast.Set, *, ctx: context.ContextLevel
+) -> s_types.Type:
     return ctx.env.set_types[ir_set]
 
 
 def get_expr_type(
-        ir: irast.Set | irast.Expr, *,
-        ctx: context.ContextLevel) -> s_types.Type:
+    ir: irast.Set | irast.Expr, *, ctx: context.ContextLevel
+) -> s_types.Type:
     return typegen.type_from_typeref(ir.typeref, env=ctx.env)
 
 
@@ -231,9 +231,11 @@ def new_set_from_set(
 
 
 def new_tuple_set(
-        elements: List[irast.TupleElement], *,
-        named: bool,
-        ctx: context.ContextLevel) -> irast.Set:
+    elements: List[irast.TupleElement],
+    *,
+    named: bool,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     element_types = {el.name: get_set_type(el.val, ctx=ctx) for el in elements}
     ctx.env.schema, stype = s_types.Tuple.create(
@@ -258,8 +260,9 @@ def new_tuple_set(
 
 
 def new_array_set(
-    elements: Sequence[irast.Set], *,
-    stype: Optional[s_types.Type]=None,
+    elements: Sequence[irast.Set],
+    *,
+    stype: Optional[s_types.Type] = None,
     ctx: context.ContextLevel,
     span: Optional[qlast.Span]=None
 ) -> irast.Set:
@@ -289,7 +292,9 @@ def new_array_set(
 
 
 def raise_self_insert_error(
-    stype: s_obj.Object, span: Optional[qlast.Span], *,
+    stype: s_obj.Object,
+    span: Optional[qlast.Span],
+    *,
     ctx: context.ContextLevel,
 ) -> NoReturn:
     dname = stype.get_displayname(ctx.env.schema)
@@ -664,8 +669,8 @@ def resolve_name(
 
 
 def resolve_special_anchor(
-        anchor: qlast.SpecialAnchor, *,
-        ctx: context.ContextLevel) -> irast.Set:
+    anchor: qlast.SpecialAnchor, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     # '__source__' and '__subject__` can only appear as the
     # starting path label syntactically and must be pre-populated
@@ -686,15 +691,17 @@ def resolve_special_anchor(
 
 
 def ptr_step_set(
-        path_tip: irast.Set, *,
-        upcoming_intersections: Sequence[s_types.Type] = (),
-        source: s_obj.Object,
-        expr: Optional[qlast.Base],
-        ptr_name: str,
-        direction: PtrDir = PtrDir.Outbound,
-        span: Optional[qlast.Span],
-        ignore_computable: bool=False,
-        ctx: context.ContextLevel) -> irast.Set:
+    path_tip: irast.Set,
+    *,
+    upcoming_intersections: Sequence[s_types.Type] = (),
+    source: s_obj.Object,
+    expr: Optional[qlast.Base],
+    ptr_name: str,
+    direction: PtrDir = PtrDir.Outbound,
+    span: Optional[qlast.Span],
+    ignore_computable: bool = False,
+    ctx: context.ContextLevel,
+) -> irast.Set:
     ptrcls, path_id_ptrcls = resolve_ptr_with_intersections(
         source,
         ptr_name,
@@ -1110,10 +1117,8 @@ def _is_computable_ptr(
 
 
 def compile_enum_path(
-        expr: qlast.Path,
-        *,
-        source: s_types.Type,
-        ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.Path, *, source: s_types.Type, ctx: context.ContextLevel
+) -> irast.Set:
 
     assert isinstance(source, s_scalars.ScalarType)
     enum_values = source.get_enum_values(ctx.env.schema)
@@ -1181,11 +1186,12 @@ def compile_enum_path(
 
 
 def enum_indirection_set(
-        *,
-        source: s_types.Type,
-        ptr_name: str,
-        span: Optional[qlast.Span],
-        ctx: context.ContextLevel) -> irast.Set:
+    *,
+    source: s_types.Type,
+    ptr_name: str,
+    span: Optional[qlast.Span],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     strref = typegen.type_to_typeref(
         ctx.env.get_schema_type_and_track(s_name.QualName('std', 'str')),
@@ -1201,11 +1207,13 @@ def enum_indirection_set(
 
 
 def tuple_indirection_set(
-        path_tip: irast.Set, *,
-        source: s_types.Type,
-        ptr_name: str,
-        span: Optional[qlast.Span] = None,
-        ctx: context.ContextLevel) -> irast.Set:
+    path_tip: irast.Set,
+    *,
+    source: s_types.Type,
+    ptr_name: str,
+    span: Optional[qlast.Span] = None,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     assert isinstance(source, s_types.Tuple)
 
@@ -1319,11 +1327,13 @@ def type_intersection_set(
 
 
 def class_set(
-        stype: s_types.Type, *,
-        path_id: Optional[irast.PathId]=None,
-        skip_subtypes: bool=False,
-        ignore_rewrites: bool=False,
-        ctx: context.ContextLevel) -> irast.Set:
+    stype: s_types.Type,
+    *,
+    path_id: Optional[irast.PathId] = None,
+    skip_subtypes: bool = False,
+    ignore_rewrites: bool = False,
+    ctx: context.ContextLevel,
+) -> irast.Set:
     """Nominally, create a set representing selecting some type.
 
     That is, create a set with a TypeRoot expr.
@@ -1348,10 +1358,12 @@ def class_set(
 
 
 def expression_set(
-        expr: irast.Expr,
-        path_id: Optional[irast.PathId]=None, *,
-        type_override: Optional[s_types.Type]=None,
-        ctx: context.ContextLevel) -> irast.Set:
+    expr: irast.Expr,
+    path_id: Optional[irast.PathId] = None,
+    *,
+    type_override: Optional[s_types.Type] = None,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     if isinstance(expr, irast.Set):  # pragma: no cover
         raise errors.InternalServerError(f'{expr!r} is already a Set')
@@ -1376,12 +1388,14 @@ def expression_set(
 
 
 def scoped_set(
-        expr: Union[irast.Set, irast.Expr], *,
-        type_override: Optional[s_types.Type]=None,
-        typehint: Optional[s_types.Type]=None,
-        path_id: Optional[irast.PathId]=None,
-        force_reassign: bool=False,
-        ctx: context.ContextLevel) -> irast.Set:
+    expr: Union[irast.Set, irast.Expr],
+    *,
+    type_override: Optional[s_types.Type] = None,
+    typehint: Optional[s_types.Type] = None,
+    path_id: Optional[irast.PathId] = None,
+    force_reassign: bool = False,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     if not isinstance(expr, irast.Set):
         ir_set = expression_set(
@@ -1412,12 +1426,14 @@ def scoped_set(
 
 
 def ensure_set(
-        expr: Union[irast.Set, irast.Expr], *,
-        type_override: Optional[s_types.Type]=None,
-        typehint: Optional[s_types.Type]=None,
-        path_id: Optional[irast.PathId]=None,
-        span: Optional[qlast.Span]=None,
-        ctx: context.ContextLevel) -> irast.Set:
+    expr: Union[irast.Set, irast.Expr],
+    *,
+    type_override: Optional[s_types.Type] = None,
+    typehint: Optional[s_types.Type] = None,
+    path_id: Optional[irast.PathId] = None,
+    span: Optional[qlast.Span] = None,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     if not isinstance(expr, irast.Set):
         ir_set = expression_set(
@@ -1458,8 +1474,7 @@ def ensure_set(
 
 
 def ensure_stmt(
-    expr: Union[irast.Set, irast.Expr], *,
-    ctx: context.ContextLevel
+    expr: Union[irast.Set, irast.Expr], *, ctx: context.ContextLevel
 ) -> irast.Stmt:
     if not isinstance(expr, irast.Stmt):
         expr = irast.SelectStmt(
@@ -1664,10 +1679,7 @@ def computable_ptr_set(
 
 
 def _get_schema_computed_ctx(
-    *,
-    rptr: irast.Pointer,
-    source: irast.Set,
-    ctx: context.ContextLevel
+    *, rptr: irast.Pointer, source: irast.Set, ctx: context.ContextLevel
 ) -> Callable[[], ContextManager[context.ContextLevel]]:
 
     @contextlib.contextmanager
@@ -1881,10 +1893,11 @@ def maybe_materialize(
 
 
 def should_materialize(
-    ir: irast.Base, *,
-    ptrcls: Optional[s_pointers.Pointer]=None,
-    materialize_visible: bool=False,
-    skipped_bindings: AbstractSet[irast.PathId]=frozenset(),
+    ir: irast.Base,
+    *,
+    ptrcls: Optional[s_pointers.Pointer] = None,
+    materialize_visible: bool = False,
+    skipped_bindings: AbstractSet[irast.PathId] = frozenset(),
     ctx: context.ContextLevel,
 ) -> Sequence[irast.MaterializeReason]:
     volatility = inference.infer_volatility(ir, ctx.env, exclude_dml=True)
@@ -1953,7 +1966,8 @@ def should_materialize_type(
 
 
 def get_global_param(
-        glob: s_globals.Global, * , ctx: context.ContextLevel) -> irast.Global:
+    glob: s_globals.Global, *, ctx: context.ContextLevel
+) -> irast.Global:
     name = glob.get_name(ctx.env.schema)
 
     if name not in ctx.env.query_globals:
@@ -1975,8 +1989,10 @@ def get_global_param(
 
 
 def get_global_param_sets(
-    glob: s_globals.Global, *, ctx: context.ContextLevel,
-    is_implicit_global: bool=False,
+    glob: s_globals.Global,
+    *,
+    ctx: context.ContextLevel,
+    is_implicit_global: bool = False,
 ) -> Tuple[irast.Set, Optional[irast.Set]]:
     param = get_global_param(glob, ctx=ctx)
     default = glob.get_default(ctx.env.schema)
@@ -2008,9 +2024,7 @@ def get_global_param_sets(
     return param_set, present_set
 
 
-def get_func_global_json_arg(
-    *, ctx: context.ContextLevel
-) -> irast.Set:
+def get_func_global_json_arg(*, ctx: context.ContextLevel) -> irast.Set:
     json_type = ctx.env.schema.get('std::json', type=s_types.Type)
     json_typeref = typegen.type_to_typeref(json_type, env=ctx.env)
     name = '__edb_json_globals__'
@@ -2039,7 +2053,8 @@ def get_func_global_json_arg(
 
 
 def get_func_global_param_sets(
-    glob: s_globals.Global, *,
+    glob: s_globals.Global,
+    *,
     ctx: context.ContextLevel,
 ) -> Tuple[qlast.Expr, Optional[qlast.Expr]]:
     # NB: updates ctx anchors
@@ -2076,7 +2091,8 @@ def get_func_global_param_sets(
 
 
 def get_globals_as_json(
-    globs: Sequence[s_globals.Global], *,
+    globs: Sequence[s_globals.Global],
+    *,
     ctx: context.ContextLevel,
     span: Optional[qlast.Span],
 ) -> irast.Set:

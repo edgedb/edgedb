@@ -439,7 +439,7 @@ def _eval(
 
 
 def graft(
-    prefix: Optional[qlast.Path], new: qlast.Path, always_partial: bool=False
+    prefix: Optional[qlast.Path], new: qlast.Path, always_partial: bool = False
 ) -> qlast.Path:
     if new.partial or always_partial:
         assert prefix is not None
@@ -450,8 +450,9 @@ def graft(
 
 
 def update_path(
-    prefix: Optional[qlast.Path], query: Optional[qlast.Expr],
-    subject: bool=False,
+    prefix: Optional[qlast.Path],
+    query: Optional[qlast.Expr],
+    subject: bool = False,
 ) -> Optional[qlast.Path]:
     if query is None:
         return None
@@ -557,8 +558,9 @@ def eval_orderby(
     return out
 
 
-def eval_offset(offset: Optional[qlast.Expr], out: List[Row],
-                ctx: EvalContext) -> List[Row]:
+def eval_offset(
+    offset: Optional[qlast.Expr], out: List[Row], ctx: EvalContext
+) -> List[Row]:
     if offset:
         res = subquery(offset, ctx=ctx)
         assert len(res) == 1
@@ -566,8 +568,9 @@ def eval_offset(offset: Optional[qlast.Expr], out: List[Row],
     return out
 
 
-def eval_limit(limit: Optional[qlast.Expr], out: List[Row],
-               ctx: EvalContext) -> List[Row]:
+def eval_limit(
+    limit: Optional[qlast.Expr], out: List[Row], ctx: EvalContext
+) -> List[Row]:
     if limit:
         res = subquery(limit, ctx=ctx)
         assert len(res) == 1
@@ -638,7 +641,8 @@ def powerset(iterable: Iterable[T]) -> Iterable[Tuple[T, ...]]:
 
 
 def simplify_grouping_sets(
-        gset: qlast.GroupingElement) -> List[qlast.GroupingAtom]:
+    gset: qlast.GroupingElement,
+) -> List[qlast.GroupingAtom]:
     if isinstance(gset, qlast.GroupingSimple):
         return [gset.element]
     elif isinstance(gset, qlast.GroupingSets):
@@ -702,10 +706,9 @@ def _keyify(v: Data) -> Data:
     return v
 
 
-def get_groups(node: qlast.GroupQuery, ctx: EvalContext) -> List[Tuple[
-    Tuple[Data, ...],
-    Tuple[Dict[ByElement, Data], List[Data]]
-]]:
+def get_groups(
+    node: qlast.GroupQuery, ctx: EvalContext
+) -> List[Tuple[Tuple[Data, ...], Tuple[Dict[ByElement, Data], List[Data]]]]:
     ctx = eval_aliases(node, ctx)
 
     # Actually evaluate the subject
@@ -797,7 +800,8 @@ def direct_eval_group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
 
 @_eval.register
 def eval_InternalGroup(
-        node: qlast.InternalGroupQuery, ctx: EvalContext) -> Result:
+    node: qlast.InternalGroupQuery, ctx: EvalContext
+) -> Result:
     all_groups = get_groups(node, ctx)
 
     out = []
@@ -925,13 +929,13 @@ def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> Result:
 
 
 @_eval.register
-def eval_DetachedExpr(
-        node: qlast.DetachedExpr, ctx: EvalContext) -> Result:
+def eval_DetachedExpr(node: qlast.DetachedExpr, ctx: EvalContext) -> Result:
     return toplevel_query(node.expr, db=ctx.db)
 
 
-def eval_func_or_op(op: str, args: List[qlast.Expr], typ: str,
-                    ctx: EvalContext) -> Result:
+def eval_func_or_op(
+    op: str, args: List[qlast.Expr], typ: str, ctx: EvalContext
+) -> Result:
     arg_specs = BASIS.get(op)
 
     results = []
@@ -954,8 +958,7 @@ def eval_BinOp(node: qlast.BinOp, ctx: EvalContext) -> Result:
 
 @_eval.register
 def eval_UnaryOp(node: qlast.UnaryOp, ctx: EvalContext) -> Result:
-    return eval_func_or_op(
-        node.op.upper(), [node.operand], 'unop', ctx)
+    return eval_func_or_op(node.op.upper(), [node.operand], 'unop', ctx)
 
 
 @_eval.register
@@ -973,8 +976,7 @@ def visit_IfElse(query: qlast.IfElse, ctx: EvalContext) -> Result:
 
 
 @_eval.register
-def eval_Indirection(
-        node: qlast.Indirection, ctx: EvalContext) -> Result:
+def eval_Indirection(node: qlast.Indirection, ctx: EvalContext) -> Result:
     base = eval(node.arg, ctx)
     for index in node.indirection:
         index_out = (
@@ -988,32 +990,31 @@ def eval_Indirection(
 
 
 @_eval.register
-def eval_StringConstant(
-        node: qlast.StringConstant, ctx: EvalContext) -> Result:
+def eval_StringConstant(node: qlast.StringConstant, ctx: EvalContext) -> Result:
     return [node.value]
 
 
 @_eval.register
 def eval_IntegerConstant(
-        node: qlast.IntegerConstant, ctx: EvalContext) -> Result:
+    node: qlast.IntegerConstant, ctx: EvalContext
+) -> Result:
     return [int(node.value) * (-1 if node.is_negative else 1)]
 
 
 @_eval.register
 def eval_BooleanConstant(
-        node: qlast.BooleanConstant, ctx: EvalContext) -> Result:
+    node: qlast.BooleanConstant, ctx: EvalContext
+) -> Result:
     return [node.value == 'true']
 
 
 @_eval.register
-def eval_FloatConstant(
-        node: qlast.FloatConstant, ctx: EvalContext) -> Result:
+def eval_FloatConstant(node: qlast.FloatConstant, ctx: EvalContext) -> Result:
     return [float(node.value) * (-1 if node.is_negative else 1)]
 
 
 @_eval.register
-def eval_Set(
-        node: qlast.Set, ctx: EvalContext) -> Result:
+def eval_Set(node: qlast.Set, ctx: EvalContext) -> Result:
     out = []
     for elem in node.elements:
         out.extend(eval(elem, ctx))
@@ -1021,22 +1022,19 @@ def eval_Set(
 
 
 @_eval.register
-def eval_Tuple(
-        node: qlast.Tuple, ctx: EvalContext) -> Result:
+def eval_Tuple(node: qlast.Tuple, ctx: EvalContext) -> Result:
     args = [eval(arg, ctx) for arg in node.elements]
     return lift(lambda *va: va)(*args)
 
 
 @_eval.register
-def eval_Array(
-        node: qlast.Array, ctx: EvalContext) -> Result:
+def eval_Array(node: qlast.Array, ctx: EvalContext) -> Result:
     args = [eval(arg, ctx) for arg in node.elements]
     return lift(lambda *va: list(va))(*args)
 
 
 @_eval.register
-def eval_NamedTuple(
-        node: qlast.NamedTuple, ctx: EvalContext) -> Result:
+def eval_NamedTuple(node: qlast.NamedTuple, ctx: EvalContext) -> Result:
     names = [elem.name.name for elem in node.elements]
     args = [eval(arg.val, ctx) for arg in node.elements]
     return lift(lambda *va: dict(zip(names, va)))(*args)
@@ -1096,7 +1094,12 @@ def lookup_computed(
 
 
 def eval_computed(
-    obj: Obj, name: str, query: qlast.Expr, typ: str, src: Obj, *,
+    obj: Obj,
+    name: str,
+    query: qlast.Expr,
+    typ: str,
+    src: Obj,
+    *,
     ctx: EvalContext,
 ) -> Result:
     paths = [qlast.Path(steps=[qlast.ObjectRef(name=typ)])]
@@ -1154,7 +1157,8 @@ def eval_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
 
 
 def eval_intersect(
-        base: Data, ptr: ITypeIntersection, ctx: EvalContext) -> Result:
+    base: Data, ptr: ITypeIntersection, ctx: EvalContext
+) -> Result:
     # TODO: we want actual types but for now we just match directly
     typ = ctx.db.data[base.id]["__type__"]
     return [base] if typ == ptr.typ else []
@@ -1213,8 +1217,8 @@ def eval_path(path: IPath, ctx: EvalContext) -> Result:
 
 
 def build_input_tuples(
-        qil: List[IPath], always_optional: Dict[IPath, bool],
-        ctx: EvalContext) -> List[Tuple[Data, ...]]:
+    qil: List[IPath], always_optional: Dict[IPath, bool], ctx: EvalContext
+) -> List[Tuple[Data, ...]]:
     data: List[Tuple[Data, ...]] = [ctx.input_tuple]
     for i, in_path in enumerate(qil):
         new_data: List[Tuple[Data, ...]] = []
@@ -1258,12 +1262,16 @@ class PathFinder(NodeVisitor):
 
     @contextlib.contextmanager
     def update_path(
-        self, query: Optional[qlast.Expr], subject: bool=False,
+        self,
+        query: Optional[qlast.Expr],
+        subject: bool = False,
     ) -> Iterator[None]:
         yield from self._update(
             current_path=update_path(self.current_path, query, subject))
 
-    def visit_Path(self, path: qlast.Path, always_partial: bool=False) -> None:
+    def visit_Path(
+        self, path: qlast.Path, always_partial: bool = False
+    ) -> None:
         self.paths.append((
             graft(self.current_path, path, always_partial=always_partial),
             self.optional_counter if self.in_optional else None,
@@ -1566,7 +1574,7 @@ def strip_shapes(x: Data) -> Data:
         return x
 
 
-def clean_data(x: Data, cheat: bool, *, is_el: bool=False) -> Data:
+def clean_data(x: Data, cheat: bool, *, is_el: bool = False) -> Data:
     if isinstance(x, Obj):
         return clean_data(x.shape, cheat)
     elif isinstance(x, dict):

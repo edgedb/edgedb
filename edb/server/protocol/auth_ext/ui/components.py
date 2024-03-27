@@ -98,12 +98,7 @@ def script(name: str) -> str:
     return f'<script type="module" src="_static/{name}.js"></script>'
 
 
-def title(
-    title: str,
-    *,
-    app_name: Optional[str],
-    join: str = 'to'
-) -> str:
+def title(title: str, *, app_name: Optional[str], join: str = 'to') -> str:
     if app_name is None:
         return f'''<h1><span>{title}</span></h1>'''
 
@@ -143,12 +138,7 @@ def oauth_buttons(
     '''
 
 
-def _oauth_button(
-    provider,
-    params: dict,
-    *,
-    label_prefix: str
-) -> str:
+def _oauth_button(provider, params: dict, *, label_prefix: str) -> str:
     href = '../authorize?' + urllib.parse.urlencode({
         'provider': provider.name,
         **params
@@ -221,10 +211,7 @@ divider = '''
     </div>'''
 
 
-def tabs_content(
-    sections: list[str],
-    selected_tab: int
-) -> str:
+def tabs_content(sections: list[str], selected_tab: int) -> str:
     content = ''
 
     for i, section in enumerate(sections):
@@ -251,10 +238,7 @@ _tab_underline = '''
     </svg>'''
 
 
-def tabs_buttons(
-    labels: list[str],
-    selected_tab: int
-) -> str:
+def tabs_buttons(labels: list[str], selected_tab: int) -> str:
     content = ''
 
     for i, label in enumerate(labels):
@@ -273,22 +257,14 @@ def tabs_buttons(
 
 
 def hidden_input(
-    *,
-    name: str,
-    value: str,
-    secondary_value: Optional[str] = None
+    *, name: str, value: str, secondary_value: Optional[str] = None
 ) -> str:
     return f'''<input type="hidden" name="{name}" value="{value}" {
         f'data-secondary-value="{secondary_value}"'
         if secondary_value else ''} />'''
 
 
-def bottom_note(
-    message: str,
-    *,
-    link: str,
-    href: str
-) -> str:
+def bottom_note(message: str, *, link: str, href: str) -> str:
     return f"""
         <div class="bottom-note">
             {message}
@@ -298,7 +274,7 @@ def bottom_note(
 
 
 def error_message(message: Optional[str], escape: bool = True) -> str:
-    if (message is None):
+    if message is None:
         return ''
 
     return f'''

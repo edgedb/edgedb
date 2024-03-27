@@ -1995,7 +1995,8 @@ def _normalize_view_ptr_expr(
 
 
 def derive_ptrcls(
-    view_rptr: context.ViewRPtr, *,
+    view_rptr: context.ViewRPtr,
+    *,
     target_scls: s_types.Type,
     ctx: context.ContextLevel
 ) -> s_pointers.Pointer:
@@ -2041,8 +2042,8 @@ def derive_ptrcls(
 
 
 def _link_has_shape(
-        ptrcls: s_pointers.PointerLike, *,
-        ctx: context.ContextLevel) -> bool:
+    ptrcls: s_pointers.PointerLike, *, ctx: context.ContextLevel
+) -> bool:
     if not isinstance(ptrcls, s_links.Link):
         return False
 
@@ -2072,9 +2073,8 @@ def _get_base_ptr_cardinality(
 
 
 def has_implicit_tid(
-        stype: s_types.Type, *,
-        is_mutation: bool,
-        ctx: context.ContextLevel) -> bool:
+    stype: s_types.Type, *, is_mutation: bool, ctx: context.ContextLevel
+) -> bool:
 
     return (
         stype.is_object_type()
@@ -2084,9 +2084,8 @@ def has_implicit_tid(
 
 
 def has_implicit_tname(
-        stype: s_types.Type, *,
-        is_mutation: bool,
-        ctx: context.ContextLevel) -> bool:
+    stype: s_types.Type, *, is_mutation: bool, ctx: context.ContextLevel
+) -> bool:
 
     return (
         stype.is_object_type()
@@ -2096,9 +2095,8 @@ def has_implicit_tname(
 
 
 def has_implicit_type_computables(
-        stype: s_types.Type, *,
-        is_mutation: bool,
-        ctx: context.ContextLevel) -> bool:
+    stype: s_types.Type, *, is_mutation: bool, ctx: context.ContextLevel
+) -> bool:
 
     return (
         has_implicit_tid(stype, is_mutation=is_mutation, ctx=ctx)
@@ -2356,10 +2354,12 @@ def _get_late_shape_configuration(
 
 @functools.singledispatch
 def late_compile_view_shapes(
-        expr: irast.Base, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) -> None:
+    expr: irast.Base,
+    *,
+    rptr: Optional[irast.Pointer] = None,
+    parent_view_type: Optional[s_types.ExprType] = None,
+    ctx: context.ContextLevel,
+) -> None:
     """Do a late insertion of any unprocessed shapes.
 
     We mainly compile shapes in process_view, but late_compile_view_shapes
@@ -2490,20 +2490,24 @@ def _late_compile_view_shapes_in_set(
 
 @late_compile_view_shapes.register(irast.SelectStmt)
 def _late_compile_view_shapes_in_select(
-        stmt: irast.SelectStmt, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) -> None:
+    stmt: irast.SelectStmt,
+    *,
+    rptr: Optional[irast.Pointer] = None,
+    parent_view_type: Optional[s_types.ExprType] = None,
+    ctx: context.ContextLevel,
+) -> None:
     late_compile_view_shapes(
         stmt.result, rptr=rptr, parent_view_type=parent_view_type, ctx=ctx)
 
 
 @late_compile_view_shapes.register(irast.Call)
 def _late_compile_view_shapes_in_call(
-        expr: irast.Call, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) -> None:
+    expr: irast.Call,
+    *,
+    rptr: Optional[irast.Pointer] = None,
+    parent_view_type: Optional[s_types.ExprType] = None,
+    ctx: context.ContextLevel,
+) -> None:
 
     if expr.func_polymorphic:
         for call_arg in expr.args:
@@ -2519,20 +2523,24 @@ def _late_compile_view_shapes_in_call(
 
 @late_compile_view_shapes.register(irast.Tuple)
 def _late_compile_view_shapes_in_tuple(
-        expr: irast.Tuple, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) -> None:
+    expr: irast.Tuple,
+    *,
+    rptr: Optional[irast.Pointer] = None,
+    parent_view_type: Optional[s_types.ExprType] = None,
+    ctx: context.ContextLevel,
+) -> None:
     for element in expr.elements:
         late_compile_view_shapes(element.val, ctx=ctx)
 
 
 @late_compile_view_shapes.register(irast.Array)
 def _late_compile_view_shapes_in_array(
-        expr: irast.Array, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) -> None:
+    expr: irast.Array,
+    *,
+    rptr: Optional[irast.Pointer] = None,
+    parent_view_type: Optional[s_types.ExprType] = None,
+    ctx: context.ContextLevel,
+) -> None:
     for element in expr.elements:
         late_compile_view_shapes(element, ctx=ctx)
 

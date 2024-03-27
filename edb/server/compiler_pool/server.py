@@ -225,7 +225,8 @@ class MultiSchemaPool(pool_mod.FixedPool):
         pass
 
     async def _init_server(
-        self, client_id: int,
+        self,
+        client_id: int,
         catalog_version: int,
         init_args_pickled: tuple[bytes, bytes, bytes, bytes],
     ):
@@ -652,9 +653,7 @@ async def server_main(
             temp_runstate_dir.cleanup()
 
 
-async def _run_server(
-    loop, listen_addresses, listen_port, protocol, purpose
-):
+async def _run_server(loop, listen_addresses, listen_port, protocol, purpose):
     server = await loop.create_server(
         protocol,
         listen_addresses,

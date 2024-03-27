@@ -51,8 +51,10 @@ VOLATILE = qltypes.Volatility.Volatile
 # functions are allowed to still produce a single volatility value,
 # which is normalized when necessary.
 
-def _normalize_volatility(vol: InferredVolatility) -> Tuple[
-        qltypes.Volatility, qltypes.Volatility]:
+
+def _normalize_volatility(
+    vol: InferredVolatility,
+) -> Tuple[qltypes.Volatility, qltypes.Volatility]:
     if not isinstance(vol, tuple):
         return (vol, vol)
     else:
