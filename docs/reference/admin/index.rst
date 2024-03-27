@@ -18,6 +18,12 @@ Administrative commands for managing EdgeDB:
 
   Create, remove or alter a role.
 
+.. versionadded:: 5.0
+
+    * :ref:`administer vacuum <ref_admin_vacuum>`
+
+      Reclaim storage space
+
 
 .. toctree::
     :maxdepth: 3
@@ -27,3 +33,4 @@ Administrative commands for managing EdgeDB:
     configure
     databases
     roles
+    vacuum

@@ -295,20 +295,23 @@ EdgeQL
 
   The command ``administer vacuum()`` can take a list of object types, multi
   properties, multi links or links with link properties. There is also a named
-  only argument ``full`` that controls how thorough the cleaning will
-  be. All of the arguments can be omitted. In case no target types are
-  specified, everything accessible to the user will be vacuumed.
+  only argument ``full`` that reclaims storage to the OS rather than just to
+  the database. All of the arguments can be omitted. In case no target types
+  are specified, everything accessible to the user will be vacuumed.
 
-  The vacuum command will reclaim storage space used by the specified types.
-  Since certain aspects such as multi properties and links as well as links
-  with link properties require additional underlying tables they can be listed
-  separately when reclaiming storage space.
+  The vacuum command will use already allocated space better so that it will
+  reduce the growth rate of the database, or will reclaim storage space to the
+  operating system with ``full``. Since certain aspects such as multi
+  properties and links as well as links with link properties require additional
+  underlying tables they can be listed separately when reclaiming storage
+  space.
 
-  If the ``full`` option is set to ``true``, vacuuming will potentially
-  reclaim more space, but it can take much longer and will exclusively lock
-  the underlying tables.
+  If the ``full`` option is set to ``true``, reclaimed storage is returned to
+  the OS, but it can take much longer and will exclusively lock the underlying
+  tables.
 
-  For example, the following command will vacuum the ``User`` type thoroughly:
+  For example, the following command will vacuum the ``User`` type reclaiming
+  storage to the OS:
 
   .. code-block:: edgeql
 
