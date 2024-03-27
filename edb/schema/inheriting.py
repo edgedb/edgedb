@@ -963,7 +963,9 @@ class AlterInheritingObjectOrFragment(
         ]
 
         for descendant_name in descendant_names:
-            descendant = schema.get(descendant_name, type=so.InheritingObject)
+            descendant = schema.get(
+                descendant_name, type=so.InheritingObject, default=None
+            )
             assert descendant, '.inherit_fields caused a drop of a descendant?'
 
             d_root_cmd, d_alter_cmd, ctx_stack = descendant.init_delta_branch(
