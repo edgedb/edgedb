@@ -103,10 +103,7 @@ class Operator(
             raise ValueError('unexpected operator kind')
 
     def get_verbosename(
-        self,
-        schema: s_schema.Schema,
-        *,
-        with_parent: bool=False
+        self, schema: s_schema.Schema, *, with_parent: bool = False
     ) -> str:
         return f'operator "{self.get_display_signature(schema)}"'
 

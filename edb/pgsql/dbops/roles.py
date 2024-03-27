@@ -169,11 +169,10 @@ class DropRole(ddl.SchemaObjectOperation):
 
 class AlterRoleAddMember(ddl.SchemaObjectOperation):
 
-    def __init__(
-            self, name, member, *, conditions=None,
-            neg_conditions=None):
-        super().__init__(name, conditions=conditions,
-                         neg_conditions=neg_conditions)
+    def __init__(self, name, member, *, conditions=None, neg_conditions=None):
+        super().__init__(
+            name, conditions=conditions, neg_conditions=neg_conditions
+        )
         self.member = member
 
     def code(self, block: base.PLBlock) -> str:
@@ -194,7 +193,8 @@ class AlterRoleDropMember(ddl.SchemaObjectOperation):
 class AlterRoleAddMembership(ddl.SchemaObjectOperation):
 
     def __init__(
-            self, name, membership, *, conditions=None, neg_conditions=None):
+        self, name, membership, *, conditions=None, neg_conditions=None
+    ):
         super().__init__(
             name, conditions=conditions, neg_conditions=neg_conditions)
         self.membership = membership

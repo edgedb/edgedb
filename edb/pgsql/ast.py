@@ -88,13 +88,15 @@ class BaseExpr(Base):
     nullable: typing.Optional[bool] = None  # Whether the result can be NULL.
     ser_safe: bool = False  # Whether the expr is serialization-safe.
 
-    def __init__(self, *, nullable: typing.Optional[bool]=None,
-                 **kwargs) -> None:
+    def __init__(
+        self, *, nullable: typing.Optional[bool] = None, **kwargs
+    ) -> None:
         nullable = self._is_nullable(kwargs, nullable)
         super().__init__(nullable=nullable, **kwargs)
 
-    def _is_nullable(self, kwargs: typing.Dict[str, object],
-                     nullable: typing.Optional[bool]) -> bool:
+    def _is_nullable(
+        self, kwargs: typing.Dict[str, object], nullable: typing.Optional[bool]
+    ) -> bool:
         if nullable is None:
             default = type(self).get_field('nullable').default
             if default is not None:
@@ -176,8 +178,9 @@ class EdgeQLPathInfo(Base):
         OutputVar,
     ]] = None
 
-    def get_path_outputs(self, flavor: str) -> typing.Dict[
-            typing.Tuple[irast.PathId, str], OutputVar]:
+    def get_path_outputs(
+        self, flavor: str
+    ) -> typing.Dict[typing.Tuple[irast.PathId, str], OutputVar]:
         if flavor == 'packed':
             if self.packed_path_outputs is None:
                 self.packed_path_outputs = {}
@@ -332,8 +335,13 @@ class DynamicRangeVarFunc(typing.Protocol):
     # PathRangeVar, keep looking in that rvar. If it returns
     # another expression, that's the output.
     def __call__(
-        self, rel: Query, path_id: irast.PathId, *,
-        flavor: str, aspect: str, env: typing.Any
+        self,
+        rel: Query,
+        path_id: irast.PathId,
+        *,
+        flavor: str,
+        aspect: str,
+        env: typing.Any,
     ) -> typing.Optional[BaseExpr | PathRangeVar]:
         pass
 
@@ -386,28 +394,40 @@ class TupleElementBase(ImmutableBase):
     path_id: irast.PathId
     name: typing.Optional[typing.Union[OutputVar, str]]
 
-    def __init__(self, path_id: irast.PathId,
-                 name: typing.Optional[typing.Union[OutputVar, str]]=None):
+    def __init__(
+        self,
+        path_id: irast.PathId,
+        name: typing.Optional[typing.Union[OutputVar, str]] = None,
+    ):
         self.path_id = path_id
         self.name = name
 
     def __repr__(self):
-        return f'<{self.__class__.__name__} ' \
-               f'name={self.name} path_id={self.path_id}>'
+        return (
+            f'<{self.__class__.__name__} '
+            f'name={self.name} path_id={self.path_id}>'
+        )
 
 
 class TupleElement(TupleElementBase):
 
     val: BaseExpr
 
-    def __init__(self, path_id: irast.PathId, val: BaseExpr, *,
-                 name: typing.Optional[typing.Union[OutputVar, str]]=None):
+    def __init__(
+        self,
+        path_id: irast.PathId,
+        val: BaseExpr,
+        *,
+        name: typing.Optional[typing.Union[OutputVar, str]] = None,
+    ):
         super().__init__(path_id, name)
         self.val = val
 
     def __repr__(self):
-        return f'<{self.__class__.__name__} ' \
-               f'name={self.name} val={self.val} path_id={self.path_id}>'
+        return (
+            f'<{self.__class__.__name__} '
+            f'name={self.name} val={self.val} path_id={self.path_id}>'
+        )
 
 
 class TupleVarBase(OutputVar):
@@ -417,10 +437,15 @@ class TupleVarBase(OutputVar):
     nullable: bool
     typeref: typing.Optional[irast.TypeRef]
 
-    def __init__(self, elements: typing.List[TupleElementBase], *,
-                 named: bool=False, nullable: bool=False,
-                 is_packed_multi: bool=False,
-                 typeref: typing.Optional[irast.TypeRef]=None):
+    def __init__(
+        self,
+        elements: typing.List[TupleElementBase],
+        *,
+        named: bool = False,
+        nullable: bool = False,
+        is_packed_multi: bool = False,
+        typeref: typing.Optional[irast.TypeRef] = None,
+    ):
         self.elements = elements
         self.named = named
         self.nullable = nullable
@@ -435,10 +460,15 @@ class TupleVar(TupleVarBase):
 
     elements: typing.Sequence[TupleElement]
 
-    def __init__(self, elements: typing.List[TupleElement], *,
-                 named: bool=False, nullable: bool=False,
-                 is_packed_multi: bool=False,
-                 typeref: typing.Optional[irast.TypeRef]=None):
+    def __init__(
+        self,
+        elements: typing.List[TupleElement],
+        *,
+        named: bool = False,
+        nullable: bool = False,
+        is_packed_multi: bool = False,
+        typeref: typing.Optional[irast.TypeRef] = None,
+    ):
         self.elements = elements
         self.named = named
         self.nullable = nullable
@@ -551,8 +581,9 @@ class Query(ReturningQuery):
 
     ctes: typing.Optional[typing.List[CommonTableExpr]] = None
 
-    def get_rvar_map(self, flavor: str) -> typing.Dict[
-            typing.Tuple[irast.PathId, str], PathRangeVar]:
+    def get_rvar_map(
+        self, flavor: str
+    ) -> typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]:
         if flavor == 'packed':
             if self.path_packed_rvar_map is None:
                 self.path_packed_rvar_map = {}
@@ -562,8 +593,11 @@ class Query(ReturningQuery):
         else:
             raise AssertionError(f'unexpected flavor "{flavor}"')
 
-    def maybe_get_rvar_map(self, flavor: str) -> typing.Optional[typing.Dict[
-            typing.Tuple[irast.PathId, str], PathRangeVar]]:
+    def maybe_get_rvar_map(
+        self, flavor: str
+    ) -> typing.Optional[
+        typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]
+    ]:
         if flavor == 'packed':
             return self.path_packed_rvar_map
         elif flavor == 'normal':
@@ -771,12 +805,17 @@ class FuncCall(ImmutableBaseExpr):
     over: typing.Optional[WindowDef]
     # WITH ORDINALITY
     with_ordinality: bool = False
-    # list of ColumnDef nodes to describe result of
+    # list of Columndef  nodes to describe result of
     # the function returning RECORD.
     coldeflist: typing.List[ColumnDef]
 
-    def __init__(self, *, nullable: typing.Optional[bool]=None,
-                 null_safe: bool=False, **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        nullable: typing.Optional[bool] = None,
+        null_safe: bool = False,
+        **kwargs,
+    ) -> None:
         """Function call node.
 
         @param null_safe:
@@ -917,7 +956,8 @@ class JoinExpr(BaseRangeVar):
 
     @classmethod
     def make_inplace(
-        cls, *,
+        cls,
+        *,
         larg: BaseRangeVar,
         type: str,
         rarg: BaseRangeVar,

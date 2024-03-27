@@ -961,15 +961,16 @@ def descriptive_text_from_delta(
 
 
 def ddl_text_from_schema(
-    schema: s_schema.Schema, *,
-    included_modules: Optional[Iterable[sn.Name]]=None,
-    excluded_modules: Optional[Iterable[sn.Name]]=None,
-    included_items: Optional[Iterable[sn.Name]]=None,
-    excluded_items: Optional[Iterable[sn.Name]]=None,
-    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
-    include_module_ddl: bool=True,
-    include_std_ddl: bool=False,
-    include_migrations: bool=False,
+    schema: s_schema.Schema,
+    *,
+    included_modules: Optional[Iterable[sn.Name]] = None,
+    excluded_modules: Optional[Iterable[sn.Name]] = None,
+    included_items: Optional[Iterable[sn.Name]] = None,
+    excluded_items: Optional[Iterable[sn.Name]] = None,
+    included_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    include_module_ddl: bool = True,
+    include_std_ddl: bool = False,
+    include_migrations: bool = False,
 ) -> str:
     diff = delta_schemas(
         schema_a=None,
@@ -988,14 +989,15 @@ def ddl_text_from_schema(
 
 
 def sdl_text_from_schema(
-    schema: s_schema.Schema, *,
-    included_modules: Optional[Iterable[sn.Name]]=None,
-    excluded_modules: Optional[Iterable[sn.Name]]=None,
-    included_items: Optional[Iterable[sn.Name]]=None,
-    excluded_items: Optional[Iterable[sn.Name]]=None,
-    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
-    include_module_ddl: bool=True,
-    include_std_ddl: bool=False,
+    schema: s_schema.Schema,
+    *,
+    included_modules: Optional[Iterable[sn.Name]] = None,
+    excluded_modules: Optional[Iterable[sn.Name]] = None,
+    included_items: Optional[Iterable[sn.Name]] = None,
+    excluded_items: Optional[Iterable[sn.Name]] = None,
+    included_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    include_module_ddl: bool = True,
+    include_std_ddl: bool = False,
 ) -> str:
     diff = delta_schemas(
         schema_a=None,
@@ -1013,15 +1015,16 @@ def sdl_text_from_schema(
 
 
 def descriptive_text_from_schema(
-    schema: s_schema.Schema, *,
-    included_modules: Optional[Iterable[sn.Name]]=None,
-    excluded_modules: Optional[Iterable[sn.Name]]=None,
-    included_items: Optional[Iterable[sn.Name]]=None,
-    excluded_items: Optional[Iterable[sn.Name]]=None,
-    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
-    include_module_ddl: bool=True,
-    include_std_ddl: bool=False,
-    include_derived_types: bool=False,
+    schema: s_schema.Schema,
+    *,
+    included_modules: Optional[Iterable[sn.Name]] = None,
+    excluded_modules: Optional[Iterable[sn.Name]] = None,
+    included_items: Optional[Iterable[sn.Name]] = None,
+    excluded_items: Optional[Iterable[sn.Name]] = None,
+    included_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    include_module_ddl: bool = True,
+    include_std_ddl: bool = False,
+    include_derived_types: bool = False,
 ) -> str:
     diff = delta_schemas(
         schema_a=None,

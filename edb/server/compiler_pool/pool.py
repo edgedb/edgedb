@@ -559,12 +559,7 @@ class AbstractPool:
 
     # We use a helper function instead of just fully generating the
     # functions in order to make the backtraces a little better.
-    async def _simple_call(
-        self,
-        name,
-        *args,
-        **kwargs
-    ):
+    async def _simple_call(self, name, *args, **kwargs):
         worker = await self._acquire_worker()
         try:
             return await worker.call(
@@ -1122,9 +1117,7 @@ class RemotePool(AbstractPool):
             pickle.dumps(system_config, -1),
         )
 
-    async def _connection_made(
-        self, retry, protocol, transport, _pid, version
-    ):
+    async def _connection_made(self, retry, protocol, transport, _pid, version):
         if self._worker is None:
             return
         try:

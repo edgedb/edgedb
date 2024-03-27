@@ -597,7 +597,8 @@ class SetGlobalType(
             )
 
     def record_diff_annotations(
-        self, *,
+        self,
+        *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,

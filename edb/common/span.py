@@ -52,8 +52,17 @@ class Span(markup.MarkupExceptionContext):
     Parser Source Context
     '''
 
-    def __init__(self, name, buffer, start: int, end: int, document=None, *,
-                 filename=None, context_lines=1):
+    def __init__(
+        self,
+        name,
+        buffer,
+        start: int,
+        end: int,
+        document=None,
+        *,
+        filename=None,
+        context_lines=1,
+    ):
         self.name = name
         self.buffer = buffer
         self.start = start

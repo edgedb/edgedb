@@ -52,8 +52,14 @@ class ASTError(Exception):
 
 class _Field:
     def __init__(
-            self, name, type_, default, factory,
-            field_hidden=False, field_meta=False):
+        self,
+        name,
+        type_,
+        default,
+        factory,
+        field_hidden=False,
+        field_meta=False,
+    ):
         self.name = name
         self.type = type_
         self.default = default
@@ -313,6 +319,7 @@ class ImmutableASTMixin:
     # mypy gets mad about this if there isn't a __setattr__ in AST.
     # I don't know why.
     if not TYPE_CHECKING:
+
         def __setattr__(self, name, value):
             if self.__frozen and name not in self.__ast_mutable_fields__:
                 raise TypeError(f'cannot set {name} on immutable {self!r}')

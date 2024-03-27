@@ -297,8 +297,7 @@ def static_interpret_by_code(
     return errors.InternalServerError(err_details.message)
 
 
-@static_interpret_by_code.register_for_all(
-    branch_errors.keys())
+@static_interpret_by_code.register_for_all(branch_errors.keys())
 def _static_interpret_branch_errors(
     code: str,
     err_details: ErrorDetails,
@@ -311,8 +310,7 @@ def _static_interpret_branch_errors(
     return errcls(msg)
 
 
-@static_interpret_by_code.register_for_all(
-    directly_mappable.keys())
+@static_interpret_by_code.register_for_all(directly_mappable.keys())
 def _static_interpret_directly_mappable(
     code: str,
     err_details: ErrorDetails,
@@ -449,8 +447,7 @@ def _static_interpret_schema_errors(
     return SchemaRequired
 
 
-@static_interpret_by_code.register(
-    pgerrors.ERROR_INVALID_PARAMETER_VALUE)
+@static_interpret_by_code.register(pgerrors.ERROR_INVALID_PARAMETER_VALUE)
 def _static_interpret_invalid_param_value(
     _code: str,
     err_details: ErrorDetails,
@@ -462,8 +459,7 @@ def _static_interpret_invalid_param_value(
     )
 
 
-@static_interpret_by_code.register(
-    pgerrors.ERROR_WRONG_OBJECT_TYPE)
+@static_interpret_by_code.register(pgerrors.ERROR_WRONG_OBJECT_TYPE)
 def _static_interpret_wrong_object_type(
     _code: str,
     err_details: ErrorDetails,
@@ -483,8 +479,7 @@ def _static_interpret_wrong_object_type(
     )
 
 
-@static_interpret_by_code.register(
-    pgerrors.ERROR_CARDINALITY_VIOLATION)
+@static_interpret_by_code.register(pgerrors.ERROR_CARDINALITY_VIOLATION)
 def _static_interpret_cardinality_violation(
     _code: str,
     err_details: ErrorDetails,
@@ -507,8 +502,7 @@ def _static_interpret_cardinality_violation(
     return errors.InternalServerError(err_details.message)
 
 
-@static_interpret_by_code.register(
-    pgerrors.ERROR_FEATURE_NOT_SUPPORTED)
+@static_interpret_by_code.register(pgerrors.ERROR_FEATURE_NOT_SUPPORTED)
 def _static_interpret_feature_not_supported(
     _code: str,
     err_details: ErrorDetails,

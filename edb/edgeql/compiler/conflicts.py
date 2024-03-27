@@ -297,8 +297,9 @@ def _compile_conflict_select_for_obj_type(
 
 
 def _constr_matters(
-    constr: s_constr.Constraint, *,
-    only_local: bool=False,
+    constr: s_constr.Constraint,
+    *,
+    only_local: bool = False,
     ctx: context.ContextLevel,
 ) -> bool:
     schema = ctx.env.schema

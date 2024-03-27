@@ -546,8 +546,8 @@ def compile_ConfigReset(
 
 @dispatch.compile.register
 def compile_ConfigInsert(
-        stmt: irast.ConfigInsert, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    stmt: irast.ConfigInsert, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
 
     with ctx.new() as subctx:
         with context.output_format(ctx, context.OutputFormat.JSONB):
@@ -560,8 +560,8 @@ def compile_ConfigInsert(
 
 
 def _rewrite_config_insert(
-        ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> irast.Set:
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> irast.Set:
 
     overwrite_query = pgast.SelectStmt()
     id_expr = pgast.FuncCall(
@@ -699,9 +699,8 @@ def _compile_config_value(
 
 
 def top_output_as_config_op(
-        ir_set: irast.Set,
-        stmt: pgast.SelectStmt, *,
-        env: context.Environment) -> pgast.Query:
+    ir_set: irast.Set, stmt: pgast.SelectStmt, *, env: context.Environment
+) -> pgast.Query:
 
     assert isinstance(ir_set.expr, irast.ConfigCommand)
     op = ir_set.expr

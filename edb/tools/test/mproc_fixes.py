@@ -43,8 +43,9 @@ class WorkerScope:
         return self.initializer(*args, **kwargs)
 
 
-def multiprocessing_pool_worker(inqueue, outqueue, initializer=None,
-                                *args, **kwargs):
+def multiprocessing_pool_worker(
+    inqueue, outqueue, initializer=None, *args, **kwargs
+):
     destructor = None
     if isinstance(initializer, WorkerScope):
         destructor = initializer.destructor

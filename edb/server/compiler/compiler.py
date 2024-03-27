@@ -144,10 +144,7 @@ class CompileContext:
     persistent_cache: bool = False
     cache_key: Optional[uuid.UUID] = None
 
-    def _assert_not_in_migration_block(
-        self,
-        ql: qlast.Base
-    ) -> None:
+    def _assert_not_in_migration_block(self, ql: qlast.Base) -> None:
         """Check that a START MIGRATION block is *not* active."""
         current_tx = self.state.current_tx()
         mstate = current_tx.get_migration_state()
@@ -159,8 +156,7 @@ class CompileContext:
             )
 
     def _assert_in_migration_block(
-        self,
-        ql: qlast.Base
+        self, ql: qlast.Base
     ) -> dbstate.MigrationState:
         """Check that a START MIGRATION block *is* active."""
         current_tx = self.state.current_tx()
@@ -173,10 +169,7 @@ class CompileContext:
             )
         return mstate
 
-    def _assert_not_in_migration_rewrite_block(
-        self,
-        ql: qlast.Base
-    ) -> None:
+    def _assert_not_in_migration_rewrite_block(self, ql: qlast.Base) -> None:
         """Check that a START MIGRATION REWRITE block is *not* active."""
         current_tx = self.state.current_tx()
         mstate = current_tx.get_migration_rewrite_state()
@@ -188,8 +181,7 @@ class CompileContext:
             )
 
     def _assert_in_migration_rewrite_block(
-        self,
-        ql: qlast.Base
+        self, ql: qlast.Base
     ) -> dbstate.MigrationRewriteState:
         """Check that a START MIGRATION REWRITE block *is* active."""
         current_tx = self.state.current_tx()
@@ -429,9 +421,9 @@ class Compiler:
         self.state = state
 
     @staticmethod
-    def _try_compile_rollback(eql: Union[edgeql.Source, bytes]) -> tuple[
-        dbstate.QueryUnitGroup, int
-    ]:
+    def _try_compile_rollback(
+        eql: Union[edgeql.Source, bytes]
+    ) -> tuple[dbstate.QueryUnitGroup, int]:
         source: Union[str, edgeql.Source]
         if isinstance(eql, edgeql.Source):
             source = eql
@@ -1129,7 +1121,7 @@ class Compiler:
         )
 
     def make_compilation_config_serializer(
-        self
+        self,
     ) -> sertypes.InputShapeSerializer:
         return self.state.compilation_config_serializer
 
@@ -1635,7 +1627,9 @@ def _compile_ql_script(
 
 
 def _get_compile_options(
-    ctx: CompileContext, *, is_explain: bool = False,
+    ctx: CompileContext,
+    *,
+    is_explain: bool = False,
 ) -> qlcompiler.CompilerOptions:
     can_have_implicit_fields = (
         ctx.output_format is enums.OutputFormat.BINARY)
@@ -3298,7 +3292,7 @@ def _extract_extensions(
 
 
 def _extract_roles(
-    global_schema: s_schema.Schema
+    global_schema: s_schema.Schema,
 ) -> immutables.Map[str, immutables.Map[str, Any]]:
     roles = {}
     for role in global_schema.get_objects(type=s_role.Role):

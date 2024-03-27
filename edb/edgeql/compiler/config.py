@@ -66,7 +66,8 @@ class SettingInfo(NamedTuple):
 
 @dispatch.compile.register
 def compile_ConfigSet(
-    expr: qlast.ConfigSet, *,
+    expr: qlast.ConfigSet,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
 
@@ -128,7 +129,8 @@ def compile_ConfigSet(
 
 @dispatch.compile.register
 def compile_ConfigReset(
-    expr: qlast.ConfigReset, *,
+    expr: qlast.ConfigReset,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
 
@@ -189,7 +191,8 @@ def compile_ConfigReset(
 
 @dispatch.compile.register
 def compile_ConfigInsert(
-        expr: qlast.ConfigInsert, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.ConfigInsert, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     info = _validate_op(expr, ctx=ctx)
 
@@ -236,8 +239,8 @@ def compile_ConfigInsert(
 
 
 def _inject_tname(
-        insert_stmt: qlast.InsertQuery, *,
-        ctx: context.ContextLevel) -> None:
+    insert_stmt: qlast.InsertQuery, *, ctx: context.ContextLevel
+) -> None:
 
     for el in insert_stmt.shape:
         if isinstance(el.compexpr, qlast.InsertQuery):
@@ -264,9 +267,8 @@ def _inject_tname(
 
 
 def _validate_config_object(
-        expr: irast.Set, *,
-        scope: str,
-        ctx: context.ContextLevel) -> None:
+    expr: irast.Set, *, scope: str, ctx: context.ContextLevel
+) -> None:
 
     for element, _ in expr.shape:
         assert isinstance(element.expr, irast.Pointer)
@@ -287,8 +289,8 @@ def _validate_config_object(
 
 
 def _validate_global_op(
-        expr: qlast.ConfigOp, *,
-        ctx: context.ContextLevel) -> SettingInfo:
+    expr: qlast.ConfigOp, *, ctx: context.ContextLevel
+) -> SettingInfo:
     glob = ctx.env.get_schema_object_and_track(
         s_utils.ast_ref_to_name(expr.name), expr.name,
         modaliases=ctx.modaliases, type=s_globals.Global)
@@ -308,9 +310,12 @@ def _validate_global_op(
 
 
 def _enforce_pointer_constraints(
-        ptr: s_pointers.Pointer, expr: irast.Set, *,
-        ctx: context.ContextLevel,
-        for_obj: bool) -> None:
+    ptr: s_pointers.Pointer,
+    expr: irast.Set,
+    *,
+    ctx: context.ContextLevel,
+    for_obj: bool,
+) -> None:
     constraints = ptr.get_constraints(ctx.env.schema)
     for constraint in constraints.objects(ctx.env.schema):
         if constraint.issubclass(
@@ -341,8 +346,8 @@ def _enforce_pointer_constraints(
 
 
 def _validate_op(
-        expr: qlast.ConfigOp, *,
-        ctx: context.ContextLevel) -> SettingInfo:
+    expr: qlast.ConfigOp, *, ctx: context.ContextLevel
+) -> SettingInfo:
 
     if expr.scope == qltypes.ConfigScope.GLOBAL:
         return _validate_global_op(expr, ctx=ctx)

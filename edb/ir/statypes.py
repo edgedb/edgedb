@@ -89,7 +89,7 @@ class CompositeTypeSpec:
 class CompositeType:
     _tspec: CompositeTypeSpec
 
-    def to_json_value(self, redacted: bool=False) -> dict[str, Any]:
+    def to_json_value(self, redacted: bool = False) -> dict[str, Any]:
         raise NotImplementedError
 
 
@@ -213,11 +213,7 @@ class Duration(ScalarType):
     _value: int  # microseconds
 
     def __init__(
-        self,
-        pg_text: str = '',
-        /,
-        *,
-        microseconds: Optional[int] = None
+        self, pg_text: str = '', /, *, microseconds: Optional[int] = None
     ) -> None:
         if pg_text == '' and microseconds is not None:
             self._value = microseconds

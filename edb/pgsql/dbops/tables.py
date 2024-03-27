@@ -166,7 +166,8 @@ class TableColumn(base.DBObject):
 
     def get_id(self):
         return qn(
-            self.table_name[0], self.table_name[1], self.column.name)
+            self.table_name[0], self.table_name[1], self.column.name
+        )
 
 
 class ColumnConstraint:
@@ -225,9 +226,7 @@ class UniqueConstraint(TableConstraint):
 
 
 class CheckConstraint(TableConstraint):
-    def __init__(
-        self, table_name, constraint_name, expr, inherit: bool = True
-    ):
+    def __init__(self, table_name, constraint_name, expr, inherit: bool = True):
         super().__init__(table_name, constraint_name=constraint_name)
         self.expr = expr
         self.inherit = inherit
@@ -427,7 +426,8 @@ class AlterTableFragment(ddl.DDLOperation):
 
 
 class AlterTable(
-        AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGroup):
+    AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGroup
+):
     def __init__(
         self,
         name,

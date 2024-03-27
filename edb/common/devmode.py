@@ -103,7 +103,7 @@ class CoverageConfig(NamedTuple):
                 cov.save()
 
 
-def enable_dev_mode(enabled: bool=True):
+def enable_dev_mode(enabled: bool = True):
     os.environ['__EDGEDB_DEVMODE'] = '1' if enabled else ''
 
 

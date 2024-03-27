@@ -606,8 +606,9 @@ class BasePool(typing.Generic[C]):
         self._get_loop().create_task(
             self._transfer(from_block, from_conn, to_block, started_at))
 
-    def _schedule_new_conn(self, block: Block[C],
-                           event: str = 'established') -> None:
+    def _schedule_new_conn(
+        self, block: Block[C], event: str = 'established'
+    ) -> None:
         started_at = time.monotonic()
         self._cur_capacity += 1
         block.pending_conns += 1
@@ -1033,7 +1034,7 @@ class Pool(BasePool[C]):
         return False
 
     def _find_most_starving_block(
-        self
+        self,
     ) -> typing.Tuple[typing.Optional[str], typing.Optional[Block[C]]]:
         to_block = None
 
@@ -1173,7 +1174,7 @@ class Pool(BasePool[C]):
 
         return conn
 
-    def release(self, dbname: str, conn: C, *, discard: bool=False) -> None:
+    def release(self, dbname: str, conn: C, *, discard: bool = False) -> None:
         try:
             block = self._blocks[dbname]
         except KeyError:

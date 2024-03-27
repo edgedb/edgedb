@@ -125,8 +125,9 @@ class AlterCompositeAddAttribute(CompositeAttributeCommand):
         return (f'ADD {self.get_attribute_term()} '  # type: ignore
                 f'{self.attribute.code(block)}')
 
-    def generate_extra(self, block: base.PLBlock,
-                       alter: base.CompositeCommandGroup):
+    def generate_extra(
+        self, block: base.PLBlock, alter: base.CompositeCommandGroup
+    ):
         self.attribute.generate_extra(block, alter)
 
 

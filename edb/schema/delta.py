@@ -537,7 +537,8 @@ class Command(
         return []
 
     def record_diff_annotations(
-        self, *,
+        self,
+        *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
@@ -1431,7 +1432,8 @@ class CommandContext:
         return self.stack.pop()
 
     def get_referrer_name(
-        self, referrer_ctx: CommandContextToken[ObjectCommand[so.Object]],
+        self,
+        referrer_ctx: CommandContextToken[ObjectCommand[so.Object]],
     ) -> sn.QualName:
         referrer_name = referrer_ctx.op.classname
         renamed = self.early_renames.get(referrer_name)

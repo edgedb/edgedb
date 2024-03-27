@@ -180,7 +180,8 @@ class Constraint(
         bool, default=False, compcoef=0.971, allow_ddl_set=False)
 
     def get_name_impacting_ancestors(
-        self, schema: s_schema.Schema,
+        self,
+        schema: s_schema.Schema,
     ) -> List[Constraint]:
         if self.is_non_concrete(schema):
             return []
@@ -235,10 +236,7 @@ class Constraint(
         )
 
     def get_verbosename(
-        self,
-        schema: s_schema.Schema,
-        *,
-        with_parent: bool = False
+        self, schema: s_schema.Schema, *, with_parent: bool = False
     ) -> str:
         vn = super().get_verbosename(schema, with_parent=with_parent)
         if self.is_non_concrete(schema):
@@ -466,10 +464,7 @@ class ConstraintCommand(
         return (cls._name_qual_from_exprs(schema, exprs),)
 
     @classmethod
-    def _classname_quals_from_name(
-        cls,
-        name: sn.QualName
-    ) -> Tuple[str, ...]:
+    def _classname_quals_from_name(cls, name: sn.QualName) -> Tuple[str, ...]:
         quals = sn.quals_from_fullname(name)
         return (quals[-1],)
 

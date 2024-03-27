@@ -96,8 +96,9 @@ class VersionedSection(d_rst.Directive):
 
 class VersionedReplaceRole:
 
-    def __call__(self, role, rawtext, text, lineno, inliner,
-                 options=None, content=None):
+    def __call__(
+        self, role, rawtext, text, lineno, inliner, options=None, content=None
+    ):
         nodes = []
         if not text.startswith('_default:'):
             text = '_default:' + text

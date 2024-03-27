@@ -42,7 +42,9 @@ from . import setgen
 
 
 def should_ignore_rewrite(
-    stype: s_types.Type, *, ctx: context.ContextLevel,
+    stype: s_types.Type,
+    *,
+    ctx: context.ContextLevel,
 ) -> bool:
     if not ctx.suppress_rewrites:
         return False
@@ -67,7 +69,9 @@ def should_ignore_rewrite(
 
 
 def get_access_policies(
-    stype: s_objtypes.ObjectType, *, ctx: context.ContextLevel,
+    stype: s_objtypes.ObjectType,
+    *,
+    ctx: context.ContextLevel,
 ) -> Tuple[s_policies.AccessPolicy, ...]:
     schema = ctx.env.schema
     if not ctx.env.options.apply_query_rewrites:
@@ -108,7 +112,8 @@ def has_own_policies(
 
 
 def compile_pol(
-    pol: s_policies.AccessPolicy, *,
+    pol: s_policies.AccessPolicy,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Compile the condition from an individual policy.
@@ -179,7 +184,8 @@ def get_extra_function_rewrite_filter(ctx: context.ContextLevel) -> qlast.Expr:
 
 
 def get_rewrite_filter(
-    stype: s_objtypes.ObjectType, *,
+    stype: s_objtypes.ObjectType,
+    *,
     mode: qltypes.AccessKind,
     ctx: context.ContextLevel,
 ) -> Optional[qlast.Expr]:
@@ -240,7 +246,8 @@ def get_rewrite_filter(
 
 
 def try_type_rewrite(
-    stype: s_objtypes.ObjectType, *,
+    stype: s_objtypes.ObjectType,
+    *,
     skip_subtypes: bool,
     ctx: context.ContextLevel,
 ) -> None:

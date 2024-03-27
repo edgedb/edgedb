@@ -119,7 +119,8 @@ class AlterDomainAlterNull(AlterDomain):
 
 class AlterDomainAlterConstraint(AlterDomain):
     def __init__(
-            self, name, constraint, *, conditions=None, neg_conditions=None):
+        self, name, constraint, *, conditions=None, neg_conditions=None
+    ):
         super().__init__(
             name, conditions=conditions, neg_conditions=neg_conditions)
         self._constraint = constraint

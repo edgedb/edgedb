@@ -29,9 +29,6 @@ from . import context
 
 
 @functools.singledispatch
-def compile(
-    node: qlast.Base, *,
-    ctx: context.ContextLevel
-) -> irast.Set:
+def compile(node: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
     raise NotImplementedError(
         f'no EdgeQL compiler handler for {node.__class__}')

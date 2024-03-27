@@ -97,10 +97,13 @@ def _quote_ident(string: str) -> str:
     return '`' + string.replace('`', '``') + '`'
 
 
-def quote_ident(string: str, *,
-                force: bool = False,
-                allow_reserved: bool = False,
-                allow_num: bool = False) -> str:
+def quote_ident(
+    string: str,
+    *,
+    force: bool = False,
+    allow_reserved: bool = False,
+    allow_num: bool = False,
+) -> str:
     if force or needs_quoting(string, allow_reserved, allow_num):
         return _quote_ident(string)
     else:

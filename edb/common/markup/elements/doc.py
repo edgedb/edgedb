@@ -57,8 +57,8 @@ class Diff(DocMarkup):
 
     @classmethod
     def get_diff(
-            cls, a, b, fromfile='', tofile='', fromfiledate='', tofiledate='',
-            n=10):
+        cls, a, b, fromfile='', tofile='', fromfiledate='', tofiledate='', n=10
+    ):
 
         lines = difflib.unified_diff(
             a, b, fromfile, tofile, fromfiledate, tofiledate, n)

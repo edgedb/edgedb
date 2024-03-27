@@ -475,9 +475,7 @@ def _rewrite_weak_namespaces(
                 ir_set.path_id = _try_namespace_fix(scope, ir_set.path_id)
 
 
-def _fixup_schema_view(
-    *, ctx: context.ContextLevel
-) -> None:
+def _fixup_schema_view(*, ctx: context.ContextLevel) -> None:
     """Finalize schema view types for inclusion in the real schema.
 
     This includes setting from_alias flags and collapsing opaque
@@ -529,8 +527,7 @@ def _fixup_schema_view(
 
 
 def _get_nearest_non_source_derived_parent(
-    obj: s_obj.DerivableInheritingObjectT,
-    ctx: context.ContextLevel
+    obj: s_obj.DerivableInheritingObjectT, ctx: context.ContextLevel
 ) -> s_obj.DerivableInheritingObjectT:
     """Find the nearest ancestor of obj whose "root source" is not derived"""
     schema = ctx.env.schema
@@ -544,8 +541,9 @@ def _get_nearest_non_source_derived_parent(
 
 
 def _elide_derived_ancestors(
-    obj: Union[s_types.InheritingType, s_pointers.Pointer], *,
-    ctx: context.ContextLevel
+    obj: Union[s_types.InheritingType, s_pointers.Pointer],
+    *,
+    ctx: context.ContextLevel,
 ) -> None:
     """Collapse references to derived objects in bases.
 
@@ -752,8 +750,8 @@ def declare_view(
 
 
 def _declare_view_from_schema(
-        viewcls: s_types.Type, *,
-        ctx: context.ContextLevel) -> tuple[s_types.Type, irast.Set]:
+    viewcls: s_types.Type, *, ctx: context.ContextLevel
+) -> tuple[s_types.Type, irast.Set]:
     # We need to include "security context" things (currently just
     # access policy state) in the cache key, here.
     #
@@ -793,8 +791,8 @@ def _declare_view_from_schema(
 
 
 def declare_view_from_schema(
-        viewcls: s_types.Type, *,
-        ctx: context.ContextLevel) -> s_types.Type:
+    viewcls: s_types.Type, *, ctx: context.ContextLevel
+) -> s_types.Type:
     vc, view_set = _declare_view_from_schema(viewcls, ctx=ctx)
 
     viewcls_name = viewcls.get_name(ctx.env.schema)
@@ -827,9 +825,7 @@ def check_params(params: Dict[str, irast.Param]) -> None:
 
 
 def throw_on_shaped_param(
-    param: qlast.Parameter,
-    shape: qlast.Shape,
-    ctx: context.ContextLevel
+    param: qlast.Parameter, shape: qlast.Shape, ctx: context.ContextLevel
 ) -> None:
     raise errors.QueryError(
         f'cannot apply a shape to the parameter',
@@ -839,8 +835,7 @@ def throw_on_shaped_param(
 
 
 def throw_on_loose_param(
-    param: qlast.Parameter,
-    ctx: context.ContextLevel
+    param: qlast.Parameter, ctx: context.ContextLevel
 ) -> None:
     if ctx.env.options.func_params is not None:
         if ctx.env.options.schema_object_context is s_constr.Constraint:
@@ -857,9 +852,7 @@ def throw_on_loose_param(
 
 
 def preprocess_script(
-    stmts: List[qlast.Base],
-    *,
-    ctx: context.ContextLevel
+    stmts: List[qlast.Base], *, ctx: context.ContextLevel
 ) -> irast.ScriptInfo:
     """Extract parameters from all statements in a script.
 

@@ -144,16 +144,12 @@ class Link(
                      and not p.is_pure_computable(schema)])
 
     def get_source(
-        self,
-        schema: s_schema.Schema
+        self, schema: s_schema.Schema
     ) -> Optional[s_objtypes.ObjectType]:
         return self.get_field_value(  # type: ignore[no-any-return]
             schema, 'source')
 
-    def get_source_type(
-        self,
-        schema: s_schema.Schema
-    ) -> s_objtypes.ObjectType:
+    def get_source_type(self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
         source = self.get_source(schema)
         assert source
         return source

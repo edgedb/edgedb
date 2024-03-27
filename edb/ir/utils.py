@@ -106,7 +106,7 @@ def is_empty_array_expr(ir: Optional[irast.Base]) -> TypeGuard[irast.Array]:
 
 
 def is_untyped_empty_array_expr(
-    ir: Optional[irast.Base]
+    ir: Optional[irast.Base],
 ) -> TypeGuard[irast.Array]:
     """Return True if the given *ir* expression is an empty
        array expression of an uknown type.
@@ -120,7 +120,7 @@ def is_untyped_empty_array_expr(
 
 def is_empty(ir: irast.Base) -> bool:
     """Return True if the given *ir* expression is an empty set
-       or an empty array.
+    or an empty array.
     """
     return (
         isinstance(ir, irast.EmptySet) or
@@ -147,7 +147,7 @@ def is_subquery_set(ir_expr: irast.Base) -> bool:
 
 
 def is_implicit_wrapper(
-    ir_expr: Optional[irast.Base]
+    ir_expr: Optional[irast.Base],
 ) -> TypeGuard[irast.SelectStmt]:
     """Return True if the given *ir_expr* expression is an implicit
        SELECT wrapper.
@@ -282,9 +282,7 @@ class CollectDMLSourceVisitor(ast.NodeVisitor):
             self.visit(node.source)
 
 
-def get_dml_sources(
-    ir_set: irast.Set
-) -> Sequence[irast.MutatingLikeStmt]:
+def get_dml_sources(ir_set: irast.Set) -> Sequence[irast.MutatingLikeStmt]:
     """Find the DML expressions that can contribute to the value of a set
 
     This is used to compute which overlays to use during SQL compilation.
@@ -323,7 +321,7 @@ class ContainsDMLVisitor(ast.NodeVisitor):
         return bool(self.generic_visit(node))
 
 
-def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
+def contains_dml(stmt: irast.Base, *, skip_bindings: bool = False) -> bool:
     """Check whether a statement contains any DML in a subtree."""
     # TODO: Make this caching.
     visitor = ContainsDMLVisitor(skip_bindings=skip_bindings)
@@ -340,7 +338,8 @@ class FindPathScopes(ast.NodeVisitor):
     This is set up so that another visitor could inherit from it,
     override process_set, and also collect the scope tree info.
     """
-    def __init__(self, init_scope: Optional[int]=None) -> None:
+
+    def __init__(self, init_scope: Optional[int] = None) -> None:
         super().__init__()
         self.path_scope_ids: List[Optional[int]] = [init_scope]
         self.use_scopes: Dict[irast.Set, Optional[int]] = {}
@@ -386,7 +385,7 @@ class FindPathScopes(ast.NodeVisitor):
 
 
 def find_path_scopes(
-    stmt: irast.Base | Sequence[irast.Base]
+    stmt: irast.Base | Sequence[irast.Base],
 ) -> Dict[irast.Set, Optional[int]]:
     visitor = FindPathScopes()
     visitor.visit(stmt)

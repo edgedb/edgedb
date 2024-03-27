@@ -106,13 +106,13 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
         return 'edgeql'
 
     def edgeql_query(
-            self,
-            query,
-            *,
-            use_http_post=True,
-            variables=None,
-            globals=None,
-            origin=None,
+        self,
+        query,
+        *,
+        use_http_post=True,
+        variables=None,
+        globals=None,
+        origin=None,
     ):
         req_data = {
             'query': query
@@ -157,11 +157,17 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
 
         raise edgedb.EdgeDBError._from_code(ex_code, ex_msg)
 
-    def assert_edgeql_query_result(self, query, result, *,
-                                   msg=None, sort=None,
-                                   use_http_post=True,
-                                   variables=None,
-                                   globals=None):
+    def assert_edgeql_query_result(
+        self,
+        query,
+        result,
+        *,
+        msg=None,
+        sort=None,
+        use_http_post=True,
+        variables=None,
+        globals=None,
+    ):
         res, _ = self.edgeql_query(
             query,
             use_http_post=use_http_post,
@@ -187,14 +193,17 @@ class GraphQLTestCase(BaseHttpExtensionTest):
     def get_extension_path(cls):
         return 'graphql'
 
-    def graphql_query(self, query, *, operation_name=None,
-                      use_http_post=True,
-                      variables=None,
-                      globals=None,
-                      deprecated_globals=None):
-        req_data = {
-            'query': query
-        }
+    def graphql_query(
+        self,
+        query,
+        *,
+        operation_name=None,
+        use_http_post=True,
+        variables=None,
+        globals=None,
+        deprecated_globals=None,
+    ):
+        req_data = {'query': query}
 
         if operation_name is not None:
             req_data['operationName'] = operation_name
@@ -263,13 +272,19 @@ class GraphQLTestCase(BaseHttpExtensionTest):
 
         raise ex
 
-    def assert_graphql_query_result(self, query, result, *,
-                                    msg=None, sort=None,
-                                    operation_name=None,
-                                    use_http_post=True,
-                                    variables=None,
-                                    globals=None,
-                                    deprecated_globals=None):
+    def assert_graphql_query_result(
+        self,
+        query,
+        result,
+        *,
+        msg=None,
+        sort=None,
+        operation_name=None,
+        use_http_post=True,
+        variables=None,
+        globals=None,
+        deprecated_globals=None,
+    ):
         res = self.graphql_query(
             query,
             operation_name=operation_name,

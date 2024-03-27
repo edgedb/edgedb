@@ -74,10 +74,9 @@ class AnnotationValue(
     def get_schema_class_displayname(cls) -> str:
         return 'annotation'
 
-    def get_verbosename(self,
-                        schema: s_schema.Schema,
-                        *,
-                        with_parent: bool=False) -> str:
+    def get_verbosename(
+        self, schema: s_schema.Schema, *, with_parent: bool = False
+    ) -> str:
         vn = super().get_verbosename(schema)
         if with_parent:
             subject = self.get_subject(schema)
@@ -119,10 +118,9 @@ class Annotation(
     inheritable = so.SchemaField(
         bool, default=False, compcoef=0.2)
 
-    def get_verbosename(self,
-                        schema: s_schema.Schema,
-                        *,
-                        with_parent: bool=False) -> str:
+    def get_verbosename(
+        self, schema: s_schema.Schema, *, with_parent: bool = False
+    ) -> str:
         vn = super().get_verbosename(schema)
         return f"abstract {vn}"
 
@@ -163,13 +161,13 @@ class CreateAnnotation(AnnotationCommand, sd.CreateObject[Annotation]):
     astnode = qlast.CreateAnnotation
 
     @classmethod
-    def _cmd_tree_from_ast(cls,
-                           schema: s_schema.Schema,
-                           astnode: qlast.DDLOperation,
-                           context: sd.CommandContext) -> CreateAnnotation:
-        cmd = super()._cmd_tree_from_ast(schema,
-                                         astnode,
-                                         context)
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> CreateAnnotation:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         assert isinstance(astnode, qlast.CreateAnnotation)
 
@@ -247,11 +245,12 @@ class AnnotationValueCommand(
         return ref
 
     @classmethod
-    def _classname_from_ast(cls,
-                            schema: s_schema.Schema,
-                            astnode: qlast.NamedDDL,
-                            context: sd.CommandContext
-                            ) -> sn.QualName:
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.QualName:
         parent_ctx = cls.get_referrer_context_or_die(context)
         assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
         referrer_name = context.get_referrer_name(parent_ctx)
@@ -335,11 +334,13 @@ class CreateAnnotationValue(
         self.set_attribute_value('internal', True)
         return schema
 
-    def _apply_field_ast(self,
-                         schema: s_schema.Schema,
-                         context: sd.CommandContext,
-                         node: qlast.DDLOperation,
-                         op: sd.AlterObjectProperty) -> None:
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
         if op.property == 'value':
             assert isinstance(op.new_value, str)
             assert isinstance(node, (

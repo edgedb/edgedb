@@ -106,8 +106,7 @@ class Base(ast.AST):
 
 # DEBUG: Probably don't actually keep this forever?
 @markup.serializer.serializer.register(Base)
-def _serialize_to_markup_base(
-        ir: Base, *, ctx: typing.Any) -> typing.Any:
+def _serialize_to_markup_base(ir: Base, *, ctx: typing.Any) -> typing.Any:
     node = ast.serialize_to_markup(ir, ctx=ctx)
     has_span = bool(ir.span)
     node.add_child(
@@ -332,8 +331,7 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
         return self._name
 
     def get_cardinality(
-        self,
-        schema: s_schema.Schema
+        self, schema: s_schema.Schema
     ) -> qltypes.SchemaCardinality:
         return qltypes.SchemaCardinality.One
 
@@ -398,8 +396,7 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
         return self._name
 
     def get_cardinality(
-        self,
-        schema: s_schema.Schema
+        self, schema: s_schema.Schema
     ) -> qltypes.SchemaCardinality:
         return self._cardinality
 
@@ -747,7 +744,8 @@ class MaterializeVisible(Base):
 
 @markup.serializer.serializer.register(MaterializeVisible)
 def _serialize_to_markup_mat_vis(
-        ir: MaterializeVisible, *, ctx: typing.Any) -> typing.Any:
+    ir: MaterializeVisible, *, ctx: typing.Any
+) -> typing.Any:
     # We want to show the path_ids but *not* to show the full sets
     node = ast.serialize_to_markup(ir, ctx=ctx)
     fixed = {(x, y.path_id) for x, y in ir.sets}
@@ -1096,7 +1094,8 @@ class MaterializedSet(Base):
 
 @markup.serializer.serializer.register(MaterializedSet)
 def _serialize_to_markup_mat_set(
-        ir: MaterializedSet, *, ctx: typing.Any) -> typing.Any:
+    ir: MaterializedSet, *, ctx: typing.Any
+) -> typing.Any:
     # We want to show the path_ids but *not* to show the full uses
     node = ast.serialize_to_markup(ir, ctx=ctx)
     node.add_child(label='uses', node=markup.serialize(ir.uses, ctx=ctx))

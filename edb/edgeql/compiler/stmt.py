@@ -89,7 +89,8 @@ def try_desugar(
 
 @dispatch.compile.register(qlast.SelectQuery)
 def compile_SelectQuery(
-        expr: qlast.SelectQuery, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.SelectQuery, *, ctx: context.ContextLevel
+) -> irast.Set:
     if rewritten := try_desugar(expr, ctx=ctx):
         return rewritten
 
@@ -160,7 +161,8 @@ def compile_SelectQuery(
 
 @dispatch.compile.register(qlast.ForQuery)
 def compile_ForQuery(
-        qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Set:
+    qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel
+) -> irast.Set:
     if rewritten := try_desugar(qlstmt, ctx=ctx):
         return rewritten
 
@@ -422,7 +424,8 @@ def compile_InternalGroupQuery(
 
 @dispatch.compile.register(qlast.GroupQuery)
 def compile_GroupQuery(
-        expr: qlast.GroupQuery, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.GroupQuery, *, ctx: context.ContextLevel
+) -> irast.Set:
     return dispatch.compile(
         desugar_group.desugar_group(expr, ctx.aliases),
         ctx=ctx,
@@ -431,8 +434,8 @@ def compile_GroupQuery(
 
 @dispatch.compile.register(qlast.InsertQuery)
 def compile_InsertQuery(
-        expr: qlast.InsertQuery, *,
-        ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.InsertQuery, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     if ctx.disallow_dml:
         raise errors.QueryError(
@@ -585,7 +588,8 @@ def compile_InsertQuery(
 
 @dispatch.compile.register(qlast.UpdateQuery)
 def compile_UpdateQuery(
-        expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.UpdateQuery, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     if ctx.disallow_dml:
         raise errors.QueryError(
@@ -692,7 +696,8 @@ def compile_UpdateQuery(
 
 @dispatch.compile.register(qlast.DeleteQuery)
 def compile_DeleteQuery(
-        expr: qlast.DeleteQuery, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.DeleteQuery, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     if ctx.disallow_dml:
         raise errors.QueryError(
@@ -838,7 +843,8 @@ def compile_DeleteQuery(
 
 @dispatch.compile.register
 def compile_DescribeStmt(
-        ql: qlast.DescribeStmt, *, ctx: context.ContextLevel) -> irast.Set:
+    ql: qlast.DescribeStmt, *, ctx: context.ContextLevel
+) -> irast.Set:
     with ctx.subquery() as ictx:
         stmt = irast.SelectStmt()
         init_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
@@ -1089,7 +1095,8 @@ def compile_DescribeStmt(
 
 @dispatch.compile.register(qlast.Shape)
 def compile_Shape(
-        shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
+    shape: qlast.Shape, *, ctx: context.ContextLevel
+) -> irast.Set:
     shape_expr = shape.expr or qlutils.FREE_SHAPE_EXPR
     with ctx.new() as subctx:
         subctx.qlstmt = astutils.ensure_ql_query(shape)
@@ -1122,8 +1129,12 @@ def compile_Shape(
 
 
 def init_stmt(
-        irstmt: irast.Stmt, qlstmt: qlast.Statement, *,
-        ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
+    irstmt: irast.Stmt,
+    qlstmt: qlast.Statement,
+    *,
+    ctx: context.ContextLevel,
+    parent_ctx: context.ContextLevel,
+) -> None:
 
     ctx.env.compiled_stmts[qlstmt] = irstmt
 
@@ -1248,9 +1259,11 @@ def fini_stmt(
 
 
 def process_with_block(
-        edgeql_tree: qlast.Statement, *,
-        ctx: context.ContextLevel,
-        parent_ctx: context.ContextLevel) -> List[irast.Set]:
+    edgeql_tree: qlast.Statement,
+    *,
+    ctx: context.ContextLevel,
+    parent_ctx: context.ContextLevel,
+) -> List[irast.Set]:
     if edgeql_tree.aliases is None:
         return []
 
@@ -1294,14 +1307,16 @@ def process_with_block(
 
 
 def compile_result_clause(
-        result: qlast.Expr, *,
-        view_scls: Optional[s_types.Type]=None,
-        view_rptr: Optional[context.ViewRPtr]=None,
-        view_name: Optional[s_name.QualName]=None,
-        exprtype: s_types.ExprType = s_types.ExprType.Select,
-        result_alias: Optional[str]=None,
-        forward_rptr: bool=False,
-        ctx: context.ContextLevel) -> irast.Set:
+    result: qlast.Expr,
+    *,
+    view_scls: Optional[s_types.Type] = None,
+    view_rptr: Optional[context.ViewRPtr] = None,
+    view_name: Optional[s_name.QualName] = None,
+    exprtype: s_types.ExprType = s_types.ExprType.Select,
+    result_alias: Optional[str] = None,
+    forward_rptr: bool = False,
+    ctx: context.ContextLevel,
+) -> irast.Set:
     with ctx.new() as sctx:
         if forward_rptr:
             sctx.view_rptr = view_rptr
@@ -1563,8 +1578,7 @@ def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
 
 
 def _is_forbidden_stdlib_type_for_mod(
-    t: s_types.Type,
-    ctx: context.ContextLevel
+    t: s_types.Type, ctx: context.ContextLevel
 ) -> bool:
     o = ctx.env.options
     if o.bootstrap_mode or o.schema_reflection_mode:

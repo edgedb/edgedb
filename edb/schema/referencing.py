@@ -494,11 +494,12 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
         return sn.QualName(name=pnn, module=referrer_name.module)
 
     @classmethod
-    def _classname_from_ast(cls,
-                            schema: s_schema.Schema,
-                            astnode: qlast.NamedDDL,
-                            context: sd.CommandContext
-                            ) -> sn.QualName:
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.QualName:
         parent_ctx = cls.get_referrer_context(context)
         if parent_ctx is not None:
             assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
@@ -542,18 +543,17 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
         return ()
 
     @classmethod
-    def _name_qual_from_exprs(cls,
-                              schema: s_schema.Schema,
-                              exprs: Iterable[str]) -> str:
+    def _name_qual_from_exprs(
+        cls, schema: s_schema.Schema, exprs: Iterable[str]
+    ) -> str:
         m = hashlib.sha1()
         for expr in exprs:
             m.update(expr.encode())
         return m.hexdigest()
 
-    def _get_ast_node(self,
-                      schema: s_schema.Schema,
-                      context: sd.CommandContext
-                      ) -> Type[qlast.DDLOperation]:
+    def _get_ast_node(
+        self, schema: s_schema.Schema, context: sd.CommandContext
+    ) -> Type[qlast.DDLOperation]:
         subject_ctx = self.get_referrer_context(context)
         ref_astnode: Optional[Type[qlast.DDLOperation]] = (
             getattr(self, 'referenced_astnode', None))
@@ -775,9 +775,7 @@ class ReferencedInheritingObjectCommand(
         )
 
     def _validate(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> None:
         scls = self.scls
         implicit_bases = [
