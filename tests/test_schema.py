@@ -2480,6 +2480,66 @@ class TestSchema(tb.BaseSchemaLoadTest):
         ">"
     )
 
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_constraint_non_singleton_01(self):
+        """
+        type ConstraintNonSingletonTest {
+            property has_bad_constraint -> str {
+                constraint expression on (
+                    distinct __subject__ = __subject__
+                )
+            }
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_constraint_non_singleton_02(self):
+        """
+        type ConstraintNonSingletonTest {
+            property has_bad_constraint -> str {
+                constraint exclusive on (
+                    distinct __subject__
+                )
+            }
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_constraint_non_singleton_03(self):
+        """
+        type ConstraintNonSingletonTest {
+            property has_bad_constraint -> str;
+
+            constraint exclusive on (.has_bad_constraint) except (
+                distinct __subject__ = __subject__
+            );
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_constraint_non_singleton_04(self):
+        """
+        abstract constraint bad_constraint {
+            using (distinct __subject__ = __subject__);
+        }
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.

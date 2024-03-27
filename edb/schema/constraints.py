@@ -549,6 +549,25 @@ class ConstraintCommand(
             if referrer_ctx:
                 base = referrer_ctx.op.scls
 
+        def _try_compile_irast_to_sql_tree(
+                compiled_expr: s_expr.CompiledExpression
+        ):
+            # compile the expression to sql to preempt errors downstream
+
+            from edb.pgsql import compiler as pg_compiler
+
+            try:
+                pg_compiler.compile_ir_to_sql_tree(
+                    compiled.irast,
+                    output_format=pg_compiler.OutputFormat.NATIVE,
+                    singleton_mode=True,
+                )
+            except errors.EdgeDBError as exception:
+                exception.set_span(self.span)
+                raise exception
+            except:
+                raise
+
         if base is not None:
             assert isinstance(base, (s_types.Type, s_pointers.Pointer))
             # Concrete constraint
@@ -568,7 +587,7 @@ class ConstraintCommand(
                 return value  # type: ignore
 
             elif field.name in {'subjectexpr', 'finalexpr', 'except_expr'}:
-                return value.compiled(
+                compiled = value.compiled(
                     schema=schema,
                     options=qlcompiler.CompilerOptions(
                         modaliases=context.modaliases,
@@ -581,6 +600,11 @@ class ConstraintCommand(
                         track_schema_ref_exprs=track_schema_ref_exprs,
                     ),
                 )
+
+                if field.name != 'finalexpr':
+                    _try_compile_irast_to_sql_tree(compiled)
+
+                return compiled
 
             else:
                 return super().compile_expr_field(
@@ -596,7 +620,7 @@ class ConstraintCommand(
                 inlined_defaults=False,
             )
 
-            return value.compiled(
+            compiled = value.compiled(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
@@ -608,6 +632,10 @@ class ConstraintCommand(
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
+
+            _try_compile_irast_to_sql_tree(compiled)
+
+            return compiled
 
         else:
             return super().compile_expr_field(
@@ -1251,6 +1279,7 @@ class CreateConstraint(
         if astnode.subjectexpr:
             orig_text = cls.get_orig_expr_text(schema, astnode, 'subjectexpr')
 
+            expr_ql: qlast.Expr
             if (
                 orig_text is not None
                 and context.compat_ver_is_before(
