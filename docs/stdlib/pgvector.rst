@@ -216,7 +216,8 @@ by multi-statement queries:
         In order to see the specific extension config properties you need to
         use the type filter :eql:op:`[is ext::pgvector::Config] <isintersect>`
 
-    Update the value using the ``configure session`` command:
+    Update the value using the ``configure session`` or the ``configure current
+    branch`` command depending on the scope you prefer:
 
     .. code-block:: edgeql-repl
 
@@ -225,7 +226,8 @@ by multi-statement queries:
         OK: CONFIGURE SESSION
 
     You may also restore the default config value using ``configure session
-    reset``:
+    reset`` if you set it on the session or ``configure current branch reset``
+    if you set it on the branch:
 
     .. code-block:: edgeql-repl
 
