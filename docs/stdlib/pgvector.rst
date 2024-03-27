@@ -35,6 +35,15 @@ of the vector distance functions:
 * ``index ivfflat_ip(named only lists: int64)``
 * ``index ivfflat_cosine(named only lists: int64)``
 
+.. versionadded:: 5.0
+
+    ``ext::pgvector`` now also includes Hierarchical Navigable Small Worlds
+    (HNSW) indexes:
+
+    * ``index hnsw_euclidean``
+    * ``index hnsw_ip``
+    * ``index hnsw_cosine``
+
 When defining a new type, you can now add vector properties. However, in order
 to be able to use indexes, the vectors in question need to be of fixed
 length. This can be achieved by creating a custom scalar ``extending`` the
@@ -180,6 +189,50 @@ by multi-statement queries:
       empty last
       limit 1;
   """, vector=vector)
+
+
+.. versionadded:: 5.0
+
+    We have updated the mechanism for tuning all of the indexes provided in
+    this extension. The ``probes`` (for IVFFlat) and ``ef_search`` (for HNSW)
+    parameters can now be accessed via the ``ext::pgvector::Config`` object.
+
+    Examine the ``extensions`` link of the ``cfg::Config`` object to check the
+    current config values:
+
+    .. code-block:: edgeql-repl
+
+        db> select cfg::Config.extensions[is ext::pgvector::Config]{*};
+        {
+          ext::pgvector::Config {
+            id: 12b5c70f-0bb8-508a-845f-ca3d41103b6f,
+            probes: 1,
+            ef_search: 40,
+          },
+        }
+
+    .. note::
+
+        In order to see the specific extension config properties you need to
+        use the type filter :eql:op:`[is ext::pgvector::Config] <isintersect>`
+
+    Update the value using the ``configure session`` or the ``configure current
+    branch`` command depending on the scope you prefer:
+
+    .. code-block:: edgeql-repl
+
+        db> configure session
+        ... set ext::pgvector::Config::probes := 5;
+        OK: CONFIGURE SESSION
+
+    You may also restore the default config value using ``configure session
+    reset`` if you set it on the session or ``configure current branch reset``
+    if you set it on the branch:
+
+    .. code-block:: edgeql-repl
+
+        db> configure session reset ext::pgvector::Config::probes;
+        OK: CONFIGURE SESSION
 
 
 
