@@ -549,25 +549,6 @@ class ConstraintCommand(
             if referrer_ctx:
                 base = referrer_ctx.op.scls
 
-        def _try_compile_irast_to_sql_tree(
-                compiled_expr: s_expr.CompiledExpression
-        ):
-            # compile the expression to sql to preempt errors downstream
-
-            from edb.pgsql import compiler as pg_compiler
-
-            try:
-                pg_compiler.compile_ir_to_sql_tree(
-                    compiled.irast,
-                    output_format=pg_compiler.OutputFormat.NATIVE,
-                    singleton_mode=True,
-                )
-            except errors.EdgeDBError as exception:
-                exception.set_span(self.span)
-                raise exception
-            except:
-                raise
-
         if base is not None:
             assert isinstance(base, (s_types.Type, s_pointers.Pointer))
             # Concrete constraint
@@ -602,7 +583,7 @@ class ConstraintCommand(
                 )
 
                 if field.name != 'finalexpr':
-                    _try_compile_irast_to_sql_tree(compiled)
+                    utils.try_compile_irast_to_sql_tree(compiled, self.span)
 
                 return compiled
 
@@ -633,7 +614,7 @@ class ConstraintCommand(
                 ),
             )
 
-            _try_compile_irast_to_sql_tree(compiled)
+            utils.try_compile_irast_to_sql_tree(compiled, self.span)
 
             return compiled
 

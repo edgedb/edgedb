@@ -2540,6 +2540,20 @@ class TestSchema(tb.BaseSchemaLoadTest):
         }
         """
 
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_index_non_singleton_01(self):
+        """
+        type IndexNonSingletonTest {
+            property has_bad_index -> str;
+
+            index on (distinct .has_bad_index)
+        }
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.
