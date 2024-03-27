@@ -205,6 +205,7 @@ def ast_to_type_shell(
             and isinstance(node.maintype, qlast.ObjectRef)
             and node.maintype.name == 'enum'):
         from . import scalars as s_scalars
+        from edb.pgsql import common as pg_common
 
         assert node.subtypes
 
@@ -239,12 +240,10 @@ def ast_to_type_shell(
                 element_spans.append(subtype_type_name.maintype.span)
 
         for element, element_span in zip(elements, element_spans):
-            if len(element) > 63:
-                # This is a postgres limitation.
-                # Note that this can be overridden in custom builds.
-                # https://www.postgresql.org/docs/current/datatype-enum.html
+            if len(element) > pg_common.max_enum_label_length:
                 raise errors.SchemaDefinitionError(
-                    f'enum labels cannot exceed 63 characters',
+                    f'enum labels cannot exceed '
+                    f'{pg_common.max_enum_label_length} characters',
                     span=element_span,
                 )
 
