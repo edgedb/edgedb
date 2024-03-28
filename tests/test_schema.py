@@ -2416,6 +2416,70 @@ class TestSchema(tb.BaseSchemaLoadTest):
         }
         """
 
+    def test_schema_enum_01(self):
+        pass
+    test_schema_enum_01.__doc__ = (
+        "scalar type LongLabel extending enum<\n"
+        "    AAAAAAAAAA"
+            "BBBBBBBBBB"
+            "CCCCCCCCCC"
+            "DDDDDDDDDD"
+            "EEEEEEEEEE"
+            "FFFFFFFFFF"
+            "GGG\n"
+        ">"
+    )
+
+    def test_schema_enum_02(self):
+        pass
+    test_schema_enum_02.__doc__ = (
+        "scalar type LongLabel extending enum<\n"
+        "    'AAAAAAAAAA"
+            "BBBBBBBBBB"
+            "CCCCCCCCCC"
+            "DDDDDDDDDD"
+            "EEEEEEEEEE"
+            "FFFFFFFFFF"
+            "GGG'\n"
+        ">"
+    )
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "enum labels cannot exceed 63 characters",
+    )
+    def test_schema_enum_03(self):
+        pass
+    test_schema_enum_03.__doc__ = (
+        "scalar type LongLabel extending enum<\n"
+        "    AAAAAAAAAA"
+            "BBBBBBBBBB"
+            "CCCCCCCCCC"
+            "DDDDDDDDDD"
+            "EEEEEEEEEE"
+            "FFFFFFFFFF"
+            "GGGG\n"
+        ">"
+    )
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "enum labels cannot exceed 63 characters",
+    )
+    def test_schema_enum_04(self):
+        pass
+    test_schema_enum_04.__doc__ = (
+        "scalar type LongLabel extending enum<\n"
+        "    'AAAAAAAAAA"
+            "BBBBBBBBBB"
+            "CCCCCCCCCC"
+            "DDDDDDDDDD"
+            "EEEEEEEEEE"
+            "FFFFFFFFFF"
+            "GGGG'\n"
+        ">"
+    )
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.

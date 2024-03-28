@@ -47,6 +47,12 @@ from edb.pgsql import ast as pgast
 from . import keywords as pg_keywords
 
 
+# This is a postgres limitation.
+# Note that this can be overridden in custom builds.
+# https://www.postgresql.org/docs/current/datatype-enum.html
+MAX_ENUM_LABEL_LENGTH = 63
+
+
 def quote_e_literal(string: str) -> str:
     def escape_sq(s):
         split = re.split(r"(\n|\\\\|\\')", s)
