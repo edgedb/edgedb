@@ -443,6 +443,9 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
                 };
                 constraint exclusive on (.asdf) except (.baz);
                 index on (.asdf) except (.baz);
+                deferred index on (.asdf) except (.baz);
+                deferred index bar on (.foo);
+                deferred index bar on (.foo) except (.bar);
             };
         };
         """
