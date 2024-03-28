@@ -193,6 +193,14 @@ class OptOnTypeExpr(Nonterm):
         pass
 
 
+class OptDeferred(Nonterm):
+    def reduce_empty(self):
+        self.val = None
+
+    def reduce_DEFERRED(self, _):
+        self.val = True
+
+
 class OptExceptExpr(Nonterm):
     def reduce_empty(self):
         self.val = None
