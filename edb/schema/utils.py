@@ -1397,6 +1397,7 @@ def type_shell_substitute(
     else:
         return typ
 
+
 def try_compile_irast_to_sql_tree(
     compiled_expr: s_expr.CompiledExpression,
     span: Optional[parsing.Span]
