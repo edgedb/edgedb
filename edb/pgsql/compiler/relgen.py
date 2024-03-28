@@ -1132,6 +1132,8 @@ def process_set_as_path(
 
     elif not source_is_visible:
         with ctx.subrel() as srcctx:
+            srcctx.expr_exposed = False
+
             get_set_rvar(ir_source, ctx=srcctx)
 
             if is_inline_primitive_ref:
@@ -1341,12 +1343,14 @@ def process_set_as_subquery(
         if source_is_visible and (
             ir_source.path_id not in ctx.skippable_sources
         ):
-            source_set_rvar = get_set_rvar(ir_source, ctx=ctx)
-            # Force a source rvar so that trivial computed pointers
-            # on erroneous objects (like a bad array deref) fail.
-            # (Most sensible computables will end up requiring the
-            # source rvar anyway.)
-            ensure_source_rvar(ir_source, stmt, ctx=ctx)
+            with ctx.new() as sctx:
+                sctx.expr_exposed = False
+                source_set_rvar = get_set_rvar(ir_source, ctx=sctx)
+                # Force a source rvar so that trivial computed pointers
+                # on erroneous objects (like a bad array deref) fail.
+                # (Most sensible computables will end up requiring the
+                # source rvar anyway.)
+                ensure_source_rvar(ir_source, stmt, ctx=sctx)
     else:
         ir_source = None
         source_is_visible = False

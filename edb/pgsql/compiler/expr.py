@@ -769,6 +769,9 @@ def _compile_shape(
             name=el.name,
             val=ser_val
         ))
+        # Don't let the elements themselves leak out, since they may
+        # be wrapped in arrays.
+        pathctx.put_path_id_mask(ctx.rel, el.path_id)
 
     ser_result = pgast.TupleVar(elements=ser_elements, named=True)
     sval = output.serialize_expr(

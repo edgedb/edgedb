@@ -5930,6 +5930,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['[]'],
         )
 
+    async def test_edgeql_select_multi_property_shape_01(self):
+        await self.assert_query_result(
+            r"""
+            select (BooleanTest { tags }).tags
+            """,
+            tb.bag(['red', 'black', 'red', 'green', 'red']),
+        )
+
     async def test_edgeql_select_tuple_01(self):
         await self.assert_query_result(
             r"""

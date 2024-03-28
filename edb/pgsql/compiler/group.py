@@ -209,6 +209,8 @@ def _compile_group(
         # Now we compile the bindings
         groupctx.path_scope = subjctx.path_scope.new_child()
         groupctx.path_scope[stmt.group_binding.path_id] = None
+        if stmt.grouping_binding:
+            groupctx.path_scope[stmt.grouping_binding.path_id] = None
 
         # Compile all the 'using' items
         for _alias, (value, using_card) in stmt.using.items():
@@ -359,6 +361,9 @@ def _compile_group(
         return vol_ref
 
     with ctx.new() as outctx:
+        # Inherit the path_scope we made earlier (with the GROUP bindings
+        # removed), so that we'll always look for those in the right place.
+        outctx.path_scope = groupctx.path_scope
 
         outctx.volatility_ref += (lambda stmt, xctx: _get_volatility_ref(),)
 
@@ -368,6 +373,8 @@ def _compile_group(
         clauses.compile_output(stmt.result, ctx=outctx)
 
     with ctx.new() as ictx:
+        ictx.path_scope = groupctx.path_scope
+
         # FILTER and ORDER BY need to have the base result as a
         # volatility ref.
         clauses.setup_iterator_volatility(stmt.result, ctx=ictx)
