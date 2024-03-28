@@ -103,6 +103,9 @@ Bitwise functions
   * - :eql:func:`bit_rshift`
     - :eql:func-desc:`bit_rshift`
 
+  * - :eql:func:`bit_count`
+    - :eql:func-desc:`bit_count`
+
 String parsing
 --------------
 
@@ -767,6 +770,21 @@ Definitions
 
 
 ------------
+
+
+.. eql:function:: std::bit_count(val: int16) -> int64
+                  std::bit_count(val: int32) -> int64
+                  std::bit_count(val: int64) -> int64
+
+    Count the number of set bits in an integer.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_count(255);
+        {8}
+
+
+----------
 
 
 .. eql:function:: std::to_bigint(s: str, fmt: optional str={}) -> bigint
