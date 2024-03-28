@@ -26,7 +26,7 @@ Description
 -----------
 
 The command ``create extension`` enables the specified extension for
-the current database.
+the current :versionreplace:`database;5.0:branch`.
 
 Examples
 --------
@@ -39,7 +39,7 @@ schema:
     create extension graphql;
 
 Enable :ref:`EdgeQL over HTTP <ref_edgeql_http>` extension for the
-current database:
+current :versionreplace:`database;5.0:branch`:
 
 .. code-block:: edgeql
 
@@ -63,7 +63,7 @@ Description
 -----------
 
 The command ``drop extension`` disables a currently active extension for the
-current database.
+current :versionreplace:`database;5.0:branch`.
 
 
 Examples
@@ -77,7 +77,7 @@ schema:
     drop extension graphql;
 
 Disable :ref:`EdgeQL over HTTP <ref_edgeql_http>` extension for the
-current database:
+current :versionreplace:`database;5.0:branch`:
 
 .. code-block:: edgeql
 

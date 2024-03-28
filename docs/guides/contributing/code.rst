@@ -181,11 +181,11 @@ You can then use another terminal to open a REPL to the server using the
 ``$ edgedb`` command, or connect to it using one of the language bindings.
 
 
-Test Databases
-==============
+Test Branches
+=============
 
-Use the ``$ edb inittestdb`` command to create and populate databases
-that are used by unit tests.
+Use the ``$ edb inittestdb`` command to create and populate branches that are
+used by unit tests.
 
 .. _rst: https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html
 .. _edgedbpy: https://github.com/edgedb/edgedb-python

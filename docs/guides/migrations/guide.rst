@@ -981,7 +981,7 @@ will not work:
 
     db> create type MyType;
     error: QueryError: bare DDL statements are not
-    allowed in this database
+    allowed on this database branch
     ┌─ <query>:1:1
     │
     1 │ create type MyType;
@@ -998,10 +998,10 @@ to the other option, ``AlwaysAllow``.
 
 .. code-block:: edgeql-repl
 
-    db> configure current database set allow_bare_ddl := 'AlwaysAllow';
+    db> configure current branch set allow_bare_ddl := 'AlwaysAllow';
 
-Note that the command is ``configure current database`` and not ``configure
-instance``, as ``allow_bare_ddl`` is evaluated on the database level.
+Note that the command is ``configure current branch`` and not ``configure
+instance``, as ``allow_bare_ddl`` is evaluated on the branch level.
 
 That wasn't so bad, so why did the CLI tell us to try to "avoid accidental
 schema changes outside of the migration flow?" Why is DDL disabled
@@ -1021,11 +1021,11 @@ DDL is used to directly modify a schema.
       }
     }
 
-Next, we'll set the current database to allow bare DDL:
+Next, we'll set the current branch to allow bare DDL:
 
 .. code-block:: edgeql-repl
 
-    db> configure current database set allow_bare_ddl := 'AlwaysAllow';
+    db> configure current branch set allow_bare_ddl := 'AlwaysAllow';
 
 And then create a type called ``SomeType`` without any properties:
 

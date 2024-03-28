@@ -20,6 +20,12 @@ Administrative commands for managing EdgeDB:
 
 .. versionadded:: 5.0
 
+    New administrative commands were added in our EdgeDB 5.0 release:
+
+    * :ref:`branch <ref_admin_branches>`
+
+      Create, remove, or alter a branch.
+
     * :ref:`administer vacuum <ref_admin_vacuum>`
 
       Reclaim storage space

@@ -9,7 +9,7 @@ Initialize a new EdgeDB instance.
 
 .. cli:synopsis::
 
-     edgedb instance create [<options>] <name>
+     edgedb instance create [<options>] [<name>] [<default-branch-or-database>]
 
 
 Description
@@ -58,7 +58,11 @@ Options
 =======
 
 :cli:synopsis:`<name>`
-    The new EdgeDB instance name.
+    The new EdgeDB instance name. Asked interactively if not specified.
+
+:cli:synopsis:`<branch-or-database-name>`
+    The default branch (or database pre-v5) name on the new instance. Defaults
+    to ``main`` or, when creating a pre-v5 instance, ``edgedb``.
 
 :cli:synopsis:`--nightly`
     Use the nightly server for this instance.

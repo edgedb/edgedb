@@ -85,6 +85,19 @@ Options
     of the ``EDGEDB_DATABASE`` environment variable, or, if not set, to
     the calculated value of :cli:synopsis:`<username>`.
 
+:cli:synopsis:`-b <branch-name>, --branch=<branch-name>`
+    Specifies the name of the branch to connect to. Default to the value
+    of the ``EDGEDB_BRANCH`` environment variable, or, if not set, to
+    the calculated value of :cli:synopsis:`<username>`.
+
+    .. note::
+
+        EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to
+        replace databases. This option requires CLI version 4.3.0 or later and
+        EdgeDB version 5.0 or later. If you are running an earlier version of
+        EdgeDB, you will instead use the ``-d <dbname>, --database=<dbname>``
+        option above.
+
 :cli:synopsis:`--password | --no-password`
     If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
     for a password before connecting to the database.  This is usually not
@@ -204,11 +217,11 @@ many of the commands:
 .. rubric:: Data Operations
 
 :cli:synopsis:`\\dump FILENAME`
-  Dump current database to a file at *FILENAME*.
+  Dump current database branch to a file at *FILENAME*.
 
 :cli:synopsis:`\\restore FILENAME`
-  Restore the database dump at *FILENAME* into the currently connected
-  database.
+  Restore the database dump at *FILENAME* into the current branch (or currently
+  connected database for pre-v5).
 
 .. rubric:: Editing
 
@@ -242,8 +255,8 @@ without first entering the EdgeDB shell. Their counterpart commands are noted
 and linked in their descriptions if you want more detail.
 
 :cli:synopsis:`\\migration create`
-  Create a migration script based on differences between the current database
-  and the schema file, just like running
+  Create a migration script based on differences between the current branch (or
+  database for pre-v5) and the schema file, just like running
   :ref:`ref_cli_edgedb_migration_create`.
 
 :cli:synopsis:`\\migrate, \\migration apply`

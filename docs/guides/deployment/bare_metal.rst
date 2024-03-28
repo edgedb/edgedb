@@ -163,7 +163,7 @@ convenient to refer to when running CLI commands.
       --host localhost \
       --port 5656 \
       --user edgedb \
-      --database edgedb \
+      --branch edgedb \
       --trust-tls-cert \
       bare_metal_instance
 

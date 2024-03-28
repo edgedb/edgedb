@@ -31,7 +31,7 @@ Then create a new migration and apply it using
 :ref:`ref_cli_edgedb_migrate`, respectively.
 
 Your instance can now receive EdgeQL queries over HTTP at
-``https://<host>:<port>/db/<database-name>/edgeql``.
+``https://<host>:<port>/branch/<branch-name>/edgeql``.
 
 
 Instance URL
@@ -44,7 +44,7 @@ Change the protocol to ``https`` since EdgeDB Cloud instances are secured
 with TLS.
 
 Your instance can now receive EdgeQL queries over HTTP at
-``https://<hostname>:<port>/db/<database-name>/edgeql``.
+``https://<hostname>:<port>/branch/<branch-name>/edgeql``.
 
 
 Authentication
@@ -60,7 +60,7 @@ example showing how you might send the query ``select Person {*};`` using cURL:
 
 .. code-block:: bash
 
-    $ curl -G https://<cloud-instance-host>:<cloud-instance-port>/db/edgedb/edgeql \
+    $ curl -G https://<cloud-instance-host>:<cloud-instance-port>/branch/main/edgeql \
        -H "Authorization: Bearer <secret-key> \
        --data-urlencode "query=select Person {*};"
 

@@ -16,7 +16,7 @@ library.
 
 - Set the ``EDGEDB_DSN`` environment variable to a valid DSN (connection
   string). This is the recommended approach in *production*. A DSN is a
-  connection URL of the form ``edgedb://user:pass@host:port/database``. For a
+  connection URL of the form ``edgedb://user:pass@host:port/branch``. For a
   guide to DSNs, see the :ref:`DSN Specification <ref_dsn>`.
 
 - Set the ``EDGEDB_INSTANCE`` environment variable to a :ref:`name

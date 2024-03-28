@@ -151,7 +151,7 @@ instance using ``edgedb instance link``, like so:
   > 10818
   Specify database user [default: edgedb]:
   > edgedb
-  Specify database name [default: edgedb]:
+  Specify branch [default: main]:
   > edgedb
   Unknown server certificate: SHA1:c38a7a90429b033dfaf7a81e08112a9d58d97286.
   Trust? [y/N]

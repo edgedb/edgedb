@@ -32,7 +32,7 @@ Description
 -----------
 
 The command ``create scalar type`` defines a new scalar type for use in the
-current database.
+current :versionreplace:`database;5.0:branch`.
 
 If *name* is qualified with a module name, then the type is created
 in that module, otherwise it is created in the current module.

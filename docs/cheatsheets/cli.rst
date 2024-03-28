@@ -34,11 +34,11 @@ Explicitly create a new EdgeDB instance ``my_instance``:
 ----------
 
 
-Create a database:
+Create a branch:
 
 .. code-block:: bash
 
-    $ edgedb database create special_db
+    $ edgedb branch create feature
     OK: CREATE
 
 
@@ -73,7 +73,7 @@ Configure access that checks password (with a higher priority):
 ----------
 
 
-Connect to the default project database:
+Connect to the default project branch:
 
 .. code-block:: bash
 
@@ -86,11 +86,11 @@ Connect to the default project database:
 ----------
 
 
-Connect to some specific database:
+Connect to some specific branch:
 
 .. code-block:: bash
 
-    $ edgedb -d special_db
+    $ edgedb -b feature
     EdgeDB 1.0-beta.2+ga7130d5c7.cv202104290000 (repl 1.0.0-beta.2)
     Type \help for help, \quit to quit.
     special_db>

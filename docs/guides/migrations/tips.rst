@@ -1343,8 +1343,8 @@ database stores a record of the migration it applied.
 
 On rare occasions, you may find you have deleted your migration files by
 mistake. If you don't care about any of your data and don't need to keep your
-migration history, you can :ref:`wipe <ref_cli_edgedb_database_wipe>` your
-database and start over, creating a single migration to the current state of
+migration history, you can :ref:`wipe <ref_cli_edgedb_branch_wipe>` your
+branch and start over, creating a single migration to the current state of
 your schema. If that's not an option, all hope is not lost. You can instead
 recover your migrations from the database.
 

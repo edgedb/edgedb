@@ -11,6 +11,13 @@ Drop a :ref:`database <ref_datamodel_databases>`.
 
     edgedb database drop [<options>] <name>
 
+.. note::
+
+    EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to
+    replace databases. This command works on instances running versions
+    prior to EdgeDB 5.0. If you are running a newer version of
+    EdgeDB, you will instead use :ref:`ref_cli_edgedb_branch_drop`.
+
 
 Description
 ===========
