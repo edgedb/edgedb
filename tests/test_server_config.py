@@ -1214,7 +1214,7 @@ class TestServerConfig(tb.QueryTestCase):
 
                 async with self.assertRaisesRegexTx(
                     edgedb.QueryError,
-                    'bare DDL statements are not allowed in this database'
+                    'bare DDL statements are not allowed on this database'
                 ):
                     await self.con.execute('''
                         CREATE FUNCTION intfunc() -> int64 USING (1);
