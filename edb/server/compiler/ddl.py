@@ -81,7 +81,7 @@ def compile_and_apply_ddl_stmt(
         allow_bare_ddl = compiler._get_config_val(ctx, 'allow_bare_ddl')
         if allow_bare_ddl != "AlwaysAllow":
             raise errors.QueryError(
-                "bare DDL statements are not allowed in this database",
+                "bare DDL statements are not allowed on this database branch",
                 hint="Use the migration commands instead.",
                 details=(
                     f"The `allow_bare_ddl` configuration variable "
