@@ -205,29 +205,51 @@ def ast_to_type_shell(
             and isinstance(node.maintype, qlast.ObjectRef)
             and node.maintype.name == 'enum'):
         from . import scalars as s_scalars
+        from edb.pgsql import common as pg_common
 
         assert node.subtypes
 
+        elements: List[str] = []
+        element_spans: List[Optional[parsing.Span]] = []
+
         if isinstance(node.subtypes[0], qlast.TypeExprLiteral):
-            return s_scalars.AnonymousEnumTypeShell(  # type: ignore
-                elements=[
-                    est.val.value
-                    for est in cast(List[qlast.TypeExprLiteral], node.subtypes)
-                ],
-            )
+            # handling enums as literals
+            # eg. enum<'A','B','C'>
+            for subtype_expr_literal in cast(
+                List[qlast.TypeExprLiteral], node.subtypes
+            ):
+                elements.append(subtype_expr_literal.val.value)
+                element_spans.append(subtype_expr_literal.val.span)
         else:
-            elements: List[str] = []
-            for est in cast(List[qlast.TypeName], node.subtypes):
-                if (not isinstance(est, qlast.TypeName) or
-                        not isinstance(est.maintype, qlast.ObjectRef)):
+            # handling enums as typenames
+            # eg. enum<A,B,C>
+            for subtype_type_name in cast(
+                List[qlast.TypeName], node.subtypes
+            ):
+                if (
+                    not isinstance(subtype_type_name, qlast.TypeName)
+                    or not isinstance(
+                        subtype_type_name.maintype, qlast.ObjectRef
+                    )
+                ):
                     raise errors.EdgeQLSyntaxError(
                         f'enums do not support mapped values',
-                        span=est.span,
+                        span=subtype_type_name.span,
                     )
-                elements.append(est.maintype.name)
-            return s_scalars.AnonymousEnumTypeShell(  # type: ignore
-                elements=elements
-            )
+                elements.append(subtype_type_name.maintype.name)
+                element_spans.append(subtype_type_name.maintype.span)
+
+        for element, element_span in zip(elements, element_spans):
+            if len(element) > pg_common.MAX_ENUM_LABEL_LENGTH:
+                raise errors.SchemaDefinitionError(
+                    f'enum labels cannot exceed '
+                    f'{pg_common.MAX_ENUM_LABEL_LENGTH} characters',
+                    span=element_span,
+                )
+
+        return s_scalars.AnonymousEnumTypeShell(  # type: ignore
+            elements=elements
+        )
 
     elif node.subtypes is not None:
         from . import types as s_types
