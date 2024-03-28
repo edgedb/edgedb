@@ -3236,12 +3236,21 @@ def compile_trigger(
             tctx.external_rels = dict(tctx.external_rels)
             # new_path is just the contents_cte
             tctx.external_rels[new_path] = (
-                contents_cte, ('value', 'source'))
+                contents_cte,
+                ('value', 'source'),
+                (),
+            )
             if old_path:
                 # old_path is *also* the contents_cte, but without a source
                 # aspect, so we need to include the real database back in.
                 tctx.external_rels[old_path] = (
-                    contents_cte, ('value', 'identity',))
+                    contents_cte,
+                    (
+                        'value',
+                        'identity',
+                    ),
+                    (),
+                )
 
         # This is somewhat subtle: we merge *every* DML into
         # the "None" overlay, so that all the new database state shows

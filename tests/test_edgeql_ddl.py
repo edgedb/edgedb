@@ -3028,30 +3028,34 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }
             """
         )
+        await self.assert_query_result(
+            'SELECT Hello',
+            []
+        )
 
     async def test_edgeql_ddl_ptr_using_dml_03(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.SchemaError, r"cannot include mutating statements"
-        ):
-            await self.con.execute(
-                r"""
-                CREATE TYPE Hello;
-                CREATE TYPE Goodbye;
-                CREATE TYPE World {
-                    CREATE LINK hell -> Hello;
-                };
-                INSERT World { hell:= (INSERT Hello) };
-                INSERT World {};
-                ALTER TYPE World {
-                    ALTER LINK hell SET TYPE Goodbye USING (INSERT Goodbye);
-                }
-                """
-            )
+        await self.con.execute(
+            r"""
+            CREATE TYPE Hello;
+            CREATE TYPE Goodbye;
+            CREATE TYPE World {
+                CREATE LINK hell -> Hello;
+            };
+            INSERT World { hell:= (INSERT Hello) };
+            INSERT World;
+            ALTER TYPE World {
+                ALTER LINK hell SET TYPE Goodbye USING (INSERT Goodbye);
+            }
+            """
+        )
 
-            await self.assert_query_result(
-                'select Goodbye',
-                [{}, {}]
-            )
+        # only one Goodbye object, as only one link exists, so only one cast is
+        # performed
+        await self.assert_query_result('select Goodbye', [{}])
+        await self.assert_query_result(
+            'select World { hell }',
+            tb.bag([{'hell': None}, {'hell': {'id': uuid.UUID}}])
+        )
 
     async def test_edgeql_ddl_ptr_using_dml_04(self):
         await self.con.execute(
@@ -3089,14 +3093,74 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             INSERT World { foo := 'hello' };
             """
         )
+        await self.assert_query_result(
+            'SELECT World { foo }', [{"foo": "hello"}]
+        )
 
         await self.con.execute(
             r"""
             ALTER TYPE World {
                 ALTER LINK hell SET REQUIRED
-                    USING (INSERT Hello { bar := World.foo });
+                    USING (INSERT Hello { bar := World.foo ++ " world" });
             }
             """
+        )
+        await self.assert_query_result(
+            'SELECT World { foo, hell: { bar } }',
+            [{"foo": "hello", "hell": {"bar": "hello world"}}]
+        )
+
+    async def test_edgeql_ddl_ptr_using_dml_06(self):
+        await self.con.execute(
+            r"""
+            CREATE TYPE Item {
+                CREATE PROPERTY num -> int16;
+            };
+            CREATE TYPE Article {
+                CREATE PROPERTY prop -> int16;
+                CREATE MULTI PROPERTY mprop -> int16;
+                CREATE LINK lin -> Item {
+                    CREATE PROPERTY lprop -> int16;
+                };
+            };
+            CREATE TYPE ItemStr {
+                CREATE PROPERTY str_num -> str;
+            };
+            INSERT Article {
+                prop := 2,
+                mprop := {3, 4},
+                lin := (INSERT Item { num := 5, @lprop := 6 })
+            };
+            """
+        )
+        # cast property
+        await self.con.execute(
+            r"""
+            ALTER TYPE Article {
+                ALTER PROPERTY prop SET TYPE str USING (
+                    (INSERT ItemStr { str_num := <str>(.prop + 100) }).str_num
+                );
+            }
+            """
+        )
+        await self.assert_query_result(
+            'SELECT Article { prop }',
+            [{'prop': '102'}]
+        )
+
+        # cast multi property
+        await self.con.execute(
+            r"""
+            ALTER TYPE Article {
+                ALTER PROPERTY mprop SET TYPE str USING (
+                    (INSERT ItemStr { str_num := <str>(.mprop + 100) }).str_num
+                );
+            }
+            """
+        )
+        await self.assert_query_result(
+            'SELECT Article { mprop }',
+            [{'mprop': tb.bag(['103', '104'])}]
         )
 
     async def test_edgeql_ddl_ptr_set_cardinality_01(self):

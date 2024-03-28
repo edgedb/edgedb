@@ -4276,7 +4276,7 @@ class PointerMetaCommand(
 
             # single -> multi
             conv_expr_ctes = textwrap.dedent(f'''\
-                _conv_rel(val, id) AS (
+                _conv_rel(val, iter) AS (
                     SELECT {qi(old_ptr_stor_info.column_name)}, id
                     FROM {qi(source_rel_alias)}
                 )
@@ -4310,7 +4310,7 @@ class PointerMetaCommand(
                 {conv_expr_ctes}
                 UPDATE {tab} AS _update
                 SET {qi(target_col)} = _conv_rel.val
-                FROM _conv_rel WHERE _update.id = _conv_rel.id
+                FROM _conv_rel WHERE _update.id = _conv_rel.iter
             ''')
             self.pgops.add(dbops.Query(update_qry))
 
@@ -4352,7 +4352,11 @@ class PointerMetaCommand(
                 "{source_rel_alias}" AS ({source_rel}),
                 {conv_expr_ctes}
                 INSERT INTO {tab} (source, target)
-                (SELECT id, val FROM _conv_rel WHERE _conv_rel.val IS NOT NULL)
+                (
+                    SELECT iter, val
+                    FROM _conv_rel
+                    WHERE _conv_rel.val IS NOT NULL
+                )
             ''')
 
             if not is_scalar:
@@ -4490,7 +4494,7 @@ class PointerMetaCommand(
                     {conv_expr_ctes}
                     UPDATE {tab} AS _update
                     SET {qi(target_col)} = _conv_rel.val
-                    FROM _conv_rel WHERE _update.id = _conv_rel.id
+                    FROM _conv_rel WHERE _update.id = _conv_rel.iter
                 ''')
                 ops.add_command(dbops.Query(update_qry))
             else:
@@ -4499,7 +4503,7 @@ class PointerMetaCommand(
                     "{source_rel_alias}" AS ({source_rel}),
                     {conv_expr_ctes}
                     INSERT INTO {tab} (source, target)
-                    (SELECT id, val FROM _conv_rel WHERE val IS NOT NULL)
+                    (SELECT iter, val FROM _conv_rel WHERE val IS NOT NULL)
                 ''')
 
                 ops.add_command(dbops.Query(update_qry))
@@ -4618,6 +4622,11 @@ class PointerMetaCommand(
         aux_ptr_col = None
 
         source_rel_alias = f'source_{uuidgen.uuid1mc()}'
+        source_rel_alias = f'source_rel'  # DEBUG
+        source_rel = f'''SELECT *, ctid FROM {tab}'''
+        source_iter_col = 'id'
+        if ptr_table:
+            source_iter_col = 'ctid'
 
         # There are two major possibilities about the USING claus:
         # 1) trivial case, where the USING clause refers only to the
@@ -4634,7 +4643,7 @@ class PointerMetaCommand(
             orig_schema=orig_schema,
             context=context,
             check_non_null=is_required and not is_multi,
-            produce_ctes=False,
+            for_each_pointer=True,
         )
         need_temp_col = (
             (is_multi and expr_is_nullable) or changing_col_type
@@ -4670,9 +4679,14 @@ class PointerMetaCommand(
             target_col = temp_column.name
 
         update_qry = f'''
-            UPDATE {tab} AS {qi(source_rel_alias)}
-            SET {qi(target_col)} = ({cast_expr_sql})
+            WITH
+            {qi(source_rel_alias)} AS ({source_rel}),
+            {cast_expr_sql}
+            UPDATE {tab} AS _update
+            SET {qi(target_col)} = _conv_rel.val
+            FROM _conv_rel WHERE _update.{source_iter_col} = _conv_rel.iter
         '''
+        # print(update_qry)
         self.pgops.add(dbops.Query(update_qry))
         trivial_cast_expr = qi(target_col)
 
@@ -4786,8 +4800,8 @@ class PointerMetaCommand(
         context: sd.CommandContext,
         target_as_singleton: bool = True,
         check_non_null: bool = False,
-        produce_ctes: bool = True,
         allow_globals: bool=False,
+        for_each_pointer: bool = False,
     ) -> Tuple[
         str,  # SQL
         bool,  # is_nullable
@@ -4795,19 +4809,20 @@ class PointerMetaCommand(
         """
         Compile USING expression of an ALTER statement.
 
-        producing_ctes contract:
-        - Must be provided with alias of "source" rel - the relation that
+        Contract when produce_ctes=True:
+        - Must be provided with alias of "iterator" rel - the relation that
           contains a row for each of the evaluations for the USING expression.
-        - Source rel var must contain all columns of the __subject__
-          ObjectType.
+        - Must be provided with alias of "source" rel - the relation that
+          contains all columns of the subject ObjectType.
         - Result is SQL string that contains CTEs, last of which has following
-          signature: _conv_rel (id, val)
+          signature: _conv_rel (val, iter)
 
-        not producing_ctes contract:
-        - Alias of the source must refer to a relation var, not a relation.
-        - Result is SQL string that contain a single SELECT statement that
-          has a single value column.
+        for_each_pointer: when True, the expression will be evaluated for each
+          pointer instead of for each object. This affects multi properties and
+          multi links. It is meant to be True for cast_expr.
         """
+        from edb.pgsql.compiler import pathctx
+
         old_ptr_stor_info = types.get_pointer_storage_info(
             pointer, schema=orig_schema)
         ptr_table = old_ptr_stor_info.table_type == 'link'
@@ -4884,58 +4899,60 @@ class PointerMetaCommand(
                 orig_schema, pointer, env=None
             )
 
-        refs = irutils.get_longest_paths(ir.expr)
-        ref_tables = schemamech.get_ref_storage_info(ir.schema, refs)
-        local_table_only = all(
-            t == old_ptr_stor_info.table_name
-            for t in ref_tables
-        )
+        # refs = irutils.get_longest_paths(ir.expr)
+        # ref_tables = schemamech.get_ref_storage_info(ir.schema, refs)
+        # local_table_only = all(
+        #     t == old_ptr_stor_info.table_name
+        #     for t in ref_tables
+        # )
 
         ptr_path_id = tgt_path_id.ptr_path()
         src_path_id = ptr_path_id.src_path()
         assert src_path_id
 
-        external_rels = {}
-        external_rvars = {}
+        src_rel = compiler.new_external_rel(
+            rel_name=(source_alias,),
+            path_id=src_path_id,
+        )
+        src_rel.path_outputs[(src_path_id, 'iterator')] = \
+            pgast.ColumnRef(name=('id',))
+        ext_rels: Dict[irast.PathId, compiler.context.ExternalRelsEntry] = {
+            src_path_id: (src_rel, ('source', 'identity', 'iterator'), ())
+        }
 
-        if produce_ctes:
-            external_rels[src_path_id] = compiler.new_external_rel(
-                rel_name=(source_alias,),
-                path_id=src_path_id,
-            ), ('value', 'source')
-        else:
+        if for_each_pointer:
             if ptr_table:
-                rvar = compiler.new_external_rvar(
-                    rel_name=(source_alias,),
-                    path_id=ptr_path_id,
-                    outputs={
-                        (src_path_id, ('identity',)): 'source',
-                    },
-                )
-                external_rvars[ptr_path_id, 'source'] = rvar
-                external_rvars[ptr_path_id, 'value'] = rvar
-                external_rvars[src_path_id, 'identity'] = rvar
-                external_rvars[tgt_path_id, 'identity'] = rvar
-                if local_table_only and not is_lprop:
-                    external_rvars[src_path_id, 'source'] = rvar
-                    external_rvars[src_path_id, 'value'] = rvar
-                elif is_lprop:
-                    external_rvars[tgt_path_id, 'value'] = rvar
+                src_rel.path_outputs[(tgt_path_id, 'iterator')] = \
+                    pgast.ColumnRef(name=('ctid',))
+                src_rel.path_outputs[(tgt_path_id, 'value')] = \
+                    pgast.ColumnRef(name=('target',), nullable=True)
             else:
-                src_rvar = compiler.new_external_rvar(
-                    rel_name=(source_alias,),
-                    path_id=src_path_id,
-                    outputs={},
+                src_rel.path_outputs[(tgt_path_id, 'identity')] = \
+                    pgast.ColumnRef(name=('id',))
+                src_rel.path_outputs[(tgt_path_id, 'iterator')] = \
+                    pgast.ColumnRef(name=('id',))
+
+            ext_rels[ptr_path_id] = (src_rel, ('source',), ())
+            if ptr_table:
+                ext_rels[tgt_path_id] = (
+                    src_rel,
+                    ('identity', 'source', 'value', 'iterator'),
+                    ((ptr_path_id, ('source', 'identity')),),
                 )
-                external_rvars[src_path_id, 'identity'] = src_rvar
-                external_rvars[src_path_id, 'value'] = src_rvar
-                external_rvars[src_path_id, 'source'] = src_rvar
+            else:
+                ext_rels[tgt_path_id] = (
+                    src_rel,
+                    ('identity', 'value', 'iterator'),
+                    (),
+                )
 
         # Wrap the expression into a select with iterator, so DML and
         # volatile expressions are executed once for each object.
         #
         # The result is roughly equivalent to:
         # for obj in Object union select <expr>
+
+        iterator_id = src_path_id if not for_each_pointer else tgt_path_id
 
         # generate a unique path id for the outer scope
         typ = orig_schema.get(f'schema::ObjectType', type=s_types.Type)
@@ -4981,15 +4998,15 @@ class PointerMetaCommand(
             path_scope_id=root_uid,
             expr=irast.SelectStmt(
                 iterator_stmt=irast.Set(
-                    path_id=src_path_id,
-                    typeref=src_path_id.target,
+                    path_id=iterator_id,
+                    typeref=iterator_id.target,
                     path_scope_id=iter_uid,
                     expr=irast.SelectStmt(
                         result=irast.Set(
                             path_scope_id=iter_uid,
-                            path_id=src_path_id,
-                            typeref=src_path_id.target,
-                            expr=irast.TypeRoot(typeref=src_path_id.target),
+                            path_id=iterator_id,
+                            typeref=iterator_id.target,
+                            expr=irast.TypeRoot(typeref=iterator_id.target),
                         )
                     )
                 ),
@@ -5002,20 +5019,16 @@ class PointerMetaCommand(
         sql_res = compiler.compile_ir_to_sql_tree(
             ir,
             output_format=compiler.OutputFormat.NATIVE_INTERNAL,
-            external_rels=external_rels,
-            external_rvars=external_rvars,
+            external_rels=ext_rels,
             backend_runtime_params=context.backend_runtime_params,
         )
         sql_tree = sql_res.ast
         assert isinstance(sql_tree, pgast.SelectStmt)
 
-        if produce_ctes:
-            # ensure the result contains the object id in the second column
-
-            from edb.pgsql.compiler import pathctx
-            pathctx.get_path_output(
-                sql_tree, src_path_id, aspect='identity', env=sql_res.env
-            )
+        # ensure the result contains the object id in the second column
+        pathctx.get_path_output(
+            sql_tree, iterator_id, aspect='iterator', env=sql_res.env
+        )
 
         ctes = list(sql_tree.ctes or [])
         if sql_tree.ctes:
@@ -5034,7 +5047,7 @@ class PointerMetaCommand(
                 lexpr=pgast.StringConstant(val='{"object_id": "'),
                 rexpr=pgast.Expr(
                     name='||',
-                    lexpr=pgast.ColumnRef(name=('id',)),
+                    lexpr=pgast.ColumnRef(name=('iter',)),
                     rexpr=pgast.StringConstant(val='"}'),
                 )
             )
@@ -5051,21 +5064,16 @@ class PointerMetaCommand(
                 ],
             )
 
-            inner_colnames = ["val"]
-            target_list = [pgast.ResTarget(val=null_check)]
-            if produce_ctes:
-                inner_colnames.append("id")
-                target_list.append(
-                    pgast.ResTarget(val=pgast.ColumnRef(name=("id",)))
-                )
-
             sql_tree = pgast.SelectStmt(
-                target_list=target_list,
+                target_list=[
+                    pgast.ResTarget(val=null_check),
+                    pgast.ResTarget(val=pgast.ColumnRef(name=("iter",))),
+                ],
                 from_clause=[
                     pgast.RangeSubselect(
                         subquery=sql_tree,
                         alias=pgast.Alias(
-                            aliasname="_inner", colnames=inner_colnames
+                            aliasname="_inner", colnames=["val", "iter"]
                         )
                     )
                 ]
@@ -5073,29 +5081,33 @@ class PointerMetaCommand(
 
         nullable = conv_expr.cardinality.can_be_zero()
 
-        if produce_ctes:
-            # convert root query into last CTE
-            ctes.append(
-                pgast.CommonTableExpr(
-                    name="_conv_rel",
-                    aliascolnames=["val", "id"],
-                    query=sql_tree,
-                )
+        # convert root query into last CTE
+        ctes.append(
+            pgast.CommonTableExpr(
+                name="_conv_rel",
+                aliascolnames=["val", "iter"],
+                query=sql_tree,
             )
-            # compile to SQL
-            ctes_sql = codegen.generate_ctes_source(ctes)
+        )
+        # compile to SQL
+        ctes_sql = codegen.generate_ctes_source(ctes)
 
-            return (ctes_sql, nullable)
+        # <DEBUG>
+        # from edb.common import debug
+        # from edb.pgsql.debug import _rewrite_names_in_sql
+        # debug.header('Delta Conversion Expression')
+        # dummy = pgast.UpdateStmt(
+        #     ctes=[pgast.CommonTableExpr(
+        #         name=source_alias,
+        #         query=pgast.SelectStmt()
+        #     )] + ctes
+        # )
+        # dbg_source = codegen.generate_source(dummy, reordered=True, pretty=True)
+        # dbg_source = _rewrite_names_in_sql(dbg_source, schema=schema)
+        # debug.dump_code(dbg_source, lexer='sql')
+        # </DEBUG>
 
-        else:
-            # There should be no CTEs when prodoce_ctes==False, since this will
-            # will happen only when changing type (cast_expr), which cannot
-            # contain DML.
-            assert len(ctes) == 0
-
-            select_sql = codegen.generate_source(sql_tree)
-
-            return (select_sql, nullable)
+        return (ctes_sql, nullable)
 
     def schedule_endpoint_delete_action_update(
         self, link, orig_schema, schema, context

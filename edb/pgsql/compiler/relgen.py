@@ -793,10 +793,17 @@ def process_set_as_empty(
 def process_external_rel(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
-    rel, aspects = ctx.external_rels[ir_set.path_id]
+    rel, aspects, additional_path_ids = ctx.external_rels[ir_set.path_id]
 
     rvar = relctx.rvar_for_rel(rel, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar, aspects)
+
+    main = SetRVar(rvar=rvar, path_id=ir_set.path_id, aspects=aspects)
+
+    additional = [
+        SetRVar(rvar=rvar, path_id=path_id, aspects=asp)
+        for (path_id, asp) in additional_path_ids
+    ]
+    return SetRVars(main=main, new=[main] + additional)
 
 
 def process_set_as_link_property_ref(
@@ -850,6 +857,12 @@ def process_set_as_link_property_ref(
 
         if link_rvar is None:
             src_rvar = get_set_rvar(ir_source, ctx=newctx)
+            assert irutils.is_set_instance(link_prefix, irast.Pointer)
+
+            link_rvar = relctx.maybe_get_path_rvar(
+                newctx.rel, link_path_id, aspect='source', ctx=newctx
+            )
+        if link_rvar is None:
             assert irutils.is_set_instance(link_prefix, irast.Pointer)
             link_rvar = relctx.new_pointer_rvar(
                 link_prefix, src_rvar=src_rvar,

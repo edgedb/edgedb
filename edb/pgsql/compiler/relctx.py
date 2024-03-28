@@ -767,18 +767,20 @@ def create_iterator_identity_for_path(
     ctx: context.CompilerContextLevel,
     apply_volatility: bool=True,
 ) -> None:
-
-    id_expr = pgast.FuncCall(
-        name=('edgedb', 'uuid_generate_v4'),
-        args=[],
-    )
-
     if isinstance(stmt, pgast.SelectStmt):
         path_id = pathctx.map_path_id(path_id, stmt.view_path_id_map)
         if apply_volatility:
             apply_volatility_ref(stmt, ctx=ctx)
 
-    pathctx.put_path_var(stmt, path_id, id_expr, force=True, aspect='iterator')
+    already_exists = isinstance(stmt, pgast.Query) and (
+        maybe_get_path_rvar(stmt, path_id, aspect='iterator', ctx=ctx) != None
+    )
+    if not already_exists:
+        id_expr = pgast.FuncCall(
+            name=('edgedb', 'uuid_generate_v4'),
+            args=[],
+        )
+        pathctx.put_path_var(stmt, path_id, id_expr, aspect='iterator')
     pathctx.put_path_bond(stmt, path_id, iterator=True)
 
 
