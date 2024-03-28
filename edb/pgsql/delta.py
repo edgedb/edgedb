@@ -4686,7 +4686,7 @@ class PointerMetaCommand(
             SET {qi(target_col)} = _conv_rel.val
             FROM _conv_rel WHERE _update.{source_iter_col} = _conv_rel.iter
         '''
-        # print(update_qry)
+        print(update_qry)
         self.pgops.add(dbops.Query(update_qry))
         trivial_cast_expr = qi(target_col)
 
@@ -5093,18 +5093,18 @@ class PointerMetaCommand(
         ctes_sql = codegen.generate_ctes_source(ctes)
 
         # <DEBUG>
-        # from edb.common import debug
-        # from edb.pgsql.debug import _rewrite_names_in_sql
-        # debug.header('Delta Conversion Expression')
-        # dummy = pgast.UpdateStmt(
-        #     ctes=[pgast.CommonTableExpr(
-        #         name=source_alias,
-        #         query=pgast.SelectStmt()
-        #     )] + ctes
-        # )
-        # dbg_source = codegen.generate_source(dummy, reordered=True, pretty=True)
-        # dbg_source = _rewrite_names_in_sql(dbg_source, schema=schema)
-        # debug.dump_code(dbg_source, lexer='sql')
+        from edb.common import debug
+        from edb.pgsql.debug import _rewrite_names_in_sql
+        debug.header('Delta Conversion Expression')
+        dummy = pgast.UpdateStmt(
+            ctes=[pgast.CommonTableExpr(
+                name=source_alias,
+                query=pgast.SelectStmt()
+            )] + ctes
+        )
+        dbg_source = codegen.generate_source(dummy, reordered=True, pretty=True)
+        dbg_source = _rewrite_names_in_sql(dbg_source, schema=schema)
+        debug.dump_code(dbg_source, lexer='sql')
         # </DEBUG>
 
         return (ctes_sql, nullable)
