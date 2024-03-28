@@ -18,10 +18,10 @@ guide!
     :maxdepth: 1
 
     cloud/index
-    cheatsheet/index
     deployment/index
     datamigrations/index
     tutorials/index
     auth/index
     migrations/index
     contributing/index
+    Cheatsheets <https://www.edgedb.com/database/cheatsheets>
