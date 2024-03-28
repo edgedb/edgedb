@@ -1381,3 +1381,21 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ''',
             [{"a": {}}, {"a": {}}],
         )
+
+    async def test_edgeql_group_destruct_immediately_01(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE cards
+            select (group Card by .element).key.element
+            ''',
+            {"Fire", "Earth", "Water", "Air"},
+        )
+
+    async def test_edgeql_group_destruct_immediately_02(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE cards
+            select (group Card by .element).grouping
+            ''',
+            ["element", "element", "element", "element"],
+        )
