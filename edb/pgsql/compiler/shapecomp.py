@@ -114,7 +114,7 @@ def compile_shape(
             assert isinstance(tuple_el, pgast.TupleElement)
             elements.append(tuple_el)
 
-        # OH HO HO
+        # If there wasn't an id (because its a FreeObject), add a fake one.
         if ctx.materializing and not has_id:
             elements.append(pgast.TupleElement(
                 path_id=ir_set.path_id,
