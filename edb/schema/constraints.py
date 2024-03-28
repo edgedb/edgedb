@@ -582,8 +582,7 @@ class ConstraintCommand(
                     ),
                 )
 
-                if field.name != 'finalexpr':
-                    utils.try_compile_irast_to_sql_tree(compiled, self.span)
+                utils.try_compile_irast_to_sql_tree(compiled, self.span)
 
                 return compiled
 

@@ -10694,12 +10694,26 @@ type default::Foo {
             await self.con.execute(r"""
                 CREATE TYPE default::ConstraintNonSingletonTest {
                     CREATE PROPERTY has_bad_constraint: std::str;
+                    CREATE CONSTRAINT std::exclusive ON (
+                        DISTINCT(.has_bad_constraint)
+                    );
+                };
+            """)
+
+    async def test_edgeql_ddl_constraint_30(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.UnsupportedFeatureError,
+                'set returning operator std::DISTINCT is not supported '
+                'in singleton expressions'):
+            await self.con.execute(r"""
+                CREATE TYPE default::ConstraintNonSingletonTest {
+                    CREATE PROPERTY has_bad_constraint: std::str;
                     CREATE CONSTRAINT std::exclusive ON (.has_bad_constraint)
                         EXCEPT ((DISTINCT (__subject__) = __subject__));
                 };
             """)
 
-    async def test_edgeql_ddl_constraint_30(self):
+    async def test_edgeql_ddl_constraint_31(self):
         async with self.assertRaisesRegexTx(
                 edgedb.UnsupportedFeatureError,
                 'set returning operator std::DISTINCT is not supported '
