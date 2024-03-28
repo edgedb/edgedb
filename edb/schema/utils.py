@@ -801,21 +801,36 @@ def merge_reduce(
     *,
     ignore_local: bool,
     schema: s_schema.Schema,
-    f: Callable[[List[T]], T],
+    f: Callable[[T, T], T],
     type: Type[T],
 ) -> Optional[T]:
-    values = []
+    values: list[tuple[T, str]] = []
     if not ignore_local:
         ours = target.get_explicit_local_field_value(schema, field_name, None)
         if ours is not None:
-            values.append(ours)
+            vn = target.get_verbosename(schema, with_parent=True)
+            values.append((ours, vn))
     for source in sources:
         theirs = source.get_explicit_field_value(schema, field_name, None)
         if theirs is not None:
-            values.append(theirs)
+            vn = source.get_verbosename(schema, with_parent=True)
+            values.append((theirs, vn))
 
     if values:
-        return f(values)
+        val = values[0][0]
+        desc = values[0][1]
+        cdn = target.get_schema_class_displayname()
+        for other_val, other_desc in values[1:]:
+            try:
+                val = f(val, other_val)
+            except Exception:
+                raise errors.SchemaDefinitionError(
+                    f'invalid {cdn} definition: {field_name} is defined '
+                    f'as {val} in {desc}, but is defined as {other_val} '
+                    f'in {other_desc}, which is incompatible'
+                )
+
+        return val
     else:
         return None
 

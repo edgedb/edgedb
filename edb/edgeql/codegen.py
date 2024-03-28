@@ -1414,6 +1414,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 keywords.extend(('SET', 'OWNED'))
             else:
                 keywords.extend(('DROP', 'OWNED'))
+        elif fname == 'deferred':
+            if node.value is None:
+                keywords.extend(('RESET', 'DEFERRED'))
+            elif self._eval_bool_expr(node.value):
+                keywords.extend(('SET', 'DEFERRED'))
+            else:
+                keywords.extend(('DROP', 'DEFERRED'))
         else:
             raise EdgeQLSourceGeneratorError(
                 'unknown special field: {!r}'.format(fname))
@@ -1993,22 +2000,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
             self._ddl_visit_bases(node)
 
-            if node.commands or node.code:
-                self.write(' {')
-                self._block_ws(1)
-                commands = self._ddl_clean_up_commands(node.commands)
-                self.visit_list(commands, terminator=';')
-                self.new_lines = 1
-
-                if node.code:
-                    self._write_keywords('USING', node.code.language)
-                    self.write(edgeql_quote.dollar_quote_literal(
-                        node.code.code))
-                    self.write(';')
-
-                self._block_ws(-1)
-                self.write('}')
-
         self._visit_CreateObject(node, 'ABSTRACT INDEX', after_name=after_name)
 
     def visit_AlterIndex(self, node: qlast.AlterIndex) -> None:
@@ -2024,9 +2015,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_CreateConcreteIndex(
         self, node: qlast.CreateConcreteIndex
     ) -> None:
+        keywords = ['DEFERRED', 'INDEX'] if node.deferred else ['INDEX']
         self._visit_CreateObject(
-            node, 'INDEX', named=node.name.name != 'idx',
-            after_name=lambda: self._after_index(node))
+            node,
+            *keywords,
+            named=node.name.name != 'idx',
+            after_name=lambda: self._after_index(node),
+        )
 
     def visit_AlterConcreteIndex(self, node: qlast.AlterConcreteIndex) -> None:
         self._visit_AlterObject(

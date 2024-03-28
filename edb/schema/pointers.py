@@ -34,6 +34,7 @@ from typing import (
 import collections.abc
 import enum
 import json
+import operator
 
 from edb import errors
 
@@ -211,7 +212,7 @@ def merge_required(
             field_name=field_name,
             ignore_local=ignore_local,
             schema=schema,
-            f=max,
+            f=operator.or_,
             type=bool,
         )
     elif local_required:

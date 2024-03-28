@@ -2413,6 +2413,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                         not fop.new_inherited
                         or context.descriptive_mode
                         or self.ast_ignore_ownership()
+                        or self.ast_ignore_field_ownership(fop.property)
                     )
                     and (
                         fop.old_value != new_value
@@ -2903,6 +2904,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         self.annotations[name] = value
 
     def ast_ignore_ownership(self) -> bool:
+        """Whether to force generating an AST even though it isn't owned"""
+        return False
+
+    def ast_ignore_field_ownership(self, field: str) -> bool:
         """Whether to force generating an AST even though it isn't owned"""
         return False
 

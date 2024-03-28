@@ -190,6 +190,18 @@ class Multiplicity(s_enum.OrderedEnumMixin, s_enum.StrEnum):
         return self is Multiplicity.DUPLICATE
 
 
+class IndexDeferrability(s_enum.OrderedEnumMixin, s_enum.StrEnum):
+    Prohibited = 'Prohibited'
+    Permitted = 'Permitted'
+    Required = 'Required'
+
+    def is_deferrable(self) -> bool:
+        return (
+            self is IndexDeferrability.Required
+            or self is IndexDeferrability.Permitted
+        )
+
+
 class AccessPolicyAction(s_enum.StrEnum):
     Allow = 'Allow'
     Deny = 'Deny'

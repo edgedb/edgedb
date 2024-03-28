@@ -1543,49 +1543,70 @@ class DropIndexStmt(Nonterm):
         )
 
 
-commands_block(
-    'AlterConcreteIndex',
-    SetFieldStmt,
-    ResetFieldStmt,
-    AlterOwnedStmt,
-    CreateAnnotationValueStmt,
-    AlterAnnotationValueStmt,
-    DropAnnotationValueStmt,
-    opt=False)
-
-
 #
 # CREATE CONCRETE INDEX
 #
 class CreateConcreteIndexStmt(Nonterm, commondl.ProcessIndexMixin):
-    def reduce_CREATE_INDEX_OnExpr_OptExceptExpr_OptCreateCommandsBlock(
-        self, *kids
-    ):
+    def reduce_CreateConcreteDefaultIndex(self, *kids):
+        r"""%reduce CREATE OptDeferred INDEX OnExpr OptExceptExpr
+                    OptCreateCommandsBlock
+        """
         self.val = qlast.CreateConcreteIndex(
             name=qlast.ObjectRef(module='__', name='idx'),
-            expr=kids[2].val,
-            except_expr=kids[3].val,
-            commands=kids[4].val,
+            expr=kids[3].val,
+            except_expr=kids[4].val,
+            deferred=kids[1].val,
+            commands=kids[5].val,
         )
 
     def reduce_CreateConcreteIndex(self, *kids):
-        r"""%reduce CREATE INDEX NodeName \
-                    OptIndexExtArgList OnExpr OptExceptExpr \
-                    OptCreateCommandsBlock \
+        r"""%reduce CREATE OptDeferred INDEX NodeName
+                    OptIndexExtArgList OnExpr OptExceptExpr
+                    OptCreateCommandsBlock
         """
-        kwargs = self._process_arguments(kids[3].val)
+        kwargs = self._process_arguments(kids[4].val)
         self.val = qlast.CreateConcreteIndex(
-            name=kids[2].val,
+            name=kids[3].val,
             kwargs=kwargs,
-            expr=kids[4].val,
-            except_expr=kids[5].val,
-            commands=kids[6].val,
+            expr=kids[5].val,
+            except_expr=kids[6].val,
+            deferred=kids[1].val,
+            commands=kids[7].val,
         )
 
 
 #
 # ALTER CONCRETE INDEX
 #
+
+class AlterDeferredStmt(Nonterm):
+    def reduce_DROP_DEFERRED(self, *kids):
+        self.val = qlast.SetField(
+            name='deferred',
+            value=qlast.BooleanConstant(value='false'),
+            special_syntax=True,
+        )
+
+    def reduce_SET_DEFERRED(self, *kids):
+        self.val = qlast.SetField(
+            name='deferred',
+            value=qlast.BooleanConstant(value='true'),
+            special_syntax=True,
+        )
+
+
+commands_block(
+    'AlterConcreteIndex',
+    SetFieldStmt,
+    ResetFieldStmt,
+    AlterOwnedStmt,
+    AlterDeferredStmt,
+    CreateAnnotationValueStmt,
+    AlterAnnotationValueStmt,
+    DropAnnotationValueStmt,
+    opt=False)
+
+
 class AlterConcreteIndexStmt(Nonterm, commondl.ProcessIndexMixin):
     def reduce_AlterConcreteIndex(self, *kids):
         r"""%reduce ALTER INDEX OnExpr OptExceptExpr \
