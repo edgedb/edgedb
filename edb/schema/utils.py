@@ -240,10 +240,10 @@ def ast_to_type_shell(
                 element_spans.append(subtype_type_name.maintype.span)
 
         for element, element_span in zip(elements, element_spans):
-            if len(element) > pg_common.max_enum_label_length:
+            if len(element) > pg_common.MAX_ENUM_LABEL_LENGTH:
                 raise errors.SchemaDefinitionError(
                     f'enum labels cannot exceed '
-                    f'{pg_common.max_enum_label_length} characters',
+                    f'{pg_common.MAX_ENUM_LABEL_LENGTH} characters',
                     span=element_span,
                 )
 
