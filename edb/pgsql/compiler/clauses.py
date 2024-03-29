@@ -122,7 +122,7 @@ def compile_materialized_exprs(
         for mat_set in mat_sets:
             if len(mat_set.uses) <= 1:
                 continue
-            assert mat_set.finalized
+            assert mat_set.finalized, "materialized set was not finalized!"
             if relctx.find_rvar(
                     query, flavor='packed',
                     path_id=mat_set.materialized.path_id, ctx=matctx):
