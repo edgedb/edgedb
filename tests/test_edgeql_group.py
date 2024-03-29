@@ -21,6 +21,7 @@ import os.path
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLGroup(tb.QueryTestCase):
@@ -1398,4 +1399,201 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             select (group Card by .element).grouping
             ''',
             ["element", "element", "element", "element"],
+        )
+
+    @test.xerror("""
+        Issue #5796
+
+        Materialized set not finalized.
+    """)
+    async def test_edgeql_group_issue_5796(self):
+        # Fails on assert mat_set.materialized .
+        # Depends on double select and deck in shape
+        await self.assert_query_result(
+            r'''
+            with
+              module cards,
+              groups := (
+                group User { deck }
+                by .name
+              )
+            select groups {
+              name := .key.name,
+            }
+            limit 5;
+            ''',
+            tb.bag([
+                {"name": "Alice"},
+                {"name": "Bob"},
+                {"name": "Carol"},
+                {"name": "Dave"},
+            ]),
+        )
+
+    @test.xerror("Issue #6059")
+    async def test_edgeql_group_issue_6059(self):
+        await self.assert_query_result(
+            r'''
+            with
+              module cards,
+              groups := (group Card by .element)
+            select groups {
+              keyCard := (
+                select .elements { id }
+                limit 1
+              ),
+            }
+            order by .keyCard.cost
+            limit 100;
+            ''',
+            [{"keyCard": {}}] * 4,
+        )
+
+    @test.xerror("Issue #6060")
+    async def test_edgeql_group_issue_6060(self):
+        await self.assert_query_result(
+            r'''
+            with
+              module cards,
+              groups := (group Card by .element),
+              submissions := (
+                groups {
+                  minCost := min(.elements.cost)
+                }
+              )
+            select submissions {
+              minCost
+            }
+            order by .minCost;
+            ''',
+            [{"minCost": 1}, {"minCost": 1}, {"minCost": 1}, {"minCost": 2}],
+        )
+
+    @test.xerror("""
+        Issue #6481
+
+        assert stype.is_view(ctx.env.schema) when in _inline_type_computable
+    """)
+    async def test_edgeql_group_issue_6481(self):
+        await self.assert_query_result(
+            r'''
+            select (
+              group (
+                select Comment {iowner:=.issue.owner}
+              )
+              by .iowner
+            ) { }.elements;
+            ''',
+            [{}],
+            always_typenames=True,
+        )
+
+    @test.xerror("""
+        Issue #6019
+
+        Grouping on key should probably be rejected.
+        (And if not, it should not ISE!)
+    """)
+    async def test_edgeql_group_issue_6019_a(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+        ):
+            self.con.execute('''
+                group (
+                  group (
+                    select Issue
+                  ) by .owner
+                ) by .key
+            ''')
+
+    @test.xerror("""
+        Issue #6019
+
+        Grouping on key should probably be rejected.
+        (And if not, it should not ISE!)
+    """)
+    async def test_edgeql_group_issue_6019_b(self):
+        await self.assert_query_result(
+            '''
+            with
+              module cards,
+              g1 := (group Card by .element),
+              flattened := (select g1 {element:=(.key.element)}),
+            group flattened by .element
+            ''',
+            [{}] * 4,
+        )
+
+    @test.xerror("""
+        Issue #5828
+
+        Only fails with implicit_limit and typename injection.
+        "there is no range var..."
+    """)
+    async def test_edgeql_group_issue_5828(self):
+        await self.assert_query_result(
+            '''
+            with module cards
+            group User {
+              deck: {awards: {name}},
+            }
+            by .name;
+            ''',
+            [
+                {'elements': [{}]},
+                {'elements': [{}]},
+                {'elements': [{}]},
+                {'elements': [{}]},
+            ],
+            always_typenames=True,
+            implicit_limit=100,
+        )
+
+    @test.xerror("""
+        Issue #5757
+
+        Only fails with typename injection.
+        Materialized set not finalized
+    """)
+    async def test_edgeql_group_issue_5757(self):
+        await self.assert_query_result(
+            '''
+            select (
+              select (group User by .name) {}
+            ) {
+              xxx := .elements.name,
+            };
+            ''',
+            [{}, {}],
+            always_typenames=True,
+        )
+
+    @test.xfail("""
+        Issue #4897
+
+        The link isn't having a view put on it, it's going out raw as
+        just a uuid.
+    """)
+    async def test_edgeql_group_issue_4897(self):
+        await self.assert_query_result(
+            '''
+            group Issue { name }
+            using owner := .owner
+            by owner;
+            ''',
+            tb.bag([
+                {
+                    "key": {"owner": {"id": str}},
+                    "elements": [
+                        {"name": "Release EdgeDB"}, {"name": "Regression."}
+                    ],
+                },
+                {
+                    "key": {"owner": {"id": str}},
+                    "elements": [
+                        {"name": "Improve EdgeDB repl output rendering."},
+                        {"name": "Repl tweak."},
+                    ],
+                }
+            ])
         )

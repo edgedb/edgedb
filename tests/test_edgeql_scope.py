@@ -4131,3 +4131,49 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 {},
             ],
         )
+
+    @test.xerror("Issue #6059 (non-group generalization)")
+    async def test_edgeql_scope_mat_issue_6059(self):
+        await self.assert_query_result(
+            r'''
+            with
+              groups := (
+                for k in {'Earth', 'Air', 'Fire', 'Water'} union {
+                    elements := (select Card filter .element = k),
+                    r := random(),
+                }
+              ),
+            select groups {
+              keyCard := (
+                select .elements { id }
+                limit 1
+              ),
+            }
+            order by .keyCard.cost
+            ''',
+            [{"keyCard": {}}] * 4,
+        )
+
+    @test.xerror("Issue #6060 (non-group generalization)")
+    async def test_edgeql_scope_mat_issue_6060(self):
+        await self.assert_query_result(
+            r'''
+            with
+              groups := (
+                for k in {'Earth', 'Air', 'Fire', 'Water'} union {
+                    elements := (select Card filter .element = k),
+                    r := random(),
+                }
+              ),
+              submissions := (
+                groups {
+                  minCost := min(.elements.cost)
+                }
+              )
+            select submissions {
+              minCost
+            }
+            order by .minCost;
+            ''',
+            [{"minCost": 1}, {"minCost": 1}, {"minCost": 1}, {"minCost": 2}],
+        )
