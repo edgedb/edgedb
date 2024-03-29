@@ -1033,6 +1033,8 @@ def _update_path_prefix(tip: Optional[ObjectLike], ctx: TracerContext) -> None:
         tip_name = tip.get_name(ctx.schema)
         assert isinstance(tip_name, sn.QualName)
         ctx.path_prefix = tip_name
+    else:
+        ctx.path_prefix = None
 
 
 @trace.register
