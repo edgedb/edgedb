@@ -9,3 +9,6 @@
 	path = edb/pgsql/parser/libpg_query
 	url = https://github.com/pganalyze/libpg_query.git
 	branch = 13-latest
+[submodule "imdbench"]
+	path = imdbench
+	url = https://github.com/edgedb/imdbench.git
