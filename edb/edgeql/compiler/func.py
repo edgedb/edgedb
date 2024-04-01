@@ -790,7 +790,10 @@ def get_globals(
         globs.update(bound_call.func.get_used_globals(schema).objects(schema))
 
     if (
-        ctx.env.options.func_params is None
+        (
+            ctx.env.options.func_name is None
+            or ctx.env.options.func_params is None
+        )
         and not ctx.env.options.json_parameters
     ):
         glob_set = setgen.get_globals_as_json(

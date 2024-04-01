@@ -418,8 +418,8 @@ def compile_OperatorCall(
         )
     elif expr.typemod is ql_ft.TypeModifier.SetOfType:
         raise errors.UnsupportedFeatureError(
-            f'set returning operator {expr.func_shortname!r} is not supported '
-            f'in simple expressions')
+            f'set returning operator {expr.func_shortname} is not supported '
+            f'in singleton expressions')
 
     args, maybe_null = _compile_call_args(expr, ctx=ctx)
     return _wrap_call(

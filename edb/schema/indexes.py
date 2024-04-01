@@ -807,6 +807,9 @@ class IndexCommand(
                     span=self.span,
                 )
 
+            # compile the expression to sql to preempt errors downstream
+            utils.try_compile_irast_to_sql_tree(expr, self.span)
+
             return expr
         else:
             return super().compile_expr_field(

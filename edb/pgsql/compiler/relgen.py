@@ -2853,6 +2853,25 @@ def process_set_as_std_range(
     return set_expr
 
 
+@simple_special_case('std::_is_exclusive')
+def process_set_as_std_is_exclusive(
+    expr: irast.FunctionCall,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
+    # `std::_is_exclusive` is a helper function used in the implementation of
+    # exclusive constraints. It is removed before (ir->sql) compilation and will
+    # never be executed by the server.
+    #
+    # However, during the (ql->ir) compilation, an additional (ir->sql)
+    # compilation takes place in order to catch any potential downstream errors,
+    # such as set returning functions.
+    #
+    # This simple special case is used to prevent unwanted errors during this
+    # additional (ir->sql) compilation.
+    return pgast.BooleanConstant(val=False)
+
+
 @_special_case('std::multirange', only_as_fallback=True)
 def process_set_as_std_multirange(
     ir_set: irast.SetE[irast.Call],

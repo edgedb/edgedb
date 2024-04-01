@@ -50,6 +50,7 @@ from edb.ir import statypes
 
 from . import name as sn
 from . import objects as so
+from . import expr as s_expr
 
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
@@ -1410,3 +1411,24 @@ def type_shell_substitute(
         )
     else:
         return typ
+
+
+def try_compile_irast_to_sql_tree(
+    compiled_expr: s_expr.CompiledExpression,
+    span: Optional[parsing.Span]
+) -> None:
+    # compile the expression to sql to preempt errors downstream
+
+    from edb.pgsql import compiler as pg_compiler
+
+    try:
+        pg_compiler.compile_ir_to_sql_tree(
+            compiled_expr.irast,
+            output_format=pg_compiler.OutputFormat.NATIVE,
+            singleton_mode=True,
+        )
+    except errors.EdgeDBError as exception:
+        exception.set_span(span)
+        raise exception
+    except:
+        raise
