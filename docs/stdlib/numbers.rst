@@ -103,6 +103,9 @@ Bitwise functions
   * - :eql:func:`bit_rshift`
     - :eql:func-desc:`bit_rshift`
 
+  * - :eql:func:`bit_count`
+    - :eql:func-desc:`bit_count`
+
 String parsing
 --------------
 
@@ -764,6 +767,26 @@ Definitions
         db> select bit_rshift(123, -2);
         edgedb error: InvalidValueError: bit_rshift(): cannot shift by
         negative amount
+
+
+------------
+
+
+.. eql:function:: std::bit_count(val: int16) -> int64
+                  std::bit_count(val: int32) -> int64
+                  std::bit_count(val: int64) -> int64
+                  std::bit_count(bytes: bytes) -> int64
+
+    Return the number of bits set in the :eql:type:`bytes` value.
+    
+    This is also known as the population count.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_count(255);
+        {8}
+        db> select bit_count(b'\xff\xff');
+        {16}
 
 
 ------------

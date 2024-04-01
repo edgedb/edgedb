@@ -59,6 +59,9 @@ Bytes
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`
 
+    * - :eql:func:`bit_count`
+      - :eql:func-desc:`bit_count`
+
     * - :eql:func:`enc::base64_encode`
       - :eql:func-desc:`enc::base64_encode`
 
@@ -247,6 +250,7 @@ Bytes
 
 
 ---------
+
 
 .. eql:function:: enc::base64_encode(b: bytes) -> str
 

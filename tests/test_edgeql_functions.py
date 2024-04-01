@@ -6342,6 +6342,141 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True, True, True, True],
         )
 
+    async def test_edgeql_functions_bitwise_15(self):
+        # bit_count counts the number of bits
+
+        # bit_count(0)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>0);''',
+            {0},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>0);''',
+            {0},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>0);''',
+            {0},
+        )
+
+        # bit_count(1)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>1);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>1);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>1);''',
+            {1},
+        )
+
+        # bit_count(255)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>255);''',
+            {8},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>255);''',
+            {8},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>255);''',
+            {8},
+        )
+
+        # bit_count(256)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>256);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>256);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>256);''',
+            {1},
+        )
+
+        # bit_count(max)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>32767);''',
+            {15},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>2147483647);''',
+            {31},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>9223372036854775807);''',
+            {63},
+        )
+
+        # bit_count(min)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>-32768);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>-2147483648);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>-9223372036854775808);''',
+            {1},
+        )
+
+        # bit_count(-1)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>-1);''',
+            {16},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>-1);''',
+            {32},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>-1);''',
+            {64},
+        )
+
+        # bit_count(bytes)
+        await self.assert_query_result(
+            r'''select bit_count(b'');''',
+            {0},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x00');''',
+            {0},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x01');''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\xff');''',
+            {8},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x01\x01');''',
+            {2},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\xff\xff');''',
+            {16},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x01\x01\x01\x01');''',
+            {4},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\xff\xff\xff\xff');''',
+            {32},
+        )
+
     async def test_edgeql_functions_range_contains_01(self):
         # Test `contains` for numeric ranges.
         for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
