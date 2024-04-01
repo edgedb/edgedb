@@ -31,6 +31,17 @@ std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
     $$;
 };
 
+CREATE FUNCTION
+std::bit_count(bytes: std::bytes) -> std::int64
+{
+    CREATE ANNOTATION std::description :=
+        'Count the number of set bits the bytes value.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT bit_count(bytes)
+    $$;
+};
+
 
 
 ## Byte string operators

@@ -6443,6 +6443,40 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {64},
         )
 
+        # bit_count(bytes)
+        await self.assert_query_result(
+            r'''select bit_count(b'');''',
+            {0},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x00');''',
+            {0},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x01');''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\xff');''',
+            {8},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x01\x01');''',
+            {2},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\xff\xff');''',
+            {16},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x01\x01\x01\x01');''',
+            {4},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\xff\xff\xff\xff');''',
+            {32},
+        )
+
     async def test_edgeql_functions_range_contains_01(self):
         # Test `contains` for numeric ranges.
         for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
