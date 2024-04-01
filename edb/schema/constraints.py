@@ -582,6 +582,7 @@ class ConstraintCommand(
                     ),
                 )
 
+                # compile the expression to sql to preempt errors downstream
                 utils.try_compile_irast_to_sql_tree(compiled, self.span)
 
                 return compiled
@@ -613,6 +614,7 @@ class ConstraintCommand(
                 ),
             )
 
+            # compile the expression to sql to preempt errors downstream
             utils.try_compile_irast_to_sql_tree(compiled, self.span)
 
             return compiled
