@@ -34,40 +34,42 @@ CREATE SCALAR TYPE cal::date_duration EXTENDING std::anyscalar;
 ## Functions
 ## ---------
 
-CREATE FUNCTION
-cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
-    -> cal::local_datetime
-{
-    CREATE ANNOTATION std::description :=
-        'Create a `cal::local_datetime` value.';
-    # Helper function to_local_datetime is VOLATILE.
-    SET volatility := 'Volatile';
-    USING SQL $$
-    SELECT (
-        CASE WHEN "fmt" IS NULL THEN
-            edgedb.local_datetime_in("s")
-        WHEN "fmt" = '' THEN
-            edgedb.raise(
-                NULL::edgedb.timestamp_t,
-                'invalid_parameter_value',
-                msg => (
-                    'to_local_datetime(): '
-                    || '"fmt" argument must be a non-empty string'
-                )
-            )
-        ELSE
-            edgedb.raise_on_null(
-                edgedb.to_local_datetime("s", "fmt"),
-                'invalid_parameter_value',
-                msg => (
-                    'to_local_datetime(): '
-                    || 'format ''' || "fmt" || ''' is invalid'
-                )
-            )
-        END
-    )
-    $$;
-};
+# THIS IS COMMENTED ON THE INTERPRETER BRANCH. 
+# THIS SHOULD NOT BE COMMENTED ON THE ACTUAL EDGEDB RELEASE
+# CREATE FUNCTION
+# cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
+#     -> cal::local_datetime
+# {
+#     CREATE ANNOTATION std::description :=
+#         'Create a `cal::local_datetime` value.';
+#     # Helper function to_local_datetime is VOLATILE.
+#     SET volatility := 'Volatile';
+#     USING SQL $$
+#     SELECT (
+#         CASE WHEN "fmt" IS NULL THEN
+#             edgedb.local_datetime_in("s")
+#         WHEN "fmt" = '' THEN
+#             edgedb.raise(
+#                 NULL::edgedb.timestamp_t,
+#                 'invalid_parameter_value',
+#                 msg => (
+#                     'to_local_datetime(): '
+#                     || '"fmt" argument must be a non-empty string'
+#                 )
+#             )
+#         ELSE
+#             edgedb.raise_on_null(
+#                 edgedb.to_local_datetime("s", "fmt"),
+#                 'invalid_parameter_value',
+#                 msg => (
+#                     'to_local_datetime(): '
+#                     || 'format ''' || "fmt" || ''' is invalid'
+#                 )
+#             )
+#         END
+#     )
+#     $$;
+# };
 
 
 CREATE FUNCTION

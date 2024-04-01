@@ -529,7 +529,7 @@ def elab_TypeCast(qle: qlast.TypeCast) -> TypeCastExpr:
             if qle.cardinality_mod == qlast.CardinalityModifier.Optional:
                 is_required = False
             else:
-                raise ValueError("Unknown Cardinality Modifier", qle.cardinality_mod)
+                is_required = True
             return e.ParameterExpr(
                 name=qle.expr.name,
                 tp= elab_single_type_expr(qle.type),

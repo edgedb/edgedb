@@ -10,6 +10,7 @@ from ..data.data_ops import (
     StrVal, UnnamedTupleTp, Val, UnnamedTupleVal)
 from .errors import FunCallErr
 import random
+from .. import interpreter_logging
 
 from datetime import datetime, timezone
 
@@ -249,4 +250,11 @@ def random_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case []:
             return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "float64"])), random.random())]
+    raise FunCallErr()
+
+def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[e.ScalarVal(_, s)], [e.ScalarVal(_, tz)]]:
+            interpreter_logging.print_warning("Warning: cal::to_local_datetime is implemented properly. It is a no-op.")
+            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["cal", "local_datetime"])), s)]
     raise FunCallErr()

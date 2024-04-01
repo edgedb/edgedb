@@ -51,12 +51,16 @@ def default_dbschema() -> DBSchema:
     initial_db = empty_dbschema()
     relative_path_to_std = os.path.join("..", "..", "lib", "std")
     relative_path_to_schema = os.path.join("..", "..", "lib", "schema.edgeql")
+    relative_path_to_cal = os.path.join("..", "..", "lib", "cal.edgeql")
+    relative_path_to_math = os.path.join("..", "..", "lib", "math.edgeql")
     std_path = os.path.join(os.path.dirname(__file__), relative_path_to_std)
     schema_path = os.path.join(os.path.dirname(__file__), relative_path_to_schema)
+    cal_path = os.path.join(os.path.dirname(__file__), relative_path_to_cal)
+    math_path = os.path.join(os.path.dirname(__file__), relative_path_to_math)
     print("Loading standard library at", std_path)
     add_ddl_library(
         initial_db,
-        [std_path, schema_path]
+        [std_path, schema_path, cal_path, math_path]
     )
     sck.re_populate_module_inheritance(initial_db, ("std",))
     sck.re_populate_module_inheritance(initial_db, ("schema",))
@@ -220,6 +224,10 @@ def run_single_str_get_json(
     return typed_multi_set_val_to_json_like(
                 tp, res, dbschema_and_db[0], top_level=True)
 
+def interpreter_parser_init():
+    from edb.edgeql import parser as ql_parser
+    ql_parser.preload_spec()
+
 
 def repl(*, init_sdl_file=None,
          init_ql_file=None,
@@ -233,8 +241,7 @@ def repl(*, init_sdl_file=None,
     # if init_sdl_file is not None and read_sqlite_file is not None:
     #     raise ValueError("Init SDL file and Read SQLite file cannot"
     #                      " be specified at the same time")
-    from edb.edgeql import parser as ql_parser
-    ql_parser.preload_spec()
+    interpreter_parser_init()
 
     dbschema: DBSchema 
     db: EdgeDatabase

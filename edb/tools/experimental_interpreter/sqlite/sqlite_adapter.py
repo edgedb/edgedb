@@ -180,6 +180,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         self.conn = conn
         self.schema = schema
         self.cursor = conn.cursor()
+        self.should_commit_to_disk = True
 
         self.schema_property_view = get_schema_property_view(schema)
         self.table_view = get_table_view_from_property_view(self.schema_property_view)
@@ -459,8 +460,18 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                         self.cursor.execute(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v]))))
 
+    # By default commit is called per query, doing a bunch of consecutive queries 
+    # will cause significant delays. This function can be used to pause the commit.
+    def pause_disk_commit(self) -> None:
+        self.should_commit_to_disk = False
+    
+    def resume_disk_commit(self) -> None:
+        self.should_commit_to_disk = True
+        self.commit()
+        
     def commit(self) -> None:
-        self.conn.commit()
+        if self.should_commit_to_disk:
+            self.conn.commit()
     
 def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):
     # Connect to the SQLite database

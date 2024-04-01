@@ -539,16 +539,28 @@ def eval_expr(ctx: EvalEnv,
 
 def eval_ctx_from_variables(variables) -> EvalEnv:
     def get_prim_param_value(v) -> MultiSetVal:
+        if isinstance(v, str):
+            return e.StrVal(v)
+        elif isinstance(v, int):
+            return e.IntVal(v)
+        elif isinstance(v, list):
+            return e.ArrVal([get_prim_param_value(vv) for vv in v])
+        else:
+            raise ValueError("Unimplemented")
+    def get_prim_param_multiset_value(v) -> MultiSetVal:
         if v is None:
             return e.ResultMultiSetVal([])
-        elif isinstance(v, str):
-            return e.ResultMultiSetVal([e.StrVal(v)])
+        elif isinstance(v, str) or isinstance(v, int):
+            return e.ResultMultiSetVal([get_prim_param_value(v)])
+        elif isinstance(v, list):
+            return e.ResultMultiSetVal([get_prim_param_value(v)])
+            # return e.ResultMultiSetVal([get_prim_param_value(vv) for vv in v])
         else:
             raise ValueError("Unimplemented")
     if isinstance(variables, dict):
-        raise ValueError("Expecting a list of variables")
+        return {get_param_reserved_name(k): get_prim_param_multiset_value(v) for k, v in variables.items()}
     elif isinstance(variables, tuple):
-        return {(get_param_reserved_name(i)): get_prim_param_value(v) for i, v in enumerate(variables)}
+        return {(get_param_reserved_name(i)): get_prim_param_multiset_value(v) for i, v in enumerate(variables)}
     else:
         raise ValueError("")
 

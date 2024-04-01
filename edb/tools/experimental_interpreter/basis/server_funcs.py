@@ -59,17 +59,37 @@ all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e
     e.IndirectionSliceStartOp: indirection_slice_start_impl,
     e.IndirectionSliceStopOp: indirection_slice_stop_impl,
 }
+all_server_cal_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]] = {
+    "to_local_datetime": cal_to_local_datetime_impl,
+}
+all_server_math_funcs : Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]] = {
+}
 
 
 def get_default_func_impl_for_function(
         name: e.QualifiedName) -> Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]:
-    if len(name.names) == 2 and name.names[0] == "std":
-        if name.names[1] in all_server_std_funcs:
-            return all_server_std_funcs[name.names[1]]
-        else:
-            def default_impl(arg: Sequence[Sequence[e.Val]]) -> Sequence[e.Val]:
-                raise ValueError("Not implemented: ", name)
-            return default_impl
+    if len(name.names) == 2:
+        def default_impl(arg: Sequence[Sequence[e.Val]]) -> Sequence[e.Val]:
+            raise ValueError("Not implemented: ", name)
+
+        match name.names[0]:
+            case 'std':
+                if name.names[1] in all_server_std_funcs:
+                    return all_server_std_funcs[name.names[1]]
+                else:
+                    return default_impl
+            case "cal":
+                if name.names[1] in all_server_cal_funcs:
+                    return all_server_cal_funcs[name.names[1]]
+                else:
+                    return default_impl
+            case "math":
+                if name.names[1] in all_server_math_funcs:
+                    return all_server_math_funcs[name.names[1]]
+                else:
+                    return default_impl
+            case _:
+                raise ValueError("Cannot get a default implementaiton for a non-std function", name)
     else:
         raise ValueError("Cannot get a default implementaiton for a non-std function", name)
     
