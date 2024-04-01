@@ -1036,6 +1036,25 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
        """
 
+    def test_schema_hard_sorting_05(self):
+        """
+            type T {
+                multi as: A;
+                multi bs: B;
+                sections := (
+                    select (.as union .bs)
+                    filter .index > 0
+                );
+            }
+
+            abstract type I {
+                required index: int16;
+            }
+
+            type A extending I;
+            type B extending I;
+       """
+
     def test_schema_refs_01(self):
         schema = self.load_schema("""
             type Object1;
