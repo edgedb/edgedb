@@ -90,6 +90,11 @@ STD_MODULES = (
     sn.UnqualName('std::enc'),
 )
 
+SPECIAL_MODULES = (
+    sn.UnqualName('__derived__'),
+    sn.UnqualName('__ext_casts__'),
+)
+
 # Specifies the order of processing of files and directories in lib/
 STD_SOURCES = (
     sn.UnqualName('std'),
@@ -644,7 +649,7 @@ class FlatSchema(Schema):
                 assert isinstance(new_name, sn.QualName)
                 if (
                     not self.has_module(new_name.module)
-                    and new_name.module != '__derived__'
+                    and new_name.get_module_name() not in SPECIAL_MODULES
                 ):
                     raise errors.UnknownModuleError(
                         f'module {new_name.module!r} is not in this schema')
@@ -989,7 +994,7 @@ class FlatSchema(Schema):
         if (
             issubclass(sclass, so.QualifiedObject)
             and not self.has_module(name.module)
-            and name.module != '__derived__'
+            and name.get_module_name() not in SPECIAL_MODULES
         ):
             raise errors.UnknownModuleError(
                 f'module {name.module!r} is not in this schema')
