@@ -776,7 +776,8 @@ Definitions
                   std::bit_count(val: int32) -> int64
                   std::bit_count(val: int64) -> int64
 
-    Count the number of set bits in an integer.
+    Return the number of bits set in the binary representation of the absolute
+    value of the integer. This is also known as the population count.
 
     .. code-block:: edgeql-repl
 
