@@ -568,7 +568,7 @@ class ConstraintCommand(
                 return value  # type: ignore
 
             elif field.name in {'subjectexpr', 'finalexpr', 'except_expr'}:
-                return value.compiled(
+                compiled = value.compiled(
                     schema=schema,
                     options=qlcompiler.CompilerOptions(
                         modaliases=context.modaliases,
@@ -581,6 +581,11 @@ class ConstraintCommand(
                         track_schema_ref_exprs=track_schema_ref_exprs,
                     ),
                 )
+
+                # compile the expression to sql to preempt errors downstream
+                utils.try_compile_irast_to_sql_tree(compiled, self.span)
+
+                return compiled
 
             else:
                 return super().compile_expr_field(
@@ -596,7 +601,7 @@ class ConstraintCommand(
                 inlined_defaults=False,
             )
 
-            return value.compiled(
+            compiled = value.compiled(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
@@ -608,6 +613,11 @@ class ConstraintCommand(
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
+
+            # compile the expression to sql to preempt errors downstream
+            utils.try_compile_irast_to_sql_tree(compiled, self.span)
+
+            return compiled
 
         else:
             return super().compile_expr_field(
@@ -1251,6 +1261,7 @@ class CreateConstraint(
         if astnode.subjectexpr:
             orig_text = cls.get_orig_expr_text(schema, astnode, 'subjectexpr')
 
+            expr_ql: qlast.Expr
             if (
                 orig_text is not None
                 and context.compat_ver_is_before(
