@@ -1382,6 +1382,40 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [{"a": {}}, {"a": {}}],
         )
 
+    async def test_edgeql_group_link_property_01(self):
+        await self.assert_query_result(
+            r'''
+            with module cards
+            select User {
+              cards_by_count := (group .deck by @count) {
+                key : {count},
+                elements: {name},
+              }
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards_by_count": [
+                        {
+                            "key": {"count": 2},
+                            "elements": [
+                                {"name": "Imp"},
+                                {"name": "Dragon"}
+                            ]
+                        },
+                        {
+                            "key": {"count": 3},
+                            "elements": [
+                                {"name": "Bog monster"},
+                                {"name": "Giant turtle"}
+                            ]
+                        }
+                    ]
+                }
+            ],
+        )
+
     async def test_edgeql_group_destruct_immediately_01(self):
         await self.assert_query_result(
             r'''
