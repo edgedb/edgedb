@@ -252,20 +252,6 @@ Bytes
 ---------
 
 
-.. eql:function:: std::bit_count(bytes: bytes) -> int64
-
-    Return the number of bits set in the :eql:type:`bytes` value. This is also
-    known as the population count.
-
-    .. code-block:: edgeql-repl
-
-        db> select bit_count(b'\xff\xff');
-        {16}
-
-
-----------
-
-
 .. eql:function:: enc::base64_encode(b: bytes) -> str
 
     .. versionadded:: 4.0

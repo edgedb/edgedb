@@ -775,17 +775,21 @@ Definitions
 .. eql:function:: std::bit_count(val: int16) -> int64
                   std::bit_count(val: int32) -> int64
                   std::bit_count(val: int64) -> int64
+                  std::bit_count(bytes: bytes) -> int64
 
-    Return the number of bits set in the binary representation of the absolute
-    value of the integer. This is also known as the population count.
+    Return the number of bits set in the :eql:type:`bytes` value.
+    
+    This is also known as the population count.
 
     .. code-block:: edgeql-repl
 
         db> select bit_count(255);
         {8}
+        db> select bit_count(b'\xff\xff');
+        {16}
 
 
-----------
+------------
 
 
 .. eql:function:: std::to_bigint(s: str, fmt: optional str={}) -> bigint
