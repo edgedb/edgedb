@@ -43,7 +43,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import declarative as s_decl
 from edb.server import defines
 
-from . import casts as s_casts
 from . import delta as sd
 from . import expr as s_expr
 from . import extensions as s_ext
@@ -229,24 +228,15 @@ def delta_schemas(
         schema_a_filters.append(_filter)
         schema_b_filters.append(_filter)
 
-    # In theory, __derived__ is ephemeral and should not need to be included.
-    # In practice, unions created by computed links and casts of extension
-    # types both put persistent things into __derived__. The unions
-    # need to be included in diffs, and the casts need to not be.
-    # TODO: This is being fixed here because it is backportable,
-    # but we should fix both of those cases to not put persistent things
-    # into __derived__.
+    # In theory, __derived__ is ephemeral and should not need to be
+    # included.  In practice, unions created by computed links put
+    # persistent things into __derived__ and need to be included in
+    # diffs.
+    # TODO: Fix this.
     if not include_derived_types:
         excluded_modules.add(sn.UnqualName('__derived__'))
 
-    def _cast_filter(schema: s_schema.Schema, obj: so.Object) -> bool:
-        return not (
-            isinstance(obj, s_casts.Cast)
-            and obj.get_name(schema).module == '__derived__'
-        )
-
-    schema_a_filters.append(_cast_filter)
-    schema_b_filters.append(_cast_filter)
+    excluded_modules.add(sn.UnqualName('__ext_casts__'))
 
     # Don't analyze the objects from extensions.
     if not include_extensions and isinstance(schema_b, s_schema.ChainedSchema):

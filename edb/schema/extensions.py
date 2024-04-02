@@ -484,9 +484,14 @@ class DeleteExtension(
                 or name == module_name
             )
 
-        # Clean up the casts separately for annoying reasons
+        # Clean up the casts separately because we can't keep them in
+        # our own module, so we keep them in __ext_casts__. (Cast
+        # names are derived solely from the names of their from and to
+        # types, which means that if we have a cast between ext::a::T
+        # and ext::b::S, we wouldn't have a way to distinguish which
+        # is should be.)
         for obj in schema.get_objects(
-            included_modules=(sn.UnqualName('__derived__'),),
+            included_modules=(sn.UnqualName('__ext_casts__'),),
             type=s_casts.Cast,
         ):
             if (

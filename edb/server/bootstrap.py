@@ -1204,11 +1204,12 @@ async def _make_stdlib(
         s_schema.EMPTY_SCHEMA,
         s_schema.EMPTY_SCHEMA,
     )
-    schema, _ = s_mod.Module.create_in_schema(
-        schema,
-        name=sn.UnqualName('__derived__'),
-        stable_ids=True,
-    )
+    for special_mod in s_schema.SPECIAL_MODULES:
+        schema, _ = s_mod.Module.create_in_schema(
+            schema,
+            name=special_mod,
+            stable_ids=True,
+        )
 
     current_block = dbops.PLTopBlock()
 

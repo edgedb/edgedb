@@ -184,7 +184,7 @@ def get_cast_fullname_from_names(
             and sn.UnqualName(to_type.module) not in s_schema.STD_MODULES
         )
     )
-    module = 'std' if std else '__derived__'
+    module = 'std' if std else '__ext_casts__'
 
     quals = [str(from_type), str(to_type)]
     shortname = sn.QualName(module, 'cast')
