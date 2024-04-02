@@ -4936,8 +4936,8 @@ class PointerMetaCommand(
             if ptr_table:
                 ext_rels[tgt_path_id] = (
                     src_rel,
-                    ('identity', 'source', 'value', 'iterator'),
-                    ((ptr_path_id, ('source', 'identity')),),
+                    ('identity', 'value', 'iterator'),
+                    ((ptr_path_id, ('source', 'identity',)),),
                 )
             else:
                 ext_rels[tgt_path_id] = (
