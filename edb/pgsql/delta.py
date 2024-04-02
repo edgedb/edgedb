@@ -4952,7 +4952,11 @@ class PointerMetaCommand(
         # The result is roughly equivalent to:
         # for obj in Object union select <expr>
 
-        iterator_id = src_path_id if not for_each_pointer else tgt_path_id
+        iterator_id: irast.PathId
+        if not (for_each_pointer and ptr_table):
+            iterator_id = src_path_id
+        else:
+            iterator_id = tgt_path_id
 
         # generate a unique path id for the outer scope
         typ = orig_schema.get(f'schema::ObjectType', type=s_types.Type)
