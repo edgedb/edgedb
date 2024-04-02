@@ -8076,16 +8076,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_select_free_object_distinct_01(self):
-        foo, bar = await self.con.query_single('''
-            select ({foo := "test"}, {bar := 1000})
+        foo = await self.con.query_single('''
+            select {foo := "test"}
         ''')
-        self.assertNotEqual(foo.id, bar.id)
-
-    async def test_edgeql_select_free_object_distinct_02(self):
-        vals = await self.con.query('''
-            for x in {1,2,3} union { asdf := 10*x };
-        ''')
-        self.assertEqual(len(vals), len({v.id for v in vals}))
+        self.assertFalse(hasattr(foo, 'id'))
 
     async def test_edgeql_select_shadow_computable_01(self):
         # The thing this is testing for
@@ -8099,13 +8093,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {"is_elvis": True, "name": "Elvis"}
             ]
         )
-
-    async def test_edgeql_select_free_object_distinct_03(self):
-        vals = await self.con.query('''
-            with w := {x := 10}
-            for x in {1,2,3} union w
-        ''')
-        self.assertEqual(1, len({v.id for v in vals}))
 
     async def test_edgeql_select_card_blowup_01(self):
         # This used to really blow up cardinality inference

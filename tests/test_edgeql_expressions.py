@@ -9150,6 +9150,10 @@ aa \
         )
         await self.assert_query_result(
             'select {x := 1} is (typeof Issue.references | BaseObject);',
+            {False}
+        )
+        await self.assert_query_result(
+            'select {x := 1} is (typeof Issue.references | FreeObject);',
             {True}
         )
 

@@ -1406,7 +1406,9 @@ def process_set_as_subquery(
                 # understanding of when to do semi-joins. Using that
                 # naively here doesn't work, but perhaps it could be
                 # adapted?
-                semi_join = True
+                # Don't semi-join on free objects, since they are all unique
+                # (but don't *actually* have unique ids...)
+                semi_join = not irtyputils.is_free_object(ir_set.typeref)
 
                 # We need to compile the source and include it in,
                 # since we need to do the semi-join deduplication here

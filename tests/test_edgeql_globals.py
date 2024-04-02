@@ -475,7 +475,6 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
             chunks = [f'{name} := global {name}' for name in globs]
             res = await scon.query_single(f'select {{ {", ".join(chunks)} }}')
             dres = dataclasses.asdict(res)
-            del dres['id']
             self.assertEqual(dres, globs)
         finally:
             await con.aclose()

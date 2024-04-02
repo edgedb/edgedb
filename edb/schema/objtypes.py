@@ -198,12 +198,12 @@ class ObjectType(
 
         for obj in (self,) + ancestor_objects:
             ptrs.update(
-                lnk for lnk in schema.get_referrers(obj, scls_type=links.Link,
-                                                    field_name='target')
+                lnk for lnk in schema.get_referrers(
+                    obj, scls_type=links.Link, field_name='target')
                 if (
                     lnk.get_shortname(schema).name == name
-                    and not lnk.get_source_type(schema).is_view(schema)
-                    and not lnk.get_source_type(schema).is_union_type(schema)
+                    and lnk.get_source_type(schema).is_material_object_type(
+                        schema)
                     # Only grab the "base" pointers
                     and all(
                         b.is_non_concrete(schema)
@@ -264,6 +264,7 @@ class ObjectType(
         return (
             sn.QualName(module='std', name='BaseObject'),
             sn.QualName(module='std', name='Object'),
+            sn.QualName(module='std', name='FreeObject'),
         )
 
     @classmethod

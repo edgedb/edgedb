@@ -151,12 +151,8 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 "plan_rows": 1,
                 "actual_rows": 1,
                 "actual_loops": 1,
-                "plan_type": "SubqueryScan",
-                "properties": [{
-                    "title": "filter",
-                    "type": "expr",
-                    "important": False,
-                }],
+                "plan_type": "Result",
+                "properties": [],
                 # Just validating that these fields appear. This was part of
                 # the early tests and these fields are something the users may
                 # rely on and should be part of stable API.

@@ -959,18 +959,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ])
         )
 
-    async def test_edgeql_group_agg_with_free_ref_01(self):
-        out = await self.con.query(r'''
-            with module cards
-            select (group Card by .element) {
-                id, els := array_agg((.id, .elements.name))
-            };
-        ''')
-
-        for obj in out:
-            for el in obj.els:
-                self.assertEqual(obj.id, el[0])
-
     async def test_edgeql_group_agg_multi_01(self):
         await self.assert_query_result(
             '''
