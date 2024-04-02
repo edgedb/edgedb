@@ -27,6 +27,8 @@ from __future__ import annotations
 
 from typing import Optional, Tuple, AbstractSet, Dict, List
 
+from edb import errors
+
 from edb.common import ast
 from edb.common import ordered
 from edb.common.compiler import AliasGenerator
@@ -126,11 +128,22 @@ def desugar_group(
                 elements=[rewrite_atom(a) for a in el.elements])
         raise AssertionError
 
+    # The rewrite calls on the grouping elements populate alias_map
+    # with any bindings for pointers the by clause refers to directly.
+    by = [rewrite(by_el) for by_el in node.by]
+
     for using_clause in (node.using or ()):
+        if using_clause.alias in alias_map:
+            # TODO: This would be a great place to allow multiple spans!
+            raise errors.QueryError(
+                f"USING clause binds a variable '{using_clause.alias}' "
+                f"but a property with that name is used directly in the BY "
+                f"clause",
+                span=alias_map[using_clause.alias][1].span,
+            )
         alias_map[using_clause.alias] = (using_clause.alias, using_clause.expr)
 
-    using = node.using[:] if node.using else []
-    by = [rewrite(by_el) for by_el in node.by]
+    using = []
     for alias, path in alias_map.values():
         using.append(qlast.AliasedExpr(alias=alias, expr=path))
 
