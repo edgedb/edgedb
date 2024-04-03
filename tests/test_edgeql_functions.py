@@ -7914,3 +7914,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             await self.con.execute(
                 'select std::enc::base64_decode("AA")'
             )
+
+    async def test_edgeql_call_type_as_function_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.InvalidReferenceError,
+            "does not exist",
+            _hint="did you mean to cast to 'str'?",
+        ):
+            await self.con.execute(f"""
+                select str(1);
+            """)
