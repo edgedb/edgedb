@@ -795,6 +795,13 @@ def process_external_rel(
 ) -> SetRVars:
     rel, aspects, additional_path_ids = ctx.external_rels[ir_set.path_id]
 
+    # sanity check (tuples are hard)
+    for a in aspects:
+        assert isinstance(a, str)
+    for (_path_id, asp) in additional_path_ids:
+        for a in asp:
+            assert isinstance(a, str)
+
     rvar = relctx.rvar_for_rel(rel, ctx=ctx)
 
     main = SetRVar(rvar=rvar, path_id=ir_set.path_id, aspects=aspects)

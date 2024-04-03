@@ -4899,13 +4899,6 @@ class PointerMetaCommand(
                 orig_schema, pointer, env=None
             )
 
-        # refs = irutils.get_longest_paths(ir.expr)
-        # ref_tables = schemamech.get_ref_storage_info(ir.schema, refs)
-        # local_table_only = all(
-        #     t == old_ptr_stor_info.table_name
-        #     for t in ref_tables
-        # )
-
         ptr_path_id = tgt_path_id.ptr_path()
         src_path_id = ptr_path_id.src_path()
         assert src_path_id
@@ -4922,6 +4915,8 @@ class PointerMetaCommand(
 
         if for_each_pointer:
             if ptr_table:
+                src_rel.path_outputs[(tgt_path_id, 'identity')] = \
+                    pgast.ColumnRef(name=('ctid',))
                 src_rel.path_outputs[(tgt_path_id, 'iterator')] = \
                     pgast.ColumnRef(name=('ctid',))
                 src_rel.path_outputs[(tgt_path_id, 'value')] = \
@@ -4932,18 +4927,12 @@ class PointerMetaCommand(
                 src_rel.path_outputs[(tgt_path_id, 'iterator')] = \
                     pgast.ColumnRef(name=('id',))
 
-            ext_rels[ptr_path_id] = (src_rel, ('source',), ())
             if ptr_table:
+                ext_rels[ptr_path_id] = (src_rel, ('source',), ())
                 ext_rels[tgt_path_id] = (
                     src_rel,
                     ('identity', 'value', 'iterator'),
                     ((ptr_path_id, ('source', 'identity',)),),
-                )
-            else:
-                ext_rels[tgt_path_id] = (
-                    src_rel,
-                    ('identity', 'value', 'iterator'),
-                    (),
                 )
 
         # Wrap the expression into a select with iterator, so DML and
@@ -4953,10 +4942,10 @@ class PointerMetaCommand(
         # for obj in Object union select <expr>
 
         iterator_id: irast.PathId
-        if not (for_each_pointer and ptr_table):
-            iterator_id = src_path_id
-        else:
+        if for_each_pointer:
             iterator_id = tgt_path_id
+        else:
+            iterator_id = src_path_id
 
         # generate a unique path id for the outer scope
         typ = orig_schema.get(f'schema::ObjectType', type=s_types.Type)
@@ -5007,17 +4996,37 @@ class PointerMetaCommand(
                     path_scope_id=iter_uid,
                     expr=irast.SelectStmt(
                         result=irast.Set(
-                            path_scope_id=iter_uid,
                             path_id=iterator_id,
                             typeref=iterator_id.target,
-                            expr=irast.TypeRoot(typeref=iterator_id.target),
+                            path_scope_id=iter_uid,
+                            expr=irast.Pointer(
+                                source=irast.Set(
+                                    path_id=src_path_id,
+                                    typeref=src_path_id.target,
+                                    expr=irast.TypeRoot(typeref=src_path_id.target),
+                                    path_scope_id=root_uid,
+                                ),
+                                direction=s_pointers.PointerDirection.Outbound,
+                                ptrref=irtyputils.ptrref_from_ptrcls(
+                                    schema=schema,
+                                    ptrcls=pointer,
+                                    cache=None,
+                                    typeref_cache=None,
+                                ),
+                                is_definition=False,
+                            )
                         )
                     )
                 ),
-
                 result=for_body,
             )
         )
+
+        # <DEBUG>
+        from edb.common import debug
+        debug.header('Scope Tree for conversion expr')
+        print(scope_root.pdebugformat())
+        # </DEBUG>
 
         # compile
         sql_res = compiler.compile_ir_to_sql_tree(

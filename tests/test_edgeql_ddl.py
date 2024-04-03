@@ -3045,7 +3045,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             INSERT World;
             ALTER TYPE World {
                 ALTER LINK hell SET TYPE Goodbye USING (INSERT Goodbye);
-            }
+            };
             """
         )
 
