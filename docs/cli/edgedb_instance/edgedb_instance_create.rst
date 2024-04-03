@@ -67,11 +67,6 @@ Options
 :cli:synopsis:`--nightly`
     Use the nightly server for this instance.
 
-:cli:synopsis:`--default-database=<default-database>`
-    Specifies the default database name (created during
-    initialization, and saved in credentials file). Defaults to
-    ``edgedb``.
-
 :cli:synopsis:`--default-user=<default-user>`
     Specifies the default user name (created during initialization,
     and saved in credentials file). Defaults to: ``edgedb``.
@@ -87,6 +82,10 @@ Options
     turn that off so that the instance can be manually started with
     :ref:`ref_cli_edgedb_instance_start` on demand. Defaults to:
     ``auto``.
+
+:cli:synopsis:`--channel=<channel>`
+    Indicate the channel of the new instance. Possible values are ``stable``,
+    ``testing``, or ``nightly``.
 
 :cli:synopsis:`--version=<version>`
     Specifies the version of the EdgeDB server to be used to run the
@@ -112,3 +111,22 @@ Options
 
         Some shells like ZSH may require you to escape the equals sign (e.g.,
         ``\=2.6``) or quote the version string (e.g., ``"=2.6"``).
+
+EdgeDB Cloud options
+--------------------
+
+:cli:synopsis:`--region=<region>`
+    The region in which to create the instance (for EdgeDB Cloud instances).
+    Possible values are ``aws-us-west-2``, ``aws-us-east-2``, and
+    ``aws-eu-west-1``.
+
+:cli:synopsis:`--tier=<tier>`
+    Cloud instance subscription tier for the new instance. Possible values are
+    ``pro`` and ``free``.
+
+:cli:synopsis:`--compute-size=<number>`
+    The size of compute to be allocated for the EdgeDB Cloud instance (in
+    Compute Units)
+
+:cli:synopsis:`--storage-size=<GiB>`
+    The size of storage to be allocated for the Cloud instance (in Gigabytes)

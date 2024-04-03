@@ -164,7 +164,7 @@ instance using ``edgedb instance link``, like so:
 
 .. lint-on
 
-After receving the necessary connection information, this command links the
+After receiving the necessary connection information, this command links the
 remote instance to a local alias ``"staging_db"``. You can use this as
 instance name in CLI commands.
 

@@ -78,4 +78,4 @@ defining other access policies:
 
 Once EdgeDB 3.0 is released there is no more need for enabling non-recursive
 access policy behavior anymore. So the above command will simply indicate that
-the databse no longer does anything non-standard.
+the database no longer does anything non-standard.

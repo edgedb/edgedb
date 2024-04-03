@@ -16,7 +16,7 @@ Administrative commands for managing EdgeDB:
 
 * :ref:`role <ref_admin_roles>`
 
-  Create, remove or alter a role.
+  Create, remove, or alter a role.
 
 .. versionadded:: 5.0
 

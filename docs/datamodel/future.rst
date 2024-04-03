@@ -6,7 +6,7 @@ Future Behavior
 
 Any time that we add new functionality to EdgeDB we strive to do it in the
 least disruptive way possible. Deprecation warnings, documentation and guides
-can help make these transiotions smoother, but sometimes the changes are just
+can help make these transitions smoother, but sometimes the changes are just
 too big, especially if they affect already existing functionality. It is often
 inconvenient dealing with these changes at the same time as upgrading to a new
 major version of EdgeDB. To help with this transition we introduce

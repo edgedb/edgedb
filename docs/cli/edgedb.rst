@@ -81,7 +81,7 @@ Options
     if not set, to the login name of the current OS user.
 
 :cli:synopsis:`-d <dbname>, --database=<dbname>`
-    Specifies the name of the database to connect to.  Default to the value
+    Specifies the name of the database to connect to. Default to the value
     of the ``EDGEDB_DATABASE`` environment variable, or, if not set, to
     the calculated value of :cli:synopsis:`<username>`.
 
@@ -152,7 +152,8 @@ Options
 Backslash Commands
 ==================
 
-.. rubric:: Introspection
+Introspection
+-------------
 
 The introspection commands share a few common options that are available to
 many of the commands:
@@ -191,13 +192,14 @@ many of the commands:
 :cli:synopsis:`\\li [-vsc] [PATTERN], \\list indexes [-vsc] [PATTERN]`
   List indexes.
 
-.. rubric:: Database
+Database
+--------
 
-:cli:synopsis:`\\database create [NAME]`
+:cli:synopsis:`\\database create NAME`
   Create a new database.
 
-.. rubric:: Query Analysis
-
+Query Analysis
+--------------
 
 :cli:synopsis:`\\analyze QUERY`
   .. note::
@@ -214,7 +216,8 @@ many of the commands:
 
   Print expanded output of last ``analyze`` operation.
 
-.. rubric:: Data Operations
+Data Operations
+---------------
 
 :cli:synopsis:`\\dump FILENAME`
   Dump current database branch to a file at *FILENAME*.
@@ -223,7 +226,8 @@ many of the commands:
   Restore the database dump at *FILENAME* into the current branch (or currently
   connected database for pre-v5).
 
-.. rubric:: Editing
+Editing
+-------
 
 :cli:synopsis:`\\s, \\history`
   Show a history of commands executed in the shell.
@@ -236,19 +240,22 @@ many of the commands:
 
   The output of this will then be used as input into the shell.
 
-.. rubric:: Settings
+Settings
+--------
 
 :cli:synopsis:`\\set [OPTION [VALUE]]`
   If *VALUE* is omitted, the command will show the current value of *OPTION*.
   With *VALUE*, the option named by *OPTION* will be set to the provided value.
   Use ``\set`` with no arguments for a listing of all available options.
 
-.. rubric:: Connection
+Connection
+----------
 
 :cli:synopsis:`\\c, \\connect [DBNAME]`
   Connect to database *DBNAME*.
 
-.. rubric:: Migrations
+Migrations
+----------
 
 These migration commands are also accessible directly from the command line
 without first entering the EdgeDB shell. Their counterpart commands are noted
@@ -276,7 +283,8 @@ and linked in their descriptions if you want more detail.
   migration stored in the schema directory, just like
   :ref:`ref_cli_edgedb_migration_status`.
 
-.. rubric:: Help
+Help
+----
 
 :cli:synopsis:`\\?, \\h, \\help`
   Show help on backslash commands.

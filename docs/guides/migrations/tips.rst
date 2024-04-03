@@ -1067,7 +1067,7 @@ characters:
 
 Let's add a character ``class`` represented by a new type to our
 schema and data. Unlike in the scenario when changing a property
-to a link, we will add the ``required link class`` right away, 
+to a link, we will add the ``required link class`` right away,
 without any intermediate properties. So we end up with a schema
 like this:
 
@@ -1320,7 +1320,7 @@ Our attempt at migrating fails as we expected:
 .. code-block:: bash
 
     $ edgedb migrate
-    edgedb error: MissingRequiredError: missing value for required link 
+    edgedb error: MissingRequiredError: missing value for required link
     'class' of object type 'default::Character'
       Detail: Failing object id is 'ee604992-c1b1-11ec-ad59-4f878963769f'.
 
