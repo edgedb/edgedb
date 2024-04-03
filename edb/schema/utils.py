@@ -986,6 +986,7 @@ def enrich_schema_lookup_error(
     condition: Optional[Callable[[so.Object], bool]] = None,
     span: Optional[parsing.Span] = None,
     pointer_parent: Optional[so.Object] = None,
+    hint_text: str = 'did you mean'
 ) -> None:
 
     all_suggestions = itertools.chain(
@@ -1007,9 +1008,9 @@ def enrich_schema_lookup_error(
         names = [name for _, name in suggestions]
 
         if len(names) > 1:
-            hint = f'did you mean one of these: {", ".join(names)}?'
+            hint = f'{hint_text} one of these: {", ".join(names)}?'
         else:
-            hint = f'did you mean {names[0]!r}?'
+            hint = f'{hint_text} {names[0]!r}?'
 
         error.set_hint_and_details(hint=hint)
 
