@@ -2841,3 +2841,26 @@ def find_available_port(max_value=None) -> int:
         raise RuntimeError("cannot find an available port")
     else:
         raise ValueError("max_value must be greater than 1024")
+
+
+def _needs_factoring(weakly):
+    def decorator(f):
+        async def g(self, *args, **kwargs):
+            if self.NO_FACTOR and not weakly:
+                with self.assertRaisesRegex(Exception, ''):
+                    await f(self, *args, **kwargs)
+            elif self.WARN_FACTOR:
+                with self.assertRaisesRegex(
+                    edgedb.InvalidReferenceError, 'attempting to factor out'
+                ):
+                    await f(self, *args, **kwargs)
+
+            else:
+                await f(self, *args, **kwargs)
+
+        return g
+    return decorator
+
+
+needs_factoring = _needs_factoring(weakly=False)
+needs_factoring_weakly = _needs_factoring(weakly=True)
