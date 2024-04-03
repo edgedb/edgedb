@@ -95,7 +95,7 @@ def desugar_group(
     aliases: AliasGenerator,
 ) -> qlast.InternalGroupQuery:
     assert not isinstance(node, qlast.InternalGroupQuery)
-    alias_map: Dict[str, Tuple[str, qlast.Expr]] = {}
+    by_alias_map: Dict[str, Tuple[str, qlast.Path]] = {}
 
     def rewrite_atom(el: qlast.GroupingAtom) -> qlast.GroupingAtom:
         if isinstance(el, qlast.ObjectRef):
@@ -103,10 +103,21 @@ def desugar_group(
         elif isinstance(el, qlast.Path):
             assert isinstance(el.steps[0], qlast.Ptr)
             ptrname = el.steps[0].name
-            if ptrname not in alias_map:
+            ptrtype = el.steps[0].type
+            if ptrname not in by_alias_map:
                 alias = aliases.get(ptrname)
-                alias_map[ptrname] = (alias, el)
-            alias = alias_map[ptrname][0]
+                by_alias_map[ptrname] = (alias, el)
+            else:
+                alias = by_alias_map[ptrname][0]
+                aliased_el = by_alias_map[ptrname][1]
+                assert isinstance(aliased_el.steps[0], qlast.Ptr)
+                aliased_el_ptrtype = aliased_el.steps[0].type
+                if ptrtype != aliased_el_ptrtype:
+                    raise errors.QueryError(
+                        f"BY clause cannot refer to link property and object "
+                        f"property with the same name",
+                        span=el.span,
+                    )
             return qlast.ObjectRef(name=alias)
         else:
             return qlast.GroupingIdentList(
@@ -131,6 +142,10 @@ def desugar_group(
     # The rewrite calls on the grouping elements populate alias_map
     # with any bindings for pointers the by clause refers to directly.
     by = [rewrite(by_el) for by_el in node.by]
+
+    alias_map: Dict[str, Tuple[str, qlast.Expr]] = {
+        k: v for k, v in by_alias_map.items()
+    }
 
     for using_clause in (node.using or ()):
         if using_clause.alias in alias_map:
