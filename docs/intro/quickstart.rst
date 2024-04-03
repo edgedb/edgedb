@@ -80,19 +80,19 @@ up your first EdgeDB instance. You should see something like this:
   [default: quickstart]:
   > quickstart
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 4.x]:
-  > 4.x
+  Specify the version of EdgeDB to use with this project [default: 5.x]:
+  > 5.x
   ┌─────────────────────┬───────────────────────────────────────────────┐
   │ Project directory   │ ~/path/to/quickstart                          │
   │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
   │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema                 │
   │ Installation method │ portable package                              │
-  │ Version             │ 4.x+cc4f3b5                                   │
+  │ Version             │ 5.x+cc4f3b5                                   │
   │ Instance name       │ quickstart                                    │
   └─────────────────────┴───────────────────────────────────────────────┘
   Downloading package...
   00:00:01 [====================] 41.40 MiB/41.40 MiB 32.89MiB/s | ETA: 0s
-  Successfully installed 4.x+cc4f3b5
+  Successfully installed 5.x+cc4f3b5
   Initializing EdgeDB instance...
   Applying migrations...
   Everything is up to date. Revision initial
