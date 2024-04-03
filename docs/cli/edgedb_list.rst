@@ -28,6 +28,8 @@ Types
 :cli:synopsis:`edgedb list casts`
     Display list of casts defined in the schema.
 
+.. TODO: Add `edgedb list branches` once the command is added. https://github.com/edgedb/edgedb-cli/issues/1275
+
 :cli:synopsis:`edgedb list databases`
     Display list of databases in the server instance.
 

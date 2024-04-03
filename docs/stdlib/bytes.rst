@@ -183,6 +183,8 @@ Bytes
 
 ---------
 
+.. TODO: Function signatures except the first need to be revealed only for v5+
+
 .. eql:function:: std::to_bytes(s: str) -> bytes
                   std::to_bytes(val: int16, endian: Endian) -> bytes
                   std::to_bytes(val: int32, endian: Endian) -> bytes
