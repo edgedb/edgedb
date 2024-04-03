@@ -6,7 +6,7 @@ from edb.edgeql import ast as qlast
 # from .basis.built_ins import all_builtin_funcs
 from .data.data_ops import (CMMode, DBSchema,  ObjectTp,
                             ResultTp, Tp)
-from .elaboration import elab_single_type_expr, elab_expr_with_default_head, elab
+from .elaboration import elab_single_type_expr, elab_expr_with_default_head, elab, DEFAULT_HEAD_NAME
 from .helper_funcs import parse_sdl
 from .data import data_ops as e
 from .data import expr_ops as eops
@@ -55,9 +55,10 @@ def construct_final_schema_target_tp(base : Tp, linkprops: Dict[str, ResultTp]) 
     else:
         return base
             
-def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> [ObjectTp, Sequence[e.Constraint]]:
+def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> Tuple[ObjectTp, Sequence[e.Constraint], Sequence[Sequence[str]]]:
     object_tp_content: Dict[str, ResultTp] = {}
     constrants : List[e.Constraint] = []
+    indexes : List[List[str]] = []
     for cmd in commands:
         match cmd:
             case qlast.CreateConcretePointer(
@@ -210,10 +211,29 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> [ObjectTp, Sequ
                                 elab_schema_cardinality(
                                 is_required=p_is_required,
                                 cardinality=p_cardinality))}
+            case qlast.CreateConcreteIndex(name=_, expr=index_expr):
+                index_expr_elab = elab(index_expr)
+                def elab_single_proj(proj_expr: e.Expr) -> str:
+                    match proj_expr:
+                        case e.ObjectProjExpr(subject=e.FreeVarExpr(subject_name), label=lbl):
+                            if subject_name == DEFAULT_HEAD_NAME:
+                                return lbl
+                            else:
+                                raise ValueError("Unsupported Index Expression", proj_expr)
+                        case _:
+                            print_warning("WARNING: not implemented proj_expr", proj_expr)
+                            return "TODO"
+                match index_expr_elab:
+                    case e.ObjectProjExpr(_, _):
+                        indexes.append([elab_single_proj(index_expr_elab)])
+                    case e.UnnamedTupleExpr(exprs):
+                        indexes.append([elab_single_proj(expr) for expr in exprs])
+                    case _:
+                        raise ValueError("Unsupported Index Expression", index_expr_elab)
             case _:
                 print_warning("WARNING: not implemented cmd", cmd)
                 # debug.dump(cmd)
-    return ObjectTp(val=object_tp_content), constrants
+    return ObjectTp(val=object_tp_content), constrants, indexes
 
 
 def add_bases_for_name(schema: e.DBSchema, 
@@ -257,10 +277,10 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
                                         commands=commands,
                                         name=qlast.ObjectRef(name=name),
                                         abstract=abstract):
-                obj_tp, constraints = elab_create_object_tp(commands)
+                obj_tp, constraints, indexes = elab_create_object_tp(commands)
                 add_bases_for_name(existing, ("default",), name, bases)
                 assert name not in type_defs
-                type_defs[name] = e.ModuleEntityTypeDef(obj_tp, is_abstract=abstract, constraints=constraints)
+                type_defs[name] = e.ModuleEntityTypeDef(obj_tp, is_abstract=abstract, constraints=constraints, indexes=indexes)
             case qlast.CreateScalarType(
                 name=qlast.ObjectRef(name=name, module=None),
                 bases=bases,

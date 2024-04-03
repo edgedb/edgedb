@@ -34,14 +34,14 @@ def unchecked_module_map(dbschema: e.DBSchema, module_name : Tuple[str, ...],
     dbmodule = dbschema.unchecked_modules[module_name]
     for t_name, t_me in dbmodule.defs.items():
         match t_me:
-            case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract, constraints=constraints):
+            case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract, constraints=constraints, indexes=indexes):
                 if isinstance(typedef, e.ObjectTp):
                     result_vals = {
                         **result_vals, 
                         t_name: e.ModuleEntityTypeDef(typedef=
                             unchecked_object_tp_map(
                                 e.NamedNominalLinkTp(name=e.QualifiedName([*module_name,t_name]), linkprop=e.ObjectTp({})),
-                                typedef), is_abstract=is_abstract, constraints=constraints)}
+                                typedef), is_abstract=is_abstract, constraints=constraints, indexes=indexes)}
                 else:
                     assert isinstance(typedef, e.ScalarTp)
                     result_vals = {**result_vals, t_name: t_me}

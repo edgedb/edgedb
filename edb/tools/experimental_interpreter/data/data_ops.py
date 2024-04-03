@@ -889,6 +889,7 @@ class ModuleEntityTypeDef:
     typedef: ObjectTp | ScalarTp
     is_abstract: bool
     constraints : Sequence[Constraint]
+    indexes: Sequence[Sequence[str]] # a list of indexed properties (as a tuple), e.g. if a type has (.a), (.a, .b) as indexes, we have [[.a], [.a, .b]]
 
 
 
@@ -913,6 +914,7 @@ class DBSchema:
     unchecked_subtyping_relations : Dict[QualifiedName, List[Tuple[Tuple[str, ...], RawName]]] # name -> current declared module and raw name
     casts: Dict[Tuple[Tp, Tp], TpCast] 
     
+
 
 
 

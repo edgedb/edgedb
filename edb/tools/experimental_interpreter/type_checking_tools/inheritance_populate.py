@@ -47,17 +47,20 @@ def merge_result_tp(ctx: e.TcCtx,
 def copy_construct_inheritance(ctx: e.TcCtx, 
                                typedef: e.ObjectTp, 
                                super_types: List[e.QualifiedName], 
-                               constraints: Sequence[e.Constraint]) -> Tuple[e.ObjectTp, Sequence[e.Constraint]]:
+                               constraints: Sequence[e.Constraint],
+                               indexes: Sequence[Sequence[str]]) -> Tuple[e.ObjectTp, Sequence[e.Constraint], Sequence[Sequence[str]]]:
     
     definitions = [mops.resolve_type_def(ctx, super_type) for super_type in super_types]
     final_tp_dict : Dict[str, e.ResultTp] = {}
     final_constraints : List[e.Constraint] = [*constraints]
+    final_indexes : List[Sequence[str]] = [*indexes]
     for i, mdef in enumerate(definitions):
         definition = mdef.typedef
         super_constraint = mdef.constraints
+        super_indexes = mdef.indexes
         assert isinstance(definition, e.ObjectTp)
         def_dep = ctx.schema.subtyping_relations[super_types[i]]
-        definition_ck, constraints_ck = copy_construct_inheritance(ctx, definition, def_dep, super_constraint)
+        definition_ck, constraints_ck, indexes_ck = copy_construct_inheritance(ctx, definition, def_dep, super_constraint, super_indexes)
 
         for lbl, (t_comp_tp, t_comp_card) in definition_ck.val.items():
             if lbl not in final_tp_dict:
@@ -67,7 +70,8 @@ def copy_construct_inheritance(ctx: e.TcCtx,
             else:
                 final_tp_dict[lbl] = merge_result_tp(ctx, final_tp_dict[lbl], e.ResultTp(t_comp_tp, t_comp_card))
         final_constraints = [*final_constraints, *(c for c in constraints_ck if isinstance(c, e.ExclusiveConstraint) and c.delegated)]
-        
+        final_indexes = [*final_indexes, *indexes_ck]
+
     for lbl, (t_comp_tp, t_comp_card) in typedef.val.items():
         if lbl not in final_tp_dict:
             final_tp_dict[lbl] = e.ResultTp(
@@ -75,7 +79,7 @@ def copy_construct_inheritance(ctx: e.TcCtx,
                     t_comp_card)
         else:
             final_tp_dict[lbl] = merge_result_tp(ctx, final_tp_dict[lbl], e.ResultTp(t_comp_tp, t_comp_card))
-    return e.ObjectTp(final_tp_dict), final_constraints
+    return e.ObjectTp(final_tp_dict), final_constraints, final_indexes
 
     
 
@@ -89,18 +93,19 @@ def module_inheritance_populate(dbschema: e.DBSchema, module_name : Tuple[str, .
     for t_name, t_me in dbmodule.defs.items():
         root_ctx = eops.emtpy_tcctx_from_dbschema(dbschema, module_name)
         match t_me:
-            case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract, constraints=constraints):
+            case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract, constraints=constraints, indexes=indexes):
                 if isinstance(typedef, e.ObjectTp):
                     if e.QualifiedName([*module_name, t_name]) in dbschema.subtyping_relations:
-                        new_typedef, new_constraints = copy_construct_inheritance(
+                        new_typedef, new_constraints, new_indexes = copy_construct_inheritance(
                                 root_ctx,
                                 typedef,
                                 dbschema.subtyping_relations[e.QualifiedName([*module_name, t_name])], 
-                                constraints)
+                                constraints, indexes)
 
                         result_vals = {**result_vals, t_name: e.ModuleEntityTypeDef(typedef=new_typedef,
                                 is_abstract=is_abstract, 
-                                constraints=new_constraints)}
+                                constraints=new_constraints,
+                                indexes=new_indexes)}
                     else:
                         result_vals = {**result_vals, t_name: t_me}
                 elif isinstance(typedef, e.ScalarTp):

@@ -42,6 +42,10 @@ class PropertyTypeView:
         else:
             return "TEXT"
 
+@dataclass(frozen=True)
+class TableTypeView:
+    columns: Dict[str, PropertyTypeView] # property name -> property type
+    indexes : List[List[str]]
 
 @dataclass(frozen=True)
 class ColumnSpec:
@@ -52,6 +56,7 @@ class ColumnSpec:
 class TableSpec:
     columns: Dict[str, ColumnSpec]
     primary_key: List[str]
+    indexes : List[List[str]]
 
 def get_property_type_view(result_tp: e.ResultTp) -> PropertyTypeView:
     tp = result_tp.tp
@@ -88,26 +93,28 @@ def get_property_type_view(result_tp: e.ResultTp) -> PropertyTypeView:
         case _:
             raise ValueError(f"Unimplemented type {tp}")
 
-def get_schema_property_view(schema: e.DBSchema) -> Dict[str # type name
-                                                        , Dict[str, #property name
-                                                                PropertyTypeView]]:
+def get_schema_property_view(schema: e.DBSchema) -> Dict[str, TableTypeView]:
     if ("default",) not in schema.modules:
         raise ValueError("Default module not found in schema")
     default_module = schema.modules[("default",)]
     result = {}
     for name, mdef in default_module.defs.items():
         match mdef:
-            case e.ModuleEntityTypeDef(typedef=e.ObjectTp(_), is_abstract=False, constraints=_):
-                type_def_view = {pname : get_property_type_view(t) for (pname, t) in mdef.typedef.val.items() if not isinstance(t.tp, e.ComputableTp)}
+            case e.ModuleEntityTypeDef(typedef=e.ObjectTp(_), is_abstract=False, constraints=_, indexes=indexes):
+                type_def_view = TableTypeView(
+                    columns={pname : get_property_type_view(t) for (pname, t) in mdef.typedef.val.items() if not isinstance(t.tp, e.ComputableTp)},
+                    indexes=indexes
+                )
                 result[name] = type_def_view
             case _:
                 pass
     return result
 
-def get_table_view_from_property_view(schema_property_view: Dict[str, Dict[str, PropertyTypeView]]) -> Dict[str, TableSpec]:
+def get_table_view_from_property_view(schema_property_view: Dict[str, TableTypeView]) -> Dict[str, TableSpec]:
     result_table = {}
-    for tname, tdef in schema_property_view.items():
+    for tname, tview in schema_property_view.items():
         assert tname not in result_table, "Duplicate table name"
+        tdef = tview.columns
 
         all_single_prop_names = sorted([pname for (pname, pdef) in tdef.items() if pdef.is_singular])
         result_table[tname] = TableSpec(
@@ -116,7 +123,8 @@ def get_table_view_from_property_view(schema_property_view: Dict[str, Dict[str, 
                                            is_nullable=tdef[pname].is_optional)
                          for pname in all_single_prop_names
                      }},
-            primary_key=["id"])
+            primary_key=["id"],
+            indexes=tview.indexes)
         
         for (pname, pdef) in tdef.items():
             if pname in all_single_prop_names and len(pdef.link_props) == 0:
@@ -136,14 +144,16 @@ def get_table_view_from_property_view(schema_property_view: Dict[str, Dict[str, 
                                                     is_nullable=pdef.link_props[lpname].is_optional)
                                 for lpname in pdef.link_props
                             }},
-                primary_key=["source", "target"])
+                primary_key=["source", "target"],
+                indexes=[])
 
     if "objects" in result_table or "next_id_to_return_gen" in result_table or "sdl_schema" in result_table:
         raise ValueError("objects, next_id_to_return_gen, sdl_schema tables are reserved")
     else:
         result_table["objects"] = TableSpec(columns={"id": ColumnSpec(type="INTEGER", is_nullable=False),
                                                     "tp": ColumnSpec(type="TEXT", is_nullable=False)},
-                                            primary_key=["id"])
+                                            primary_key=["id"],
+                                            indexes=[])
 
     return result_table
 
@@ -253,6 +263,11 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             primary_key_spec = f"PRIMARY KEY ({','.join(tspec.primary_key)})"
                                                 
             self.cursor.execute(f"""CREATE TABLE IF NOT EXISTS "{tname}" ({column_spec}, {primary_key_spec}) STRICT, WITHOUT ROWID""")
+
+            for index in tspec.indexes:
+                index_name = f"{tname}_{'_'.join(index)}_idx"
+                index_spec = ','.join(index)
+                self.cursor.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {tname} ({index_spec})")
             
 
     def id_initialization(self):
@@ -332,7 +347,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
     def project(self, id: EdgeID, tp: e.QualifiedName, prop: str) -> MultiSetVal:
         tp_name = self.get_tp_name(tp)
-        pview = self.schema_property_view[tp_name][prop]
+        pview = self.schema_property_view[tp_name].columns[prop]
 
         fetch_from_lp_table = pview.has_lp_table()
         
@@ -366,7 +381,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                         prop: str) -> MultiSetVal:
         result : List[Val] = []
         for (tp_name, tdef) in self.schema_property_view.items():
-            for prop_name, pview in tdef.items():
+            for prop_name, pview in tdef.columns.items():
                 if prop_name == prop:
                     if pview.has_lp_table():
                         lp_property_names = list(pview.link_props.keys())
@@ -393,7 +408,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
     
     def insert(self, id: EdgeID, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> None:
         tp_name = self.get_tp_name(tp)
-        tdef = self.schema_property_view[tp_name]
+        tdef = self.schema_property_view[tp_name].columns
 
         single_props = [pname for (pname, pview) in tdef.items() if pview.is_singular]
         single_prop_vals = [convert_val_to_sqlite_val(props[pname]) for pname in single_props]
