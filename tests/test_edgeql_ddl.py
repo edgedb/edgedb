@@ -8750,6 +8750,19 @@ type default::Foo {
                 DROP MODULE test_other;
             """)
 
+    async def test_edgeql_ddl_modules_05(self):
+        await self.con.execute(r"""
+            CREATE MODULE foo;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            "renaming modules is not supported",
+        ):
+            await self.con.execute(r"""
+                ALTER MODULE foo RENAME TO bar;
+            """)
+
     async def test_edgeql_ddl_extension_package_01(self):
         await self.con.execute(r"""
             CREATE EXTENSION PACKAGE foo_01 VERSION '1.0' {
