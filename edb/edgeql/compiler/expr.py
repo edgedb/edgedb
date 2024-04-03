@@ -35,6 +35,7 @@ from edb.ir import utils as irutils
 
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constr
+from edb.schema import functions as s_func
 from edb.schema import globals as s_globals
 from edb.schema import indexes as s_indexes
 from edb.schema import name as sn
@@ -646,7 +647,34 @@ def compile_GlobalExpr(
 def compile_TypeCast(
     expr: qlast.TypeCast, *, ctx: context.ContextLevel
 ) -> irast.Set:
-    target_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
+    try:
+        target_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
+    except errors.InvalidReferenceError as e:
+        if (
+            e.hint is None
+            and isinstance(expr.type, qlast.TypeName)
+            and isinstance(expr.type.maintype, qlast.ObjectRef)
+        ):
+            type_name: str = expr.type.maintype.name
+            type_module: Optional[str] = expr.type.maintype.module
+
+            name: sn.Name
+            if type_module is not None:
+                name = sn.QualName(type_module, type_name)
+            else:
+                name = sn.UnqualName(type_name)
+
+            s_utils.enrich_schema_lookup_error(
+                e,
+                name,
+                modaliases=ctx.modaliases,
+                schema=ctx.env.schema,
+                suggestion_limit=1,
+                item_type=s_func.Function,
+                hint_text='did you mean to call'
+            )
+        raise
+
     ir_expr: Union[irast.Set, irast.Expr]
 
     if isinstance(expr.expr, qlast.Parameter):
