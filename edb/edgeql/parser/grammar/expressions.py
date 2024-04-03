@@ -120,6 +120,18 @@ class GroupingIdent(Nonterm):
             steps=[qlast.Ptr(name=kids[1].val)],
         )
 
+    def reduce_AT_Identifier(self, *kids):
+        self.val = qlast.Path(
+            partial=True,
+            steps=[
+                qlast.Ptr(
+                    name=kids[1].val,
+                    type='property',
+                    span=kids[1].span,
+                )
+            ]
+        )
+
 
 class GroupingIdentList(ListNonterm, element=GroupingIdent,
                         separator=tokens.T_COMMA):

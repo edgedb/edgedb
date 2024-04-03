@@ -510,7 +510,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_group_duplicate_rejected(self):
+    async def test_edgeql_group_duplicate_rejected_01(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
             "used directly in the BY clause",
@@ -519,6 +519,37 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 group Card { name }
                 using element := .cost
                 by cube(.element, element)
+            ''')
+
+    async def test_edgeql_group_duplicate_rejected_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "BY clause cannot refer to link property and object property with "
+            "the same name",
+        ):
+            await self.con.execute('''
+                WITH MODULE cards
+                SELECT Card {
+                    invalid := (
+                        GROUP .avatar
+                        BY @text, .text
+                    )
+                }
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "BY clause cannot refer to link property and object property with "
+            "the same name",
+        ):
+            await self.con.execute('''
+                WITH MODULE cards
+                SELECT Card {
+                    invalid := (
+                        GROUP .avatar
+                        BY .text, @text
+                    )
+                }
             ''')
 
     async def test_edgeql_group_for_01(self):
@@ -1380,6 +1411,73 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             };
             ''',
             [{"a": {}}, {"a": {}}],
+        )
+
+    async def test_edgeql_group_link_property_01(self):
+        await self.assert_query_result(
+            r'''
+            with module cards
+            select User {
+              cards_by_count := (group .deck by @count) {
+                key : {count},
+                elements: {name},
+              }
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards_by_count": [
+                        {
+                            "key": {"count": 2},
+                            "elements": [
+                                {"name": "Imp"},
+                                {"name": "Dragon"}
+                            ]
+                        },
+                        {
+                            "key": {"count": 3},
+                            "elements": [
+                                {"name": "Bog monster"},
+                                {"name": "Giant turtle"}
+                            ]
+                        }
+                    ]
+                }
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            with module cards
+            select User {
+              cards_by_count := (group .deck by (@count, @count)) {
+                key : {count},
+                elements: {name},
+              }
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards_by_count": [
+                        {
+                            "key": {"count": 2},
+                            "elements": [
+                                {"name": "Imp"},
+                                {"name": "Dragon"}
+                            ]
+                        },
+                        {
+                            "key": {"count": 3},
+                            "elements": [
+                                {"name": "Bog monster"},
+                                {"name": "Giant turtle"}
+                            ]
+                        }
+                    ]
+                }
+            ],
         )
 
     async def test_edgeql_group_destruct_immediately_01(self):
