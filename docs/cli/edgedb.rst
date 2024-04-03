@@ -194,6 +194,13 @@ many of the commands:
   Run a query performance analysis on the given query. Most conveniently used
   without a backslash by just adding ``analyze`` before any query.
 
+:cli:synopsis:`\\expand`
+  .. note::
+
+      This command is compatible with EdgeDB server 3.0 and above.
+
+  Print expanded output of last ``analyze`` operation.
+
 .. rubric:: Data Operations
 
 :cli:synopsis:`\\dump FILENAME`
