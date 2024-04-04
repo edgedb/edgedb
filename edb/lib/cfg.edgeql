@@ -194,7 +194,7 @@ ALTER TYPE cfg::AbstractConfig {
             'Recompile all cached queries on DDL if enabled.';
     };
 
-    CREATE PROPERTY _query_cache_mode -> cfg::QueryCacheMode {
+    CREATE PROPERTY query_cache_mode -> cfg::QueryCacheMode {
         SET default := cfg::QueryCacheMode.Default;
         CREATE ANNOTATION cfg::affects_compilation := 'true';
         CREATE ANNOTATION std::description :=

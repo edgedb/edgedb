@@ -145,7 +145,7 @@ class CompileContext:
 
     def get_cache_mode(self) -> config.QueryCacheMode:
         return config.QueryCacheMode.effective(
-            _get_config_val(self, '_query_cache_mode')
+            _get_config_val(self, 'query_cache_mode')
         )
 
     def _assert_not_in_migration_block(self, ql: qlast.Base) -> None:

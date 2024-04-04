@@ -869,9 +869,9 @@ class Tenant(ha_base.ClusterProtocol):
 
         assert self._dbindex is not None
         if db := self._dbindex.maybe_get_db(dbname):
-            cache_mode_val = db.lookup_config('_query_cache_mode')
+            cache_mode_val = db.lookup_config('query_cache_mode')
         else:
-            cache_mode_val = self._dbindex.lookup_config('_query_cache_mode')
+            cache_mode_val = self._dbindex.lookup_config('query_cache_mode')
         old_cache_mode = config.QueryCacheMode.effective(cache_mode_val)
 
         conn = await self._acquire_intro_pgcon(dbname)
@@ -948,7 +948,7 @@ class Tenant(ha_base.ClusterProtocol):
             parsed_db.state_serializer,
         )
         cache_mode = config.QueryCacheMode.effective(
-            db.lookup_config('_query_cache_mode')
+            db.lookup_config('query_cache_mode')
         )
         if query_cache and cache_mode is not config.QueryCacheMode.InMemory:
             db.hydrate_cache(query_cache)
