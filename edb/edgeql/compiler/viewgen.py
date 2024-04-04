@@ -2142,7 +2142,7 @@ def _inline_type_computable(
             ),
             compexpr=qlast.Path(
                 steps=[
-                    qlast.Source(),
+                    qlast.SpecialAnchor(name='__source__'),
                     qlast.Ptr(
                         name='__type__',
                         direction=s_pointers.PointerDirection.Outbound,
@@ -2167,7 +2167,7 @@ def _inline_type_computable(
             base_ir_set = setgen.ensure_set(
                 ir_set, type_override=base_stype, ctx=scopectx)
 
-            scopectx.anchors[qlast.Source().name] = base_ir_set
+            scopectx.anchors['__source__'] = base_ir_set
             ptr, ptr_set = _normalize_view_ptr_expr(
                 base_ir_set,
                 ql_desc,

@@ -327,7 +327,7 @@ def _enforce_pointer_constraints(
         with ctx.detached() as sctx:
             sctx.partial_path_prefix = expr
             sctx.anchors = ctx.anchors.copy()
-            sctx.anchors[qlast.Subject().name] = expr
+            sctx.anchors['__subject__'] = expr
 
             final_expr = constraint.get_finalexpr(ctx.env.schema)
             assert final_expr is not None and final_expr.qlast is not None

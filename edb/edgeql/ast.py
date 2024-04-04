@@ -173,11 +173,15 @@ class ObjectRef(BaseObjectRef):
 
 
 class PseudoObjectRef(BaseObjectRef):
-    # anytype, anytuple or anyobject
+    ''' anytype, anytuple or anyobject '''
     name: str
 
 
 class Anchor(Expr):
+    '''Identifier that resolves to some pre-compiled expression.
+       For example in shapes, the anchor __subject__ refers to object that the
+       shape is defined on.
+    '''
     __abstract_node__ = True
     name: str
 
@@ -188,14 +192,6 @@ class IRAnchor(Anchor):
 
 class SpecialAnchor(Anchor):
     pass
-
-
-class Source(SpecialAnchor):  # __source__
-    name: str = '__source__'
-
-
-class Subject(SpecialAnchor):  # __subject__
-    name: str = '__subject__'
 
 
 class DetachedExpr(Expr):  # DETACHED Expr

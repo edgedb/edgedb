@@ -243,8 +243,8 @@ def compile_constraint(
         {(subject, is_optional)}
     )
     options = qlcompiler.CompilerOptions(
-        anchors={qlast.Subject().name: subject},
-        path_prefix_anchor=qlast.Subject().name,
+        anchors={'__subject__': subject},
+        path_prefix_anchor='__subject__',
         apply_query_rewrites=False,
         singletons=singletons,
         schema_object_context=type(constraint),
@@ -326,11 +326,11 @@ def compile_constraint(
         assert isinstance(sub, (s_types.Type, s_pointers.Pointer))
         origin_subject: s_types.Type | s_pointers.Pointer = sub
 
-        origin_path_prefix_anchor = qlast.Subject().name
+        origin_path_prefix_anchor = '__subject__'
         singletons = frozenset({(origin_subject, is_optional)})
 
         origin_options = qlcompiler.CompilerOptions(
-            anchors={qlast.Subject().name: origin_subject},
+            anchors={'__subject__': origin_subject},
             path_prefix_anchor=origin_path_prefix_anchor,
             apply_query_rewrites=False,
             singletons=singletons,

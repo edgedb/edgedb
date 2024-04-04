@@ -1543,7 +1543,7 @@ def computable_ptr_set(
             ptrcls_n = ptrcls.get_shortname(ctx.env.schema).name
             path = qlast.Path(
                 steps=[
-                    qlast.Source(),
+                    qlast.SpecialAnchor(name='__source__'),
                     qlast.Ptr(
                         name=ptrcls_n,
                         direction=s_pointers.PointerDirection.Outbound,
@@ -1655,7 +1655,7 @@ def computable_ptr_set(
             subctx.view_scls = result_stype
         subctx.view_rptr = context.ViewRPtr(
             source=source_scls, ptrcls=ptrcls)
-        subctx.anchors[qlast.Source().name] = source_set
+        subctx.anchors['__source__'] = source_set
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
         subctx.partial_path_prefix = source_set
         # On a mutation, make the expr_exposed. This corresponds with

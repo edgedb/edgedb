@@ -3568,15 +3568,12 @@ def get_index_compile_options(
     subject = index.get_subject(schema)
     assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
 
-    singletons = [subject]
-    path_prefix_anchor = ql_ast.Subject().name
-
     return qlcompiler.CompilerOptions(
         modaliases=modaliases,
         schema_object_context=schema_object_context,
-        anchors={ql_ast.Subject().name: subject},
-        path_prefix_anchor=path_prefix_anchor,
-        singletons=singletons,
+        anchors={'__subject__': subject},
+        path_prefix_anchor='__subject__',
+        singletons=[subject],
         apply_query_rewrites=False,
     )
 

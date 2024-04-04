@@ -1145,10 +1145,10 @@ class BaseAtomicExpr(Nonterm):
         pass
 
     def reduce_DUNDERSOURCE(self, *kids):
-        self.val = qlast.Path(steps=[qlast.Source()])
+        self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__source__')])
 
     def reduce_DUNDERSUBJECT(self, *kids):
-        self.val = qlast.Path(steps=[qlast.Subject()])
+        self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__subject__')])
 
     def reduce_DUNDERNEW(self, *kids):
         self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__new__')])

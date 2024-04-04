@@ -93,7 +93,9 @@ def is_ql_path(qlexpr: qlast.Expr) -> bool:
 
     start = qlexpr.steps[0]
 
-    return isinstance(start, (qlast.Source, qlast.ObjectRef, qlast.Ptr))
+    return isinstance(start, (qlast.ObjectRef, qlast.Ptr)) or (
+        isinstance(start, qlast.Anchor) and start.name == '__source__'
+    )
 
 
 def is_nontrivial_shape_element(shape_el: qlast.ShapeElement) -> bool:

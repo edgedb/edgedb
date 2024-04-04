@@ -336,7 +336,7 @@ def try_type_rewrite(
                 from . import clauses
 
                 filtered_stmt = irast.SelectStmt(result=base_set)
-                subctx.anchors[qlast.Subject().name] = base_set
+                subctx.anchors['__subject__'] = base_set
                 subctx.partial_path_prefix = base_set
                 subctx.path_scope = subctx.env.path_scope.root.attach_fence()
 
@@ -466,5 +466,5 @@ def _prepare_dml_policy_context(
         stype, path_id=result.path_id, skip_subtypes=skip_subtypes, ctx=ctx
     )
 
-    ctx.anchors[qlast.Subject().name] = result
+    ctx.anchors['__subject__'] = result
     ctx.partial_path_prefix = result
