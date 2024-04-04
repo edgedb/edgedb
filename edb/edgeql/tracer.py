@@ -1169,6 +1169,19 @@ def trace_GroupingOperation(
 def trace_Group(
     node: qlast.GroupQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
+    return _trace_GroupQuery(node, ctx=ctx)
+
+
+@trace.register
+def trace_InternalGroupQuery(
+    node: qlast.InternalGroupQuery, *, ctx: TracerContext
+) -> Optional[ObjectLike]:
+    return _trace_GroupQuery(node, ctx=ctx)
+
+
+def _trace_GroupQuery(
+    node: qlast.GroupQuery | qlast.InternalGroupQuery, *, ctx: TracerContext
+) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.subject, ctx=ctx)
         if tip is not None:
