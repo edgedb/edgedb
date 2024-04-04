@@ -498,9 +498,9 @@ class Query(Expr):
 Statement = Query | Command
 
 
-class PipelinedQuery(Query):
-    __abstract_node__ = True
-    implicit: bool = False
+class SelectQuery(Query):
+    result_alias: typing.Optional[str] = None
+    result: Expr
 
     where: typing.Optional[Expr] = None
 
@@ -514,11 +514,7 @@ class PipelinedQuery(Query):
     # not interfere with linkprops.
     rptr_passthrough: bool = False
 
-
-class SelectQuery(PipelinedQuery):
-
-    result_alias: typing.Optional[str] = None
-    result: Expr
+    implicit: bool = False
 
 
 class GroupingIdentList(Base):
@@ -582,8 +578,15 @@ class UpdateQuery(Query):
     where: typing.Optional[Expr] = None
 
 
-class DeleteQuery(PipelinedQuery):
+class DeleteQuery(Query):
     subject: Expr
+
+    where: typing.Optional[Expr] = None
+
+    orderby: typing.Optional[typing.List[SortExpr]] = None
+
+    offset: typing.Optional[Expr] = None
+    limit: typing.Optional[Expr] = None
 
 
 class ForQuery(Query):
@@ -1606,13 +1609,15 @@ def has_ddl_subcommand(
 ReturningQuery = SelectQuery | ForQuery | InternalGroupQuery
 
 
-FilteringQuery = PipelinedQuery | ShapeElement | UpdateQuery | ConfigReset
+FilteringQuery = (
+    SelectQuery | DeleteQuery | ShapeElement | UpdateQuery | ConfigReset
+)
 
 
 SubjectQuery = DeleteQuery | UpdateQuery | GroupQuery
 
 
-OffsetLimitQuery = PipelinedQuery | ShapeElement
+OffsetLimitQuery = SelectQuery | DeleteQuery | ShapeElement
 
 
 BasedOn = (
