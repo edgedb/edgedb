@@ -541,7 +541,7 @@ def compile_operator(
                 ):
                     hint = 'Consider using the "++" operator for concatenation'
 
-            if isinstance(qlexpr, qlast.SetConstructorOp):
+            if isinstance(qlexpr, qlast.BinOp) and qlexpr.op == 'UNION':
                 msg = (
                     f'set constructor has arguments of incompatible types '
                     f'{types}'

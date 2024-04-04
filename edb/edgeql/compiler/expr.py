@@ -113,7 +113,6 @@ REBALANCED_OPS = {'UNION'}
 REBALANCE_THRESHOLD = 10
 
 
-@dispatch.compile.register(qlast.SetConstructorOp)
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
     # Rebalance some associative operations to avoid deeply nested ASTs
@@ -182,8 +181,9 @@ def compile_Set(expr: qlast.Set, *, ctx: context.ContextLevel) -> irast.Set:
             # TODO: Introduce an N-ary operation that handles the whole thing?
             bigunion = _balance(
                 elements,
-                lambda l, r, c: qlast.SetConstructorOp(
-                    left=l, right=r, rebalanced=True, span=c),
+                lambda l, r, s: qlast.BinOp(
+                    left=l, op='UNION', right=r, rebalanced=True, span=s
+                ),
                 expr.span
             )
             res = dispatch.compile(bigunion, ctx=ctx)

@@ -224,10 +224,6 @@ class BinOp(Expr):
     rebalanced: bool = False
 
 
-class SetConstructorOp(BinOp):
-    op: str = 'UNION'
-
-
 class WindowSpec(Base):
     orderby: typing.List[SortExpr]
     partition: typing.List[Expr]
@@ -477,7 +473,7 @@ class ShapeOrigin(s_enum.StrEnum):
     MATERIALIZATION = 'MATERIALIZATION'
 
 
-class ShapeElement(Expr):
+class ShapeElement(Base):
     expr: Path
     elements: typing.Optional[typing.List[ShapeElement]] = None
     compexpr: typing.Optional[Expr] = None
