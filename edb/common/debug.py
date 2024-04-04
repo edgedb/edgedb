@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import builtins
 import contextlib
-import platform
 import os
 import sys
 import time
@@ -180,19 +179,6 @@ class flags(metaclass=FlagsMeta):
     )
 
     zombodb = Flag(doc="Enabled zombodb and disables postgres FTS")
-
-    disable_persistent_cache = Flag(
-        doc="Don't use persistent cache",
-        # Persistent cache disabled for now by default on arm64 linux
-        # because of observed problems in CI test runs.
-        default=(
-            platform.system() == 'Linux'
-            and platform.machine() == 'arm64'
-        ),
-    )
-
-    # Function cache is an experimental feature that may not fully work
-    func_cache = Flag(doc="Use stored functions for persistent cache")
 
 
 @contextlib.contextmanager
