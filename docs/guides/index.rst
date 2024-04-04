@@ -24,4 +24,4 @@ guide!
     auth/index
     migrations/index
     contributing/index
-    Cheatsheets <https://www.edgedb.com/database/cheatsheets>
+    Cheatsheets <https://docs.edgedb.com/database/cheatsheets>
