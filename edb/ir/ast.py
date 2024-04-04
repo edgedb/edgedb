@@ -953,7 +953,7 @@ class Call(ImmutableExpr):
     # Bound arguments.
     # Named arguments will come first, sorted by name,
     # followed by positional arguments, in order of declaration.
-    args: typing.List[CallArg]
+    args: typing.Dict[typing.Union[int, str], CallArg]
 
     # Return type and typemod.  In bodies of polymorphic functions
     # the return type can be polymorphic; in queries the return

@@ -371,10 +371,10 @@ def _compile_dml_coalesce(
         # Note that lhs_ir will be unfenced while rhs_ir
         # will have been compiled under fences.
         match ir.expr:
-            case irast.OperatorCall(args=[
-                irast.CallArg(expr=lhs_ir),
-                irast.CallArg(expr=rhs_ir),
-            ]):
+            case irast.OperatorCall(args={
+                0: irast.CallArg(expr=lhs_ir),
+                1: irast.CallArg(expr=rhs_ir),
+            }):
                 pass
             case _:
                 raise AssertionError('malformed DML ??')
@@ -450,11 +450,11 @@ def _compile_dml_ifelse(
         # Note that cond_ir will be unfenced while if_ir and else_ir
         # will have been compiled under fences.
         match ir.expr:
-            case irast.OperatorCall(args=[
-                irast.CallArg(expr=if_ir),
-                irast.CallArg(expr=cond_ir),
-                irast.CallArg(expr=else_ir),
-            ]):
+            case irast.OperatorCall(args={
+                0: irast.CallArg(expr=if_ir),
+                1: irast.CallArg(expr=cond_ir),
+                2: irast.CallArg(expr=else_ir),
+            }):
                 pass
             case _:
                 raise AssertionError('malformed DML IF/ELSE')

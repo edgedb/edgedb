@@ -493,7 +493,7 @@ def contains_set_of_op(ir: irast.Base) -> bool:
     def flt(n: irast.Call) -> bool:
         return any(
             arg.param_typemod == ft.TypeModifier.SetOfType
-            for arg in n.args
+            for arg in n.args.values()
         )
     return bool(ast.find_children(ir, irast.Call, flt, terminate_early=True))
 
