@@ -551,7 +551,13 @@ class GroupQuery(Query):
     subject: Expr
 
 
-class InternalGroupQuery(GroupQuery):
+class InternalGroupQuery(Query):
+    subject_alias: typing.Optional[str] = None
+    using: typing.Optional[typing.List[AliasedExpr]]
+    by: typing.List[GroupingElement]
+
+    subject: Expr
+
     group_alias: str
     grouping_alias: typing.Optional[str]
     from_desugaring: bool = False
@@ -1479,7 +1485,7 @@ class DropCast(DropObject, CastCommand):
     pass
 
 
-class _Optional(Expr):
+class OptionalExprInternal(Expr):
     __rust_ignore__ = True
 
     expr: Expr

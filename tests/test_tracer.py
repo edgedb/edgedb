@@ -40,7 +40,7 @@ class TestTracer(unittest.TestCase):
                     # ignore these abstract AST nodes
                     and not astcls.__abstract_node__
                     # ignore special internal class
-                    and astcls is not qlast._Optional
+                    and astcls is not qlast.OptionalExprInternal
                     # ignore query parameters
                     and not issubclass(astcls, qlast.Parameter)
                     # ignore all config operations

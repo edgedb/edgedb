@@ -2372,7 +2372,7 @@ def get_params_symtable(
                 right=qlast.IntegerConstant(value='0'),
             ),
             if_expr=anchors[p_shortname],
-            else_expr=qlast._Optional(expr=p_default.qlast),
+            else_expr=qlast.OptionalExprInternal(expr=p_default.qlast),
         )
 
     return anchors

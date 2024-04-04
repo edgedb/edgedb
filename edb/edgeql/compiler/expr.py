@@ -60,9 +60,9 @@ from . import typegen
 from . import func  # NOQA
 
 
-@dispatch.compile.register(qlast._Optional)
+@dispatch.compile.register(qlast.OptionalExprInternal)
 def compile__Optional(
-    expr: qlast._Optional, *, ctx: context.ContextLevel
+    expr: qlast.OptionalExprInternal, *, ctx: context.ContextLevel
 ) -> irast.Set:
 
     result = dispatch.compile(expr.expr, ctx=ctx)

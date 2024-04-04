@@ -113,6 +113,7 @@ def _ddl_migr_reset_schema(ql: qlast.Base) -> bytes:
 
 @get_status.register(qlast.SelectQuery)
 @get_status.register(qlast.GroupQuery)
+@get_status.register(qlast.InternalGroupQuery)
 @get_status.register(qlast.ForQuery)
 def _select(ql: qlast.Base) -> bytes:
     return b'SELECT'

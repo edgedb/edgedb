@@ -369,7 +369,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_GroupQuery(
-        self, node: qlast.GroupQuery, no_paren: bool = False
+        self,
+        node: qlast.GroupQuery | qlast.InternalGroupQuery,
+        no_paren: bool = False
     ) -> None:
         # need to parenthesise when GROUP appears as an expression
         parenthesise = self._needs_parentheses(node) and not no_paren
