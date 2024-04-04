@@ -108,6 +108,7 @@ def compile_FunctionCall(
             modaliases=ctx.modaliases,
             schema=env.schema,
             suggestion_limit=1,
+            item_type=s_types.Type,
             span=expr.span,
             hint_text='did you mean to cast to'
         )

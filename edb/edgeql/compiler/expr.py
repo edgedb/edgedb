@@ -655,18 +655,9 @@ def compile_TypeCast(
             and isinstance(expr.type, qlast.TypeName)
             and isinstance(expr.type.maintype, qlast.ObjectRef)
         ):
-            type_name: str = expr.type.maintype.name
-            type_module: Optional[str] = expr.type.maintype.module
-
-            name: sn.Name
-            if type_module is not None:
-                name = sn.QualName(type_module, type_name)
-            else:
-                name = sn.UnqualName(type_name)
-
             s_utils.enrich_schema_lookup_error(
                 e,
-                name,
+                s_utils.ast_ref_to_name(expr.type.maintype),
                 modaliases=ctx.modaliases,
                 schema=ctx.env.schema,
                 suggestion_limit=1,
