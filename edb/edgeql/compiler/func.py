@@ -245,7 +245,7 @@ def compile_FunctionCall(
 
     matched_func_initial_value = func.get_initial_value(env.schema)
 
-    final_args, params_typemods = finalize_args(
+    final_args = finalize_args(
         matched_call,
         guessed_typemods=typemods,
         is_polymorphic=is_polymorphic,
@@ -326,7 +326,6 @@ def compile_FunctionCall(
         preserves_optionality=func.get_preserves_optionality(env.schema),
         preserves_upper_cardinality=func.get_preserves_upper_cardinality(
             env.schema),
-        params_typemods=params_typemods,
         typeref=typegen.type_to_typeref(
             rtype, env=env,
         ),
@@ -603,7 +602,7 @@ def compile_operator(
         matched_rtype.is_polymorphic(env.schema)
     )
 
-    final_args, params_typemods = finalize_args(
+    final_args = finalize_args(
         matched_call,
         actual_typemods=actual_typemods,
         guessed_typemods=typemods,
@@ -662,7 +661,6 @@ def compile_operator(
         force_return_cast=oper.get_force_return_cast(env.schema),
         volatility=oper.get_volatility(env.schema),
         operator_kind=oper.get_operator_kind(env.schema),
-        params_typemods=params_typemods,
         typeref=typegen.type_to_typeref(rtype, env=env),
         typemod=oper.get_return_typemod(env.schema),
         tuple_path_ids=[],
@@ -834,10 +832,9 @@ def finalize_args(
     guessed_typemods: Dict[Union[int, str], ft.TypeModifier],
     is_polymorphic: bool = False,
     ctx: context.ContextLevel,
-) -> Tuple[List[irast.CallArg], List[ft.TypeModifier]]:
+) -> List[irast.CallArg]:
 
     args: List[irast.CallArg] = []
-    typemods = []
 
     for i, barg in enumerate(bound_call.args):
         param = barg.param
@@ -845,16 +842,16 @@ def finalize_args(
         arg_type_path_id: Optional[irast.PathId] = None
         if param is None:
             # defaults bitmask
-            args.append(irast.CallArg(expr=arg))
-            typemods.append(ft.TypeModifier.SingletonType)
+            args.append(irast.CallArg(
+                expr=arg,
+                param_typemod=ft.TypeModifier.SingletonType,
+            ))
             continue
 
         if actual_typemods:
             param_mod = actual_typemods[i]
         else:
             param_mod = param.get_typemod(ctx.env.schema)
-
-        typemods.append(param_mod)
 
         if param_mod is not ft.TypeModifier.SetOfType:
             param_shortname = param.get_parameter_name(ctx.env.schema)
@@ -951,9 +948,9 @@ def finalize_args(
 
         args.append(
             irast.CallArg(expr=arg, expr_type_path_id=arg_type_path_id,
-                          is_default=barg.is_default))
+                          is_default=barg.is_default, param_typemod=param_mod))
 
-    return args, typemods
+    return args
 
 
 @_special_case('fts::search')

@@ -686,7 +686,8 @@ def _standard_call_cardinality(
     non_aggregate_args = []
     non_aggregate_arg_cards = []
 
-    for arg, card, typemod in zip(ir.args, cards, ir.params_typemods):
+    for arg, card in zip(ir.args, cards):
+        typemod = arg.param_typemod
         if typemod is qltypes.TypeModifier.SingletonType:
             non_aggregate_args.append(arg.expr)
             non_aggregate_arg_cards.append(card)
@@ -733,7 +734,8 @@ def __infer_func_call(
         arg_cards = []
         force_multi = False
 
-        for card, typemod in zip(cards, ir.params_typemods):
+        for arg, card in zip(ir.args, cards):
+            typemod = arg.param_typemod
             if typemod is not qltypes.TypeModifier.OptionalType:
                 arg_cards.append(card)
             else:

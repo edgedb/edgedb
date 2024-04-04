@@ -2922,8 +2922,8 @@ def process_set_as_call(
         return process_set_as_oper_expr(ir_set, ctx=ctx)
 
     if any(
-        pm is qltypes.TypeModifier.SetOfType
-        for pm in ir_set.expr.params_typemods
+        arg.param_typemod is qltypes.TypeModifier.SetOfType
+        for arg in ir_set.expr.args
     ):
         # Call to an aggregate function.
         assert irutils.is_set_instance(ir_set, irast.FunctionCall)
@@ -3236,10 +3236,12 @@ def _compile_call_args(
             arg_ref = dispatch.compile(glob_arg, ctx=ctx)
             args.append(output.output_as_value(arg_ref, env=ctx.env))
 
-    for i, (ir_arg, typemod) in enumerate(zip(expr.args, expr.params_typemods)):
+    for i, ir_arg in enumerate(expr.args):
         if i in skip:
             continue
         assert ir_arg.multiplicity != qltypes.Multiplicity.UNKNOWN
+
+        typemod = ir_arg.param_typemod
 
         # Support a mode where we try to compile arguments as pure
         # subqueries. This is occasionally valuable as it lets us
@@ -3427,8 +3429,7 @@ def process_set_as_agg_expr_inner(
 
             args = []
 
-            for i, (ir_call_arg, typemod) in enumerate(
-                    zip(expr.args, expr.params_typemods)):
+            for i, ir_call_arg in enumerate(expr.args):
                 ir_arg = ir_call_arg.expr
 
                 arg_ref: pgast.BaseExpr
@@ -3456,7 +3457,12 @@ def process_set_as_agg_expr_inner(
                             arg_ref, env=argctx.env)
 
                 _compile_arg_null_check(
-                    expr, ir_call_arg, arg_ref, typemod, ctx=argctx)
+                    expr,
+                    ir_call_arg,
+                    arg_ref,
+                    ir_call_arg.param_typemod,
+                    ctx=argctx
+                )
 
                 path_scope = relctx.get_scope(ir_arg, ctx=argctx)
                 if path_scope is not None and path_scope.parent is not None:

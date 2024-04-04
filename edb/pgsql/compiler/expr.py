@@ -360,14 +360,14 @@ def _compile_call_args(
     maybe_null = []
     if isinstance(expr, irast.FunctionCall) and expr.global_args:
         args += [dispatch.compile(arg, ctx=ctx) for arg in expr.global_args]
-    for ir_arg, typemod in zip(expr.args, expr.params_typemods):
+    for ir_arg in expr.args:
         ref = dispatch.compile(ir_arg.expr, ctx=ctx)
         args.append(ref)
         if (
             not expr.impl_is_strict
             and ir_arg.cardinality.can_be_zero()
             and ref.nullable
-            and typemod == ql_ft.TypeModifier.SingletonType
+            and ir_arg.param_typemod == ql_ft.TypeModifier.SingletonType
         ):
             maybe_null.append(ref)
     return args, maybe_null
