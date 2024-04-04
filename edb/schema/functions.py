@@ -1171,7 +1171,7 @@ class CreateCallableObject(
                 continue
 
             num: int = props['num']
-            default = props.get('default')
+            default: Optional[s_expr.Expression] = props.get('default')
             param = make_func_param(
                 name=Parameter.paramname_from_fullname(props['name']),
                 type=utils.typeref_to_ast(schema, props['type']),

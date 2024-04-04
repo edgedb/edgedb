@@ -65,6 +65,7 @@ from edb.schema import scalars as s_scalars
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -1536,7 +1537,7 @@ def computable_ptr_set(
         inner_source_path_id = comp_info.path_id
         path_id_ns = comp_info.path_id_ns
     except KeyError:
-        comp_expr = ptrcls.get_expr(ctx.env.schema)
+        comp_expr: Optional[s_expr.Expression] = ptrcls.get_expr(ctx.env.schema)
         schema_qlexpr: Optional[qlast.Expr] = None
         if comp_expr is None and ctx.env.options.apply_query_rewrites:
             assert isinstance(ptrcls, s_pointers.Pointer)

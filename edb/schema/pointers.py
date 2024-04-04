@@ -1194,6 +1194,7 @@ class PointerCommandOrFragment(
             schema, inf_target_ref = self._parse_computable(
                 target_ref.expr, schema, context)
         elif (expr := self.get_local_attribute_value('expr')) is not None:
+            assert isinstance(expr, s_expr.Expression)
             schema = s_types.materialize_type_in_attribute(
                 schema, context, self, 'target')
             schema, inf_target_ref = self._parse_computable(

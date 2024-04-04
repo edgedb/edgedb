@@ -356,7 +356,9 @@ class CreateGlobal(
         assert isinstance(node, qlast.CreateGlobal)
         if op.property == 'target':
             if not node.target:
-                expr = self.get_attribute_value('expr')
+                expr: Optional[s_expr.Expression] = (
+                    self.get_attribute_value('expr')
+                )
                 if expr is not None:
                     node.target = expr.qlast
                 else:
@@ -587,6 +589,7 @@ class SetGlobalType(
         else:
             assert isinstance(set_field, qlast.SetField)
             assert not isinstance(set_field.value, qlast.Expr)
+            assert isinstance(self.cast_expr, s_expr.Expression)
             return qlast.SetGlobalType(
                 value=set_field.value,
                 cast_expr=(

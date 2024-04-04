@@ -29,6 +29,7 @@ from typing import (
     List,
     Set,
     cast,
+    Iterable,
     TYPE_CHECKING,
 )
 import re
@@ -277,7 +278,7 @@ class Constraint(
     ) -> str:
         text = self.get_errmessage(schema)
         assert text
-        args = self.get_args(schema)
+        args: Optional[s_expr.ExpressionList] = self.get_args(schema)
         if args:
             args_ql: List[qlast.Base] = [
                 qlast.Path(steps=[qlast.ObjectRef(name=subject_name)]),
@@ -519,7 +520,7 @@ class ConstraintCommand(
         else:
             subj_expr_ql = edgeql.parse_fragment(subj_expr.text)
 
-        except_expr = parent.get_except_expr(schema)
+        except_expr: s_expr.Expression | None = parent.get_except_expr(schema)
         if except_expr:
             except_expr_ql = except_expr.qlast
         else:
@@ -737,7 +738,7 @@ class ConstraintCommand(
         subjectexpr: Optional[s_expr.Expression] = None,
         subjectexpr_inherited: bool = False,
         sourcectx: Optional[c_parsing.Span] = None,
-        args: Any = None,
+        args: Optional[Iterable[s_expr.Expression]] = None,
         **kwargs: Any
     ) -> None:
         from edb.ir import ast as irast
@@ -800,7 +801,7 @@ class ConstraintCommand(
             raise errors.InvalidConstraintDefinitionError(
                 f'missing constraint expression in {name}')
 
-        # Re-parse instead of using expr.qlast, because we mutate
+        # Re-parse instead of using expr.parse, because we mutate
         # the AST below.
         expr_ql = qlparser.parse_query(expr.text)
 
@@ -1552,6 +1553,8 @@ class AlterConstraint(
             and (subjectexpr :=
                  self.get_attribute_value('subjectexpr')) is not None
         ):
+            assert isinstance(subjectexpr, s_expr.Expression)
+
             # To compute the new name, we construct an AST of the
             # constraint, since that is the infrastructure we have for
             # computing the classname.

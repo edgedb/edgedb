@@ -32,6 +32,7 @@ from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import triggers as s_triggers
 from edb.schema import types as s_types
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -99,11 +100,13 @@ def compile_trigger(
                 sctx.iterator_path_ids |= {ir.path_id}
             sctx.anchors[name] = ir
 
-        trigger_ast = trigger.get_expr(schema).qlast
+        trigger_expr: Optional[s_expr.Expression] = trigger.get_expr(schema)
+        assert trigger_expr
+        trigger_ast = trigger_expr.qlast
 
         # A conditional trigger desugars to a FOR query that puts the
         # condition in the FILTER of a trivial SELECT.
-        condition = trigger.get_condition(schema)
+        condition: Optional[s_expr.Expression] = trigger.get_condition(schema)
         if condition:
             trigger_ast = qlast.ForQuery(
                 iterator_alias='__',
