@@ -96,6 +96,19 @@ class AlterModule(ModuleCommand, sd.AlterObject[Module]):
     astnode = qlast.AlterModule
 
 
+class RenameModule(ModuleCommand, sd.RenameObject[Module]):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        raise errors.SchemaError(
+            f'renaming modules is not supported',
+            span=self.span,
+        )
+
+
 class DeleteModule(ModuleCommand, sd.DeleteObject[Module]):
     astnode = qlast.DropModule
 
