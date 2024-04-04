@@ -240,42 +240,33 @@ class BaseConstant(Expr):
     __abstract_node__ = True
     value: str
 
-    @classmethod
-    def from_python(cls, val: typing.Any) -> BaseConstant:
-        raise NotImplementedError
-
 
 class StringConstant(BaseConstant):
     @classmethod
     def from_python(cls, s: str) -> StringConstant:
-        return cls(value=s)
+        return StringConstant(value=s)
 
 
-class BaseRealConstant(BaseConstant):
-    __abstract_node__ = True
-    is_negative: bool = False
-
-
-class IntegerConstant(BaseRealConstant):
+class IntegerConstant(BaseConstant):
     pass
 
 
-class FloatConstant(BaseRealConstant):
+class FloatConstant(BaseConstant):
     pass
 
 
-class BigintConstant(BaseRealConstant):
+class BigintConstant(BaseConstant):
     pass
 
 
-class DecimalConstant(BaseRealConstant):
+class DecimalConstant(BaseConstant):
     pass
 
 
 class BooleanConstant(BaseConstant):
     @classmethod
     def from_python(cls, b: bool) -> BooleanConstant:
-        return cls(value=str(b).lower())
+        return BooleanConstant(value=str(b).lower())
 
 
 class BytesConstant(BaseConstant):
@@ -284,7 +275,7 @@ class BytesConstant(BaseConstant):
 
     @classmethod
     def from_python(cls, s: bytes) -> BytesConstant:
-        return cls(value=s)
+        return BytesConstant(value=s)
 
 
 class Parameter(Expr):

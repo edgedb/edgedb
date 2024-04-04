@@ -1265,11 +1265,13 @@ class Expr(Nonterm):
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_MINUS_Expr(self, *kids):
         arg = kids[1].val
-        if isinstance(arg, qlast.BaseRealConstant):
-            # Special case for -<real_const> so that type inference based
-            # on literal size works correctly in the case of INT_MIN and
-            # friends.
-            self.val = type(arg)(value=arg.value, is_negative=True)
+        if isinstance(arg, (
+            qlast.IntegerConstant,
+            qlast.FloatConstant,
+            qlast.BigintConstant,
+            qlast.DecimalConstant,
+        )):
+            self.val = type(arg)(value=f'-{arg.value}')
         else:
             self.val = qlast.UnaryOp(op=kids[0].val, operand=arg)
 

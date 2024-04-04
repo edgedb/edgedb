@@ -998,7 +998,7 @@ def eval_StringConstant(node: qlast.StringConstant, ctx: EvalContext) -> Result:
 def eval_IntegerConstant(
     node: qlast.IntegerConstant, ctx: EvalContext
 ) -> Result:
-    return [int(node.value) * (-1 if node.is_negative else 1)]
+    return [int(node.value)]
 
 
 @_eval.register
@@ -1010,7 +1010,7 @@ def eval_BooleanConstant(
 
 @_eval.register
 def eval_FloatConstant(node: qlast.FloatConstant, ctx: EvalContext) -> Result:
-    return [float(node.value) * (-1 if node.is_negative else 1)]
+    return [float(node.value)]
 
 
 @_eval.register

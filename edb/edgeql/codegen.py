@@ -701,23 +701,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(repr(node.value))
 
     def visit_IntegerConstant(self, node: qlast.IntegerConstant) -> None:
-        if node.is_negative:
-            self.write('-')
         self.write(node.value)
 
     def visit_FloatConstant(self, node: qlast.FloatConstant) -> None:
-        if node.is_negative:
-            self.write('-')
         self.write(node.value)
 
     def visit_DecimalConstant(self, node: qlast.DecimalConstant) -> None:
-        if node.is_negative:
-            self.write('-')
         self.write(node.value)
 
     def visit_BigintConstant(self, node: qlast.BigintConstant) -> None:
-        if node.is_negative:
-            self.write('-')
         self.write(node.value)
 
     def visit_BooleanConstant(self, node: qlast.BooleanConstant) -> None:

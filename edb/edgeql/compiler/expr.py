@@ -211,31 +211,20 @@ def compile_BaseConstant(
         node_cls = irast.StringConstant
     elif isinstance(expr, qlast.IntegerConstant):
         value = value.replace("_", "")
-        int_value = int(value)
-        if expr.is_negative:
-            int_value = -int_value
-            value = f'-{value}'
-        # If integer value is out of int64 bounds, use decimal
         std_type = sn.QualName('std', 'int64')
         node_cls = irast.IntegerConstant
     elif isinstance(expr, qlast.FloatConstant):
         value = value.replace("_", "")
-        if expr.is_negative:
-            value = f'-{value}'
         std_type = sn.QualName('std', 'float64')
         node_cls = irast.FloatConstant
     elif isinstance(expr, qlast.DecimalConstant):
         assert value[-1] == 'n'
         value = value[:-1].replace("_", "")
-        if expr.is_negative:
-            value = f'-{value}'
         std_type = sn.QualName('std', 'decimal')
         node_cls = irast.DecimalConstant
     elif isinstance(expr, qlast.BigintConstant):
         assert value[-1] == 'n'
         value = value[:-1].replace("_", "")
-        if expr.is_negative:
-            value = f'-{value}'
         std_type = sn.QualName('std', 'bigint')
         node_cls = irast.BigintConstant
     elif isinstance(expr, qlast.BooleanConstant):
