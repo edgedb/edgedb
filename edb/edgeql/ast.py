@@ -288,6 +288,8 @@ class UnaryOp(Expr):
 
 
 class TypeExpr(Base):
+    __abstract_node__ = True
+
     name: typing.Optional[str] = None  # name is used for types in named tuples
 
 
