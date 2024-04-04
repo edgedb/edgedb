@@ -9798,3 +9798,31 @@ aa \
             await self.con.query(f'''
                 with x := 1337, select {body}
             ''')
+
+    async def test_edgeql_cast_to_function_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.InvalidReferenceError,
+            "does not exist",
+            _hint="did you mean to call 'to_str'?"
+        ):
+            await self.con.execute(f"""
+                select <to_str>1;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.InvalidReferenceError,
+            "does not exist",
+            _hint="did you mean to call 'round'?"
+        ):
+            await self.con.execute(f"""
+                select <round>1;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.InvalidReferenceError,
+            "does not exist",
+            _hint="did you mean to call 'cal::to_local_date'?"
+        ):
+            await self.con.execute(f"""
+                select <cal::to_local_date>1;
+            """)
