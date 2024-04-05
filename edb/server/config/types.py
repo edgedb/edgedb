@@ -21,6 +21,9 @@ from __future__ import annotations
 
 from typing import Any, TypeVar, TYPE_CHECKING, TypeGuard
 
+import enum
+import platform
+
 from edb import errors
 from edb.common import typeutils
 from edb.common import typing_inspect
@@ -255,3 +258,25 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
     ) -> errors.ConfigurationError:
         return errors.ConfigurationError(
             f'invalid {tspec.name.lower()!r} value: {msg}')
+
+
+class QueryCacheMode(enum.StrEnum):
+    InMemory = "InMemory"
+    RegInline = "RegInline"
+    PgFunc = "PgFunc"
+    Default = "Default"
+
+    @classmethod
+    def effective(cls, value: str | None) -> QueryCacheMode:
+        if value is None:
+            rv = cls.Default
+        else:
+            rv = cls(value)
+        if rv is QueryCacheMode.Default:
+            # Persistent cache disabled for now by default on arm64 linux
+            # because of observed problems in CI test runs.
+            if platform.system() == 'Linux' and platform.machine() == 'arm64':
+                rv = QueryCacheMode.InMemory
+            else:
+                rv = QueryCacheMode.RegInline
+        return rv

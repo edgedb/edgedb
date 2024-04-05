@@ -109,4 +109,16 @@ alter function fts::search(
     set volatility := 'Stable';
 };
 '''),
+    ('edgeql+schema+config', '''
+CREATE SCALAR TYPE cfg::QueryCacheMode EXTENDING enum<
+    InMemory, RegInline, PgFunc, Default>;
+ALTER TYPE cfg::AbstractConfig {
+    CREATE PROPERTY query_cache_mode -> cfg::QueryCacheMode {
+        SET default := cfg::QueryCacheMode.Default;
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'Where the query cache is finally stored';
+    };
+}
+'''),
 ])
