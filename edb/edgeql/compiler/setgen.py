@@ -532,13 +532,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     f'it is not an object type',
                     span=step.span)
 
-            if not isinstance(step.type, qlast.TypeName):
-                raise errors.QueryError(
-                    f'complex type expressions are not supported here',
-                    span=step.span,
-                )
-
-            typ = schemactx.get_schema_type(step.type.maintype, ctx=ctx)
+            typ: s_types.Type = typegen.ql_typeexpr_to_type(step.type, ctx=ctx)
 
             try:
                 path_tip = type_intersection_set(
