@@ -141,8 +141,12 @@ class CompileContext:
     log_ddl_as_migrations: bool = True
     dump_restore_mode: bool = False
     notebook: bool = False
-    persistent_cache: bool = False
     cache_key: Optional[uuid.UUID] = None
+
+    def get_cache_mode(self) -> config.QueryCacheMode:
+        return config.QueryCacheMode.effective(
+            _get_config_val(self, 'query_cache_mode')
+        )
 
     def _assert_not_in_migration_block(self, ql: qlast.Base) -> None:
         """Check that a START MIGRATION block is *not* active."""
@@ -862,7 +866,6 @@ class Compiler:
             request.protocol_version,
             request.inline_objectids,
             request.json_parameters,
-            persistent_cache=not debug.flags.disable_persistent_cache,
             cache_key=request.get_cache_key(),
         )
         return units, cstate
@@ -885,7 +888,6 @@ class Compiler:
         protocol_version: defines.ProtocolVersion,
         inline_objectids: bool = True,
         json_parameters: bool = False,
-        persistent_cache: bool = False,
         cache_key: Optional[uuid.UUID] = None,
     ) -> Tuple[dbstate.QueryUnitGroup,
                Optional[dbstate.CompilerConnectionState]]:
@@ -924,7 +926,6 @@ class Compiler:
             json_parameters=json_parameters,
             source=source,
             protocol_version=protocol_version,
-            persistent_cache=persistent_cache,
             cache_key=cache_key,
         )
 
@@ -968,7 +969,6 @@ class Compiler:
             request.inline_objectids,
             request.json_parameters,
             expect_rollback=expect_rollback,
-            persistent_cache=not debug.flags.disable_persistent_cache,
             cache_key=request.get_cache_key(),
         )
         return units, cstate
@@ -987,7 +987,6 @@ class Compiler:
         inline_objectids: bool = True,
         json_parameters: bool = False,
         expect_rollback: bool = False,
-        persistent_cache: bool = False,
         cache_key: Optional[uuid.UUID] = None,
     ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
         if (
@@ -1014,7 +1013,6 @@ class Compiler:
             protocol_version=protocol_version,
             json_parameters=json_parameters,
             expect_rollback=expect_rollback,
-            persistent_cache=persistent_cache,
             cache_key=cache_key,
         )
 
@@ -1835,12 +1833,12 @@ def _compile_ql_query(
     # This low-hanging-fruit is temporary; persistent cache should cover all
     # cacheable cases properly in future changes.
     use_persistent_cache = (
-        ctx.persistent_cache
-        and cacheable
+        cacheable
         and not ctx.bootstrap_mode
         and script_info is None
         and ctx.cache_key is not None
     )
+    cache_mode = ctx.get_cache_mode()
 
     sql_res = pg_compiler.compile_ir_to_sql_tree(
         ir,
@@ -1848,17 +1846,19 @@ def _compile_ql_query(
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
         expand_inhviews=options.expand_inhviews,
-        detach_params=bool(use_persistent_cache and debug.flags.func_cache),
+        detach_params=(use_persistent_cache
+                       and cache_mode is config.QueryCacheMode.PgFunc),
     )
 
     pg_debug.dump_ast_and_query(sql_res.ast, ir)
 
-    if use_persistent_cache:
-        if debug.flags.func_cache:
-            cache_sql, sql_ast = _build_cache_function(ctx, ir, sql_res)
-        else:
-            sql_ast = sql_res.ast
-            cache_sql = (b"", b"")
+    if use_persistent_cache and cache_mode is config.QueryCacheMode.PgFunc:
+        cache_sql, sql_ast = _build_cache_function(ctx, ir, sql_res)
+    elif (
+        use_persistent_cache and cache_mode is config.QueryCacheMode.RegInline
+    ):
+        sql_ast = sql_res.ast
+        cache_sql = (b"", b"")
     else:
         sql_ast = sql_res.ast
         cache_sql = None

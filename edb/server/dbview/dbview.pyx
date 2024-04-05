@@ -149,13 +149,12 @@ cdef class Database:
 
         self._cache_worker_task = self._cache_queue = None
         self._cache_notify_task = self._cache_notify_queue = None
-        if not debug.flags.disable_persistent_cache:
-            self._cache_queue = asyncio.Queue()
-            self._cache_worker_task = asyncio.create_task(
-                self.monitor(self.cache_worker, 'cache_worker'))
-            self._cache_notify_queue = asyncio.Queue()
-            self._cache_notify_task = asyncio.create_task(
-                self.monitor(self.cache_notifier, 'cache_notifier'))
+        self._cache_queue = asyncio.Queue()
+        self._cache_worker_task = asyncio.create_task(
+            self.monitor(self.cache_worker, 'cache_worker'))
+        self._cache_notify_queue = asyncio.Queue()
+        self._cache_notify_task = asyncio.create_task(
+            self.monitor(self.cache_notifier, 'cache_notifier'))
 
     @property
     def server(self):
@@ -365,6 +364,9 @@ cdef class Database:
                 group.cache_state = CacheState.Present
                 self._eql_to_compiled[query_req] = group
 
+    def clear_query_cache(self):
+        self._eql_to_compiled.clear()
+
     def iter_views(self):
         yield from self._views
 
@@ -375,10 +377,18 @@ cdef class Database:
         if self.user_schema_pickle is None:
             async with self._introspection_lock:
                 if self.user_schema_pickle is None:
-                    await self.tenant.introspect_db(
-                        self.name,
-                        hydrate_cache=not debug.flags.disable_persistent_cache,
-                    )
+                    await self.tenant.introspect_db(self.name)
+
+    def lookup_config(self, name: str):
+        spec = self._index._sys_config_spec
+        if self.user_config_spec is not None:
+            spec = config.ChainedSpec(spec, self.user_config_spec)
+        return config.lookup(
+            name,
+            self.db_config or DEFAULT_CONFIG,
+            self._index._sys_config,
+            spec=spec,
+        )
 
 
 cdef class DatabaseConnectionView:
@@ -1585,3 +1595,10 @@ cdef class DatabaseIndex:
                 dbs, self._global_schema_pickle, self._comp_sys_config
             )
         return self._cached_compiler_args
+
+    def lookup_config(self, name: str):
+        return config.lookup(
+            name,
+            self._sys_config,
+            spec=self._sys_config_spec,
+        )
