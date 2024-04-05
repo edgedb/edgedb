@@ -5,18 +5,18 @@
 edgedb branch merge
 ===================
 
-.. note::
-
-    This CLI command requires CLI version 4.0 or later and EdgeDB version 5.0
-    or later. If you are running an earlier version of EdgeDB, you will instead
-    use the :ref:`ref_cli_edgedb_database` command suite to manage databases,
-    which branches replaced in EdgeDB 5.0.
-
 Merge a :ref:`branch <ref_datamodel_branches>` into the current branch.
 
 .. cli:synopsis::
 
     edgedb branch merge [<options>] <name>
+
+.. note::
+
+    This CLI command requires CLI version 4.0 or later and EdgeDB version 5.0
+    or later. Earlier versions did not feature branches and instead featured
+    databases. Databases offered no analog to merging. See the
+    :ref:`ref_cli_edgedb_database` command suite to manage databases.
 
 
 Description
