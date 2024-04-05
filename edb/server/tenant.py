@@ -848,9 +848,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         return extensions
 
-    async def introspect_db(
-        self, dbname: str, hydrate_cache: bool = False
-    ) -> None:
+    async def introspect_db(self, dbname: str) -> bool:
         """Use this method to (re-)introspect a DB.
 
         If the DB is already registered in self._dbindex, its
@@ -864,12 +862,21 @@ class Tenant(ha_base.ClusterProtocol):
         dropped and recreated again. It's safer to refresh the entire state
         than refreshing individual components of it. Besides, DDL and
         database-level config modifications are supposed to be rare events.
+
+        Returns True if the query cache mode changed.
         """
         logger.info("introspecting database '%s'", dbname)
 
+        assert self._dbindex is not None
+        if db := self._dbindex.maybe_get_db(dbname):
+            cache_mode_val = db.lookup_config('query_cache_mode')
+        else:
+            cache_mode_val = self._dbindex.lookup_config('query_cache_mode')
+        old_cache_mode = config.QueryCacheMode.effective(cache_mode_val)
+
         conn = await self._acquire_intro_pgcon(dbname)
         if not conn:
-            return
+            return False
 
         try:
             user_schema_json = (
@@ -917,7 +924,7 @@ class Tenant(ha_base.ClusterProtocol):
             extensions = await self._introspect_extensions(conn)
 
             query_cache: list[tuple[bytes, ...]] | None = None
-            if hydrate_cache:
+            if old_cache_mode is not config.QueryCacheMode.InMemory:
                 query_cache = await self._load_query_cache(conn)
         finally:
             self.release_pgcon(dbname, conn)
@@ -926,7 +933,6 @@ class Tenant(ha_base.ClusterProtocol):
         parsed_db = await compiler_pool.parse_user_schema_db_config(
             user_schema_json, db_config_json, self.get_global_schema_pickle()
         )
-        assert self._dbindex is not None
         db = self._dbindex.register_db(
             dbname,
             user_schema_pickle=parsed_db.user_schema_pickle,
@@ -941,8 +947,12 @@ class Tenant(ha_base.ClusterProtocol):
             parsed_db.protocol_version,
             parsed_db.state_serializer,
         )
-        if query_cache:
+        cache_mode = config.QueryCacheMode.effective(
+            db.lookup_config('query_cache_mode')
+        )
+        if query_cache and cache_mode is not config.QueryCacheMode.InMemory:
             db.hydrate_cache(query_cache)
+        return old_cache_mode is not cache_mode
 
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.
@@ -1436,7 +1446,16 @@ class Tenant(ha_base.ClusterProtocol):
         # of the DB and update all components of it.
         async def task():
             try:
-                await self.introspect_db(dbname)
+                if await self.introspect_db(dbname):
+                    logger.info(
+                        "clearing query cache for database '%s'", dbname)
+                    conn = await self.acquire_pgcon(dbname)
+                    try:
+                        await conn.sql_execute(
+                            b'SELECT edgedb._clear_query_cache()')
+                        self._dbindex.get_db(dbname).clear_query_cache()
+                    finally:
+                        self.release_pgcon(dbname, conn)
             except Exception:
                 metrics.background_errors.inc(
                     1.0, self._instance_name, "on_local_database_config_change"

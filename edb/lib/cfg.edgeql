@@ -40,6 +40,8 @@ CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
 CREATE SCALAR TYPE cfg::AllowBareDDL EXTENDING enum<AlwaysAllow, NeverAllow>;
 CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<
     TCP, TCP_PG, HTTP, SIMPLE_HTTP, HTTP_METRICS, HTTP_HEALTH>;
+CREATE SCALAR TYPE cfg::QueryCacheMode EXTENDING enum<
+    InMemory, RegInline, PgFunc, Default>;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
@@ -190,6 +192,13 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := true;
         CREATE ANNOTATION std::description :=
             'Recompile all cached queries on DDL if enabled.';
+    };
+
+    CREATE PROPERTY query_cache_mode -> cfg::QueryCacheMode {
+        SET default := cfg::QueryCacheMode.Default;
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'Where the query cache is finally stored';
     };
 
     # Exposed backend settings follow.

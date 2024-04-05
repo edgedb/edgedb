@@ -34,6 +34,7 @@ from .spec import (
     load_ext_settings_from_schema,
 )
 from .types import ConfigType, CompositeConfigType
+from .types import QueryCacheMode
 
 
 __all__ = (
@@ -47,6 +48,7 @@ __all__ = (
     'load_ext_settings_from_schema',
     'get_compilation_config',
     'coerce_single_value',
+    'QueryCacheMode',
 )
 
 
