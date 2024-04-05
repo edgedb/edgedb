@@ -11,6 +11,13 @@ your VCS. When you're done, either :ref:`merge <ref_cli_edgedb_branch_merge>`
 that branch into your main branch or :ref:`drop <ref_cli_edgedb_branch_drop>`
 it leaving your original schema intact.
 
+.. note::
+
+    The procedure we will describe should be adaptable to any VCS offering
+    branching and rebasing, but in order to make the examples concrete and
+    easy-to-follow, we'll be demonstrating how EdgeDB branches interact with
+    Git branches. You may adapt these examples to your VCS of choice.
+
 
 1. Create a new feature branch
 ------------------------------
