@@ -284,7 +284,7 @@ class Constraint(
                 qlast.Path(steps=[qlast.ObjectRef(name=subject_name)]),
             ]
 
-            args_ql.extend(arg.qlast for arg in args)
+            args_ql.extend(arg.parse() for arg in args)
 
             constr_base: Constraint = schema.get(
                 self.get_name(schema), type=type(self))
@@ -522,7 +522,7 @@ class ConstraintCommand(
 
         except_expr: s_expr.Expression | None = parent.get_except_expr(schema)
         if except_expr:
-            except_expr_ql = except_expr.qlast
+            except_expr_ql = except_expr.parse()
         else:
             except_expr_ql = None
 
@@ -791,7 +791,7 @@ class ConstraintCommand(
             )
 
         if subjectexpr is not None:
-            subject_ql = subjectexpr.qlast
+            subject_ql = subjectexpr.parse()
             subject = subject_ql
         else:
             subject = subject_obj
@@ -830,7 +830,7 @@ class ConstraintCommand(
             args_ql: List[qlast.Base] = [
                 qlast.Path(steps=[qlast.SpecialAnchor(name='__subject__')]),
             ]
-            args_ql.extend(arg.qlast for arg in args)
+            args_ql.extend(arg.parse() for arg in args)
             args_map = qlutils.index_parameters(
                 args_ql,
                 parameters=constr_base.get_params(schema),
@@ -1340,7 +1340,7 @@ class CreateConstraint(
             assert isinstance(op.new_value, s_expr.ExpressionList)
             args = []
             for arg in op.new_value:
-                exprast = arg.qlast
+                exprast = arg.parse()
                 assert isinstance(exprast, qlast.Expr), "expected qlast.Expr"
                 args.append(exprast)
             node.args = args
@@ -1562,7 +1562,7 @@ class AlterConstraint(
             assert isinstance(name, sn.QualName), "expected qualified name"
             ast = qlast.CreateConcreteConstraint(
                 name=qlast.ObjectRef(name=name.name, module=name.module),
-                subjectexpr=subjectexpr.qlast,
+                subjectexpr=subjectexpr.parse(),
                 args=[],
             )
             quals = sn.quals_from_fullname(self.classname)
@@ -1603,7 +1603,7 @@ class DeleteConstraint(
         if op.property == 'args':
             assert isinstance(op.old_value, s_expr.ExpressionList)
             assert isinstance(node, qlast.DropConcreteConstraint)
-            node.args = [arg.qlast for arg in op.old_value]
+            node.args = [arg.parse() for arg in op.old_value]
             return
 
         super()._apply_field_ast(schema, context, node, op)

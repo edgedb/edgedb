@@ -492,7 +492,7 @@ def try_bind_call_args(
                     )
                     assert param_default is not None
                     default = compile_arg(
-                        param_default.qlast, param_typemod, ctx=ctx)
+                        param_default.parse(), param_typemod, ctx=ctx)
 
                 empty_default = (
                     has_inlined_defaults or

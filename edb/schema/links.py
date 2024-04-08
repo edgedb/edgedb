@@ -397,7 +397,7 @@ class CreateLink(
                         self.get_attribute_value('expr')
                     )
                     if expr is not None:
-                        node.target = expr.qlast
+                        node.target = expr.parse()
                     else:
                         t = op.new_value
                         assert isinstance(t, (so.Object, so.ObjectShell))

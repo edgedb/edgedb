@@ -710,7 +710,7 @@ class IndexCommand(
             assert isinstance(astnode, (qlast.CreateIndex,
                                         qlast.ConcreteIndexCommand))
             astnode.kwargs = {
-                name: expr.qlast for name, expr in kwargs.items()
+                name: expr.parse() for name, expr in kwargs.items()
             }
 
         return astnode
@@ -789,13 +789,13 @@ class IndexCommand(
                     f'possibly more than one element returned by '
                     f'the index expression where only singletons '
                     f'are allowed',
-                    span=value.qlast.span,
+                    span=value.parse().span,
                 )
 
             if expr.irast.volatility != qltypes.Volatility.Immutable:
                 raise errors.SchemaDefinitionError(
                     f'index expressions must be immutable',
-                    span=value.qlast.span,
+                    span=value.parse().span,
                 )
 
             refs = irutils.get_longest_paths(expr.irast)
@@ -1000,12 +1000,12 @@ class CreateIndex(
 
         except_expr: s_expr.Expression | None = parent.get_except_expr(schema)
         if except_expr:
-            except_expr_ql = except_expr.qlast
+            except_expr_ql = except_expr.parse()
         else:
             except_expr_ql = None
 
         qlkwargs = {
-            key: val.qlast for key, val in parent.get_kwargs(schema).items()
+            key: val.parse() for key, val in parent.get_kwargs(schema).items()
         }
 
         return astnode_cls(
@@ -1332,7 +1332,7 @@ class AlterIndex(
             assert isinstance(name, sn.QualName), "expected qualified name"
             ast = qlast.CreateConcreteIndex(
                 name=qlast.ObjectRef(name=name.name, module=name.module),
-                expr=indexexpr.qlast,
+                expr=indexexpr.parse(),
             )
             quals = sn.quals_from_fullname(self.classname)
             new_name = self._classname_from_ast_and_referrer(

@@ -333,8 +333,8 @@ def _enforce_pointer_constraints(
             final_expr: Optional[s_expr.Expression] = (
                 constraint.get_finalexpr(ctx.env.schema)
             )
-            assert final_expr is not None and final_expr.qlast is not None
-            ir = dispatch.compile(final_expr.qlast, ctx=sctx)
+            assert final_expr is not None and final_expr.parse() is not None
+            ir = dispatch.compile(final_expr.parse(), ctx=sctx)
 
         result = ireval.evaluate(ir, schema=ctx.env.schema)
         assert isinstance(result, irast.BooleanConstant)

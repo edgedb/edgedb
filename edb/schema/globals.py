@@ -360,7 +360,7 @@ class CreateGlobal(
                     self.get_attribute_value('expr')
                 )
                 if expr is not None:
-                    node.target = expr.qlast
+                    node.target = expr.parse()
                 else:
                     t = op.new_value
                     assert isinstance(t, (so.Object, so.ObjectShell))
@@ -593,7 +593,7 @@ class SetGlobalType(
             case_expr = None
             if self.cast_expr:
                 assert isinstance(self.cast_expr, s_expr.Expression)
-                case_expr = self.cast_expr.qlast
+                case_expr = self.cast_expr.parse()
 
             return qlast.SetGlobalType(
                 value=set_field.value,

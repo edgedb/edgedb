@@ -485,7 +485,7 @@ class Parameter(
             type=utils.typeref_to_ast(schema, self.get_type(schema)),
             typemod=self.get_typemod(schema),
             kind=kind,
-            default=default.qlast if default else None,
+            default=default.parse() if default else None,
         )
 
 
@@ -1177,7 +1177,7 @@ class CreateCallableObject(
                 type=utils.typeref_to_ast(schema, props['type']),
                 typemod=props['typemod'],
                 kind=props['kind'],
-                default=default.qlast if default is not None else None,
+                default=default.parse() if default is not None else None,
             )
             params.append((num, param))
 
@@ -1681,7 +1681,7 @@ class FunctionCommand(
                     f'{str(spec_volatility).lower()}',
                     details=f'Actual volatility is '
                             f'{str(ir.volatility).lower()}',
-                    span=body.qlast.span,
+                    span=body.parse().span,
                 )
 
         globs = {schema.get(glob.global_name, type=s_globals.Global)
@@ -2372,7 +2372,7 @@ def get_params_symtable(
                 right=qlast.Constant.integer(0),
             ),
             if_expr=anchors[p_shortname],
-            else_expr=qlast._Optional(expr=p_default.qlast),
+            else_expr=qlast._Optional(expr=p_default.parse()),
         )
 
     return anchors
@@ -2421,7 +2421,7 @@ def compile_function(
             f'{return_type.get_verbosename(schema)}',
             details=f'Actual return type is '
                     f'{ir.stype.get_verbosename(schema)}',
-            span=body.qlast.span,
+            span=body.parse().span,
         )
 
     if (return_typemod is not ft.TypeModifier.SetOfType
@@ -2432,7 +2432,7 @@ def compile_function(
             details=(
                 f'Function may return a set with more than one element.'
             ),
-            span=body.qlast.span,
+            span=body.parse().span,
         )
     elif (return_typemod is ft.TypeModifier.SingletonType
             and ir.cardinality.can_be_zero()):
@@ -2442,7 +2442,7 @@ def compile_function(
             details=(
                 f'Function may return an empty set.'
             ),
-            span=body.qlast.span,
+            span=body.parse().span,
         )
 
     return compiled

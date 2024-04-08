@@ -2079,7 +2079,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
         # say as_fragment=True as a hack to avoid renormalizing it
         out = s_expr.Expression.from_ast(
-            compiled.qlast, schema, modaliases={}, as_fragment=True)
+            compiled.parse(), schema, modaliases={}, as_fragment=True)
         return out
 
     def _propagate_if_expr_refs(
@@ -2438,14 +2438,14 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     attr_val: Any
                     if issubclass(field.type, s_expr.Expression):
                         assert isinstance(ddl_id, s_expr.Expression)
-                        attr_val = ddl_id.qlast
+                        attr_val = ddl_id.parse()
                     elif issubclass(field.type, s_expr.ExpressionList):
                         assert isinstance(ddl_id, s_expr.ExpressionList)
-                        attr_val = [e.qlast for e in ddl_id]
+                        attr_val = [e.parse() for e in ddl_id]
                     elif issubclass(field.type, s_expr.ExpressionDict):
                         assert isinstance(ddl_id, s_expr.ExpressionDict)
                         attr_val = {
-                            name: e.qlast
+                            name: e.parse()
                             for name, e in ddl_id.items()
                         }
                     else:

@@ -62,10 +62,10 @@ def _get_needed_ptrs(
             constr.get_subjectexpr(ctx.env.schema)
         )
         assert subjexpr
-        needed_ptrs |= qlutils.find_subject_ptrs(subjexpr.qlast)
+        needed_ptrs |= qlutils.find_subject_ptrs(subjexpr.parse())
         if except_expr := constr.get_except_expr(ctx.env.schema):
             assert isinstance(except_expr, s_expr.Expression)
-            needed_ptrs |= qlutils.find_subject_ptrs(except_expr.qlast)
+            needed_ptrs |= qlutils.find_subject_ptrs(except_expr.parse())
 
     wl = list(needed_ptrs)
     ptr_anchors = {}
@@ -73,9 +73,9 @@ def _get_needed_ptrs(
         p = wl.pop()
         ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
         if expr := ptr.get_expr(ctx.env.schema):
-            assert isinstance(expr.qlast, qlast.Expr)
-            ptr_anchors[p] = expr.qlast
-            for ref in qlutils.find_subject_ptrs(expr.qlast):
+            assert isinstance(expr.parse(), qlast.Expr)
+            ptr_anchors[p] = expr.parse()
+            for ref in qlutils.find_subject_ptrs(expr.parse()):
                 if ref not in needed_ptrs:
                     wl.append(ref)
                     needed_ptrs.add(ref)
@@ -213,9 +213,9 @@ def _compile_conflict_select_for_obj_type(
             # for __subject__ in the subjectexpr and compare *that*
             if (subjectexpr := cnstr.get_subjectexpr(ctx.env.schema)):
                 assert isinstance(subjectexpr, s_expr.Expression)
-                assert isinstance(subjectexpr.qlast, qlast.Expr)
-                lhs = qlutils.subject_substitute(subjectexpr.qlast, lhs)
-                rhs = qlutils.subject_substitute(subjectexpr.qlast, rhs)
+                assert isinstance(subjectexpr.parse(), qlast.Expr)
+                lhs = qlutils.subject_substitute(subjectexpr.parse(), lhs)
+                rhs = qlutils.subject_substitute(subjectexpr.parse(), rhs)
 
             conds.append(qlast.BinOp(
                 op='=' if ptr_card.is_single() else 'IN',
@@ -241,9 +241,13 @@ def _compile_conflict_select_for_obj_type(
         subject_expr: Optional[s_expr.Expression] = (
             constr.get_subjectexpr(ctx.env.schema)
         )
-        assert subject_expr and isinstance(subject_expr.qlast, qlast.Expr)
-        lhs = qlutils.subject_paths_substitute(subject_expr.qlast, ptr_anchors)
-        rhs = qlutils.subject_substitute(subject_expr.qlast, insert_subject)
+        assert subject_expr and isinstance(subject_expr.parse(), qlast.Expr)
+        lhs = qlutils.subject_paths_substitute(
+            subject_expr.parse(), ptr_anchors
+        )
+        rhs = qlutils.subject_substitute(
+            subject_expr.parse(), insert_subject
+        )
         op = qlast.BinOp(op='=', left=lhs, right=rhs)
 
         # If there is an except expr, we need to add in those checks also
@@ -251,9 +255,9 @@ def _compile_conflict_select_for_obj_type(
             assert isinstance(except_expr, s_expr.Expression)
 
             e_lhs = qlutils.subject_paths_substitute(
-                except_expr.qlast, ptr_anchors)
+                except_expr.parse(), ptr_anchors)
             e_rhs = qlutils.subject_substitute(
-                except_expr.qlast, insert_subject)
+                except_expr.parse(), insert_subject)
 
             true_ast = qlast.Constant.boolean(True)
             on = qlast.BinOp(

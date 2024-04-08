@@ -773,7 +773,7 @@ def _declare_view_from_schema(
         subctx.expr_exposed = context.Exposure.UNEXPOSED
         view_expr: s_expr.Expression | None = viewcls.get_expr(ctx.env.schema)
         assert view_expr is not None
-        view_ql = view_expr.qlast
+        view_ql = view_expr.parse()
         viewcls_name = viewcls.get_name(ctx.env.schema)
         assert isinstance(view_ql, qlast.Expr), 'expected qlast.Expr'
         view_set = declare_view(view_ql, alias=viewcls_name,

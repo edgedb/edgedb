@@ -1198,7 +1198,7 @@ class PointerCommandOrFragment(
             schema = s_types.materialize_type_in_attribute(
                 schema, context, self, 'target')
             schema, inf_target_ref = self._parse_computable(
-                expr.qlast, schema, context)
+                expr.parse(), schema, context)
         else:
             inf_target_ref = None
 
@@ -1496,7 +1496,7 @@ class PointerCommandOrFragment(
             else:
                 singletons.append(self.scls)
 
-        with errors.ensure_span(span or expr.qlast.span):
+        with errors.ensure_span(span or expr.parse().span):
             options = qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
                 schema_object_context=self.get_schema_metaclass(),
@@ -2597,7 +2597,7 @@ class SetPointerType(
             return qlast.SetPointerType(
                 value=set_field.value,
                 cast_expr=(
-                    self.cast_expr.qlast
+                    self.cast_expr.parse()
                     if self.cast_expr is not None else None
                 )
             )
@@ -2861,7 +2861,7 @@ class AlterPointerUpperCardinality(
             return qlast.SetPointerCardinality(
                 value=set_field.value,
                 conv_expr=(
-                    self.conv_expr.qlast
+                    self.conv_expr.parse()
                     if self.conv_expr is not None else None
                 )
             )
@@ -3086,7 +3086,7 @@ class AlterPointerLowerCardinality(
             return qlast.SetPointerOptionality(
                 value=value,
                 fill_expr=(
-                    self.fill_expr.qlast
+                    self.fill_expr.parse()
                     if self.fill_expr is not None else None
                 )
             )

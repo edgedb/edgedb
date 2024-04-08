@@ -221,7 +221,7 @@ class AliasLikeCommand(
                 pschema = drop_old_types_cmd.apply(pschema, context)
 
         ir = compile_alias_expr(
-            expr.qlast,
+            expr.parse(),
             classname,
             pschema,
             context,

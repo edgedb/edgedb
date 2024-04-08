@@ -102,7 +102,7 @@ def compile_trigger(
 
         trigger_expr: Optional[s_expr.Expression] = trigger.get_expr(schema)
         assert trigger_expr
-        trigger_ast = trigger_expr.qlast
+        trigger_ast = trigger_expr.parse()
 
         # A conditional trigger desugars to a FOR query that puts the
         # condition in the FILTER of a trivial SELECT.
@@ -112,7 +112,7 @@ def compile_trigger(
                 iterator_alias='__',
                 iterator=qlast.SelectQuery(
                     result=qlast.Tuple(elements=[]),
-                    where=condition.qlast,
+                    where=condition.parse(),
                 ),
                 result=trigger_ast,
             )
