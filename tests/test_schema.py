@@ -2001,7 +2001,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
         obj = schema.get('test::Foo')
         asdf = obj.getptr(schema, s_name.UnqualName('asdf'))
-        expr_ast = asdf.get_expr(schema).qlast
+        expr_ast = asdf.get_expr(schema).parse()
         self.assertEqual(
             expr_ast.span.name,
             f'<{asdf.id} expr>'
@@ -2013,7 +2013,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """)
         x = obj.getptr(schema, s_name.UnqualName('x'))
-        default_ast = x.get_default(schema).qlast
+        default_ast = x.get_default(schema).parse()
         self.assertEqual(
             default_ast.span.name,
             f'<{x.id} default>'
