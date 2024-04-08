@@ -1946,7 +1946,7 @@ class PointerCommand(
                 assert handler is not None
                 set_field = qlast.SetField(
                     name='cardinality',
-                    value=qlast.StringConstant.from_python(
+                    value=qlast.Constant.string(
                         str(astnode.cardinality),
                     ),
                     special_syntax=True,

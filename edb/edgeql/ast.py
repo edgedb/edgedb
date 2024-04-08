@@ -23,6 +23,7 @@ from __future__ import annotations
 # AST classes that name-clash with classes from the typing module.
 
 import typing
+import enum
 
 from edb.common import enum as s_enum
 from edb.common import ast, span
@@ -237,41 +238,39 @@ class FunctionCall(Expr):
 
 
 class BaseConstant(Expr):
+    """Constant (a literal value)."""
     __abstract_node__ = True
+
+
+class Constant(BaseConstant):
+    """Constant whose value we can store in a string."""
+    kind: ConstantKind
     value: str
 
-
-class StringConstant(BaseConstant):
     @classmethod
-    def from_python(cls, s: str) -> StringConstant:
-        return StringConstant(value=s)
+    def string(cls, value: str) -> Constant:
+        return Constant(kind=ConstantKind.STRING, value=value)
 
-
-class IntegerConstant(BaseConstant):
-    pass
-
-
-class FloatConstant(BaseConstant):
-    pass
-
-
-class BigintConstant(BaseConstant):
-    pass
-
-
-class DecimalConstant(BaseConstant):
-    pass
-
-
-class BooleanConstant(BaseConstant):
     @classmethod
-    def from_python(cls, b: bool) -> BooleanConstant:
-        return BooleanConstant(value=str(b).lower())
+    def boolean(cls, b: bool) -> Constant:
+        return Constant(kind=ConstantKind.BOOLEAN, value=str(b).lower())
+
+    @classmethod
+    def integer(cls, i: int) -> Constant:
+        return Constant(kind=ConstantKind.INTEGER, value=str(i))
+
+
+class ConstantKind(enum.IntEnum):
+    STRING = 0
+    BOOLEAN = 1
+    INTEGER = 2
+    FLOAT = 3
+    BIGINT = 4
+    DECIMAL = 5
 
 
 class BytesConstant(BaseConstant):
-    # This should really just be str to match, though
-    value: bytes  # type: ignore[assignment]
+    value: bytes
 
     @classmethod
     def from_python(cls, s: bytes) -> BytesConstant:
@@ -299,7 +298,7 @@ class TypeOf(TypeExpr):
 
 class TypeExprLiteral(TypeExpr):
     # Literal type exprs are used in enum declarations.
-    val: BaseConstant
+    val: Constant
 
 
 class TypeName(TypeExpr):
@@ -887,7 +886,7 @@ class ExtensionPackageCommand(GlobalObjectCommand):
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.EXTENSION_PACKAGE
     )
-    version: StringConstant
+    version: Constant
 
 
 class CreateExtensionPackage(CreateObject, ExtensionPackageCommand):
@@ -906,7 +905,7 @@ class ExtensionCommand(UnqualifiedObjectCommand):
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.EXTENSION
     )
-    version: typing.Optional[StringConstant] = None
+    version: typing.Optional[Constant] = None
 
 
 class CreateExtension(CreateObject, ExtensionCommand):

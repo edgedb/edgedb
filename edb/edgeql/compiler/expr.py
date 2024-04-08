@@ -198,49 +198,61 @@ def compile_Set(expr: qlast.Set, *, ctx: context.ContextLevel) -> irast.Set:
         )
 
 
-@dispatch.compile.register(qlast.BaseConstant)
-def compile_BaseConstant(
-    expr: qlast.BaseConstant, *, ctx: context.ContextLevel
+@dispatch.compile.register(qlast.Constant)
+def compile_Constant(
+    expr: qlast.Constant, *, ctx: context.ContextLevel
 ) -> irast.Set:
     value = expr.value
 
     node_cls: Type[irast.BaseConstant]
 
-    if isinstance(expr, qlast.StringConstant):
+    if expr.kind == qlast.ConstantKind.STRING:
         std_type = sn.QualName('std', 'str')
         node_cls = irast.StringConstant
-    elif isinstance(expr, qlast.IntegerConstant):
+    elif expr.kind == qlast.ConstantKind.INTEGER:
         value = value.replace("_", "")
         std_type = sn.QualName('std', 'int64')
         node_cls = irast.IntegerConstant
-    elif isinstance(expr, qlast.FloatConstant):
+    elif expr.kind == qlast.ConstantKind.FLOAT:
         value = value.replace("_", "")
         std_type = sn.QualName('std', 'float64')
         node_cls = irast.FloatConstant
-    elif isinstance(expr, qlast.DecimalConstant):
+    elif expr.kind == qlast.ConstantKind.DECIMAL:
         assert value[-1] == 'n'
         value = value[:-1].replace("_", "")
         std_type = sn.QualName('std', 'decimal')
         node_cls = irast.DecimalConstant
-    elif isinstance(expr, qlast.BigintConstant):
+    elif expr.kind == qlast.ConstantKind.BIGINT:
         assert value[-1] == 'n'
         value = value[:-1].replace("_", "")
         std_type = sn.QualName('std', 'bigint')
         node_cls = irast.BigintConstant
-    elif isinstance(expr, qlast.BooleanConstant):
+    elif expr.kind == qlast.ConstantKind.BOOLEAN:
         std_type = sn.QualName('std', 'bool')
         node_cls = irast.BooleanConstant
-    elif isinstance(expr, qlast.BytesConstant):
-        std_type = sn.QualName('std', 'bytes')
-        node_cls = irast.BytesConstant
     else:
-        raise RuntimeError(f'unexpected constant type: {type(expr)}')
+        raise RuntimeError(f'unexpected constant type: {expr.kind}')
 
     ct = typegen.type_to_typeref(
         ctx.env.get_schema_type_and_track(std_type),
         env=ctx.env,
     )
     return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
+
+
+@dispatch.compile.register(qlast.BytesConstant)
+def compile_BytesConstant(
+    expr: qlast.BytesConstant, *, ctx: context.ContextLevel
+) -> irast.Set:
+    std_type = sn.QualName('std', 'bytes')
+
+    ct = typegen.type_to_typeref(
+        ctx.env.get_schema_type_and_track(std_type),
+        env=ctx.env,
+    )
+    return setgen.ensure_set(
+        irast.BytesConstant(value=expr.value, typeref=ct), ctx=ctx
+    )
 
 
 @dispatch.compile.register(qlast.NamedTuple)

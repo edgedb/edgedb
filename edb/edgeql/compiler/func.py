@@ -902,7 +902,7 @@ def finalize_args(
                 and not ctx.inhibit_implicit_limit
             ):
                 arg.expr.limit = dispatch.compile(
-                    qlast.IntegerConstant(value=str(ctx.implicit_limit)),
+                    qlast.Constant.integer(ctx.implicit_limit),
                     ctx=ctx,
                 )
 

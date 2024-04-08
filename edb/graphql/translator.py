@@ -304,7 +304,7 @@ class GraphQLTranslator:
                         raise err
 
                 name = el.expr.steps[0].name
-                el.compexpr.args[0] = qlast.StringConstant.from_python(
+                el.compexpr.args[0] = qlast.Constant.string(
                     json.dumps(result.data[name]))
                 for var in vars.touched:
                     operation.critvars[var] = self._context.vars[var].val
@@ -862,9 +862,9 @@ class GraphQLTranslator:
 
         # convert integers into qlast literals
         if offset is not None and not isinstance(offset, qlast.Base):
-            offset = qlast.IntegerConstant(value=str(max(0, offset)))
+            offset = qlast.Constant.integer(max(0, offset))
         if limit is not None:
-            limit = qlast.IntegerConstant(value=str(max(0, limit)))
+            limit = qlast.Constant.integer(max(0, limit))
 
         return offset, limit
 
@@ -878,7 +878,7 @@ class GraphQLTranslator:
                 expr=value
             )
         else:
-            return qlast.IntegerConstant(value=str(value))
+            return qlast.Constant.integer(value)
 
     def _get_general_offset_limit(self, after, before, first, last):
         # Convert any static values to corresponding qlast and
@@ -900,7 +900,7 @@ class GraphQLTranslator:
             offset = qlast.BinOp(
                 left=after,
                 op='+',
-                right=qlast.IntegerConstant(value='1')
+                right=qlast.Constant.integer('1')
             )
 
         if before is not None:
@@ -1187,7 +1187,7 @@ class GraphQLTranslator:
                         func='assert_distinct',
                         args=[compexpr],
                         kwargs={
-                            'message': qlast.StringConstant.from_python(msg)
+                            'message': qlast.Constant.string(msg)
                         }
                     )
                 else:
@@ -1197,7 +1197,7 @@ class GraphQLTranslator:
                         func='assert_single',
                         args=[compexpr],
                         kwargs={
-                            'message': qlast.StringConstant.from_python(msg)
+                            'message': qlast.Constant.string(msg)
                         }
                     )
 
@@ -1735,26 +1735,30 @@ class GraphQLTranslator:
         )
 
     def visit_StringValueNode(self, node):
-        return qlast.StringConstant.from_python(node.value)
+        return qlast.Constant.string(node.value)
 
     def visit_IntValueNode(self, node):
         # produces an int64 or bigint
         val = int(node.value)
         if s_utils.MIN_INT64 <= val <= s_utils.MAX_INT64:
-            return qlast.IntegerConstant(value=str(val))
+            return qlast.Constant.integer(val)
         else:
-            return qlast.BigintConstant(value=f'{val}n')
+            return qlast.Constant(
+                value=f'{val}n', kind=qlast.ConstantKind.BIGINT
+            )
 
     def visit_FloatValueNode(self, node):
         # Treat all Float as Decimal by default and downcast as necessary
-        return qlast.DecimalConstant(value=f'{node.value}n')
+        return qlast.Constant(
+            value=f'{node.value}n', kind=qlast.ConstantKind.DECIMAL
+        )
 
     def visit_BooleanValueNode(self, node):
         value = 'true' if node.value else 'false'
-        return qlast.BooleanConstant(value=value)
+        return qlast.Constant.boolean(value)
 
     def visit_EnumValueNode(self, node):
-        return qlast.StringConstant.from_python(node.value)
+        return qlast.Constant.string(node.value)
 
     def _visit_list_of_inputs(self, inputlist, op):
         if not isinstance(inputlist, gql_ast.ListValueNode):

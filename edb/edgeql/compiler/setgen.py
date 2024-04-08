@@ -1570,7 +1570,7 @@ def computable_ptr_set(
                 # the assert_exists.
                 # TODO: do something less bad
                 arg = qlast.SelectQuery(
-                    result=path, where=qlast.BooleanConstant(value='true'))
+                    result=path, where=qlast.Constant.boolean(True))
                 vname = ptrcls.get_verbosename(
                     ctx.env.schema, with_parent=True)
                 msg = f'required {vname} is hidden by access policy'
@@ -1583,7 +1583,7 @@ def computable_ptr_set(
                 schema_qlexpr = qlast.FunctionCall(
                     func=('__std__', 'assert_exists'),
                     args=[arg],
-                    kwargs={'message': qlast.StringConstant(value=msg)},
+                    kwargs={'message': qlast.Constant.string(value=msg)},
                 )
 
             # Is this is a view, we want to shadow the underlying
@@ -2071,7 +2071,7 @@ def get_func_global_param_sets(
             func=('__std__', 'json_get'),
             args=[
                 subctx.create_anchor(glob_set, 'a'),
-                qlast.StringConstant(value=str(name)),
+                qlast.Constant.string(value=str(name)),
             ],
         )
 
@@ -2127,7 +2127,7 @@ def get_globals_as_json(
 
     null_expr = qlast.FunctionCall(
         func=('__std__', 'to_json'),
-        args=[qlast.StringConstant(value="null")],
+        args=[qlast.Constant.string(value="null")],
     )
 
     with ctx.new() as subctx:
@@ -2174,7 +2174,7 @@ def get_globals_as_json(
                     if_expr=tup,
                     else_expr=qlast.FunctionCall(
                         func=('__std__', 'to_json'),
-                        args=[qlast.StringConstant(value="{}")],
+                        args=[qlast.Constant.string(value="{}")],
                     )
                 ))
 
@@ -2188,7 +2188,7 @@ def get_globals_as_json(
         ) and not is_constraint_like:
             full_objs.append(qlast.FunctionCall(
                 func=('__std__', 'to_json'),
-                args=[qlast.StringConstant(
+                args=[qlast.Constant.string(
                     value='{"__disable_access_policies": true}'
                 )],
             ))

@@ -568,7 +568,7 @@ def apply_sdl(
                 process_ext(
                     qlast.CreateExtension(
                         name=qlast.ObjectRef(name=dep),
-                        version=qlast.StringConstant(value=dep_version),
+                        version=qlast.Constant.string(value=dep_version),
                     )
                 )
 

@@ -131,7 +131,7 @@ def compile_pol(
     if expr_field:
         expr = expr_field.qlast
     else:
-        expr = qlast.BooleanConstant(value='true')
+        expr = qlast.Constant.boolean(True)
 
     if condition := pol.get_condition(schema):
         expr = qlast.BinOp(op='AND', left=condition.qlast, right=expr)
@@ -167,11 +167,11 @@ def get_extra_function_rewrite_filter(ctx: context.ContextLevel) -> qlast.Expr:
         func=('__std__', 'json_get'),
         args=[
             ctx.create_anchor(glob_set, 'a'),
-            qlast.StringConstant(value="__disable_access_policies"),
+            qlast.Constant.string(value="__disable_access_policies"),
         ],
         kwargs={
             'default': qlast.TypeCast(
-                expr=qlast.BooleanConstant(value="false"),
+                expr=qlast.Constant.boolean(False),
                 type=json_type,
             )
         },
@@ -216,7 +216,7 @@ def get_rewrite_filter(
     if allow:
         filter_expr = astutils.extend_binop(None, *allow, op='OR')
     else:
-        filter_expr = qlast.BooleanConstant(value='false')
+        filter_expr = qlast.Constant.boolean(False)
 
     if deny:
         deny_expr = qlast.UnaryOp(

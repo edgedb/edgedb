@@ -102,7 +102,7 @@ def compile_ConfigSet(
     else:
         if isinstance(val, statypes.ScalarType) and info.backend_setting:
             backend_expr = dispatch.compile(
-                qlast.StringConstant.from_python(val.to_backend_str()),
+                qlast.Constant.string(val.to_backend_str()),
                 ctx=ctx,
             )
         else:

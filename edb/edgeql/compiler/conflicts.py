@@ -246,7 +246,7 @@ def _compile_conflict_select_for_obj_type(
             e_rhs = qlutils.subject_substitute(
                 except_expr.qlast, insert_subject)
 
-            true_ast = qlast.BooleanConstant(value='true')
+            true_ast = qlast.Constant.boolean(True)
             on = qlast.BinOp(
                 op='AND',
                 left=qlast.BinOp(op='?!=', left=e_lhs, right=true_ast),

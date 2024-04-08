@@ -1452,9 +1452,7 @@ def _normalize_view_ptr_expr(
                 and not base_is_singleton
             ):
                 qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
-                qlexpr.limit = qlast.IntegerConstant(
-                    value=str(ctx.implicit_limit),
-                )
+                qlexpr.limit = qlast.Constant.integer(ctx.implicit_limit)
 
         if target_typexpr is not None:
             assert isinstance(target_typexpr, qlast.TypeName)
@@ -1580,7 +1578,7 @@ def _normalize_view_ptr_expr(
             and not qlexpr.limit
         ):
             qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
-            qlexpr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
+            qlexpr.limit = qlast.Constant.integer(ctx.implicit_limit)
 
         irexpr, sub_view_rptr = _compile_qlexpr(
             ir_source,
