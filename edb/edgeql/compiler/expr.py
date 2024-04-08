@@ -132,10 +132,9 @@ def compile_BinOp(expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
     if expr.op == '??' and utils.contains_dml(expr.right):
         return _compile_dml_coalesce(expr, ctx=ctx)
 
-    op_node = func.compile_operator(
-        expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
-
-    return op_node
+    return func.compile_operator(
+        expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx
+    )
 
 
 @dispatch.compile.register(qlast.IsOp)
@@ -182,7 +181,8 @@ def compile_Set(expr: qlast.Set, *, ctx: context.ContextLevel) -> irast.Set:
             bigunion = _balance(
                 elements,
                 lambda l, r, s: qlast.BinOp(
-                    left=l, op='UNION', right=r, rebalanced=True, span=s
+                    left=l, op='UNION', right=r,
+                    rebalanced=True, set_constructor=True, span=s
                 ),
                 expr.span
             )

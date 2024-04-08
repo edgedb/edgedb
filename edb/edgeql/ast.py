@@ -222,7 +222,9 @@ class BinOp(Expr):
     left: Expr
     op: str
     right: Expr
+
     rebalanced: bool = False
+    set_constructor: bool = False
 
 
 class WindowSpec(Base):
@@ -465,7 +467,7 @@ class ShapeOrigin(s_enum.StrEnum):
     MATERIALIZATION = 'MATERIALIZATION'
 
 
-class ShapeElement(Base):
+class ShapeElement(Expr):
     expr: Path
     elements: typing.Optional[typing.List[ShapeElement]] = None
     compexpr: typing.Optional[Expr] = None

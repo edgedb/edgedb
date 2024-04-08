@@ -352,7 +352,7 @@ def _special_case(name: str) -> Callable[[_SpecialCaseFunc], _SpecialCaseFunc]:
 
 
 def compile_operator(
-    qlexpr: qlast.Base,
+    qlexpr: qlast.Expr,
     op_name: str,
     qlargs: List[qlast.Expr],
     *,
@@ -541,7 +541,7 @@ def compile_operator(
                 ):
                     hint = 'Consider using the "++" operator for concatenation'
 
-            if isinstance(qlexpr, qlast.BinOp) and qlexpr.op == 'UNION':
+            if isinstance(qlexpr, qlast.BinOp) and qlexpr.set_constructor:
                 msg = (
                     f'set constructor has arguments of incompatible types '
                     f'{types}'
