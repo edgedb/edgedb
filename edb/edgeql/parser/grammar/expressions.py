@@ -1145,10 +1145,10 @@ class BaseAtomicExpr(Nonterm):
         pass
 
     def reduce_DUNDERSOURCE(self, *kids):
-        self.val = qlast.Path(steps=[qlast.Source()])
+        self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__source__')])
 
     def reduce_DUNDERSUBJECT(self, *kids):
-        self.val = qlast.Path(steps=[qlast.Subject()])
+        self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__subject__')])
 
     def reduce_DUNDERNEW(self, *kids):
         self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__new__')])
@@ -1265,11 +1265,13 @@ class Expr(Nonterm):
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_MINUS_Expr(self, *kids):
         arg = kids[1].val
-        if isinstance(arg, qlast.BaseRealConstant):
-            # Special case for -<real_const> so that type inference based
-            # on literal size works correctly in the case of INT_MIN and
-            # friends.
-            self.val = type(arg)(value=arg.value, is_negative=True)
+        if isinstance(arg, qlast.Constant) and arg.kind in {
+            qlast.ConstantKind.INTEGER,
+            qlast.ConstantKind.FLOAT,
+            qlast.ConstantKind.BIGINT,
+            qlast.ConstantKind.DECIMAL,
+        }:
+            self.val = type(arg)(value=f'-{arg.value}', kind=arg.kind)
         else:
             self.val = qlast.UnaryOp(op=kids[0].val, operand=arg)
 
@@ -1564,22 +1566,30 @@ class Constant(Nonterm):
 
 class BaseNumberConstant(Nonterm):
     def reduce_ICONST(self, *kids):
-        self.val = qlast.IntegerConstant(value=kids[0].val)
+        self.val = qlast.Constant(
+            value=kids[0].val, kind=qlast.ConstantKind.INTEGER
+        )
 
     def reduce_FCONST(self, *kids):
-        self.val = qlast.FloatConstant(value=kids[0].val)
+        self.val = qlast.Constant(
+            value=kids[0].val, kind=qlast.ConstantKind.FLOAT
+        )
 
     def reduce_NICONST(self, *kids):
-        self.val = qlast.BigintConstant(value=kids[0].val)
+        self.val = qlast.Constant(
+            value=kids[0].val, kind=qlast.ConstantKind.BIGINT
+        )
 
     def reduce_NFCONST(self, *kids):
-        self.val = qlast.DecimalConstant(value=kids[0].val)
+        self.val = qlast.Constant(
+            value=kids[0].val, kind=qlast.ConstantKind.DECIMAL
+        )
 
 
 class BaseStringConstant(Nonterm):
 
     def reduce_SCONST(self, token):
-        self.val = qlast.StringConstant(value=token.clean_value)
+        self.val = qlast.Constant.string(value=token.clean_value)
 
 
 class BaseBytesConstant(Nonterm):
@@ -1590,10 +1600,10 @@ class BaseBytesConstant(Nonterm):
 
 class BaseBooleanConstant(Nonterm):
     def reduce_TRUE(self, *kids):
-        self.val = qlast.BooleanConstant(value='true')
+        self.val = qlast.Constant.boolean(True)
 
     def reduce_FALSE(self, *kids):
-        self.val = qlast.BooleanConstant(value='false')
+        self.val = qlast.Constant.boolean(False)
 
 
 def ensure_path(expr):

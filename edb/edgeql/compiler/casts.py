@@ -641,7 +641,7 @@ def _cast_json_to_tuple(
                 where=qlast.BinOp(
                     left=check,
                     op='!=',
-                    right=qlast.StringConstant(value='null'),
+                    right=qlast.Constant.string('null'),
                 )
             )
             filtered_ir = dispatch.compile(filtered, ctx=subctx)
@@ -655,7 +655,7 @@ def _cast_json_to_tuple(
                 func=('__std__', 'json_get'),
                 args=[
                     source_path,
-                    qlast.StringConstant(value=new_el_name),
+                    qlast.Constant.string(new_el_name),
                 ],
             )
 
@@ -941,7 +941,7 @@ def _cast_json_to_range(
                         func=('__std__', 'json_get'),
                         args=[
                             source_path,
-                            qlast.StringConstant(value='lower'),
+                            qlast.Constant.string('lower'),
                         ],
                     ),
                     type=ql_range_el_t,
@@ -951,7 +951,7 @@ def _cast_json_to_range(
                         func=('__std__', 'json_get'),
                         args=[
                             source_path,
-                            qlast.StringConstant(value='upper'),
+                            qlast.Constant.string('upper'),
                         ],
                     ),
                     type=ql_range_el_t,
@@ -969,12 +969,12 @@ def _cast_json_to_range(
                         func=('__std__', 'json_get'),
                         args=[
                             source_path,
-                            qlast.StringConstant(value='inc_lower'),
+                            qlast.Constant.string('inc_lower'),
                         ],
                         kwargs={
                             'default': qlast.FunctionCall(
                                 func=('__std__', 'to_json'),
-                                args=[qlast.StringConstant(value="true")],
+                                args=[qlast.Constant.string("true")],
                             ),
                         },
                     ),
@@ -985,12 +985,12 @@ def _cast_json_to_range(
                         func=('__std__', 'json_get'),
                         args=[
                             source_path,
-                            qlast.StringConstant(value='inc_upper'),
+                            qlast.Constant.string('inc_upper'),
                         ],
                         kwargs={
                             'default': qlast.FunctionCall(
                                 func=('__std__', 'to_json'),
-                                args=[qlast.StringConstant(value="false")],
+                                args=[qlast.Constant.string("false")],
                             ),
                         },
                     ),
@@ -1001,12 +1001,12 @@ def _cast_json_to_range(
                         func=('__std__', 'json_get'),
                         args=[
                             source_path,
-                            qlast.StringConstant(value='empty'),
+                            qlast.Constant.string('empty'),
                         ],
                         kwargs={
                             'default': qlast.FunctionCall(
                                 func=('__std__', 'to_json'),
-                                args=[qlast.StringConstant(value="false")],
+                                args=[qlast.Constant.string("false")],
                             ),
                         },
                     ),
@@ -1303,7 +1303,7 @@ def _find_object_by_id(
         )
 
         error_message = qlast.BinOp(
-            left=qlast.StringConstant(
+            left=qlast.Constant.string(
                 value=(
                     repr(new_stype.get_displayname(ctx.env.schema))
                     + ' with id \''
@@ -1316,7 +1316,7 @@ def _find_object_by_id(
                     type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
                 ),
                 op='++',
-                right=qlast.StringConstant(value='\' does not exist'),
+                right=qlast.Constant.string('\' does not exist'),
             ),
         )
 

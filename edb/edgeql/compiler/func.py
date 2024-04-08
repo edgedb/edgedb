@@ -370,7 +370,7 @@ def _special_case(name: str) -> Callable[[_SpecialCaseFunc], _SpecialCaseFunc]:
 
 
 def compile_operator(
-    qlexpr: qlast.Base,
+    qlexpr: qlast.Expr,
     op_name: str,
     qlargs: List[qlast.Expr],
     *,
@@ -559,7 +559,7 @@ def compile_operator(
                 ):
                     hint = 'Consider using the "++" operator for concatenation'
 
-            if isinstance(qlexpr, qlast.SetConstructorOp):
+            if isinstance(qlexpr, qlast.BinOp) and qlexpr.set_constructor:
                 msg = (
                     f'set constructor has arguments of incompatible types '
                     f'{types}'
@@ -920,7 +920,7 @@ def finalize_args(
                 and not ctx.inhibit_implicit_limit
             ):
                 arg.expr.limit = dispatch.compile(
-                    qlast.IntegerConstant(value=str(ctx.implicit_limit)),
+                    qlast.Constant.integer(ctx.implicit_limit),
                     ctx=ctx,
                 )
 

@@ -153,7 +153,7 @@ def find_subject_ptrs(ast: qlast.Base) -> Set[str]:
     for path in find_paths(ast):
         if path.partial:
             p = path.steps[0]
-        elif isinstance(path.steps[0], qlast.Subject) and len(path.steps) > 1:
+        elif is_anchor(path.steps[0], '__subject__') and len(path.steps) > 1:
             p = path.steps[1]
         else:
             continue
@@ -161,6 +161,10 @@ def find_subject_ptrs(ast: qlast.Base) -> Set[str]:
         if isinstance(p, qlast.Ptr):
             ptrs.add(p.name)
     return ptrs
+
+
+def is_anchor(expr: qlast.PathElement, name: str):
+    return isinstance(expr, qlast.Anchor) and expr.name == name
 
 
 def subject_paths_substitute(
@@ -175,7 +179,7 @@ def subject_paths_substitute(
                 subject_ptrs,
             )
         elif (
-            isinstance(path.steps[0], qlast.Subject)
+            is_anchor(path.steps[0], '__subject__')
             and len(path.steps)
             and isinstance(path.steps[1], qlast.Ptr)
         ):
@@ -191,7 +195,7 @@ def subject_substitute(
 ) -> qlast.Base_T:
     ast = copy.deepcopy(ast)
     for path in find_paths(ast):
-        if isinstance(path.steps[0], qlast.Subject):
+        if is_anchor(path.steps[0], '__subject__'):
             path.steps[0] = new_subject
     return ast
 

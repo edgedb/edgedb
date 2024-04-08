@@ -1499,9 +1499,9 @@ class PointerCommandOrFragment(
             options = qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
                 schema_object_context=self.get_schema_metaclass(),
-                anchors={qlast.Source().name: source},
+                anchors={'__source__': source},
                 path_prefix_anchor=(
-                    qlast.Source().name
+                    '__source__'
                     if should_set_path_prefix_anchor
                     else None),
                 singletons=singletons,
@@ -1946,7 +1946,7 @@ class PointerCommand(
                 assert handler is not None
                 set_field = qlast.SetField(
                     name='cardinality',
-                    value=qlast.StringConstant.from_python(
+                    value=qlast.Constant.string(
                         str(astnode.cardinality),
                     ),
                     special_syntax=True,
@@ -2224,8 +2224,8 @@ class AlterPointer(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
-                anchors={qlast.Source().name: source},
-                path_prefix_anchor=qlast.Source().name,
+                anchors={'__source__': source},
+                path_prefix_anchor='__source__',
                 singletons=frozenset([source]),
                 apply_query_rewrites=not context.stdmode,
             ),

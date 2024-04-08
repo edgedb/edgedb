@@ -1452,9 +1452,7 @@ def _normalize_view_ptr_expr(
                 and not base_is_singleton
             ):
                 qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
-                qlexpr.limit = qlast.IntegerConstant(
-                    value=str(ctx.implicit_limit),
-                )
+                qlexpr.limit = qlast.Constant.integer(ctx.implicit_limit)
 
         if target_typexpr is not None:
             assert isinstance(target_typexpr, qlast.TypeName)
@@ -1574,11 +1572,13 @@ def _normalize_view_ptr_expr(
         if (
             (ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
             and ctx.implicit_limit
-            and isinstance(qlexpr, (qlast.PipelinedQuery, qlast.ShapeElement))
+            and isinstance(qlexpr, (
+                qlast.SelectQuery, qlast.DeleteQuery, qlast.ShapeElement
+            ))
             and not qlexpr.limit
         ):
             qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
-            qlexpr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
+            qlexpr.limit = qlast.Constant.integer(ctx.implicit_limit)
 
         irexpr, sub_view_rptr = _compile_qlexpr(
             ir_source,
@@ -2142,7 +2142,7 @@ def _inline_type_computable(
             ),
             compexpr=qlast.Path(
                 steps=[
-                    qlast.Source(),
+                    qlast.SpecialAnchor(name='__source__'),
                     qlast.Ptr(
                         name='__type__',
                         direction=s_pointers.PointerDirection.Outbound,
@@ -2167,7 +2167,7 @@ def _inline_type_computable(
             base_ir_set = setgen.ensure_set(
                 ir_set, type_override=base_stype, ctx=scopectx)
 
-            scopectx.anchors[qlast.Source().name] = base_ir_set
+            scopectx.anchors['__source__'] = base_ir_set
             ptr, ptr_set = _normalize_view_ptr_expr(
                 base_ir_set,
                 ql_desc,

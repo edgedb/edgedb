@@ -765,8 +765,8 @@ class IndexCommand(
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
                     schema_object_context=self.get_schema_metaclass(),
-                    anchors={qlast.Subject().name: subject},
-                    path_prefix_anchor=qlast.Subject().name,
+                    anchors={'__subject__': subject},
+                    path_prefix_anchor='__subject__',
                     singletons=frozenset([subject]),
                     apply_query_rewrites=False,
                     track_schema_ref_exprs=track_schema_ref_exprs,
@@ -1178,8 +1178,8 @@ class CreateIndex(
                 context=context,
             )
             options = qlcompiler.CompilerOptions(
-                anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=qlast.Subject().name,
+                anchors={'__subject__': subject},
+                path_prefix_anchor='__subject__',
                 singletons=frozenset([subject]),
                 apply_query_rewrites=False,
                 schema_object_context=self.get_schema_metaclass(),

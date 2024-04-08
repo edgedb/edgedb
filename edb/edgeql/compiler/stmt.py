@@ -133,7 +133,7 @@ def compile_SelectQuery(
             and expr.limit is None
             and not ctx.inhibit_implicit_limit
         ):
-            expr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
+            expr.limit = qlast.Constant.integer(ctx.implicit_limit)
 
         stmt.result = compile_result_clause(
             expr.result,
@@ -259,7 +259,7 @@ def compile_ForQuery(
         if ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
                 and ctx.implicit_limit):
             stmt.limit = dispatch.compile(
-                qlast.IntegerConstant(value=str(ctx.implicit_limit)),
+                qlast.Constant.integer(ctx.implicit_limit),
                 ctx=sctx,
             )
 
