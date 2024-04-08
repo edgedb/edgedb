@@ -174,7 +174,7 @@ class ObjectRef(BaseObjectRef):
 
 
 class PseudoObjectRef(BaseObjectRef):
-    ''' anytype, anytuple or anyobject '''
+    '''anytype, anytuple or anyobject'''
     name: str
 
 
