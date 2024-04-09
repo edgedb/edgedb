@@ -26,7 +26,7 @@ Description
 -----------
 
 The command ``create future`` enables the specified future behavior for
-the current database.
+the current :versionreplace:`database;5.0:branch`.
 
 Examples
 --------
@@ -55,12 +55,12 @@ Stop importing future behavior prior to the EdgeDB version in which it appears.
 Description
 -----------
 
-The command ``drop future`` disables a currently active future behavior for
-the current database. However, this is only possible for versions of EdgeDB
-when the behavior in question is not officially introduced. Once a particular
-behavior is introduced as the standard behavior in an EdgeDB release, it
-cannot be disabled. Running this command will simply denote that no special
-action is needed to enable it in this case.
+The command ``drop future`` disables a currently active future behavior for the
+current :versionreplace:`database;5.0:branch`. However, this is only possible
+for versions of EdgeDB when the behavior in question is not officially
+introduced. Once a particular behavior is introduced as the standard behavior
+in an EdgeDB release, it cannot be disabled. Running this command will simply
+denote that no special action is needed to enable it in this case.
 
 
 Examples
@@ -78,4 +78,4 @@ defining other access policies:
 
 Once EdgeDB 3.0 is released there is no more need for enabling non-recursive
 access policy behavior anymore. So the above command will simply indicate that
-the databse no longer does anything non-standard.
+the database no longer does anything non-standard.

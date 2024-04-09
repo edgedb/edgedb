@@ -21,4 +21,5 @@ Welcome to the EdgeDB |version| documentation.
     clients/index
     cli/index
     reference/index
+    cheatsheets/index
     changelog/index

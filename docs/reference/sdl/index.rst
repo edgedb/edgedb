@@ -11,11 +11,19 @@ schema.  It is called the EdgeDB *schema definition language* or
 *SDL*.  There's a correspondence between this declarative high-level
 language and the imperative low-level :ref:`DDL <ref_eql_ddl>`.
 
-SDL is a declarative language optimized for human readability and
-expressing the state of the EdgeDB schema without getting into the
-details of how to arrive at that state.  Each *SDL* block represents
-the complete schema state for a given :ref:`database
-<ref_datamodel_databases>`.
+.. versionchanged:: _default
+
+    SDL is a declarative language optimized for human readability and
+    expressing the state of the EdgeDB schema without getting into the details
+    of how to arrive at that state.  Each *SDL* block represents the complete
+    schema state for a given :ref:`database <ref_datamodel_databases>`.
+
+.. versionchanged:: 5.0
+
+    SDL is a declarative language optimized for human readability and
+    expressing the state of the EdgeDB schema without getting into the details
+    of how to arrive at that state.  Each *SDL* block represents the complete
+    schema state for a given :ref:`branch <ref_datamodel_branches>`.
 
 Syntactically, an SDL declaration mirrors the ``create`` DDL for the
 corresponding entity, but with all of the ``create`` and ``set``

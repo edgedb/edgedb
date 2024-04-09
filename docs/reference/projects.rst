@@ -175,6 +175,8 @@ This is totally a valid case and EdgeDB fully supports it!
 Before running ``edgedb project init``, you just need to create a local link to
 the remote EdgeDB instance first:
 
+.. TODO: Will need to change this once https://github.com/edgedb/edgedb-cli/issues/1269 is resolved
+
 .. lint-off
 
 .. code-block:: bash

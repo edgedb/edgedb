@@ -80,19 +80,19 @@ up your first EdgeDB instance. You should see something like this:
   [default: quickstart]:
   > quickstart
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 4.x]:
-  > 4.x
+  Specify the version of EdgeDB to use with this project [default: 5.x]:
+  > 5.x
   ┌─────────────────────┬───────────────────────────────────────────────┐
   │ Project directory   │ ~/path/to/quickstart                          │
   │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
   │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema                 │
   │ Installation method │ portable package                              │
-  │ Version             │ 4.x+cc4f3b5                                   │
+  │ Version             │ 5.x+cc4f3b5                                   │
   │ Instance name       │ quickstart                                    │
   └─────────────────────┴───────────────────────────────────────────────┘
   Downloading package...
   00:00:01 [====================] 41.40 MiB/41.40 MiB 32.89MiB/s | ETA: 0s
-  Successfully installed 4.x+cc4f3b5
+  Successfully installed 5.x+cc4f3b5
   Initializing EdgeDB instance...
   Applying migrations...
   Everything is up to date. Revision initial
@@ -116,9 +116,10 @@ This did a couple things.
 .. note::
 
   Quick note! You can have several **instances** of EdgeDB running on your
-  computer simultaneously. Each instance contains several **databases**. Each
-  database may contain several **modules** (though commonly your schema
-  will be entirely defined inside the ``default`` module).
+  computer simultaneously. Each instance may be **branched** many times. Each
+  branch may have an independent schema consisting of a number of **modules**
+  (though commonly your schema will be entirely defined inside the ``default``
+  module).
 
 Let's connect to our new instance! Run ``edgedb`` in your terminal to open an
 interactive REPL to your instance. You're now connected to a live EdgeDB
@@ -357,14 +358,14 @@ into every EdgeDB instance (v2.0+ only). To open the dashboard:
   http://localhost:107xx/ui?authToken=<jwt token>
 
 You should see a simple landing page, as below. You'll see a card for each
-database running on your instance—remember: each instance can contain multiple
-databases!
+branch of your instance. Remember: each instance can be branched multiple
+times!
 
 .. image:: images/ui_landing.jpg
   :width: 100%
 
-Currently, there's only one database, which is simply called ``edgedb`` by
-default. Click the ``edgedb`` card.
+Currently, there's only one branch, which is simply called ``main`` by
+default. Click the ``main`` card.
 
 .. image:: images/ui_db.jpg
   :width: 100%

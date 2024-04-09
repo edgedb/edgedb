@@ -40,7 +40,7 @@ single SDL document.
     :class: funcoptable
 
     * - :ref:`ref_cli_edgedb_migration_apply`
-      - Bring current database to the latest or a specified revision
+      - Bring current branch (or database pre-v5) to the latest or a specified revision
     * - :ref:`ref_cli_edgedb_migration_create`
       - Create a migration script
     * - :ref:`ref_cli_edgedb_migration_edit`

@@ -452,9 +452,9 @@ DSNs can also contain the following query parameters.
 
 .. list-table::
 
-  * - ``database``
-    - The database to connect to within the given instance. Defaults to
-      ``edgedb``.
+  * - ``branch``
+    - The database branch to connect to within the given instance. Defaults to
+      ``main``.
 
   * - ``tls_security``
     - The TLS security mode. Accepts the following values.
@@ -473,7 +473,7 @@ notation.
 
 .. code-block::
 
-  edgedb://user:pass@example.com:8080?database=my_db&tls_security=insecure
+  edgedb://user:pass@example.com:8080?branch=my_branch&tls_security=insecure
 
 For a more comprehensive guide to DSNs, see the :ref:`DSN Specification
 <ref_dsn>`.
@@ -488,7 +488,7 @@ specified independently.
 - ``EDGEDB_PORT``
 - ``EDGEDB_USER``
 - ``EDGEDB_PASSWORD``
-- ``EDGEDB_DATABASE``
+- ``EDGEDB_BRANCH``
 - ``EDGEDB_TLS_CA_FILE``
 - ``EDGEDB_CLIENT_TLS_SECURITY``
 
@@ -511,7 +511,7 @@ Other mechanisms
       "port": 10700,
       "user": "testuser",
       "password": "testpassword",
-      "database": "edgedb",
+      "branch": "main",
       "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
     }
 

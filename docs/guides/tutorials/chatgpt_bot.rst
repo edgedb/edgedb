@@ -236,7 +236,7 @@ the following in the root of the project:
     [default: 3.2]:
     > 3.2
 
-The CLI should set up an EdgeDB project, an instance, and a database within
+The CLI should set up an EdgeDB project, an instance, and a default branch on
 that instance.
 
 - Confirm project creation by checking for an ``edgedb.toml`` file and a
@@ -1167,7 +1167,7 @@ After the script finishes, open the EdgeDB UI.
 
   $ edgedb ui
 
-Open your "edgedb" database and switch to the Data Explorer tab. You should see
+Open your "main" branch and switch to the Data Explorer tab. You should see
 that the database has been updated with the embeddings and other relevant data.
 
 

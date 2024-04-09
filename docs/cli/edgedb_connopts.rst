@@ -86,7 +86,7 @@ Connection flags
 
 :cli:synopsis:`--password | --no-password`
     If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
-    for a password before connecting to the database.  This is usually not
+    for a password before connecting to the database. This is usually not
     necessary, since ``edgedb`` will prompt for a password automatically
     if the server requires it.
 

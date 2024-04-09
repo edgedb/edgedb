@@ -46,7 +46,13 @@ HTTP tunnelling differs in a few ways:
 
 *  Authentication is handled at ``/auth/token``.
 
-*  Query execution is handled at ``/db/{DATABASE}``.
+.. versionchanged:: _default
+
+    *  Query execution is handled at ``/db/{DATABASE}``.
+
+.. versionchanged:: 5.0
+
+    *  Query execution is handled at ``/branch/{BRANCH}``.
 
 *  Transactions are not supported.
 
@@ -69,10 +75,19 @@ The auth payload's format is described by the auth method, usually
 ``SCRAM-SHA-256``. If the auth method differs from the requested method,
 the client should abort the authentication attempt.
 
-Once the :ref:`authentication <ref_authentication>` phase is complete, the
-final response's body will contain an authorization token used to authenticate
-the HTTP connection. The client then sends any following message to
-``/db/{DATABASE}`` with the following headers:
+.. versionchanged:: _default
+
+    Once the :ref:`authentication <ref_authentication>` phase is complete, the
+    final response's body will contain an authorization token used to authenticate
+    the HTTP connection. The client then sends any following message to
+    ``/db/{DATABASE}`` with the following headers:
+
+.. versionchanged:: 5.0
+
+    Once the :ref:`authentication <ref_authentication>` phase is complete, the
+    final response's body will contain an authorization token used to authenticate
+    the HTTP connection. The client then sends any following message to
+    ``/branch/{BRANCH}`` with the following headers:
 
 * ``X-EdgeDB-User``: The username specified in the
   :ref:`connection parameters <ref_reference_connection>`.
@@ -229,8 +244,15 @@ While it's not required by the protocol specification itself, EdgeDB server
 currently requires setting the following params in
 :ref:`ref_protocol_msg_client_handshake`:
 
-* ``user`` -- username for authentication
-* ``database`` -- database to connect to
+.. versionchanged:: _default
+
+    * ``user`` -- username for authentication
+    * ``database`` -- database to connect to
+
+.. versionchanged:: 5.0
+
+    * ``user`` -- username for authentication
+    * ``branch`` -- branch to connect to
 
 
 .. _ref_authentication:
@@ -333,10 +355,19 @@ are always atomic, they will be executed in an implicit transaction block if no
 explicit transaction is currently active. Therefore, EdgeQL scripts have
 limitations on the kinds of EdgeQL commands they can contain:
 
-* Transaction control commands are not allowed, like ``start transaction``,
-  ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
-* Non-transactional commands, like ``create database`` or
-  ``configure instance`` are not allowed.
+.. versionchanged:: _default
+
+    * Transaction control commands are not allowed, like ``start transaction``,
+      ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
+    * Non-transactional commands, like ``create database`` or
+      ``configure instance`` are not allowed.
+
+.. versionchanged:: 5.0
+
+    * Transaction control commands are not allowed, like ``start transaction``,
+      ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
+    * Non-transactional commands, like ``create branch`` or
+      ``configure instance`` are not allowed.
 
 In the command phase, the server can be in one of the three main states:
 
@@ -357,8 +388,8 @@ To switch a server from the *error* state into the *idle* state, a
 
 .. _ref_protocol_dump_flow:
 
-Dump Database Flow
-------------------
+Dump Flow
+---------
 
 Backup flow goes as following:
 
@@ -373,11 +404,11 @@ to finish implicit transaction.
 
 .. _ref_protocol_restore_flow:
 
-Restore Database Flow
----------------------
+Restore Flow
+------------
 
-Restore procedure fills up the database the client is connected to with the
-schema and data from the dump file.
+Restore procedure fills up the :versionreplace:`database;5.0:branch` the
+client is connected to with the schema and data from the dump file.
 
 Flow is the following:
 

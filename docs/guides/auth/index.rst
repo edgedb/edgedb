@@ -62,7 +62,7 @@ To configure via query or script:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET
+    CONFIGURE CURRENT BRANCH SET
     ext::auth::AuthConfig::auth_signing_key := 'F2KHaJfHi9Dzd8+6DI7FB9IFIoJXnhz2rzG/UzCRE7jTtYxqgTHHydc8xnN6emDB3tlR99FvPsyJfcVLVcQ5odSQpceDXplBOP+N14+EBy2mV6rA/7W7azIEKebtr9TVKrpBTMTOLAXo08ZnA6lvjn0VMs95za6Pta7VW62hjcb8jy6yxulvvU5SWnwa0x2z401K0pLK7byDD5eNqgTl40YaeOGoQ0iCkSmGxvLxyQgCIz2IU0zUbBwC9bQsTDORvflunruJznHuMxwbfYo/czQIIGuawU0H+G3GJZ3hecZLQlvwYCyLF37PFQVrcNMtUuGyDy2OyYtYHru2GW5B7Q';
 
 .. lint-on
@@ -77,7 +77,7 @@ To configure via query or script:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET
+    CONFIGURE CURRENT BRANCH SET
     ext::auth::AuthConfig::token_time_to_live := <duration>"336 hours";
 
 allowed_redirect_urls
@@ -124,7 +124,7 @@ To configure via query or script:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET
+    CONFIGURE CURRENT BRANCH SET
     ext::auth::AuthConfig::allowed_redirect_urls := {
         'https://example.com',
         'https://example.com/auth',
@@ -162,7 +162,7 @@ To enable via query or script:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE
+    CONFIGURE CURRENT BRANCH
     INSERT ext::auth::EmailPasswordProviderConfig {
         require_verification := false,
     };
@@ -181,19 +181,19 @@ great for testing in development:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET
+    CONFIGURE CURRENT BRANCH SET
     ext::auth::SMTPConfig::sender := 'hello@example.com';
 
-    CONFIGURE CURRENT DATABASE SET
+    CONFIGURE CURRENT BRANCH SET
     ext::auth::SMTPConfig::host := 'localhost';
 
-    CONFIGURE CURRENT DATABASE SET
+    CONFIGURE CURRENT BRANCH SET
     ext::auth::SMTPConfig::port := <int32>1025;
 
-    CONFIGURE CURRENT DATABASE SET
+    CONFIGURE CURRENT BRANCH SET
     ext::auth::SMTPConfig::security := 'STARTTLSOrPlainText';
 
-    CONFIGURE CURRENT DATABASE SET
+    CONFIGURE CURRENT BRANCH SET
     ext::auth::SMTPConfig::validate_certs := false;
 
 
@@ -237,8 +237,8 @@ provide those values and the ``additional_scope``:
         Provider when we return our own authentication token.
 
 You’ll also need to set a callback URL in each provider’s interface. To build
-this callback URL, you will need the hostname, port, and database name of your
-database. The database name is ``edgedb`` by default. The hostname and port can
+this callback URL, you will need the hostname, port, and branch name of your
+database. The branch name is ``main`` by default. The hostname and port can
 be found running this CLI command:
 
 .. code-block:: bash
@@ -257,7 +257,7 @@ To enable the Azure OAuth provider via query or script:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE
+    CONFIGURE CURRENT BRANCH
     INSERT ext::auth::AzureOAuthProvider {
         secret := 'cccccccccccccccccccccccccccccccc',
         client_id := '1597b3fc-b67d-4d2b-b38f-acc256341dbc',

@@ -29,12 +29,23 @@ to binary data that EdgeDB can decode and work with.
 A *decoder* is used to decode data from EdgeDB native format to
 data types native to the driver.
 
-There is one special type with *type id* of zero:
-``00000000-0000-0000-0000-000000000000``. The describe result of this type
-contains zero *blocks*. It's used when a statement returns no meaningful
-results, e.g. the ``CREATE DATABASE example`` statement.  It is also used
-to represent the input descriptor when a query does not receive any arguments,
-or the state descriptor for an empty/default state.
+.. versionchanged:: _default
+
+    There is one special type with *type id* of zero:
+    ``00000000-0000-0000-0000-000000000000``. The describe result of this type
+    contains zero *blocks*. It's used when a statement returns no meaningful
+    results, e.g. the ``CREATE DATABASE example`` statement.  It is also used
+    to represent the input descriptor when a query does not receive any
+    arguments, or the state descriptor for an empty/default state.
+
+.. versionchanged:: 5.0
+
+    There is one special type with *type id* of zero:
+    ``00000000-0000-0000-0000-000000000000``. The describe result of this type
+    contains zero *blocks*. It's used when a statement returns no meaningful
+    results, e.g. the ``CREATE BRANCH example`` statement.  It is also used to
+    represent the input descriptor when a query does not receive any arguments,
+    or the state descriptor for an empty/default state.
 
 
 Descriptor and type IDs

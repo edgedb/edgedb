@@ -59,6 +59,8 @@ There are a number of *reserved* and *unreserved* keywords in EdgeQL.
 Every identifier that is not a *reserved* keyword is a valid *name*.
 *Names* are used to refer to concepts, links, link properties, etc.
 
+.. TODO: update this for "branch"
+
 .. productionlist:: edgeql
     short_name: `not_keyword_ident` | `quoted_ident`
     not_keyword_ident: <any `plain_ident` except for `keyword`>

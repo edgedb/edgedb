@@ -35,10 +35,11 @@ Description
 -----------
 
 The command ``create module`` defines a new module for the current
-database. The name of the new module must be distinct from any
-existing module in the current database. Unlike :ref:`SDL module
-declaration <ref_eql_sdl_modules>` the ``create module`` command does
-not have sub-commands, as module contents are created separately.
+:versionreplace:`database;5.0:branch`. The name of the new module must be
+distinct from any existing module in the current
+:versionreplace:`database;5.0:branch`. Unlike :ref:`SDL module declaration
+<ref_eql_sdl_modules>` the ``create module`` command does not have
+sub-commands, as module contents are created separately.
 
 Parameters
 ----------
@@ -84,8 +85,8 @@ Description
 -----------
 
 The command ``drop module`` removes an existing module from the
-current database. All schema items and data contained in the module
-are removed as well.
+current :versionreplace:`database;5.0:branch`. All schema items and data
+contained in the module are removed as well.
 
 
 Examples
