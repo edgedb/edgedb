@@ -17,6 +17,7 @@ from ..elab_schema import add_module_from_sdl_file, add_module_from_sdl_defs
 
 import copy
 
+SQLITE_PRINT_QUERIES = True
 
 @dataclass(frozen=True)
 class PropertyTypeView:
@@ -183,6 +184,8 @@ def convert_val_to_sqlite_val(val: e.ResultMultiSetVal) -> Any:
         return sub_convert(val.getVals()[0])
     
 
+
+
 class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
     def __init__(self, conn:sqlite3.Connection, schema: e.DBSchema) -> None:
@@ -197,6 +200,11 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         self.id_initialization()
         self.create_or_populate_schema_table()
 
+    def do_execute_query(self, query: str, *args) -> None:
+        if SQLITE_PRINT_QUERIES:
+            print(query, *args)
+        return self.cursor.execute(query, *args)
+
     def get_tp_name(self, tp: e.QualifiedName) -> str:
         assert len(tp.names) == 2 and tp.names[0] == "default", "Only default module is supported"
         return tp.names[1]
@@ -205,7 +213,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         return e.QualifiedName(["default", name])
 
     def get_type_for_an_id(self, id: EdgeID) -> e.QualifiedName:
-        self.cursor.execute("SELECT tp FROM objects WHERE id=?", (id,))
+        self.do_execute_query("SELECT tp FROM objects WHERE id=?", (id,))
         tp_row = self.cursor.fetchone()
         if tp_row is None:
             raise ValueError(f"ID {id} not found in database")
@@ -258,26 +266,26 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
     def create_or_populate_schema_table(self) -> None:
         
         for tname, tspec in self.table_view.items():
-            column_spec = ','.join([f"{cname} {cspec.type}" + ("" if cspec.is_nullable else " NOT NULL") 
+            column_spec = ', '.join([f"{cname} {cspec.type}" + ("" if cspec.is_nullable else " NOT NULL") 
                                     for (cname, cspec) in tspec.columns.items()])
             primary_key_spec = f"PRIMARY KEY ({','.join(tspec.primary_key)})"
                                                 
-            self.cursor.execute(f"""CREATE TABLE IF NOT EXISTS "{tname}" ({column_spec}, {primary_key_spec}) STRICT, WITHOUT ROWID""")
+            self.do_execute_query(f"""CREATE TABLE IF NOT EXISTS "{tname}" ({column_spec}, {primary_key_spec}) STRICT, WITHOUT ROWID""")
 
             for index in tspec.indexes:
                 index_name = f"{tname}_{'_'.join(index)}_idx"
                 index_spec = ','.join(index)
-                self.cursor.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {tname} ({index_spec})")
+                self.do_execute_query(f"CREATE INDEX IF NOT EXISTS {index_name} ON {tname} ({index_spec})")
             
 
     def id_initialization(self):
-        self.cursor.execute("CREATE TABLE IF NOT EXISTS next_id_to_return_gen (id INTEGER PRIMARY KEY)")
-        self.cursor.execute("SELECT id FROM next_id_to_return_gen LIMIT 1")
+        self.do_execute_query("CREATE TABLE IF NOT EXISTS next_id_to_return_gen (id INTEGER PRIMARY KEY)")
+        self.do_execute_query("SELECT id FROM next_id_to_return_gen LIMIT 1")
         next_id_row = self.cursor.fetchone()
         if next_id_row is not None:
             self.next_id_to_return = next_id_row[0]
         else:
-            self.cursor.execute("INSERT INTO next_id_to_return_gen (id) VALUES (?)", (101,))
+            self.do_execute_query("INSERT INTO next_id_to_return_gen (id) VALUES (?)", (101,))
         self.conn.commit() # I am not sure whether this is needed
     
     def get_schema(self) -> DBSchema:
@@ -286,33 +294,53 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
       
     def next_id(self) -> EdgeID:
         ## XXX: This is not thread safe
-        self.cursor.execute("SELECT id FROM next_id_to_return_gen LIMIT 1")
+        self.do_execute_query("SELECT id FROM next_id_to_return_gen LIMIT 1")
         id_row = self.cursor.fetchone()
         if id_row is None:
             raise ValueError("Cannot fetch next id, check initialization")
         id = id_row[0]
-        self.cursor.execute("UPDATE next_id_to_return_gen SET id = id + 1")
+        self.do_execute_query("UPDATE next_id_to_return_gen SET id = id + 1")
         return id
 
     
     def query_ids_for_a_type(self, tp: e.QualifiedName, filters: e.EdgeDatabaseSelectFilter) -> List[EdgeID]:
-        tp_name = self.get_tp_name(tp)
 
-        filter_clause = ""
+
         query_args = []
-        if len(filters) > 0:
-            def convert_eq_filter(f: e.EdgeDatabaseEqFilter) -> str:
-                this_view = self.schema_property_view[tp_name][f.propname]
-                query_args.append(convert_val_to_sqlite_val(e.MultiSetVal([f.arg])))
-                if this_view.is_singular:
-                    return f"({f.propname} = ?)"
-                else:
-                    return f"(EXISTS (SELECT 1 FROM '{tp_name}.{f.propname}' WHERE source = id AND target = ?))"
-            filter_clause = "WHERE " + " AND ".join([convert_eq_filter(f) for f in filters])
+        def convert_select_filter_to_condition_text(filter: e.EdgeDatabaseSelectFilter) -> str:
+            match filter:
+                case e.EdgeDatabaseEqFilter(propname=propname, arg=arg):
+                    if not isinstance(arg, e.MultiSetVal):
+                        raise ValueError("Only MultiSetVal is supported, check evaluation implementation")
+                    if len(arg.getVals()) != 1:
+                        equivalent_disjuctive_filter = e.EdgeDatabaseDisjunctiveFilter(
+                            filters=[e.EdgeDatabaseEqFilter(propname=propname, arg=arg2) for arg2 in arg.getVals()]
+                        )
+                        return convert_select_filter_to_condition_text([equivalent_disjuctive_filter])
+                    else:
+                        this_view = self.schema_property_view[tp_name][propname]
+                        query_args.append(convert_val_to_sqlite_val(e.MultiSetVal([arg])))
+                        if this_view.is_singular:
+                            return f"({propname} = ?)"
+                        else:
+                            return f"(EXISTS (SELECT 1 FROM '{tp_name}.{propname}' WHERE source = id AND target = ?))"
+                case e.EdgeDatabaseConjunctiveFilter(conjuncts=filters):
+                    if len(filters) == 0:
+                        return "(1=1)"
+                    return "(" + " AND ".join([convert_select_filter_to_condition_text(f) for f in filters]) + ")"
+                case e.EdgeDatabaseDisjunctiveFilter(disjuncts=filters):
+                    if len(filters) == 0:
+                        return "(1=0)"
+                    return "(" + " OR ".join([convert_select_filter_to_condition_text(f) for f in filters]) + ")"
+                case _:
+                    raise ValueError(f"Unknown filter {filter}")
+
+        tp_name = self.get_tp_name(tp)
+        filter_clause = "WHERE " + convert_select_filter_to_condition_text(filters)
         
 
         sql_query = f"""SELECT id FROM "{tp_name}" {filter_clause} """
-        self.cursor.execute(sql_query, (*query_args,))
+        self.do_execute_query(sql_query, (*query_args,))
         return [row[0] for row in self.cursor.fetchall()]
 
     def dump_state(self) -> object:
@@ -326,7 +354,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
     def restore_state(self, dumped_state) -> None:
 
         # Drop all tables
-        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        self.do_execute_query("SELECT name FROM sqlite_master WHERE type='table'")
         tables = self.cursor.fetchall()
         drop_statements = [f"DROP TABLE IF EXISTS \"{table[0]}\";" for table in tables]
         drop_script = '\n'.join(drop_statements)
@@ -336,12 +364,12 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
     def next_id(self) -> EdgeID:
         ## XXX: This is not thread safe
-        self.cursor.execute("SELECT id FROM next_id_to_return_gen LIMIT 1")
+        self.do_execute_query("SELECT id FROM next_id_to_return_gen LIMIT 1")
         id_row = self.cursor.fetchone()
         if id_row is None:
             raise ValueError("Cannot fetch next id, check initialization")
         id = id_row[0]
-        self.cursor.execute("UPDATE next_id_to_return_gen SET id = id + 1")
+        self.do_execute_query("UPDATE next_id_to_return_gen SET id = id + 1")
         return id
     
 
@@ -358,7 +386,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 query = f"SELECT target, {','.join(lp_property_names)} FROM '{lp_table_name}' WHERE source=?"
             else:
                 query = f"SELECT target FROM '{lp_table_name}' WHERE source=?"
-            self.cursor.execute(query, (id,))
+            self.do_execute_query(query, (id,))
             result = []
             for row in self.cursor.fetchall():
                 target_id = row[0]
@@ -369,7 +397,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             return e.ResultMultiSetVal(result)
         else:
             query = f"SELECT {prop} FROM {tp_name} WHERE id=?"
-            self.cursor.execute(query, (id,))
+            self.do_execute_query(query, (id,))
             result = []
             for row in self.cursor.fetchall():
                 if row[0] is not None:
@@ -393,7 +421,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                     else:
                         lp_property_names = []
                         query = f"SELECT id FROM '{tp_name}' WHERE {prop} IN ({','.join(['?']*len(subject_ids))})"
-                    self.cursor.execute(query, [int(id) for id in subject_ids])
+                    self.do_execute_query(query, [int(id) for id in subject_ids])
                     for row in self.cursor.fetchall():
                         source_id = row[0]
                         lp_vals = {}
@@ -412,7 +440,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
         single_props = [pname for (pname, pview) in tdef.items() if pview.is_singular]
         single_prop_vals = [convert_val_to_sqlite_val(props[pname]) for pname in single_props]
-        self.cursor.execute(f"INSERT INTO {tp_name} (id, {','.join(single_props)}) VALUES (?, {','.join(['?']*len(single_props))})",
+        self.do_execute_query(f"INSERT INTO {tp_name} (id, {','.join(single_props)}) VALUES (?, {','.join(['?']*len(single_props))})",
                             (id, *single_prop_vals))
         
         for (pname, pview) in tdef.items():
@@ -422,13 +450,13 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 for v in props[pname].getVals():
                     if len(lp_property_names) > 0:
                         lp_props = [convert_val_to_sqlite_val(v.val.val[e.LinkPropLabel(lp_prop_name)][1]) for lp_prop_name in lp_property_names]
-                        self.cursor.execute(f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
+                        self.do_execute_query(f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), *lp_props))
                     else:
-                        self.cursor.execute(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
+                        self.do_execute_query(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v]))))
         
-        self.cursor.execute(f"INSERT INTO objects (id, tp) VALUES (?, ?)", (id, self.to_type_for_an_id(tp)))
+        self.do_execute_query(f"INSERT INTO objects (id, tp) VALUES (?, ?)", (id, self.to_type_for_an_id(tp)))
 
 
     
@@ -439,10 +467,10 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         for (pname, pview) in self.schema_property_view[tp_name].items():
             if pview.has_lp_table():
                 lp_table_name = f"{tp_name}.{pname}"
-                self.cursor.execute(f"DELETE FROM '{lp_table_name}' WHERE source=?", (id,))
+                self.do_execute_query(f"DELETE FROM '{lp_table_name}' WHERE source=?", (id,))
         
-        self.cursor.execute(f"DELETE FROM '{tp_name}' WHERE id=?", (id,))
-        self.cursor.execute(f"DELETE FROM objects WHERE id=?", (id,))
+        self.do_execute_query(f"DELETE FROM '{tp_name}' WHERE id=?", (id,))
+        self.do_execute_query(f"DELETE FROM objects WHERE id=?", (id,))
 
 
     
@@ -453,7 +481,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         single_props = [pname for (pname, pview) in tdef.items() if pview.is_singular]
         single_prop_vals = [props[pname] for pname in single_props if pname in props]
         if len(single_prop_vals) > 0:
-            self.cursor.execute(f"UPDATE '{tp_name}' SET {','.join([f'{pname}=?' for pname in single_prop_vals])} WHERE id=?", 
+            self.do_execute_query(f"UPDATE '{tp_name}' SET {','.join([f'{pname}=?' for pname in single_prop_vals])} WHERE id=?", 
                                 (*single_prop_vals, id))
         
         for (pname, pview) in tdef.items():
@@ -461,18 +489,18 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 lp_table_name = f"{tp_name}.{pname}"
                 lp_property_names = list(pview.link_props.keys())
                 # Delete all existing links
-                self.cursor.execute(f"DELETE FROM '{lp_table_name}' WHERE source=?", (id,))
+                self.do_execute_query(f"DELETE FROM '{lp_table_name}' WHERE source=?", (id,))
                 for v in props[pname].getVals():
                     if len(lp_property_names) > 0:
                         lp_props = [convert_val_to_sqlite_val(v.val.val[e.LinkPropLabel(lp_prop_name)][1]) for lp_prop_name in lp_property_names]
                         # insert
-                        self.cursor.execute(f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
+                        self.do_execute_query(f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), *lp_props))
-                        # self.cursor.execute(f"UPDATE '{lp_table_name}' SET {','.join([f'{lp_prop_name}=?' for lp_prop_name in lp_property_names])}, target=? WHERE source=?",
+                        # self.do_execute_query(f"UPDATE '{lp_table_name}' SET {','.join([f'{lp_prop_name}=?' for lp_prop_name in lp_property_names])}, target=? WHERE source=?",
                         #                     (*lp_props, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), id))
                     else:
-                        # self.cursor.execute(f"UPDATE '{lp_table_name}' SET target=? WHERE source=?", (convert_val_to_sqlite_val(v), id))
-                        self.cursor.execute(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
+                        # self.do_execute_query(f"UPDATE '{lp_table_name}' SET target=? WHERE source=?", (convert_val_to_sqlite_val(v), id))
+                        self.do_execute_query(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v]))))
 
     # By default commit is called per query, doing a bunch of consecutive queries 

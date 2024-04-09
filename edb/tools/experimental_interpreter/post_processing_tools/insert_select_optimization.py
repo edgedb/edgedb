@@ -6,7 +6,6 @@ from ..data import expr_ops as eops
 def try_collect_constraints_from_filter(expr: e.Expr) -> Optional[e.EdgeDatabaseSelectFilter]:
     if not isinstance(expr, e.BindingExpr):
         return None
-    result = []
     bnd_name = expr.var
     to_process_body = [expr.body]
     
@@ -24,31 +23,50 @@ def try_collect_constraints_from_filter(expr: e.Expr) -> Optional[e.EdgeDatabase
                             e.ObjectProjExpr(
                                 subject=e.BoundVarExpr(subject_name),
                                 label=label)),
-                        e.ScalarVal(_)):
-                        if subject_name == bnd_name:
-                            result.append(e.EdgeDatabaseEqFilter(label, arg2))
+                        _):
+                        if subject_name == bnd_name and not eops.appears_in_expr(e.FreeVarExpr(bnd_name), arg2):
+                            return e.EdgeDatabaseEqFilter(label, arg2)
                         else:
                             return None
-                    case (e.ScalarVal(_),
+                    case (_,
                          e.ConditionalDedupExpr(
                             e.ObjectProjExpr(
                                 subject=e.BoundVarExpr(subject_name),
                                 label=label))):
-                        if subject_name == bnd_name:
-                            result.append(e.EdgeDatabaseEqFilter(label, arg1))
+                        if subject_name == bnd_name and not eops.appears_in_expr(e.FreeVarExpr(bnd_name), arg1):
+                            return e.EdgeDatabaseEqFilter(label, arg1)
                         else:
                             return None
                     case _:
                         return None
 
-    return result
 
     
 def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilter) -> Optional[e.Expr]:
-    all_labels = [f.propname for f in filter]
+    all_labels = eops.collect_names_in_select_filter(filter)
     match subject:
         case e.QualifiedName(name):
-            return e.QualifiedNameWithFilter(subject, filter)
+            bindings = {}
+            binding_extraction_failed = False
+            def extract_expression_bindings(expr: e.Expr) -> None:
+                nonlocal binding_extraction_failed
+                if isinstance(expr, e.EdgeDatabaseSelectFilter):
+                    return None
+                elif isinstance(expr, e.FreeVarExpr | e.ScalarVal):
+                    return expr
+                elif eops.is_effect_free(expr):
+                    binder_name = e.next_name("filter_bnd")
+                    bindings[binder_name] = expr
+                    return e.FreeVarExpr(binder_name)
+            after_filter = eops.map_edge_select_filter(extract_expression_bindings, filter)
+            if binding_extraction_failed:
+                return None
+            return_expr = e.QualifiedNameWithFilter(subject, after_filter)
+            for bnd_name, bnd_expr in bindings.items():
+                return_expr = e.WithExpr(bnd_expr, 
+                    eops.abstract_over_expr(return_expr, bnd_name)
+                )
+            return return_expr
         case e.MultiSetExpr(expr=[e.QualifiedName(name)]):
             return e.QualifiedNameWithFilter(e.QualifiedName(name), filter)
         case e.ShapedExprExpr(expr=main, shape=shape):
@@ -64,7 +82,6 @@ def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilt
                 else:
                     return None
     
-
 
 
 

@@ -299,7 +299,7 @@ def eval_expr(ctx: EvalEnv,
             
                 all_ids: Sequence[Val] = [
                     RefVal(id, e.QualifiedName(names=names), ObjectVal({}))
-                    for id in db.storage.query_ids_for_a_type(expr, [])]
+                    for id in db.storage.query_ids_for_a_type(expr, e.EdgeDatabaseTrueFilter())]
                 return e.ResultMultiSetVal(all_ids)
         case e.QualifiedNameWithFilter(name=name, filter=filter):
             all_ids: Sequence[Val] = [

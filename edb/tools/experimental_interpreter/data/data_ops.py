@@ -636,14 +636,27 @@ class IfElseExpr:
 @dataclass
 class EdgeDatabaseEqFilter:
     propname: str
-    arg: Val
+    arg: Expr | MultiSetVal
 
-EdgeDatabaseSelectFilter = Sequence[EdgeDatabaseEqFilter]
+@dataclass
+class EdgeDatabaseConjunctiveFilter:
+    conjuncts: Sequence[EdgeDatabaseEqFilter]
+
+@dataclass 
+class EdgeDatabaseDisjunctiveFilter:
+    disjuncts: Sequence[EdgeDatabaseConjunctiveFilter]
+
+@dataclass
+class EdgeDatabaseTrueFilter:
+    pass
+
+
+EdgeDatabaseSelectFilter = EdgeDatabaseEqFilter | EdgeDatabaseConjunctiveFilter | EdgeDatabaseDisjunctiveFilter | EdgeDatabaseTrueFilter
 
 @dataclass(frozen=True)
 class QualifiedNameWithFilter:
     name: QualifiedName
-    filter: EdgeDatabaseSelectFilter # treated as conjunction
+    filter: EdgeDatabaseSelectFilter 
 
 @dataclass(frozen=True)
 class FilterOrderExpr:

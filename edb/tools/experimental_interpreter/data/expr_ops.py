@@ -78,6 +78,25 @@ def map_tp(
                 raise ValueError("Not Implemented", tp)
 
 
+def map_edge_select_filter(f : Callable[[Expr], Optional[Expr]], expr: Expr) -> Expr:
+    tentative = f(expr)
+    if tentative is not None:
+        return tentative
+    else:
+        match expr:
+            case e.EdgeDatabaseConjunctiveFilter(filters):
+                new_filters = [map_edge_select_filter(f, filter) for filter in filters]
+                return e.EdgeDatabaseConjunctiveFilter(new_filters)
+            case e.EdgeDatabaseDisjunctiveFilter(filters):
+                new_filters = [map_edge_select_filter(f, filter) for filter in filters]
+                return e.EdgeDatabaseDisjunctiveFilter(new_filters)
+            case e.EdgeDatabaseEqFilter(label, arg):
+                return e.EdgeDatabaseEqFilter(label, map_edge_select_filter(f, arg))
+            case _:
+                assert not isinstance(expr, e.EdgeDatabaseSelectFilter)
+                return expr
+
+
 def map_expr(
         f: Callable[[Expr],
                     Optional[Expr]],
@@ -643,3 +662,12 @@ def is_effect_free(expr: Expr) -> bool:
             return False
     return not appears_in_expr_pred(pred, expr)
 
+
+def collect_names_in_select_filter(filter: e.EdgeDatabaseSelectFilter) -> List[str]:
+    res = []
+    def map_func(candidate: Expr) -> Optional[Expr]:
+        if isinstance(candidate, e.EdgeDatabaseEqFilter):
+            res.append(candidate.propname)
+        return None
+    map_edge_select_filter(map_func, filter)
+    return res

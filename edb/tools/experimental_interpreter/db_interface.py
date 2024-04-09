@@ -68,7 +68,17 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             return filter.arg in target_vals.getVals()
             
         def check_filter_top(filter: EdgeDatabaseSelectFilter, id: EdgeID) -> bool:
-            return all(check_filter(f, id) for f in filter)
+            match filter:
+                case EdgeDatabaseEqFilter(propname, arg):
+                    return check_filter(EdgeDatabaseEqFilter(propname, arg), id)
+                case EdgeDatabaseConjunctiveFilter(filters):
+                    return all(check_filter_top(f, id) for f in filters)
+                case EdgeDatabaseDisjunctiveFilter(filters):
+                    return any(check_filter_top(f, id) for f in filters)
+                case EdgeDatabaseTrueFilter():
+                    return True
+                case _:
+                    raise ValueError("Unsupported filter type")
         # assert len(filters) == 0, "Filters are not supported yet"
         return [id for id in self.db.dbdata.keys() if self.db.dbdata[id].tp == tp and check_filter_top(filters, id)]
 
