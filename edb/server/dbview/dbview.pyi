@@ -75,6 +75,9 @@ class Database:
     async def cache_notifier(self) -> None:
         ...
 
+    def start_stop_extensions(self) -> None:
+        ...
+
     def cache_compiled_sql(
         self,
         key: Hashable,
@@ -178,6 +181,7 @@ class DatabaseIndex:
         backend_ids: Optional[Mapping[str, int]],
         extensions: Optional[set[str]],
         ext_config_settings: Optional[list[config.Setting]],
+        early: bool = False,
     ) -> Database:
         ...
 

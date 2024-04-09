@@ -139,6 +139,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._task_group = None
         self._tasks = set()
+        self._named_tasks: dict[str, asyncio.Task] = dict()
         self._accept_new_tasks = False
         self._file_watch_finalizers = []
 
@@ -425,6 +426,9 @@ class Tenant(ha_base.ClusterProtocol):
     def start_running(self) -> None:
         self._running = True
         self._accepting_connections = True
+        assert self._dbindex is not None
+        for db in self._dbindex.iter_dbs():
+            db.start_stop_extensions()
 
     def stop_accepting_connections(self) -> None:
         self._accepting_connections = False
@@ -434,7 +438,11 @@ class Tenant(ha_base.ClusterProtocol):
         return self._accept_new_tasks
 
     def create_task(
-        self, coro: Coroutine, *, interruptable: bool
+        self,
+        coro: Coroutine,
+        *,
+        interruptable: bool,
+        name: Optional[str] = None,
     ) -> asyncio.Task:
         # Interruptable tasks are regular asyncio tasks that may be interrupted
         # randomly in the middle when the event loop stops; while tasks with
@@ -445,18 +453,29 @@ class Tenant(ha_base.ClusterProtocol):
         if self._accept_new_tasks and self._task_group is not None:
             current_tenant.set(self.get_instance_name())
             if interruptable:
-                rv = self.__loop.create_task(coro)
+                rv = self.__loop.create_task(coro, name=name)
             else:
-                rv = self._task_group.create_task(coro)
+                rv = self._task_group.create_task(coro, name=name)
 
             # Keep a strong reference of the created Task
-            self._tasks.add(rv)
-            rv.add_done_callback(self._tasks.discard)
+            if name is not None:
+                if name in self._named_tasks:
+                    raise RuntimeError(
+                        f"task {name!r} already exists on on this server")
+                self._named_tasks[name] = rv
+                rv.add_done_callback(
+                    lambda task: self._named_tasks.pop(task.get_name(), None))
+            else:
+                self._tasks.add(rv)
+                rv.add_done_callback(self._tasks.discard)
 
             return rv
         else:
             # Hint: add `if tenant.accept_new_tasks` before `.create_task()`
             raise RuntimeError("task cannot be created at this time")
+
+    def get_task(self, name: str) -> Optional[asyncio.Task]:
+        return self._named_tasks.get(name)
 
     def stop(self) -> None:
         self._running = False
@@ -960,6 +979,7 @@ class Tenant(ha_base.ClusterProtocol):
         Otherwise, we won't know to accept connections for graphql or
         http, for example, until a native connection is made.
         """
+        current_tenant.set(self.get_instance_name())
         logger.info("introspecting extensions for database '%s'", dbname)
 
         conn = await self._acquire_intro_pgcon(dbname)
@@ -981,6 +1001,7 @@ class Tenant(ha_base.ClusterProtocol):
                         backend_ids=None,
                         extensions=extensions,
                         ext_config_settings=None,
+                        early=True,
                     )
         finally:
             self.release_pgcon(dbname, conn)
