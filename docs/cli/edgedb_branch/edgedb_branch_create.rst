@@ -5,18 +5,18 @@
 edgedb branch create
 ====================
 
-.. note::
-
-    This CLI command requires CLI version 4.3.0 or later and EdgeDB version 5.0
-    or later. If you are running an earlier version of EdgeDB, you will instead
-    use the :ref:`ref_cli_edgedb_database` command suite to manage databases,
-    which branches replaced in EdgeDB 5.0.
-
 Create a new :ref:`branch <ref_datamodel_branches>`.
 
 .. cli:synopsis::
 
     edgedb branch create [<options>] <name>
+
+.. note::
+
+    This CLI command requires CLI version 4.3.0 or later and EdgeDB version 5.0
+    or later. If you are running an earlier version of EdgeDB, you will instead
+    use the :ref:`ref_cli_edgedb_database_create` command to create a database,
+    which branches replaced in EdgeDB 5.0.
 
 
 Description

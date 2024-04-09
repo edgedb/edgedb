@@ -5,18 +5,34 @@
 edgedb branch switch
 ====================
 
-.. note::
-
-    This CLI command requires CLI version 4.3.0 or later and EdgeDB version 5.0
-    or later. If you are running an earlier version of EdgeDB, you will instead
-    use the :ref:`ref_cli_edgedb_database` command suite to manage databases,
-    which branches replaced in EdgeDB 5.0.
-
 Change the currently active :ref:`branch <ref_datamodel_branches>`
 
 .. cli:synopsis::
 
     edgedb branch switch [<options>] <name>
+
+.. note::
+
+    This CLI command requires CLI version 4.0 or later and EdgeDB version 5.0
+    or later. Earlier versions did not feature branches and instead featured
+    databases.
+
+    Databases offered no direct analog to switching.
+
+    - To run a single command on a different database, use the ``-d <dbname>``
+      or ``--database=<dbname>`` options described in
+      :ref:`ref_cli_edgedb_connopts`
+    - To change the database for *all* commands, set the ``EDGEDB_DATABASE``
+      environment variable described in :ref:`ref_cli_edgedb_connopts`
+    - To change the database for all commands in a project, you may update the
+      ``credentials.json`` file's ``database`` value. To find that file for
+      your project, run :ref:`ref_cli_edgedb_info` to get the config path and
+      navigate to ``/<config-path>/credentials``.
+    - You may use ``\connect <dbname>`` or ``\c <dbname>`` to change the
+      connected database while in a REPL session.
+
+    See the :ref:`ref_cli_edgedb_database` command suite for other database
+    management commands.
 
 
 Options
