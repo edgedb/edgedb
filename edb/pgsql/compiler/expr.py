@@ -433,6 +433,10 @@ def compile_operator(
     lexpr = rexpr = None
     result: Optional[pgast.BaseExpr] = None
 
+    if expr.body is not None:
+        raise NotImplementedError(
+            "support for generic inline operator calls is not implemented")
+
     if expr.operator_kind is ql_ft.OperatorKind.Infix:
         lexpr, rexpr = args
     elif expr.operator_kind is ql_ft.OperatorKind.Prefix:

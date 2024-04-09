@@ -749,10 +749,31 @@ def __infer_func_call(
         upper = (CB_MANY if force_multi
                  else max(arg_upper) if ir.preserves_upper_cardinality
                  else ret_upper_bound)
-        return _bounds_to_card(lower, upper)
+        call_card = _bounds_to_card(lower, upper)
 
     else:
-        return _standard_call_cardinality(ir, cards, ctx=ctx)
+        call_card = _standard_call_cardinality(ir, cards, ctx=ctx)
+
+    if ir.body is not None:
+        body_card = infer_cardinality(ir.body, scope_tree=scope_tree, ctx=ctx)
+        # Check that inline body cardinality does not disagree with
+        # declared function cardinality.
+        if body_card.can_be_zero() and not call_card.can_be_zero():
+            raise errors.QueryError(
+                'inline function body expression returns a possibly empty '
+                'result while the function is not declared as returning '
+                'OPTIONAL',
+                span=ir.span,
+            )
+        if body_card.is_multi() and not call_card.is_multi():
+            raise errors.QueryError(
+                'inline function body expression possibly returns more '
+                'than one element, while the function is not declared as '
+                'returning SET OF',
+                span=ir.span,
+            )
+
+    return call_card
 
 
 @_infer_cardinality.register

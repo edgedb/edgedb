@@ -935,6 +935,8 @@ class Call(ImmutableExpr):
     """Operator or a function call."""
     __abstract_node__ = True
 
+    __ast_mutable_fields__ = frozenset(('extras', 'body'))
+
     # Bound callable has polymorphic parameters and
     # a polymorphic return type.
     func_polymorphic: bool
@@ -980,6 +982,12 @@ class Call(ImmutableExpr):
     # to this function as a subquery-as-an-expression.
     # See comment in schema/functions.py for more discussion.
     prefer_subquery_args: bool = False
+
+    # Any extra information useful for compilation of special-case callables.
+    extras: typing.Optional[dict[str, typing.Any]] = None
+
+    # Inline body of the callable.
+    body: typing.Optional[Set] = None
 
 
 class FunctionCall(Call):
