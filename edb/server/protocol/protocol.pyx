@@ -89,6 +89,7 @@ cdef class HttpResponse:
         self.custom_headers = {}
         self.body = b''
         self.close_connection = False
+        self.sent = False
 
 
 cdef class HttpProtocol:
@@ -295,7 +296,7 @@ cdef class HttpProtocol:
                 b'The server is closing.',
             )
 
-    cdef close(self):
+    cpdef close(self):
         if self.transport is not None:
             self.transport.close()
             self.transport = None
@@ -339,8 +340,11 @@ cdef class HttpProtocol:
         data = [
             b'HTTP/', req_version, b' ', resp_status, b'\r\n',
             b'Content-Type: ', content_type, b'\r\n',
-            b'Content-Length: ', f'{len(body)}'.encode(), b'\r\n',
         ]
+        if content_type != b"text/event-stream":
+            data.extend(
+                (b'Content-Length: ', f'{len(body)}'.encode(), b'\r\n'),
+            )
 
         for key, value in custom_headers.items():
             data.append(f'{key}: {value}\r\n'.encode())
@@ -352,7 +356,7 @@ cdef class HttpProtocol:
             data.append(body)
         self.transport.write(b''.join(data))
 
-    cdef write(self, HttpRequest request, HttpResponse response):
+    cpdef write(self, HttpRequest request, HttpResponse response):
         assert type(response.status) is HTTPStatus
         self._write(
             request.version,
@@ -361,6 +365,10 @@ cdef class HttpProtocol:
             response.custom_headers,
             response.body,
             response.close_connection or not request.should_keep_alive)
+        response.sent = True
+
+    def write_raw(self, bytes data):
+        self.transport.write(data)
 
     def _switch_to_binary_protocol(self, data=None):
         binproto = binary.new_edge_connection(
@@ -484,7 +492,8 @@ cdef class HttpProtocol:
             self.unhandled_exception(b"500 Internal Server Error", ex)
             return
 
-        self.write(request, response)
+        if not response.sent:
+            self.write(request, response)
         self.in_response = False
 
         if response.close_connection or not request.should_keep_alive:
