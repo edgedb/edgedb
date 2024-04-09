@@ -260,6 +260,13 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             return self.compiled(
                 schema, options=options, as_fragment=as_fragment)
 
+    def assert_compiled(self) -> CompiledExpression:
+        if self._irast:
+            return self  # type: ignore
+        else:
+            raise AssertionError(
+                f"uncompiled expression {self.text!r} (origin: {self.origin})")
+
     @classmethod
     def from_ir(
         cls: Type[Expression],
@@ -379,6 +386,9 @@ class CompiledExpression(Expression):
     def irast(self) -> irast_.Statement:
         assert self._irast
         return self._irast
+
+    def as_python_value(self) -> Any:
+        return qlcompiler.evaluate_ir_statement_to_python_val(self.irast)
 
 
 class ExpressionShell(so.Shell):
