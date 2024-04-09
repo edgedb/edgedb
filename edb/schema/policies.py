@@ -222,8 +222,8 @@ class AccessPolicyCommand(
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
                     schema_object_context=self.get_schema_metaclass(),
-                    anchors={qlast.Subject().name: source},
-                    path_prefix_anchor=qlast.Subject().name,
+                    anchors={'__subject__': source},
+                    path_prefix_anchor='__subject__',
                     singletons=frozenset({source}),
                     apply_query_rewrites=not context.stdmode,
                     track_schema_ref_exprs=track_schema_ref_exprs,

@@ -990,27 +990,16 @@ def eval_Indirection(node: qlast.Indirection, ctx: EvalContext) -> Result:
 
 
 @_eval.register
-def eval_StringConstant(node: qlast.StringConstant, ctx: EvalContext) -> Result:
-    return [node.value]
-
-
-@_eval.register
-def eval_IntegerConstant(
-    node: qlast.IntegerConstant, ctx: EvalContext
-) -> Result:
-    return [int(node.value) * (-1 if node.is_negative else 1)]
-
-
-@_eval.register
-def eval_BooleanConstant(
-    node: qlast.BooleanConstant, ctx: EvalContext
-) -> Result:
-    return [node.value == 'true']
-
-
-@_eval.register
-def eval_FloatConstant(node: qlast.FloatConstant, ctx: EvalContext) -> Result:
-    return [float(node.value) * (-1 if node.is_negative else 1)]
+def eval_Constant(node: qlast.Constant, ctx: EvalContext) -> Result:
+    if node.kind == qlast.ConstantKind.STRING:
+        return [node.value]
+    elif node.kind == qlast.ConstantKind.INTEGER:
+        return [int(node.value)]
+    elif node.kind == qlast.ConstantKind.BOOLEAN:
+        return [node.value == 'true']
+    elif node.kind == qlast.ConstantKind.FLOAT:
+        return [float(node.value)]
+    raise AssertionError('unimplemented')
 
 
 @_eval.register

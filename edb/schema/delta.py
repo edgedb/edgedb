@@ -4346,7 +4346,7 @@ class AlterObjectProperty(Command):
             ])
         elif isinstance(value, uuid.UUID):
             value = qlast.TypeCast(
-                expr=qlast.StringConstant.from_python(str(value)),
+                expr=qlast.Constant.string(str(value)),
                 type=qlast.TypeName(
                     maintype=qlast.ObjectRef(
                         name='uuid',

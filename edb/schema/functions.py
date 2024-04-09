@@ -2366,10 +2366,10 @@ def get_params_symtable(
                     func=('std', 'bytes_get_bit'),
                     args=[
                         defaults_mask,
-                        qlast.IntegerConstant(value=str(pi)),
+                        qlast.Constant.integer(pi),
                     ]),
                 op='=',
-                right=qlast.IntegerConstant(value='0'),
+                right=qlast.Constant.integer(0),
             ),
             if_expr=anchors[p_shortname],
             else_expr=qlast._Optional(expr=p_default.qlast),

@@ -345,7 +345,7 @@ class CreateAnnotationValue(
             assert isinstance(op.new_value, str)
             assert isinstance(node, (
                 qlast.CreateAnnotationValue, qlast.AlterAnnotationValue))
-            node.value = qlast.StringConstant.from_python(op.new_value)
+            node.value = qlast.Constant.string(op.new_value)
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -436,7 +436,7 @@ class AlterAnnotationValue(
 
         if op.property == 'value':
             assert isinstance(op.new_value, str)
-            node.value = qlast.StringConstant.from_python(op.new_value)
+            node.value = qlast.Constant.string(op.new_value)
         else:
             super()._apply_field_ast(schema, context, node, op)
 

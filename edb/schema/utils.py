@@ -986,6 +986,7 @@ def enrich_schema_lookup_error(
     condition: Optional[Callable[[so.Object], bool]] = None,
     span: Optional[parsing.Span] = None,
     pointer_parent: Optional[so.Object] = None,
+    hint_text: str = 'did you mean'
 ) -> None:
 
     all_suggestions = itertools.chain(
@@ -1007,9 +1008,9 @@ def enrich_schema_lookup_error(
         names = [name for _, name in suggestions]
 
         if len(names) > 1:
-            hint = f'did you mean one of these: {", ".join(names)}?'
+            hint = f'{hint_text} one of these: {", ".join(names)}?'
         else:
-            hint = f'did you mean {names[0]!r}?'
+            hint = f'{hint_text} {names[0]!r}?'
 
         error.set_hint_and_details(hint=hint)
 
@@ -1231,26 +1232,26 @@ MIN_INT64 = -2 ** 63
 
 def const_ast_from_python(val: Any) -> qlast.Expr:
     if isinstance(val, str):
-        return qlast.StringConstant.from_python(val)
+        return qlast.Constant.string(val)
     elif isinstance(val, bool):
-        return qlast.BooleanConstant(value='true' if val else 'false')
+        return qlast.Constant.boolean(val)
     elif isinstance(val, int):
         if MIN_INT64 <= val <= MAX_INT64:
-            return qlast.IntegerConstant(value=str(val))
+            return qlast.Constant.integer(val)
         else:
             raise ValueError(f'int64 value out of range: {val}')
     elif isinstance(val, decimal.Decimal):
-        return qlast.DecimalConstant(value=f'{val}n')
+        return qlast.Constant(value=f'{val}n', kind=qlast.ConstantKind.DECIMAL)
     elif isinstance(val, float):
-        return qlast.FloatConstant(value=str(val))
+        return qlast.Constant(value=str(val), kind=qlast.ConstantKind.FLOAT)
     elif isinstance(val, bytes):
-        return qlast.BytesConstant.from_python(val)
+        return qlast.BytesConstant(value=val)
     elif isinstance(val, statypes.Duration):
         return qlast.TypeCast(
             type=qlast.TypeName(
                 maintype=qlast.ObjectRef(module='__std__', name='duration'),
             ),
-            expr=qlast.StringConstant(value=val.to_iso8601()),
+            expr=qlast.Constant.string(value=val.to_iso8601()),
         )
     elif isinstance(val, statypes.CompositeType):
         return qlast.InsertQuery(

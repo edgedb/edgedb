@@ -176,9 +176,9 @@ def _process_op_result(
 ) -> irast.ConstExpr:
     qlconst: qlast.BaseConstant
     if isinstance(value, str):
-        qlconst = qlast.StringConstant.from_python(value)
+        qlconst = qlast.Constant.string(value)
     elif isinstance(value, bool):
-        qlconst = qlast.BooleanConstant.from_python(value)
+        qlconst = qlast.Constant.boolean(value)
     else:
         raise UnsupportedExpressionError(
             f"unsupported result type: {type(value)}", span=span

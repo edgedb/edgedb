@@ -572,8 +572,8 @@ class ConstraintCommand(
                     schema=schema,
                     options=qlcompiler.CompilerOptions(
                         modaliases=context.modaliases,
-                        anchors={qlast.Subject().name: base},
-                        path_prefix_anchor=qlast.Subject().name,
+                        anchors={'__subject__': base},
+                        path_prefix_anchor='__subject__',
                         singletons=frozenset([base]),
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
@@ -822,12 +822,12 @@ class ConstraintCommand(
             # subject has been redefined
             assert isinstance(subject, qlast.Base)
             qlutils.inline_anchors(
-                expr_ql, anchors={qlast.Subject().name: subject})
+                expr_ql, anchors={'__subject__': subject})
             subject = orig_subject
 
         if args:
             args_ql: List[qlast.Base] = [
-                qlast.Path(steps=[qlast.Subject()]),
+                qlast.Path(steps=[qlast.SpecialAnchor(name='__subject__')]),
             ]
             args_ql.extend(arg.qlast for arg in args)
             args_map = qlutils.index_parameters(
@@ -849,8 +849,8 @@ class ConstraintCommand(
         final_expr = s_expr.Expression.from_ast(expr_ql, schema, {}).compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
-                anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=qlast.Subject().name,
+                anchors={'__subject__': subject},
+                path_prefix_anchor='__subject__',
                 singletons=singletons,
                 apply_query_rewrites=False,
                 schema_object_context=self.get_schema_metaclass(),
@@ -879,8 +879,8 @@ class ConstraintCommand(
 
         if subjectexpr is not None:
             options = qlcompiler.CompilerOptions(
-                anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=qlast.Subject().name,
+                anchors={'__subject__': subject},
+                path_prefix_anchor='__subject__',
                 singletons=singletons,
                 apply_query_rewrites=False,
                 schema_object_context=self.get_schema_metaclass(),

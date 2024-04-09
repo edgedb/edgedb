@@ -53,6 +53,7 @@ from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import indexes as s_indexes
 from edb.schema import schema as s_schema
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -95,7 +96,24 @@ def compile_FunctionCall(
     else:
         funcname = sn.QualName(*expr.func)
 
-    funcs = env.schema.get_functions(funcname, module_aliases=ctx.modaliases)
+    try:
+        funcs = env.schema.get_functions(
+            funcname,
+            module_aliases=ctx.modaliases,
+        )
+    except errors.InvalidReferenceError as e:
+        s_utils.enrich_schema_lookup_error(
+            e,
+            funcname,
+            modaliases=ctx.modaliases,
+            schema=env.schema,
+            suggestion_limit=1,
+            item_type=s_types.Type,
+            span=expr.span,
+            hint_text='did you mean to cast to'
+        )
+        raise
+
     prefer_subquery_args = any(
         func.get_prefer_subquery_args(env.schema) for func in funcs
     )
@@ -352,7 +370,7 @@ def _special_case(name: str) -> Callable[[_SpecialCaseFunc], _SpecialCaseFunc]:
 
 
 def compile_operator(
-    qlexpr: qlast.Base,
+    qlexpr: qlast.Expr,
     op_name: str,
     qlargs: List[qlast.Expr],
     *,
@@ -541,7 +559,7 @@ def compile_operator(
                 ):
                     hint = 'Consider using the "++" operator for concatenation'
 
-            if isinstance(qlexpr, qlast.SetConstructorOp):
+            if isinstance(qlexpr, qlast.BinOp) and qlexpr.set_constructor:
                 msg = (
                     f'set constructor has arguments of incompatible types '
                     f'{types}'
@@ -902,7 +920,7 @@ def finalize_args(
                 and not ctx.inhibit_implicit_limit
             ):
                 arg.expr.limit = dispatch.compile(
-                    qlast.IntegerConstant(value=str(ctx.implicit_limit)),
+                    qlast.Constant.integer(ctx.implicit_limit),
                     ctx=ctx,
                 )
 

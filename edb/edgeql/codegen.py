@@ -687,41 +687,21 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(node.name)
         self.write(')')
 
-    def visit_StringConstant(self, node: qlast.StringConstant) -> None:
-        if not _NON_PRINTABLE_RE.search(node.value):
-            for d in ("'", '"', '$$'):
-                if d not in node.value:
-                    if '\\' in node.value and d != '$$':
-                        self.write('r', d, node.value, d)
-                    else:
-                        self.write(d, node.value, d)
-                    return
-            self.write(edgeql_quote.dollar_quote_literal(node.value))
-            return
-        self.write(repr(node.value))
-
-    def visit_IntegerConstant(self, node: qlast.IntegerConstant) -> None:
-        if node.is_negative:
-            self.write('-')
-        self.write(node.value)
-
-    def visit_FloatConstant(self, node: qlast.FloatConstant) -> None:
-        if node.is_negative:
-            self.write('-')
-        self.write(node.value)
-
-    def visit_DecimalConstant(self, node: qlast.DecimalConstant) -> None:
-        if node.is_negative:
-            self.write('-')
-        self.write(node.value)
-
-    def visit_BigintConstant(self, node: qlast.BigintConstant) -> None:
-        if node.is_negative:
-            self.write('-')
-        self.write(node.value)
-
-    def visit_BooleanConstant(self, node: qlast.BooleanConstant) -> None:
-        self.write(node.value)
+    def visit_Constant(self, node: qlast.Constant) -> None:
+        if node.kind == qlast.ConstantKind.STRING:
+            if not _NON_PRINTABLE_RE.search(node.value):
+                for d in ("'", '"', '$$'):
+                    if d not in node.value:
+                        if '\\' in node.value and d != '$$':
+                            self.write('r', d, node.value, d)
+                        else:
+                            self.write(d, node.value, d)
+                        return
+                self.write(edgeql_quote.dollar_quote_literal(node.value))
+                return
+            self.write(repr(node.value))
+        else:
+            self.write(node.value)
 
     def visit_BytesConstant(self, node: qlast.BytesConstant) -> None:
         val = _BYTES_ESCAPE_RE.sub(_bytes_escape, node.value)
@@ -811,19 +791,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('::')
         self.write(ident_to_str(node.name))
 
-    def visit_Anchor(self, node: qlast.Anchor) -> None:
-        self.write(node.name)
-
-    def visit_IRAnchor(self, node: qlast.IRAnchor) -> None:
-        self.write(node.name)
-
-    def visit_SpecialAnchor(self, node: qlast.SpecialAnchor) -> None:
-        self.write(node.name)
-
-    def visit_Subject(self, node: qlast.Subject) -> None:
-        self.write(node.name)
-
-    def visit_Source(self, node: qlast.Source) -> None:
+    def visit_SpecialAnchor(self, node: qlast.Anchor) -> None:
         self.write(node.name)
 
     def visit_TypeExprLiteral(self, node: qlast.TypeExprLiteral) -> None:
@@ -1361,7 +1329,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self,
         expr: Union[qlast.Expr, qlast.TypeExpr],
     ) -> bool:
-        if not isinstance(expr, qlast.BooleanConstant):
+        if (not isinstance(expr, qlast.Constant)
+            or expr.kind != qlast.ConstantKind.BOOLEAN
+        ):
             raise AssertionError(f'expected BooleanConstant, got {expr!r}')
         return expr.value == 'true'
 
@@ -1370,7 +1340,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         expr: Union[qlast.Expr, qlast.TypeExpr],
         enum_type: Type[Enum_T],
     ) -> Enum_T:
-        if not isinstance(expr, qlast.StringConstant):
+        if (
+            not isinstance(expr, qlast.Constant)
+            or expr.kind != qlast.ConstantKind.STRING
+        ):
             raise AssertionError(f'expected StringConstant, got {expr!r}')
         return enum_type(expr.value)
 
