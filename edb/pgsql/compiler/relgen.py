@@ -3249,11 +3249,12 @@ def _compile_call_args(
         # "push down" the subqueries from the top level, which is
         # important for things like hitting pgvector indexes in an
         # ORDER BY.
+        arg_typeref = ir_arg.expr.typeref
         make_subquery = (
             expr.prefer_subquery_args
             and typemod != qltypes.TypeModifier.SetOfType
             and ir_arg.cardinality.is_single()
-            and ir_arg.expr.typeref.is_scalar
+            and (arg_typeref.is_scalar or arg_typeref.collection)
             and not _needs_arg_null_check(expr, ir_arg, typemod, ctx=ctx)
         )
 
@@ -3903,6 +3904,87 @@ def process_set_as_fts_search(
 
     return _process_set_as_object_search(
         ir_set, inner_cb=cb, ctx=ctx)
+
+
+@_special_case('ext::ai::search')
+def process_set_as_ext_ai_search(
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    cb = _ext_ai_search_inner_pgvector
+    return _process_set_as_object_search(
+        ir_set, inner_cb=cb, ctx=ctx)
+
+
+def _ext_ai_search_inner_pgvector(
+    call: irast.Call,
+    obj_id: irast.PathId,
+    args_pg: list[pgast.BaseExpr],
+    _ctx: context.CompilerContextLevel,
+    newctx: context.CompilerContextLevel,
+    _inner_ctx: context.CompilerContextLevel,
+) -> Tuple[pgast.BaseExpr, Optional[pgast.BaseExpr]]:
+    assert isinstance(call, irast.FunctionCall)
+    if call.extras is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+    index_metadata = call.extras.get("index_metadata")
+    if index_metadata is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+    tgt = obj_id.target
+    if tgt.material_type is not None:
+        tgt = tgt.material_type
+    target_index_metadata = index_metadata.get(tgt)
+    if target_index_metadata is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+    index_id = target_index_metadata.get("id")
+    if index_id is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+    dimensions = target_index_metadata.get("dimensions")
+    if dimensions is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+    df = target_index_metadata.get("distance_function")
+    if index_id is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+
+    query, = args_pg
+    el_name = sn.QualName(
+        '__object__',
+        f'__ext_ai_{index_id.hex}_embedding__',
+    )
+    embedding_ptrref = irast.SpecialPointerRef(
+        name=el_name,
+        shortname=el_name,
+        out_source=obj_id.target,
+        out_target=pg_types.pg_tsvector_typeref,
+        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+    )
+    embedding_id = obj_id.extend(ptrref=embedding_ptrref)
+    embedding = relctx.get_path_var(
+        newctx.rel,
+        embedding_id,
+        aspect='value',
+        ctx=newctx,
+    )
+
+    similarity = pgast.FuncCall(
+        name=common.get_function_backend_name(*df),
+        args=[
+            embedding,
+            pgast.TypeCast(
+                arg=query,
+                type_name=pgast.TypeName(
+                    name=('edgedb', f'vector({dimensions})'),
+                ),
+            ),
+        ],
+    )
+
+    return similarity, None
 
 
 def _process_set_as_object_search(
