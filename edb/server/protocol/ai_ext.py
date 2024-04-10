@@ -34,6 +34,9 @@ import itertools
 import json
 import logging
 
+import httpx
+import httpx_sse
+
 from edb import errors
 from edb.common import asyncutil
 from edb.common import debug
@@ -438,7 +441,53 @@ async def _generate_embeddings(
         f"{task_name} generating embeddings via {model_name!r} "
         f"of {provider.name!r} for {len(inputs)} object{suf}"
     )
-    raise RuntimeError(f"unsupported model provider: {provider.name}")
+
+    if provider.api_style == "OpenAI":
+        return await _generate_openai_embeddings(
+            provider, model_name, inputs, shortening)
+    else:
+        raise RuntimeError(
+            f"unsupported model provider API style: {provider.api_style}, "
+            f"provider: {provider.name}"
+        )
+
+
+async def _generate_openai_embeddings(
+    provider,
+    model_name: str,
+    inputs: list[str],
+    shortening: Optional[int],
+) -> bytes:
+    headers = {
+        "Authorization": f"Bearer {provider.secret}",
+    }
+    if provider.name == "builtin::openai" and provider.client_id:
+        headers["OpenAI-Organization"] = provider.client_id
+    client = httpx.AsyncClient(
+        headers=headers,
+        base_url=provider.api_url,
+    )
+
+    params: dict[str, Any] = {
+        "model": model_name,
+        "encoding_format": "float",
+        "input": inputs,
+    }
+    if shortening is not None:
+        params["dimensions"] = shortening
+
+    result = await client.post(
+        "/embeddings",
+        json=params,
+    )
+
+    if result.status_code >= 400:
+        raise AIProviderError(
+            f"API call to generate embeddings failed with status "
+            f"{result.status_code}: {result.text}"
+        )
+    else:
+        return result.content
 
 
 async def _start_chat(
@@ -450,7 +499,187 @@ async def _start_chat(
     messages: list[dict],
     stream: bool,
 ) -> None:
-    raise RuntimeError(f"unsupported model provider: {provider.name}")
+    if provider.api_style == "OpenAI":
+        await _start_openai_chat(
+            protocol, request, response,
+            provider, model_name, messages, stream)
+    else:
+        raise RuntimeError(
+            f"unsupported model provider API style: {provider.api_style}, "
+            f"provider: {provider.name}"
+        )
+
+
+@contextlib.asynccontextmanager
+async def aconnect_sse(
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    **kwargs: Any,
+) -> AsyncIterator[httpx_sse.EventSource]:
+    headers = kwargs.pop("headers", {})
+    headers["Accept"] = "text/event-stream"
+    headers["Cache-Control"] = "no-store"
+
+    stream = client.stream(method, url, headers=headers, **kwargs)
+    async with stream as response:
+        if response.status_code >= 400:
+            await response.aread()
+            raise AIProviderError(
+                f"API call to generate chat completions failed with status "
+                f"{response.status_code}: {response.text}"
+            )
+        else:
+            yield httpx_sse.EventSource(response)
+
+
+async def _start_openai_like_chat(
+    protocol: protocol.HttpProtocol,
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    client: httpx.AsyncClient,
+    model_name: str,
+    messages: list[dict],
+    stream: bool,
+) -> None:
+    if stream:
+        async with aconnect_sse(
+            client,
+            method="POST",
+            url="/chat/completions",
+            json={
+                "model": model_name,
+                "messages": messages,
+                "stream": True,
+            }
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if not response.sent:
+                    response.status = http.HTTPStatus.OK
+                    response.content_type = b'text/event-stream'
+                    response.close_connection = False
+                    response.custom_headers["Cache-Control"] = "no-cache"
+                    protocol.write(request, response)
+
+                if sse.event != "message":
+                    continue
+
+                if sse.data == "[DONE]":
+                    event = (
+                        b'event: message_stop\n'
+                        + b'data: {"type": "message_stop"}\n\n'
+                    )
+                    protocol.write_raw(event)
+                    continue
+
+                message = sse.json()
+                if message.get("object") == "chat.completion.chunk":
+                    data = message.get("choices")[0]
+                    delta = data.get("delta")
+                    role = delta.get("role")
+                    if role:
+                        event_data = json.dumps({
+                            "type": "message_start",
+                            "message": {
+                                "id": message["id"],
+                                "role": role,
+                                "model": message["model"],
+                            }
+                        }).encode("utf-8")
+                        event = (
+                            b'event: message_start\n'
+                            + b'data: ' + event_data + b'\n\n'
+                        )
+                        protocol.write_raw(event)
+
+                        event = (
+                            b'event: content_block_start\n'
+                            + b'data: {"type": "content_block_start",'
+                            + b'"index":0,'
+                            + b'"content_block":{"type":"text","text":""}}\n\n'
+                        )
+                        protocol.write_raw(event)
+                    elif finish_reason := data.get("finish_reason"):
+                        event = (
+                            b'event: content_block_stop\n'
+                            + b'data: {"type": "content_block_stop",'
+                            + b'"index":0}\n\n'
+                        )
+                        protocol.write_raw(event)
+
+                        event_data = json.dumps({
+                            "type": "message_delta",
+                            "delta": {
+                                "stop_reason": finish_reason,
+                            }
+                        }).encode("utf-8")
+                        event = (
+                            b'event: message_delta\n'
+                            + b'data: ' + event_data + b'\n\n'
+                        )
+                        protocol.write_raw(event)
+
+                    else:
+                        event_data = json.dumps({
+                            "type": "text_delta",
+                            "text": delta.get("content"),
+                        }).encode("utf-8")
+                        event = (
+                            b'event: content_block_delta\n'
+                            + b'data: {"type": "content_block_delta",'
+                            + b'"index":0,'
+                            + b'"delta":' + event_data + b'}\n\n'
+                        )
+                        protocol.write_raw(event)
+
+            protocol.close()
+    else:
+        result = await client.post(
+            "/chat/completions",
+            json={
+                "model": model_name,
+                "messages": messages,
+            }
+        )
+
+        response.status = http.HTTPStatus.OK
+        response_text = result.json()["choices"][0]["message"]["content"]
+        response.content_type = b'application/json'
+        response.body = json.dumps({
+            "response": response_text,
+        }).encode("utf-8")
+
+
+async def _start_openai_chat(
+    protocol: protocol.HttpProtocol,
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    provider,
+    model_name: str,
+    messages: list[dict],
+    stream: bool,
+) -> None:
+    headers = {
+        "Authorization": f"Bearer {provider.secret}",
+    }
+
+    if provider.name == "builtin::openai" and provider.client_id:
+        headers["OpenAI-Organization"] = provider.client_id
+
+    client = httpx.AsyncClient(
+        base_url=provider.api_url,
+        headers=headers,
+    )
+
+    await _start_openai_like_chat(
+        protocol,
+        request,
+        response,
+        client,
+        model_name,
+        messages,
+        stream,
+    )
 
 
 #

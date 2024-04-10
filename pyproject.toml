@@ -19,6 +19,7 @@ dependencies = [
     'setproctitle~=1.2',
 
     'httpx~=0.24.1',
+    'httpx-sse~=0.4.0',
     'hishel==0.0.24',
     'webauthn~=2.0.0',
     'argon2-cffi~=23.1.0',
