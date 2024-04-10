@@ -173,7 +173,11 @@ def evaluate_Tuple(
     return irast.Tuple(
         named=ir.named,
         elements=[
-            x.replace(val=evaluate(x.val, schema)) for x in ir.elements
+            x.replace(
+                val=x.val.replace(
+                    expr=evaluate(x.val, schema)
+                ),
+            ) for x in ir.elements
         ],
         typeref=ir.typeref,
     )
