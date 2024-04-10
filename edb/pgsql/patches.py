@@ -128,4 +128,5 @@ ALTER TYPE cfg::AbstractConfig {
     # Repair is needed to properly populate inherited flag for deferred.
     # FIXME: It would be nice to have a lighter weight mechanism.
     ('repair', ''),
+    ('ext-pkg', 'ai'),
 ])
