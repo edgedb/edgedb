@@ -984,6 +984,8 @@ class Call(ImmutableExpr):
 
 class FunctionCall(Call):
 
+    __ast_mutable_fields__ = frozenset(('extras', 'body'))
+
     # If the bound callable is a "USING SQL" callable, this
     # attribute will be set to the name of the SQL function.
     func_sql_function: typing.Optional[str]
@@ -1019,6 +1021,12 @@ class FunctionCall(Call):
 
     # Additional arguments representing global variables
     global_args: typing.Optional[typing.List[Set]] = None
+
+    # Any extra information useful for compilation of special-case callables.
+    extras: typing.Optional[dict[str, typing.Any]] = None
+
+    # Inline body of the callable.
+    body: typing.Optional[Set] = None
 
 
 class OperatorCall(Call):
