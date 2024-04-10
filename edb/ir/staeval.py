@@ -27,7 +27,6 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
-    Union,
     Dict,
     List,
     FrozenSet,
@@ -73,7 +72,7 @@ class UnsupportedExpressionError(errors.QueryError):
     pass
 
 
-EvaluationResult = Union[irast.TypeCast, irast.ConstExpr, irast.Array]
+EvaluationResult = irast.TypeCast | irast.ConstExpr | irast.Array | irast.Tuple
 
 
 def evaluate_to_python_val(
@@ -163,6 +162,19 @@ def evaluate_Array(
         elements=tuple(
             x.replace(expr=evaluate(x, schema)) for x in ir.elements
         ),
+        typeref=ir.typeref,
+    )
+
+
+@evaluate.register(irast.Tuple)
+def evaluate_Tuple(
+    ir: irast.Tuple, schema: s_schema.Schema
+) -> EvaluationResult:
+    return irast.Tuple(
+        named=ir.named,
+        elements=[
+            x.replace(val=evaluate(x.val, schema)) for x in ir.elements
+        ],
         typeref=ir.typeref,
     )
 
@@ -328,6 +340,18 @@ def const_set_to_python(
 @const_to_python.register(irast.Array)
 def array_const_to_python(ir: irast.Array, schema: s_schema.Schema) -> Any:
     return [const_to_python(x.expr, schema) for x in ir.elements]
+
+
+@const_to_python.register(irast.Tuple)
+def tuple_const_to_python(ir: irast.Tuple, schema: s_schema.Schema) -> Any:
+    if ir.named:
+        return {
+            x.name: const_to_python(x.val.expr, schema) for x in ir.elements
+        }
+    else:
+        return tuple(
+            const_to_python(x.val.expr, schema) for x in ir.elements
+        )
 
 
 @const_to_python.register(irast.IntegerConstant)
