@@ -439,6 +439,105 @@ async def _generate_embeddings(
     raise RuntimeError(f"unsupported model provider: {provider.name}")
 
 
+#
+# HTTP API
+#
+
+async def handle_request(
+    protocol: protocol.HttpProtocol,
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    db: dbview.Database,
+    args: list[str],
+    tenant: srv_tenant.Tenant,
+):
+    if len(args) != 1 or args[0] not in {"rag", "embeddings"}:
+        response.body = b'Unknown path'
+        response.status = http.HTTPStatus.NOT_FOUND
+        response.close_connection = True
+        return
+    if request.method != b"POST":
+        response.body = b"Invalid request method"
+        response.status = http.HTTPStatus.METHOD_NOT_ALLOWED
+        response.close_connection = True
+        return
+    if request.content_type != b"application/json":
+        response.body = b"Expected application/json input"
+        response.status = http.HTTPStatus.BAD_REQUEST
+        response.close_connection = True
+        return
+
+    await db.introspection()
+
+    try:
+        if args[0] == "embeddings":
+            await _handle_embeddings_request(request, response, db, tenant)
+        else:
+            response.body = b'Unknown path'
+            response.status = http.HTTPStatus.NOT_FOUND
+            response.close_connection = True
+            return
+    except Exception as ex:
+        if not isinstance(ex, AIExtError):
+            ex = InternalError(str(ex))
+
+        response.status = ex.get_http_status()
+        response.body = json.dumps(ex.json()).encode("utf-8")
+        response.close_connection = True
+        return
+
+
+async def _handle_embeddings_request(
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    db: dbview.Database,
+    tenant: srv_tenant.Tenant,
+) -> None:
+    try:
+        body = json.loads(request.body)
+        if not isinstance(body, dict):
+            raise TypeError(
+                'the body of the request must be a JSON object')
+
+        inputs = body.get("input")
+        if not inputs:
+            raise TypeError(
+                'missing or empty required "input" value in request')
+
+        model_name = body.get("model")
+        if not model_name:
+            raise TypeError(
+                'missing or empty required "model" value in request')
+
+    except Exception as ex:
+        raise BadRequestError(str(ex)) from None
+
+    provider_name = await _get_model_provider(
+        db,
+        base_model_type="ext::ai::EmbeddingModel",
+        model_name=model_name,
+    )
+    if provider_name is None:
+        # Error
+        return
+
+    provider = _get_provider_config(db, provider_name)
+
+    if not isinstance(inputs, list):
+        inputs = [inputs]
+
+    result = await _generate_embeddings(
+        provider,
+        model_name,
+        inputs,
+        shortening=None,
+    )
+
+    response.status = http.HTTPStatus.OK
+    response.content_type = b'application/json'
+    response.body = result
+
+
 async def _edgeql_query_json(
     *,
     db: dbview.Database,
@@ -509,3 +608,47 @@ def _get_provider_config(
         raise ConfigurationError(
             f"provider {provider_name!r} has not been configured"
         )
+
+
+async def _get_model_provider(
+    db: dbview.Database,
+    base_model_type: str,
+    model_name: str,
+) -> str:
+    models = await _edgeql_query_json(
+        db=db,
+        query="""
+        WITH
+            Parent := (
+                SELECT
+                    schema::ObjectType
+                FILTER
+                    .name = <str>$base_model_type
+            ),
+            Models := Parent.<ancestors[IS schema::ObjectType],
+        SELECT
+            Models {
+                provider := (
+                    SELECT
+                        (.annotations@value, .annotations.name)
+                    FILTER
+                        .1 = "ext::ai::model_provider"
+                    LIMIT
+                        1
+                ).0,
+            }
+        FILTER
+            .annotations.name = "ext::ai::model_name"
+            AND .annotations@value = <str>$model_name
+        """,
+        variables={
+            "base_model_type": base_model_type,
+            "model_name": model_name,
+        },
+    )
+    if len(models) == 0:
+        raise BadRequestError("invalid model name")
+    elif len(models) > 1:
+        raise InternalError("multiple models defined as requested model")
+
+    return models[0]["provider"]
