@@ -79,6 +79,10 @@ class Annotation(NamedObject):
     pass
 
 
+class AnnotationValue(NamedObject):
+    pass
+
+
 class Global(NamedObject):
     pass
 
