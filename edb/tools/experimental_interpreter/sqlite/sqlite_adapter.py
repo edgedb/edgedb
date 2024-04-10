@@ -17,8 +17,8 @@ from ..elab_schema import add_module_from_sdl_file, add_module_from_sdl_defs
 
 import copy
 
-# SQLITE_PRINT_QUERIES = True
-SQLITE_PRINT_QUERIES = False
+SQLITE_PRINT_QUERIES = True
+# SQLITE_PRINT_QUERIES = False
 
 @dataclass(frozen=True)
 class PropertyTypeView:
@@ -519,7 +519,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         if self.should_commit_to_disk:
             self.conn.commit()
     
-def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):
+def schema_and_db_from_sqlite(sdl_file_content : Optional[str], sqlite_file_name : str):
     # Connect to the SQLite database
     conn = sqlite3.connect(sqlite_file_name)
     c = conn.cursor()

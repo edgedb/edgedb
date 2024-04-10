@@ -70,16 +70,10 @@ def default_dbschema() -> DBSchema:
     # return DBSchema({("std",): DBModule({k: e.ModuleEntityFuncDef(v) for (k,v) in all_builtin_funcs.items()})},{})
 
 
-
-
-def run_statement(db: EdgeDatabase,
+def prepare_statement(
                   stmt: qlast.Expr, dbschema: DBSchema,
                   should_print: bool,
-                  logs: Optional[List[Any]],
-                  variables: Dict[str, Val] = {},
-                  skip_type_checking: bool = False,
-                  ) -> Tuple[MultiSetVal, e.ResultTp]:
-
+                  ) -> Tuple[e.Expr, e.ResultTp]:
     dbschema_ctx = e.TcCtx(dbschema, ("default",), {})
 
     if should_print:
@@ -103,17 +97,6 @@ def run_statement(db: EdgeDatabase,
         reverse_elabed = reverse_elab(factored)
         debug.dump_edgeql(reverse_elabed)
 
-    if skip_type_checking:
-        if should_print:
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
-        result = eval_expr_toplevel(db, factored, logs=logs)
-        if should_print:
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
-            debug.print(result)
-            print(multi_set_val_to_json_like((result)))
-            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
-        return (result, ResultTp(e.NamedNominalLinkTp("NOT AVAILABLE", linkprop=e.ObjectTp({})), CardAny))
-
     elif should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Type Checking")
 
@@ -133,7 +116,16 @@ def run_statement(db: EdgeDatabase,
         reverse_elabed = reverse_elab(deduped)
         debug.dump_edgeql(reverse_elabed)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
+    
+    return deduped, tp
 
+
+def run_prepared_statement(db: EdgeDatabase,
+                           deduped: e.Expr, tp: e.ResultTp, dbschema: DBSchema,
+                           should_print: bool,
+                           logs: Optional[List[Any]],
+                           variables: Dict[str, Val] = {},
+                          ) -> Tuple[MultiSetVal]:
     result = eval_expr_toplevel(db, deduped, variables=variables, logs=logs)
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
@@ -142,8 +134,19 @@ def run_statement(db: EdgeDatabase,
         #     tp, eops.assume_link_target(result), dbschema))
         print(typed_multi_set_val_to_json_like(tp, result, dbschema))
         print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
-    return (result, tp)
-    # debug.dump(stmt)
+    return result
+                           
+
+def run_statement(db: EdgeDatabase,
+                  stmt: qlast.Expr, dbschema: DBSchema,
+                  should_print: bool,
+                  logs: Optional[List[Any]],
+                  variables: Dict[str, Val] = {},
+                  ) -> Tuple[MultiSetVal, e.ResultTp]:
+
+    deduped, tp = prepare_statement(db, stmt, dbschema, should_print, logs)
+    result = run_prepared_statement(db, deduped, tp, dbschema, should_print, logs, variables)
+    return result, tp
 
 
 def run_stmts(db: EdgeDatabase, stmts: Sequence[qlast.Expr],
@@ -342,6 +345,42 @@ def dbschema_and_db_with_initial_schema_and_queries(
     run_str(db, dbschema, initial_queries,
                       print_asts=debug_print, logs=logs)
     return dbschema, db
+
+class EdgeQLInterpreter:
+
+
+    def __init__(self, 
+                initial_schema_defs: str=None,
+                sqlite_file_name: Optional[str] = None):
+        interpreter_parser_init()
+        dbschema, db = dbschema_and_db_with_initial_schema_and_queries(
+            initial_schema_defs, "", sqlite_file_name)
+        self.dbschema : e.DBSchema = dbschema
+        self.db : EdgeDatabase = db
+        self.query_cache : Dict[str, Tuple[Expr, ResultTp]] = {}
+    
+    def run_single_str_get_json_with_cache(
+        self,
+        s: str,
+        variables: Optional[Dict[str, Any] | Tuple[Any, ...]] = None,
+        disable_cache: bool = False,
+    ) -> json_like:
+        if not disable_cache and s in self.query_cache:
+            (query_expr, tp) = self.query_cache[s]
+        else:
+            q = parse_ql(s)
+            if len(q) != 1:
+                raise ValueError("Not a single query")
+            query_expr, tp = prepare_statement(q[0], self.dbschema, False)
+            self.query_cache[s] = (query_expr, tp)
+        
+        res = run_prepared_statement(self.db, query_expr, tp, self.dbschema,
+                                     should_print=False, logs=None, variables=variables)
+        result = typed_multi_set_val_to_json_like(tp, res, self.dbschema, top_level=True)
+        
+        return result
+
+    
 
 
 if __name__ == "__main__":
