@@ -1110,13 +1110,20 @@ class CreateIndex(
         subject = referrer_ctx.scls
         assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
 
+        # XXX: the below hardcode should be replaced by an index scope
+        #      field instead.
         # FTS
-        if self.scls.has_base_with_name(schema, sn.QualName('fts', 'index')):
-
-            if isinstance(subject, s_pointers.Pointer):
+        object_scoped_indexes = (
+            sn.QualName('fts', 'index'),
+        )
+        for idx_base in object_scoped_indexes:
+            if (
+                self.scls.has_base_with_name(schema, idx_base)
+                and isinstance(subject, s_pointers.Pointer)
+            ):
                 raise errors.SchemaDefinitionError(
-                    "fts::index cannot be declared on links",
-                    span=self.span
+                    f"{idx_base} cannot be declared on links",
+                    span=self.span,
                 )
 
         # Ensure that the name of the index (if given) matches an existing
@@ -1351,8 +1358,10 @@ class RebaseIndex(
     pass
 
 
-def get_effective_fts_index(
-    subject: IndexableSubject, schema: s_schema.Schema
+def get_effective_object_index(
+    schema: s_schema.Schema,
+    subject: IndexableSubject,
+    base_idx_name: sn.QualName,
 ) -> Tuple[Optional[Index], bool]:
     """
     Returns the effective index of a subject and a boolean indicating
@@ -1360,41 +1369,41 @@ def get_effective_fts_index(
     """
     indexes: so.ObjectIndexByFullname[Index] = subject.get_indexes(schema)
 
-    fts_name = sn.QualName('fts', 'index')
-    fts_indexes = [
+    object_indexes = [
         ind
         for ind in indexes.objects(schema)
-        if ind.has_base_with_name(schema, fts_name)
+        if ind.has_base_with_name(schema, base_idx_name)
     ]
-    if len(fts_indexes) == 0:
+    if len(object_indexes) == 0:
         return (None, False)
 
-    fts_indexes_defined_here = [
-        ind for ind in fts_indexes if ind.is_defined_here(schema)
+    object_indexes_defined_here = [
+        ind for ind in object_indexes if ind.is_defined_here(schema)
     ]
 
-    if len(fts_indexes_defined_here) > 0:
+    if len(object_indexes_defined_here) > 0:
         # indexes defined here have priority
 
-        if len(fts_indexes_defined_here) > 1:
+        if len(object_indexes_defined_here) > 1:
             subject_name = subject.get_displayname(schema)
             raise errors.SchemaDefinitionError(
-                f'multiple {fts_name} indexes defined for {subject_name}'
+                f'multiple {base_idx_name} indexes defined for {subject_name}'
             )
-        effective = fts_indexes_defined_here[0]
-        has_overridden = len(fts_indexes) >= 2
+        effective = object_indexes_defined_here[0]
+        has_overridden = len(object_indexes) >= 2
 
     else:
-        # there are no fts indexes defined on the subject
+        # there are no object-scoped indexes defined on the subject
         # the inherited indexes take effect
 
-        if len(fts_indexes) > 1:
+        if len(object_indexes) > 1:
             subject_name = subject.get_displayname(schema)
             raise errors.SchemaDefinitionError(
-                f'multiple {fts_name} indexes inherited for {subject_name}'
+                f'multiple {base_idx_name} indexes '
+                f'inherited for {subject_name}'
             )
 
-        effective = fts_indexes[0]
+        effective = object_indexes[0]
         has_overridden = False
 
     return (effective, has_overridden)
