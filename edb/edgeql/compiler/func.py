@@ -1018,6 +1018,30 @@ def compile_ext_ai_search(
     return call
 
 
+@_special_case('ext::ai::to_context')
+def compile_ext_ai_to_str(
+    call: irast.FunctionCall, *, ctx: context.ContextLevel
+) -> irast.Expr:
+    indexes = _validate_object_search_call(
+        call,
+        context="ext::ai::to_context()",
+        object_arg=call.args[0],
+        index_name=sn.QualName("ext::ai", "index"),
+        ctx=ctx,
+    )
+
+    index = next(iter(indexes.values()))
+    index_expr = index.get_expr(ctx.env.schema)
+    assert index_expr is not None
+
+    with ctx.detached() as subctx:
+        subctx.partial_path_prefix = call.args[0].expr
+        subctx.anchors["__subject__"] = call.args[0].expr
+        call.body = dispatch.compile(index_expr.qlast, ctx=subctx)
+
+    return call
+
+
 @_special_case('fts::search')
 def compile_fts_search(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
