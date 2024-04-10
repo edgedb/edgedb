@@ -960,9 +960,26 @@ def finalize_args(
 def compile_fts_search(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
+    _validate_object_search_call(
+        call,
+        context="fts::search()",
+        object_arg=call.args[2],
+        index_name=sn.QualName("fts", "index"),
+        ctx=ctx,
+    )
 
+    return call
+
+
+def _validate_object_search_call(
+    call: irast.FunctionCall,
+    *,
+    context: str,
+    object_arg: irast.CallArg,
+    index_name: sn.QualName,
+    ctx: context.ContextLevel,
+) -> dict[irast.TypeRef, s_indexes.Index]:
     # validate that object has fts::index index
-    object_arg = call.args[2]
     object_typeref = object_arg.expr.typeref
     object_typeref = object_typeref.material_type or object_typeref
     stype_id = object_typeref.id
@@ -971,33 +988,44 @@ def compile_fts_search(
     span = object_arg.span
 
     stype = schema.get_by_id(stype_id, type=s_types.Type)
+    indexes = {}
 
     if union_variants := stype.get_union_of(schema):
         for variant in union_variants.objects(schema):
             schema, variant = variant.material_type(schema)
-            _validate_has_fts_index(variant, schema, span)
+            idx = _validate_has_object_index(
+                variant, schema, span, context, index_name)
+            indexes[typegen.type_to_typeref(variant, ctx.env)] = idx
     else:
-        _validate_has_fts_index(stype, schema, span)
+        idx = _validate_has_object_index(
+            stype, schema, span, context, index_name)
+        indexes[object_typeref] = idx
 
-    return call
+    return indexes
 
 
-def _validate_has_fts_index(
+def _validate_has_object_index(
     stype: s_types.Type,
     schema: s_schema.Schema,
     span: Optional[parsing.Span],
-) -> None:
+    context: str,
+    index_name: sn.QualName,
+) -> s_indexes.Index:
     if isinstance(stype, s_indexes.IndexableSubject):
-        (fts_index, _) = s_indexes.get_effective_fts_index(stype, schema)
+        (obj_index, _) = s_indexes.get_effective_object_index(
+            schema, stype, index_name
+        )
     else:
-        fts_index = None
+        obj_index = None
 
-    if not fts_index:
+    if not obj_index:
         raise errors.InvalidReferenceError(
-            f"fts::search requires an fts::index index on type "
+            f"{context} requires an {index_name} index on type "
             f"'{stype.get_displayname(schema)}'",
             span=span,
         )
+
+    return obj_index
 
 
 @_special_case('fts::with_options')

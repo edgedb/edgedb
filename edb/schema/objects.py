@@ -3391,12 +3391,15 @@ class InheritingObject(SubclassableObject):
         return similarity
 
     def has_base_with_name(
-        self, schema: s_schema.Schema, name: sn.Name | str
+        self,
+        schema: s_schema.Schema,
+        name: sn.Name | str | tuple[sn.Name | str, ...],
     ) -> bool:
-        base = schema.get(name, None)
-        return isinstance(base, SubclassableObject) and self.issubclass(
-            schema, base
-        )
+        if not isinstance(name, (sn.Name, str)):
+            bases = tuple(schema.get(n, type=SubclassableObject) for n in name)
+        else:
+            bases = (schema.get(name, type=SubclassableObject),)
+        return self.issubclass(schema, bases)
 
 
 DerivableInheritingObjectT = TypeVar(

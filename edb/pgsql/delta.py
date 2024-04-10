@@ -3585,7 +3585,9 @@ def get_reindex_sql(
     "Generate SQL statement that repopulates the index after a restore."
     "Currently this only applies to FTS indexes."
 
-    (fts_index, _) = s_indexes.get_effective_fts_index(obj, schema)
+    (fts_index, _) = s_indexes.get_effective_object_index(
+        schema, obj, sn.QualName("fts", "index")
+    )
     if fts_index:
         options = get_index_compile_options(fts_index, schema, {}, None)
         cmd = deltafts.update_fts_document(fts_index, options, schema)
@@ -3737,8 +3739,14 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         with errors.ensure_span(self.span):
             self.pgops.add(self.create_index(index, schema, context))
 
+        # XXX: the below hardcode should be replaced by an index scope
+        #      field instead.
         # FTS
-        if index.has_base_with_name(schema, sn.QualName('fts', 'index')):
+        object_scoped_indexes = (
+            sn.QualName('fts', 'index'),
+        )
+        # FTS
+        if index.has_base_with_name(schema, object_scoped_indexes):
             # update inhviews
 
             subject = index.get_subject(schema)
