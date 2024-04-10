@@ -396,3 +396,4 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
         )
     finally:
         tenant.release_pgcon(db.name, pgcon)
+        tenant.remove_dbview(dbv)

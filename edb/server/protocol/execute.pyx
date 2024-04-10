@@ -160,17 +160,20 @@ async def describe(
     query_cache_enabled: Optional[bool] = None,
     allow_capabilities: compiler.Capability = compiler.Capability.MODIFICATIONS,
 ) -> sertypes.TypeDesc:
-    compiled, _ = await _parse(
+    compiled, dbv = await _parse(
         db,
         query,
         query_cache_enabled=query_cache_enabled,
         allow_capabilities=allow_capabilities,
     )
 
-    desc = sertypes.parse(
-        compiled.query_unit_group.out_type_data,
-        edbdef.CURRENT_PROTOCOL,
-    )
+    try:
+        desc = sertypes.parse(
+            compiled.query_unit_group.out_type_data,
+            edbdef.CURRENT_PROTOCOL,
+        )
+    finally:
+        db.tenant.remove_dbview(dbv)
 
     return desc
 
@@ -708,6 +711,7 @@ async def parse_execute_json(
         )
     finally:
         tenant.release_pgcon(db.name, pgcon)
+        tenant.remove_dbview(dbv)
 
 
 async def execute_json(
