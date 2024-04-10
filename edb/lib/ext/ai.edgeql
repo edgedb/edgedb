@@ -74,6 +74,27 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         };
     };
 
+    create type ext::ai::OpenAIProviderConfig extending ext::ai::ProviderConfig {
+        alter property name {
+            set protected := true;
+            set default := 'builtin::openai';
+        };
+
+        alter property display_name {
+            set protected := true;
+            set default := 'OpenAI';
+        };
+
+        alter property api_url {
+            set default := 'https://api.openai.com/v1'
+        };
+
+        alter property api_style {
+            set protected := true;
+            set default := ext::ai::ProviderAPIStyle.OpenAI;
+        };
+    };
+
     create type ext::ai::Config extending cfg::ExtensionConfig {
         create required property indexer_naptime: std::duration {
             set default := <std::duration>'10s';
@@ -126,6 +147,76 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     {
         create annotation
             ext::ai::text_gen_model_context_window := "<must override>";
+    };
+
+    # OpenAI models.
+
+    create abstract type ext::ai::OpenAITextEmbedding3SmallModel
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "text-embedding-3-small";
+        alter annotation
+            ext::ai::model_provider := "builtin::openai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "8191";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1536";
+        alter annotation
+            ext::ai::embedding_model_supports_shortening := "true";
+    };
+
+    create abstract type ext::ai::OpenAITextEmbedding3LargeModel
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "text-embedding-3-large";
+        alter annotation
+            ext::ai::model_provider := "builtin::openai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "8191";
+        # Note: ext::pgvector is currently limited to 2000 dimensions,
+        # so returned embeddings will be automatically truncated if
+        # pgvector is used as the index implementation.
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "3072";
+        alter annotation
+            ext::ai::embedding_model_supports_shortening := "true";
+    };
+
+    create abstract type ext::ai::OpenAITextEmbeddingAda002Model
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "text-embedding-ada-002";
+        alter annotation
+            ext::ai::model_provider := "builtin::openai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "8191";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1536";
+    };
+
+    create abstract type ext::ai::OpenAIGPT_3_5_TurboModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "gpt-3.5-turbo";
+        alter annotation
+            ext::ai::model_provider := "builtin::openai";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "16385";
+    };
+
+    create abstract type ext::ai::OpenAIGPT_4_TurboModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "gpt-4-turbo-preview";
+        alter annotation
+            ext::ai::model_provider := "builtin::openai";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "128000";
     };
 
     create scalar type ext::ai::DistanceFunction
