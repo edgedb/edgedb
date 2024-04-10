@@ -3865,44 +3865,75 @@ def process_encoded_param(
     return sctx.rel
 
 
+_ObjectSearchInnerCallback = Callable[
+    [
+        irast.Call,
+        irast.PathId,
+        list[pgast.BaseExpr],
+        context.CompilerContextLevel,
+        context.CompilerContextLevel,
+        context.CompilerContextLevel,
+    ],
+    tuple[pgast.BaseExpr, Optional[pgast.BaseExpr]],
+]
+
+
 @_special_case('fts::search')
 def process_set_as_fts_search(
     ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    from edb.common import debug
+
+    cb: _ObjectSearchInnerCallback
+    if debug.flags.zombodb:
+        cb = _fts_search_inner_zombo
+    else:
+        cb = _fts_search_inner_pg
+
+    return _process_set_as_object_search(
+        ir_set, obj_arg_offset=2, inner_cb=cb, ctx=ctx)
+
+
+def _process_set_as_object_search(
+    ir_set: irast.SetE[irast.Call],
+    *,
+    obj_arg_offset: int,
+    inner_cb: _ObjectSearchInnerCallback,
+    ctx: context.CompilerContextLevel,
 ) -> SetRVars:
     func_call = ir_set.expr
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
-        obj_ir = func_call.args[2].expr
+        obj_ir = func_call.args[obj_arg_offset].expr
         obj_id = obj_ir.path_id
         obj_rvar = ensure_source_rvar(obj_ir, newctx.rel, ctx=newctx)
 
         # we skip the object, as it has to be compiled as rvar source
-        args_pg = _compile_call_args(ir_set, skip={2}, ctx=newctx)
-        lang, weights, query = args_pg
+        args_pg = _compile_call_args(
+            ir_set, skip={obj_arg_offset}, ctx=newctx)
 
         out_obj_id, out_score_id = func_call.tuple_path_ids
 
         with newctx.subrel() as inner_ctx:
             # inner_ctx generates the `SELECT score WHERE test` relation
-
-            from edb.common import debug
-
-            if debug.flags.zombodb:
-                score_pg, where_clause = _fts_search_inner_zombo(
-                    obj_id, query, lang, ctx, newctx, inner_ctx
-                )
-            else:
-                score_pg, where_clause = _fts_search_inner_pg(
-                    obj_id, query, lang, weights, ctx, newctx, inner_ctx
-                )
+            score_pg, where_clause = inner_cb(
+                func_call,
+                obj_id,
+                args_pg,
+                ctx,
+                newctx,
+                inner_ctx,
+            )
 
             pathctx.put_path_var(
                 inner_ctx.rel, out_score_id, score_pg, aspect='value'
             )
-            inner_ctx.rel.where_clause = astutils.extend_binop(
-                inner_ctx.rel.where_clause, where_clause
-            )
+
+            if where_clause is not None:
+                inner_ctx.rel.where_clause = astutils.extend_binop(
+                    inner_ctx.rel.where_clause, where_clause
+                )
 
             in_rvar = relctx.new_rel_rvar(ir_set, inner_ctx.rel, ctx=newctx)
             relctx.include_rvar(
@@ -3961,14 +3992,14 @@ def process_set_as_fts_search(
 
 
 def _fts_search_inner_pg(
+    _call: irast.Call,
     obj_id: irast.PathId,
-    query: pgast.BaseExpr,
-    lang: pgast.BaseExpr,
-    weights: pgast.BaseExpr,
+    args_pg: list[pgast.BaseExpr],
     ctx: context.CompilerContextLevel,
     newctx: context.CompilerContextLevel,
     inner_ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.BaseExpr, pgast.BaseExpr]:
+    lang, weights, query = args_pg
     el_name = sn.QualName('__object__', '__fts_document__')
     fts_document_ptrref = irast.SpecialPointerRef(
         name=el_name,
@@ -4060,13 +4091,14 @@ def _fts_prepare_weights(
 
 
 def _fts_search_inner_zombo(
+    _call: irast.Call,
     obj_id: irast.PathId,
-    query_pg: pgast.BaseExpr,
-    _lang_pg: pgast.BaseExpr,
+    args_pg: list[pgast.BaseExpr],
     _ctx: context.CompilerContextLevel,
     newctx: context.CompilerContextLevel,
     _inner_ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.BaseExpr, pgast.BaseExpr]:
+    _, _, query = args_pg
     el_name = sn.QualName('__object__', 'ctid')
     ctid_ptrref = irast.SpecialPointerRef(
         name=el_name,
@@ -4087,7 +4119,7 @@ def _fts_search_inner_zombo(
     where_clause = pgast.Expr(
         lexpr=ctid,
         name='==>',
-        rexpr=query_pg,
+        rexpr=query,
     )
     return score_pg, where_clause
 
