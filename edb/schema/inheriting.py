@@ -166,10 +166,18 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 if (
                     inherited
                     and not context.transient_derivation
-                    and isinstance(result, s_expr.Expression)
                 ):
-                    result = self.compile_expr_field(
-                        schema, context, field=field, value=result)
+                    if isinstance(result, s_expr.Expression):
+                        result = self.compile_expr_field(
+                            schema, context, field=field, value=result)
+                    elif isinstance(result, s_expr.ExpressionDict):
+                        compiled = {}
+                        for k, v in result.items():
+                            if not v.is_compiled():
+                                v = self.compile_expr_field(
+                                    schema, context, field, v)
+                            compiled[k] = v
+                        result = compiled
                 sav = self.set_attribute_value(
                     field_name, result, inherited=inherited)
                 if isinstance(sav, sd.AlterObjectProperty):

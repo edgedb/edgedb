@@ -2704,6 +2704,16 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
             if id := self.get_attribute_value('id'):
                 value.set_origin(id, attr_name)
+        elif isinstance(value, s_expr.ExpressionDict):
+            compiled = {}
+            obj_id = self.get_attribute_value('id')
+            for k, v in value.items():
+                if not v.is_compiled():
+                    v = self.compile_expr_field(schema, context, field, v)
+                    if obj_id:
+                        v.set_origin(obj_id, attr_name)
+                compiled[k] = v
+            value = compiled
 
         return value
 
