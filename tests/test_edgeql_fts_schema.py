@@ -257,7 +257,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidReferenceError,
-            r'fts::search requires an fts::index index',
+            r'fts::search\(\) requires an fts::index index',
         ):
             await self.con.execute(
                 r'''

@@ -179,7 +179,9 @@ class Source(
         from edb.common import debug
 
         if not debug.flags.zombodb:
-            (fts_index, _) = indexes.get_effective_fts_index(self, schema)
+            fts_index, _ = indexes.get_effective_object_index(
+                schema, self, sn.QualName("fts", "index")
+            )
 
             if fts_index:
                 res.append(
