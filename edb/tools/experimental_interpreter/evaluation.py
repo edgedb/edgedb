@@ -302,9 +302,20 @@ def eval_expr(ctx: EvalEnv,
                     for id in db.storage.query_ids_for_a_type(expr, e.EdgeDatabaseTrueFilter())]
                 return e.ResultMultiSetVal(all_ids)
         case e.QualifiedNameWithFilter(name=name, filter=filter):
+            def filter_map(filter_expr: Expr) -> Expr:
+                if isinstance(filter_expr, e.EdgeDatabaseSelectFilter):
+                    return None
+                match filter_expr:
+                    case e.FreeVarExpr(var=var):
+                        return ctx[var]
+                    case e.ScalarVal(_):
+                        return e.ResultMultiSetVal([filter_expr])
+                    case _:
+                        raise ValueError("Unrecognized filter expression, check post processing: ", filter_expr)
+            filter_val = eops.map_edge_select_filter(filter_map, filter)
             all_ids: Sequence[Val] = [
                 RefVal(id, name, ObjectVal({}))
-                for id in db.storage.query_ids_for_a_type(name, filter)]
+                for id in db.storage.query_ids_for_a_type(name, filter_val)]
             return e.ResultMultiSetVal(all_ids)
         
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):

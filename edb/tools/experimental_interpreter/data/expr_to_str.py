@@ -118,6 +118,21 @@ def show_scalar_val(val: e.ScalarVal) -> str:
         case _:
             return show_qname(tp.name) + "(" + str(v) + ")"
 
+def show_edge_database_select_filter(filter: e.EdgeDatabaseSelectFilter) -> str:
+    match filter:
+        case e.EdgeDatabaseEqFilter(propname=propname, arg=arg):
+            return f'({propname} = {show_expr(arg)})'
+        case e.EdgeDatabaseConjunctiveFilter(conjuncts=conjuncts):
+            return f'({" AND ".join(show_edge_database_select_filter(f) for f in conjuncts)})'
+        case e.EdgeDatabaseDisjunctiveFilter(disjuncts=disjuncts):
+            return f'({" OR ".join(show_edge_database_select_filter(f) for f in disjuncts)})'
+        case e.EdgeDatabaseTrueFilter():
+            return 'TRUE'
+        case _:
+            raise ValueError('Unimplemented', filter)
+
+        
+
 def show_expr(expr: e.Expr) -> str:
     match expr:
         case e.QualifiedName(_):
@@ -204,9 +219,9 @@ def show_expr(expr: e.Expr) -> str:
         case e.FreeObjectExpr():
             return "{<free>}"
         case e.ParameterExpr(name=name):
-            return "${name}"
+            return f"${name}"
         case e.QualifiedNameWithFilter(name=name, filter=filter):
-            return "with_filter(" + show_qname(name) + ", " + str([f.propname for f in filter])+")"
+            return "with_filter(" + show_qname(name) + ", " + show_edge_database_select_filter(filter) +")"
         case _:
             raise ValueError('Unimplemented', expr)
 

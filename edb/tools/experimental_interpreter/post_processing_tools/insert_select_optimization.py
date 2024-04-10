@@ -7,11 +7,8 @@ def try_collect_constraints_from_filter(expr: e.Expr) -> Optional[e.EdgeDatabase
     if not isinstance(expr, e.BindingExpr):
         return None
     bnd_name = expr.var
-    to_process_body = [expr.body]
-    
-    while to_process_body:
-        next_expr = to_process_body.pop()
-        match next_expr:
+    def try_iterative_collection(expr_body: e.Expr) -> Optional[e.EdgeDatabaseSelectFilter]:
+        match expr_body:
             case e.FunAppExpr(
                 fun=e.QualifiedName(["std", "="]),
                 overloading_index=_,
@@ -29,7 +26,7 @@ def try_collect_constraints_from_filter(expr: e.Expr) -> Optional[e.EdgeDatabase
                         else:
                             return None
                     case (_,
-                         e.ConditionalDedupExpr(
+                            e.ConditionalDedupExpr(
                             e.ObjectProjExpr(
                                 subject=e.BoundVarExpr(subject_name),
                                 label=label))):
@@ -39,6 +36,23 @@ def try_collect_constraints_from_filter(expr: e.Expr) -> Optional[e.EdgeDatabase
                             return None
                     case _:
                         return None
+            case e.FunAppExpr(
+                fun=e.QualifiedName(["std", "IN"]),
+                overloading_index=_,
+                args=[e.ConditionalDedupExpr(
+                        e.ObjectProjExpr(
+                            subject=e.BoundVarExpr(subject_name),
+                            label=label)),
+                        arg2],
+                kwargs={}
+            ):
+                if subject_name == bnd_name and not eops.appears_in_expr(e.FreeVarExpr(bnd_name), arg2):
+                    return e.EdgeDatabaseEqFilter(label, arg2)
+                else:
+                    return None
+            case _:
+                return None
+    return try_iterative_collection(expr.body)
 
 
     
@@ -68,7 +82,7 @@ def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilt
                 )
             return return_expr
         case e.MultiSetExpr(expr=[e.QualifiedName(name)]):
-            return e.QualifiedNameWithFilter(e.QualifiedName(name), filter)
+            return refine_subject_with_filter(e.QualifiedName(name), filter)
         case e.ShapedExprExpr(expr=main, shape=shape):
             if any(l.label in all_labels for l in shape.shape.keys() if isinstance(l, e.StrLabel)):
                 return None

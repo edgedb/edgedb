@@ -17,7 +17,8 @@ from ..elab_schema import add_module_from_sdl_file, add_module_from_sdl_defs
 
 import copy
 
-SQLITE_PRINT_QUERIES = True
+# SQLITE_PRINT_QUERIES = True
+SQLITE_PRINT_QUERIES = False
 
 @dataclass(frozen=True)
 class PropertyTypeView:
@@ -146,7 +147,7 @@ def get_table_view_from_property_view(schema_property_view: Dict[str, TableTypeV
                                 for lpname in pdef.link_props
                             }},
                 primary_key=["source", "target"],
-                indexes=[])
+                indexes=[["target"]])
 
     if "objects" in result_table or "next_id_to_return_gen" in result_table or "sdl_schema" in result_table:
         raise ValueError("objects, next_id_to_return_gen, sdl_schema tables are reserved")
@@ -275,7 +276,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             for index in tspec.indexes:
                 index_name = f"{tname}_{'_'.join(index)}_idx"
                 index_spec = ','.join(index)
-                self.do_execute_query(f"CREATE INDEX IF NOT EXISTS {index_name} ON {tname} ({index_spec})")
+                self.do_execute_query(f"CREATE INDEX IF NOT EXISTS '{index_name}' ON '{tname}' ({index_spec})")
             
 
     def id_initialization(self):
@@ -314,12 +315,12 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                         raise ValueError("Only MultiSetVal is supported, check evaluation implementation")
                     if len(arg.getVals()) != 1:
                         equivalent_disjuctive_filter = e.EdgeDatabaseDisjunctiveFilter(
-                            filters=[e.EdgeDatabaseEqFilter(propname=propname, arg=arg2) for arg2 in arg.getVals()]
+                            disjuncts=[e.EdgeDatabaseEqFilter(propname=propname, arg=e.ResultMultiSetVal([arg2])) for arg2 in arg.getVals()]
                         )
-                        return convert_select_filter_to_condition_text([equivalent_disjuctive_filter])
+                        return convert_select_filter_to_condition_text(equivalent_disjuctive_filter)
                     else:
-                        this_view = self.schema_property_view[tp_name][propname]
-                        query_args.append(convert_val_to_sqlite_val(e.MultiSetVal([arg])))
+                        this_view = self.schema_property_view[tp_name].columns[propname]
+                        query_args.append(convert_val_to_sqlite_val(arg))
                         if this_view.is_singular:
                             return f"({propname} = ?)"
                         else:
@@ -332,6 +333,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                     if len(filters) == 0:
                         return "(1=0)"
                     return "(" + " OR ".join([convert_select_filter_to_condition_text(f) for f in filters]) + ")"
+                case e.EdgeDatabaseTrueFilter():
+                    return "(1=1)"
                 case _:
                     raise ValueError(f"Unknown filter {filter}")
 
