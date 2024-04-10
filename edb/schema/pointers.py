@@ -943,7 +943,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         self,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.ObjectCommand[Pointer]:
+    ) -> sd.CreateObject[Pointer]:
         delta = super().as_create_delta(schema, context)
 
         # When we are creating a new required property on an existing type,

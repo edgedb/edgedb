@@ -38,6 +38,7 @@ from . import clauses
 from . import context
 from . import dispatch
 from . import dml
+from . import pathctx
 
 from .context import OutputFormat as OutputFormat # NOQA
 
@@ -215,6 +216,25 @@ def new_external_rvar(
             rel.path_outputs[output_pid, aspect] = var
 
     return rvar
+
+
+def new_external_rvar_as_subquery(
+    *,
+    rel_name: tuple[str, ...],
+    path_id: irast.PathId,
+    aspects: tuple[str, ...],
+) -> pgast.SelectStmt:
+    rvar = new_external_rvar(
+        rel_name=rel_name,
+        path_id=path_id,
+        outputs={},
+    )
+    qry = pgast.SelectStmt(
+        from_clause=[rvar],
+    )
+    for aspect in aspects:
+        pathctx.put_path_rvar(qry, path_id, rvar, aspect=aspect)
+    return qry
 
 
 def new_external_rel(

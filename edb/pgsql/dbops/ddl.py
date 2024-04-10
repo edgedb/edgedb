@@ -189,7 +189,7 @@ class PutSingleDBMetadata(DDLOperation):
 
 
 class SetMetadata(PutMetadata):
-    def code(self, block: base.PLBlock) -> str:
+    def creation_code(self, block: base.PLBlock) -> str:
         metadata = self.metadata
 
         object_type = self.object.get_type()
@@ -200,9 +200,12 @@ class SetMetadata(PutMetadata):
         comment = f'E{prefix} || {desc}'
 
         return textwrap.dedent(f'''\
-            EXECUTE 'COMMENT ON {object_type} {object_id} IS ' ||
-                quote_literal({comment});
+            'COMMENT ON {object_type} {object_id} IS '
+            || quote_literal({comment})
         ''')
+
+    def code(self, block: base.PLBlock) -> str:
+        return 'EXECUTE ' + self.creation_code(block) + ';'
 
 
 class SetSingleDBMetadata(PutSingleDBMetadata):

@@ -19,7 +19,18 @@
 
 from __future__ import annotations
 
-from typing import Optional, Type, AbstractSet, cast, TYPE_CHECKING
+from typing import (
+    AbstractSet,
+    Any,
+    Callable,
+    Optional,
+    Type,
+    TypeVar,
+    cast,
+    TYPE_CHECKING,
+)
+
+import json
 
 from edb import errors
 
@@ -87,6 +98,9 @@ class AnnotationValue(
             return vn
 
 
+T = TypeVar("T")
+
+
 class AnnotationSubject(so.Object):
 
     annotations_refs = so.RefDict(
@@ -105,6 +119,61 @@ class AnnotationSubject(so.Object):
     ) -> Optional[str]:
         attrval = self.get_annotations(schema).get(schema, name, None)
         return attrval.get_value(schema) if attrval is not None else None
+
+    def must_get_annotation(
+        self,
+        schema: s_schema.Schema,
+        name: sn.QualName,
+    ) -> str:
+        annotation_text = self.get_annotation(schema, name)
+        if annotation_text is None:
+            vn = self.get_verbosename(schema, with_parent=True)
+            raise errors.SchemaDefinitionError(
+                f"annotation {name} on {vn} is not set")
+
+        return annotation_text
+
+    def get_json_annotation(
+        self,
+        schema: s_schema.Schema,
+        name: sn.QualName,
+        t: Callable[[Any], T],
+    ) -> Optional[T]:
+        annotation_text = self.get_annotation(schema, name)
+        if annotation_text is None:
+            return None
+        else:
+            try:
+                value = json.loads(annotation_text)
+            except Exception:
+                vn = self.get_verbosename(schema, with_parent=True)
+                raise errors.SchemaDefinitionError(
+                    f"annotation {name} on {vn} is not set to "
+                    f"a valid JSON value")
+
+            try:
+                return t(value)
+            except Exception as e:
+                vn = self.get_verbosename(schema, with_parent=True)
+                raise errors.SchemaDefinitionError(
+                    f"annotation {name} on {vn} is not set to "
+                    f"JSON containing a valid value of type {t}: {e}"
+                )
+
+    def must_get_json_annotation(
+        self,
+        schema: s_schema.Schema,
+        name: sn.QualName,
+        t: Callable[[Any], T],
+    ) -> T:
+        value = self.get_json_annotation(schema, name, t)
+        if value is None:
+            vn = self.get_verbosename(schema, with_parent=True)
+            raise errors.SchemaDefinitionError(
+                f"annotation {name} is not set on {vn}"
+            )
+        else:
+            return value
 
 
 class Annotation(

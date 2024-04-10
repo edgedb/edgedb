@@ -955,7 +955,7 @@ class Collection(Type, s_abc.Collection):
         self: CollectionTypeT,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.ObjectCommand[CollectionTypeT]:
+    ) -> sd.CreateObject[CollectionTypeT]:
         delta = super().as_create_delta(schema=schema, context=context)
         assert isinstance(delta, sd.CreateObject)
         if not isinstance(self, CollectionExprAlias):

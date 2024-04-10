@@ -31,6 +31,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
+
 from . import delta as sd
 from . import indexes
 from . import name as sn
@@ -166,7 +167,7 @@ class Source(
 
     def get_addon_columns(
         self, schema: s_schema.Schema
-    ) -> Sequence[Tuple[str, Tuple[str, str]]]:
+    ) -> Sequence[Tuple[str, str, Tuple[str, str]]]:
         """
         Returns a list of columns that are present in the backing table of
         this source, apart from the columns for pointers.
@@ -187,12 +188,37 @@ class Source(
                 res.append(
                     (
                         '__fts_document__',
+                        '__fts_document__',
                         (
                             'pg_catalog',
                             'tsvector',
                         ),
                     )
                 )
+
+        ext_ai_index, _ = indexes.get_effective_object_index(
+            schema, self, sn.QualName("ext::ai", "index")
+        )
+        if ext_ai_index:
+            root_idx_id = ext_ai_index.get_topmost_concrete_base(schema).id.hex
+            dimensions = ext_ai_index.must_get_json_annotation(
+                schema,
+                sn.QualName(
+                    "ext::ai", "embedding_dimensions"),
+                int,
+            )
+            res.append(
+                (
+                    f'__ext_ai_{root_idx_id}_embedding__',
+                    f'__ext_ai_{root_idx_id}_embedding__',
+
+                    (
+                        'edgedb',
+                        f'vector({dimensions})',
+                    ),
+                )
+            )
+
         return res
 
 

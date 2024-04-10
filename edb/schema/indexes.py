@@ -56,6 +56,7 @@ from . import utils
 
 
 if TYPE_CHECKING:
+    from . import objtypes as s_objtypes
     from . import schema as s_schema
 
 
@@ -151,6 +152,13 @@ def is_index_valid_for_type(
                 schema,
                 schema.get('std::str', type=s_scalars.ScalarType),
             )
+        case (
+            'ext::ai::index'
+        ):
+            return expr_type.issubclass(
+                schema,
+                schema.get('std::str', type=s_scalars.ScalarType),
+            )
 
     if context.testmode and index_name == 'default::test':
         # For functional tests of abstract indexes.
@@ -234,6 +242,9 @@ def merge_deferred(
         schema, field_name, None)
 
     idx_repr = idx.get_verbosename(schema, with_parent=True)
+
+    if not idx.is_defined_here(schema):
+        ignore_local = True
 
     if ignore_local:
         return deferrability is qltypes.IndexDeferrability.Required
@@ -319,6 +330,14 @@ class Index(
         default=so.DEFAULT_CONSTRUCTOR,
         inheritable=False,
         ddl_identity=True,
+    )
+
+    type_args = so.SchemaField(
+        so.ObjectList[so.Object],
+        coerce=True,
+        compcoef=0,
+        default=so.DEFAULT_CONSTRUCTOR,
+        inheritable=False,
     )
 
     expr = so.SchemaField(
@@ -470,13 +489,16 @@ class Index(
                 kwname not in kwargs and
                 (val := param.get_default(schema)) is not None
             ):
-                kwargs[kwname] = val.compiled(
-                    schema,
-                    as_fragment=True,
-                    options=qlcompiler.CompilerOptions(
-                        schema_object_context=s_func.Parameter,
-                    ),
-                )
+                kwargs[kwname] = val
+
+        for k, v in kwargs.items():
+            kwargs[k] = v.ensure_compiled(
+                schema,
+                as_fragment=True,
+                options=qlcompiler.CompilerOptions(
+                    schema_object_context=s_func.Parameter,
+                ),
+            )
 
         return kwargs
 
@@ -882,6 +904,22 @@ class IndexCommand(
         """Whether to force generating an AST even though field isn't owned"""
         return field == "deferred"
 
+    def _append_subcmd_ast(
+        self,
+        schema: s_schema.Schema,
+        node: qlast.DDLOperation,
+        subcmd: sd.Command,
+        context: sd.CommandContext,
+    ) -> None:
+        if isinstance(subcmd, s_anno.AnnotationValueCommand):
+            pname = sn.shortname_from_fullname(subcmd.classname)
+            assert isinstance(pname, sn.QualName)
+            # Skip injected annotations
+            if pname.module == "ext::ai":
+                return
+
+        super()._append_subcmd_ast(schema, node, subcmd, context)
+
 
 class CreateIndex(
     IndexCommand,
@@ -1141,21 +1179,15 @@ class CreateIndex(
         subject = referrer_ctx.scls
         assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
 
-        # XXX: the below hardcode should be replaced by an index scope
-        #      field instead.
-        # FTS
-        object_scoped_indexes = (
-            sn.QualName('fts', 'index'),
-        )
-        for idx_base in object_scoped_indexes:
-            if (
-                self.scls.has_base_with_name(schema, idx_base)
-                and isinstance(subject, s_pointers.Pointer)
-            ):
-                raise errors.SchemaDefinitionError(
-                    f"{idx_base} cannot be declared on links",
-                    span=self.span,
-                )
+        if (
+            is_object_scope_index(schema, self.scls)
+            and isinstance(subject, s_pointers.Pointer)
+        ):
+            dn = self.scls.get_displayname(schema)
+            raise errors.SchemaDefinitionError(
+                f"{dn} cannot be declared on links",
+                span=self.span,
+            )
 
         # Ensure that the name of the index (if given) matches an existing
         # abstract index.
@@ -1247,6 +1279,37 @@ class CreateIndex(
                     details=hint,
                 )
 
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._create_begin(schema, context)
+        referrer_ctx = self.get_referrer_context(context)
+        if (
+            referrer_ctx is not None
+            and not context.canonical
+            and is_ext_ai_index(schema, self.scls)
+        ):
+            schema = self._inject_ext_ai_model_dependency(schema, context)
+
+        return schema
+
+    def _create_innards(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        referrer_ctx = self.get_referrer_context(context)
+        if (
+            referrer_ctx is not None
+            and not context.canonical
+            and is_ext_ai_index(schema, self.scls)
+        ):
+            self._copy_ext_ai_model_annotations(schema, context)
+
+        return super()._create_innards(schema, context)
+
     def get_resolved_attributes(
         self,
         schema: s_schema.Schema,
@@ -1279,6 +1342,153 @@ class CreateIndex(
             return [base]
         else:
             return super()._classbases_from_ast(schema, astnode, context)
+
+    def _inject_ext_ai_model_dependency(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        model_stype = self._get_referenced_embedding_model(schema, context)
+
+        type_args = so.ObjectList.create(
+            schema,
+            [model_stype],
+        )
+
+        self.set_attribute_value(
+            "type_args",
+            type_args.as_shell(schema),
+        )
+
+        return self.scls.update(schema, {"type_args": type_args})
+
+    def _copy_ext_ai_model_annotations(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        # Copy ext::ai:: annotations declared on the model specified
+        # by the `embedding_model` kwarg.  This is necessary to avoid
+        # expensive lookups later where the index is used.
+        model_stype = self._get_referenced_embedding_model(schema, context)
+        model_stype_vn = model_stype.get_verbosename(schema)
+        model_annos = model_stype.get_annotations(schema)
+        my_name = self.scls.get_name(schema)
+        idx_defined_here = self.scls.is_defined_here(schema)
+
+        for model_anno in model_annos.objects(schema):
+            anno_name = model_anno.get_shortname(schema)
+            if anno_name.module != "ext::ai":
+                continue
+            value = model_anno.get_value(schema)
+            if value is None or value == "<must override>":
+                raise errors.SchemaDefinitionError(
+                    f"{model_stype_vn!r} is missing a value for the "
+                    f"{anno_name!r} annotation"
+                )
+            anno_sname = sn.get_specialized_name(
+                anno_name,
+                str(my_name),
+            )
+            anno_fqname = sn.QualName(my_name.module, anno_sname)
+            schema1 = model_anno.update(
+                schema,
+                {
+                    "name": anno_fqname,
+                    "subject": self.scls,
+                },
+            )
+            anno_copy = schema1.get(
+                anno_fqname,
+                type=s_anno.AnnotationValue,
+            )
+
+            anno_cmd: sd.ObjectCommand[s_anno.AnnotationValue]
+            if idx_defined_here:
+                anno_cmd = anno_copy.as_create_delta(
+                    schema1, so.ComparisonContext())
+                anno_cmd.discard_attribute("bases")
+                anno_cmd.discard_attribute("ancestors")
+            else:
+                anno_cmd = sd.get_object_delta_command(
+                    objtype=s_anno.AnnotationValue,
+                    cmdtype=sd.AlterObject,
+                    schema=schema,
+                    name=anno_fqname,
+                )
+                anno_cmd.set_attribute_value("owned", True)
+
+            self.add(anno_cmd)
+
+        dimensions = model_stype.must_get_json_annotation(
+            schema,
+            sn.QualName("ext::ai", "embedding_model_max_output_dimensions"),
+            int,
+        )
+
+        supports_shortening = model_stype.must_get_json_annotation(
+            schema,
+            sn.QualName("ext::ai", "embedding_model_supports_shortening"),
+            bool,
+        )
+
+        if dimensions > 2000:  # pgvector limit
+            if not supports_shortening:
+                raise errors.SchemaDefinitionError(
+                    f"{model_stype_vn!r} returns embeddings with over "
+                    f"2000 dimensions, does not support embedding "
+                    f"shortening, and thus cannot be used with "
+                    f"this index",
+                    span=self.span,
+                )
+            else:
+                dimensions = 2000
+
+        dims_anno_sname = sn.get_specialized_name(
+            sn.QualName("ext::ai", "embedding_dimensions"),
+            str(my_name),
+        )
+        alter_anno = sd.get_object_delta_command(
+            objtype=s_anno.AnnotationValue,
+            cmdtype=sd.AlterObject,
+            schema=schema,
+            name=sn.QualName(my_name.module, dims_anno_sname),
+        )
+        alter_anno.set_attribute_value("value", str(dimensions))
+        alter_anno.set_attribute_value("owned", True)
+        self.add(alter_anno)
+
+    def _get_referenced_embedding_model(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_objtypes.ObjectType:
+        # Copy ext::ai:: annotations declared on the model specified
+        # by the `embedding_model` kwarg.  This is necessary to avoid
+        # expensive lookups later where the index is used.
+        kwargs = self.scls.get_concrete_kwargs(schema)
+        model_name_expr = kwargs["embedding_model"]
+        model_name = model_name_expr.assert_compiled().as_python_value()
+
+        models = get_defined_ext_ai_embedding_models(schema, model_name)
+        if len(models) == 0:
+            raise errors.SchemaDefinitionError(
+                f'undefined embedding model: no subtype of '
+                f'ext::ai::EmbeddingModel is annotated as {model_name!r}',
+                span=self.span,
+            )
+        elif len(models) > 1:
+            models_dn = [
+                model.get_displayname(schema) for model in models.values()
+            ]
+            raise errors.SchemaDefinitionError(
+                f'expecting only one embedding model to be annotated '
+                f'with ext::ai::model_name={model_name!r}: got multiple: '
+                f'{", ".join(models_dn)}',
+                span=self.span,
+            )
+
+        return next(iter(models.values()))
 
 
 class RenameIndex(
@@ -1402,10 +1612,15 @@ def get_effective_object_index(
     """
     indexes: so.ObjectIndexByFullname[Index] = subject.get_indexes(schema)
 
+    base = schema.get(base_idx_name, type=Index, default=None)
+    if base is None:
+        # Abstract base index does not exist.
+        return (None, False)
+
     object_indexes = [
         ind
         for ind in indexes.objects(schema)
-        if ind.has_base_with_name(schema, base_idx_name)
+        if ind.issubclass(schema, base)
     ]
     if len(object_indexes) == 0:
         return (None, False)
@@ -1440,3 +1655,84 @@ def get_effective_object_index(
         has_overridden = False
 
     return (effective, has_overridden)
+
+
+# XXX: the below hardcode should be replaced by an index scope
+#      field instead.
+def is_object_scope_index(
+    schema: s_schema.Schema,
+    index: Index,
+) -> bool:
+    return (
+        is_fts_index(schema, index)
+        or is_ext_ai_index(schema, index)
+    )
+
+
+def is_fts_index(
+    schema: s_schema.Schema,
+    index: Index,
+) -> bool:
+    fts_index = schema.get(sn.QualName("fts", "index"), type=Index)
+    return index.issubclass(schema, fts_index)
+
+
+def is_ext_ai_index(
+    schema: s_schema.Schema,
+    index: Index,
+) -> bool:
+    ai_index = schema.get(
+        sn.QualName("ext::ai", "index"),
+        type=Index,
+        default=None,
+    )
+    if ai_index is None:
+        return False
+    else:
+        return index.issubclass(schema, ai_index)
+
+
+_embedding_model = sn.QualName("ext::ai", "EmbeddingModel")
+_model_name = sn.QualName("ext::ai", "model_name")
+
+
+def get_defined_ext_ai_embedding_models(
+    schema: s_schema.Schema,
+    model_name: Optional[str] = None,
+) -> dict[str, s_objtypes.ObjectType]:
+    from . import objtypes as s_objtypes
+
+    base_embedding_model = schema.get(
+        _embedding_model,
+        type=s_objtypes.ObjectType,
+    )
+
+    def _flt(
+        schema: s_schema.Schema,
+        anno: s_anno.AnnotationValue,
+    ) -> bool:
+        if anno.get_shortname(schema) != _model_name:
+            return False
+
+        subject = anno.get_subject(schema)
+        value = anno.get_value(schema)
+
+        return (
+            value is not None and value != "<must override>"
+            and (model_name is None or anno.get_value(schema) == model_name)
+            and isinstance(subject, s_objtypes.ObjectType)
+            and subject.issubclass(schema, base_embedding_model)
+        )
+
+    annos = schema.get_objects(
+        type=s_anno.AnnotationValue,
+        extra_filters=(_flt,),
+    )
+
+    result = {}
+    for anno in annos:
+        subject = anno.get_subject(schema)
+        assert isinstance(subject, s_objtypes.ObjectType)
+        result[anno.get_value(schema)] = subject
+
+    return result

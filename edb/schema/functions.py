@@ -827,7 +827,7 @@ class CallableObject(
         self: CallableObjectT,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.ObjectCommand[CallableObjectT]:
+    ) -> sd.CreateObject[CallableObjectT]:
         delta = super().as_create_delta(schema, context)
 
         new_params = self.get_params(schema).objects(schema)

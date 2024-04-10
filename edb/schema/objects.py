@@ -1722,7 +1722,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         self: Object_T,
         schema: s_schema.Schema,
         context: ComparisonContext,
-    ) -> sd.ObjectCommand[Object_T]:
+    ) -> sd.CreateObject[Object_T]:
         from . import delta as sd
 
         cls = type(self)
@@ -2421,7 +2421,7 @@ class ObjectCollection(
     def create(
         cls: Type[ObjectCollection[Object_T]],
         schema: s_schema.Schema,
-        data: Collection[Object_T],
+        data: Collection[Object_T] | ObjectCollection[Object_T],
         **kwargs: Any,
     ) -> ObjectCollection[Object_T]:
         ids: List[uuid.UUID] = []
@@ -2593,11 +2593,17 @@ class ObjectIndexBase(
     def create(
         cls: Type[ObjectIndexBase[Key_T, Object_T]],
         schema: s_schema.Schema,
-        data: Collection[Object_T],
+        data: Collection[Object_T] | ObjectCollection[Object_T],
         **kwargs: Any,
     ) -> ObjectIndexBase[Key_T, Object_T]:
-        _k = cls._key
-        keys = tuple([_k(schema, x) for x in data])
+        if isinstance(data, ObjectIndexBase):
+            keys = data._keys
+        elif isinstance(data, ObjectCollection):
+            _k = cls._key
+            keys = tuple([_k(schema, x) for x in data.objects(schema)])
+        else:
+            _k = cls._key
+            keys = tuple([_k(schema, x) for x in data])
 
         coll = cast(
             ObjectIndexBase[Key_T, Object_T],
@@ -2820,13 +2826,25 @@ class ObjectDict(
     def create(  # type: ignore
         cls,
         schema: s_schema.Schema,
-        data: Mapping[Key_T, Object_T],
+        data: Mapping[Key_T, Object_T] | ObjectDict[Key_T, Object_T],
         **kwargs: Any,
     ) -> ObjectDict[Key_T, Object_T]:
-        return cast(
-            ObjectDict[Key_T, Object_T],
-            super().create(schema, data.values(), _keys=tuple(data.keys())),
-        )
+        if isinstance(data, ObjectDict):
+            return super().create(
+                schema,
+                data,
+                _keys=data._keys,
+            )  # type: ignore
+        else:
+            return super().create(
+                schema,
+                data.values(),
+                _keys=tuple(data.keys()),
+            )  # type: ignore
+
+    @classmethod
+    def create_empty(cls) -> ObjectDict[Key_T, Object_T]:
+        return cls(cls._container(), _private_init=True, _keys=tuple())
 
     @classmethod
     def compare_values(
@@ -2990,7 +3008,7 @@ class ObjectList(
     def create(
         cls,
         schema: s_schema.Schema,
-        data: Iterable[Object_T],
+        data: Iterable[Object_T] | ObjectCollection[Object_T],
         **kwargs: Any,
     ) -> ObjectList[Object_T]:
         return super().create(schema, data, **kwargs)  # type: ignore
@@ -3389,17 +3407,6 @@ class InheritingObject(SubclassableObject):
             similarity *= 0.95
 
         return similarity
-
-    def has_base_with_name(
-        self,
-        schema: s_schema.Schema,
-        name: sn.Name | str | tuple[sn.Name | str, ...],
-    ) -> bool:
-        if not isinstance(name, (sn.Name, str)):
-            bases = tuple(schema.get(n, type=SubclassableObject) for n in name)
-        else:
-            bases = (schema.get(name, type=SubclassableObject),)
-        return self.issubclass(schema, bases)
 
 
 DerivableInheritingObjectT = TypeVar(
