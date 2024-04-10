@@ -469,7 +469,13 @@ class Index(
                 kwname not in kwargs and
                 (val := param.get_default(schema)) is not None
             ):
-                kwargs[kwname] = val
+                kwargs[kwname] = val.compiled(
+                    schema,
+                    as_fragment=True,
+                    options=qlcompiler.CompilerOptions(
+                        schema_object_context=s_func.Parameter,
+                    ),
+                )
 
         return kwargs
 
@@ -811,6 +817,30 @@ class IndexCommand(
             utils.try_compile_irast_to_sql_tree(expr, self.span)
 
             return expr
+        elif field.name == "kwargs":
+            parent_ctx = context.get_ancestor(
+                IndexSourceCommandContext,  # type: ignore
+                self
+            )
+            if parent_ctx is not None:
+                assert isinstance(parent_ctx.op, sd.ObjectCommand)
+                subject = parent_ctx.op.get_object(schema, context)
+                subject_vname = subject.get_verbosename(schema)
+                idx_name = self.get_verbosename(parent=subject_vname)
+            else:
+                idx_name = self.get_verbosename()
+            return type(value).compiled(
+                value,
+                schema=schema,
+                options=qlcompiler.CompilerOptions(
+                    modaliases=context.modaliases,
+                    schema_object_context=self.get_schema_metaclass(),
+                    apply_query_rewrites=not context.stdmode,
+                    track_schema_ref_exprs=track_schema_ref_exprs,
+                    in_ddl_context_name=idx_name,
+                    detached=True,
+                ),
+            )
         else:
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)
