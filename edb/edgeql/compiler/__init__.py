@@ -411,6 +411,26 @@ def evaluate_to_python_val(
     return evaluate_ast_to_python_val(tree, schema, modaliases=modaliases)
 
 
+def evaluate_ir_statement_to_python_val(
+    ir: irast.Statement,
+) -> Any:
+    """Evaluate the given EdgeQL IR AST as a constant expression.
+
+    Args:
+        ir:
+            EdgeQL IR Statement AST.
+
+    Returns:
+        The result of the evaluation as a Python value and the associated IR.
+
+    Raises:
+        If the expression is not constant, or is otherwise not supported by
+        the const evaluator, the function will raise
+        :exc:`ir.staeval.UnsupportedExpressionError`.
+    """
+    return ireval.evaluate_to_python_val(ir.expr, schema=ir.schema)
+
+
 def evaluate_ast_to_python_val_and_ir(
     tree: qlast.Base,
     schema: s_schema.Schema,
