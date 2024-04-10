@@ -19,6 +19,7 @@
 from __future__ import annotations
 from typing import (
     Any,
+    AsyncIterator,
     ClassVar,
     NoReturn,
     Optional,
@@ -26,6 +27,7 @@ from typing import (
 )
 
 import asyncio
+import contextlib
 import contextvars
 import http
 import itertools
@@ -439,6 +441,18 @@ async def _generate_embeddings(
     raise RuntimeError(f"unsupported model provider: {provider.name}")
 
 
+async def _start_chat(
+    protocol: protocol.HttpProtocol,
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    provider,
+    model_name: str,
+    messages: list[dict],
+    stream: bool,
+) -> None:
+    raise RuntimeError(f"unsupported model provider: {provider.name}")
+
+
 #
 # HTTP API
 #
@@ -470,7 +484,9 @@ async def handle_request(
     await db.introspection()
 
     try:
-        if args[0] == "embeddings":
+        if args[0] == "rag":
+            await _handle_rag_request(protocol, request, response, db, tenant)
+        elif args[0] == "embeddings":
             await _handle_embeddings_request(request, response, db, tenant)
         else:
             response.body = b'Unknown path'
@@ -485,6 +501,234 @@ async def handle_request(
         response.body = json.dumps(ex.json()).encode("utf-8")
         response.close_connection = True
         return
+
+
+async def _handle_rag_request(
+    protocol: protocol.HttpProtocol,
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    db: dbview.Database,
+    tenant: srv_tenant.Tenant,
+) -> None:
+    try:
+        body = json.loads(request.body)
+        if not isinstance(body, dict):
+            raise TypeError(
+                'the body of the request must be a JSON object')
+
+        context = body.get('context')
+        if context is None:
+            raise TypeError(
+                'missing required "context" object in request')
+        if not isinstance(context, dict):
+            raise TypeError(
+                '"context" value in request is not a valid JSON object')
+
+        ctx_query = context.get("query")
+        ctx_variables = context.get("variables")
+        ctx_globals = context.get("globals")
+        ctx_max_obj_count = context.get("max_object_count")
+
+        if not ctx_query:
+            raise TypeError(
+                'missing required "query" in request "context" object')
+
+        if ctx_variables is not None and not isinstance(ctx_variables, dict):
+            raise TypeError('"variables" must be a JSON object')
+
+        if ctx_globals is not None and not isinstance(ctx_globals, dict):
+            raise TypeError('"globals" must be a JSON object')
+
+        model = body.get('model')
+        if not model:
+            raise TypeError(
+                'missing required "model" in request')
+
+        query = body.get('query')
+        if not query:
+            raise TypeError(
+                'missing required "query" in request')
+
+        stream = body.get('stream')
+        if stream is None:
+            stream = False
+        elif not isinstance(stream, bool):
+            raise TypeError('"stream" must be a boolean')
+
+        if ctx_max_obj_count is None:
+            ctx_max_obj_count = 5
+        elif not isinstance(ctx_max_obj_count, int) or ctx_max_obj_count <= 0:
+            raise TypeError(
+                '"context.max_object_count" must be an postitive integer')
+
+        prompt_id = None
+        prompt_name = None
+        custom_prompt = None
+        custom_prompt_messages: dict[str, list[dict[str, Any]]] = {}
+
+        prompt = body.get("prompt")
+        if prompt is None:
+            prompt_name = "builtin::rag-default"
+        else:
+            if not isinstance(prompt, dict):
+                raise TypeError(
+                    '"prompt" value in request must be a JSON object')
+            prompt_name = prompt.get("name")
+            prompt_id = prompt.get("id")
+            custom_prompt = prompt.get("custom")
+
+            if prompt_name and prompt_id:
+                raise TypeError(
+                    "prompt.id and prompt.name are mutually exclusive"
+                )
+
+            if custom_prompt:
+                if not isinstance(custom_prompt, list):
+                    raise TypeError(
+                        "prompt.custom must be a list of {role, content} "
+                        "objects"
+                    )
+                for entry in custom_prompt:
+                    if (
+                        not isinstance(entry, dict)
+                        or not entry.get("role")
+                        or not entry.get("content")
+                        or len(entry) > 2
+                    ):
+                        raise TypeError(
+                            "prompt.custom must be a list of {role, content} "
+                            "objects"
+                        )
+
+                    try:
+                        by_role = custom_prompt_messages[entry["role"]]
+                    except KeyError:
+                        by_role = custom_prompt_messages[entry["role"]] = []
+
+                    by_role.append(entry)
+
+    except Exception as ex:
+        raise BadRequestError(ex.args[0])
+
+    provider_name = await _get_model_provider(
+        db,
+        base_model_type="ext::ai::TextGenerationModel",
+        model_name=model,
+    )
+
+    provider = _get_provider_config(db, provider_name)
+
+    vector_query = await _generate_embeddings_for_type(
+        db,
+        ctx_query,
+        content=query,
+    )
+
+    ctx_query = f"""
+        WITH
+            __query := <array<float32>>(
+                to_json(<str>$input)["data"][0]["embedding"]
+            ),
+            search := ext::ai::search(({ctx_query}), __query),
+        SELECT
+            ext::ai::to_context(search.object)
+        ORDER BY
+            search.distance ASC EMPTY LAST
+        LIMIT
+            <int64>$limit
+    """
+
+    if ctx_variables is None:
+        ctx_variables = {}
+
+    ctx_variables["input"] = vector_query.decode("utf-8")
+    ctx_variables["limit"] = ctx_max_obj_count
+
+    context = await _edgeql_query_json(
+        db=db,
+        query=ctx_query,
+        variables=ctx_variables,
+        globals_=ctx_globals,
+    )
+    if len(context) == 0:
+        raise BadRequestError(
+            'query did not match any data in specified context',
+        )
+
+    prompt_query = """
+        SELECT
+            ext::ai::ChatPrompt {
+                messages: {
+                    participant_role,
+                    content,
+                } ORDER BY .participant_role,
+            }
+        FILTER
+    """
+
+    if prompt_id or prompt_name:
+        prompt_variables = {}
+        if prompt_name:
+            prompt_query += ".name = <str>$prompt_name"
+            prompt_variables["prompt_name"] = prompt_name
+        elif prompt_id:
+            prompt_query += ".id = <uuid><str>$prompt_id"
+            prompt_variables["prompt_id"] = prompt_id
+
+        prompts = await _edgeql_query_json(
+            db=db,
+            query=prompt_query,
+            variables=prompt_variables,
+        )
+        if len(prompts) == 0:
+            raise BadRequestError("could not find the specified chat prompt")
+
+        prompt = prompts[0]
+    else:
+        prompt = {
+            "messages": [],
+        }
+
+    messages: dict[str, list[dict]] = {}
+    for message in prompt["messages"]:
+        if message["participant_role"] == "User":
+            content = message["content"].format(
+                context="\n".join(context),
+                query=query,
+            )
+        elif message["participant_role"] == "System":
+            content = message["content"].format(
+                context="\n".join(context),
+            )
+        else:
+            content = message["content"]
+
+        role = message["participant_role"].lower()
+
+        try:
+            by_role = messages[role]
+        except KeyError:
+            by_role = messages[role] = []
+
+        by_role.append((dict(role=role, content=content)))
+
+    for role, role_messages in custom_prompt_messages.items():
+        try:
+            by_role = messages[role]
+        except KeyError:
+            by_role = messages[role] = []
+
+        by_role.extend(role_messages)
+
+    await _start_chat(
+        protocol,
+        request,
+        response,
+        provider,
+        model,
+        list(itertools.chain.from_iterable(messages.values())),
+        stream,
+    )
 
 
 async def _handle_embeddings_request(
@@ -652,3 +896,101 @@ async def _get_model_provider(
         raise InternalError("multiple models defined as requested model")
 
     return models[0]["provider"]
+
+
+async def _generate_embeddings_for_type(
+    db: dbview.Database,
+    type_query: str,
+    content: str,
+) -> bytes:
+    try:
+        type_desc = await execute.describe(
+            db,
+            f"SELECT ({type_query})",
+            allow_capabilities=compiler.Capability.NONE,
+        )
+        if (
+            not isinstance(type_desc, sertypes.ShapeDesc)
+            or not isinstance(type_desc.type, sertypes.ObjectDesc)
+        ):
+            raise errors.InvalidReferenceError(
+                'context query does not return an '
+                'object type indexed with an `ext::ai::index`'
+            )
+
+        indexes = await _edgeql_query_json(
+            db=db,
+            query="""
+            WITH
+                ObjectType := (
+                    SELECT
+                        schema::ObjectType
+                    FILTER
+                        .id = <uuid>$type_id
+                ),
+            SELECT
+                ObjectType.indexes {
+                    model := (
+                        SELECT
+                            (.annotations@value, .annotations.name)
+                        FILTER
+                            .1 = "ext::ai::model_name"
+                        LIMIT
+                            1
+                    ).0,
+                    provider := (
+                        SELECT
+                            (.annotations@value, .annotations.name)
+                        FILTER
+                            .1 = "ext::ai::model_provider"
+                        LIMIT
+                            1
+                    ).0,
+                    model_embedding_dimensions := <int64>(
+                        SELECT
+                            (.annotations@value, .annotations.name)
+                        FILTER
+                            .1 =
+                            "ext::ai::embedding_model_max_output_dimensions"
+                        LIMIT
+                            1
+                    ).0,
+                    index_embedding_dimensions := <int64>(
+                        SELECT
+                            (.annotations@value, .annotations.name)
+                        FILTER
+                            .1 = "ext::ai::embedding_dimensions"
+                        LIMIT
+                            1
+                    ).0,
+                }
+            FILTER
+                .ancestors.name = 'ext::ai::index'
+            """,
+            variables={"type_id": str(type_desc.type.tid)},
+        )
+        if len(indexes) == 0:
+            raise errors.InvalidReferenceError(
+                'context query does not return an '
+                'object type indexed with an `ext::ai::index`'
+            )
+        elif len(indexes) > 1:
+            raise errors.InvalidReferenceError(
+                'context query returns an object '
+                'indexed with multiple `ext::ai::index` indexes'
+            )
+
+    except Exception as ex:
+        await _db_error(db, ex, context="context.query")
+
+    index = indexes[0]
+    provider = _get_provider_config(db=db, provider_name=index["provider"])
+    if (
+        index["index_embedding_dimensions"]
+        < index["model_embedding_dimensions"]
+    ):
+        shortening = index["index_embedding_dimensions"]
+    else:
+        shortening = None
+    return await _generate_embeddings(
+        provider, index["model"], [content], shortening=shortening)

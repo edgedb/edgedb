@@ -230,16 +230,17 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
                      2. Never include phrases like 'Based on the context, ...' \
                         or any similar phrases in your responses. \
                      3. When the context does not provide information about \
-                        the question, answer with 'No information available.'."
+                        the question, answer with \
+                        'No information available.'.\n\
+                     Context information is below:\n{context}\n\
+                     Given the context information above and not prior \
+                     knowledge, answer the user query."
                 ),
             }),
             (insert ext::ai::ChatPromptMessage {
                 participant_role := ext::ai::ChatParticipantRole.User,
                 content := (
-                    "Context information:\n{context}\n\
-                     Given the context information above and not prior \
-                     knowledge, answer the following query.\n\
-                     Query: {query}\n\
+                    "Query: {query}\n\
                      Answer: "
                 ),
             })
