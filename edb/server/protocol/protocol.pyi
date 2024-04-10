@@ -17,6 +17,7 @@
 #
 
 import asyncio
+import http
 import http.cookies
 import ssl
 
@@ -39,7 +40,7 @@ class HttpRequest:
     cookies: http.cookies.SimpleCookie
 
 class HttpResponse:
-    status: str
+    status: http.HTTPStatus
     close_connection: bool
     content_type: bytes
     custom_headers: dict[str, str]
