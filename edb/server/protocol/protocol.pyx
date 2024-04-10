@@ -58,6 +58,7 @@ from . import notebook_ext
 from . import system_api
 from . import ui_ext
 from . import auth_ext
+from . import ai_ext
 
 
 HTTPStatus = http.HTTPStatus
@@ -656,6 +657,10 @@ cdef class HttpProtocol:
                     await edgeql_ext.handle_request(
                         request, response, db, args, self.tenant
                     )
+                elif extname == 'ai':
+                    await ai_ext.handle_request(
+                        self, request, response, db, args, self.tenant
+                    )
                 elif extname == 'auth':
                     netloc = (
                         f"{request_url.host.decode()}:{request_url.port}"
@@ -680,6 +685,8 @@ cdef class HttpProtocol:
                             srv_metrics.auth_api_calls.inc(
                                 1.0, self.get_tenant_label()
                             )
+                else:
+                    return self._not_found(request, response)
 
         elif route == 'auth':
             if await self._handle_cors(
