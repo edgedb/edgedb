@@ -3357,13 +3357,17 @@ def process_set_as_func_expr(
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
         args = _compile_call_args(ir_set, ctx=newctx)
-        name = get_func_call_backend_name(expr, ctx=newctx)
 
-        if expr.typemod is qltypes.TypeModifier.SetOfType:
-            set_expr = _process_set_func(
-                ir_set, func_name=name, args=args, ctx=newctx)
+        if expr.body is not None:
+            set_expr = dispatch.compile(expr.body, ctx=newctx)
         else:
-            set_expr = pgast.FuncCall(name=name, args=args)
+            name = get_func_call_backend_name(expr, ctx=newctx)
+
+            if expr.typemod is qltypes.TypeModifier.SetOfType:
+                set_expr = _process_set_func(
+                    ir_set, func_name=name, args=args, ctx=newctx)
+            else:
+                set_expr = pgast.FuncCall(name=name, args=args)
 
         if expr.error_on_null_result:
             set_expr = pgast.FuncCall(
