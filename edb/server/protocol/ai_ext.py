@@ -503,6 +503,10 @@ async def _start_chat(
         await _start_openai_chat(
             protocol, request, response,
             provider, model_name, messages, stream)
+    elif provider.api_style == "Anthropic":
+        await _start_anthropic_chat(
+            protocol, request, response,
+            provider, model_name, messages, stream)
     else:
         raise RuntimeError(
             f"unsupported model provider API style: {provider.api_style}, "
@@ -680,6 +684,123 @@ async def _start_openai_chat(
         messages,
         stream,
     )
+
+
+async def _start_anthropic_chat(
+    protocol: protocol.HttpProtocol,
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    provider,
+    model_name: str,
+    messages: list[dict],
+    stream: bool,
+) -> None:
+    headers = {
+        "x-api-key": f"{provider.secret}",
+    }
+
+    if provider.name == "builtin::anthropic":
+        headers["anthropic-version"] = "2023-06-01"
+        headers["anthropic-beta"] = "messages-2023-12-15"
+
+    client = httpx.AsyncClient(
+        headers={
+            "anthropic-version": "2023-06-01",
+            "anthropic-beta": "messages-2023-12-15",
+            "x-api-key": f"{provider.secret}",
+        },
+        base_url=provider.api_url,
+    )
+
+    anthropic_messages = []
+    system_prompt_parts = []
+    for message in messages:
+        if message["role"] == "system":
+            system_prompt_parts.append(message["content"])
+        else:
+            anthropic_messages.append(message)
+
+    system_prompt = "\n".join(system_prompt_parts)
+
+    if stream:
+        async with aconnect_sse(
+            client,
+            method="POST",
+            url="/messages",
+            json={
+                "model": model_name,
+                "messages": anthropic_messages,
+                "stream": True,
+                "system": system_prompt,
+                "max_tokens": 4096,
+            }
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if not response.sent:
+                    response.status = http.HTTPStatus.OK
+                    response.content_type = b'text/event-stream'
+                    response.close_connection = False
+                    response.custom_headers["Cache-Control"] = "no-cache"
+                    protocol.write(request, response)
+
+                if sse.event == "message_start":
+                    message = sse.json()["message"]
+                    for k in tuple(message):
+                        if k not in {"id", "type", "role", "model"}:
+                            del message[k]
+                    message_data = json.dumps(message).encode("utf-8")
+                    event = (
+                        b'event: message_start\n'
+                        + b'data: {"type": "message_start",'
+                        + b'"message":' + message_data + b'}\n\n'
+                    )
+                    protocol.write_raw(event)
+
+                elif sse.event == "content_block_start":
+                    protocol.write_raw(
+                        b'event: content_block_start\n'
+                        + b'data: ' + sse.data.encode("utf-8") + b'\n\n'
+                    )
+                elif sse.event == "content_block_delta":
+                    protocol.write_raw(
+                        b'event: content_block_start\n'
+                        + b'data: ' + sse.data.encode("utf-8") + b'\n\n'
+                    )
+                elif sse.event == "message_delta":
+                    delta = sse.json()["delta"]
+                    delta_data = json.dumps(delta).encode("utf-8")
+                    event = (
+                        b'event: message_delta\n'
+                        + b'data: {"type": "message_delta",'
+                        + b"delta:" + delta_data + b'}\n\n'
+                    )
+                    protocol.write_raw(event)
+                elif sse.event == "message_stop":
+                    event = (
+                        b'event: message_stop\n'
+                        + b'data: {"type": "message_stop"}\n\n'
+                    )
+                    protocol.write_raw(event)
+
+            protocol.close()
+
+    else:
+        result = await client.post(
+            "/messages",
+            json={
+                "model": model_name,
+                "messages": anthropic_messages,
+                "system": system_prompt,
+                "max_tokens": 4096,
+            }
+        )
+
+        response.status = http.HTTPStatus.OK
+        response.content_type = b'application/json'
+        response_text = result.json()["content"][0]["text"]
+        response.body = json.dumps({
+            "response": response_text,
+        }).encode("utf-8")
 
 
 #
