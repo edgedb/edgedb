@@ -246,5 +246,6 @@ async def execute(db, tenant, queries: list):
             await pgcon.sql_execute(b'ROLLBACK;')
         finally:
             tenant.release_pgcon(db.name, pgcon)
+            tenant.remove_dbview(dbv)
 
     return json.dumps(result).encode()
