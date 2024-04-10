@@ -503,7 +503,7 @@ class Schema(abc.ABC):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> SchemaIterator[so.Object_T]:
         raise NotImplementedError
 
@@ -1486,7 +1486,7 @@ class FlatSchema(Schema):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> SchemaIterator[so.Object_T]:
         return SchemaIterator[so.Object_T](
             self,
@@ -1572,7 +1572,7 @@ class SchemaIterator(Generic[so.Object_T]):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> None:
 
         filters = []
@@ -2097,7 +2097,7 @@ class ChainedSchema(Schema):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> SchemaIterator[so.Object_T]:
         return SchemaIterator[so.Object_T](
             self,

@@ -439,7 +439,7 @@ def sdl_to_ddl(
     created_modules = set()
     for module_name, declarations in documents.items():
         tracectx.set_module(module_name)
-        # module (and any encosing modules) needs to be created
+        # module (and any enclosing modules) needs to be created
         # regardless of whether its contents are empty or not
         parts = module_name.split('::')
         for i in range(len(parts)):
@@ -713,6 +713,13 @@ def _trace_item_layout(
         elif isinstance(decl, qlast.CreateAnnotationValue):
             # Validate that the annotation exists at all.
             _validate_schema_ref(decl, ctx=ctx)
+            _, anno_fq_name = ctx.get_fq_name(decl)
+
+            anno_name = s_name.QualName(
+                module=fq_name.module,
+                name=f'{fq_name.name}@{anno_fq_name}',
+            )
+            ctx.objects[anno_name] = qltracer.AnnotationValue(anno_name)
 
         elif isinstance(decl, qlast.CreateAccessPolicy):
             _, pol_fq_name = ctx.get_fq_name(decl)
@@ -951,8 +958,19 @@ def trace_Index(
     exprs = [ExprDependency(expr=node.expr)]
     if node.except_expr:
         exprs.append(ExprDependency(expr=node.except_expr))
+    deps = set()
+    if node.kwargs:
+        for kwarg in node.kwargs:
+            if kwarg == "embedding_model":
+                for n, v in ctx.objects.items():
+                    if (
+                        n.name.endswith("@ext::ai::model_name")
+                        and isinstance(v, qltracer.AnnotationValue)
+                    ):
+                        deps.add(n)
     _register_item(
         node,
+        deps=deps,
         hard_dep_exprs=exprs,
         source=ctx.depstack[-1][1],
         subject=ctx.depstack[-1][1],

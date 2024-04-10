@@ -373,6 +373,12 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
 
 class CompiledExpression(Expression):
+    refs = struct.Field(
+        so.ObjectSet,  # type: ignore
+        coerce=True,
+        frozen=True,
+    )
+
     def __init__(
         self,
         *args: Any,
