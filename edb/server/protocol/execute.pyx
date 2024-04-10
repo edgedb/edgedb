@@ -45,6 +45,7 @@ from edb.server import defines as edbdef
 from edb.server import metrics
 from edb.server.compiler import errormech
 from edb.server.compiler cimport rpc
+from edb.server.compiler import sertypes
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport frontend
@@ -150,6 +151,76 @@ cpdef ExecutionGroup build_cache_persistence_units(
             )),
         )
     return group
+
+
+async def describe(
+    db: dbview.Database,
+    query: str,
+    *,
+    query_cache_enabled: Optional[bool] = None,
+    allow_capabilities: compiler.Capability = compiler.Capability.MODIFICATIONS,
+) -> sertypes.TypeDesc:
+    compiled, dbv = await _parse(
+        db,
+        query,
+        query_cache_enabled=query_cache_enabled,
+        allow_capabilities=allow_capabilities,
+    )
+
+    try:
+        desc = sertypes.parse(
+            compiled.query_unit_group.out_type_data,
+            edbdef.CURRENT_PROTOCOL,
+        )
+    finally:
+        db.tenant.remove_dbview(dbv)
+
+    return desc
+
+
+async def _parse(
+    db: dbview.Database,
+    query: str,
+    *,
+    input_format: compiler.InputFormat = compiler.InputFormat.BINARY,
+    output_format: compiler.OutputFormat = compiler.OutputFormat.BINARY,
+    allow_capabilities: compiler.Capability = compiler.Capability.MODIFICATIONS,
+    use_metrics: bool = True,
+    cached_globally: bool = False,
+    query_cache_enabled: Optional[bool] = None,
+) -> tuple[dbview.CompiledQuery, dbview.DatabaseConnectionView]:
+    if query_cache_enabled is None:
+        query_cache_enabled = not (
+            debug.flags.disable_qcache or debug.flags.edgeql_compile)
+
+    tenant = db.tenant
+    dbv = await tenant.new_dbview(
+        dbname=db.name,
+        query_cache=query_cache_enabled,
+        protocol_version=edbdef.CURRENT_PROTOCOL,
+    )
+    if use_metrics:
+        metrics.query_size.observe(
+            len(query.encode('utf-8')), tenant.get_instance_name(), 'edgeql'
+        )
+
+    query_req = rpc.CompilationRequest(
+        db.server.compilation_config_serializer
+    ).update(
+        edgeql.Source.from_string(query),
+        protocol_version=edbdef.CURRENT_PROTOCOL,
+        input_format=input_format,
+        output_format=output_format,
+    ).set_schema_version(dbv.schema_version)
+
+    compiled = await dbv.parse(
+        query_req,
+        cached_globally=cached_globally,
+        use_metrics=use_metrics,
+        allow_capabilities=allow_capabilities,
+    )
+
+    return compiled, dbv
 
 
 # TODO: can we merge execute and execute_script?
@@ -617,38 +688,18 @@ async def parse_execute_json(
     # or anything from std schema, for example:
     #     YES:  select ext::auth::UIConfig { ... }
     #     NO:   select default::User { ... }
-
-    if query_cache_enabled is None:
-        query_cache_enabled = not (
-            debug.flags.disable_qcache or debug.flags.edgeql_compile)
-
-    tenant = db.tenant
-    dbv = await tenant.new_dbview(
-        dbname=db.name,
-        query_cache=query_cache_enabled,
-        protocol_version=edbdef.CURRENT_PROTOCOL,
-    )
-    if use_metrics:
-        metrics.query_size.observe(
-            len(query.encode('utf-8')), tenant.get_instance_name(), 'edgeql'
-        )
-
-    query_req = rpc.CompilationRequest(
-        db.server.compilation_config_serializer
-    ).update(
-        edgeql.Source.from_string(query),
-        protocol_version=edbdef.CURRENT_PROTOCOL,
+    compiled, dbv = await _parse(
+        db,
+        query,
         input_format=compiler.InputFormat.JSON,
         output_format=output_format,
-    ).set_schema_version(dbv.schema_version)
-
-    compiled = await dbv.parse(
-        query_req,
-        cached_globally=cached_globally,
-        use_metrics=use_metrics,
         allow_capabilities=compiler.Capability.MODIFICATIONS,
+        use_metrics=use_metrics,
+        cached_globally=cached_globally,
+        query_cache_enabled=query_cache_enabled,
     )
 
+    tenant = db.tenant
     pgcon = await tenant.acquire_pgcon(db.name)
     try:
         return await execute_json(
@@ -660,6 +711,7 @@ async def parse_execute_json(
         )
     finally:
         tenant.release_pgcon(db.name, pgcon)
+        tenant.remove_dbview(dbv)
 
 
 async def execute_json(
