@@ -104,7 +104,9 @@ cdef class Database:
         reflection_cache=?,
         backend_ids=?,
         db_config=?,
+        start_stop_extensions=?,
     )
+    cpdef start_stop_extensions(self)
     cdef get_state_serializer(self, protocol_version)
     cpdef set_state_serializer(self, protocol_version, serializer)
 
