@@ -95,6 +95,27 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         };
     };
 
+    create type ext::ai::MistralProviderConfig extending ext::ai::ProviderConfig {
+        alter property name {
+            set protected := true;
+            set default := 'builtin::mistral';
+        };
+
+        alter property display_name {
+            set protected := true;
+            set default := 'Mistral';
+        };
+
+        alter property api_url {
+            set default := 'https://api.mistral.ai/v1'
+        };
+
+        alter property api_style {
+            set protected := true;
+            set default := ext::ai::ProviderAPIStyle.OpenAI;
+        };
+    };
+
     create type ext::ai::Config extending cfg::ExtensionConfig {
         create required property indexer_naptime: std::duration {
             set default := <std::duration>'10s';
@@ -217,6 +238,53 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::model_provider := "builtin::openai";
         alter annotation
             ext::ai::text_gen_model_context_window := "128000";
+    };
+
+    # Mistral models.
+    create abstract type ext::ai::MistralEmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "mistral-embed";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "16384";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+    };
+
+    create abstract type ext::ai::MistralSmallModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "mistral-small-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "8192";
+    };
+
+    create abstract type ext::ai::MistralMediumModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "mistral-medium-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "8192";
+    };
+
+    create abstract type ext::ai::MistralLargeModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "mistral-large-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "8192";
     };
 
     create scalar type ext::ai::DistanceFunction
