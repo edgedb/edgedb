@@ -45,6 +45,8 @@ from edb.server.protocol import execute
 from edb.pgsql import dbops
 from edb.server.compiler_pool import state as compiler_state_mod
 
+from edb.server.protocol import ai_ext
+
 cimport cython
 
 from edb.server.compiler cimport rpc
@@ -277,7 +279,10 @@ cdef class Database:
             self.start_stop_extensions()
 
     cpdef start_stop_extensions(self):
-        pass
+        if "ai" in self.extensions:
+            ai_ext.start_extension(self.tenant, self.name)
+        else:
+            ai_ext.stop_extension(self.tenant, self.name)
 
     cdef _observe_auth_ext_config(self):
         key = "ext::auth::AuthConfig::providers"
