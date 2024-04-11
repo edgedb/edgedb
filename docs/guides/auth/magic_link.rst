@@ -8,12 +8,12 @@ Magic Link Auth
 
 Magic Link is a passwordless authentication method that allows users to log in via a unique, time-sensitive link sent to their email. This guide will walk you through integrating Magic Link authentication with your application using EdgeDB Auth.
 
-Enable Magic Link Provider
+Enable Magic Link provider
 ==========================
 
 Before you can use Magic Link authentication, you need to enable the Magic Link provider in your EdgeDB Auth configuration. This can be done through the EdgeDB UI under the "Providers" section.
 
-Magic Link Flow
+Magic Link flow
 ===============
 
 The Magic Link authentication flow involves three main steps:
