@@ -951,8 +951,8 @@ class Call(ImmutableExpr):
     force_return_cast: bool
 
     # Bound arguments.
-    # Named arguments will come first, sorted by name,
-    # followed by positional arguments, in order of declaration.
+    # Named arguments are indexed by argument name.
+    # Positional arguments are indexed by argument position.
     args: typing.Dict[typing.Union[int, str], CallArg]
 
     # Return type and typemod.  In bodies of polymorphic functions

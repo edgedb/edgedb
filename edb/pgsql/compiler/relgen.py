@@ -2770,7 +2770,6 @@ def process_set_as_std_range(
     #     )
     #   end
 
-    # N.B: kwargs go first and are sorted by name
     empty = dispatch.compile(expr.args['empty'].expr, ctx=ctx)
     inc_lower = dispatch.compile(expr.args['inc_lower'].expr, ctx=ctx)
     inc_upper = dispatch.compile(expr.args['inc_upper'].expr, ctx=ctx)
