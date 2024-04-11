@@ -1133,7 +1133,7 @@ class BaseAtomicExpr(Nonterm):
     # { ... } | Constant | '(' Expr ')' | FuncExpr
     # | Tuple | NamedTuple | Collection | Set
     # | '__source__' | '__subject__'
-    # | '__new__' | '__old__' | '__specified__'
+    # | '__new__' | '__old__' | '__specified__' | '__default__'
     # | NodeName | PathStep
 
     @parsing.inline(0)
@@ -1160,6 +1160,9 @@ class BaseAtomicExpr(Nonterm):
         self.val = qlast.Path(
             steps=[qlast.SpecialAnchor(name='__specified__')]
         )
+
+    def reduce_DUNDERDEFAULT(self, *kids):
+        self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__default__')])
 
     @parsing.precedence(precedence.P_UMINUS)
     @parsing.inline(0)
