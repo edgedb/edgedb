@@ -315,6 +315,27 @@ For local testing, you can use the same method used for SMTP previously for
 :ref:`the email and password provider
 <ref_guide_auth_overview_email_password>`.
 
+Here is an example of setting a local SMTP server, in this case using a
+product called `Mailpit <https://mailpit.axllent.org/docs/>`__ which is
+great for testing in development:
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::SMTPConfig::sender := 'hello@example.com';
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::SMTPConfig::host := 'localhost';
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::SMTPConfig::port := <int32>1025;
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::SMTPConfig::security := 'STARTTLSOrPlainText';
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::SMTPConfig::validate_certs := false;
+
 
 WebAuthn
 --------
@@ -334,9 +355,30 @@ WebAuthn
 
 .. note::
 
-    If you enable ``require_verification``, you will need to configure SMTP.
-    For local testing, you can use Mailpit as described in :ref:`the
-    email/password section <ref_guide_auth_overview_email_password>`.
+    You will need to configure SMTP. For local testing, you can use Mailpit as
+    described in :ref:`the email/password section
+    <ref_guide_auth_overview_email_password>`.
+
+Here is an example of setting a local SMTP server, in this case using a
+product called `Mailpit <https://mailpit.axllent.org/docs/>`__ which is
+great for testing in development:
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::SMTPConfig::sender := 'hello@example.com';
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::SMTPConfig::host := 'localhost';
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::SMTPConfig::port := <int32>1025;
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::SMTPConfig::security := 'STARTTLSOrPlainText';
+
+    CONFIGURE CURRENT DATABASE SET
+    ext::auth::SMTPConfig::validate_certs := false;
 
 
 Integrating your application
