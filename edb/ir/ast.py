@@ -929,6 +929,7 @@ class CallArg(ImmutableBase):
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
     multiplicity: qltypes.Multiplicity = qltypes.Multiplicity.UNKNOWN
     is_default: bool = False
+    param_typemod: qltypes.TypeModifier
 
 
 class Call(ImmutableExpr):
@@ -950,13 +951,9 @@ class Call(ImmutableExpr):
     force_return_cast: bool
 
     # Bound arguments.
-    # Named arguments will come first, sorted by name,
-    # followed by positional arguments, in order of declaration.
-    args: typing.List[CallArg]
-
-    # Typemods of parameters.  This list corresponds to ".args"
-    # (so `zip(args, params_typemods)` is valid.)
-    params_typemods: typing.List[qltypes.TypeModifier]
+    # Named arguments are indexed by argument name.
+    # Positional arguments are indexed by argument position.
+    args: typing.Dict[typing.Union[int, str], CallArg]
 
     # Return type and typemod.  In bodies of polymorphic functions
     # the return type can be polymorphic; in queries the return

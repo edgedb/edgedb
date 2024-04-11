@@ -348,7 +348,7 @@ def __infer_func_call(
 ) -> inf_ctx.MultiplicityInfo:
     card = cardinality.infer_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
     args_mult = []
-    for arg in ir.args:
+    for arg in ir.args.values():
         arg_mult = infer_multiplicity(arg.expr, scope_tree=scope_tree, ctx=ctx)
         args_mult.append(arg_mult)
         arg.multiplicity = arg_mult.own
@@ -387,7 +387,7 @@ def __infer_oper_call(
     card = cardinality.infer_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
     mult: List[inf_ctx.MultiplicityInfo] = []
     cards: List[qltypes.Cardinality] = []
-    for arg in ir.args:
+    for arg in ir.args.values():
         cards.append(
             cardinality.infer_cardinality(
                 arg.expr, scope_tree=scope_tree, ctx=ctx
@@ -412,7 +412,7 @@ def __infer_oper_call(
         if isinstance(arg_type, s_objtypes.ObjectType):
             types: List[s_objtypes.ObjectType] = [
                 downcast(s_objtypes.ObjectType, ctx.env.set_types[arg.expr])
-                for arg in ir.args
+                for arg in ir.args.values()
             ]
 
             lineages = [

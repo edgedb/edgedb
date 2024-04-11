@@ -63,18 +63,7 @@ def _get_exclusive_refs(tree: irast.Statement) -> Sequence[irast.Base] | None:
     assert isinstance(tree.expr.expr, irast.SelectStmt)
     expr = tree.expr.expr.result
 
-    astexpr = irastexpr.DistinctConjunctionExpr()  # type: ignore
-    refs = astexpr.match(expr)
-
-    if refs is None:
-        return refs
-    else:
-        all_refs = []
-        for ref in refs:
-            # Unnest sequences in refs
-            all_refs.append(ref)
-
-        return all_refs
+    return irastexpr.get_constraint_references(expr)
 
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)

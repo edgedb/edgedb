@@ -231,8 +231,8 @@ def evaluate_OperatorCall(
             f'unsupported operator: {opcall.func_shortname}',
             span=opcall.span)
 
-    args = []
-    for arg in opcall.args:
+    args: Dict[int, irast.CallArg] = {}
+    for key, arg in opcall.args.items():
         arg_val = evaluate_to_python_val(arg.expr, schema=schema)
         if isinstance(arg_val, tuple):
             raise UnsupportedExpressionError(
@@ -242,10 +242,23 @@ def evaluate_OperatorCall(
             raise UnsupportedExpressionError(
                 f'empty operations are not supported',
                 span=opcall.span)
+        if isinstance(key, str):
+            raise UnsupportedExpressionError(
+                f'named arguments are not allowed for operators',
+                span=opcall.span)
 
-        args.append(arg_val)
+        args[key] = arg_val
 
-    value = eval_func(*args)
+    args_list: List[irast.CallArg] = []
+    for key in range(len(args)):
+        if key not in args:
+            raise UnsupportedExpressionError(
+                f'missing positional argument {key}',
+                span=opcall.span)
+
+        args_list.append(args[key])
+
+    value = eval_func(*args_list)
     return _process_op_result(
         value, opcall.typeref, schema, span=opcall.span)
 
@@ -285,7 +298,7 @@ def _evaluate_union(
 ) -> irast.ConstExpr:
 
     elements: List[irast.BaseConstant] = []
-    for arg in opcall.args:
+    for arg in opcall.args.values():
         val = evaluate(arg.expr, schema=schema)
         if isinstance(val, irast.TypeCast):
             val = evaluate(val.expr, schema=schema)

@@ -231,7 +231,7 @@ def __infer_func_call(
 
     if ir.args:
         return _max_volatility([
-            _common_volatility((arg.expr for arg in ir.args), env),
+            _common_volatility((arg.expr for arg in ir.args.values()), env),
             ir.volatility
         ])
     else:
@@ -245,7 +245,7 @@ def __infer_oper_call(
 ) -> InferredVolatility:
     if ir.args:
         return _max_volatility([
-            _common_volatility((arg.expr for arg in ir.args), env),
+            _common_volatility((arg.expr for arg in ir.args.values()), env),
             ir.volatility
         ])
     else:

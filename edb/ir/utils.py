@@ -490,8 +490,11 @@ def find_potentially_visible(
 
 
 def contains_set_of_op(ir: irast.Base) -> bool:
-    flt = (lambda n: any(x == ft.TypeModifier.SetOfType
-                         for x in n.params_typemods))
+    def flt(n: irast.Call) -> bool:
+        return any(
+            arg.param_typemod == ft.TypeModifier.SetOfType
+            for arg in n.args.values()
+        )
     return bool(ast.find_children(ir, irast.Call, flt, terminate_early=True))
 
 

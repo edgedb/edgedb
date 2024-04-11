@@ -2511,7 +2511,7 @@ def _late_compile_view_shapes_in_call(
 ) -> None:
 
     if expr.func_polymorphic:
-        for call_arg in expr.args:
+        for call_arg in expr.args.values():
             arg = call_arg.expr
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:
