@@ -245,7 +245,7 @@ def compile_FunctionCall(
 
     matched_func_initial_value = func.get_initial_value(env.schema)
 
-    final_args, params_typemods = finalize_args(
+    final_args = finalize_args(
         matched_call,
         guessed_typemods=typemods,
         is_polymorphic=is_polymorphic,
@@ -256,7 +256,7 @@ def compile_FunctionCall(
     if func.get_nativecode(env.schema):
         # We are sure that there is no such functions implemented with SQL
 
-        for arg in final_args:
+        for arg in final_args.values():
             if arg.expr.typeref.is_scalar:
                 continue
             if not irutils.contains_dml(arg.expr):
@@ -326,7 +326,6 @@ def compile_FunctionCall(
         preserves_optionality=func.get_preserves_optionality(env.schema),
         preserves_upper_cardinality=func.get_preserves_upper_cardinality(
             env.schema),
-        params_typemods=params_typemods,
         typeref=typegen.type_to_typeref(
             rtype, env=env,
         ),
@@ -603,7 +602,7 @@ def compile_operator(
         matched_rtype.is_polymorphic(env.schema)
     )
 
-    final_args, params_typemods = finalize_args(
+    final_args = finalize_args(
         matched_call,
         actual_typemods=actual_typemods,
         guessed_typemods=typemods,
@@ -617,9 +616,9 @@ def compile_operator(
         # Special case for the UNION, IF and ?? operators: instead of common
         # parent type, we return a union type.
         if str_oper_name == 'std::IF':
-            larg, _, rarg = (a.expr for a in final_args)
+            larg, _, rarg = (a.expr for a in final_args.values())
         else:
-            larg, rarg = (a.expr for a in final_args)
+            larg, rarg = (a.expr for a in final_args.values())
 
         left_type = setgen.get_set_type(larg, ctx=ctx)
         right_type = setgen.get_set_type(rarg, ctx=ctx)
@@ -662,7 +661,6 @@ def compile_operator(
         force_return_cast=oper.get_force_return_cast(env.schema),
         volatility=oper.get_volatility(env.schema),
         operator_kind=oper.get_operator_kind(env.schema),
-        params_typemods=params_typemods,
         typeref=typegen.type_to_typeref(rtype, env=env),
         typemod=oper.get_return_typemod(env.schema),
         tuple_path_ids=[],
@@ -694,7 +692,7 @@ def _check_free_shape_op(ir: irast.Call, *, ctx: context.ContextLevel) -> None:
 
     virt_obj = ctx.env.schema.get(
         'std::FreeObject', type=s_objtypes.ObjectType)
-    for arg in ir.args:
+    for arg in ir.args.values():
         typ = setgen.get_set_type(arg.expr, ctx=ctx)
         if typ.issubclass(ctx.env.schema, virt_obj):
             raise errors.QueryError(
@@ -834,19 +832,21 @@ def finalize_args(
     guessed_typemods: Dict[Union[int, str], ft.TypeModifier],
     is_polymorphic: bool = False,
     ctx: context.ContextLevel,
-) -> Tuple[List[irast.CallArg], List[ft.TypeModifier]]:
+) -> Dict[Union[int, str], irast.CallArg]:
 
-    args: List[irast.CallArg] = []
-    typemods = []
+    args: Dict[Union[int, str], irast.CallArg] = {}
+    position_index: int = 0
 
     for i, barg in enumerate(bound_call.args):
         param = barg.param
-        arg = barg.val
+        arg_val = barg.val
         arg_type_path_id: Optional[irast.PathId] = None
         if param is None:
             # defaults bitmask
-            args.append(irast.CallArg(expr=arg))
-            typemods.append(ft.TypeModifier.SingletonType)
+            args[-1] = irast.CallArg(
+                expr=arg_val,
+                param_typemod=ft.TypeModifier.SingletonType,
+            )
             continue
 
         if actual_typemods:
@@ -854,13 +854,11 @@ def finalize_args(
         else:
             param_mod = param.get_typemod(ctx.env.schema)
 
-        typemods.append(param_mod)
-
         if param_mod is not ft.TypeModifier.SetOfType:
             param_shortname = param.get_parameter_name(ctx.env.schema)
 
             if param_shortname in bound_call.null_args:
-                pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
+                pathctx.register_set_in_scope(arg_val, optional=True, ctx=ctx)
 
             # If we guessed the argument was optional but it wasn't,
             # try to go back and make it *not* optional.
@@ -871,10 +869,10 @@ def finalize_args(
             ):
                 for child in ctx.path_scope.children:
                     if (
-                        child.path_id == arg.path_id
+                        child.path_id == arg_val.path_id
                         or (
-                            arg.path_scope_id is not None
-                            and child.unique_id == arg.path_scope_id
+                            arg_val.path_scope_id is not None
+                            and child.unique_id == arg_val.path_scope_id
                         )
                     ):
                         child.optional = False
@@ -884,7 +882,7 @@ def finalize_args(
             # type as an argument on the pgsql side. If the param type
             # is "anytype", though, then it can't be overloaded on
             # that argument.
-            arg_type = setgen.get_set_type(arg, ctx=ctx)
+            arg_type = setgen.get_set_type(arg_val, ctx=ctx)
             if (
                 isinstance(arg_type, s_objtypes.ObjectType)
                 and barg.param
@@ -892,7 +890,7 @@ def finalize_args(
                     ctx.env.schema)
             ):
                 arg_type_path_id = pathctx.extend_path_id(
-                    arg.path_id,
+                    arg_val.path_id,
                     ptrcls=setgen.resolve_ptr(
                         arg_type, '__type__', track_ref=None, ctx=ctx
                     ),
@@ -915,11 +913,11 @@ def finalize_args(
                 is_array_agg
                 and ctx.expr_exposed
                 and ctx.implicit_limit
-                and isinstance(arg.expr, irast.SelectStmt)
-                and arg.expr.limit is None
+                and isinstance(arg_val.expr, irast.SelectStmt)
+                and arg_val.expr.limit is None
                 and not ctx.inhibit_implicit_limit
             ):
-                arg.expr.limit = dispatch.compile(
+                arg_val.expr.limit = dispatch.compile(
                     qlast.Constant.integer(ctx.implicit_limit),
                     ctx=ctx,
                 )
@@ -943,17 +941,22 @@ def finalize_args(
             # cast the arguments so that the backend has no
             # wiggle room to apply its own (potentially different)
             # casting.
-            orig_arg = arg
-            arg = casts.compile_cast(
-                arg, paramtype, span=None, ctx=ctx)
-            if ctx.path_scope.is_optional(orig_arg.path_id):
-                pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
+            orig_arg_val = arg_val
+            arg_val = casts.compile_cast(
+                arg_val, paramtype, span=None, ctx=ctx)
+            if ctx.path_scope.is_optional(orig_arg_val.path_id):
+                pathctx.register_set_in_scope(arg_val, optional=True, ctx=ctx)
 
-        args.append(
-            irast.CallArg(expr=arg, expr_type_path_id=arg_type_path_id,
-                          is_default=barg.is_default))
+        arg = irast.CallArg(expr=arg_val, expr_type_path_id=arg_type_path_id,
+            is_default=barg.is_default, param_typemod=param_mod)
+        if param_kind is ft.ParameterKind.NamedOnlyParam:
+            param_shortname = param.get_parameter_name(ctx.env.schema)
+            args[param_shortname] = arg
+        else:
+            args[position_index] = arg
+            position_index += 1
 
-    return args, typemods
+    return args
 
 
 @_special_case('fts::search')
@@ -963,7 +966,7 @@ def compile_fts_search(
     _validate_object_search_call(
         call,
         context="fts::search()",
-        object_arg=call.args[2],
+        object_arg=call.args[0],
         index_name=sn.QualName("fts", "index"),
         ctx=ctx,
     )
@@ -1033,7 +1036,7 @@ def compile_fts_with_options(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
     # language has already been typechecked to be an enum
-    lang = call.args[0].expr
+    lang = call.args['language'].expr
     assert lang.typeref
     lang_ty_id = lang.typeref.id
     lang_ty = ctx.env.schema.get_by_id(lang_ty_id, type=s_scalars.ScalarType)
@@ -1057,7 +1060,7 @@ def compile_fts_with_options(
             lang_domain.add(enum_value.lower())
 
     # weight_category
-    weight_expr = call.args[1].expr
+    weight_expr = call.args['weight_category'].expr
     if not irutils.is_const(weight_expr):
         raise errors.InvalidValueError(
             f"fts::search weight_category must be a constant",
@@ -1071,7 +1074,7 @@ def compile_fts_with_options(
         assert weight
 
     return irast.FTSDocument(
-        text=call.args[2].expr,
+        text=call.args[0].expr,
         language=lang,
         language_domain=lang_domain,
         weight=weight,

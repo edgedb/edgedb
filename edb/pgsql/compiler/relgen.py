@@ -1513,7 +1513,7 @@ def process_set_as_membership_expr(
     assert isinstance(expr, irast.OperatorCall)
 
     with ctx.new() as newctx:
-        left_arg, right_arg = (a.expr for a in expr.args)
+        left_arg, right_arg = (a.expr for a in expr.args.values())
 
         newctx.expr_exposed = False
         left_out = dispatch.compile(left_arg, ctx=newctx)
@@ -1614,7 +1614,7 @@ def process_set_as_setop(
     with ctx.new() as newctx:
         newctx.expr_exposed = False
 
-        left, right = (a.expr for a in expr.args)
+        left, right = (a.expr for a in expr.args.values())
 
         with newctx.subrel() as _, _.newscope() as scopectx:
             larg = scopectx.rel
@@ -1694,8 +1694,10 @@ def process_set_as_ifelse(
     expr = ir_set.expr
     stmt = ctx.rel
 
-    if_expr, condition, else_expr = (a.expr for a in expr.args)
-    if_expr_card, _, else_expr_card = (a.cardinality for a in expr.args)
+    if_expr, condition, else_expr = (a.expr for a in expr.args.values())
+    if_expr_card, _, else_expr_card = (
+        a.cardinality for a in expr.args.values()
+    )
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
@@ -1803,8 +1805,8 @@ def process_set_as_coalesce(
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
-        left_ir, right_ir = (a.expr for a in expr.args)
-        _left_card, right_card = (a.cardinality for a in expr.args)
+        left_ir, right_ir = (a.expr for a in expr.args.values())
+        _left_card, right_card = (a.cardinality for a in expr.args.values())
         is_object = (
             ir_set.path_id.is_objtype_path()
             or ir_set.path_id.is_tuple_path()
@@ -2209,8 +2211,8 @@ def process_set_as_singleton_assertion(
     expr = ir_set.expr
     stmt = ctx.rel
 
-    msg_arg = expr.args[0]
-    ir_arg = expr.args[1]
+    msg_arg = expr.args['message']
+    ir_arg = expr.args[0]
     ir_arg_set = ir_arg.expr
 
     if (
@@ -2228,7 +2230,7 @@ def process_set_as_singleton_assertion(
         arg_ref = dispatch.compile(ir_arg_set, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
 
-        msg = dispatch.compile(expr.args[0].expr, ctx=newctx)
+        msg = dispatch.compile(msg_arg.expr, ctx=newctx)
 
         # Generate a singleton set assertion as the following SQL:
         #
@@ -2318,8 +2320,8 @@ def process_set_as_existence_assertion(
     expr = ir_set.expr
     stmt = ctx.rel
 
-    msg_arg = expr.args[0]
-    ir_arg = expr.args[1]
+    msg_arg = expr.args['message']
+    ir_arg = expr.args[0]
     ir_arg_set = ir_arg.expr
 
     if (
@@ -2404,8 +2406,8 @@ def process_set_as_multiplicity_assertion(
 ) -> SetRVars:
     """Implementation of std::assert_distinct"""
     expr = ir_set.expr
-    msg_arg = expr.args[0]
-    ir_arg = expr.args[1]
+    msg_arg = expr.args['message']
+    ir_arg = expr.args[0]
     ir_arg_set = ir_arg.expr
 
     if (
@@ -2768,12 +2770,11 @@ def process_set_as_std_range(
     #     )
     #   end
 
-    # N.B: kwargs go first and are sorted by name
-    empty = dispatch.compile(expr.args[0].expr, ctx=ctx)
-    inc_lower = dispatch.compile(expr.args[1].expr, ctx=ctx)
-    inc_upper = dispatch.compile(expr.args[2].expr, ctx=ctx)
-    lower = dispatch.compile(expr.args[3].expr, ctx=ctx)
-    upper = dispatch.compile(expr.args[4].expr, ctx=ctx)
+    empty = dispatch.compile(expr.args['empty'].expr, ctx=ctx)
+    inc_lower = dispatch.compile(expr.args['inc_lower'].expr, ctx=ctx)
+    inc_upper = dispatch.compile(expr.args['inc_upper'].expr, ctx=ctx)
+    lower = dispatch.compile(expr.args[0].expr, ctx=ctx)
+    upper = dispatch.compile(expr.args[1].expr, ctx=ctx)
 
     lb = pgast.Index(
         idx=astutils.new_binop(
@@ -2922,8 +2923,8 @@ def process_set_as_call(
         return process_set_as_oper_expr(ir_set, ctx=ctx)
 
     if any(
-        pm is qltypes.TypeModifier.SetOfType
-        for pm in ir_set.expr.params_typemods
+        arg.param_typemod is qltypes.TypeModifier.SetOfType
+        for key, arg in ir_set.expr.args.items()
     ):
         # Call to an aggregate function.
         assert irutils.is_set_instance(ir_set, irast.FunctionCall)
@@ -3236,10 +3237,12 @@ def _compile_call_args(
             arg_ref = dispatch.compile(glob_arg, ctx=ctx)
             args.append(output.output_as_value(arg_ref, env=ctx.env))
 
-    for i, (ir_arg, typemod) in enumerate(zip(expr.args, expr.params_typemods)):
-        if i in skip:
+    for ir_key, ir_arg in expr.args.items():
+        if ir_key in skip:
             continue
         assert ir_arg.multiplicity != qltypes.Multiplicity.UNKNOWN
+
+        typemod = ir_arg.param_typemod
 
         # Support a mode where we try to compile arguments as pure
         # subqueries. This is occasionally valuable as it lets us
@@ -3431,8 +3434,7 @@ def process_set_as_agg_expr_inner(
 
             args = []
 
-            for i, (ir_call_arg, typemod) in enumerate(
-                    zip(expr.args, expr.params_typemods)):
+            for ir_call_key, ir_call_arg in expr.args.items():
                 ir_arg = ir_call_arg.expr
 
                 arg_ref: pgast.BaseExpr
@@ -3460,7 +3462,12 @@ def process_set_as_agg_expr_inner(
                             arg_ref, env=argctx.env)
 
                 _compile_arg_null_check(
-                    expr, ir_call_arg, arg_ref, typemod, ctx=argctx)
+                    expr,
+                    ir_call_arg,
+                    arg_ref,
+                    ir_call_arg.param_typemod,
+                    ctx=argctx
+                )
 
                 path_scope = relctx.get_scope(ir_arg, ctx=argctx)
                 if path_scope is not None and path_scope.parent is not None:
@@ -3489,7 +3496,7 @@ def process_set_as_agg_expr_inner(
                     )
                     arg_ref = astutils.get_column(wrapper_rvar, colname)
 
-                if i == 0 and irutils.is_subquery_set(ir_arg):
+                if ir_call_key == 0 and irutils.is_subquery_set(ir_arg):
                     # If the first argument of the aggregate
                     # is a SELECT or GROUP with an ORDER BY clause,
                     # we move the ordering conditions to the aggregate
@@ -3895,13 +3902,12 @@ def process_set_as_fts_search(
         cb = _fts_search_inner_pg
 
     return _process_set_as_object_search(
-        ir_set, obj_arg_offset=2, inner_cb=cb, ctx=ctx)
+        ir_set, inner_cb=cb, ctx=ctx)
 
 
 def _process_set_as_object_search(
     ir_set: irast.SetE[irast.Call],
     *,
-    obj_arg_offset: int,
     inner_cb: _ObjectSearchInnerCallback,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
@@ -3909,13 +3915,13 @@ def _process_set_as_object_search(
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
-        obj_ir = func_call.args[obj_arg_offset].expr
+        obj_ir = func_call.args[0].expr
         obj_id = obj_ir.path_id
         obj_rvar = ensure_source_rvar(obj_ir, newctx.rel, ctx=newctx)
 
         # we skip the object, as it has to be compiled as rvar source
         args_pg = _compile_call_args(
-            ir_set, skip={obj_arg_offset}, ctx=newctx)
+            ir_set, skip={0}, ctx=newctx)
 
         out_obj_id, out_score_id = func_call.tuple_path_ids
 

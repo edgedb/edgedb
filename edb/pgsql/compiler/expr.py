@@ -360,14 +360,14 @@ def _compile_call_args(
     maybe_null = []
     if isinstance(expr, irast.FunctionCall) and expr.global_args:
         args += [dispatch.compile(arg, ctx=ctx) for arg in expr.global_args]
-    for ir_arg, typemod in zip(expr.args, expr.params_typemods):
+    for ir_arg in expr.args.values():
         ref = dispatch.compile(ir_arg.expr, ctx=ctx)
         args.append(ref)
         if (
             not expr.impl_is_strict
             and ir_arg.cardinality.can_be_zero()
             and ref.nullable
-            and typemod == ql_ft.TypeModifier.SingletonType
+            and ir_arg.param_typemod == ql_ft.TypeModifier.SingletonType
         ):
             maybe_null.append(ref)
     return args, maybe_null
@@ -398,7 +398,7 @@ def compile_OperatorCall(
     if (str(expr.func_shortname) == 'std::IF'
             and expr.args[0].cardinality.is_single()
             and expr.args[2].cardinality.is_single()):
-        if_expr, condition, else_expr = (a.expr for a in expr.args)
+        if_expr, condition, else_expr = (a.expr for a in expr.args.values())
         return pgast.CaseExpr(
             args=[
                 pgast.CaseWhen(
@@ -409,7 +409,7 @@ def compile_OperatorCall(
     elif (str(expr.func_shortname) == 'std::??'
             and expr.args[0].cardinality.is_single()
             and expr.args[1].cardinality.is_single()):
-        l_expr, r_expr = (a.expr for a in expr.args)
+        l_expr, r_expr = (a.expr for a in expr.args.values())
         return pgast.CoalesceExpr(
             args=[
                 dispatch.compile(l_expr, ctx=ctx),
