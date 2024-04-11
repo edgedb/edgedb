@@ -380,6 +380,12 @@ class EdgeQLInterpreter:
         
         return result
 
+    def query_single_json(self, s: str, **kwargs) -> json_like:
+        result = self.run_single_str_get_json_with_cache(s, kwargs)
+        if isinstance(result, list) and len(result) == 1:
+            return result[0]
+        else:
+            raise ValueError("Expected a single result")
     
 
 

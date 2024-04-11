@@ -55,6 +55,21 @@ def try_collect_constraints_from_filter(expr: e.Expr) -> Optional[e.EdgeDatabase
     return try_iterative_collection(expr.body)
 
 
+def is_trivial_shape_element(shape: e.ShapeExpr, label: str) -> bool:
+    shape_elem = shape.shape[e.StrLabel(label)]
+    bnd_name = shape_elem.var
+    match shape_elem.body:
+        case (e.ConditionalDedupExpr(e.ObjectProjExpr(
+            subject=e.BoundVarExpr(subject_name),
+            label=proj_label
+        ))):
+            if subject_name == bnd_name and proj_label == label:
+                return True
+            else:
+                return False
+        case _:
+            return False
+
     
 def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilter) -> Optional[e.Expr]:
     all_labels = eops.collect_names_in_select_filter(filter)
@@ -84,7 +99,8 @@ def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilt
         case e.MultiSetExpr(expr=[e.QualifiedName(name)]):
             return refine_subject_with_filter(e.QualifiedName(name), filter)
         case e.ShapedExprExpr(expr=main, shape=shape):
-            if any(l.label in all_labels for l in shape.shape.keys() if isinstance(l, e.StrLabel)):
+            if any(l.label in all_labels for l in shape.shape.keys() 
+                    if isinstance(l, e.StrLabel) and not is_trivial_shape_element(shape, l.label)):
                 return None
             else:
                 expr_refined = refine_subject_with_filter(main, filter)

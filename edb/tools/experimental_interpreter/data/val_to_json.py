@@ -114,7 +114,7 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
     #     tp = tp.resolution
     match v:
         case e.ScalarVal(s_tp, v):
-            if isinstance(v, int) or isinstance(v, str) or isinstance(v, bool):
+            if isinstance(v, int) or isinstance(v, str) or isinstance(v, bool) or isinstance(v, float):
                 return v
             elif s_tp == e.ScalarTp(e.QualifiedName(["std", "json"])):
                 return v

@@ -63,6 +63,7 @@ all_server_cal_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e
     "to_local_datetime": cal_to_local_datetime_impl,
 }
 all_server_math_funcs : Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]] = {
+    "mean" : math_mean_impl,
 }
 
 

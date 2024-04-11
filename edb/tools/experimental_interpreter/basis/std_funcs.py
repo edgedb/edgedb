@@ -258,3 +258,9 @@ def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             interpreter_logging.print_warning("Warning: cal::to_local_datetime is implemented properly. It is a no-op.")
             return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["cal", "local_datetime"])), s)]
     raise FunCallErr()
+
+def math_mean_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [l]:
+            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "float64"])), sum(elem.val for elem in l) / len(l))]
+    raise FunCallErr()

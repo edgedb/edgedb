@@ -180,13 +180,13 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> Tuple[ObjectTp,
                                         elab_expr_with_default_head(
                                             set_field_value))
                                 case _:
-                                    print(
+                                    print_warning(
                                         "WARNING: "
                                         "not implemented "
                                         "set_field_name",
                                         set_field_name)
                         case _:
-                            print(
+                            print_warning(
                                 "WARNING: not "
                                 "implemented pcmd",
                                 pcmd)

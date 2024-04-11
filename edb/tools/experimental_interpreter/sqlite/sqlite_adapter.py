@@ -17,8 +17,8 @@ from ..elab_schema import add_module_from_sdl_file, add_module_from_sdl_defs
 
 import copy
 
-SQLITE_PRINT_QUERIES = True
-# SQLITE_PRINT_QUERIES = False
+# SQLITE_PRINT_QUERIES = True
+SQLITE_PRINT_QUERIES = False
 
 @dataclass(frozen=True)
 class PropertyTypeView:
@@ -319,12 +319,15 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                         )
                         return convert_select_filter_to_condition_text(equivalent_disjuctive_filter)
                     else:
-                        this_view = self.schema_property_view[tp_name].columns[propname]
                         query_args.append(convert_val_to_sqlite_val(arg))
-                        if this_view.is_singular:
-                            return f"({propname} = ?)"
+                        if propname == "id":
+                            return "(id = ?)"
                         else:
-                            return f"(EXISTS (SELECT 1 FROM '{tp_name}.{propname}' WHERE source = id AND target = ?))"
+                            this_view = self.schema_property_view[tp_name].columns[propname]
+                            if this_view.is_singular:
+                                return f"({propname} = ?)"
+                            else:
+                                return f"(EXISTS (SELECT 1 FROM '{tp_name}.{propname}' WHERE source = id AND target = ?))"
                 case e.EdgeDatabaseConjunctiveFilter(conjuncts=filters):
                     if len(filters) == 0:
                         return "(1=1)"
