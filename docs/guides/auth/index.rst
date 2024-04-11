@@ -11,6 +11,7 @@ Auth
     built_in_ui
     email_password
     oauth
+    magic_link
 
 :edb-alt-title: Using EdgeDB Auth
 
