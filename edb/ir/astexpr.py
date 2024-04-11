@@ -16,10 +16,6 @@
 # limitations under the License.
 #
 
-# type: ignore
-# AST matching is done via module attribute injection magic, which
-# mypy does not understand.
-
 from typing import Optional, List
 
 from edb.schema import name as sn
@@ -93,11 +89,10 @@ def is_binop(tree: irast.Base) -> Optional[List[irast.Base]]:
     for arg in tree.args:
         if not isinstance(arg, irast.CallArg):
             return None
-        if not (
-            ref := is_constraint_expr(arg.expr)
-        ):
+        ref = is_constraint_expr(arg.expr)
+        if not ref:
             return None
 
-        refs.append(ref)
+        refs.extend(ref)
 
     return refs
