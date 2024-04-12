@@ -49,6 +49,16 @@ against the real DB.
 
 from __future__ import annotations
 
+# We need to adjust the path so we can run this directly from the
+# source tree.
+# flake8: noqa: E402
+import sys
+from pathlib import Path
+
+EDB_DIR = Path(__file__).parent.parent.parent.resolve()
+sys.path.insert(0, str(EDB_DIR))
+
+
 from typing import (
     Any,
     Callable,
@@ -91,11 +101,6 @@ import random
 import statistics
 import traceback
 import uuid
-import sys
-from pathlib import Path
-
-EDB_DIR = Path(__file__).parent.parent.parent.resolve()
-sys.path.insert(0, str(EDB_DIR))
 
 
 DESUGARING_GROUP = True
