@@ -12,6 +12,7 @@ Auth
     email_password
     oauth
     magic_link
+    webauthn
 
 :edb-alt-title: Using EdgeDB Auth
 
@@ -359,6 +360,13 @@ WebAuthn
     You will need to configure SMTP. For local testing, you can use Mailpit as
     described in :ref:`the email/password section
     <ref_guide_auth_overview_email_password>`.
+
+.. note::
+
+    You will need to configure CORS to allow the client-side script to call the
+    EdgeDB Auth extension's endpoints from the web browser. You can do this by
+    updating the ``cors_allow_origins`` configuration in the EdgeDB server
+    configuration.
 
 Here is an example of setting a local SMTP server, in this case using a
 product called `Mailpit <https://mailpit.axllent.org/docs/>`__ which is
