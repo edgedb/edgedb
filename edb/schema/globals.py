@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Any, Optional, Type, TYPE_CHECKING
+from typing import Any, Optional, Type, TYPE_CHECKING, cast
 
 from edb import errors
 
@@ -589,11 +589,10 @@ class SetGlobalType(
         else:
             assert isinstance(set_field, qlast.SetField)
             assert not isinstance(set_field.value, qlast.Expr)
-            assert isinstance(self.cast_expr, s_expr.Expression)
             return qlast.SetGlobalType(
                 value=set_field.value,
                 cast_expr=(
-                    self.cast_expr.qlast
+                    cast(s_expr.Expression, self.cast_expr).qlast
                     if self.cast_expr is not None else None
                 ),
                 reset_value=self.reset_value,
