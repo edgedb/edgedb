@@ -683,7 +683,10 @@ class TestProtocol(ProtocolTestCase):
         await self.con.connect()
 
         # Fixture
-        await self._execute('CREATE TYPE StateChangeInTx')
+        await self._execute('CREATE MODULE TestStateChangeInTx')
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        await self._execute('CREATE TYPE TestStateChangeInTx::StateChangeInTx')
         await self.con.recv_match(
             protocol.CommandComplete,
             status='CREATE TYPE'
@@ -692,8 +695,13 @@ class TestProtocol(ProtocolTestCase):
 
         # Collect states
         await self._execute('''
-            CONFIGURE SESSION SET allow_user_specified_id := true
+            SET MODULE TestStateChangeInTx
         ''')
+        cc = await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        await self._execute('''
+            CONFIGURE SESSION SET allow_user_specified_id := true
+        ''', cc=cc)
         cc_true = await self.con.recv_match(protocol.CommandComplete)
         await self.con.recv_match(protocol.ReadyForCommand)
         await self._execute('''
