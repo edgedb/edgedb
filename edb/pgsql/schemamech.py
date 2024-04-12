@@ -42,6 +42,7 @@ from edb.schema import types as s_types
 from edb.schema import constraints as s_constraints
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
+from edb.schema import expr as s_expr
 
 from edb.common import ast
 from edb.common import parsing
@@ -246,7 +247,7 @@ def compile_constraint(
         type_remaps={first_subject: subject},
     )
 
-    final_expr = constraint.get_finalexpr(schema)
+    final_expr: Optional[s_expr.Expression] = constraint.get_finalexpr(schema)
     assert final_expr is not None and final_expr.qlast is not None
     ir = qlcompiler.compile_ast_to_ir(
         final_expr.qlast,
@@ -258,6 +259,7 @@ def compile_constraint(
 
     except_data = None
     if except_expr := constraint.get_except_expr(schema):
+        assert isinstance(except_expr, s_expr.Expression)
         except_ir = qlcompiler.compile_ast_to_ir(
             except_expr.qlast,
             schema,
@@ -353,6 +355,7 @@ def compile_constraint(
 
         origin_except_data = None
         if except_expr := constraint_origin.get_except_expr(schema):
+            assert isinstance(except_expr, s_expr.Expression)
             except_ir = qlcompiler.compile_ast_to_ir(
                 except_expr.qlast,
                 schema,

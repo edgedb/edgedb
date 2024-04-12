@@ -25,6 +25,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    Mapping,
     Dict,
     List,
     cast,
@@ -698,10 +699,12 @@ class IndexCommand(
     ) -> Optional[qlast.DDLOperation]:
         astnode = super()._get_ast(schema, context, parent_node=parent_node)
 
-        kwargs = self.get_resolved_attribute_value(
-            'kwargs',
-            schema=schema,
-            context=context,
+        kwargs: Optional[Mapping[str, s_expr.Expression]] = (
+            self.get_resolved_attribute_value(
+                'kwargs',
+                schema=schema,
+                context=context,
+            )
         )
         if kwargs:
             assert isinstance(astnode, (qlast.CreateIndex,
@@ -995,7 +998,7 @@ class CreateIndex(
         assert expr is not None
         expr_ql = edgeql.parse_fragment(expr.text)
 
-        except_expr = parent.get_except_expr(schema)
+        except_expr: s_expr.Expression | None = parent.get_except_expr(schema)
         if except_expr:
             except_expr_ql = except_expr.qlast
         else:
@@ -1320,6 +1323,8 @@ class AlterIndex(
             not self.get_attribute_value('abstract')
             and (indexexpr := self.get_attribute_value('expr')) is not None
         ):
+            assert isinstance(indexexpr, s_expr.Expression)
+
             # To compute the new name, we construct an AST of the
             # index, since that is the infrastructure we have for
             # computing the classname.

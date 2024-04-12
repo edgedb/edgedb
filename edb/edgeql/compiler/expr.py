@@ -44,6 +44,7 @@ from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import utils
@@ -586,7 +587,7 @@ def compile_GlobalExpr(
 
         return target
 
-    default = glob.get_default(ctx.env.schema)
+    default: Optional[s_expr.Expression] = glob.get_default(ctx.env.schema)
 
     # If we are compiling with globals suppressed but still allowed, always
     # treat it as being empty.

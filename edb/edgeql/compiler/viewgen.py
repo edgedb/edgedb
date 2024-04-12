@@ -60,6 +60,7 @@ from edb.schema import objects as s_objects
 from edb.schema import pointers as s_pointers
 from edb.schema import properties as s_props
 from edb.schema import types as s_types
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -767,7 +768,9 @@ def _gen_pointers_from_defaults(
         ):
             continue
 
-        default_expr = ptrcls.get_default(ctx.env.schema)
+        default_expr: Optional[s_expr.Expression] = (
+            ptrcls.get_default(ctx.env.schema)
+        )
         if not default_expr:
             continue
 
@@ -1105,7 +1108,9 @@ def _compile_rewrites_for_stype(
 
         anchors = get_anchors(stype)
 
-        rewrite_expr = rewrite.get_expr(ctx.env.schema)
+        rewrite_expr: Optional[s_expr.Expression] = (
+            rewrite.get_expr(ctx.env.schema)
+        )
         assert rewrite_expr
 
         with ctx.newscope(fenced=True) as scopectx:

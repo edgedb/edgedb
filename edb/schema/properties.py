@@ -38,6 +38,7 @@ from . import rewrites as s_rewrites
 from . import sources
 from . import types as s_types
 from . import utils
+from . import expr as s_expr
 
 if TYPE_CHECKING:
     from . import schema as s_schema
@@ -342,7 +343,9 @@ class CreateProperty(
 
         if op.property == 'target' and link:
             if isinstance(node, qlast.CreateConcreteProperty):
-                expr = self.get_attribute_value('expr')
+                expr: Optional[s_expr.Expression] = (
+                    self.get_attribute_value('expr')
+                )
                 if expr is not None:
                     node.target = expr.qlast
                 else:

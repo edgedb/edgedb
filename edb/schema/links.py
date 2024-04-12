@@ -40,6 +40,7 @@ from . import sources
 from . import types as s_types
 from . import unknown_pointers
 from . import utils
+from . import expr as s_expr
 
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
@@ -392,7 +393,9 @@ class CreateLink(
             # AlterConcreteLink, which requires different handling.
             if isinstance(node, qlast.CreateConcreteLink):
                 if not node.target:
-                    expr = self.get_attribute_value('expr')
+                    expr: Optional[s_expr.Expression] = (
+                        self.get_attribute_value('expr')
+                    )
                     if expr is not None:
                         node.target = expr.qlast
                     else:

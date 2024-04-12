@@ -34,6 +34,7 @@ from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import utils as s_utils
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import utils as qlutils
@@ -57,10 +58,13 @@ def _get_needed_ptrs(
 ) -> Tuple[Set[str], Dict[str, qlast.Expr]]:
     needed_ptrs = set(initial_ptrs)
     for constr in obj_constrs:
-        subjexpr = constr.get_subjectexpr(ctx.env.schema)
+        subjexpr: Optional[s_expr.Expression] = (
+            constr.get_subjectexpr(ctx.env.schema)
+        )
         assert subjexpr
         needed_ptrs |= qlutils.find_subject_ptrs(subjexpr.qlast)
         if except_expr := constr.get_except_expr(ctx.env.schema):
+            assert isinstance(except_expr, s_expr.Expression)
             needed_ptrs |= qlutils.find_subject_ptrs(except_expr.qlast)
 
     wl = list(needed_ptrs)
@@ -208,6 +212,7 @@ def _compile_conflict_select_for_obj_type(
             # If there is a subjectexpr, substitute our lhs and rhs in
             # for __subject__ in the subjectexpr and compare *that*
             if (subjectexpr := cnstr.get_subjectexpr(ctx.env.schema)):
+                assert isinstance(subjectexpr, s_expr.Expression)
                 assert isinstance(subjectexpr.qlast, qlast.Expr)
                 lhs = qlutils.subject_substitute(subjectexpr.qlast, lhs)
                 rhs = qlutils.subject_substitute(subjectexpr.qlast, rhs)
@@ -233,14 +238,18 @@ def _compile_conflict_select_for_obj_type(
     ))
 
     for constr in obj_constrs:
-        subjectexpr = constr.get_subjectexpr(ctx.env.schema)
-        assert subjectexpr and isinstance(subjectexpr.qlast, qlast.Expr)
-        lhs = qlutils.subject_paths_substitute(subjectexpr.qlast, ptr_anchors)
-        rhs = qlutils.subject_substitute(subjectexpr.qlast, insert_subject)
+        subject_expr: Optional[s_expr.Expression] = (
+            constr.get_subjectexpr(ctx.env.schema)
+        )
+        assert subject_expr and isinstance(subject_expr.qlast, qlast.Expr)
+        lhs = qlutils.subject_paths_substitute(subject_expr.qlast, ptr_anchors)
+        rhs = qlutils.subject_substitute(subject_expr.qlast, insert_subject)
         op = qlast.BinOp(op='=', left=lhs, right=rhs)
 
         # If there is an except expr, we need to add in those checks also
         if except_expr := constr.get_except_expr(ctx.env.schema):
+            assert isinstance(except_expr, s_expr.Expression)
+
             e_lhs = qlutils.subject_paths_substitute(
                 except_expr.qlast, ptr_anchors)
             e_rhs = qlutils.subject_substitute(

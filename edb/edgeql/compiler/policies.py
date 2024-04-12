@@ -31,6 +31,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import policies as s_policies
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -127,13 +128,14 @@ def compile_pol(
     """
     schema = ctx.env.schema
 
-    expr_field = pol.get_expr(schema)
+    expr_field: Optional[s_expr.Expression] = pol.get_expr(schema)
     if expr_field:
         expr = expr_field.qlast
     else:
         expr = qlast.Constant.boolean(True)
 
     if condition := pol.get_condition(schema):
+        assert isinstance(condition, s_expr.Expression)
         expr = qlast.BinOp(op='AND', left=condition.qlast, right=expr)
 
     # Find all descendants of the original subject of the rule

@@ -2435,13 +2435,19 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     )
                 ):
                     ddl_id = self.get_ddl_identity(field.name)
+                    attr_val: Any
                     if issubclass(field.type, s_expr.Expression):
+                        assert isinstance(ddl_id, s_expr.Expression)
                         attr_val = ddl_id.qlast
                     elif issubclass(field.type, s_expr.ExpressionList):
+                        assert isinstance(ddl_id, s_expr.ExpressionList)
                         attr_val = [e.qlast for e in ddl_id]
                     elif issubclass(field.type, s_expr.ExpressionDict):
-                        attr_val = {name: e.qlast
-                                    for name, e in ddl_id.items()}
+                        assert isinstance(ddl_id, s_expr.ExpressionDict)
+                        attr_val = {
+                            name: e.qlast
+                            for name, e in ddl_id.items()
+                        }
                     else:
                         raise AssertionError(
                             f'unexpected type of ddl_identity'

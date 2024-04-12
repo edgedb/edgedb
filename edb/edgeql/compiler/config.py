@@ -42,6 +42,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 
@@ -329,7 +330,9 @@ def _enforce_pointer_constraints(
             sctx.anchors = ctx.anchors.copy()
             sctx.anchors['__subject__'] = expr
 
-            final_expr = constraint.get_finalexpr(ctx.env.schema)
+            final_expr: Optional[s_expr.Expression] = (
+                constraint.get_finalexpr(ctx.env.schema)
+            )
             assert final_expr is not None and final_expr.qlast is not None
             ir = dispatch.compile(final_expr.qlast, ctx=sctx)
 

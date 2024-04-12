@@ -46,6 +46,7 @@ from edb.schema import functions as s_func
 from edb.schema import name as sn
 from edb.schema import types as s_types
 from edb.schema import pseudo as s_pseudo
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -486,7 +487,9 @@ def try_bind_call_args(
                 defaults_mask |= 1 << i
 
                 if not has_inlined_defaults:
-                    param_default = param.get_default(schema)
+                    param_default: Optional[s_expr.Expression] = (
+                        param.get_default(schema)
+                    )
                     assert param_default is not None
                     default = compile_arg(
                         param_default.qlast, param_typemod, ctx=ctx)
