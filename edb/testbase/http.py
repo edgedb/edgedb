@@ -22,6 +22,7 @@ from typing import (
     Any,
     Callable,
     Optional,
+    Type,
 )
 
 import http.server
@@ -312,27 +313,39 @@ class GraphQLTestCase(BaseHttpExtensionTest):
 
 
 class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
+    def get_server_and_path(self) -> tuple[str, str]:
+        server = f'http://{self.headers.get("Host")}'
+        return server, self.path
+
     def do_GET(self):
         self.close_connection = False
-        server, path = self.path.lstrip('/').split('/', 1)
-        server = urllib.parse.unquote(server)
+        server, path = self.get_server_and_path()
         self.server.owner.handle_request('GET', server, path, self)
 
     def do_POST(self):
         self.close_connection = False
-        server, path = self.path.lstrip('/').split('/', 1)
-        server = urllib.parse.unquote(server)
+        server, path = self.get_server_and_path()
         self.server.owner.handle_request('POST', server, path, self)
 
     def log_message(self, *args):
         pass
 
 
+class MultiHostMockHttpServerHandler(MockHttpServerHandler):
+    def get_server_and_path(self) -> tuple[str, str]:
+        server, path = self.path.lstrip('/').split('/', 1)
+        server = urllib.parse.unquote(server)
+        return server, path
+
+
 ResponseType = tuple[str, int] | tuple[str, int, dict[str, str]]
 
 
 class MockHttpServer:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        handler_type: Type[MockHttpServerHandler] = MockHttpServerHandler,
+    ) -> None:
         self.has_started = threading.Event()
         self.routes: dict[
             tuple[str, str, str],
@@ -340,6 +353,7 @@ class MockHttpServer:
         ] = {}
         self.requests: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
         self.url: Optional[str] = None
+        self.handler_type = handler_type
 
     def get_base_url(self) -> str:
         if self.url is None:
@@ -466,7 +480,7 @@ class MockHttpServer:
 
     def _http_worker(self):
         self._http_server = http.server.HTTPServer(
-            ('localhost', 0), MockHttpServerHandler
+            ('localhost', 0), self.handler_type
         )
         self._http_server.owner = self
         self._address = self._http_server.server_address

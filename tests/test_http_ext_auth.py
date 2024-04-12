@@ -319,7 +319,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     mock_provider: tb.MockHttpServer
 
     def setUp(self):
-        self.mock_provider = tb.MockHttpServer()
+        self.mock_provider = tb.MockHttpServer(
+            handler_type=tb.MultiHostMockHttpServerHandler)
         self.mock_provider.start()
         HTTP_TEST_PORT.set(self.mock_provider.get_base_url())
 
