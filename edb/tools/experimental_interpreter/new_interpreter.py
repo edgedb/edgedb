@@ -366,8 +366,10 @@ class EdgeQLInterpreter:
         disable_cache: bool = False,
     ) -> json_like:
         if not disable_cache and s in self.query_cache:
+            # print("Using cache")
             (query_expr, tp) = self.query_cache[s]
         else:
+            # print(s)
             q = parse_ql(s)
             if len(q) != 1:
                 raise ValueError("Not a single query")
@@ -380,8 +382,12 @@ class EdgeQLInterpreter:
         
         return result
 
-    def query_single_json(self, s: str, **kwargs) -> json_like:
+    def query_json(self, s: str, **kwargs) -> json_like:
         result = self.run_single_str_get_json_with_cache(s, kwargs)
+        return result
+
+    def query_single_json(self, s: str, **kwargs) -> json_like:
+        result = self.query_json(s, **kwargs)
         if isinstance(result, list) and len(result) == 1:
             return result[0]
         else:

@@ -204,7 +204,10 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
     def do_execute_query(self, query: str, *args) -> None:
         if SQLITE_PRINT_QUERIES:
             print(query, *args)
-        return self.cursor.execute(query, *args)
+        result = self.cursor.execute(query, *args)
+        if SQLITE_PRINT_QUERIES:
+            print("[DONE]", query, *args)
+        return result
 
     def get_tp_name(self, tp: e.QualifiedName) -> str:
         assert len(tp.names) == 2 and tp.names[0] == "default", "Only default module is supported"
@@ -470,7 +473,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         tp_name = self.get_tp_name(tp)
 
 
-        for (pname, pview) in self.schema_property_view[tp_name].items():
+        for (pname, pview) in self.schema_property_view[tp_name].columns.items():
             if pview.has_lp_table():
                 lp_table_name = f"{tp_name}.{pname}"
                 self.do_execute_query(f"DELETE FROM '{lp_table_name}' WHERE source=?", (id,))
@@ -484,13 +487,13 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         tp_name = self.get_tp_name(tp)
         tdef = self.schema_property_view[tp_name]
 
-        single_props = [pname for (pname, pview) in tdef.items() if pview.is_singular]
-        single_prop_vals = [props[pname] for pname in single_props if pname in props]
+        single_props = [pname for (pname, pview) in tdef.columns.items() if pview.is_singular]
+        single_prop_vals = [convert_val_to_sqlite_val(props[pname]) for pname in single_props if pname in props]
         if len(single_prop_vals) > 0:
-            self.do_execute_query(f"UPDATE '{tp_name}' SET {','.join([f'{pname}=?' for pname in single_prop_vals])} WHERE id=?", 
+            self.do_execute_query(f"UPDATE '{tp_name}' SET {','.join([f'{pname}=?' for pname in props])} WHERE id=?", 
                                 (*single_prop_vals, id))
         
-        for (pname, pview) in tdef.items():
+        for (pname, pview) in tdef.columns.items():
             if pview.has_lp_table() and pname in props:
                 lp_table_name = f"{tp_name}.{pname}"
                 lp_property_names = list(pview.link_props.keys())

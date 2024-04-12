@@ -264,3 +264,10 @@ def math_mean_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
         case [l]:
             return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "float64"])), sum(elem.val for elem in l) / len(l))]
     raise FunCallErr()
+
+def std_contains_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), haystack)], 
+             [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), needle)]]:
+            return [e.BoolVal(needle in haystack)]
+    raise FunCallErr()

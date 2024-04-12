@@ -184,7 +184,9 @@ class EdgeDatabase:
     def project(self, id: EdgeID, tp: e.QualifiedName, prop: str) -> MultiSetVal:
         # TODO: check to insert first
         if id in self.to_insert.dbdata.keys():
-            raise ValueError("Semantic Change: Insert should carry properties before storage coercion")
+            # raise ValueError("Semantic Change: Insert should carry properties before storage coercion")
+            entry = self.to_insert.dbdata[id]
+            return entry.data[prop]
 
         result =  self.storage.project(id, tp, prop)
         assert isinstance(result, MultiSetVal)

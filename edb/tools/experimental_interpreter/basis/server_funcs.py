@@ -53,6 +53,7 @@ all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e
     "str_lower": str_lower_impl,
     "to_json": to_json_impl,
     "datetime_current": std_datetime_current,
+    "contains": std_contains_impl,
     "random": random_impl,
     e.IndirectionIndexOp: indirection_index_impl,
     e.IndirectionSliceStartStopOp: indirection_slice_start_stop_impl,

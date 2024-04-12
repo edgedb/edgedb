@@ -255,7 +255,10 @@ def eval_expr(ctx: EvalEnv,
                 new_object = coerce_to_storage(
                     arg_object, tops.get_storage_tp(type_def))
                 db.update(id, tname, {k : v  for k, v in new_object.items() })
-                return e.ResultMultiSetVal([RefVal(id, tname, ObjectVal({}))])
+                return e.ResultMultiSetVal([
+                    RefVal(id, tname, 
+                        ObjectVal({StrLabel(k) : (e.Invisible(), v) for k,v in new_object.items()})
+                        )])
             else:
                 raise ValueError("Cannot insert into scalar types")
             # inserts return empty dict
