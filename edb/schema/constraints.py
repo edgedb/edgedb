@@ -631,7 +631,7 @@ class ConstraintCommand(
         field: so.Field[Any],
         value: Any,
     ) -> Optional[s_expr.Expression]:
-        if field.name in {'expr', 'subjectexpr', 'finalexpr'}:
+        if field.name in {'expr', 'subjectexpr', 'finalexpr', 'except_expr'}:
             return s_expr.Expression(text='SELECT false')
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
