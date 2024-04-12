@@ -40,24 +40,14 @@ We don't really understand name shadowing at all.
 
 There is no type or error checking.
 
-Run this as a script for a bad REPL that can be noodled around
-in. I've tested out a bunch of queries playing around and have a small
-test suite but this hasn't gotten any particular rigorous testing
-against the real DB.
+Run this with `python3 -m edb.tools.toy_eval_model` for a bad REPL
+that can be noodled around in. I've tested out a bunch of queries
+playing around and have a small test suite but this hasn't gotten any
+particular rigorous testing against the real DB.
 
 """
 
 from __future__ import annotations
-
-# We need to adjust the path so we can run this directly from the
-# source tree.
-# flake8: noqa: E402
-import sys
-from pathlib import Path
-
-EDB_DIR = Path(__file__).parent.parent.parent.resolve()
-sys.path.insert(0, str(EDB_DIR))
-
 
 from typing import (
     Any,
@@ -99,6 +89,7 @@ import operator
 import pprint
 import random
 import statistics
+import sys
 import traceback
 import uuid
 
