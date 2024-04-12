@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Any, Optional, Type, TYPE_CHECKING, cast
+from typing import Any, Optional, Type, TYPE_CHECKING
 
 from edb import errors
 
