@@ -2227,7 +2227,7 @@ async def _check_catalog_compatibility(
                 )
             )
 
-        if datadir_catver != expected_catver:
+        if datadir_catver not in edbdef.EDGEDB_CATALOG_VERSIONS:
             for status_sink in ctx.args.status_sinks:
                 status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
