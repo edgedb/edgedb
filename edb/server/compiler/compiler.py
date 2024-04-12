@@ -956,6 +956,18 @@ class Compiler:
         )
         request.deserialize(serialized_request, original_query)
 
+        # Apply session differences if any
+        if (
+            request.modaliases is not None
+            and state.current_tx().get_modaliases() != request.modaliases
+        ):
+            state.current_tx().update_modaliases(request.modaliases)
+        if (
+            (session_config := request.session_config) is not None
+            and state.current_tx().get_session_config() != session_config
+        ):
+            state.current_tx().update_session_config(session_config)
+
         units, cstate = self.compile_in_tx(
             state,
             txid,
