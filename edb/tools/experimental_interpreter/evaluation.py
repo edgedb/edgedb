@@ -257,7 +257,8 @@ def eval_expr(ctx: EvalEnv,
                 db.update(id, tname, {k : v  for k, v in new_object.items() })
                 return e.ResultMultiSetVal([
                     RefVal(id, tname, 
-                        ObjectVal({StrLabel(k) : (e.Invisible(), v) for k,v in new_object.items()})
+                        # ObjectVal({StrLabel(k) : (e.Invisible(), v) for k,v in new_object.items()})
+                        ObjectVal({k : (e.Invisible(), v) for k,(_, v) in arg_object.val.items()})
                         )])
             else:
                 raise ValueError("Cannot insert into scalar types")
