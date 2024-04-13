@@ -41,6 +41,7 @@ from edb.common import parsing
 from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
+from edb.ir import staeval
 from edb.ir import utils as irutils
 
 from edb.schema import constraints as s_constr
@@ -1043,17 +1044,18 @@ def compile_fts_with_options(
     assert lang_ty
 
     lang_domain = set()  # languages that the fts index needs to support
-    if irutils.is_const(lang):
+    try:
+        lang_const = staeval.evaluate_to_python_val(lang, ctx.env.schema)
+    except staeval.UnsupportedExpressionError:
+        lang_const = None
+
+    if lang_const is not None:
         # language is constant
         # -> determine its only value at compile time
-        lang_const = irutils.as_const(lang)
-        assert lang_const
-        lang_domain.add(str(lang_const.value).lower())
-
+        lang_domain.add(lang_const.lower())
     else:
         # language is not constant
         # -> use all possible values of the enum
-
         enum_values = lang_ty.get_enum_values(ctx.env.schema)
         assert enum_values
         for enum_value in enum_values:
@@ -1061,17 +1063,14 @@ def compile_fts_with_options(
 
     # weight_category
     weight_expr = call.args['weight_category'].expr
-    if not irutils.is_const(weight_expr):
+    try:
+        weight: str = staeval.evaluate_to_python_val(
+            weight_expr, ctx.env.schema)
+    except staeval.UnsupportedExpressionError:
         raise errors.InvalidValueError(
             f"fts::search weight_category must be a constant",
             span=weight_expr.span,
-        )
-    weight_const = irutils.as_const(weight_expr)
-    if weight_const:
-        weight = str(weight_const.value)
-    else:
-        weight = None
-        assert weight
+        ) from None
 
     return irast.FTSDocument(
         text=call.args[0].expr,
