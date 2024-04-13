@@ -63,7 +63,8 @@ from edb.common import verutils
 EDGEDB_CATALOG_VERSION = 2024_04_04_00_00
 # We accidentally bumped the catalog version in 5.0b3. For subsequent
 # versions, allow either catalog version.
-EDGEDB_CATALOG_VERSIONS = (EDGEDB_CATALOG_VERSION, 2024_02_27_13_20)
+EDGEDB_OLD_CATALOG_VERSION = 2024_02_27_13_20
+EDGEDB_CATALOG_VERSIONS = (EDGEDB_CATALOG_VERSION, EDGEDB_OLD_CATALOG_VERSION)
 EDGEDB_MAJOR_VERSION = 5
 
 
@@ -587,9 +588,12 @@ def get_cache_src_dirs():
     )
 
 
-def get_default_tenant_id() -> str:
-    catver = EDGEDB_CATALOG_VERSION
+def get_default_tenant_id_from_catver(catver: int) -> str:
     return f'V{catver:x}'
+
+
+def get_default_tenant_id() -> str:
+    return get_default_tenant_id_from_catver(EDGEDB_CATALOG_VERSION)
 
 
 def get_version_line() -> str:
