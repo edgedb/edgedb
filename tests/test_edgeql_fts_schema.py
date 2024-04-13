@@ -555,3 +555,39 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 {"a": "hello world", "b": "running fox"},
             ],
         )
+
+    async def test_edgeql_fts_schema_fiddly_args_01(self):
+        await self.con.execute(
+            r'''
+            create type Doc {
+                create required property x -> str;
+                create index fts::index on (
+                    fts::with_options(
+                        .x,
+                        language := <fts::Language>('en'++'g'),
+                        weight_category := (select fts::Weight.B),
+                    )
+                );
+            };
+            '''
+        )
+
+    async def test_edgeql_fts_schema_fiddly_args_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "fts::search weight_category must be a constant",
+        ):
+            await self.con.execute(
+                r'''
+                create type Doc {
+                    create required property x -> str;
+                    create index fts::index on (
+                        fts::with_options(
+                            .x,
+                            language := fts::Language.eng,
+                            weight_category := <fts::Weight>("AB"[0]),
+                         )
+                    );
+                };
+                '''
+            )
