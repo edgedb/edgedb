@@ -13131,6 +13131,12 @@ type default::Foo {
             };
         ''')
 
+        # BACKPORT HACK: We didn't make deferred and deferrability
+        # properly introspectable, so query against reflschema.
+        await self.con.execute('''
+            configure session set __internal_query_reflschema := true;
+        ''')
+
         await self.assert_query_result(
             '''
             SELECT schema::ObjectType {
