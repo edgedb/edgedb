@@ -125,12 +125,6 @@ ALTER TYPE cfg::AbstractConfig {
     # === 5.0rc1
     # XXX: Double check if there is some kind of schema default problem!
     ('edgeql+schema', '''
-CREATE SCALAR TYPE schema::IndexDeferrability
-    EXTENDING enum<Prohibited, Permitted, `Required`>;
-ALTER TYPE schema::Index {
-    CREATE PROPERTY deferrability -> schema::IndexDeferrability;
-    CREATE PROPERTY deferred -> std::bool;
-};
 '''),
 
 ])
