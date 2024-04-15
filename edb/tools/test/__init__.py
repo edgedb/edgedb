@@ -37,6 +37,7 @@ from edb.testbase.server import get_test_cases
 from edb.tools.edb import edbcommands
 
 from .decorators import not_implemented
+from .decorators import _xfail
 from .decorators import xfail
 from .decorators import xerror
 from .decorators import skip
@@ -48,7 +49,7 @@ from . import styles
 from . import results
 
 
-__all__ = ('not_implemented', 'xerror', 'xfail', 'skip')
+__all__ = ('not_implemented', 'xerror', 'xfail', '_xfail', 'skip')
 
 
 @edbcommands.command()
