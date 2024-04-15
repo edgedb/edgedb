@@ -2181,23 +2181,24 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 # mess up "associated" attributes.
                 cmd_drop.canonical = True
 
-                try:
-                    # Compute a dummy value
-                    dummy = cmd_create.get_dummy_expr_field_value(
-                        schema,
-                        context,
-                        field=type(ref).get_field(fn),
-                        value=ref.get_field_value(schema, fn)
-                    )
-                except NotImplementedError:
-                    ref_desc.extend(this_ref_desc)
-                else:
-                    for fn in fns:
+                for fn, cur_ref_desc in zip(fns, this_ref_desc):
+                    value: s_expr.Expression | None = (
+                        ref.get_explicit_field_value(schema, fn, None))
+                    if value is None:
+                        continue
+
+                    try:
+                        # Compute a dummy value
+                        dummy = cmd_create.get_dummy_expr_field_value(
+                            schema,
+                            context,
+                            field=type(ref).get_field(fn),
+                            value=ref.get_field_value(schema, fn)
+                        )
+                    except NotImplementedError:
+                        ref_desc.append(cur_ref_desc)
+                    else:
                         # Do the switcheroos
-                        value = ref.get_explicit_field_value(schema, fn, None)
-                        if value is None:
-                            continue
-                        assert isinstance(value, s_expr.Expression)
                         # Strip the "compiled" out of the expression
                         value = s_expr.Expression.not_compiled(value)
                         # We don't run the fixer on inherited fields because
@@ -2217,11 +2218,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                             computed=ref.field_is_computed(schema, fn),
                         )
 
-                    context.affected_finalization[self].append(
-                        (delta_create, cmd_create, this_ref_desc)
-                    )
-
-                    schema = delta_drop.apply(schema, context)
+                context.affected_finalization[self].append(
+                    (delta_create, cmd_create, this_ref_desc)
+                )
+                schema = delta_drop.apply(schema, context)
 
             if ref_desc:
                 expr_s = (
