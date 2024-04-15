@@ -105,6 +105,9 @@ class BaseCluster:
         else:
             self._instance_params = instance_params
 
+    def _clear_caches(self) -> None:
+        pass
+
     def get_db_name(self, db_name: str) -> str:
         if (
             not self._instance_params.capabilities
@@ -190,6 +193,14 @@ class BaseCluster:
         self._instance_params = self._instance_params._replace(
             capabilities=caps
         )
+
+    def overwrite_tenant_id(
+        self, tenant_id: str
+    ) -> None:
+        self._instance_params = self._instance_params._replace(
+            tenant_id=tenant_id
+        )
+        self._clear_caches()
 
     def get_connection_addr(self) -> Optional[Tuple[str, int]]:
         return self._get_connection_addr()
@@ -853,6 +864,10 @@ class RemoteCluster(BaseCluster):
         self._connection_addr = addr
         self._connection_params = params
         self._ha_backend = ha_backend
+
+    def _clear_caches(self) -> None:
+        super()._clear_caches()
+        self.get_client_id.cache_clear()
 
     def _get_connection_addr(self) -> Optional[Tuple[str, int]]:
         if self._ha_backend is not None:

@@ -2153,6 +2153,7 @@ async def _check_catalog_compatibility(
                 tenant_id.encode("utf-8"),
             ],
         )
+        is_default_tenant = False
     else:
         is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
 
@@ -2227,7 +2228,7 @@ async def _check_catalog_compatibility(
                 )
             )
 
-        if datadir_catver != expected_catver:
+        if datadir_catver not in edbdef.EDGEDB_CATALOG_VERSIONS:
             for status_sink in ctx.args.status_sinks:
                 status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
@@ -2243,6 +2244,17 @@ async def _check_catalog_compatibility(
                     f'using dump/restore.'
                 )
             )
+
+        # HACK: If we are trying to use the default tenant but the database
+        # has the old catalog version (from b1/b2), update the tenant_id
+        # to be based on that version.
+        if (
+            datadir_catver == buildmeta.EDGEDB_OLD_CATALOG_VERSION
+            and is_default_tenant
+        ):
+            ctx.cluster.overwrite_tenant_id(
+                buildmeta.get_default_tenant_id_from_catver(datadir_catver))
+
     except Exception:
         conn.terminate()
         raise

@@ -55,7 +55,16 @@ from edb.common import verutils
 
 
 # Increment this whenever the database layout or stdlib changes.
+#
+# N.B: DO NOT INCREMENT THIS WHEN BACKPORTING CHANGES TO A RELEASE BRANCH.
+# The merge conflict there is a nice reminder that you probably need
+# to write a patch in edb/pgsql/patches.py, and then you should preserve
+# the old value.
 EDGEDB_CATALOG_VERSION = 2024_04_04_00_00
+# We accidentally bumped the catalog version in 5.0b3. For subsequent
+# versions, allow either catalog version.
+EDGEDB_OLD_CATALOG_VERSION = 2024_02_27_13_20
+EDGEDB_CATALOG_VERSIONS = (EDGEDB_CATALOG_VERSION, EDGEDB_OLD_CATALOG_VERSION)
 EDGEDB_MAJOR_VERSION = 5
 
 
@@ -579,9 +588,12 @@ def get_cache_src_dirs():
     )
 
 
-def get_default_tenant_id() -> str:
-    catver = EDGEDB_CATALOG_VERSION
+def get_default_tenant_id_from_catver(catver: int) -> str:
     return f'V{catver:x}'
+
+
+def get_default_tenant_id() -> str:
+    return get_default_tenant_id_from_catver(EDGEDB_CATALOG_VERSION)
 
 
 def get_version_line() -> str:
