@@ -123,8 +123,9 @@ ALTER TYPE cfg::AbstractConfig {
 }
 '''),
     # === 5.0rc1
-    # XXX: Double check if there is some kind of schema default problem!
     ('edgeql+schema', '''
 '''),
-
+    # Repair is needed to properly populate inherited flag for deferred.
+    # FIXME: It would be nice to have a lighter weight mechanism.
+    ('repair', ''),
 ])
