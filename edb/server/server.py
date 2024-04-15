@@ -530,10 +530,9 @@ class BaseServer:
     ) -> bytes:
         return await conn.sql_fetch_val(self._global_intro_query)
 
-    async def introspect_global_schema(
-        self, conn: pgcon.PGConnection
+    def _parse_global_schema(
+        self, json_data: Any
     ) -> s_schema.Schema:
-        json_data = await self.introspect_global_schema_json(conn)
         return s_refl.parse_into(
             base_schema=self._std_schema,
             schema=s_schema.EMPTY_SCHEMA,
@@ -541,19 +540,23 @@ class BaseServer:
             schema_class_layout=self._schema_class_layout,
         )
 
+    async def introspect_global_schema(
+        self, conn: pgcon.PGConnection
+    ) -> s_schema.Schema:
+        json_data = await self.introspect_global_schema_json(conn)
+        return self._parse_global_schema(json_data)
+
     async def introspect_user_schema_json(
         self,
         conn: pgcon.PGConnection,
     ) -> bytes:
         return await conn.sql_fetch_val(self._local_intro_query)
 
-    async def _introspect_user_schema(
+    def _parse_user_schema(
         self,
-        conn: pgcon.PGConnection,
+        json_data: Any,
         global_schema: s_schema.Schema,
     ) -> s_schema.Schema:
-        json_data = await self.introspect_user_schema_json(conn)
-
         base_schema = s_schema.ChainedSchema(
             self._std_schema,
             s_schema.EMPTY_SCHEMA,
@@ -566,6 +569,14 @@ class BaseServer:
             data=json_data,
             schema_class_layout=self._schema_class_layout,
         )
+
+    async def _introspect_user_schema(
+        self,
+        conn: pgcon.PGConnection,
+        global_schema: s_schema.Schema,
+    ) -> s_schema.Schema:
+        json_data = await self.introspect_user_schema_json(conn)
+        return self._parse_user_schema(json_data, global_schema)
 
     async def introspect_db_config(self, conn: pgcon.PGConnection) -> bytes:
         return await conn.sql_fetch_val(self.get_sys_query("dbconfig"))
@@ -1265,9 +1276,6 @@ class Server(BaseServer):
                 # actually run that against each user database.
                 if keys.get('is_user_ext_update'):
                     from . import bootstrap
-                    global_schema = await self.introspect_global_schema(conn)
-                    user_schema = await self._introspect_user_schema(
-                        conn, global_schema)
 
                     kind, patch = pg_patches.PATCHES[num]
                     patch_info = await bootstrap.gather_patch_info(
@@ -1279,6 +1287,17 @@ class Server(BaseServer):
                     # right state. (Since self._std_schema and the like might
                     # be further advanced.)
                     state = (await edbcompiler.new_compiler_from_pg(conn)).state
+
+                    assert state.global_intro_query and state.local_intro_query
+                    global_schema = self._parse_global_schema(
+                        await conn.sql_fetch_val(
+                            state.global_intro_query.encode('utf-8')),
+                    )
+                    user_schema = self._parse_user_schema(
+                        await conn.sql_fetch_val(
+                            state.local_intro_query.encode('utf-8')),
+                        global_schema,
+                    )
 
                     entry = bootstrap.prepare_patch(
                         num, kind, patch,
