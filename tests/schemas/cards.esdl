@@ -60,6 +60,8 @@ type Card extending Named {
     multi awards: Award;
     multi good_awards := (SELECT .awards FILTER .name != '3rd');
     single best_award := (select .awards order by .name limit 1);
+
+    index on (.element);
 }
 
 type SpecialCard extending Card;
