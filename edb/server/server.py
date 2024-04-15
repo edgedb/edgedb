@@ -1273,9 +1273,18 @@ class Server(BaseServer):
                     patch_info = await bootstrap.gather_patch_info(
                         num, kind, patch, conn
                     )
+
+                    # Reload the compiler state from this database in
+                    # particular, so we can compiler from exactly the
+                    # right state. (Since self._std_schema and the like might
+                    # be further advanced.)
+                    state = (await edbcompiler.new_compiler_from_pg(conn)).state
+
                     entry = bootstrap.prepare_patch(
-                        num, kind, patch, self._std_schema, self._refl_schema,
-                        self._schema_class_layout,
+                        num, kind, patch,
+                        state.std_schema,
+                        state.refl_schema,
+                        state.schema_class_layout,
                         self._tenant.get_backend_runtime_params(),
                         patch_info=patch_info,
                         user_schema=user_schema,
