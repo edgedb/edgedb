@@ -665,6 +665,16 @@ cdef class PgConnection(frontend.FrontendConnection):
         logger.debug('received pg connection request by %s to database %s',
                      user, database)
 
+        if database == '__default__':
+            database = self.tenant.default_database
+        elif (
+            database == defines.EDGEDB_OLD_DEFAULT_DB
+            and self.tenant.maybe_get_db(
+                dbname=defines.EDGEDB_OLD_DEFAULT_DB
+            ) is None
+        ):
+            database = self.tenant.default_database
+
         await self._authenticate(user, database, params)
 
         logger.debug('successfully authenticated %s in database %s',
