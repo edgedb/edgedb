@@ -99,6 +99,7 @@ sys::get_current_branch() -> str
     USING SQL FUNCTION 'edgedb.get_current_database';
 };
 '''),
+    # === 5.0b3
     ('edgeql', '''
 alter function fts::search(
     object: anyobject,
