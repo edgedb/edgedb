@@ -1660,6 +1660,7 @@ cdef class PGConnection:
         cdef:
             WriteBuffer buf, msg_buf
             PGMessage action
+            bint be_parse
 
         buf = WriteBuffer.new()
         state = None
@@ -1674,14 +1675,16 @@ cdef class PGConnection:
             if action.is_frontend_only():
                 continue
 
+            be_parse = True
             if action.action == PGAction.PARSE:
                 sql_text, data = action.args
                 if action.stmt_name in prepared:
                     action.frontend_only = True
                 else:
-                    be_parse = self.before_prepare(
-                        action.stmt_name, dbver, buf
-                    )
+                    if action.stmt_name:
+                        be_parse = self.before_prepare(
+                            action.stmt_name, dbver, buf
+                        )
                     if not be_parse:
                         if self.debug:
                             self.debug_print(
@@ -1708,9 +1711,10 @@ cdef class PGConnection:
                     if be_stmt_name in prepared:
                         action.frontend_only = True
                     else:
-                        be_parse = self.before_prepare(
-                            be_stmt_name, dbver, buf
-                        )
+                        if be_stmt_name:
+                            be_parse = self.before_prepare(
+                                be_stmt_name, dbver, buf
+                            )
                         if not be_parse:
                             if self.debug:
                                 self.debug_print(
@@ -1747,9 +1751,10 @@ cdef class PGConnection:
                     if be_stmt_name in prepared:
                         action.frontend_only = True
                     else:
-                        be_parse = self.before_prepare(
-                            be_stmt_name, dbver, buf
-                        )
+                        if be_stmt_name:
+                            be_parse = self.before_prepare(
+                                be_stmt_name, dbver, buf
+                            )
                         if not be_parse:
                             if self.debug:
                                 self.debug_print(
@@ -1996,7 +2001,8 @@ cdef class PGConnection:
                     self.buffer.finish_message()
                     if self.debug:
                         self.debug_print('PARSE COMPLETE MSG')
-                    self.prep_stmts[action.stmt_name] = dbver
+                    if action.stmt_name:
+                        self.prep_stmts[action.stmt_name] = dbver
                     if not action.is_injected():
                         msg_buf = WriteBuffer.new_message(mtype)
                         buf.write_buffer(msg_buf.end_message())
@@ -2026,14 +2032,17 @@ cdef class PGConnection:
                     data = self.buffer.consume_message()
                     if self.debug:
                         self.debug_print('END OF DESCRIBE', mtype)
-                    if not action.is_injected():
+                    if not action.is_injected() and not (
+                        mtype == b'n' and
+                        action.action == PGAction.DESCRIBE_STMT_ROWS
+                    ):
                         msg_buf = WriteBuffer.new_message(mtype)
                         msg_buf.write_bytes(data)
                         buf.write_buffer(msg_buf.end_message())
                     break
 
                 elif (
-                    mtype == b't'
+                    mtype == b't'  # ParameterDescription
                     and action.action == PGAction.DESCRIBE_STMT_ROWS
                 ):
                     self.buffer.consume_message()
@@ -2053,12 +2062,13 @@ cdef class PGConnection:
                         and action.query_unit.prepare is not None
                     ):
                         be_stmt_name = action.query_unit.prepare.be_stmt_name
-                        if self.debug:
-                            self.debug_print(
-                                f"remembering ps {be_stmt_name}, "
-                                f"dbver {dbver}"
-                            )
-                        self.prep_stmts[be_stmt_name] = dbver
+                        if be_stmt_name:
+                            if self.debug:
+                                self.debug_print(
+                                    f"remembering ps {be_stmt_name}, "
+                                    f"dbver {dbver}"
+                                )
+                            self.prep_stmts[be_stmt_name] = dbver
 
                     if not action.is_injected():
                         msg_buf = WriteBuffer.new_message(mtype)
