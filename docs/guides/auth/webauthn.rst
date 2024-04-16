@@ -425,3 +425,16 @@ for verification.
       }
     });
   };
+
+Client-side script
+------------------
+
+On the client-side, you will need to write a script that retrieves the options
+from the EdgeDB Auth extension, calls the Web Authentication API, and sends the
+resulting credential or assertion to the server. Writing out the low-level
+handling of serialization and deserialization of the WebAuthn data is beyond
+the scope of this guide, but we publish a WebAuthn client library that you can
+use to simlify this process. The library is available on npm as part of our
+``@edgedb/auth-core`` library.
+
+.. code-block:: javascript
