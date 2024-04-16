@@ -581,8 +581,14 @@ def apply_sdl(
     # Now, sort the main body of SDL and apply it.
     ddl_stmts = s_decl.sdl_to_ddl(target_schema, documents)
 
-    chained = itertools.chain(futures.values(), ddl_stmts)
-    for ddl_stmt in chained:
+    if debug.flags.sdl_loading:
+        debug.header('SDL loading script')
+        for ddl_stmt in itertools.chain(
+            extensions.values(), futures.values(), ddl_stmts
+        ):
+            ddl_stmt.dump_edgeql()
+
+    for ddl_stmt in itertools.chain(futures.values(), ddl_stmts):
         process(ddl_stmt)
 
     return target_schema
