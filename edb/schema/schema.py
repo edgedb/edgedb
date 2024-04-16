@@ -1555,8 +1555,8 @@ def upgrade_schema(schema: FlatSchema) -> FlatSchema:
         exp_len = len(tfields)
         if len(data) < exp_len:
             ldata = list(data)
-            for i in range(len(ldata), exp_len):
-                ldata.append(tfields[i].get_default())
+            for _ in range(len(ldata), exp_len):
+                ldata.append(None)
 
             fixes[id] = tuple(ldata)
 
