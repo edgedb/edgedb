@@ -179,6 +179,30 @@ type DefaultTest8 {
     }
 }
 
+type DunderDefaultTest01 {
+    required a: int64;
+    required b: int64 {
+        default := __source__.a+1
+    };
+    required c: int64 {
+        default := 1
+    }
+}
+
+type DunderDefaultTest02_A {
+    required a: int64 {
+        default := 1
+    };
+}
+
+type DunderDefaultTest02_B {
+    required a: DunderDefaultTest02_A {
+        default := (insert DunderDefaultTest02_A {
+            a := 1
+        })
+    };
+}
+
 # types to test some inheritance issues
 type InputValue {
     property val -> str;
