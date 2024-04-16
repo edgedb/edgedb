@@ -722,11 +722,11 @@ def get_ref_storage_info(
                 src = src.get_bases(schema).first(schema)
         elif ptr.is_tuple_indirection():
             assert rptr
-            refs.append(rptr.source)
+            refs.append(rptr.source)  # noqa: B909
             continue
         elif ptr.is_type_intersection():
             assert rptr
-            refs.append(rptr.source)
+            refs.append(rptr.source)  # noqa: B909
             continue
         else:
             schema, src = irtyputils.ir_typeref_to_type(schema, source_typeref)
