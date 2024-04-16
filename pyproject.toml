@@ -35,7 +35,7 @@ edgedb = "edb.cli:rustcli"
 test = [
     'black~=24.2.0',
     'coverage~=7.4',
-    'ruff~=0.3.4',
+    'ruff==0.3.7',
     'asyncpg~=0.29.0',
 
     # Needed for testing asyncutil
