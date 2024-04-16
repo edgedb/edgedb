@@ -325,7 +325,7 @@ cdef class CompilationRequest:
             buf.read_len_prefixed_bytes()
         else:
             serializer = sertypes.InputShapeSerializer(
-                type_id, buf.read_len_prefixed_bytes(), self.protocol_version
+                type_id, buf.read_len_prefixed_bytes(), defines.CURRENT_PROTOCOL
             )
 
         data = buf.read_len_prefixed_bytes()
