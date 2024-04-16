@@ -12155,6 +12155,275 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         )
 
 
+class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
+    # AI specific tests, just because creating the extension is so slow,
+    # so we want to skip doing that each time.
+
+    DEFAULT_MODULE = 'default'
+    PARALLELISM_GRANULARITY = 'default'
+
+    SETUP = '''
+        create extension pgvector;
+        create extension ai;
+        CONFIGURE CURRENT DATABASE
+        INSERT ext::ai::OpenAIProviderConfig {
+            secret := 'very secret',
+            api_url := '',
+        };
+
+        CONFIGURE CURRENT DATABASE
+            SET ext::ai::Config::indexer_naptime := <duration>'100ms';
+    '''
+
+    async def test_edgeql_migration_ai_01(self):
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+              type Astronomy {
+                content: str;
+                deferred index ext::ai::index(
+                  embedding_model := 'text-embedding-3-small'
+                ) on (.content);
+              }
+            };
+        ''', explicit_modules=True)
+
+        await self.migrate('''
+            using extension ai;
+        ''', explicit_modules=True)
+
+    @test.xerror('''
+        "multiple ext::ai::index indexes defined for default::Astronomy"
+
+        The first step, going from -small to -large works, but going
+        the other way fails. The different is probably alphabet
+        related.
+    ''')
+    async def test_edgeql_migration_ai_02(self):
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+              type Astronomy {
+                content: str;
+                deferred index ext::ai::index(
+                  embedding_model := 'text-embedding-3-small'
+                ) on (.content);
+              }
+            };
+        ''', explicit_modules=True)
+
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+              type Astronomy {
+                content: str;
+                deferred index ext::ai::index(
+                  embedding_model := 'text-embedding-3-large'
+                ) on (.content);
+              }
+            };
+        ''', explicit_modules=True)
+
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+              type Astronomy {
+                content: str;
+                deferred index ext::ai::index(
+                  embedding_model := 'text-embedding-3-small'
+                ) on (.content);
+              }
+            };
+        ''', explicit_modules=True)
+
+    async def test_edgeql_migration_ai_03(self):
+        schema = '''
+        using extension ai;
+
+        module default {
+            type TestEmbeddingModel
+                extending ext::ai::EmbeddingModel
+            {
+                annotation ext::ai::model_name := "text-embedding-test";
+                annotation ext::ai::model_provider := "custom::test";
+                annotation ext::ai::embedding_model_max_output_dimensions
+                  := "10";
+                annotation ext::ai::embedding_model_supports_shortening
+                  := "true";
+            };
+
+            type Astronomy {
+                content: str;
+                deferred index ext::ai::index(
+                    embedding_model := 'text-embedding-test'
+                ) on (.content);
+            };
+        };
+        '''
+
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            "object type 'default::TestEmbeddingModel' is missing a value "
+            "for the 'ext::ai::embedding_model_max_input_tokens' annotation"
+        ):
+            await self.migrate(schema, explicit_modules=True)
+
+    @test.xfail('''
+        No more "proposed", but not "completed" either.
+
+        It would be OK if we produced a real error here too, though.
+    ''')
+    async def test_edgeql_migration_ai_04(self):
+        # Try changing embedding_model_max_output_dimensions on a
+        # custom EmbeddingModel
+
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+                type TestEmbeddingModel
+                    extending ext::ai::EmbeddingModel
+                {
+                    annotation ext::ai::model_name := "text-embedding-test";
+                    annotation ext::ai::model_provider := "custom::test";
+                    annotation ext::ai::embedding_model_max_input_tokens
+                      := "8191";
+                    annotation ext::ai::embedding_model_max_output_dimensions
+                      := "10";
+                    annotation ext::ai::embedding_model_supports_shortening
+                      := "true";
+                };
+
+                type Astronomy {
+                    content: str;
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-test'
+                    ) on (.content);
+                };
+            };
+        ''', explicit_modules=True)
+
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+                type TestEmbeddingModel
+                    extending ext::ai::EmbeddingModel
+                {
+                    annotation ext::ai::model_name := "text-embedding-test";
+                    annotation ext::ai::model_provider := "custom::test";
+                    annotation ext::ai::embedding_model_max_input_tokens
+                      := "8191";
+                    annotation ext::ai::embedding_model_max_output_dimensions
+                      := "20";
+                    annotation ext::ai::embedding_model_supports_shortening
+                      := "true";
+                };
+
+                type Astronomy {
+                    content: str;
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-test'
+                    ) on (.content);
+                };
+            };
+        ''', explicit_modules=True)
+
+    @test.xerror('''
+        "undefined embedding model: no subtype of ext::ai::EmbeddingModel is
+        annotated as 'text-embedding-test'"
+    ''')
+    async def test_edgeql_migration_ai_05(self):
+        # Try changing the name of a model (and the type, too, though
+        # that is not hugely relevant.)
+
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+                type TestEmbeddingModel
+                    extending ext::ai::EmbeddingModel
+                {
+                    annotation ext::ai::model_name := "text-embedding-test";
+                    annotation ext::ai::model_provider := "custom::test";
+                    annotation ext::ai::embedding_model_max_input_tokens
+                      := "8191";
+                    annotation ext::ai::embedding_model_max_output_dimensions
+                      := "10";
+                    annotation ext::ai::embedding_model_supports_shortening
+                      := "true";
+                };
+
+                type Astronomy {
+                    content: str;
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-test'
+                    ) on (.content);
+                };
+            };
+        ''', explicit_modules=True)
+
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+                type TestEmbeddingModel2
+                    extending ext::ai::EmbeddingModel
+                {
+                    annotation ext::ai::model_name := "text-embedding-test-2";
+                    annotation ext::ai::model_provider := "custom::test";
+                    annotation ext::ai::embedding_model_max_input_tokens
+                      := "8191";
+                    annotation ext::ai::embedding_model_max_output_dimensions
+                      := "10";
+                    annotation ext::ai::embedding_model_supports_shortening
+                      := "true";
+                };
+
+                type Astronomy {
+                    content: str;
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-test'
+                    ) on (.content);
+                };
+            };
+        ''', explicit_modules=True)
+
+    async def test_edgeql_migration_ai_06(self):
+        # Try putting the EmbeddingModel declaration below the type
+        # that uses it.
+
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+                type Astronomy {
+                    content: str;
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-test'
+                    ) on (.content);
+                };
+
+                type TestEmbeddingModel
+                    extending ext::ai::EmbeddingModel
+                {
+                    annotation ext::ai::model_name := "text-embedding-test";
+                    annotation ext::ai::model_provider := "custom::test";
+                    annotation ext::ai::embedding_model_max_input_tokens
+                      := "8191";
+                    annotation ext::ai::embedding_model_max_output_dimensions
+                      := "10";
+                    annotation ext::ai::embedding_model_supports_shortening
+                      := "true";
+                };
+            };
+        ''', explicit_modules=True)
+
+
 class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
     DEFAULT_MODULE = 'default'
 

@@ -1383,8 +1383,8 @@ class CreateIndex(
             value = model_anno.get_value(schema)
             if value is None or value == "<must override>":
                 raise errors.SchemaDefinitionError(
-                    f"{model_stype_vn!r} is missing a value for the "
-                    f"{anno_name!r} annotation"
+                    f"{model_stype_vn} is missing a value for the "
+                    f"'{anno_name}' annotation"
                 )
             anno_sname = sn.get_specialized_name(
                 anno_name,
@@ -1432,17 +1432,18 @@ class CreateIndex(
             bool,
         )
 
-        if dimensions > 2000:  # pgvector limit
+        MAX_DIM = 2000  # pgvector limit
+        if dimensions > MAX_DIM:
             if not supports_shortening:
                 raise errors.SchemaDefinitionError(
-                    f"{model_stype_vn!r} returns embeddings with over "
-                    f"2000 dimensions, does not support embedding "
+                    f"{model_stype_vn} returns embeddings with over "
+                    f"{MAX_DIM} dimensions, does not support embedding "
                     f"shortening, and thus cannot be used with "
                     f"this index",
                     span=self.span,
                 )
             else:
-                dimensions = 2000
+                dimensions = MAX_DIM
 
         dims_anno_sname = sn.get_specialized_name(
             sn.QualName("ext::ai", "embedding_dimensions"),
