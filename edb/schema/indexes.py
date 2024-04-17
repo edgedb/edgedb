@@ -1178,6 +1178,7 @@ class CreateIndex(
         # The checks below apply only to concrete indexes.
         subject = referrer_ctx.scls
         assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+        assert isinstance(subject, IndexableSubject)
 
         if (
             is_object_scope_index(schema, self.scls)
@@ -1208,6 +1209,13 @@ class CreateIndex(
             # only abstract indexes should have unmangled names
             assert abs_index.get_abstract(schema)
             root = abs_index.get_root(schema)
+
+            # For indexes that can only appear once per object, call
+            # get_effective_object_index for its side-effect of
+            # checking the error.
+            if is_exclusive_object_scope_index(schema, self.scls):
+                get_effective_object_index(
+                    schema, subject, root.get_name(schema), span=self.span)
 
             # Make sure that kwargs and parameters match in name and type.
             # Also make sure that all parameters have values at this point
@@ -1606,6 +1614,7 @@ def get_effective_object_index(
     schema: s_schema.Schema,
     subject: IndexableSubject,
     base_idx_name: sn.QualName,
+    span: Optional[parsing.Span] = None,
 ) -> Tuple[Optional[Index], bool]:
     """
     Returns the effective index of a subject and a boolean indicating
@@ -1635,8 +1644,9 @@ def get_effective_object_index(
 
         if len(object_indexes_defined_here) > 1:
             subject_name = subject.get_displayname(schema)
-            raise errors.SchemaDefinitionError(
-                f'multiple {base_idx_name} indexes defined for {subject_name}'
+            raise errors.InvalidDefinitionError(
+                f'multiple {base_idx_name} indexes defined for {subject_name}',
+                span=span,
             )
         effective = object_indexes_defined_here[0]
         has_overridden = len(object_indexes) >= 2
@@ -1647,9 +1657,10 @@ def get_effective_object_index(
 
         if len(object_indexes) > 1:
             subject_name = subject.get_displayname(schema)
-            raise errors.SchemaDefinitionError(
+            raise errors.InvalidDefinitionError(
                 f'multiple {base_idx_name} indexes '
-                f'inherited for {subject_name}'
+                f'inherited for {subject_name}',
+                span=span,
             )
 
         effective = object_indexes[0]
@@ -1668,6 +1679,13 @@ def is_object_scope_index(
         is_fts_index(schema, index)
         or is_ext_ai_index(schema, index)
     )
+
+
+def is_exclusive_object_scope_index(
+    schema: s_schema.Schema,
+    index: Index,
+) -> bool:
+    return is_object_scope_index(schema, index)
 
 
 def is_fts_index(
