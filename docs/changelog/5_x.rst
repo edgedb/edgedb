@@ -10,7 +10,7 @@ and will not be automatically suggested:
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version 5.0-beta.2
+  $ edgedb project init --server-version 5.0-rc.1
 
 
 Upgrading
@@ -365,41 +365,41 @@ Bug fixes
 * Fix issues with empty sets leaking out of optional scopes
   (:eql:gh:`#6747`)
 
-* Fix an SDL scalar type dependency bug.
+* Fix an SDL scalar type dependency bug
 
-* Suppress idle transaction timeout during migrations.
+* Suppress idle transaction timeout during migrations
   (:eql:gh:`#6760`)
 
-* Use a consistent interface for ``ext::auth`` errors.
+* Use a consistent interface for ``ext::auth`` errors
   (:eql:gh:`#6751`)
 
-* Stop recording extension version in dumps.
+* Stop recording extension version in dumps
   (:eql:gh:`#6787`)
 
 * For any index changes don't attempt to update the index, drop and recreate
-  instead.
+  instead
   (:eql:gh:`#6797`, :eql:gh:`#6843`)
 
-* Fix duration/memory config in config objects.
+* Fix duration/memory config in config objects
   (:eql:gh:`#6827`)
 
-* Properly report errors involving newly created types.
+* Properly report errors involving newly created types
   (:eql:gh:`#6852`)
 
 * Changes to vector length in migrations result in suggesting a
-  ``drop``/``create``.
+  ``drop``/``create``
   (:eql:gh:`#6882`)
 
-* Report topological cycle errors in migrations as real errors.
+* Report topological cycle errors in migrations as real errors
   (:eql:gh:`#6883`)
 
-* Make constraint error details contain useful information for developers.
+* Make constraint error details contain useful information for developers
   (:eql:gh:`#6796`)
 
-* Fix interaction between DML and ``if...then...else``.
+* Fix interaction between DML and ``if...then...else``
   (:eql:gh:`#6917`)
 
-* Don't leak objects out of access policies when used in a computed global.
+* Don't leak objects out of access policies when used in a computed global
   (:eql:gh:`#6926`)
 
 Beta 2
@@ -408,28 +408,28 @@ Beta 2
 Additional changes
 ------------------
 
-* Add a ``std::get_current_branch()`` function
+* Add a ``std::get_current_branch()`` function.
   (:eql:gh:`#7001`)
 
 Bug fixes
 ---------
 
-* Allow grouping to have trailing comma.
+* Allow grouping to have trailing comma
   (:eql:gh:`#7002`)
 
-* Fix computed single scalar globals.
+* Fix computed single scalar globals
   (:eql:gh:`#6999`)
 
-* Fix ISE when creating an alias with a name that already exists.
+* Fix ISE when creating an alias with a name that already exists
   (:eql:gh:`#6946`)
 
-* Fix parser at unrecoverable errors.
+* Fix parser at unrecoverable errors
   (:eql:gh:`#7046`)
 
-* Improve error when applying a shape to a parameter.
+* Improve error when applying a shape to a parameter
   (:eql:gh:`#7044`)
 
-* Skip creating @source/@target on derived views improving performance.
+* Skip creating @source/@target on derived views improving performance
   (:eql:gh:`#7051`)
 
 * Fix issues with cached global shapes and global cardinality inference
@@ -440,3 +440,99 @@ Bug fixes
 
 * Fix update rewrites on types that are children of updated type
   (:eql:gh:`#7073`)
+
+
+Beta 3
+======
+
+Additional changes
+------------------
+
+* Add ``cfg::Config.query_cache_mode``
+  (:eql:gh:`#7158`)
+
+Bug fixes
+---------
+
+* Make escaping strings more consistent
+  (:eql:gh:`#7059`)
+
+* Allow an update to trigger an insert of the same type, and vice versa
+  (:eql:gh:`#7082`)
+
+* Set "Connection: close" for non-keep-alive requests
+  (:eql:gh:`#7087`)
+
+* Fix volatility of ``fts::search``
+  (:eql:gh:`#7106`)
+
+* Allow trailing commas and semicolons in most places
+  (:eql:gh:`#6963`)
+
+* Drop special handling of type intersection in cardinality inference
+  (:eql:gh:`#7089`)
+
+* Add error when :eql:type:`enum` length exceeds 63
+  (:eql:gh:`#7123`)
+
+* Fix two issues directly reading pointers from a group
+  (:eql:gh:`#7130`)
+
+* Check singleton expressions in constraints and indexes
+  (:eql:gh:`#7128`)
+
+* Fix two bugs affecting unions in computed links
+  (:eql:gh:`#7139`)
+
+* Fix two ``group`` bugs involving ``using`` clauses
+  (:eql:gh:`#7143`)
+
+
+RC 1
+====
+
+EdgeDB + AI
+-----------
+
+We've added an ``ext::ai`` extension for handling the integration of EdgeDB
+with various AI backends such as: OpenAI, Mistral and Anthropic.
+
+There is a special ``ext::ai::index`` that can be used to delegate the search
+functionality of EdgeDB objects to a specific AI search provider.
+
+The function ``ext::ai::to_context(object: anyobject)`` evaluates the
+expression of the specific ``ext::ai::index`` defined on the passed object
+type and returns it.
+
+The function ``ext::ai:search(object: anyobject, query: array<float32>)``
+searches the specified objects using the associated AI search provider and the
+specified semantic query representation.
+
+There are also two HTTP API points for interacting with the data:
+
+* ``/ai/embeddings``
+* ``/ai/rag``
+
+Additional changes
+------------------
+
+* Add support for marking indexes as ``deferred``
+  (:eql:gh:`#7129`)
+
+* Generalize some aspects of handling object-only indexes
+  (:eql:gh:`#7179`)
+
+Bug fixes
+---------
+
+* Fix deserialization of persistent cache entries after upgrade
+  (:eql:gh:`#7203`)
+
+* Accept session changes in transactions
+  (:eql:gh:`#7187`)
+
+* Fix ISEs in constant detection for ``fts::with_options``
+  (:eql:gh:`#7192`)
+
+* pg_ext: don't yield NoData in SimpleQuery
+  (:eql:gh:`#7200`)
