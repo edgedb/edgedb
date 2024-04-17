@@ -199,7 +199,7 @@ def _compile_ai_embeddings_source_view_expr(
                     steps=[qlast.Ptr(name="id")],
                     partial=True,
                 ),
-                index_sexpr.qlast,
+                index_sexpr.parse(),
             ],
         ),
     )

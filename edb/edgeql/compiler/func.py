@@ -1037,7 +1037,7 @@ def compile_ext_ai_to_str(
     with ctx.detached() as subctx:
         subctx.partial_path_prefix = call.args[0].expr
         subctx.anchors["__subject__"] = call.args[0].expr
-        call.body = dispatch.compile(index_expr.qlast, ctx=subctx)
+        call.body = dispatch.compile(index_expr.parse(), ctx=subctx)
 
     return call
 
