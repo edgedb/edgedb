@@ -12193,13 +12193,6 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
             using extension ai;
         ''', explicit_modules=True)
 
-    @test.xerror('''
-        "multiple ext::ai::index indexes defined for default::Astronomy"
-
-        The first step, going from -small to -large works, but going
-        the other way fails. The different is probably alphabet
-        related.
-    ''')
     async def test_edgeql_migration_ai_02(self):
         await self.migrate('''
             using extension ai;

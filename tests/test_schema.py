@@ -675,7 +675,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         errors.InvalidDefinitionError,
         "index 'fts::index' of object type 'test::Foo' " "was already declared",
     )
-    def test_schema_bad_type_17(self):
+    def test_schema_bad_type_17a(self):
         """
         type Foo {
             property val -> str;
@@ -687,6 +687,23 @@ class TestSchema(tb.BaseSchemaLoadTest):
             );
             index fts::index on (
                 fts::with_options(.val, language := fts::Language.eng)
+            );
+        };
+        """
+
+    @tb.must_fail(
+        errors.InvalidDefinitionError,
+        "multiple fts::index indexes defined for test::Foo",
+    )
+    def test_schema_bad_type_17b(self):
+        """
+        type Foo {
+            property val -> str;
+            index fts::index on (
+                fts::with_options(.val, language := fts::Language.eng)
+            );
+            index fts::index on (
+                fts::with_options(.val, language := fts::Language.ita)
             );
         };
         """
