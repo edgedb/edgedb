@@ -1600,7 +1600,7 @@ def computable_ptr_set(
                 raise errors.InternalServerError(
                     f'{ptrcls_sn!r} is not a computed pointer')
 
-            comp_qlexpr = comp_expr.qlast
+            comp_qlexpr = comp_expr.parse()
             assert isinstance(comp_qlexpr, qlast.Expr), 'expected qlast.Expr'
             schema_qlexpr = comp_qlexpr
 

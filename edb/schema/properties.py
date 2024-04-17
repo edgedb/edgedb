@@ -347,7 +347,7 @@ class CreateProperty(
                     self.get_attribute_value('expr')
                 )
                 if expr is not None:
-                    node.target = expr.qlast
+                    node.target = expr.parse()
                 else:
                     ref = op.new_value
                     assert isinstance(ref, (so.Object, so.ObjectShell))

@@ -130,13 +130,13 @@ def compile_pol(
 
     expr_field: Optional[s_expr.Expression] = pol.get_expr(schema)
     if expr_field:
-        expr = expr_field.qlast
+        expr = expr_field.parse()
     else:
         expr = qlast.Constant.boolean(True)
 
     if condition := pol.get_condition(schema):
         assert isinstance(condition, s_expr.Expression)
-        expr = qlast.BinOp(op='AND', left=condition.qlast, right=expr)
+        expr = qlast.BinOp(op='AND', left=condition.parse(), right=expr)
 
     # Find all descendants of the original subject of the rule
     subject = pol.get_original_subject(schema)

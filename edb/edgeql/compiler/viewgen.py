@@ -780,7 +780,7 @@ def _gen_pointers_from_defaults(
                 steps=[qlast.Ptr(name=ptrcls_sn.name)],
             ),
             compexpr=qlast.DetachedExpr(
-                expr=default_expr.qlast,
+                expr=default_expr.parse(),
                 preserve_path_prefix=True,
             ),
             origin=qlast.ShapeOrigin.DEFAULT,
@@ -1147,7 +1147,7 @@ def _compile_rewrites_for_stype(
                     steps=[qlast.Ptr(name=ptrcls_sn.name)],
                 ),
                 compexpr=qlast.DetachedExpr(
-                    expr=rewrite_expr.qlast,
+                    expr=rewrite_expr.parse(),
                     preserve_path_prefix=True,
                 ),
             )

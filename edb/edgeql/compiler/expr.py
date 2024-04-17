@@ -593,7 +593,7 @@ def compile_GlobalExpr(
     # treat it as being empty.
     if ctx.env.options.make_globals_empty:
         if default:
-            return dispatch.compile(default.qlast, ctx=ctx)
+            return dispatch.compile(default.parse(), ctx=ctx)
         else:
             return setgen.new_empty_set(
                 stype=glob.get_target(ctx.env.schema), ctx=ctx)
@@ -625,7 +625,7 @@ def compile_GlobalExpr(
             main_param = subctx.maybe_create_anchor(param_set, 'glob')
             param_set = func.compile_operator(
                 expr, op_name='std::??',
-                qlargs=[main_param, default.qlast], ctx=subctx)
+                qlargs=[main_param, default.parse()], ctx=subctx)
     elif default and present_set:
         # ... but if {} is a valid value for the global, we need to
         # stick in an extra parameter to indicate whether to use
@@ -638,7 +638,7 @@ def compile_GlobalExpr(
 
             param_set = func.compile_operator(
                 expr, op_name='std::IF',
-                qlargs=[main_param, present_param, default.qlast], ctx=subctx)
+                qlargs=[main_param, present_param, default.parse()], ctx=subctx)
     elif not isinstance(param_set, irast.Set):
         param_set = dispatch.compile(param_set, ctx=ctx)
 

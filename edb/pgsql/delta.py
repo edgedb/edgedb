@@ -1230,7 +1230,7 @@ class FunctionCommand(MetaCommand):
             qlexpr = qlcompiler.astutils.ensure_ql_query(
                 ql_ast.TypeCast(
                     type=s_utils.typeref_to_ast(schema, return_type),
-                    expr=nativecode.qlast,
+                    expr=nativecode.parse(),
                 )
             )
             nativecode = self._compile_edgeql_function(
@@ -4868,7 +4868,7 @@ class PointerMetaCommand(
                 context,
                 s_expr.Expression.from_ast(
                     ql_ast.TypeCast(
-                        expr=conv_expr.qlast,
+                        expr=conv_expr.parse(),
                         type=s_utils.typeref_to_ast(schema, new_target),
                     ),
                     schema=orig_schema,
