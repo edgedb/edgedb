@@ -385,6 +385,53 @@ jobs:
       with:
         command: test
 
+  edgeql-interpreter-test:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 50
+        submodules: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11.3'
+
+    - name: Handle virtualenv
+      uses: syphar/restore-virtualenv@v1
+      id: venv-cache
+      with:
+        requirement_files: |
+          setup.py
+          pyproject.toml
+        custom_cache_key_element: v2
+
+    # Restore the artifacts and environment variables
+
+    - name: Download shared artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: shared-artifacts
+        path: .tmp
+
+    - name: Test without SQLite
+      run: |
+        edb test --use-experimental-interpreter tests/test_eval_model_new_interpreter.py  tests/test_interpreter_disambiguation.py tests/test_edgeql_select.py
+
+    - name: Test with SQLite
+      env:
+        EDGEDB_INTERPRETER_USE_SQLITE: ':memory:'
+      run: |
+        edb test --use-experimental-interpreter tests/test_eval_model_new_interpreter.py  tests/test_interpreter_disambiguation.py tests/test_edgeql_select.py
+
   python-test:
     needs: build
     runs-on: ubuntu-latest
