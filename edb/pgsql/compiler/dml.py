@@ -2787,7 +2787,7 @@ def process_link_update(
                 ]
             )
 
-    updcte = pgast.CommonTableExpr(
+    update = pgast.CommonTableExpr(
         name=ctx.env.aliases.get(hint='i'),
         query=pgast.InsertStmt(
             relation=target_rvar,
@@ -2805,7 +2805,7 @@ def process_link_update(
         )
     )
 
-    pathctx.put_path_value_rvar(updcte.query, path_id.ptr_path(), target_rvar)
+    pathctx.put_path_value_rvar(update.query, path_id.ptr_path(), target_rvar)
 
     def register_overlays(
         overlay_cte: pgast.CommonTableExpr, octx: context.CompilerContextLevel
@@ -2832,9 +2832,9 @@ def process_link_update(
         policy_ctx.rel_overlays = policy_ctx.rel_overlays.copy()
         register_overlays(data_cte, policy_ctx)
 
-    register_overlays(updcte, ctx)
+    register_overlays(update, ctx)
 
-    return updcte, None
+    return update, None
 
 
 def process_link_values(

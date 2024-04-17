@@ -600,8 +600,8 @@ def new_pointer_rvar(
     if ptr_info and ptr_info.table_type == 'ObjectType':
         # Inline link
         return _new_inline_pointer_rvar(
-            ir_set, ptr_info=ptr_info,
-            src_rvar=src_rvar, ctx=ctx)
+            ir_set, src_rvar=src_rvar, ctx=ctx
+        )
     else:
         return _new_mapped_pointer_rvar(ir_set, ctx=ctx)
 
@@ -609,7 +609,6 @@ def new_pointer_rvar(
 def _new_inline_pointer_rvar(
         ir_set: irast.SetE[irast.Pointer], *,
         lateral: bool=True,
-        ptr_info: pg_types.PointerStorageInfo,
         src_rvar: pgast.PathRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     ir_ptr = ir_set.expr
