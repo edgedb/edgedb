@@ -1592,7 +1592,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     def get_ddl_identity(
         self,
         schema: s_schema.Schema,
-    ) -> Optional[Dict[str, str]]:
+    ) -> Optional[Dict[str, Any]]:
         ddl_id_fields = [
             fn for fn, f in type(self).get_fields().items() if f.ddl_identity
         ]

@@ -12416,6 +12416,27 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
             };
         ''', explicit_modules=True)
 
+    async def test_edgeql_migration_ai_07(self):
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+                type Astronomy {
+                    content: str;
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-3-small'
+                    ) on (.content);
+                };
+
+                type Sub extending Astronomy {
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-3-small'
+                    ) on (.content);
+                };
+
+            };
+        ''', explicit_modules=True)
+
 
 class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
     DEFAULT_MODULE = 'default'
