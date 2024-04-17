@@ -407,10 +407,10 @@ def _process_view(
     for shape_el_desc in shape_desc:
         with ctx.new() as scopectx:
             if (
-                s_ctx.exprtype.is_insert()
+                (s_ctx.exprtype.is_insert() or s_ctx.exprtype.is_update())
                 and shape_el_desc.ql.compexpr is not None
             ):
-                # insert statement, ptrcls guaranteed to exist
+                # mutating statement, ptrcls guaranteed to exist
                 ptrcls = setgen.resolve_ptr(
                     shape_el_desc.source,
                     shape_el_desc.ptr_name,

@@ -3795,3 +3795,53 @@ class TestUpdate(tb.QueryTestCase):
                 {"name": "update-test2", "comment": "second"},
             ]
         )
+
+    async def test_edgeql_update_dunder_default_01(self):
+        await self.con.execute(r"""
+            INSERT DunderDefaultTest01 { a := 1, b := 2, c := 3 };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"__default__ cannot be used in this expression",
+            _hint='No default expression exists',
+        ):
+            await self.con.execute(r'''
+                UPDATE DunderDefaultTest01 set { a := __default__ };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"__default__ cannot be used in this expression",
+            _hint='Default expression uses __source__',
+        ):
+            await self.con.execute(r'''
+                UPDATE DunderDefaultTest01 set { b := __default__ };
+            ''')
+
+        await self.con.execute(r"""
+            UPDATE DunderDefaultTest01 set { c := __default__ };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT DunderDefaultTest01 { a, b, c };
+            ''',
+            [
+                {'a': 1, 'b': 2, 'c': 1},
+            ]
+        )
+
+    async def test_edgeql_update_dunder_default_02(self):
+        await self.con.execute(r'''
+            INSERT DunderDefaultTest02_B;
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"__default__ cannot be used in this expression",
+            _hint='Default expression uses INSERT',
+        ):
+            await self.con.execute(r'''
+                UPDATE DunderDefaultTest02_B set { a := __default__ };
+            ''')

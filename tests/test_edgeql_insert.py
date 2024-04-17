@@ -2103,10 +2103,6 @@ class TestInsert(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_insert_dunder_default_02(self):
-        await self.con.execute(r'''
-            INSERT DunderDefaultTest02_B;
-        ''')
-
         async with self.assertRaisesRegexTx(
             edgedb.InvalidReferenceError,
             r"__default__ cannot be used in this expression",
