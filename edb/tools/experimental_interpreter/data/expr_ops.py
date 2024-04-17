@@ -16,6 +16,7 @@ from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
                        next_name)
 from . import data_ops as e
 from  . import expr_to_str as pp
+from ..interpreter_logging import print_warning
 
 from typing import List
 
@@ -671,3 +672,27 @@ def collect_names_in_select_filter(filter: e.EdgeDatabaseSelectFilter) -> List[s
         return None
     map_edge_select_filter(map_func, filter)
     return res
+
+def val_eq(v1 : e.Val, v2: e.Val) -> bool:
+    match v1, v2:
+        case e.ScalarVal(t1, v1), e.ScalarVal(t2, v2):
+            if t1 != t2:
+                print_warning(f"Warning: comparing different types {t1} and {t2}")
+            return v1 == v2
+        case e.RefVal(id1, v1), e.RefVal(id2, v2):    
+            return id1 == id2
+        case e.UnnamedTupleVal(v1), e.UnnamedTupleVal(v2):
+            if len(v1) != len(v2):
+                return False
+            else:
+                return all(val_eq(v1[i], v2[i]) for i in range(len(v1)))
+        case e.NamedTupleVal(v1), e.NamedTupleVal(v2):
+            if len(v1) != len(v2) or v1.keys() != v2.keys():
+                return False
+            else:
+                return all(val_eq(v1[k], v2[k]) for k in v1.keys())
+        case _:
+            if v1.__class__ == v2.__class__:
+                raise ValueError("Not Implemented", v1, v2)
+            else:
+                return False

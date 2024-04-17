@@ -144,7 +144,7 @@ def run_statement(db: EdgeDatabase,
                   variables: Dict[str, Val] = {},
                   ) -> Tuple[MultiSetVal, e.ResultTp]:
 
-    deduped, tp = prepare_statement(db, stmt, dbschema, should_print, logs)
+    deduped, tp = prepare_statement(stmt, dbschema, should_print)
     result = run_prepared_statement(db, deduped, tp, dbschema, should_print, logs, variables)
     return result, tp
 
@@ -152,7 +152,6 @@ def run_statement(db: EdgeDatabase,
 def run_stmts(db: EdgeDatabase, stmts: Sequence[qlast.Expr],
               dbschema: DBSchema, debug_print: bool,
               logs: Optional[List[Any]],
-              skip_type_checking: bool = False,
               ) -> Sequence[MultiSetVal]:
     match stmts:
         case []:
@@ -160,10 +159,10 @@ def run_stmts(db: EdgeDatabase, stmts: Sequence[qlast.Expr],
         case current, *rest:
             (cur_val, _) = run_statement(
                 db, current, dbschema, should_print=debug_print,
-                logs=logs, skip_type_checking=skip_type_checking)
+                logs=logs,)
             rest_val = run_stmts(
                 db, rest, dbschema, debug_print,
-                logs=logs, skip_type_checking=skip_type_checking)
+                logs=logs,)
             return [cur_val, *rest_val]
     raise ValueError("Not Possible")
 
@@ -181,13 +180,12 @@ def run_str(
     s: str,
     print_asts: bool = False,
     logs: Optional[List[str]] = None,
-    skip_type_checking: bool = False,
 ) -> Sequence[MultiSetVal]:
 
     q = parse_ql(s)
     # if print_asts:
     #     debug.dump(q)
-    res = run_stmts(db, q, dbschema, print_asts, logs, skip_type_checking=skip_type_checking)
+    res = run_stmts(db, q, dbschema, print_asts, logs)
     # if output_mode == 'pprint':
     #     pprint.pprint(res)
     # elif output_mode == 'json':

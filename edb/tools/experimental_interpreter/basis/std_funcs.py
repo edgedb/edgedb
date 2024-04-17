@@ -198,7 +198,7 @@ def std_assert_exists(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [l, [msg]]:
             if len(l) == 0:
-                raise ValueError(msg)
+                raise ValueError("std::assert_exists failed", msg)
             else:
                 return l
         case [l, []]:

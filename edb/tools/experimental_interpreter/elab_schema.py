@@ -222,14 +222,19 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> Tuple[ObjectTp,
                                 raise ValueError("Unsupported Index Expression", proj_expr)
                         case _:
                             print_warning("WARNING: not implemented proj_expr", proj_expr)
-                            return "TODO"
+                            raise ValueError("TODO")
                 match index_expr_elab:
                     case e.ObjectProjExpr(_, _):
                         indexes.append([elab_single_proj(index_expr_elab)])
                     case e.UnnamedTupleExpr(exprs):
-                        indexes.append([elab_single_proj(expr) for expr in exprs])
+                        if all(isinstance(expr, e.ObjectProjExpr) for expr in exprs):
+                            indexes.append([elab_single_proj(expr) for expr in exprs])
+                        else:
+                            print_warning("Unsupported Index Expression", index_expr_elab)
+                            pass
                     case _:
-                        raise ValueError("Unsupported Index Expression", index_expr_elab)
+                        print_warning("Unsupported Index Expression", index_expr_elab)
+                        pass
             case _:
                 print_warning("WARNING: not implemented cmd", cmd)
                 # debug.dump(cmd)

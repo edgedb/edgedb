@@ -449,6 +449,8 @@ class ScalarVal:
             raise ValueError("val must be an int")
         if self.val is None:
             raise ValueError("val cannot be None")
+        if isinstance(self.val, Val):
+            raise ValueError("val cannot be Val")
 
 def IntVal(val: int):
     return ScalarVal(IntTp(), val)
@@ -636,7 +638,7 @@ class IfElseExpr:
 @dataclass
 class EdgeDatabaseEqFilter:
     propname: str
-    arg: Expr | MultiSetVal
+    arg: Expr | MultiSetVal # disjunction, both .propname = <arg> and .propanme IN <arg> are treated equivalently
 
 @dataclass
 class EdgeDatabaseConjunctiveFilter:
