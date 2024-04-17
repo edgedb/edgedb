@@ -40,9 +40,11 @@ from edb.common import topological
 from . import delta as sd
 from . import expraliases as s_expraliases
 from . import functions as s_func
+from . import indexes as s_indexes
 from . import inheriting
 from . import name as sn
 from . import objects as so
+from . import objtypes as s_objtypes
 from . import pointers as s_pointers
 from . import constraints as s_constraints
 from . import referencing
@@ -848,6 +850,26 @@ def _trace_op(
                 )
                 for old_func in old_funcs:
                     deps.add(('delete', str(old_func.get_name(old_schema))))
+
+            # Some index types only allow one per object type. Make
+            # sure we drop the old one before creating the new.
+            if (
+                isinstance(obj, s_indexes.Index)
+                and s_indexes.is_exclusive_object_scope_index(new_schema, obj)
+                and old_schema is not None
+                and (subject := obj.get_subject(new_schema))
+                and (old_subject := old_schema.get(
+                    subject.get_name(new_schema),
+                    type=s_objtypes.ObjectType,
+                    default=None
+                ))
+                and (eff_index := s_indexes.get_effective_object_index(
+                    old_schema,
+                    old_subject,
+                    obj.get_root(new_schema).get_name(new_schema),
+                )[0])
+            ):
+                deps.add(('delete', str(eff_index.get_name(old_schema))))
 
         if tag == 'alter':
             # Alteration must happen after creation, if any.
