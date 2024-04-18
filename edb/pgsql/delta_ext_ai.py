@@ -61,6 +61,9 @@
 #                            -- embedding-text-3- models).
 #  )
 #
+# TODO: We could probably drop target_attr since the names should be
+# predictable now.
+#
 # The above view is a UNION of SELECTs over object relations, where each
 # UNION element is roughly this:
 #
@@ -305,7 +308,7 @@ def _refresh_ai_embeddings(
         _pg_create_trigger(index, table_name, schema))
     ops.add_command(
         _pg_create_ai_embeddings_source_view(
-            index, options, schema, context))
+            index, options, schema))
     return ops
 
 
@@ -438,7 +441,7 @@ def _pg_create_ai_embeddings(
 
     # The component view for the "ai_pending_embeddings_{model_name}" union
     ops.add_command(
-        _pg_create_ai_embeddings_source_view(index, options, schema, context))
+        _pg_create_ai_embeddings_source_view(index, options, schema))
 
     return ops
 
@@ -587,7 +590,6 @@ def _pg_drop_trigger(
 
 def pg_rebuild_all_pending_embeddings_views(
     schema: s_schema.Schema,
-    context: sd.CommandContext,
 ) -> dbops.Command:
     ops = dbops.CommandGroup()
 
@@ -706,7 +708,8 @@ def _pg_create_ai_embeddings_source_view(
     index: s_indexes.Index,
     options: qlcompiler.CompilerOptions,
     schema: s_schema.Schema,
-    context: sd.CommandContext,
+    *,
+    rebuild_all: bool=True,
 ) -> dbops.Command:
     ops = dbops.CommandGroup()
 
@@ -747,7 +750,8 @@ def _pg_create_ai_embeddings_source_view(
 
     view = dbops.View(name=view_name, query=document_sql)
     ops.add_command(dbops.CreateView(view, or_replace=True))
-    ops.add_command(pg_rebuild_all_pending_embeddings_views(schema, context))
+    if rebuild_all:
+        ops.add_command(pg_rebuild_all_pending_embeddings_views(schema))
 
     return ops
 
@@ -762,7 +766,6 @@ def _pg_drop_ai_embeddings_source_view(
 
     ops.add_command(pg_rebuild_all_pending_embeddings_views(
         schema,
-        context,
     ))
 
     view_name = common.get_index_table_backend_name(
@@ -794,3 +797,71 @@ def _get_index_root_id(
     index: s_indexes.Index,
 ) -> str:
     return s_indexes.get_fts_index_id(schema, index)
+
+
+def patch_fix_ai_indexes(
+    schema: s_schema.ChainedSchema,
+) -> dbops.CommandGroup:
+    """Repair AI indexes from rc1
+
+    - Rename all AI index columns to the new naming scheme
+    - Refresh triggers, which will rename them and fix them
+      to properly RETURN NEW.
+    """
+
+    from . import delta as pgdelta
+
+    commands = dbops.CommandGroup()
+    user_schema = schema._top_schema
+
+    # Note: In #2474, when I deleted all the pgsql renaming code, I
+    # said we could just pull it out of git history if we ever needed
+    # it again, but I didn't bother and just generated Querys.
+    for index in user_schema.get_objects(type=s_indexes.Index):
+        if not (
+            (subject := index.get_subject(user_schema))
+            and s_indexes.is_ext_ai_index(schema, index)
+        ):
+            continue
+
+        tabname = common.get_backend_name(
+            schema, subject, aspect='table', catenate=True)
+        tabname_full = common.get_backend_name(
+            schema, subject, aspect='table', catenate=False)
+        viewname = common.get_backend_name(
+            schema, subject, aspect='inhview', catenate=True)
+
+        old_id = index.get_topmost_concrete_base(schema).id.hex
+        new_id = _get_index_root_id(schema, index)
+
+        # Rename the column
+        commands.add_command(dbops.Query(textwrap.dedent(f'''\
+            ALTER TABLE {tabname}
+            RENAME COLUMN __ext_ai_{old_id}_embedding__
+            TO __ext_ai_{new_id}_embedding__
+        ''')))
+        commands.add_command(dbops.Query(textwrap.dedent(f'''\
+            ALTER VIEW {viewname}
+            RENAME COLUMN __ext_ai_{old_id}_embedding__
+            TO __ext_ai_{new_id}_embedding__
+        ''')))
+
+        # Refresh the triggers
+        commands.add_command(
+            _pg_drop_trigger(index, tabname_full, schema, override_id=old_id))
+        commands.add_command(
+            _pg_create_trigger(index, tabname_full, schema))
+
+        # Refresh the source view in order to update target_attr_
+        options = pgdelta.get_index_compile_options(
+            index, schema, {}, s_indexes.Index
+        )
+        commands.add_command(
+            _pg_create_ai_embeddings_source_view(
+                index, options, schema, rebuild_all=False)
+        )
+
+    commands.add_command(
+        pg_rebuild_all_pending_embeddings_views(schema))
+
+    return commands

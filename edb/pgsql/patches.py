@@ -129,4 +129,6 @@ ALTER TYPE cfg::AbstractConfig {
     # FIXME: It would be nice to have a lighter weight mechanism.
     ('repair', ''),
     ('ext-pkg', 'ai'),
+    # === 5.0rc2
+    ('edgeql+user_ext+fix-ai-indexes|ai', ''),
 ])

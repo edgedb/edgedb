@@ -864,6 +864,11 @@ def prepare_patch(
             std_plans.append(delta_command)
             plan.generate(subblock)
 
+        if '+fix-ai-indexes' in kind:
+            from edb.pgsql import delta_ext_ai
+            ai_fixes = delta_ext_ai.patch_fix_ai_indexes(cschema)
+            ai_fixes.generate(subblock)
+
         if '+config' in kind:
             views = metaschema.get_config_views(cschema, existing_view_columns)
             views.generate(subblock)
