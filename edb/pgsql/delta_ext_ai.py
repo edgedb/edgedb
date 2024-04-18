@@ -135,7 +135,7 @@ def create_ext_ai_index(
     # inherited from the parent, we don't need to create the index, but just
     # update the populating expressions.
     if has_overridden:
-        return _refresh_ai_embeddings_source_view(
+        return _refresh_ai_embeddings(
             index,
             options,
             schema,
@@ -283,14 +283,30 @@ def _create_ai_embeddings(
     )
 
 
-def _refresh_ai_embeddings_source_view(
+def _refresh_ai_embeddings(
     index: s_indexes.Index,
     options: qlcompiler.CompilerOptions,
     schema: s_schema.Schema,
     context: sd.CommandContext,
 ) -> dbops.Command:
-    return _pg_create_ai_embeddings_source_view(
-        index, options, schema, context)
+    ops = dbops.CommandGroup()
+    table_name = common.get_index_table_backend_name(index, schema)
+    ops.add_command(
+        _pg_drop_trigger(index, table_name, schema))
+
+    idx_id = _get_index_root_id(schema, index)
+    ops.add_command(dbops.Query(textwrap.dedent(f"""\
+        UPDATE {common.qname(*table_name)}
+        SET __ext_ai_{idx_id}_embedding__ = NULL
+        WHERE __ext_ai_{idx_id}_embedding__ IS NOT NULL
+    """)))
+
+    ops.add_command(
+        _pg_create_trigger(index, table_name, schema))
+    ops.add_command(
+        _pg_create_ai_embeddings_source_view(
+            index, options, schema))
+    return ops
 
 
 def _delete_ai_embeddings(
@@ -417,6 +433,20 @@ def _pg_create_ai_embeddings(
     )
     ops.add_command(dbops.CreateIndex(pg_index))
 
+    # The invalidation trigger
+    ops.add_command(_pg_create_trigger(index, table_name, schema))
+
+    # The component view for the "ai_pending_embeddings_{model_name}" union
+    ops.add_command(
+        _pg_create_ai_embeddings_source_view(index, options, schema))
+
+    return ops
+
+
+def _get_dep_cols(
+    index: s_indexes.Index,
+    schema: s_schema.Schema,
+) -> list[str]:
     index_expr = index.get_expr(schema)
     assert index_expr is not None
     dep_cols = []
@@ -426,15 +456,7 @@ def _pg_create_ai_embeddings(
             ptrinfo = types.get_pointer_storage_info(obj, schema=schema)
             dep_cols.append(ptrinfo.column_name)
 
-    # The invalidation trigger
-    ops.add_command(
-        _pg_create_trigger(schema, index, table_name, dep_cols))
-
-    # The component view for the "ai_pending_embeddings_{model_name}" union
-    ops.add_command(
-        _pg_create_ai_embeddings_source_view(index, options, schema, context))
-
-    return ops
+    return dep_cols
 
 
 def _pg_delete_ai_embeddings(
@@ -488,11 +510,12 @@ def _pg_delete_ai_embeddings(
 
 
 def _pg_create_trigger(
-    schema: s_schema.Schema,
     index: s_indexes.Index,
     table_name: tuple[str, str],
-    dep_cols: list[str],
+    schema: s_schema.Schema,
 ) -> dbops.Command:
+    dep_cols = _get_dep_cols(index, schema)
+
     # Create a trigger that resets the __ext_ai_{idx_id}_embedding__ to
     # NULL whenever data referenced in the ext::ai::index expression gets
     # modified (TODO: the selective approach could also be used on fts::index)
@@ -506,6 +529,7 @@ def _pg_create_trigger(
         text=f"""
         BEGIN
             NEW."__ext_ai_{idx_id}_embedding__" := NULL;
+            RETURN NEW;
         END;
         """,
         volatility='immutable',
@@ -536,8 +560,9 @@ def _pg_drop_trigger(
     index: s_indexes.Index,
     table_name: tuple[str, str],
     schema: s_schema.Schema,
+    override_id: Optional[str] = None,
 ) -> dbops.Command:
-    idx_id = _get_index_root_id(schema, index)
+    idx_id = override_id or _get_index_root_id(schema, index)
     ops = dbops.CommandGroup()
 
     ops.add_command(
@@ -562,7 +587,6 @@ def _pg_drop_trigger(
 
 def pg_rebuild_all_pending_embeddings_views(
     schema: s_schema.Schema,
-    context: sd.CommandContext,
 ) -> dbops.Command:
     ops = dbops.CommandGroup()
 
@@ -681,7 +705,8 @@ def _pg_create_ai_embeddings_source_view(
     index: s_indexes.Index,
     options: qlcompiler.CompilerOptions,
     schema: s_schema.Schema,
-    context: sd.CommandContext,
+    *,
+    rebuild_all: bool=True,
 ) -> dbops.Command:
     ops = dbops.CommandGroup()
 
@@ -722,7 +747,8 @@ def _pg_create_ai_embeddings_source_view(
 
     view = dbops.View(name=view_name, query=document_sql)
     ops.add_command(dbops.CreateView(view, or_replace=True))
-    ops.add_command(pg_rebuild_all_pending_embeddings_views(schema, context))
+    if rebuild_all:
+        ops.add_command(pg_rebuild_all_pending_embeddings_views(schema))
 
     return ops
 
@@ -737,7 +763,6 @@ def _pg_drop_ai_embeddings_source_view(
 
     ops.add_command(pg_rebuild_all_pending_embeddings_views(
         schema,
-        context,
     ))
 
     view_name = common.get_index_table_backend_name(
@@ -768,4 +793,4 @@ def _get_index_root_id(
     schema: s_schema.Schema,
     index: s_indexes.Index,
 ) -> str:
-    return index.get_topmost_concrete_base(schema).id.hex
+    return s_indexes.get_ai_index_id(schema, index)
