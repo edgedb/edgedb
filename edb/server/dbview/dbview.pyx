@@ -173,6 +173,8 @@ cdef class Database:
         if self._cache_notify_task:
             self._cache_notify_task.cancel()
             self._cache_notify_task = None
+        self.extensions = set()
+        self.start_stop_extensions()
 
     async def monitor(self, worker, name):
         while True:
