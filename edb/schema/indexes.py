@@ -1702,7 +1702,7 @@ def is_fts_index(
     return index.issubclass(schema, fts_index)
 
 
-def get_fts_index_id(
+def get_ai_index_id(
     schema: s_schema.Schema,
     index: Index,
 ) -> str:

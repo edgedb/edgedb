@@ -200,7 +200,7 @@ class Source(
             schema, self, sn.QualName("ext::ai", "index")
         )
         if ext_ai_index:
-            idx_id = indexes.get_fts_index_id(schema, ext_ai_index)
+            idx_id = indexes.get_ai_index_id(schema, ext_ai_index)
             dimensions = ext_ai_index.must_get_json_annotation(
                 schema,
                 sn.QualName(

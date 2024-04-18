@@ -61,9 +61,6 @@
 #                            -- embedding-text-3- models).
 #  )
 #
-# TODO: We could probably drop target_attr since the names should be
-# predictable now.
-#
 # The above view is a UNION of SELECTs over object relations, where each
 # UNION element is roughly this:
 #
@@ -796,7 +793,7 @@ def _get_index_root_id(
     schema: s_schema.Schema,
     index: s_indexes.Index,
 ) -> str:
-    return s_indexes.get_fts_index_id(schema, index)
+    return s_indexes.get_ai_index_id(schema, index)
 
 
 def patch_fix_ai_indexes(
