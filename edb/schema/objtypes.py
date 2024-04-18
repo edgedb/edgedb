@@ -163,7 +163,7 @@ class ObjectType(
                 comp_dns = sorted(
                     (c.get_displayname(schema)
                      for c in union_of.objects(schema)))
-                return ' | '.join(comp_dns)
+                return '(' + ' | '.join(comp_dns) + ')'
         else:
             intersection_of = mtype.get_intersection_of(schema)
             if intersection_of:
@@ -172,9 +172,9 @@ class ObjectType(
                      for c in intersection_of.objects(schema)))
                 # Elide BaseObject from display, because `& BaseObject`
                 # is a nop.
-                return ' & '.join(
+                return '(' + ' & '.join(
                     dn for dn in comp_dns if dn != 'std::BaseObject'
-                )
+                ) + ')'
             elif mtype == self:
                 return super().get_displayname(schema)
             else:
