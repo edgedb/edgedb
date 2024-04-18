@@ -460,6 +460,14 @@ class Index(
 
         return kwargs
 
+    def get_ddl_identity(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[Dict[str, Any]]:
+        v = super().get_ddl_identity(schema) or {}
+        v['kwargs'] = self.get_all_kwargs(schema)
+        return v
+
     def get_root(
         self,
         schema: s_schema.Schema,
@@ -1692,6 +1700,14 @@ def is_fts_index(
 ) -> bool:
     fts_index = schema.get(sn.QualName("fts", "index"), type=Index)
     return index.issubclass(schema, fts_index)
+
+
+def get_ai_index_id(
+    schema: s_schema.Schema,
+    index: Index,
+) -> str:
+    # TODO: Use the model name?
+    return f'base'
 
 
 def is_ext_ai_index(

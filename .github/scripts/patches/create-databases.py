@@ -17,7 +17,7 @@ try:
     )
     for name in [
         'json', 'functions', 'expressions', 'casts', 'policies', 'vector',
-        'scope', 'httpextauth', 'extai',
+        'scope', 'httpextauth', 'extairc1',
     ]:
         db.execute(f'create database {name};')
 
@@ -47,6 +47,27 @@ try:
         ORDER BY User.name;
     ''')
 
+    db2.close()
+
+    db2 = edgedb.create_client(
+        host='localhost', port=10000, tls_security='insecure',
+        database='extairc1'
+    )
+    with open("tests/schemas/ext_ai_rc1.esdl") as f:
+        body = f.read()
+    try:
+        db2.execute(f'''
+            START MIGRATION TO {{
+                using extension ai;
+                module default {{
+                    {body}
+                }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        ''')
+    except edgedb.EdgeQLSyntaxError:
+        pass
     db2.close()
 
     # Compile a query from the CLI.

@@ -7544,7 +7544,6 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
             self.pgops.add(
                 delta_ext_ai.pg_rebuild_all_pending_embeddings_views(
                     schema,
-                    context,
                 ),
             )
 

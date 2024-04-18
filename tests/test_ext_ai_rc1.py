@@ -22,14 +22,15 @@ import pathlib
 
 from edb.testbase import http as tb
 
-
-class TestExtAI(tb.BaseHttpExtensionTest):
+# A copy of the ext_ai tests released with RC1, for the purposes of
+# patch testing
+class TestExtAIRC1(tb.BaseHttpExtensionTest):
     EXTENSIONS = ['pgvector', 'ai']
     BACKEND_SUPERUSER = True
     TRANSACTION_ISOLATION = False
     PARALLELISM_GRANULARITY = 'suite'
 
-    SCHEMA = pathlib.Path(__file__).parent / 'schemas' / 'ext_ai.esdl'
+    SCHEMA = pathlib.Path(__file__).parent / 'schemas' / 'ext_ai_rc1.esdl'
 
     @classmethod
     def setUpClass(cls):
@@ -120,7 +121,7 @@ class TestExtAI(tb.BaseHttpExtensionTest):
             200,
         )
 
-    async def test_ext_ai_indexing_01(self):
+    async def test_ext_ai_rc1_indexing(self):
         await self.con.execute(
             """
             insert Astronomy {
@@ -142,135 +143,6 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                     with
                         result := ext::ai::search(
                             Astronomy, <array<float32>>$qv)
-                    select
-                        result.object {
-                            content,
-                            distance := result.distance,
-                        }
-                    order by
-                        result.distance asc empty last
-                        then result.object.content
-                    ''',
-                    [
-                        {
-                            'content': 'Skies on Earth are blue',
-                            'distance': 0,
-                        },
-                        {
-                            'content': 'Skies on Mars are red',
-                            'distance': 0,
-                        },
-                    ],
-                    variables={
-                        "qv": [
-                            1.0,
-                            -2.0,
-                            3.0,
-                            -4.0,
-                            5.0,
-                            -6.0,
-                            7.0,
-                            -8.0,
-                            9.0,
-                            -10.0,
-                        ],
-                    }
-                )
-
-    async def test_ext_ai_indexing_02(self):
-        qry = '''
-            with
-                result := ext::ai::search(
-                    Stuff, <array<float32>>$qv)
-            select
-                result.object {
-                    content,
-                    content2,
-                    distance := result.distance,
-                }
-            order by
-                result.distance asc empty last
-                then result.object.content;
-        '''
-        qv = [1.0, -2.0, 3.0, -4.0, 5.0, -6.0, 7.0, -8.0, 9.0, -10.0]
-
-        await self.assert_query_result(
-            """
-            insert Stuff {
-                content := 'Skies on Mars',
-                content2 := ' are red',
-            };
-            insert Stuff {
-                content := 'Skies on Earth',
-                content2 := ' are blue',
-            };
-            """ + qry,
-            [],
-            variables=dict(qv=qv),
-        )
-
-        async for tr in self.try_until_succeeds(
-            ignore=(AssertionError,),
-            timeout=10.0,
-        ):
-            async with tr:
-                await self.assert_query_result(
-                    qry,
-                    [
-                        {
-                            'content': 'Skies on Earth',
-                            'content2': ' are blue',
-                            'distance': 0,
-                        },
-                        {
-                            'content': 'Skies on Mars',
-                            'content2': ' are red',
-                            'distance': 0,
-                        },
-                    ],
-                    variables=dict(qv=qv),
-                )
-
-        # updating an object should make it disappear from results.
-        # (the read is done in the same tx, so there is no possible
-        # race where the worker picks it up before the read)
-        await self.assert_query_result(
-            """
-            update Stuff filter .content like '%Earth'
-            set { content2 := ' are often grey' };
-            """ + qry,
-            [
-                {
-                    'content': 'Skies on Mars',
-                    'content2': ' are red',
-                    'distance': 0,
-                },
-            ],
-            variables=dict(qv=qv),
-        )
-
-    async def test_ext_ai_indexing_03(self):
-        await self.con.execute(
-            """
-            insert Star {
-                content := 'Skies on Mars are red'
-            };
-            insert Supernova {
-                content := 'Skies on Earth are blue'
-            };
-            """,
-        )
-
-        async for tr in self.try_until_succeeds(
-            ignore=(AssertionError,),
-            timeout=10.0,
-        ):
-            async with tr:
-                await self.assert_query_result(
-                    r'''
-                    with
-                        result := ext::ai::search(
-                            Star, <array<float32>>$qv)
                     select
                         result.object {
                             content,
