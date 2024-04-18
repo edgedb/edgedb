@@ -454,11 +454,13 @@ def _process_view(
                     default_expr: Optional[s_expr.Expression] = (
                         ptrcls.get_default(scopectx.env.schema)
                     )
-                    if default_expr is None or default_expr.qlast is None:
+                    if default_expr is None:
                         raise make_error(
                             compexpr_default_span,
                             'No default expression exists',
                         )
+
+                    default_ast_expr = default_expr.parse()
 
                     if any(
                         any(
@@ -469,7 +471,7 @@ def _process_view(
                             for step in path_node.steps
                         )
                         for path_node in ast.find_children(
-                            default_expr.qlast, qlast.Path
+                            default_ast_expr, qlast.Path
                         )
                     ):
                         raise make_error(
@@ -478,7 +480,7 @@ def _process_view(
                         )
 
                     if len(
-                        ast.find_children(default_expr.qlast, qlast.InsertQuery)
+                        ast.find_children(default_ast_expr, qlast.InsertQuery)
                     ) > 0:
                         raise make_error(
                             compexpr_default_span,
@@ -486,7 +488,7 @@ def _process_view(
                         )
 
                     if len(
-                        ast.find_children(default_expr.qlast, qlast.UpdateQuery)
+                        ast.find_children(default_ast_expr, qlast.UpdateQuery)
                     ) > 0:
                         raise make_error(
                             compexpr_default_span,
@@ -494,7 +496,7 @@ def _process_view(
                         )
 
                     default_set = dispatch.compile(
-                        default_expr.qlast, ctx=scopectx
+                        default_ast_expr, ctx=scopectx
                     )
 
                     scopectx.anchors['__default__'] = default_set
