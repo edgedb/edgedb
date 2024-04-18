@@ -23,3 +23,19 @@ type L2 {
     required vec: v3;
     index ext::pgvector::hnsw_cosine(m := 2, ef_construction := 4) on (.vec);
 }
+
+type TestEmbeddingModel
+    extending ext::ai::EmbeddingModel
+{
+    annotation ext::ai::model_name := "text-embedding-test";
+    annotation ext::ai::model_provider := "custom::test";
+    annotation ext::ai::embedding_model_max_input_tokens := "8191";
+    annotation ext::ai::embedding_model_max_output_dimensions := "10";
+    annotation ext::ai::embedding_model_supports_shortening := "true";
+};
+
+type Astronomy {
+    content: str;
+    deferred index ext::ai::index(embedding_model := 'text-embedding-test')
+        on (.content);
+};

@@ -1303,6 +1303,14 @@ class Compiler:
         schema = ctx.state.current_tx().get_schema(
             ctx.compiler_state.std_schema)
 
+        # The AI extension needs to run some code before restoring data.
+        # TODO: Generalize this mechanism.
+        if schema.get_global(s_ext.Extension, 'ai', default=None):
+            from edb.pgsql import delta_ext_ai
+            ddl_source = edgeql.Source.from_string(
+                delta_ext_ai.get_ext_ai_pre_restore_script(schema))
+            units += compile(ctx=ctx, source=ddl_source).units
+
         if allow_dml_in_functions:
             # Check if any functions actually contained DML.
             for func in schema.get_objects(
