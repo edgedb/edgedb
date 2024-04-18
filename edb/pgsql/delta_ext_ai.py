@@ -506,6 +506,7 @@ def _pg_create_trigger(
         text=f"""
         BEGIN
             NEW."__ext_ai_{idx_id}_embedding__" := NULL;
+            RETURN NEW;
         END;
         """,
         volatility='immutable',
