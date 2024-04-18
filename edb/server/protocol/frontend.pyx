@@ -597,7 +597,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         # (such as the ability to write to a protected socket).
         if self._external_auth:
             authmethods = [
-                self.server.config_settings.get_type_by_name('cfg::Trust')
+                self.server.config_settings.get_type_by_name('cfg::Trust')()
             ]
         else:
             authmethods = await self.tenant.get_auth_methods(
