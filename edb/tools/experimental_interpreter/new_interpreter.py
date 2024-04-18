@@ -67,6 +67,7 @@ def default_dbschema() -> DBSchema:
         [std_path, schema_path, cal_path, math_path, interpreter_internal_path]
     )
     name_resolution.checked_module_name_resolve(initial_db, ("schema",))
+    name_resolution.checked_module_name_resolve(initial_db, ("std",))
     sck.re_populate_module_inheritance(initial_db, ("std",))
     sck.re_populate_module_inheritance(initial_db, ("schema",))
     print("=== Standard library loaded ====")
@@ -101,8 +102,6 @@ def prepare_statement(
         debug.print(show_expr(factored))
         reverse_elabed = reverse_elab(factored)
         debug.dump_edgeql(reverse_elabed)
-
-    elif should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Type Checking")
 
     tp, type_checked = tc.synthesize_type(dbschema_ctx, factored)

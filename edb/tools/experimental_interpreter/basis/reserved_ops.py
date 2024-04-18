@@ -71,7 +71,7 @@ def indirection_index_impl(arg: Sequence[Sequence[e.Val]]) -> Sequence[e.Val]:
     match arg:
         case [[e.ScalarVal(t1,s)], [e.ScalarVal(_,idx)]]:
             if idx < -len(s) or idx >= len(s):
-                raise edgedb.InvalidValueError(f"string index {idx} is out of bounds")
+                raise edgedb.InvalidValueError(f"index {idx} is out of bounds")
             return [e.ScalarVal(t1, s[idx])]
         case [[e.ArrVal(val=arr)], [e.ScalarVal(_,idx)]]:
             if idx < -len(arr) or idx >= len(arr):

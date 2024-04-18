@@ -3,6 +3,7 @@ from functools import reduce
 import operator
 from typing import Tuple, Dict, Sequence, Optional, List
 
+from edb import errors
 from ..data import data_ops as e
 from ..data import expr_ops as eops
 from ..data import type_ops as tops
@@ -244,8 +245,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_tp, result_card = tops.tp_project(
                 ctx, subject_tp, e.StrLabel(label))
-            # if isinstance(result_tp, e.UncheckedTypeName):
-            #     raise ValueError("Must not return UncheckedTypeName", expr, result_tp)
             """ If the projection is a computable expression, project from the subject"""
             if isinstance(result_tp, e.ComputableTp):
                 comp_expr = e.WithExpr(
@@ -369,7 +368,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             for (order_label, o) in order.items():
                 order_ctx, order_body, order_bound_var = eops.tcctx_add_binding(
                     ctx, o, e.ResultTp(subject_tp.tp, e.CardOne))
-                (_, o_ck) = synthesize_type(order_ctx, order_body)
+                (order_result_tp, o_ck) = synthesize_type(order_ctx, order_body)
+                # if order_result_tp.mode.upper == e.CardNumInf:
+                #     raise errors.QueryError("Order expression must have cardinality (<=1) " + pp.show(o_ck))
                 order_ck = {**order_ck, order_label : eops.abstract_over_expr(o_ck, order_bound_var)}
             
             assert eops.is_effect_free(filter), "Expecting effect-free filter"
@@ -398,10 +399,12 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 )
         case e.OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
-            offset_ck = check_type(ctx, offset,
-                                   e.ResultTp(e.IntTp(), e.CardAtMostOne))
-            limit_ck = check_type(ctx, limit,
-                                  e.ResultTp(e.IntTp(), e.CardAtMostOne))
+            offset_mode, offset_ck = check_type_no_card(ctx, offset, e.IntTp())
+            limit_mode, limit_ck = check_type_no_card(ctx, limit,e.IntTp())
+            if offset_mode.upper == e.CardNumInf:
+                raise errors.QueryError("Offset must have cardinality (<=1)")
+            if limit_mode.upper == e.CardNumInf:
+                raise errors.QueryError("Limit must have cardinality (<=1)")
             result_expr = e.OffsetLimitExpr(subject_ck, offset_ck, limit_ck)
             result_tp = subject_tp.tp
             if isinstance(limit_ck, e.ScalarVal):
@@ -508,7 +511,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_tp = e.NamedTupleTp({k: t for k, t in zip(arr.keys(), tps)})
             result_card = reduce(operator.mul, cards, e.CardOne)
         case e.ArrExpr(elems=arr):
-            assert len(arr) > 0, "Empty array does not support type synthesis"
+            if len(arr) == 0:
+                raise ValueError("Empty array does not support type synthesis")
             (first_tp, first_ck) = synthesize_type(ctx, arr[0])
             if len(arr[1:]) > 0:
                 rest_card: Sequence[e.CMMode]
@@ -551,6 +555,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
     # check integrity
     if isinstance(result_tp, e.ObjectTp):
         raise ValueError("Must return NominalLinkTp instead of object tp", expr, result_tp)
+    if isinstance(result_tp, e.UncheckedTypeName):
+        raise ValueError("Must not return UncheckedTypeName", expr, result_tp)
 
     
     # Comment this safety check to improve type checking performance
@@ -563,6 +569,8 @@ def expr_tp_is_not_synthesizable(expr: e.Expr) -> bool:
     match expr:
         case e.MultiSetExpr(expr=[]):
             return True
+        case e.ArrExpr(elems=[]):
+            return True
         case _:
             return False
 
@@ -571,6 +579,8 @@ def check_type_no_card(ctx: e.TcCtx, expr: e.Expr,
                        tp: e.Tp, with_assignment_cast: bool = False) -> Tuple[e.CMMode, e.Expr]:
     match expr:
         case e.MultiSetExpr(expr=[]):
+            return (e.CardAtMostOne, expr)
+        case e.ArrExpr(elems=[]):
             return (e.CardAtMostOne, expr)
         case _:
             expr_tp, expr_ck = synthesize_type(ctx, expr)

@@ -1,5 +1,5 @@
 from typing import Any, Dict, Sequence
-
+import json
 from . import data_ops as e
 from .data_ops import (ArrVal, BoolVal, IntVal, Label, LinkPropLabel,
                        MultiSetVal, NamedTupleVal, ObjectVal, RefVal, StrLabel,
@@ -114,9 +114,9 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
     #     tp = tp.resolution
     match v:
         case e.ScalarVal(s_tp, v):
-            if isinstance(v, int) or isinstance(v, str) or isinstance(v, bool) or isinstance(v, float):
-                return v
-            elif s_tp == e.ScalarTp(e.QualifiedName(["std", "json"])):
+            if s_tp == e.ScalarTp(e.QualifiedName(["std", "json"])):
+                return json.dumps(v)
+            elif isinstance(v, int) or isinstance(v, str) or isinstance(v, bool) or isinstance(v, float):
                 return v
             else:
                 raise ValueError("not implemented")

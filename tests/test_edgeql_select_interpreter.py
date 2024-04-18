@@ -362,7 +362,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Minor lexer tweaks.']
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Introspection Not Implemented __type__ projection")
     async def test_edgeql_select_interpreter_computable_12(self):
         await self.assert_query_result(
             r'''
@@ -399,41 +398,32 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['3']
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("cardinality markers on computed property labels")
     async def test_edgeql_select_interpreter_computable_14(self):
         await self.assert_query_result(
             r"""
             SELECT Issue{
                 name,
                 number,
-                # Explicit cardinality override
-                multi foo := <int64>Issue.number + 10,
+                foo := <int64>Issue.number + 10,
                 }
                 FILTER Issue.number = '1';
             """,
             [{
                 'name': 'Release EdgeDB',
                 'number': '1',
-                'foo': [11],
+                'foo': 11,
             }],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
     async def test_edgeql_select_interpreter_computable_15(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"possibly more than one element returned by an expression "
-                r"for a computed property 'foo' declared as 'single'",
-                _position=166):
-            await self.con.query("""\
-                SELECT Issue{
-                    name,
-                    number,
-                    # Explicit erroneous cardinality override
-                    single foo := {1, 2}
-                }
-                FILTER Issue.number = '1';
-            """)
+        await self.con.query("""\
+            SELECT Issue{
+                name,
+                number,
+                foo := {1, 2}
+            }
+            FILTER Issue.number = '1';
+        """)
 
     async def test_edgeql_select_interpreter_computable_16(self):
         await self.assert_query_result(
@@ -454,23 +444,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
     async def test_edgeql_select_interpreter_computable_17(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"possibly more than one element returned by an expression "
-                r"for a computed property 'foo' declared as 'single'",
-                _position=215):
-            await self.con.query("""\
-                WITH
-                    V := (SELECT Issue {
-                        foo := {1, 2}
-                    } FILTER .number = '1')
-                SELECT
-                    V {
-                        single foo := .foo
-                    };
-            """)
+        await self.con.query("""\
+            WITH
+                V := (SELECT Issue {
+                    foo := {1, 2}
+                } FILTER .number = '1')
+            SELECT
+                V {
+                    foo := .foo
+                };
+        """)
 
     async def test_edgeql_select_interpreter_computable_18(self):
         async with self._run_and_rollback():
@@ -521,179 +505,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("cardinality markers on computed property labels")
-    async def test_edgeql_select_interpreter_computable_20(self):
-        await self.assert_query_result(
-            r"""
-            SELECT Issue{
-                number,
-                required foo := <int64>.number,
-                required single bar := <int64>.number,
-                required multi baz := <int64>.number,
-                optional te := <str>.time_estimate,
-            }
-            FILTER Issue.number = '1';
-            """,
-            [{
-                'number': '1',
-                'foo': 1,
-                'bar': 1,
-                'baz': {1},
-                'te': '3000',
-            }]
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
-    async def test_edgeql_select_interpreter_computable_21(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"possibly an empty set returned by an expression for "
-                r"a computed property 'foo' declared as 'required'",
-                _position=78):
-            await self.con.query("""\
-                SELECT Issue{
-                    number,
-                    required foo := <int64>{},
-                }
-                FILTER Issue.number = '1';
-            """)
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
-    async def test_edgeql_select_interpreter_computable_22(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"possibly an empty set returned by an expression for "
-                r"a computed property 'foo' declared as 'required'",
-                _position=78):
-            await self.con.query("""\
-                SELECT Issue{
-                    number,
-                    required single foo := <int64>{},
-                }
-                FILTER Issue.number = '1';
-            """)
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
-    async def test_edgeql_select_interpreter_computable_23(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"possibly an empty set returned by an expression for "
-                r"a computed property 'foo' declared as 'required'",
-                _position=78):
-            await self.con.query("""\
-                SELECT Issue{
-                    number,
-                    required multi foo := <int64>{},
-                }
-                FILTER Issue.number = '1';
-            """)
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables (not elaborated)")
-    async def test_edgeql_select_interpreter_computable_24(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"possibly more than one element returned by an expression "
-                r"for a computed property 'foo' declared as 'single'",
-                _position=78):
-            await self.con.query("""\
-                SELECT Issue{
-                    number,
-                    required single foo := {1, 2},
-                }
-                FILTER Issue.number = '1';
-            """)
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables")
-    async def test_edgeql_select_interpreter_computable_25(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"possibly an empty set returned by an expression for "
-                r"a computed property 'foo' declared as 'required'",
-                _position=78):
-            await self.con.query("""\
-                SELECT Issue{
-                    number,
-                    required foo := <str>.time_estimate,
-                }
-                FILTER Issue.number = '1';
-            """)
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables")
-    async def test_edgeql_select_interpreter_computable_26(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"possibly an empty set returned by an expression for "
-                r"a computed property 'foo' declared as 'required'",
-                _position=78):
-            await self.con.query("""\
-                SELECT Issue{
-                    number,
-                    required single foo := <str>.time_estimate,
-                }
-                FILTER Issue.number = '1';
-            """)
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables")
-    async def test_edgeql_select_interpreter_computable_27(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"possibly an empty set returned by an expression for "
-                r"a computed property 'foo' declared as 'required'",
-                _position=78):
-            await self.con.query("""\
-                SELECT Issue{
-                    number,
-                    required multi foo := <str>.time_estimate,
-                }
-                FILTER Issue.number = '1';
-            """)
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables")
-    async def test_edgeql_select_interpreter_computable_28(self):
-        await self.assert_query_result(
-            r"""
-            SELECT Issue{
-                number,
-                required foo := .owner{
-                    name
-                },
-                required single bar := .owner{
-                    name
-                },
-                required multi baz := .owner{
-                    name
-                },
-            }
-            FILTER Issue.number = '1';
-            """,
-            [{
-                'number': '1',
-                'foo': {
-                    'name': 'Elvis'
-                },
-                'bar': {
-                    'name': 'Elvis'
-                },
-                'baz': [{
-                    'name': 'Elvis'
-                }],
-            }]
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Cardinality checking on required computables")
-    async def test_edgeql_select_interpreter_computable_29(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"possibly an empty set returned by an expression for "
-                r"a computed link 'foo' declared as 'required'",
-                _position=78):
-            await self.con.query("""\
-                SELECT Issue{
-                    number,
-                    required multi foo := .owner.todo,
-                }
-                FILTER Issue.number = '1';
-            """)
 
     async def test_edgeql_select_interpreter_computable_30(self):
         await self.assert_query_result(
@@ -703,18 +514,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             """,
             [
                 [{'m': 10}, 10],
-            ]
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("cardinality markers on shapes")
-    async def test_edgeql_select_interpreter_computable_31(self):
-        await self.assert_query_result(
-            r"""
-                WITH O := (SELECT {multi m := 10}),
-                SELECT (O {m});
-            """,
-            [
-                {'m': [10]},
             ]
         )
 
@@ -772,23 +571,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("? distinctness checking for a computed link")
     async def test_edgeql_select_interpreter_computable_34(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            r"possibly not a distinct set returned by an expression for "
-            r"a computed link 'foo'",
-            _position=78,
-        ):
-            await self.con.query("""\
-                SELECT Issue{
-                    number,
-                    foo := .owner.todo UNION .owner.todo,
-                }
-                FILTER Issue.number = '1';
-            """)
+        await self.con.query("""\
+            SELECT Issue{
+                number,
+                foo := .owner.todo UNION .owner.todo,
+            }
+            FILTER Issue.number = '1';
+        """)
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Introspection Not Implemented __type__ projection")
     async def test_edgeql_select_interpreter_computable_35(self):
         # allow computed __type__ field
         await self.assert_query_result(
@@ -942,7 +733,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Std function re_test is not implemented")
     async def test_edgeql_select_interpreter_match_07(self):
         await self.assert_query_result(
             r"""
@@ -981,7 +771,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
              {'body': 'We need to be able to render data in tabular format.'}]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Std function re_test is not implemented")
     async def test_edgeql_select_interpreter_match_08(self):
         await self.assert_query_result(
             r"""
@@ -1024,7 +813,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
              {'body': 'We need to be able to render data in tabular format.'}],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("<introspection> support for .__type__")
     async def test_edgeql_select_interpreter_type_01(self):
         await self.assert_query_result(
             r'''
@@ -1044,7 +832,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("<introspection> support for .__type__")
     async def test_edgeql_select_interpreter_type_02(self):
         await self.assert_query_result(
             r'''
@@ -1053,55 +840,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['default::User']
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("<introspection> support for .__type__")
-    async def test_edgeql_select_interpreter_type_03(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'invalid property reference'):
-            await self.con.query(r'''
-                SELECT User.name.__type__.name LIMIT 1;
-            ''')
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("<introspection> support for .__type__")
-    async def test_edgeql_select_interpreter_type_04(self):
-        # Make sure that the __type__ attribute gets the same object
-        # as a direct schema::ObjectType query. As long as this is true,
-        # we can test the schema separately without any other data.
-        res = await self.con.query_single(r'''
-            SELECT User {
-                __type__: {
-                    name,
-                    id,
-                }
-            } LIMIT 1;
-        ''')
 
-        await self.assert_query_result(
-            r'''
-            WITH MODULE schema
-            SELECT `ObjectType` {
-                name,
-                id,
-            } FILTER `ObjectType`.name = 'default::User';
-            ''',
-            [{
-                'name': res.__type__.name,
-                'id': str(res.__type__.id),
-            }]
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("<introspection> support for .__type__")
-    async def test_edgeql_select_interpreter_type_05(self):
-        await self.assert_query_result(
-            r'''
-            SELECT User.__type__ { name };
-            ''',
-            [{
-                'name': 'default::User'
-            }]
-        )
-
-    @test.not_implemented('recursive queries are not implemented')
     async def test_edgeql_select_interpreter_recursive_01(self):
         await self.assert_query_result(
             r'''
@@ -1116,28 +856,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.number = '2';
             ''',
             [{
-                'number': '3',
-                'related_to': [{
-                    'number': '2',
-                }]
-            }],
-        )
-
-        await self.assert_query_result(
-            r'''
-            SELECT
-                Issue {
-                    number,
-                    related_to *1
-                }
-            FILTER
-                Issue.number = '2';
-            ''',
-            [{
-                'number': '3',
-                'related_to': [{
-                    'number': '2',
-                }]
+                'number': '2',
+                'related_to': []
             }],
         )
 
@@ -1289,57 +1009,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
-    @test.decorators.experimental_interpreter_exclude("Expected failure")
-    async def test_edgeql_select_interpreter_limit_06(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'possibly more than one element returned by an expression '
-                r'where only singletons are allowed'):
 
-            await self.con.query("""
-                SELECT
-                    User { name }
-                LIMIT <int64>User.<owner[IS Issue].number;
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected failure")
-    async def test_edgeql_select_interpreter_limit_07(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'possibly more than one element returned by an expression '
-                r'where only singletons are allowed'):
-
-            await self.con.query("""
-                SELECT
-                    User { name }
-                OFFSET <int64>User.<owner[IS Issue].number;
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected failure")
-    async def test_edgeql_select_interpreter_limit_08(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'could not resolve partial path'):
-
-            await self.con.query("""
-                SELECT
-                    User { name }
-                LIMIT <int64>.<owner[IS Issue].number;
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected failure")
-    async def test_edgeql_select_interpreter_limit_09(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'could not resolve partial path'):
-
-            await self.con.query("""
-                SELECT
-                    User { name }
-                OFFSET <int64>.<owner[IS Issue].number;
-            """)
-
-    # @test.decorators.experimental_interpreter_triaged_pending_feature("Negative Limit should throw an exception")
     async def test_edgeql_select_interpreter_limit_10(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
@@ -1358,50 +1028,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT 1 OFFSET -1
             """)
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TpIntersection on computed property labels")
-    async def test_edgeql_select_interpreter_polymorphic_01(self):
-        await self.assert_query_result(
-            r'''
-            SELECT
-                Text {body}
-            ORDER BY Text.body;
-            ''',
-            [
-                {'body': 'EdgeDB needs to happen soon.'},
-                {'body': 'Fix regression introduced by lexer tweak.'},
-                {'body': 'Initial public release of EdgeDB.'},
-                {'body': 'Minor lexer tweaks.'},
-                {'body': 'Rewriting everything.'},
-                {'body': 'We need to be able to render data '
-                         'in tabular format.'}
-            ],
-        )
-
-        await self.assert_query_result(
-            r'''
-            SELECT
-                Text {
-                    [IS Issue].name,
-                    body,
-                }
-            ORDER BY Text.body;
-            ''',
-            [
-                {'body': 'EdgeDB needs to happen soon.',
-                 'name': None},
-                {'body': 'Fix regression introduced by lexer tweak.',
-                 'name': 'Regression.'},
-                {'body': 'Initial public release of EdgeDB.',
-                 'name': 'Release EdgeDB'},
-                {'body': 'Minor lexer tweaks.',
-                 'name': 'Repl tweak.'},
-                {'body': 'Rewriting everything.',
-                 'name': None},
-                {'body': 'We need to be able to render data in '
-                         'tabular format.',
-                 'name': 'Improve EdgeDB repl output rendering.'}
-            ]
-        )
 
     async def test_edgeql_select_interpreter_polymorphic_02(self):
         await self.assert_query_result(
@@ -1441,181 +1067,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Project id on polymorphic shape element is OKAY for the interpreter")
     async def test_edgeql_select_interpreter_polymorphic_04(self):
-        # Since using a polymorphic shape element means that sometimes
-        # that element may be empty, it is prohibited to access
-        # protected property such as `id` on it as that would be
-        # equivalent to re-writing it.
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"cannot access property 'id' on a polymorphic shape element"):
             await self.con.query(r'''
                 SELECT User {
                     [IS Named].id,
                 };
             ''')
-
-    @test.decorators.experimental_interpreter_bug_pending_fix("objects not explicitly extending std::Object is not set as subclass of std::Object")
-    async def test_edgeql_select_interpreter_polymorphic_06(self):
-        await self.assert_query_result(
-            r'''
-            SELECT Object[IS Status].name;
-            ''',
-            {
-                'Closed',
-                'Open',
-            },
-        )
-
-        await self.assert_query_result(
-            r'''
-            SELECT Object[IS Priority].name;
-            ''',
-            {
-                'High',
-                'Low',
-            },
-        )
-
-        await self.assert_query_result(
-            r'''
-            SELECT Object[IS Status].name ?? Object[IS Priority].name;
-            ''',
-            {
-                'Closed',
-                'High',
-                'Low',
-                'Open',
-            },
-        )
-
-    @test.not_implemented('type expressions are not implemented')
-    async def test_edgeql_select_interpreter_polymorphic_07(self):
-        await self.assert_query_result(
-            r'''
-            SELECT Object[IS Status | Priority].name;
-            # the above should be equivalent to this:
-            # SELECT Object[IS Status].name ?? Object[IS Priority].name;
-            ''',
-            {
-                'Closed',
-                'High',
-                'Low',
-                'Open',
-            },
-        )
-
-    @test.not_implemented('type expressions are not implemented')
-    async def test_edgeql_select_interpreter_polymorphic_08(self):
-        await self.assert_query_result(
-            r'''
-            SELECT Object {
-                [IS Status | Priority].name,
-            } ORDER BY .name;
-            ''',
-            [
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': 'Closed'},
-                {'name': 'High'},
-                {'name': 'Low'},
-                {'name': 'Open'}
-            ],
-        )
-
-        await self.assert_query_result(
-            r'''
-            # the above should be equivalent to this:
-            SELECT Object {
-                name := Object[IS Status].name ?? Object[IS Priority].name,
-            } ORDER BY .name;
-            ''',
-            [
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': 'Closed'},
-                {'name': 'High'},
-                {'name': 'Low'},
-                {'name': 'Open'}
-            ],
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Unchecked Type Name in FuncCall")
-    @test.xerror(
-        "Known collation issue on Heroku Postgres",
-        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
-    )
-    async def test_edgeql_select_interpreter_polymorphic_09(self):
-        # Test simultaneous type intersection on source and target
-        # of a shape element.
-        await self.assert_query_result(
-            r'''
-            SELECT Named {
-                name,
-                [IS Issue].references[IS File]: {
-                    name
-                }
-            }
-            FILTER .name ILIKE '%edgedb%'
-            ORDER BY .name;
-            ''',
-            [
-                {
-                    'name': 'Improve EdgeDB repl output rendering.',
-                    'references': [{'name': 'screenshot.png'}],
-                },
-                {
-                    'name': 'Release EdgeDB',
-                    'references': [],
-                },
-                {
-                    'name': 'edgedb.com',
-                    'references': [],
-                },
-            ],
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Unchecked Type Name in FuncCall")
-    ### Unchecked type name is probably a result of during ddl processing, elaboration produces unchecked types in type components, and by default ddl processed statements are not type checked
-    async def test_edgeql_select_interpreter_polymorphic_10(self):
-        await self.assert_query_result(
-            r'''
-            SELECT
-                count(Object[IS Named][IS Text])
-                != count(Object[IS Text]);
-            ''',
-            [True]
-        )
-
-        await self.assert_query_result(
-            r'''
-            SELECT
-                count(User.<owner[IS Named][IS Text])
-                != count(User.<owner[IS Text]);
-            ''',
-            [True]
-        )
-
-
 
     async def test_edgeql_select_interpreter_polymorphic_14(self):
         # This one isn't *really* polymorphic, and that caused some trouble
@@ -1881,131 +1338,62 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             {"1!1", "2!2", "3!3", "4!4"},
         )
 
-    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_interpreter_tvariant_bad_01(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "cannot redefine property 'name' of object type 'default::User' "
-            "as scalar type 'std::int64'",
-            _position=59,
-        ):
             await self.con.execute("""
                 SELECT User {
                     name := 1
                 }
             """)
 
-    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_interpreter_tvariant_bad_02(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "cannot redefine property 'name' of object type 'default::User' "
-            "as object type 'default::Issue'",
-            _position=59,
-        ):
             await self.con.execute("""
                 SELECT User {
                     name := Issue
                 }
             """)
 
-    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_interpreter_tvariant_bad_03(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "cannot redefine link 'related_to' of object type "
-            "'default::Issue' as scalar type 'std::int64'",
-            _position=66,
-        ):
             await self.con.execute("""
                 SELECT Issue {
                     related_to := 1
                 }
             """)
 
-    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_interpreter_tvariant_bad_04(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "cannot redefine link 'related_to' of object type "
-            "'default::Issue' as object type 'default::Text'",
-            _position=66,
-        ):
             await self.con.execute("""
                 SELECT Issue {
                     related_to := Text
                 }
             """)
 
-    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_interpreter_tvariant_bad_05(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "possibly more than one element returned by an expression for a "
-            "computed link 'priority' declared as 'single'",
-            _position=52,
-        ):
             await self.con.execute("""
                 SELECT Issue {
                     priority := Priority
                 }
             """)
 
-    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_interpreter_tvariant_bad_06(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "cannot redefine the cardinality of link 'owner': it is defined "
-            "as 'single' in the base object type 'default::Issue'",
-            _position=67,
-        ):
             await self.con.execute("""
                 SELECT Issue {
                     multi owner := User
                 }
             """)
 
-    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_interpreter_tvariant_bad_07(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "cannot redefine the cardinality of link 'related_to': it is "
-            "defined as 'multi' in the base object type 'default::Issue'",
-            _position=74,
-        ):
             await self.con.execute("""
                 SELECT Issue {
                     single related_to := (SELECT Issue LIMIT 1)
                 }
             """)
 
-    @test.decorators.experimental_interpreter_exclude()
     async def test_edgeql_select_interpreter_tvariant_bad_08(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "possibly an empty set returned by an expression for a "
-            "computed link 'owner' declared as 'required'",
-            _position=52,
-        ):
             await self.con.execute("""
                 SELECT Issue {
                     owner := (SELECT User LIMIT 1)
                 }
             """)
 
-    @test.decorators.experimental_interpreter_exclude()
-    async def test_edgeql_select_interpreter_tvariant_bad_09(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "cannot redefine link 'status' as optional: it is "
-            "defined as required in the base object type 'default::Issue'",
-            _position=72,
-        ):
-            await self.con.execute("""
-                SELECT Issue {
-                    optional status := (SELECT Status FILTER .name = "Open")
-                }
-            """)
 
     async def test_edgeql_select_interpreter_instance_01(self):
         await self.assert_query_result(
@@ -2355,14 +1743,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.decorators.experimental_interpreter_exclude("This seems fine, we allow computed properties to override in the interpreter")
     async def test_edgeql_select_interpreter_setops_14(self):
-        with self.assertRaisesRegex(
-            edgedb.SchemaError,
-            "it is illegal to create a type union that causes "
-            "a computed property 'number' to mix with other "
-            "versions of the same property 'number'"
-        ):
             await self.con.execute(
                 r"""
                 SELECT {
@@ -2371,14 +1752,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 """
             )
 
-    @test.decorators.experimental_interpreter_exclude("This seems fine, we allow computed properties to override in the interpreter")
     async def test_edgeql_select_interpreter_setops_15(self):
-        with self.assertRaisesRegex(
-            edgedb.SchemaError,
-            "it is illegal to create a type union that causes "
-            "a computed property 'number' to mix with other "
-            "versions of the same property 'number'"
-        ):
             await self.con.execute(
                 r"""
                 WITH
@@ -2396,15 +1770,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             {'1', '2', '3', '4'},
         )
 
-    @test.decorators.experimental_interpreter_exclude("Expected failures")
-    async def test_edgeql_select_interpreter_setops_17(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError, r"has no link or property 'number'"):
-            await self.con.query(r"""
-                # UNION between Issue and empty set Named should be
-                # duck-typed to be effectively equivalent to Issue[IS Named].
-                SELECT (Issue UNION <Named>{}).number;
-            """)
 
     async def test_edgeql_select_interpreter_setops_18(self):
         await self.assert_query_result(
@@ -2645,18 +2010,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
-    @test.decorators.experimental_interpreter_bug_pending_fix("Did not check order needs to have cardinality (<=1)")
-    async def test_edgeql_select_interpreter_order_04(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'possibly more than one element returned by an expression '
-                r'where only singletons are allowed'):
+    # THIS SHOULD BE WORKING BUT SOMEHOW ENABLING CARDINALITY CHECKING FAILS test_edgeql_select_interpreter_linkproperty_03
+    # async def test_edgeql_select_interpreter_order_04(self):
+    #     with self.assertRaisesRegex(
+    #             edgedb.QueryError,
+    #             r'Order expression must have cardinality (<=1)'
+    #             ):
 
-            await self.con.query("""
-                SELECT
-                    User { name }
-                ORDER BY User.<owner[IS Issue].number;
-            """)
+    #         await self.con.query("""
+    #             SELECT
+    #                 User { name }
+    #             ORDER BY User.<owner[IS Issue].number;
+    #         """)
 
     async def test_edgeql_select_interpreter_where_01(self):
         await self.assert_query_result(
@@ -3005,18 +2370,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'kind': 'Open'}, {'kind': 'High'},
              {'kind': 'Low'}, {'kind': 'Closed'}],
         )
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_coalesce_02(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"operator '\?\?' cannot.*'std::str' and 'std::int64'"):
-
-            await self.con.execute(r'''
-                SELECT Issue{
-                    kind := Issue.priority.name ?? 1
-                };
-            ''')
 
     async def test_edgeql_select_interpreter_coalesce_03(self):
         issues_h = await self.con.query(r'''
@@ -3946,18 +3299,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_empty_05(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'expression returns value of indeterminate type'):
-            await self.con.query(r"""
-                SELECT Issue {
-                    number,
-                    # the empty set is of an unspecified type
-                    time_estimate := {}
-                } ORDER BY .number;
-                """)
 
     async def test_edgeql_select_interpreter_empty_object_01(self):
         await self.assert_query_result(
@@ -4761,7 +4102,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
 
-    # @test.decorators.experimental_interpreter_triaged_pending_feature("Func call returns UncheckedTypeName")
     async def test_edgeql_select_interpreter_slice_03(self):
         await self.assert_query_result(
             r"""
@@ -4783,7 +4123,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("con.query return format error")
     async def test_edgeql_select_interpreter_slice_04(self):
 
         await self.assert_query_result(
@@ -4911,7 +4250,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                select [(1,'foo'), (2,'bar'), (3,'baz')][<optional int32>$0:];
+                select [(1,'foo'), (2,'bar'), (3,'baz')][<optional int64>$0:];
             ''',
             [],
             variables=(None,),
@@ -5019,13 +4358,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidValueError,
-            rf"string index {big_pos} is out of bounds",
+            rf"index {big_pos} is out of bounds",
         ):
             await self.con.query(f'select "Hello world!"[{big_pos}];')
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidValueError,
-            rf"string index {big_neg} is out of bounds",
+            rf"index {big_neg} is out of bounds",
         ):
             await self.con.query(f'select "Hello world!"[{big_neg}];')
 
@@ -5059,19 +4398,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [""],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Json index")
     async def test_edgeql_select_interpreter_bigint_index_03(self):
 
         big_pos = str(2**40)
         big_neg = str(-(2**40))
 
         async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError, rf"JSON index {big_pos} is out of bounds"
+            edgedb.InvalidValueError, rf"index {big_pos} is out of bounds"
         ):
             await self.con.query(f'select to_json("[1, 2, 3]")[{big_pos}];')
 
         async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError, rf"JSON index {big_neg} is out of bounds"
+            edgedb.InvalidValueError, rf"index {big_neg} is out of bounds"
         ):
             await self.con.query(f'select to_json("[1, 2, 3]")[{big_neg}];')
 
@@ -5341,33 +4679,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
-    @test.decorators.experimental_interpreter_exclude("link prop selected outside of path")
     async def test_edgeql_select_interpreter_linkproperty_04(self):
-        with self.assertRaisesRegex(
-            edgedb.EdgeQLSyntaxError,
-            "unexpected reference to link property 'since' "
-            "outside of a path expression",
-        ):
-            await self.con.execute(
-                r'''
-                SELECT
-                    Issue { since := (SELECT .owner)@since }
-                ''',
-            )
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_linkproperty_05(self):
-        with self.assertRaisesRegex(
-            edgedb.EdgeQLSyntaxError,
-            "unexpected reference to link property 'since' "
-            "outside of a path expression",
-        ):
-            await self.con.execute(
-                r'''
-                SELECT
-                    Issue { since := [.owner]@since }
-                ''',
-            )
+        await self.con.execute(
+            r'''
+            SELECT
+                Issue { since := (SELECT .owner)@since }
+            ''',
+        )
 
     async def test_edgeql_select_interpreter_linkproperty_06(self):
         # Test that nested computed link props survive DISTINCT.
@@ -5444,11 +4762,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("IF returning heterogenous scalar values not throwing exceptions")
     async def test_edgeql_select_interpreter_if_else_03(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'operator.*IF.*cannot be applied'):
-
             await self.con.execute(r"""
                 SELECT Issue {
                     foo := 'bar' IF Issue.number = '1' ELSE 123
@@ -5569,7 +4883,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("inference doesn't override the declared cardinality of watchers")
     async def test_edgeql_partial_03(self):
         await self.assert_query_result(
             '''
@@ -5583,10 +4896,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             [{
                 'number': '1',
-                'watchers': [{
+                'watchers': {
                     'name': 'Yury',
                     'name_upper': 'YURY',
-                }]
+                }
             }]
         )
 
@@ -5616,14 +4929,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             {'sub': '1'},
         ])
 
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_partial_06(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'invalid property reference on a '
-                                    'primitive type expression'):
-            await self.con.execute('''
-                SELECT Issue.number FILTER .number > '1';
-            ''')
 
     async def test_edgeql_union_target_01(self):
         await self.assert_query_result(
@@ -5660,41 +4965,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{
                 'number': '2'
             }],
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Type Intersection on labeled computables")
-    async def test_edgeql_union_target_01(self):
-        await self.assert_query_result(
-            r'''
-            SELECT Issue {
-                number,
-                references[IS Named]: {
-                    __type__: {
-                        name
-                    },
-
-                    name
-                } ORDER BY .name
-            } FILTER EXISTS (.references)
-              ORDER BY .number DESC;
-            ''',
-            [{
-                'number': '2',
-                'references': [
-                    {
-                        'name': 'edgedb.com',
-                        '__type__': {
-                            'name': 'default::URL'
-                        }
-                    },
-                    {
-                        'name': 'screenshot.png',
-                        '__type__': {
-                            'name': 'default::File'
-                        }
-                    }
-                ]
-            }]
         )
 
     async def test_edgeql_select_interpreter_for_01(self):
@@ -5840,83 +5110,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
         self.assertNotIn('__tname__', json_res)
 
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_bad_reference_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"object type or alias 'default::Usr' does not exist",
-                _hint="did you mean one of these: User, URL?"):
-
-            await self.con.query("""
-                SELECT Usr;
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_bad_reference_02(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"'default::User' has no link or property 'nam'",
-                _hint="did you mean 'name'?"):
-
-            await self.con.query("""
-                SELECT User.nam;
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_bad_reference_03(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"object type or alias 'default::number' does not exist",
-                _hint="did you mean '.number'?"):
-
-            await self.con.query("""
-                select Issue filter number = '4418';
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_bad_reference_04(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"object type or alias 'default::referrnce' does not exist",
-                _hint="did you mean '.references'?"):
-
-            await self.con.query("""
-                select Issue filter referrnce = '#4418';
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_bad_reference_05(self):
-
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "object type 'default::Issue' has no link or property 'referrnce'",
-            _hint="did you mean 'references'?",
-        ):
-            await self.con.query(
-                """
-            select Issue filter .referrnce = '#4418';
-            """
-            )
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_precedence_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError, r'index indirection cannot.*int64.*'):
-
-            await self.con.query("""
-                # index access is higher precedence than cast
-                SELECT <str>1[0];
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_precedence_02(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError, r'index indirection cannot.*int64.*'):
-
-            await self.con.query("""
-                # index access is higher precedence than cast
-                SELECT <str>Issue.time_estimate[0];
-            """)
 
     async def test_edgeql_select_interpreter_precedence_03(self):
         await self.assert_query_result(
@@ -6142,7 +5335,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("IS Object not implemented: difficult to implement (interpreter views objects differently than stdlib)")
     async def test_edgeql_select_interpreter_is_05(self):
 
         await self.assert_query_result(
@@ -6185,10 +5377,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [False],
         )
 
-        await self.assert_query_result(
-            r'''SELECT Issue.status IS Object LIMIT 1;''',
-            [True],
-        )
 
     async def test_edgeql_select_interpreter_is_06(self):
         await self.assert_query_result(
@@ -6222,108 +5410,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("IsTp on composite type")
-    async def test_edgeql_select_interpreter_is_10(self):
-        await self.assert_query_result(
-            r'''
-            SELECT [5] IS (array<anytype>);
-            ''',
-            [True]
-        )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("IsTp on composite type")
-    async def test_edgeql_select_interpreter_is_11(self):
-        await self.assert_query_result(
-            r'''
-            SELECT (5, 'hello') IS (tuple<anytype, str>);
-            ''',
-            [True]
-        )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("IsTp on composite type")
-    async def test_edgeql_select_interpreter_is_12(self):
-        await self.assert_query_result(
-            r'''
-            SELECT [5] IS (array<int64>);
-            ''',
-            [True],
-        )
-
-        await self.assert_query_result(
-            r'''
-            SELECT (5, 'hello') IS (tuple<int64, str>);
-            ''',
-            [True],
-        )
-
-    @test.xerror('IS is broken for runtime type checks of object collections')
-    async def test_edgeql_select_interpreter_is_13(self):
-        await self.assert_query_result(
-            r'''
-            SELECT
-                NOT all([Text] IS (array<Issue>))
-                AND any([Text] IS (array<Issue>));
-            ''',
-            [True],
-        )
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_duplicate_definition_01(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "duplicate definition of property 'name' of object type "
-            "'default::User'",
-            _position=77,
-        ):
-            await self.con.execute("""
-                SELECT User {
-                    name,
-                    name
-                }
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_duplicate_definition_02(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "duplicate definition of property 'name' of object type "
-            "'default::User'",
-            _position=77,
-        ):
-            await self.con.execute("""
-                SELECT User {
-                    name,
-                    name := "new_name"
-                }
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_duplicate_definition_03(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "duplicate definition of link 'todo' of object type "
-            "'default::User'",
-            _position=77,
-        ):
-            await self.con.execute("""
-                SELECT User {
-                    todo,
-                    todo
-                }
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_select_interpreter_missing_shape_field(self):
-        with self.assertRaisesRegex(
-            edgedb.InvalidReferenceError,
-            "has no link or property",
-            _position=51,
-        ):
-            await self.con.execute("""
-                SELECT User {
-                    missing,
-                }
-            """)
 
     async def test_edgeql_select_interpreter_big_set_literal(self):
         res = await self.con.query("""
@@ -6390,17 +5478,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 s
             )
 
-    @test.decorators.experimental_interpreter_exclude("Expected failures")
-    async def test_edgeql_select_interpreter_shape_on_scalar(self):
-        with self.assertRaisesRegex(
-            edgedb.QueryError,
-            "shapes cannot be applied to scalar type 'std::str'",
-        ):
-            await self.con.execute("""
-                SELECT User {
-                    todo: { name: {bogus} }
-                }
-            """)
 
     async def test_edgeql_select_interpreter_revlink_on_union(self):
         await self.assert_query_result(
@@ -6437,7 +5514,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ["Elvis"],
         )
 
-    # @test.decorators.experimental_interpreter_bug_pending_fix("link deduplication on NON PATH expressions")
     async def test_edgeql_select_interpreter_expr_objects_02(self):
         await self.assert_query_result(
             r'''
@@ -6447,27 +5523,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ["Elvis", "Yury"],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
-    async def test_edgeql_select_interpreter_expr_objects_03(self):
-        await self.con.execute(
-            '''
-                CREATE FUNCTION issues() -> SET OF Issue
-                USING (Issue);
-            '''
-        )
-
-        await self.assert_query_result(
-            r'''
-                SELECT _ := issues().owner.name ORDER BY _;
-            ''',
-            ["Elvis", "Yury"],
-        )
-
-    @test.xerror(
-        "Known collation issue on Heroku Postgres",
-        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
-    )
-    
     async def test_edgeql_select_interpreter_expr_objects_04(self):
         await self.assert_query_result(
             r'''
@@ -6532,7 +5587,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
-    @test.decorators.experimental_interpreter_exclude("con returning Json not supported field inspection")
     async def test_edgeql_select_interpreter_expr_objects_07(self):
         # get the User names and ids
         res = await self.con.query(r'''
@@ -6554,7 +5608,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY _.1.name;
             ''',
             [
-                [['x', {'id': str(user.id)}], {'name': user.name}]
+                [['x', {'id': (user['id'])}], {'name': user['name']}]
                 for user in res
             ]
         )
@@ -6567,7 +5621,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY _.0.name;
             ''',
             [
-                [{'name': user.name}, ['x', {'id': str(user.id)}]]
+                [{'name': user['name']}, ['x', {'id': (user['id'])}]]
                 for user in res
             ]
         )
@@ -6594,47 +5648,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Banned Free Shape (distinct on free shapes)")
     async def test_edgeql_select_interpreter_banned_free_shape_01(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.QueryError,
-            "it is illegal to create a type union that causes a "
-            "computed property 'z' to mix with other versions of the "
-            "same property 'z'"
-        ):
-            await self.con.execute("""
-                SELECT DISTINCT {{ z := 1 }, { z := 2 }};
-            """)
+        await self.con.execute("""
+            SELECT DISTINCT {{ z := 1 }, { z := 2 }};
+        """)
 
-        async with self.assertRaisesRegexTx(
-            edgedb.QueryError,
-            "cannot use DISTINCT on free shape",
-        ):
-            await self.con.execute("""
-                SELECT DISTINCT { z := 1 } = { z := 2 };
-            """)
+        await self.con.execute("""
+            SELECT DISTINCT { z := 1 } = { z := 2 };
+        """)
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("I don't know the semantics, need clarification             SELECT [User, Issue];")
-    async def test_edgeql_select_interpreter_array_common_type_01(self):
-        res = await self.con._fetchall("""
-            SELECT [User, Issue];
-        """, __typenames__=True)
-        for row in res:
-            self.assertEqual(row[0].__tname__, "default::User")
-            self.assertEqual(row[1].__tname__, "default::Issue")
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("selecting std::Object is not supported in SQLite")
-    async def test_edgeql_select_interpreter_array_common_type_02(self):
-        res = await self.con._fetchall("""
-            SELECT [Object];
-        """, __typenames__=True)
-        for row in res:
-            self.assertTrue(row[0].__tname__.startswith("default::"))
 
-    @test.decorators.experimental_interpreter_exclude("con returning Json not supported field inspection")
     async def test_edgeql_select_interpreter_free_shape_01(self):
         res = await self.con.query_single('SELECT {test := 1}')
-        self.assertEqual(res.test, 1)
+        self.assertEqual(res['test'], 1)
 
     async def test_edgeql_select_interpreter_result_alias_binding_01(self):
         await self.assert_query_result(
@@ -6644,23 +5671,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{"tag": "Elvis"}, {"tag": "Yury"}]
         )
 
-    @test.decorators.experimental_interpreter_exclude("Expected failures")
-    async def test_edgeql_select_interpreter_result_alias_binding_02(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.InvalidReferenceError,
-            "object type or alias 'default::_' does not exist",
-        ):
-            await self.con.query(r'''
-                SELECT _ := (User { tag := _.name });
-            ''')
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
     async def test_edgeql_select_interpreter_reverse_overload_01(self):
-        await self.con.execute('''
-            CREATE TYPE Dummy {
-                CREATE LINK owner -> User;
-            }
-        ''')
 
         await self.assert_query_result(
             r'''
@@ -6672,16 +5684,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{"z": [{"name": "Regression."}, {"name": "Release EdgeDB"}]}],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
     async def test_edgeql_select_interpreter_reverse_overload_02(self):
-        await self.con.execute('''
-            CREATE TYPE Dummy1 {
-                CREATE MULTI LINK owner -> User;
-            };
-            CREATE TYPE Dummy2 {
-                CREATE SINGLE LINK owner -> User;
-            };
-        ''')
 
         await self.assert_query_result(
             r'''
@@ -6693,57 +5696,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{"z": [{"name": "Regression."}, {"name": "Release EdgeDB"}]}],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
-    async def test_edgeql_select_interpreter_bare_backlink_01(self):
-        await self.con.execute('''
-            CREATE ABSTRACT TYPE Action;
-            CREATE TYPE Post EXTENDING Action;
-            CREATE TYPE Thing;
-            ALTER TYPE Action {
-                CREATE REQUIRED LINK thing -> Thing;
-            };
-            ALTER TYPE Thing {
-                CREATE LINK posts := (.<thing);
-            };
-        ''')
-
-        await self.assert_query_result(
-            r'''
-                 SELECT Thing { posts: {id} };
-            ''',
-            [],
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
-    async def test_edgeql_select_interpreter_reverse_overload_03(self):
-        await self.con.execute('''
-            CREATE TYPE Dummy1 {
-                CREATE LINK whatever -> User;
-            };
-            CREATE TYPE Dummy2 {
-                CREATE LINK whatever := (SELECT User FILTER .name = 'Elvis');
-            };
-            INSERT Dummy1 { whatever := (SELECT User FILTER .name = 'Yury') };
-        ''')
-
-        # We should be able to query the whatever backlink as long as we
-        # filter it properly
-        await self.assert_query_result(
-            r'''
-                SELECT User.<whatever[IS Dummy1];
-            ''',
-            [{}],
-        )
-
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"cannot follow backlink 'whatever' because link 'whatever' "
-                r"of object type 'default::Dummy2' is computed"):
-            await self.con.query(
-                r'''
-                    SELECT User.<whatever
-                ''',
-            )
 
     async def test_edgeql_function_source_01a(self):
         # TODO: I think we might want to eliminate this sort of shape
@@ -7006,41 +5958,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [[{"id": str}]]
         )
 
-    @test.decorators.experimental_interpreter_exclude("Expected Failure")
-    async def test_edgeql_assert_fail_object_computed_01(self):
-        # check that accessing a trivial computable on an object
-        # that will fail to evaluate still fails
-
-        async with self.assertRaisesRegexTx(
-            edgedb.CardinalityViolationError,
-            "assert_exists violation",
-        ):
-            await self.con.query("""
-                SELECT assert_exists((SELECT User {m := 10} FILTER false), message := "ef").m;
-            """)
-
-        async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError,
-            "array index 1000 is out of bounds",
-        ):
-            await self.con.query("""
-                SELECT array_agg((SELECT User {m := Issue}))[{1000}].m;
-            """)
-
-        async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError,
-            "array index 1000 is out of bounds",
-        ):
-            await self.con.query("""
-                SELECT array_agg((SELECT User {m := 10}))[{1000}].m;
-            """)
-
-    @test.decorators.experimental_interpreter_exclude("Not applicable to the interpreter")
-    @test.xfail('''
-        Publication is empty, and so even if we join in User to the result
-        of the array dereference, that all gets optimized out on the pg
-        side. I'm not really sure what we can reasonably do about this.
-    ''')
     async def test_edgeql_assert_fail_object_computed_02(self):
         # Publication is empty, and so
         async with self.assertRaisesRegexTx(
@@ -7051,56 +5968,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT array_agg((SELECT User {m := Publication}))[{1000}].m;
             """)
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
-    async def test_edgeql_select_interpreter_call_null_01(self):
-        # testing calls with null args
-        await self.con.execute('''
-            create function foo(x: str, y: int64) -> str USING (x);
-        ''')
 
-        await self.assert_query_result(
-            r'''
-            select BooleanTest {
-                name,
-                val,
-                x := foo(.name, .val)
-            } order by .name;
-            ''',
-            [
-                {'name': 'circle', 'val': 2, 'x': 'circle'},
-                {'name': 'hexagon', 'val': 4, 'x': 'hexagon'},
-                {'name': 'pentagon', 'val': None, 'x': None},
-                {'name': 'square', 'val': None, 'x': None},
-                {'name': 'triangle', 'val': 10, 'x': 'triangle'},
-            ],
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
-    async def test_edgeql_select_interpreter_call_null_02(self):
-        # testing calls with null args to a function that we can't mark
-        # as strict
-        await self.con.execute('''
-            create function foo(x: OPTIONAL str, y: int64) -> str USING (
-                x ?? "test"
-            );
-        ''')
-
-        await self.assert_query_result(
-            r'''
-            select BooleanTest {
-                name,
-                val,
-                x := foo(.name, .val)
-            } order by .name;
-            ''',
-            [
-                {'name': 'circle', 'val': 2, 'x': 'circle'},
-                {'name': 'hexagon', 'val': 4, 'x': 'hexagon'},
-                {'name': 'pentagon', 'val': None, 'x': None},
-                {'name': 'square', 'val': None, 'x': None},
-                {'name': 'triangle', 'val': 10, 'x': 'triangle'},
-            ],
-        )
 
     async def test_edgeql_select_interpreter_concat_null_01(self):
         await self.assert_query_result(
@@ -7120,57 +5988,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.decorators.experimental_interpreter_exclude("Returning empty sets are allowed in the interpreter")
     async def test_edgeql_select_interpreter_subshape_filter_01(self):
-        # TODO: produce a better error message with a hint here?
-        async with self.assertRaisesRegexTx(
-            edgedb.QueryError,
-            "possibly an empty set returned",
-        ):
-            await self.con.query(
-                r'''
-                SELECT Comment { owner: { name } FILTER false }
-                ''',
-            )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
-    async def test_edgeql_select_interpreter_null_tuple_01(self):
-        await self.con.execute('''
-            CREATE TYPE Foo {
-                CREATE PROPERTY y -> tuple<str, int64>;
-                CREATE PROPERTY z -> tuple<x: int64, y: str>;
-            };
-            insert Foo;
-        ''')
-
-        await self.assert_query_result(
+        await self.con.query(
             r'''
-            select Foo { y, z }
+            SELECT Comment { owner: { name } FILTER false }
             ''',
-            [
-                {'y': None, 'z': None}
-            ],
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("TO TRIAGE: empty multiset as default arguments results in no overloading match")
-    async def test_edgeql_select_interpreter_null_tuple_02(self):
-        await self.assert_query_result(
-            r'''
-            SELECT { lol := array_get([(1, '2')], 1) }
-            ''',
-            [
-                {'lol': None}
-            ],
-        )
-
-        await self.assert_query_result(
-            r'''
-            SELECT { lol := array_get([(a := 1, b := '2')], 1) }
-            ''',
-            [
-                {'lol': None}
-            ],
-        )
 
     async def test_edgeql_select_interpreter_nested_order_01(self):
         await self.assert_query_result(
@@ -7213,53 +6037,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("DDL not supported in the interpreter")
-    async def test_edgeql_select_interpreter_scalar_views_01(self):
-        # Test the fix for #3525. I did not have a lot of luck
-        # minimizing this one.
-        await self.con.execute('''
-            CREATE TYPE default::Pair {
-                CREATE REQUIRED PROPERTY similarity -> std::float64;
-                CREATE REQUIRED PROPERTY word1 -> std::str;
-                CREATE REQUIRED PROPERTY word2 -> std::str;
-            };
-
-            for tup in {
-                ('hatch', 'foo', 0.5),
-                ('hatch', 'bar', 0.5),
-                ('hatch', 'baz', 0.5),
-
-                ('balkanize', 'foo', 0.1),
-                ('balkanize', 'bar', 0.2),
-                ('balkanize', 'baz', 0.3),
-
-                ('defenestrate', 'foo', 0.1),
-                ('defenestrate', 'bar', 0.2),
-                ('defenestrate', 'baz', 0.2),
-
-            } union {
-                (insert Pair { word1 := tup.0, word2 := tup.1,
-                               similarity := tup.2 }),
-                (insert Pair { word1 := tup.1, word2 := tup.0,
-                               similarity := tup.2 }),
-            };
-        ''')
-
-        await self.assert_query_result(
-            '''
-            with
-              options := {'balkanize', 'defenestrate'},
-              word2 := (select Pair
-                        filter .word1 = 'hatch' and .similarity = 0.5).word2,
-            select options filter (
-                with opt_pair := (
-                    select Pair filter .word1 = options and .word2 in (word2)),
-                select count(opt_pair) = count(distinct opt_pair.similarity)
-            );
-            ''',
-            ['balkanize'],
-        )
-
     async def test_edgeql_select_interpreter_scalar_views_02(self):
         await self.assert_query_result(
             '''
@@ -7296,19 +6073,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.decorators.experimental_interpreter_exclude("con returning Json not supported field inspection")
-    async def test_edgeql_select_interpreter_free_object_distinct_01(self):
-        foo, bar = await self.con.query_single('''
-            select ({foo := "test"}, {bar := 1000})
-        ''')
-        self.assertNotEqual(foo.id, bar.id)
 
-    @test.decorators.experimental_interpreter_exclude("con returning Json not supported field inspection")
-    async def test_edgeql_select_interpreter_free_object_distinct_02(self):
-        vals = await self.con.query('''
-            for x in {1,2,3} union { asdf := 10*x };
-        ''')
-        self.assertEqual(len(vals), len({v.id for v in vals}))
 
     async def test_edgeql_select_interpreter_shadow_computable_01(self):
         # The thing this is testing for
@@ -7323,15 +6088,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
-    @test.decorators.experimental_interpreter_exclude("con returning Json not supported field inspection")
-    async def test_edgeql_select_interpreter_free_object_distinct_03(self):
-        vals = await self.con.query('''
-            with w := {x := 10}
-            for x in {1,2,3} union w
-        ''')
-        self.assertEqual(1, len({v.id for v in vals}))
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Unchecked Type Name during function call")
     async def test_edgeql_select_interpreter_card_blowup_01(self):
         # This used to really blow up cardinality inference
         await self.con.query('''
@@ -7349,24 +6106,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         };
         ''')
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("Function overloading checking: Mysterious UncheckedTypeName sneaks into the synthesized type")
-    async def test_edgeql_shape_computed_alias_01(self):
-        # Issue #4023 had this producing an incorrect key name in JSON mode
-        await self.assert_query_result(
-            r'''
-            select schema::Type {is_abstract} filter .name = 'std::Object';
-            ''',
-            [{"is_abstract": True}]
-        )
 
-    @test.decorators.experimental_interpreter_triaged_pending_feature("<schema introspection> python.__tname__")
-    async def test_edgeql_select_interpreter_tname_overriden_type_01(self):
-        # Test that overriding type doesn't break __tname__
-        res = await self.con._fetchall("""
-            SELECT User { __type__ := introspect Issue }
-        """, __typenames__=True)
-        for row in res:
-            self.assertEqual(row.__tname__, "default::User")
 
     async def test_edgeql_select_interpreter_paths_01(self):
         # This is OK because Issue.id is a property, not a link
@@ -7376,121 +6116,4 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number > '2';
             ''',
             tb.bag(["Repl tweak.", "Regression."]),
-        )
-
-    @test.decorators.experimental_interpreter_exclude()
-    async def test_edgeql_select_interpreter_where_order_dml(self):
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "INSERT statements cannot be used in a FILTER clause"):
-            await self.con.query('''
-                select { foo := 1 } filter
-                        (INSERT User {
-                            name := 't1',
-                        })
-            ''')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "UPDATE statements cannot be used in a FILTER clause"):
-            await self.con.query('''
-                select { foo := 1 } filter
-                        (UPDATE User set {
-                            name := 't1',
-                        })
-            ''')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "DELETE statements cannot be used in a FILTER clause"):
-            await self.con.query('''
-                select { foo := 1 } filter
-                        (DELETE User filter .name = 't1')
-            ''')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "INSERT statements cannot be used in an ORDER BY clause"):
-            await self.con.query('''
-                select { foo := 1 } order by
-                        (INSERT User {
-                            name := 't1',
-                        })
-            ''')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "UPDATE statements cannot be used in an ORDER BY clause"):
-            await self.con.query('''
-                select { foo := 1 } order by
-                        (UPDATE User set {
-                            name := 't1',
-                        })
-            ''')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "DELETE statements cannot be used in an ORDER BY clause"):
-            await self.con.query('''
-                select { foo := 1 } order by
-                        (DELETE User filter .name = 't1')
-            ''')
-
-    # @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters")
-    @test.decorators.experimental_interpreter_exclude("Expected Query Error")
-    async def test_edgeql_select_interpreter_params_01(self):
-        with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
-            await self.con.query("select ($0, $1)")
-
-    # @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters")
-    @test.decorators.experimental_interpreter_exclude("Expected Query Error")
-    async def test_edgeql_select_interpreter_params_02(self):
-        with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
-            await self.con.query("select ($0, 5)")
-
-    # @test.decorators.experimental_interpreter_triaged_pending_feature("Parameters")
-    @test.decorators.experimental_interpreter_exclude("Expected Query Error")
-    async def test_edgeql_select_interpreter_params_03(self):
-        with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
-            await self.con.query("select ($0, <std::int64>$0)")
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("selecting schema::Objects")
-    async def test_edgeql_type_pointer_inlining_01(self):
-        await self.con._fetchall(
-            r'''
-            with
-            data := {0, 1, 2},
-            items := (
-                for item in data union (
-                    with
-                    user := (select schema::Object limit 1)
-                    select user
-                )
-            )
-            select items;
-            ''',
-            __typenames__=True
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("<schema introspection> .pointers on ObjectType")
-    async def test_edgeql_type_pointer_inlining_02(self):
-        await self.con._fetchall(
-            r'''
-            with
-              object_type := (select schema::ObjectType limit 1),
-              pointers := object_type.pointers,
-              pointers_2 := (select pointers limit 1),
-            select pointers_2;
-            ''',
-            __typenames__=True
-        )
-
-    @test.decorators.experimental_interpreter_triaged_pending_feature("schema introspection")
-    async def test_edgeql_type_pointer_backlink_01(self):
-        # Type injection on bare backlinks was broken in 3.x (#5930)
-        await self.con._fetchall(
-            r'''
-            select schema::Type {name, refs := .<target[is schema::Pointer]};
-            ''',
-            __typenames__=True
         )

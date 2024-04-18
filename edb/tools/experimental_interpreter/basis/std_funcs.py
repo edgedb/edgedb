@@ -13,6 +13,7 @@ import random
 from .. import interpreter_logging
 
 from datetime import datetime, timezone
+import re
 
 def val_is_true(v: Val) -> bool:
     match v:
@@ -270,4 +271,11 @@ def std_contains_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
         case [[e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), haystack)], 
              [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), needle)]]:
             return [e.BoolVal(needle in haystack)]
+    raise FunCallErr()
+
+def std_re_test_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), pattern)], 
+             [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), string)]]:
+            return [e.BoolVal(bool(re.search(pattern, string)))]
     raise FunCallErr()

@@ -603,6 +603,8 @@ def combine_tp_with_subject_tp(ctx: e.TcCtx, o1: e.Tp, o2: e.ObjectTp) -> e.Tp:
             return combine_tp_with_subject_tp(ctx, resolve_named_nominal_link_tp(ctx, o1), o2)
         case e.UnionTp(l, r):
             return create_union_tp(combine_tp_with_subject_tp(ctx, l, o2), combine_tp_with_subject_tp(ctx, r, o2))
+        case e.IntersectTp(l, r):
+            return create_intersect_tp(combine_tp_with_subject_tp(ctx, l, o2), combine_tp_with_subject_tp(ctx, r, o2))
         case _:
             raise ValueError("not implemented combine tp", pp.show(o1), pp.show(o2))
 
@@ -614,6 +616,8 @@ def combine_tp_with_linkprop_tp(ctx: e.TcCtx, o1: e.Tp, o2: e.ObjectTp) -> e.Tp:
             return combine_tp_with_linkprop_tp(ctx, resolve_named_nominal_link_tp(ctx, o1), o2)
         case e.UnionTp(l, r):
             return e.UnionTp(combine_tp_with_linkprop_tp(ctx, l, o2), combine_tp_with_linkprop_tp(ctx, r, o2))
+        case e.IntersectTp(l, r):
+            return e.IntersectTp(combine_tp_with_linkprop_tp(ctx, l, o2), combine_tp_with_linkprop_tp(ctx, r, o2))
         case _:
             raise ValueError("not implemented combine tp", pp.show(o1), pp.show(o2))
 

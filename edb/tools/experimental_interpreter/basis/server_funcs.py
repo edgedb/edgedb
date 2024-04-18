@@ -55,6 +55,7 @@ all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e
     "datetime_current": std_datetime_current,
     "contains": std_contains_impl,
     "random": random_impl,
+    "re_test": std_re_test_impl,
     e.IndirectionIndexOp: indirection_index_impl,
     e.IndirectionSliceStartStopOp: indirection_slice_start_stop_impl,
     e.IndirectionSliceStartOp: indirection_slice_start_impl,

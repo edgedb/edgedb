@@ -998,8 +998,12 @@ class ConnectedTestCase(ClusterTestCase):
                 # try:
                 if sort is not None:
                     assert_data_shape.sort_results(res, sort)
-                assert_data_shape.assert_data_shape(
-                    res, exp_result_json, self.fail, message=msg)
+                if exp_result_binary is not ...:
+                    assert_data_shape.assert_data_shape(
+                        res, exp_result_binary, self.fail, message=msg)
+                else:
+                    assert_data_shape.assert_data_shape(
+                        res, exp_result_json, self.fail, message=msg)
                 # except AssertionError as e:
                 #     raise AssertionError(
                 #         str(e),
@@ -1018,10 +1022,10 @@ class ConnectedTestCase(ClusterTestCase):
 
                 res = json.loads(res)
 
-            if sort is not None:
-                assert_data_shape.sort_results(res, sort)
-            assert_data_shape.assert_data_shape(
-                res, exp_result_json, self.fail, message=msg)
+                if sort is not None:
+                    assert_data_shape.sort_results(res, sort)
+                assert_data_shape.assert_data_shape(
+                    res, exp_result_json, self.fail, message=msg)
         except Exception:
             self.add_fail_notes(serialization='json')
             if msg:
