@@ -882,7 +882,7 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
                 for c in self.get_attribute_value('components')
             ]
 
-            new_schema, union_type = utils.get_union_type(
+            new_schema, union_type, _ = utils.ensure_union_type(
                 schema,
                 components,
                 opaque=self.get_attribute_value('is_opaque_union') or False,

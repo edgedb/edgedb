@@ -1109,20 +1109,6 @@ def ensure_union_type(
     return schema, uniontype, created
 
 
-def get_union_type(
-    schema: s_schema.Schema,
-    types: Iterable[s_types.Type],
-    *,
-    opaque: bool = False,
-    module: Optional[str] = None,
-) -> Tuple[s_schema.Schema, s_types.Type]:
-
-    schema, union, _ = ensure_union_type(
-        schema, types, opaque=opaque, module=module)
-
-    return schema, union
-
-
 def get_non_overlapping_union(
     schema: s_schema.Schema,
     objects: Iterable[so.InheritingObjectT],
@@ -1204,19 +1190,6 @@ def ensure_intersection_type(
             module=module,
             transient=transient,
         )
-
-
-def get_intersection_type(
-    schema: s_schema.Schema,
-    types: Iterable[s_types.Type],
-    *,
-    module: Optional[str] = None,
-) -> Tuple[s_schema.Schema, s_types.Type]:
-
-    schema, intersection, _ = ensure_intersection_type(
-        schema, types, module=module)
-
-    return schema, intersection
 
 
 def _intersection_error(

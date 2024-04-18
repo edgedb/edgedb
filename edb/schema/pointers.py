@@ -3220,7 +3220,7 @@ def get_or_create_intersection_pointer(
         return schema, components[0]
 
     targets = list(filter(None, [p.get_target(schema) for p in components]))
-    schema, target = utils.get_intersection_type(
+    schema, target, _ = utils.ensure_intersection_type(
         schema, targets, module=modname)
 
     cardinality = qltypes.SchemaCardinality.One
