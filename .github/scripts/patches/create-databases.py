@@ -55,16 +55,19 @@ try:
     )
     with open("tests/schemas/ext_ai_rc1.esdl") as f:
         body = f.read()
-    db2.execute(f'''
-        START MIGRATION TO {{
-            using extension ai;
-            module default {{
-                {body}
-            }}
-        }};
-        POPULATE MIGRATION;
-        COMMIT MIGRATION;
-    ''')
+    try:
+        db2.execute(f'''
+            START MIGRATION TO {{
+                using extension ai;
+                module default {{
+                    {body}
+                }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        ''')
+    except edgedb.EdgeQLSyntaxError:
+        pass
     db2.close()
 
     # Compile a query from the CLI.
