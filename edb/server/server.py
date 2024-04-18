@@ -234,6 +234,7 @@ class BaseServer:
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
 
+        self._default_auth_method_spec = default_auth_method
         self._default_auth_methods = self._get_auth_method_types(
             default_auth_method)
         self._binary_endpoint_security = binary_endpoint_security
@@ -1080,7 +1081,7 @@ class BaseServer:
             params=dict(
                 dev_mode=self._devmode,
                 test_mode=self._testmode,
-                default_auth_method=str(self._default_auth_method),
+                default_auth_methods=str(self._default_auth_method_spec),
                 listen_hosts=self._listen_hosts,
                 listen_port=self._listen_port,
             ),
