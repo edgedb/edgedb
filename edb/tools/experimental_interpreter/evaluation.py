@@ -124,6 +124,15 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabase, subject: Val, label: Label) ->
                 label_str = label.label
                 if label_str == "id":
                     return e.ResultMultiSetVal([e.UuidVal(id)])
+                elif label_str == "__type__":
+                    print_warning("Introspection is not properly supported yet")
+                    return e.ResultMultiSetVal(
+                        [e.RefVal(next_id(),
+                                  e.QualifiedName(["schema", "ObjectType"]),
+                                  e.ObjectVal({
+                                        e.StrLabel("name"): (e.Visible(), e.MultiSetVal([e.StrVal("::".join(tpname.names))])),
+                                  })
+                                  )])
                 else:
                     return db.project(id, tpname, label_str)
             else:

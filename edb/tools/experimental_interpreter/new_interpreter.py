@@ -34,6 +34,7 @@ from .data import expr_to_str as pp
 from .db_interface import *
 from .schema.library_discovery import *
 from .type_checking_tools import schema_checking as sck
+from .type_checking_tools import name_resolution 
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
 # sys.setrecursionlimit(10000)
 
@@ -46,6 +47,7 @@ def empty_db(schema : DBSchema) -> EdgeDatabase:
 
 def empty_dbschema() -> DBSchema:
     return DBSchema({}, {}, {}, {}, {})
+
 
 def default_dbschema() -> DBSchema:
     initial_db = empty_dbschema()
@@ -64,6 +66,7 @@ def default_dbschema() -> DBSchema:
         initial_db,
         [std_path, schema_path, cal_path, math_path, interpreter_internal_path]
     )
+    name_resolution.checked_module_name_resolve(initial_db, ("schema",))
     sck.re_populate_module_inheritance(initial_db, ("std",))
     sck.re_populate_module_inheritance(initial_db, ("schema",))
     print("=== Standard library loaded ====")
@@ -239,7 +242,6 @@ def repl(*, init_sdl_file=None,
          debug_print=False,
          trace_to_file_path=None,
          sqlite_file=None,
-         skip_type_checking=False,
          ) -> None:
     # if init_sdl_file is not None and read_sqlite_file is not None:
     #     raise ValueError("Init SDL file and Read SQLite file cannot"
@@ -323,7 +325,7 @@ def repl(*, init_sdl_file=None,
                 run_meta_cmd(db, dbschema, s)
             else:
                 res = run_str(db, dbschema, s, print_asts=debug_print,
-                                    logs=logs, skip_type_checking=skip_type_checking)
+                                    logs=logs)
                 # print("\n".join(json.dumps(multi_set_val_to_json_like(v))
                 #                 for v in res))
         except Exception:

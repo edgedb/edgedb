@@ -21,7 +21,6 @@ import os
               help="standard library files")
 @click.option("--trace-to-file", type=str, required=False)
 @click.option("--sqlite-file", type=str, required=False)
-@click.option("--skip-type-checking", default=False, required=False, is_flag=True)
 @click.option("--test", type=str, required=False, help="""specify a single name. Will search the test schema directory for esdl file containing the case insensitive specified esdl file.
 Will also load the corresponding ql file. Will turn on trace-to-file to a default html file. Will populate next ql file if it exists. 
               """
@@ -33,7 +32,6 @@ def interperter_entry(
         *, init_sdl_file=None, next_ql_file=None, init_ql_file=None, verbose=False,
         trace_to_file=None, sqlite_file=None,
         library_ddl_files=None,
-        skip_type_checking=False,
         test=None, no_setup=False, 
         skip_test_confirm=False) -> None:
     
@@ -107,5 +105,4 @@ def interperter_entry(
          debug_print=verbose,
          trace_to_file_path=trace_to_file,
          sqlite_file=sqlite_file,
-         skip_type_checking=skip_type_checking,
          )

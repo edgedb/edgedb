@@ -244,6 +244,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_tp, result_card = tops.tp_project(
                 ctx, subject_tp, e.StrLabel(label))
+            # if isinstance(result_tp, e.UncheckedTypeName):
+            #     raise ValueError("Must not return UncheckedTypeName", expr, result_tp)
             """ If the projection is a computable expression, project from the subject"""
             if isinstance(result_tp, e.ComputableTp):
                 comp_expr = e.WithExpr(

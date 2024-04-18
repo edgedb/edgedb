@@ -433,6 +433,9 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
 
     def post_process_result_base_tp(result_base_tp: e.Tp, 
                                     result_mode: e.CMMode) -> e.ResultTp:
+
+        if isinstance(result_base_tp, e.UncheckedTypeName):
+            raise ValueError("Must not return UncheckedTypeName")
         return e.ResultTp(result_base_tp, result_mode)
     # if isinstance(tp.tp, e.VarTp):
     #     target_tp = dereference_var_tp(ctx.schema, tp.tp)

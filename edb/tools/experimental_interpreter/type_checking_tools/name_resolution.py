@@ -111,3 +111,16 @@ def module_name_resolve(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -> 
     mck.unchecked_module_map(dbschema, module_name, f, func_def_name_resolve)
 
 
+def checked_module_name_resolve(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -> None:
+    """
+    Modifies the db schema after checking
+    """
+    assert module_name not in dbschema.unchecked_modules
+    dbschema.unchecked_modules[module_name] = dbschema.modules[module_name]
+    del dbschema.modules[module_name]
+    module_name_resolve(dbschema, module_name)
+    assert module_name not in dbschema.modules
+    dbschema.modules[module_name] = dbschema.unchecked_modules[module_name]
+    del dbschema.unchecked_modules[module_name]
+    
+
