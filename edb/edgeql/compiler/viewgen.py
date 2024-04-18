@@ -406,9 +406,14 @@ def _process_view(
 
     for shape_el_desc in shape_desc:
         with ctx.new() as scopectx:
+            # when doing insert or update with a compexpr, generate the
+            # the anchor for __default__
             if (
                 (s_ctx.exprtype.is_insert() or s_ctx.exprtype.is_update())
                 and shape_el_desc.ql.compexpr is not None
+                and shape_el_desc.ptr_name not in (
+                    ctx.special_computables_in_mutation_shape
+                )
             ):
                 # mutating statement, ptrcls guaranteed to exist
                 ptrcls = setgen.resolve_ptr(
