@@ -1107,7 +1107,9 @@ class Tenant(ha_base.ClusterProtocol):
 
                 if match:
                     methods.append(auth.method)
-        else:
+                    break
+
+        if not methods:
             methods = self._server.get_default_auth_methods(transport)
 
         return methods
