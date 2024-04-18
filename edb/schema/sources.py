@@ -200,7 +200,7 @@ class Source(
             schema, self, sn.QualName("ext::ai", "index")
         )
         if ext_ai_index:
-            root_idx_id = ext_ai_index.get_topmost_concrete_base(schema).id.hex
+            idx_id = indexes.get_fts_index_id(schema, ext_ai_index)
             dimensions = ext_ai_index.must_get_json_annotation(
                 schema,
                 sn.QualName(
@@ -209,9 +209,8 @@ class Source(
             )
             res.append(
                 (
-                    f'__ext_ai_{root_idx_id}_embedding__',
-                    f'__ext_ai_{root_idx_id}_embedding__',
-
+                    f'__ext_ai_{idx_id}_embedding__',
+                    f'__ext_ai_{idx_id}_embedding__',
                     (
                         'edgedb',
                         f'vector({dimensions})',

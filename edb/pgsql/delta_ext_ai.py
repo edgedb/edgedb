@@ -768,4 +768,4 @@ def _get_index_root_id(
     schema: s_schema.Schema,
     index: s_indexes.Index,
 ) -> str:
-    return index.get_topmost_concrete_base(schema).id.hex
+    return s_indexes.get_fts_index_id(schema, index)

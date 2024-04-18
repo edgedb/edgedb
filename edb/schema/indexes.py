@@ -1702,6 +1702,14 @@ def is_fts_index(
     return index.issubclass(schema, fts_index)
 
 
+def get_fts_index_id(
+    schema: s_schema.Schema,
+    index: Index,
+) -> str:
+    # TODO: Use the model name?
+    return f'base'
+
+
 def is_ext_ai_index(
     schema: s_schema.Schema,
     index: Index,

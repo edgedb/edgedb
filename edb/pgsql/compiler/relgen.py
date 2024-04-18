@@ -3961,7 +3961,7 @@ def _ext_ai_search_inner_pgvector(
     query, = args_pg
     el_name = sn.QualName(
         '__object__',
-        f'__ext_ai_{index_id.hex}_embedding__',
+        f'__ext_ai_{index_id}_embedding__',
     )
     embedding_ptrref = irast.SpecialPointerRef(
         name=el_name,
