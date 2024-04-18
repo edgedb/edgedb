@@ -633,8 +633,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
 
         if len(auth_errors) == len(authmethods):
             if len(auth_errors) > 1:
-                desc = ", ".join(
-                    f"{k}: {e.args[0]};" for k, e in auth_errors.items())
+                desc = "; ".join(
+                    f"{k}: {e.args[0]}" for k, e in auth_errors.items())
                 raise errors.AuthenticationError(
                     f"all authentication methods failed: {desc}")
             else:

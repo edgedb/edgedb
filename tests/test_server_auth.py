@@ -310,8 +310,10 @@ class TestServerAuth(tb.ConnectedTestCase):
     async def _http_request(
         self,
         server,
+        *,
         sk=None,
         username='edgedb',
+        password=None,
         db='edgedb',
         proto='edgeql',
         client_cert_file=None,
@@ -326,6 +328,9 @@ class TestServerAuth(tb.ConnectedTestCase):
             headers = {'X-EdgeDB-User': username}
             if sk is not None:
                 headers['Authorization'] = f'bearer {sk}'
+            elif password is not None:
+                headers['Authorization'] = self.make_auth_header(
+                    username, password)
             return self.http_con_request(
                 con,
                 path=f'/db/{db}/{proto}',
@@ -336,12 +341,31 @@ class TestServerAuth(tb.ConnectedTestCase):
             )
 
     async def _jwt_http_request(
-        self, server, sk, username='edgedb', db='edgedb', proto='edgeql'
+        self,
+        server,
+        *,
+        sk=None,
+        username='edgedb',
+        password=None,
+        db='edgedb',
+        proto='edgeql',
     ):
-        return await self._http_request(server, sk, username, db, proto)
+        return await self._http_request(
+            server,
+            sk=sk,
+            username=username,
+            password=password,
+            db=db,
+            proto=proto,
+        )
 
-    def _jwt_gql_request(self, server, sk):
-        return self._jwt_http_request(server, sk, proto='graphql')
+    def _jwt_gql_request(self, server, *, sk=None, password=None):
+        return self._jwt_http_request(
+            server,
+            sk=sk,
+            password=password,
+            proto='graphql',
+        )
 
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
@@ -399,9 +423,9 @@ class TestServerAuth(tb.ConnectedTestCase):
             ):
                 await sd.connect(secret_key=corrupt_sk)
 
-            body, _, code = await self._jwt_http_request(sd, corrupt_sk)
+            body, _, code = await self._jwt_http_request(sd, sk=corrupt_sk)
             self.assertEqual(code, 401, f"Wrong result: {body}")
-            body, _, code = await self._jwt_gql_request(sd, corrupt_sk)
+            body, _, code = await self._jwt_gql_request(sd, sk=corrupt_sk)
             self.assertEqual(code, 401, f"Wrong result: {body}")
 
             # Try to mess up the *signature* part of it
@@ -413,19 +437,19 @@ class TestServerAuth(tb.ConnectedTestCase):
                 await sd.connect(secret_key=wrong_sk)
 
             body, _, code = await self._jwt_http_request(
-                sd, corrupt_sk, db='non_existant')
+                sd, sk=corrupt_sk, db='non_existant')
             self.assertEqual(code, 401, f"Wrong result: {body}")
 
             # Good key (control check, mostly)
-            body, _, code = await self._jwt_http_request(sd, base_sk)
+            body, _, code = await self._jwt_http_request(sd, sk=base_sk)
             self.assertEqual(code, 200, f"Wrong result: {body}")
             # Good key but nonexistant user
             body, _, code = await self._jwt_http_request(
-                sd, base_sk, username='elonmusk')
+                sd, sk=base_sk, username='elonmusk')
             self.assertEqual(code, 401, f"Wrong result: {body}")
             # Good key but user needs password auth
             body, _, code = await self._jwt_http_request(
-                sd, base_sk, username='foo')
+                sd, sk=base_sk, username='foo')
             self.assertEqual(code, 401, f"Wrong result: {body}")
 
             good_keys = [
@@ -442,9 +466,9 @@ class TestServerAuth(tb.ConnectedTestCase):
                     conn = await sd.connect(secret_key=sk)
                     await conn.aclose()
 
-                    body, _, code = await self._jwt_http_request(sd, sk)
+                    body, _, code = await self._jwt_http_request(sd, sk=sk)
                     self.assertEqual(code, 200, f"Wrong result: {body}")
-                    body, _, code = await self._jwt_gql_request(sd, sk)
+                    body, _, code = await self._jwt_gql_request(sd, sk=sk)
                     self.assertEqual(code, 200, f"Wrong result: {body}")
 
             bad_keys = {
@@ -469,9 +493,9 @@ class TestServerAuth(tb.ConnectedTestCase):
                     ):
                         await sd.connect(secret_key=sk)
 
-                    body, _, code = await self._jwt_http_request(sd, sk)
+                    body, _, code = await self._jwt_http_request(sd, sk=sk)
                     self.assertEqual(code, 401, f"Wrong result: {body}")
-                    body, _, code = await self._jwt_gql_request(sd, sk)
+                    body, _, code = await self._jwt_gql_request(sd, sk=sk)
                     self.assertEqual(code, 401, f"Wrong result: {body}")
 
     @unittest.skipIf(
@@ -559,6 +583,78 @@ class TestServerAuth(tb.ConnectedTestCase):
                 'authentication failed: revoked key',
             ):
                 await sd.connect(secret_key=sk)
+
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
+    async def test_server_auth_multiple_methods(self):
+        jwk_fd, jwk_file = tempfile.mkstemp()
+
+        key = jwcrypto.jwk.JWK(generate='EC')
+        with open(jwk_fd, "wb") as f:
+            f.write(key.export_to_pem(private_key=True, password=None))
+        jwk = secretkey.load_secret_key(pathlib.Path(jwk_file))
+        async with tb.start_edgedb_server(
+            jws_key_file=pathlib.Path(jwk_file),
+            default_auth_method=args.ServerAuthMethods({
+                args.ServerConnTransport.TCP: [
+                    args.ServerAuthMethod.JWT,
+                    args.ServerAuthMethod.Scram,
+                ],
+                args.ServerConnTransport.SIMPLE_HTTP: [
+                    args.ServerAuthMethod.Password,
+                    args.ServerAuthMethod.JWT,
+                ],
+            }),
+            extra_args=["--instance-name=localtest"],
+        ) as sd:
+            base_sk = secretkey.generate_secret_key(jwk)
+            conn = await sd.connect(secret_key=base_sk)
+            await conn.execute('''
+                CREATE EXTENSION edgeql_http;
+                CREATE EXTENSION graphql;
+            ''')
+            await conn.aclose()
+
+            # bad secret keys
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'authentication failed: malformed JWT',
+            ):
+                await sd.connect(secret_key='wrong', password=None)
+
+            # But connecting with the default password should still work
+            # because we are defaulting to Scram/JWT
+            c1 = await sd.connect(secret_key='wrong')
+            await c1.aclose()
+
+            sk = secretkey.generate_secret_key(jwk)
+
+            body, _, code = await self._jwt_http_request(sd, sk=sk)
+            self.assertEqual(code, 200, f"Wrong result: {body}")
+            body, _, code = await self._jwt_gql_request(sd, sk=sk)
+            self.assertEqual(code, 200, f"Wrong result: {body}")
+
+            corrupt_sk = sk[:50] + "0" + sk[51:]
+            body, _, code = await self._jwt_http_request(sd, sk=corrupt_sk)
+            self.assertEqual(code, 401, f"Wrong result: {body}")
+            body, _, code = await self._jwt_gql_request(sd, sk=corrupt_sk)
+            self.assertEqual(code, 401, f"Wrong result: {body}")
+
+            body, _, code = await self._jwt_http_request(
+                sd, password=sd.password)
+            self.assertEqual(code, 200, f"Wrong result: {body}")
+            body, _, code = await self._jwt_gql_request(
+                sd, password=sd.password)
+            self.assertEqual(code, 200, f"Wrong result: {body}")
+
+            body, _, code = await self._jwt_http_request(
+                sd, password="wrong password")
+            self.assertEqual(code, 401, f"Wrong result: {body}")
+            body, _, code = await self._jwt_gql_request(
+                sd, password="wrong password")
+            self.assertEqual(code, 401, f"Wrong result: {body}")
 
     async def test_server_auth_in_transaction(self):
         if not self.has_create_role:

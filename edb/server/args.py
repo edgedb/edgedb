@@ -543,7 +543,7 @@ def _validate_default_auth_method(
                     f"invalid connection transport: {transport_name}, "
                     f"supported values are: {', '.join(transport_names)})"
                 )
-
+            transport_methods = []
             for method_name in method_names.split('/'):
                 method = names.get(method_name)
                 if not method:
@@ -551,10 +551,8 @@ def _validate_default_auth_method(
                         f"invalid authentication method: {method_name}, "
                         f"supported values are: {', '.join(names)})"
                     )
-                try:
-                    methods[transport].append(method)
-                except KeyError:
-                    methods[transport] = [method]
+                transport_methods.append(method)
+            methods[transport] = transport_methods
 
     return ServerAuthMethods(methods)
 
