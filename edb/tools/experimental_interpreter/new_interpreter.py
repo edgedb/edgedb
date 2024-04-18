@@ -53,14 +53,16 @@ def default_dbschema() -> DBSchema:
     relative_path_to_schema = os.path.join("..", "..", "lib", "schema.edgeql")
     relative_path_to_cal = os.path.join("..", "..", "lib", "cal.edgeql")
     relative_path_to_math = os.path.join("..", "..", "lib", "math.edgeql")
+    relative_path_to_interpreter_internal = os.path.join("basis", "80-interpreter-internal.edgeql")
     std_path = os.path.join(os.path.dirname(__file__), relative_path_to_std)
     schema_path = os.path.join(os.path.dirname(__file__), relative_path_to_schema)
     cal_path = os.path.join(os.path.dirname(__file__), relative_path_to_cal)
     math_path = os.path.join(os.path.dirname(__file__), relative_path_to_math)
+    interpreter_internal_path = os.path.join(os.path.dirname(__file__), relative_path_to_interpreter_internal)
     print("Loading standard library at", std_path)
     add_ddl_library(
         initial_db,
-        [std_path, schema_path, cal_path, math_path]
+        [std_path, schema_path, cal_path, math_path, interpreter_internal_path]
     )
     sck.re_populate_module_inheritance(initial_db, ("std",))
     sck.re_populate_module_inheritance(initial_db, ("schema",))
