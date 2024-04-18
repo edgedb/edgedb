@@ -1006,7 +1006,7 @@ def compile_ext_ai_search(
         )[0]
 
         index_metadata[typeref] = {
-            "id": index.id,
+            "id": s_indexes.get_ai_index_id(schema, index),
             "dimensions": dimensions,
             "distance_function": (
                 distance_func.get_shortname(schema),
