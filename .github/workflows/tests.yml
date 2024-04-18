@@ -423,13 +423,13 @@ jobs:
 
     - name: Test without SQLite
       run: |
-        edb test --use-experimental-interpreter tests/test_eval_model_new_interpreter.py  tests/test_interpreter_disambiguation.py tests/test_edgeql_select.py
+        edb test --use-experimental-interpreter tests/test_eval_model_new_interpreter.py  tests/test_interpreter_disambiguation.py tests/test_edgeql_select_interpreter.py
 
     - name: Test with SQLite
       env:
         EDGEDB_INTERPRETER_USE_SQLITE: ':memory:'
       run: |
-        edb test --use-experimental-interpreter tests/test_eval_model_new_interpreter.py  tests/test_interpreter_disambiguation.py tests/test_edgeql_select.py
+        edb test --use-experimental-interpreter tests/test_eval_model_new_interpreter.py  tests/test_interpreter_disambiguation.py tests/test_edgeql_select_interpreter.py
 
   python-test:
     needs: build

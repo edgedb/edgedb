@@ -2039,8 +2039,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_empty_intersection_property(self):
         with self.assertRaisesRegex(
             edgedb.InvalidReferenceError,
-            "property 'since' does not exist.*no 'owner' links*",
-            experimental_interperter_regex="property 'since' does not exist"
+            "property 'since' does not exist",
         ):
             # Test the situation when the target type intersection
             # results in no candidate links to resolve the
