@@ -40,7 +40,7 @@ def elab_expr_with_default_head(node: qlast.Expr) -> BindingExpr:
     return abstract_over_expr(elab(node), DEFAULT_HEAD_NAME)
 
 
-def elab_error(msg: str, ctx: Optional[parsing.ParserContext]) -> Any:
+def elab_error(msg: str, ctx) -> Any:
     raise errors.QueryError(msg, context=ctx)
 
 
@@ -256,36 +256,57 @@ def elab_InsertQuery(expr: qlast.InsertQuery) -> InsertExpr:
             expr.aliases,
             InsertExpr(name=e.UnqualifiedName(subject_type), new=unshaped))) #TODO: we should allow qualified names here
 
-
-@elab.register(qlast.StringConstant)
-def elab_StringConstant(e: qlast.StringConstant) -> StrVal:
-    return StrVal(val=e.value)
-
-
-@elab.register(qlast.IntegerConstant)
-def elab_IntegerConstant(e: qlast.IntegerConstant) -> IntVal:
-    abs_val = int(e.value)
-    if e.is_negative:
-        abs_val = -abs_val
-    return IntVal(val=abs_val)
-
-
-@elab.register(qlast.FloatConstant)
-def elab_FloatConstant(expr: qlast.FloatConstant) -> e.ScalarVal:
-    abs_val = float(expr.value)
-    if expr.is_negative:
-        abs_val = -abs_val
-    return e.ScalarVal(tp=e.ScalarTp(e.QualifiedName(["std", "float64"])), val=abs_val)
-
-@elab.register(qlast.BooleanConstant)
-def elab_BooleanConstant(e: qlast.BooleanConstant) -> BoolVal:
-    match e.value:
-        case "True" | "true":
-            return BoolVal(val=True)
-        case "False" | "false":
-            return BoolVal(val=False)
+@elab.register(qlast.Constant)
+def elab_Constant(expr: qlast.Constant) -> e.ScalarVal:
+    match expr.kind:
+        case qlast.ConstantKind.STRING:
+            return e.StrVal(val=expr.value)
+        case qlast.ConstantKind.INTEGER:
+            return e.IntVal(val=int(expr.value))
+        case qlast.ConstantKind.FLOAT:
+            return e.ScalarVal(tp=e.ScalarTp(e.QualifiedName(["std", "float64"])), val=float(expr.value))
+        case qlast.ConstantKind.BOOLEAN:
+            match expr.value:
+                case "True" | "true":
+                    return BoolVal(val=True)
+                case "False" | "false":
+                    return BoolVal(val=False)
+                case _:
+                    raise ValueError("Unknown Bool Value", expr)
         case _:
-            raise ValueError("Unknown Bool Value", e)
+            raise ValueError("Unknown Constant Kind", expr.kind)
+        
+
+        
+# @elab.register(qlast.StringConstant)
+# def elab_StringConstant(e: qlast.StringConstant) -> StrVal:
+#     return StrVal(val=e.value)
+
+
+# @elab.register(qlast.IntegerConstant)
+# def elab_IntegerConstant(e: qlast.IntegerConstant) -> IntVal:
+#     abs_val = int(e.value)
+#     if e.is_negative:
+#         abs_val = -abs_val
+#     return IntVal(val=abs_val)
+
+
+# @elab.register(qlast.FloatConstant)
+# def elab_FloatConstant(expr: qlast.FloatConstant) -> e.ScalarVal:
+#     abs_val = float(expr.value)
+#     if expr.is_negative:
+#         abs_val = -abs_val
+#     return e.ScalarVal(tp=e.ScalarTp(e.QualifiedName(["std", "float64"])), val=abs_val)
+
+# @elab.register(qlast.BooleanConstant)
+# def elab_BooleanConstant(e: qlast.BooleanConstant) -> BoolVal:
+#     match e.value:
+#         case "True" | "true":
+#             return BoolVal(val=True)
+#         case "False" | "false":
+#             return BoolVal(val=False)
+#         case _:
+#             raise ValueError("Unknown Bool Value", e)
 
 
 def elab_where(where: Optional[qlast.Expr]) -> BindingExpr:

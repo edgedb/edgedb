@@ -1969,8 +1969,11 @@ def get_test_cases_setup(
             continue
 
         try:
-            setup_script = case.get_setup_script(
-                use_experimental_interpreter=use_experimental_interpreter)
+            if use_experimental_interpreter:
+                setup_script = case.get_setup_script(
+                    use_experimental_interpreter=True)
+            else:
+                setup_script = case.get_setup_script()
         except unittest.SkipTest:
             continue
 

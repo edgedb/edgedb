@@ -964,7 +964,7 @@ class ParallelTextTestRunner:
         )
         setup = tb.get_test_cases_setup(
             cases,
-            use_experimental_interpreter=self.use_experimental_interpreter)                            )
+            use_experimental_interpreter=self.use_experimental_interpreter)
         server_used = (
             False if self.use_experimental_interpreter
             else tb.test_cases_use_server(cases))

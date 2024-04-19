@@ -330,7 +330,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         self.mock_provider = None
 
     @classmethod
-    def get_setup_script(cls, use_experimental_interpreter=False):
+    def get_setup_script(cls):
         res = super().get_setup_script()
 
         import os.path

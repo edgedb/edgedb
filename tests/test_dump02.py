@@ -239,9 +239,7 @@ class TestDump02(tb.StableDumpTestCase, DumpTestCaseMixin):
     '''
 
     @classmethod
-    def get_setup_script(cls, use_experimental_interpreter=False):
-        if use_experimental_interpreter:
-            return super().get_setup_script(use_experimental_interpreter)
+    def get_setup_script(cls):
         script = (
             'CONFIGURE CURRENT DATABASE SET allow_dml_in_functions := true;\n'
         )
