@@ -103,6 +103,7 @@ class Base(ast.AST):
 
 class OptionValue(Base):
     """An option value resulting from a syntax."""
+    __abstract_node__ = True
 
     name: str
 
@@ -738,20 +739,24 @@ class ObjectDDL(NamedDDL):
 
 
 class CreateObject(ObjectDDL):
+    __abstract_node__ = True
+
     abstract: bool = False
     sdl_alter_if_exists: bool = False
     create_if_not_exists: bool = False
 
 
 class AlterObject(ObjectDDL):
-    pass
+    __abstract_node__ = True
 
 
 class DropObject(ObjectDDL):
-    pass
+    __abstract_node__ = True
 
 
 class CreateExtendingObject(CreateObject):
+    __abstract_node__ = True
+
     # final is not currently implemented, and the syntax is not
     # supported except in old dumps. We track it only to allow us to
     # error on it.
@@ -1065,6 +1070,8 @@ class DropProperty(DropObject, PropertyCommand):
 
 
 class CreateConcretePointer(CreateObject):
+    __abstract_node__ = True
+
     is_required: typing.Optional[bool] = None
     declared_overloaded: bool = False
     target: typing.Optional[typing.Union[Expr, TypeExpr]]
