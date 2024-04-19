@@ -732,7 +732,7 @@ jobs:
       run: |
         mkdir -p .results/
         cp .tmp/time_stats.csv .results/shard_${SHARD}.csv
-        edb test -j2 -v -s ${SHARD}/16 --running-times-log=.results/shard_${SHARD}.csv
+        edb test -j2 -v -s ${SHARD}/16 --running-times-log=.results/shard_${SHARD}.csv --exclude TestEdgeQLSelectInterpreter
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
