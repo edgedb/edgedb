@@ -1771,7 +1771,7 @@ class StateSerializerFactory:
             type_id, type_data, global_reps, protocol_version
         )
 
-    def make_compilation_config_serializer(self) -> InputShapeSerializer:
+    def make_compilation_config_serializer(self) -> CompilationConfigSerializer:
         ctx = Context(
             schema=self._schema,
             protocol_version=edbdef.CURRENT_PROTOCOL,
@@ -1782,7 +1782,7 @@ class StateSerializerFactory:
             ctx=ctx
         )
         type_data = b''.join(ctx.buffer)
-        return InputShapeSerializer(
+        return CompilationConfigSerializer(
             type_id,
             type_data,
             edbdef.CURRENT_PROTOCOL
@@ -1849,6 +1849,18 @@ class StateSerializer(InputShapeSerializer):
         global_name: str,
     ) -> Optional[object]:
         return self._global_reps.get(global_name)
+
+
+class CompilationConfigSerializer(InputShapeSerializer):
+    @functools.lru_cache(64)
+    def encode_configs(
+        self, *configs: immutables.Map[str, config.SettingValue] | None
+    ) -> bytes:
+        state: dict[str, Any] = {}
+        for conf in configs:
+            if conf is not None:
+                state.update((k, v.value) for k, v in conf.items())
+        return self.encode(state)
 
 
 def derive_alias(
