@@ -450,11 +450,11 @@ jobs:
         venv="$(python -c 'import sys; sys.stdout.write(sys.prefix)')"
         echo "VIRTUAL_ENV=${venv}" >> $GITHUB_ENV
 
-    - name: Set up uv cache
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/uv
-        key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
+    # - name: Set up uv cache
+    #   uses: actions/cache@v4
+    #   with:
+    #     path: ~/.cache/uv
+    #     key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
     
     - name: Download requirements.txt
       uses: actions/cache@v4
