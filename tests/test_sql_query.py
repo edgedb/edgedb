@@ -31,14 +31,26 @@ except ImportError:
 
 
 class TestSQL(tb.SQLQueryTestCase):
+    EXTENSIONS = ["pgvector", "ai"]
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'movies.esdl')
     SCHEMA_INVENTORY = os.path.join(
         os.path.dirname(__file__), 'schemas', 'inventory.esdl'
     )
 
-    SETUP = os.path.join(
-        os.path.dirname(__file__), 'schemas', 'movies_setup.edgeql'
-    )
+    SETUP = [
+        '''
+        alter type novel {
+            create deferred index ext::ai::index(
+              embedding_model := 'text-embedding-3-large') on (.foo);
+            create index fts::index on (
+                fts::with_options(.foo, language := fts::Language.eng)
+            );
+        };
+        ''',
+        os.path.join(
+            os.path.dirname(__file__), 'schemas', 'movies_setup.edgeql'
+        ),
+    ]
 
     async def test_sql_query_00(self):
         # basic
@@ -769,6 +781,32 @@ class TestSQL(tb.SQLQueryTestCase):
         for [toast_table] in res:
             # Result will probably be empty, so we cannot validate column names
             await self.squery_values(f'SELECT * FROM pg_toast.{toast_table}')
+
+    async def test_sql_query_introspection_04(self):
+        res = await self.squery_values(
+            '''
+            SELECT pc.relname, pa.attname, pa.attnotnull
+            FROM pg_attribute pa
+            JOIN pg_class pc ON pc.oid = pa.attrelid
+            JOIN pg_namespace n ON n.oid = pc.relnamespace
+            WHERE n.nspname = 'public' AND pc.relname = 'novel'
+            ORDER BY attnum
+            -- skip the system columns
+            OFFSET 6
+            '''
+        )
+
+        self.assertEqual(
+            res,
+            [
+                ['novel', 'id', True],
+                ['novel', '__type__', True],
+                ['novel', 'foo', False],
+                ['novel', 'genre_id', False],
+                ['novel', 'pages', True],
+                ['novel', 'title', True],
+            ],
+        )
 
     async def test_sql_query_schemas(self):
         await self.scon.fetch('SELECT id FROM "inventory"."Item";')

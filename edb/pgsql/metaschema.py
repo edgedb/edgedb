@@ -5834,8 +5834,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
 
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = isc.column_name
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = isc.column_name
-        WHERE isc.column_name <> '__fts_document__'
         ) t
+        WHERE v_column_name IS NOT NULL
             '''
             ),
         ),
@@ -6058,7 +6058,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         # attnum_internal column.
         dbops.View(
             name=("edgedbsql", "pg_attribute_ext"),
-            query="""
+            query=r"""
         SELECT attrelid,
             attname,
             atttypid,
@@ -6160,7 +6160,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
 
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = pa.attname
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = pa.attname
-        WHERE pa.attname <> '__fts_document__'
+        -- Filter out internal columns
+        WHERE pa.attname NOT LIKE '\_\_%\_\_' OR pa.attname = '__type__'
         ) t
         """,
         ),
