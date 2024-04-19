@@ -76,7 +76,8 @@ cdef deserialize_output_format(char mode):
 @cython.final
 cdef class CompilationRequest:
     def __cinit__(
-        self, compilation_config_serializer: sertypes.InputShapeSerializer
+        self,
+        compilation_config_serializer: sertypes.CompilationConfigSerializer,
     ):
         self._serializer = compilation_config_serializer
 
@@ -221,25 +222,19 @@ cdef class CompilationRequest:
         hash_obj = hashlib.blake2b(memoryview(out), digest_size=16)
         hash_obj.update(self.source.cache_key())
 
-        # Build config that affects compilation: session -> database -> system.
-        # comp_config is only used for calculating cache_key, while session
-        # config itself is separately stored in the serialized format.
-        comp_config = {}
-        if self.system_config is not None:
-            comp_config.update(self.system_config)
-        if self.database_config is not None:
-            comp_config.update(self.database_config)
         if self.session_config is None:
             session_config = b""
         else:
-            comp_config.update(self.session_config)
-            session_config = self._serializer.encode(
-                {k: v.value for k, v in self.session_config.items()}
+            session_config = self._serializer.encode_configs(
+                self.session_config
             )
         out.write_len_prefixed_bytes(session_config)
 
-        serialized_comp_config = self._serializer.encode(
-            {k: v.value for k, v in comp_config.items()}
+        # Build config that affects compilation: session -> database -> system.
+        # This is only used for calculating cache_key, while session
+        # config itself is separately stored above in the serialized format.
+        serialized_comp_config = self._serializer.encode_configs(
+            self.system_config, self.database_config, self.session_config
         )
         hash_obj.update(serialized_comp_config)
 
@@ -324,9 +319,10 @@ cdef class CompilationRequest:
             serializer = self._serializer
             buf.read_len_prefixed_bytes()
         else:
-            serializer = sertypes.InputShapeSerializer(
+            serializer = sertypes.CompilationConfigSerializer(
                 type_id, buf.read_len_prefixed_bytes(), defines.CURRENT_PROTOCOL
             )
+            self._serializer = serializer
 
         data = buf.read_len_prefixed_bytes()
         if data:
