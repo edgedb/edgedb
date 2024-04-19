@@ -551,7 +551,7 @@ jobs:
         rsync -av ./build/rust_extensions/edb/ ./edb/
         rsync -av ./build/extensions/edb/ ./edb/
         rsync -av ./build/lib/edb/ ./edb/
-        cp build/postgres/install/stamp build/postgres/
+        # cp build/postgres/install/stamp build/postgres/
 
     - name: Install edgedb-server
       env:
