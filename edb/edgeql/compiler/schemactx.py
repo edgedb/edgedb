@@ -422,13 +422,15 @@ def get_union_type(
 
 
 def get_intersection_type(
-    types: Iterable[s_types.TypeT],
+    types: Sequence[s_types.TypeT],
     *,
     ctx: context.ContextLevel,
 ) -> s_types.TypeT:
 
+    targets: Sequence[s_types.Type]
+    targets = s_utils.simplify_intersection_types(ctx.env.schema, types)
     ctx.env.schema, intersection, created = s_utils.ensure_intersection_type(
-        ctx.env.schema, types, transient=True)
+        ctx.env.schema, targets, transient=True)
 
     if created:
         ctx.env.created_schema_objects.add(intersection)

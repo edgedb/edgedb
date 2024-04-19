@@ -1137,13 +1137,47 @@ def _union_error(
 
 def ensure_intersection_type(
     schema: s_schema.Schema,
-    types: Iterable[s_types.Type],
+    types: Sequence[s_types.Type],
     *,
     transient: bool = False,
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, s_types.Type, bool]:
 
     from edb.schema import objtypes as s_objtypes
+
+    if len(types) == 1:
+        return schema, next(iter(types)), False
+
+    seen_scalars = False
+    seen_objtypes = False
+
+    for t in types:
+        if t.is_object_type():
+            if seen_scalars:
+                raise _intersection_error(schema, types)
+            seen_objtypes = True
+        else:
+            if seen_objtypes:
+                raise _intersection_error(schema, types)
+            seen_scalars = True
+
+    if seen_scalars:
+        # Non-related scalars and collections cannot for intersection types.
+        raise _intersection_error(schema, types)
+    else:
+        return s_objtypes.get_or_create_intersection_type(
+            schema,
+            components=cast(Iterable[s_objtypes.ObjectType], types),
+            module=module,
+            transient=transient,
+        )
+
+
+def simplify_intersection_types(
+    schema: s_schema.Schema,
+    types: Sequence[s_types.Type],
+) -> Sequence[s_types.Type]:
+
     from edb.schema import types as s_types
 
     components: Set[s_types.Type] = set()
@@ -1154,42 +1188,13 @@ def ensure_intersection_type(
         else:
             components.add(t)
 
-    components_list: Sequence[s_types.Type]
-
     if all(isinstance(c, s_types.InheritingType) for c in components):
-        components_list = minimize_class_set_by_least_generic(
+        return minimize_class_set_by_least_generic(
             schema,
             cast(Set[s_types.InheritingType], components),
         )
     else:
-        components_list = list(components)
-
-    if len(components_list) == 1:
-        return schema, next(iter(components_list)), False
-
-    seen_scalars = False
-    seen_objtypes = False
-
-    for component in components_list:
-        if component.is_object_type():
-            if seen_scalars:
-                raise _intersection_error(schema, components_list)
-            seen_objtypes = True
-        else:
-            if seen_objtypes:
-                raise _intersection_error(schema, components_list)
-            seen_scalars = True
-
-    if seen_scalars:
-        # Non-related scalars and collections cannot for intersection types.
-        raise _intersection_error(schema, components_list)
-    else:
-        return s_objtypes.get_or_create_intersection_type(
-            schema,
-            components=cast(Iterable[s_objtypes.ObjectType], components_list),
-            module=module,
-            transient=transient,
-        )
+        return list(components)
 
 
 def _intersection_error(
