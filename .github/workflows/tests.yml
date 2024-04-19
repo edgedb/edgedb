@@ -553,13 +553,13 @@ jobs:
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
 
-    - name: Install edgedb-server
-      env:
-        BUILD_EXT_MODE: skip
-      run: |
-        # --no-build-isolation because we have explicitly installed all deps
-        # and don't want them to be reinstalled in an "isolated env".
-        pip install --no-build-isolation --no-deps -e .[test,docs]
+    # - name: Install edgedb-server
+    #   env:
+    #     BUILD_EXT_MODE: skip
+    #   run: |
+    #     # --no-build-isolation because we have explicitly installed all deps
+    #     # and don't want them to be reinstalled in an "isolated env".
+    #     pip install --no-build-isolation --no-deps -e .[test,docs]
 
     # Run the test
     - name: Test without SQLite
