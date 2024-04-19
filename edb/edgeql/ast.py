@@ -1514,7 +1514,8 @@ class DropCast(DropObject, CastCommand):
     pass
 
 
-class _Optional(Expr):
+class OptionalExpr(Expr):
+    """Internally used in ELSE clause of IF statement."""
     __rust_ignore__ = True
 
     expr: Expr
