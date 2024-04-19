@@ -305,7 +305,7 @@ def _refresh_ai_embeddings(
         _pg_create_trigger(index, table_name, schema))
     ops.add_command(
         _pg_create_ai_embeddings_source_view(
-            index, options, schema))
+            index, options, schema, context))
     return ops
 
 
@@ -438,7 +438,7 @@ def _pg_create_ai_embeddings(
 
     # The component view for the "ai_pending_embeddings_{model_name}" union
     ops.add_command(
-        _pg_create_ai_embeddings_source_view(index, options, schema))
+        _pg_create_ai_embeddings_source_view(index, options, schema, context))
 
     return ops
 
@@ -587,6 +587,7 @@ def _pg_drop_trigger(
 
 def pg_rebuild_all_pending_embeddings_views(
     schema: s_schema.Schema,
+    context: sd.CommandContext,
 ) -> dbops.Command:
     ops = dbops.CommandGroup()
 
@@ -605,6 +606,9 @@ def pg_rebuild_all_pending_embeddings_views(
 
     used_models = collections.defaultdict(list)
     for other_index in all_ai_indexes:
+        if context.is_deleting(other_index):
+            continue
+
         tabname = common.get_index_table_backend_name(
             other_index, schema, aspect="extaiview")
         model_name = other_index.must_get_annotation(
@@ -705,6 +709,7 @@ def _pg_create_ai_embeddings_source_view(
     index: s_indexes.Index,
     options: qlcompiler.CompilerOptions,
     schema: s_schema.Schema,
+    context: sd.CommandContext,
     *,
     rebuild_all: bool=True,
 ) -> dbops.Command:
@@ -748,7 +753,8 @@ def _pg_create_ai_embeddings_source_view(
     view = dbops.View(name=view_name, query=document_sql)
     ops.add_command(dbops.CreateView(view, or_replace=True))
     if rebuild_all:
-        ops.add_command(pg_rebuild_all_pending_embeddings_views(schema))
+        ops.add_command(
+            pg_rebuild_all_pending_embeddings_views(schema, context))
 
     return ops
 
@@ -762,7 +768,7 @@ def _pg_drop_ai_embeddings_source_view(
     ops = dbops.CommandGroup()
 
     ops.add_command(pg_rebuild_all_pending_embeddings_views(
-        schema,
+        schema, context
     ))
 
     view_name = common.get_index_table_backend_name(
