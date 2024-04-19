@@ -88,7 +88,6 @@ class DescribeGlobal(s_enum.StrEnum):
 class Base(ast.AST):
     __abstract_node__ = True
     __ast_hidden__ = {'span', 'system_comment'}
-    __rust_ignore__ = True
 
     span: typing.Optional[Span] = None
 
@@ -655,7 +654,6 @@ class DDL(Base):
     '''Abstract parent for all DDL statements.'''
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class Position(DDL):
@@ -780,7 +778,6 @@ class NestedQLBlock(DDL):
 class MigrationCommand(DDLCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateMigration(CreateObject, MigrationCommand):
@@ -852,19 +849,16 @@ class CommitMigrationRewrite(MigrationCommand):
 class UnqualifiedObjectCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class GlobalObjectCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class ExternalObjectCommand(GlobalObjectCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class BranchType(s_enum.StrEnum):
@@ -877,7 +871,6 @@ class BranchType(s_enum.StrEnum):
 class DatabaseCommand(ExternalObjectCommand, NonTransactionalDDLCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
     flavor: str = 'BRANCH'
 
 
@@ -898,7 +891,6 @@ class DropDatabase(DropObject, DatabaseCommand):
 class ExtensionPackageCommand(GlobalObjectCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
     version: Constant
 
 
@@ -914,7 +906,6 @@ class DropExtensionPackage(DropObject, ExtensionPackageCommand):
 class ExtensionCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
     version: typing.Optional[Constant] = None
 
 
@@ -931,7 +922,6 @@ class DropExtension(DropObject, ExtensionCommand):
 class FutureCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateFuture(CreateObject, FutureCommand):
@@ -945,7 +935,6 @@ class DropFuture(DropObject, ExtensionCommand):
 class ModuleCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateModule(ModuleCommand, CreateObject):
@@ -962,7 +951,6 @@ class DropModule(ModuleCommand, DropObject):
 
 class RoleCommand(GlobalObjectCommand):
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateRole(CreateObject, RoleCommand):
@@ -981,7 +969,6 @@ class DropRole(DropObject, RoleCommand):
 class AnnotationCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateAnnotation(CreateExtendingObject, AnnotationCommand):
@@ -1000,7 +987,6 @@ class DropAnnotation(DropObject, AnnotationCommand):
 class PseudoTypeCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreatePseudoType(CreateObject, PseudoTypeCommand):
@@ -1010,7 +996,6 @@ class CreatePseudoType(CreateObject, PseudoTypeCommand):
 class ScalarTypeCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateScalarType(CreateExtendingObject, ScalarTypeCommand):
@@ -1028,7 +1013,6 @@ class DropScalarType(DropObject, ScalarTypeCommand):
 class PropertyCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateProperty(CreateExtendingObject, PropertyCommand):
@@ -1076,7 +1060,6 @@ class DropConcreteProperty(DropObject, PropertyCommand):
 class ObjectTypeCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateObjectType(CreateExtendingObject, ObjectTypeCommand):
@@ -1094,7 +1077,6 @@ class DropObjectType(DropObject, ObjectTypeCommand):
 class AliasCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateAlias(CreateObject, AliasCommand):
@@ -1112,7 +1094,6 @@ class DropAlias(DropObject, AliasCommand):
 class GlobalCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateGlobal(CreateObject, GlobalCommand):
@@ -1140,7 +1121,6 @@ class SetGlobalType(SetField):
 class LinkCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateLink(CreateExtendingObject, LinkCommand):
@@ -1174,7 +1154,6 @@ class DropConcreteLink(DropObject, LinkCommand):
 class ConstraintCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateConstraint(
@@ -1197,7 +1176,6 @@ class DropConstraint(DropObject, ConstraintCommand):
 class ConcreteConstraintOp(ConstraintCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
     args: typing.List[Expr]
     subjectexpr: typing.Optional[Expr]
     except_expr: typing.Optional[Expr] = None
@@ -1224,7 +1202,6 @@ class IndexType(DDL):
 class IndexCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class IndexCode(DDL):
@@ -1273,7 +1250,6 @@ class DropIndexMatch(DropObject, IndexMatchCommand):
 class ConcreteIndexCommand(IndexCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
     kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
     expr: Expr
     except_expr: typing.Optional[Expr] = None
@@ -1307,7 +1283,6 @@ class DropAnnotationValue(AnnotationCommand, DropObject):
 class AccessPolicyCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateAccessPolicy(CreateObject, AccessPolicyCommand):
@@ -1333,7 +1308,6 @@ class DropAccessPolicy(DropObject, AccessPolicyCommand):
 class TriggerCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class CreateTrigger(CreateObject, TriggerCommand):
@@ -1364,7 +1338,6 @@ class RewriteCommand(ObjectDDL):
     """
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
     kinds: typing.List[qltypes.RewriteKind]
 
@@ -1397,7 +1370,6 @@ class FunctionCode(DDL):
 class FunctionCommand(DDLCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
     params: typing.List[FuncParam] = ast.field(factory=list)
 
 
@@ -1430,7 +1402,6 @@ class OperatorCode(DDL):
 class OperatorCommand(DDLCommand):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
     kind: qltypes.OperatorKind
     params: typing.List[FuncParam] = ast.field(factory=list)
 
@@ -1460,7 +1431,6 @@ class CastCode(DDL):
 class CastCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
     from_type: TypeName
     to_type: TypeName
 
@@ -1481,7 +1451,6 @@ class DropCast(DropObject, CastCommand):
 
 class OptionalExpr(Expr):
     """Internally used in ELSE clause of IF statement."""
-    __rust_ignore__ = True
 
     expr: Expr
 
@@ -1553,7 +1522,6 @@ class SDL(Base):
     '''Abstract parent for all SDL statements.'''
 
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class ModuleDeclaration(SDL):
