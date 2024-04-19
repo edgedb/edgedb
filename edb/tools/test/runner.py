@@ -421,7 +421,9 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
                 try:
                     (init_sdl, init_ql) = setup[0][2]
                     if sqlite_file_name := os.environ.get('EDGEDB_INTERPRETER_USE_SQLITE'):
-                        if not sqlite_file_name.endswith(".sqlite"):
+                        if sqlite_file_name == "0":
+                            sqlite_file_name = None
+                        elif not sqlite_file_name.endswith(".sqlite"):
                             sqlite_file_name = ":memory:"
                         else:
                             # always start with a clean db for tests
