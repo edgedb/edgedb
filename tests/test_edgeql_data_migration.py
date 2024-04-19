@@ -12600,6 +12600,31 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
             }
         ''')
 
+    async def test_edgeql_migration_ai_09(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidDefinitionError,
+            r"with different parameters than on base type",
+        ):
+            await self.migrate('''
+                using extension ai;
+
+                module default {
+                    type Base {
+                        content: str;
+                        deferred index ext::ai::index(
+                            embedding_model := 'text-embedding-3-small'
+                        ) on (.content);
+                    };
+
+                    type Sub extending Base {
+                        deferred index ext::ai::index(
+                            embedding_model := 'text-embedding-3-large'
+                        ) on (.content ++ '!');
+                    };
+
+                };
+            ''', explicit_modules=True)
+
 
 class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
     DEFAULT_MODULE = 'default'
