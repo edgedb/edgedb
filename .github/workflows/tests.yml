@@ -447,12 +447,12 @@ jobs:
           pyproject.toml
         custom_cache_key_element: v2
 
-    # Restore the artifacts and environment variables
-    # - name: Download shared artifacts
-    #   uses: actions/download-artifact@v3
-    #   with:
-    #     name: shared-artifacts
-    #     path: .tmp
+    Restore the artifacts and environment variables
+    - name: Download shared artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: shared-artifacts
+        path: .tmp
 
     - name: Test without SQLite
       run: |
