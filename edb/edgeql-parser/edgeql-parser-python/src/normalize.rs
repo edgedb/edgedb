@@ -159,10 +159,9 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                 matches!(kw, "configure"|"create"|"alter"|"drop"|"start"|"analyze")
                 || (last_was_set && kw == "global")
             ) => {
-                let processed_source = serialize_tokens(&tokens);
                 return Ok(Entry {
-                    hash: hash(&processed_source),
-                    processed_source,
+                    hash: hash(text),
+                    processed_source: text.to_string(),
                     tokens,
                     variables: Vec::new(),
                     named_args: false,
@@ -188,7 +187,11 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
     }
 
     all_variables.push(variables);
-    let processed_source = serialize_tokens(&rewritten_tokens[..]);
+    let processed_source = if !all_variables.is_empty() {
+        serialize_tokens(&rewritten_tokens[..])
+    } else {
+        text.to_string()
+    };
     Ok(Entry {
         hash: hash(&processed_source),
         processed_source,
