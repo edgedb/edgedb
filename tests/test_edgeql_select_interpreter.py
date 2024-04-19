@@ -25,7 +25,7 @@ from edb.testbase import server as tb
 from edb.tools import test
 
 
-class TestEdgeQLSelect(tb.QueryTestCase):
+class TestEdgeQLSelectInterpreter(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'issues.esdl')
 
