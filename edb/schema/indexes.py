@@ -1531,7 +1531,47 @@ class AlterIndexOwned(
     referencing.AlterOwned[Index],
     field='owned',
 ):
-    pass
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+        referrer_ctx = self.get_referrer_context(context)
+        if (
+            referrer_ctx is not None
+            and not context.canonical
+            and is_ext_ai_index(schema, self.scls)
+        ):
+            schema = self._fixup_ext_ai_model_annotations(schema, context)
+
+        return schema
+
+    def _fixup_ext_ai_model_annotations(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        # Fixup the special ext::ai annotations that got copied to an
+        # ai index. They are always owned, even if the index is not,
+        # and so we have some hackiness to keep that true when DROP OWNED
+        # is run on the index.
+        # TODO: Can this be rationalized more?
+
+        for ref in self.scls.get_annotations(schema).objects(schema):
+            anno_name = ref.get_shortname(schema)
+            if anno_name.module != "ext::ai":
+                continue
+            alter = ref.init_delta_command(schema, sd.AlterObject)
+            alter.set_attribute_value('owned', True)
+            if anno_name.name == 'embedding_dimensions':
+                alter.set_attribute_value(
+                    'value', ref.get_value(schema), inherited=False)
+            schema = alter.apply(schema, context)
+            self.add(alter)
+
+        return schema
 
 
 class AlterIndex(

@@ -12416,7 +12416,7 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
             };
         ''', explicit_modules=True)
 
-    async def test_edgeql_migration_ai_07(self):
+    async def test_edgeql_migration_ai_07a(self):
         await self.migrate('''
             using extension ai;
 
@@ -12435,6 +12435,90 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                 };
 
             };
+        ''', explicit_modules=True)
+
+        await self.migrate('''
+            using extension ai;
+        ''', explicit_modules=True)
+
+    async def test_edgeql_migration_ai_07b(self):
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+                type Astronomy {
+                    content: str;
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-3-small'
+                    ) on (.content);
+                };
+
+                type Sub extending Astronomy;
+
+            };
+        ''', explicit_modules=True)
+
+        await self.migrate('''
+            using extension ai;
+        ''', explicit_modules=True)
+
+    async def test_edgeql_migration_ai_07c(self):
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+                type Astronomy {
+                    content: str;
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-3-small'
+                    ) on (.content);
+                };
+
+                type Sub extending Astronomy {
+                };
+
+            };
+        ''', explicit_modules=True)
+
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+                type Astronomy {
+                    content: str;
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-3-small'
+                    ) on (.content);
+                };
+
+                type Sub extending Astronomy {
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-3-small'
+                    ) on (.content);
+                };
+
+            };
+        ''', explicit_modules=True)
+
+        await self.migrate('''
+            using extension ai;
+
+            module default {
+                type Astronomy {
+                    content: str;
+                    deferred index ext::ai::index(
+                        embedding_model := 'text-embedding-3-small'
+                    ) on (.content);
+                };
+
+                type Sub extending Astronomy {
+                };
+
+            };
+        ''', explicit_modules=True)
+
+        await self.migrate('''
+            using extension ai;
         ''', explicit_modules=True)
 
     async def test_edgeql_migration_ai_08(self):
