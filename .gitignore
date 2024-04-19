@@ -10,8 +10,6 @@
 .DS_Store
 \#*#
 /test*.py
-/test*.html
-/test*.sqlite
 /.local
 /perf.data*
 /build
@@ -39,13 +37,3 @@ docs/_build
 /.vagga
 /.dmypy.json
 /compile_commands.json
-
-temp_*
-
-*.temp.txt
-test_*.sqlite
-test_*.sqlite-journal
-*.sqlite2
-*.sqlite-journal
-*.sqlite
-*.prof
