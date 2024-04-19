@@ -55,7 +55,7 @@ class TestTracer(unittest.TestCase):
 
         for name, astcls in inspect.getmembers(qlast, inspect.isclass):
             # Every non-abstract Command AST node should have status
-            if (issubclass(astcls, qlast.Command)
+            if (issubclass(astcls, (qlast.Command, qlast.DDLCommand))
                     and not astcls.__abstract_node__):
 
                 if dispatcher.dispatch(astcls) is not_implemented:

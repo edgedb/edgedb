@@ -500,10 +500,6 @@ class Query(Expr):
     ] = None
 
 
-"""A node that can have a WITH block"""
-Statement = Query | Command
-
-
 class SelectQuery(Query):
     result_alias: typing.Optional[str] = None
     result: Expr
@@ -524,7 +520,10 @@ class SelectQuery(Query):
 
 
 class GroupingIdentList(Base):
-    elements: typing.Tuple[GroupingAtom, ...]
+    elements: typing.Tuple[
+        typing.Union[ObjectRef, Path, GroupingIdentList],
+        ...
+    ]
 
 
 GroupingAtom = typing.Union[ObjectRef, Path, GroupingIdentList]
@@ -671,8 +670,12 @@ class DDLOperation(DDL):
     commands: typing.List[DDLOperation] = ast.field(factory=list)
 
 
-class DDLCommand(Command, DDLOperation):
+class DDLCommand(DDLOperation):
     __abstract_node__ = True
+
+    aliases: typing.Optional[
+        typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
+    ] = None
 
 
 class NonTransactionalDDLCommand(DDLCommand):
@@ -1691,3 +1694,6 @@ CallableObjectCommandTuple = (
     FunctionCommand,
     OperatorCommand,
 )
+
+# A node that can have a WITH block
+Statement = Query | Command | DDLCommand
