@@ -525,12 +525,12 @@ jobs:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
-    - name: Restore bootstrap cache
-      uses: actions/cache@v4
-      id: bootstrap-cache
-      with:
-        path: build/cache
-        key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+    # - name: Restore bootstrap cache
+    #   uses: actions/cache@v4
+    #   id: bootstrap-cache
+    #   with:
+    #     path: build/cache
+    #     key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
 
     # - name: Stop if we cannot retrieve the cache
     #   if: |
