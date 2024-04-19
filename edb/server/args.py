@@ -179,7 +179,7 @@ class ServerAuthMethods:
 
     def __str__(self):
         return ','.join(
-            f'{t.lower()}:{'/'.join(m.lower() for m in mm)}'
+            f"{t.lower()}:{'/'.join(m.lower() for m in mm)}"
             for t, mm in self._methods.items()
         )
 
