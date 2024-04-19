@@ -877,17 +877,9 @@ cdef class HttpProtocol:
                     # If the auth method and the provided auth information
                     # match, try to resolve the authentication.
                     if authmethod_name == 'JWT' and scheme == 'bearer':
-                        if not self.is_tls:
-                            raise errors.AuthenticationError(
-                                'JWT HTTP auth must use HTTPS')
-
                         auth_helpers.auth_jwt(
                             self.tenant, auth_payload, username, dbname)
                     elif authmethod_name == 'Password' and scheme == 'basic':
-                        if not self.is_tls:
-                            raise errors.AuthenticationError(
-                                'Basic HTTP auth must use HTTPS')
-
                         auth_helpers.auth_basic(
                             self.tenant, username, opt_password)
                     elif authmethod_name == 'Trust':
