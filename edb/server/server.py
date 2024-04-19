@@ -128,7 +128,7 @@ class BaseServer:
     _stmt_cache_size: int | None = None
 
     _compiler_pool: compiler_pool.AbstractPool | None
-    compilation_config_serializer: sertypes.InputShapeSerializer
+    compilation_config_serializer: sertypes.CompilationConfigSerializer
     _http_request_logger: asyncio.Task | None
     _auth_gc: asyncio.Task | None
 

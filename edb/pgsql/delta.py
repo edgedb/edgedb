@@ -96,6 +96,7 @@ from edb.pgsql import delta_ext_ai
 from edb.server import defines as edbdef
 from edb.server import config
 from edb.server.config import ops as config_ops
+from edb.server.compiler import sertypes
 
 from . import ast as pgast
 from .common import qname as q
@@ -3587,15 +3588,23 @@ def get_index_compile_options(
 
 def get_reindex_sql(
     obj: s_objtypes.ObjectType,
+    restore_desc: sertypes.ShapeDesc,
     schema: s_schema.Schema,
 ) -> Optional[str]:
-    "Generate SQL statement that repopulates the index after a restore."
-    "Currently this only applies to FTS indexes."
+    """Generate SQL statement that repopulates the index after a restore.
+
+    Currently this only applies to FTS indexes, and it only fires if
+    __fts_document__ is not in the dump (which it wasn't prior to 5.0).
+
+    AI index columns might also be missing if they were made with a
+    5.0rc1 dump, but the indexer will pick them up without our
+    intervention.
+    """
 
     (fts_index, _) = s_indexes.get_effective_object_index(
         schema, obj, sn.QualName("fts", "index")
     )
-    if fts_index:
+    if fts_index and '__fts_document__' not in restore_desc.fields:
         options = get_index_compile_options(fts_index, schema, {}, None)
         cmd = deltafts.update_fts_document(fts_index, options, schema)
         return cmd.code(None)
