@@ -411,7 +411,9 @@ class CompilerState:
         )
 
     @functools.cached_property
-    def compilation_config_serializer(self) -> sertypes.InputShapeSerializer:
+    def compilation_config_serializer(
+        self
+    ) -> sertypes.CompilationConfigSerializer:
         return (
             self.state_serializer_factory.make_compilation_config_serializer()
         )
@@ -1132,7 +1134,7 @@ class Compiler:
 
     def make_compilation_config_serializer(
         self,
-    ) -> sertypes.InputShapeSerializer:
+    ) -> sertypes.CompilationConfigSerializer:
         return self.state.compilation_config_serializer
 
     def describe_database_dump(

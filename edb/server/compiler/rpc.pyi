@@ -40,7 +40,8 @@ class CompilationRequest:
     session_config: immutables.Map[str, config.SettingValue] | None
 
     def __init__(
-        self, compilation_config_serializer: sertypes.InputShapeSerializer
+        self,
+        compilation_config_serializer: sertypes.CompilationConfigSerializer,
     ):
         ...
 
