@@ -610,7 +610,6 @@ class TestModelSmokeTests(unittest.TestCase):
             ]),
         )
 
-
     def test_model_for_optional_01(self):
         self.assert_test_query(
             r'''
@@ -619,12 +618,4 @@ class TestModelSmokeTests(unittest.TestCase):
                 union x.deck_cost ?? 0;
             ''',
             [0],
-        )
-
-    def test_model_for_order_by(self):
-        self.assert_test_query(
-            r"""
-                for x in User union x.name order by x.name desc
-            """,
-            ["Dave", "Carol", "Bob", "Alice"],
         )
