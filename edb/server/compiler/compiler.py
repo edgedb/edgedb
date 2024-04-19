@@ -1390,7 +1390,25 @@ class Compiler:
 
                 cols = {}
                 ptrs = dict(obj.get_pointers(schema).items(schema))
+                addons = {
+                    name: (col, type)
+                    for name, col, type in obj.get_addon_columns(schema)
+                }
+
                 for ptr_name in desc_ptrs:
+                    # If the pointer was one of our "addon columns"
+                    # (fts and ai shadow index columns), restore it
+                    # directly.
+                    #
+                    # N.B: This will need to become more sophisticated
+                    # if (when) we change the naming of any of our
+                    # addons.
+                    if ptr_name in addons:
+                        col, _type = addons[ptr_name]
+                        cols[ptr_name] = col
+                        mending_desc.append(None)
+                        continue
+
                     ptr = ptrs[s_name.UnqualName(ptr_name)]
                     if (
                         dump_with_extraneous_computables
@@ -1417,7 +1435,7 @@ class Compiler:
                         mending_desc.append(
                             _get_ptr_mending_desc(schema, ptr))
 
-                cmd = pg_delta.get_reindex_sql(obj, schema)
+                cmd = pg_delta.get_reindex_sql(obj, desc, schema)
                 if cmd:
                     repopulate_units.append(cmd)
 
@@ -3119,8 +3137,17 @@ def _describe_object(
                 ptrdesc.extend(_describe_object(schema, ptr,
                                                 protocol_version))
 
+        # For any addon columns (currently fts and ai shadow index
+        # columns), generate a fake pointer to put in the descriptor
+        # and include them in the dump.
+        nschema = schema
+        for (name, col, _type) in source.get_addon_columns(schema):
+            nschema, fake_ptr = _add_fake_property(source, name, schema)
+            cols.append(col)
+            shape.append(fake_ptr)
+
         type_data, type_id = sertypes.describe(
-            schema,
+            nschema,
             source,
             view_shapes={source: shape},
             follow_links=False,
@@ -3203,6 +3230,30 @@ def _get_data_mending_desc(
                 and any(elements)
             )
         )
+
+
+def _add_fake_property(
+    source: s_objtypes.ObjectType,
+    name: str,
+    schema: s_schema.Schema,
+) -> tuple[s_schema.Schema, s_props.Property]:
+    base = schema.get(
+        s_name.QualName('std', 'property'),
+        type=s_props.Property,
+    )
+    derived_name = s_obj.derive_name(
+        schema,
+        str(source.get_name(schema)),
+        module='__derived__',
+        derived_name_base=s_name.UnqualName(name),
+        parent=base,
+    )
+    return base.derive_ref(
+        schema,
+        source,
+        name=derived_name,
+        target=schema.get('std::bytes', type=s_types.Type),
+    )
 
 
 def _check_force_database_error(
