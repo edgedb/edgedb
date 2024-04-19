@@ -113,6 +113,18 @@ from .compiler import astutils
 ai_index_base_name = sn.QualName("ext::ai", "index")
 
 
+def get_ext_ai_pre_restore_script(
+    schema: s_schema.Schema,
+) -> str:
+    # We helpfully populate ext::ai::ChatPrompt with a starter prompt
+    # in the extension setup script.
+    # Unfortunately, this means that before user data is restored, we need
+    # to delete those objects, or there will be a constraint error.
+    return '''
+        delete {ext::ai::ChatPrompt, ext::ai::ChatPromptMessage}
+    '''
+
+
 def create_ext_ai_index(
     index: s_indexes.Index,
     predicate_src: Optional[str],
