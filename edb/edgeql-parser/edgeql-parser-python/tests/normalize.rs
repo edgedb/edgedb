@@ -7,8 +7,8 @@ use num_bigint::BigInt;
 fn test_verbatim() {
     let entry = normalize(r###"
         SELECT $1 + $2
-    "###).unwrap();
-    assert_eq!(entry.processed_source, "SELECT$1+$2");
+    "###.trim()).unwrap();
+    assert_eq!(entry.processed_source, "SELECT $1 + $2");
     assert_eq!(entry.variables, vec![vec![]]);
 }
 

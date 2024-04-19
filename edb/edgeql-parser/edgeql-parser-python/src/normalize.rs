@@ -187,10 +187,12 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
     }
 
     all_variables.push(variables);
-    let processed_source = if !all_variables.is_empty() {
-        serialize_tokens(&rewritten_tokens[..])
-    } else {
+    let processed_source = if counter <= var_idx {
+        // Just use the original text when there is no literal to extract,
+        // in order to save the time calling `serialize_tokens()`
         text.to_string()
+    } else {
+        serialize_tokens(&rewritten_tokens[..])
     };
     Ok(Entry {
         hash: hash(&processed_source),
