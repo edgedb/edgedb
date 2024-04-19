@@ -25,6 +25,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    Sequence,
     Dict,
     List,
     cast,
@@ -511,6 +512,16 @@ class Index(
             )
 
         return kwargs
+
+    def get_concrete_kwargs_as_values(
+        self,
+        schema: s_schema.Schema,
+    ) -> dict[str, Any]:
+        kwargs = self.get_concrete_kwargs(schema)
+        return {
+            k: v.assert_compiled().as_python_value()
+            for k, v in kwargs.items()
+        }
 
     def is_defined_here(
         self,
@@ -1222,8 +1233,24 @@ class CreateIndex(
             # get_effective_object_index for its side-effect of
             # checking the error.
             if is_exclusive_object_scope_index(schema, self.scls):
-                get_effective_object_index(
+                effective, others = get_effective_object_index(
                     schema, subject, root.get_name(schema), span=self.span)
+                if effective == self.scls and others:
+                    other = others[0]
+                    if (
+                        other.get_concrete_kwargs_as_values(schema)
+                        != self.scls.get_concrete_kwargs_as_values(schema)
+                    ):
+                        subject_name = subject.get_verbosename(schema)
+                        other_subject = other.get_subject(schema)
+                        assert other_subject
+                        other_name = other_subject.get_verbosename(schema)
+                        raise errors.InvalidDefinitionError(
+                            f"{root.get_name(schema)} indexes defined for "
+                            f"{subject_name} with different "
+                            f"parameters than on base type {other_name}",
+                            span=self.span,
+                        )
 
             # Make sure that kwargs and parameters match in name and type.
             # Also make sure that all parameters have values at this point
@@ -1483,9 +1510,8 @@ class CreateIndex(
         # Copy ext::ai:: annotations declared on the model specified
         # by the `embedding_model` kwarg.  This is necessary to avoid
         # expensive lookups later where the index is used.
-        kwargs = self.scls.get_concrete_kwargs(schema)
-        model_name_expr = kwargs["embedding_model"]
-        model_name = model_name_expr.assert_compiled().as_python_value()
+        kwargs = self.scls.get_concrete_kwargs_as_values(schema)
+        model_name = kwargs["embedding_model"]
 
         models = get_defined_ext_ai_embedding_models(schema, model_name)
         if len(models) == 0:
@@ -1661,17 +1687,16 @@ def get_effective_object_index(
     subject: IndexableSubject,
     base_idx_name: sn.QualName,
     span: Optional[parsing.Span] = None,
-) -> Tuple[Optional[Index], bool]:
+) -> tuple[Optional[Index], Sequence[Index]]:
     """
-    Returns the effective index of a subject and a boolean indicating
-    if the effective index has overriden any other fts indexes on this subject.
+    Returns the effective index of a subject and any overridden fs indexes
     """
     indexes: so.ObjectIndexByFullname[Index] = subject.get_indexes(schema)
 
     base = schema.get(base_idx_name, type=Index, default=None)
     if base is None:
         # Abstract base index does not exist.
-        return (None, False)
+        return (None, ())
 
     object_indexes = [
         ind
@@ -1679,7 +1704,7 @@ def get_effective_object_index(
         if ind.issubclass(schema, base)
     ]
     if len(object_indexes) == 0:
-        return (None, False)
+        return (None, ())
 
     object_indexes_defined_here = [
         ind for ind in object_indexes if ind.is_defined_here(schema)
@@ -1695,7 +1720,8 @@ def get_effective_object_index(
                 span=span,
             )
         effective = object_indexes_defined_here[0]
-        has_overridden = len(object_indexes) >= 2
+        overridden = object_indexes
+        overridden.remove(effective)
 
     else:
         # there are no object-scoped indexes defined on the subject
@@ -1710,9 +1736,9 @@ def get_effective_object_index(
             )
 
         effective = object_indexes[0]
-        has_overridden = False
+        overridden = []
 
-    return (effective, has_overridden)
+    return (effective, overridden)
 
 
 # XXX: the below hardcode should be replaced by an index scope
