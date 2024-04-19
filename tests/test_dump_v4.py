@@ -101,16 +101,6 @@ class DumpTestCaseMixin:
             ['secret'] if include_secrets else [],
         )
 
-        # We took a version snapshot for 4.0, but then needed to
-        # add more stuff to the 4.0 dump tests. It didn't seem worth
-        # adding a new dump test for it (both ergonomically and
-        # because it would be slower), so just quit early in that case.
-        if (
-            self._testMethodName
-            == 'test_dumpv4_restore_compatibility_4_0'
-        ):
-            return
-
         # __fts_document__ should be repopulated
         await self.assert_query_result(
             r'''
