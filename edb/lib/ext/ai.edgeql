@@ -435,20 +435,25 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             (insert ext::ai::ChatPromptMessage {
                 participant_role := ext::ai::ChatParticipantRole.System,
                 content := (
-                    "You are an expert Q&A system.\n" ++
-                    "Always answer questions based on the provided \
-                     context information. Never use prior knowledge.\n" ++
-                    "Follow these additional rules:\n\
-                     1. Never directly reference the given context in your \
-                        answer.\n\
-                     2. Never include phrases like 'Based on the context, ...' \
-                        or any similar phrases in your responses. \
-                     3. When the context does not provide information about \
-                        the question, answer with \
-                        'No information available.'.\n\
-                     Context information is below:\n{context}\n\
-                     Given the context information above and not prior \
-                     knowledge, answer the user query."
+                    "You are an expert Q&A system.\n\
+                     \n" ++
+                    "CONTEXT:\n\
+                     ###\n\
+                     {context}\n\
+                     ###\n\
+                     \n" ++
+                    "Answer the user query while obeying these rules:\n\
+                     - Any information in the context may be given.\n\
+                     - Never give information unless it is in the context.\n\
+                     - Never give explanations with information from outside \
+                       the context.\n\
+                     - Never use prior knowledge.\n\
+                     - Never say 'the context'.\n\
+                     - Never say 'mentioned that'.\n\
+                     - Never say 'mentioned as'.\n\
+                     \n" ++
+                    "If the context does not provide information about the \
+                     query, answer with 'No information available.'."
                 ),
             }),
             (insert ext::ai::ChatPromptMessage {
