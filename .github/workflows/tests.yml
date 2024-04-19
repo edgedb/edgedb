@@ -532,18 +532,18 @@ jobs:
     #     path: build/cache
     #     key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
 
-    # - name: Stop if we cannot retrieve the cache
-    #   if: |
-    #     steps.cli-cache.outputs.cache-hit != 'true' ||
-    #     steps.rust-cache.outputs.cache-hit != 'true' ||
-    #     steps.ext-cache.outputs.cache-hit != 'true' ||
-    #     steps.parsers-cache.outputs.cache-hit != 'true' ||
-    #     steps.postgres-cache.outputs.cache-hit != 'true' ||
-    #     steps.stolon-cache.outputs.cache-hit != 'true' ||
-    #     steps.bootstrap-cache.outputs.cache-hit != 'true'
-    #   run: |
-    #     echo ::error::Cannot retrieve build cache.
-    #     exit 1
+    - name: Stop if we cannot retrieve the cache
+      # steps.cli-cache.outputs.cache-hit != 'true' ||
+      # steps.stolon-cache.outputs.cache-hit != 'true' ||
+      # steps.bootstrap-cache.outputs.cache-hit != 'true'
+      if: |
+        steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.ext-cache.outputs.cache-hit != 'true' ||
+        steps.parsers-cache.outputs.cache-hit != 'true' ||
+        steps.postgres-cache.outputs.cache-hit != 'true' 
+      run: |
+        echo ::error::Cannot retrieve build cache.
+        exit 1
 
     - name: Restore cache into the source tree
       run: |
