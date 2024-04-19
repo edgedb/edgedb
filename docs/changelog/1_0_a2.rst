@@ -7,7 +7,7 @@
 ===========
 
 This changelog summarizes new features and breaking changes in
-`EdgeDB 1.0 alpha 2 </blog/edgedb-1-0-alpha-2>`_.
+`EdgeDB 1.0 alpha 2 <https://www.edgedb.com/blog/edgedb-1-0-alpha-2>`_.
 
 
 New JavaScript Driver
@@ -47,7 +47,7 @@ and it is ready for use:
 
     main();
 
-The documentation can be found `here </docs/clients/01_js/index>`_.
+The documentation can be found :ref:`here <edgedb-js-intro>`.
 
 
 Standard Library

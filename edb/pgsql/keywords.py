@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Dict
 
 keyword_types = range(1, 5)
 (UNRESERVED_KEYWORD, RESERVED_KEYWORD,

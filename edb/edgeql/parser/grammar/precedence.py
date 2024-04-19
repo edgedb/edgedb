@@ -22,11 +22,7 @@ from __future__ import annotations
 from edb.common import parsing
 
 
-class PrecedenceMeta(parsing.PrecedenceMeta):
-    pass
-
-
-class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
+class Precedence(parsing.Precedence, assoc='fail', is_internal=True):
     pass
 
 

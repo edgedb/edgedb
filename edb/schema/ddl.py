@@ -18,7 +18,17 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Callable,
+    Optional,
+    Tuple,
+    Iterable,
+    Mapping,
+    Dict,
+    List,
+    cast,
+    TYPE_CHECKING,
+)
 
 from collections import defaultdict
 import itertools
@@ -26,6 +36,7 @@ import itertools
 from edb import errors
 
 from edb import edgeql
+from edb.common import debug
 from edb.common import uuidgen
 from edb.common import verutils
 from edb.edgeql import ast as qlast
@@ -217,8 +228,15 @@ def delta_schemas(
         schema_a_filters.append(_filter)
         schema_b_filters.append(_filter)
 
-    # __derived__ is ephemeral and should never be included
-    excluded_modules.add(sn.UnqualName('__derived__'))
+    # In theory, __derived__ is ephemeral and should not need to be
+    # included.  In practice, unions created by computed links put
+    # persistent things into __derived__ and need to be included in
+    # diffs.
+    # TODO: Fix this.
+    if not include_derived_types:
+        excluded_modules.add(sn.UnqualName('__derived__'))
+
+    excluded_modules.add(sn.UnqualName('__ext_casts__'))
 
     # Don't analyze the objects from extensions.
     if not include_extensions and isinstance(schema_b, s_schema.ChainedSchema):
@@ -317,12 +335,9 @@ def delta_schemas(
                         obj: so.Object,
                     ) -> bool:
                         assert isinstance(obj, so.DerivableObject)
-                        return (
-                            obj.generic(schema)
-                            or (
-                                isinstance(obj, s_types.Type)
-                                and obj.get_from_global(schema)
-                            )
+                        return obj.is_non_concrete(schema) or (
+                            isinstance(obj, s_types.Type)
+                            and obj.get_from_global(schema)
                         )
                     filters.append(_only_generic)
                 incl_modules = included_modules
@@ -553,7 +568,7 @@ def apply_sdl(
                 process_ext(
                     qlast.CreateExtension(
                         name=qlast.ObjectRef(name=dep),
-                        version=qlast.StringConstant(value=dep_version),
+                        version=qlast.Constant.string(value=dep_version),
                     )
                 )
 
@@ -566,8 +581,14 @@ def apply_sdl(
     # Now, sort the main body of SDL and apply it.
     ddl_stmts = s_decl.sdl_to_ddl(target_schema, documents)
 
-    chained = itertools.chain(futures.values(), ddl_stmts)
-    for ddl_stmt in chained:
+    if debug.flags.sdl_loading:
+        debug.header('SDL loading script')
+        for ddl_stmt in itertools.chain(
+            extensions.values(), futures.values(), ddl_stmts
+        ):
+            ddl_stmt.dump_edgeql()
+
+    for ddl_stmt in itertools.chain(futures.values(), ddl_stmts):
         process(ddl_stmt)
 
     return target_schema
@@ -616,7 +637,7 @@ def apply_ddl_script_ex(
     for ddl_stmt in edgeql.parse_block(ddl_text):
         if not isinstance(ddl_stmt, qlast.DDLCommand):
             raise AssertionError(f'expected DDLCommand node, got {ddl_stmt!r}')
-        schema, cmd = _delta_from_ddl(
+        schema, cmd = delta_and_schema_from_ddl(
             ddl_stmt,
             schema=schema,
             modaliases=modaliases,
@@ -646,7 +667,7 @@ def delta_from_ddl(
     ]=None,
     compat_ver: Optional[verutils.Version] = None,
 ) -> sd.DeltaRoot:
-    _, cmd = _delta_from_ddl(
+    _, cmd = delta_and_schema_from_ddl(
         ddl_stmt,
         schema=schema,
         modaliases=modaliases,
@@ -659,7 +680,7 @@ def delta_from_ddl(
     return cmd
 
 
-def _delta_from_ddl(
+def delta_and_schema_from_ddl(
     ddl_stmt: qlast.DDLCommand,
     *,
     schema: s_schema.Schema,
@@ -693,6 +714,10 @@ def _delta_from_ddl(
             context=context,
             testmode=testmode,
         )
+        if debug.flags.delta_plan:
+            debug.header('Delta Plan Input')
+            debug.dump(cmd)
+
         schema = cmd.apply(schema, context)
 
         if not stdmode:
@@ -728,11 +753,13 @@ def ddlast_from_delta(
     sdlmode: bool = False,
     testmode: bool = False,
     descriptive_mode: bool = False,
+    include_ext_version: bool = True,
 ) -> Dict[qlast.DDLOperation, sd.Command]:
     context = sd.CommandContext(
         descriptive_mode=descriptive_mode,
         declarative=sdlmode,
         testmode=testmode,
+        include_ext_version=include_ext_version,
     )
 
     if schema_a is None:
@@ -770,6 +797,7 @@ def statements_from_delta(
     # Used for backwards compatibility with older migration text.
     uppercase: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    include_ext_version: bool = True,
 ) -> Tuple[Tuple[str, qlast.DDLOperation, sd.Command], ...]:
 
     stmts = ddlast_from_delta(
@@ -778,6 +806,7 @@ def statements_from_delta(
         delta,
         sdlmode=sdlmode,
         descriptive_mode=descriptive_mode,
+        include_ext_version=include_ext_version,
     )
 
     ql_classes_src = {
@@ -844,6 +873,7 @@ def text_from_delta(
     sdlmode: bool = False,
     descriptive_mode: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    include_ext_version: bool = True,
 ) -> str:
     stmts = statements_from_delta(
         schema_a,
@@ -852,6 +882,7 @@ def text_from_delta(
         sdlmode=sdlmode,
         descriptive_mode=descriptive_mode,
         limit_ref_classes=limit_ref_classes,
+        include_ext_version=include_ext_version,
     )
     return '\n'.join(text for text, _, _ in stmts)
 
@@ -860,6 +891,8 @@ def ddl_text_from_delta(
     schema_a: Optional[s_schema.Schema],
     schema_b: s_schema.Schema,
     delta: sd.DeltaRoot,
+    *,
+    include_ext_version: bool = True,
 ) -> str:
     """Return DDL text corresponding to a delta plan.
 
@@ -875,7 +908,13 @@ def ddl_text_from_delta(
     Returns:
         DDL text corresponding to *delta*.
     """
-    return text_from_delta(schema_a, schema_b, delta, sdlmode=False)
+    return text_from_delta(
+        schema_a,
+        schema_b,
+        delta,
+        sdlmode=False,
+        include_ext_version=include_ext_version,
+    )
 
 
 def sdl_text_from_delta(
@@ -935,15 +974,16 @@ def descriptive_text_from_delta(
 
 
 def ddl_text_from_schema(
-    schema: s_schema.Schema, *,
-    included_modules: Optional[Iterable[sn.Name]]=None,
-    excluded_modules: Optional[Iterable[sn.Name]]=None,
-    included_items: Optional[Iterable[sn.Name]]=None,
-    excluded_items: Optional[Iterable[sn.Name]]=None,
-    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
-    include_module_ddl: bool=True,
-    include_std_ddl: bool=False,
-    include_migrations: bool=False,
+    schema: s_schema.Schema,
+    *,
+    included_modules: Optional[Iterable[sn.Name]] = None,
+    excluded_modules: Optional[Iterable[sn.Name]] = None,
+    included_items: Optional[Iterable[sn.Name]] = None,
+    excluded_items: Optional[Iterable[sn.Name]] = None,
+    included_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    include_module_ddl: bool = True,
+    include_std_ddl: bool = False,
+    include_migrations: bool = False,
 ) -> str:
     diff = delta_schemas(
         schema_a=None,
@@ -957,18 +997,20 @@ def ddl_text_from_schema(
         include_derived_types=False,
         include_migrations=include_migrations,
     )
-    return ddl_text_from_delta(None, schema, diff)
+    return ddl_text_from_delta(None, schema, diff,
+                               include_ext_version=not include_migrations)
 
 
 def sdl_text_from_schema(
-    schema: s_schema.Schema, *,
-    included_modules: Optional[Iterable[sn.Name]]=None,
-    excluded_modules: Optional[Iterable[sn.Name]]=None,
-    included_items: Optional[Iterable[sn.Name]]=None,
-    excluded_items: Optional[Iterable[sn.Name]]=None,
-    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
-    include_module_ddl: bool=True,
-    include_std_ddl: bool=False,
+    schema: s_schema.Schema,
+    *,
+    included_modules: Optional[Iterable[sn.Name]] = None,
+    excluded_modules: Optional[Iterable[sn.Name]] = None,
+    included_items: Optional[Iterable[sn.Name]] = None,
+    excluded_items: Optional[Iterable[sn.Name]] = None,
+    included_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    include_module_ddl: bool = True,
+    include_std_ddl: bool = False,
 ) -> str:
     diff = delta_schemas(
         schema_a=None,
@@ -986,15 +1028,16 @@ def sdl_text_from_schema(
 
 
 def descriptive_text_from_schema(
-    schema: s_schema.Schema, *,
-    included_modules: Optional[Iterable[sn.Name]]=None,
-    excluded_modules: Optional[Iterable[sn.Name]]=None,
-    included_items: Optional[Iterable[sn.Name]]=None,
-    excluded_items: Optional[Iterable[sn.Name]]=None,
-    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
-    include_module_ddl: bool=True,
-    include_std_ddl: bool=False,
-    include_derived_types: bool=False,
+    schema: s_schema.Schema,
+    *,
+    included_modules: Optional[Iterable[sn.Name]] = None,
+    excluded_modules: Optional[Iterable[sn.Name]] = None,
+    included_items: Optional[Iterable[sn.Name]] = None,
+    excluded_items: Optional[Iterable[sn.Name]] = None,
+    included_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    include_module_ddl: bool = True,
+    include_std_ddl: bool = False,
+    include_derived_types: bool = False,
 ) -> str:
     diff = delta_schemas(
         schema_a=None,

@@ -21,8 +21,6 @@ from __future__ import annotations
 
 import sys
 
-from . import multi_error
-
 
 def _get_contexts(ex, *, auto_init=False):
     try:
@@ -93,8 +91,8 @@ _old_excepthook = sys.excepthook
 
 
 def _is_internal_error(exc):
-    if isinstance(exc, multi_error.MultiError):
-        return any(_is_internal_error(e) for e in exc.__errors__)
+    if isinstance(exc, ExceptionGroup):
+        return any(_is_internal_error(e) for e in exc.exceptions)
     # This is pretty cheesy but avoids needing to import our edgedb
     # exceptions or do anything elaborate with contexts.
     return type(exc).__name__ == 'InternalServerError'

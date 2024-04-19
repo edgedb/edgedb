@@ -22,7 +22,24 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Final,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    AbstractSet,
+    ContextManager,
+    Iterable,
+    Iterator,
+    Sequence,
+    List,
+    NoReturn,
+    TYPE_CHECKING,
+)
 
 import contextlib
 import enum
@@ -30,7 +47,6 @@ import enum
 from edb import errors
 
 from edb.common import levenshtein
-from edb.common import parsing
 from edb.common.typeutils import downcast, not_none
 
 from edb.ir import ast as irast
@@ -49,6 +65,7 @@ from edb.schema import scalars as s_scalars
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -74,6 +91,7 @@ PtrDir = s_pointers.PointerDirection
 def new_set(
     *,
     stype: s_types.Type,
+    expr: irast.Expr,
     ctx: context.ContextLevel,
     ircls: Type[irast.Set] = irast.Set,
     **kwargs: Any,
@@ -84,8 +102,12 @@ def new_set(
     constructor.
     """
 
-    skip_subtypes: bool = kwargs.get('skip_subtypes', False)
     ignore_rewrites: bool = kwargs.get('ignore_rewrites', False)
+
+    skip_subtypes = False
+    if isinstance(expr, irast.TypeRoot):
+        skip_subtypes = expr.skip_subtypes
+
     rw_key = (stype, skip_subtypes)
 
     if not ignore_rewrites and ctx.suppress_rewrites:
@@ -103,36 +125,42 @@ def new_set(
         policies.try_type_rewrite(stype, skip_subtypes=skip_subtypes, ctx=ctx)
 
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
-    ir_set = ircls(typeref=typeref, **kwargs)
+    ir_set = ircls(typeref=typeref, expr=expr, **kwargs)
     ctx.env.set_types[ir_set] = stype
     return ir_set
 
 
-def new_empty_set(*, stype: Optional[s_types.Type]=None, alias: str='e',
-                  ctx: context.ContextLevel,
-                  srcctx: Optional[
-                      parsing.ParserContext]=None) -> irast.Set:
+def new_empty_set(
+    *,
+    stype: Optional[s_types.Type]=None, alias: str='e',
+    ctx: context.ContextLevel,
+    span: Optional[qlast.Span]=None
+) -> irast.Set:
     if stype is None:
         stype = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
-        if srcctx is not None:
-            ctx.env.type_origins[stype] = srcctx
+        if span is not None:
+            ctx.env.type_origins[stype] = span
 
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
     path_id = pathctx.get_expression_path_id(stype, alias, ctx=ctx)
-    ir_set = irast.EmptySet(path_id=path_id, typeref=typeref)
+    ir_set = irast.Set(
+        path_id=path_id,
+        typeref=typeref,
+        expr=irast.EmptySet(typeref=typeref),
+    )
     ctx.env.set_types[ir_set] = stype
     return ir_set
 
 
 def get_set_type(
-        ir_set: irast.Set, *,
-        ctx: context.ContextLevel) -> s_types.Type:
+    ir_set: irast.Set, *, ctx: context.ContextLevel
+) -> s_types.Type:
     return ctx.env.set_types[ir_set]
 
 
 def get_expr_type(
-        ir: irast.Set | irast.Expr, *,
-        ctx: context.ContextLevel) -> s_types.Type:
+    ir: irast.Set | irast.Expr, *, ctx: context.ContextLevel
+) -> s_types.Type:
     return typegen.type_from_typeref(ir.typeref, env=ctx.env)
 
 
@@ -149,13 +177,12 @@ def new_set_from_set(
         path_scope_id: Optional[int | KeepCurrentT]=KeepCurrent,
         path_id: Optional[irast.PathId]=None,
         stype: Optional[s_types.Type]=None,
-        rptr: Optional[irast.Pointer | KeepCurrentT]=KeepCurrent,
-        expr: Optional[irast.Expr | KeepCurrentT]=KeepCurrent,
-        context: Optional[parsing.ParserContext]=None,
+        expr: irast.Expr | KeepCurrentT=KeepCurrent,
+        span: Optional[qlast.Span]=None,
         is_binding: Optional[irast.BindingKind]=None,
+        is_schema_alias: Optional[bool]=None,
         is_materialized_ref: Optional[bool]=None,
         is_visible_binding_ref: Optional[bool]=None,
-        skip_subtypes: Optional[bool]=None,
         ignore_rewrites: Optional[bool]=None,
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
@@ -174,20 +201,18 @@ def new_set_from_set(
         stype = get_set_type(ir_set, ctx=ctx)
     if path_scope_id == KeepCurrent:
         path_scope_id = ir_set.path_scope_id
-    if rptr == KeepCurrent:
-        rptr = ir_set.rptr
     if expr == KeepCurrent:
         expr = ir_set.expr
-    if context is None:
-        context = ir_set.context
+    if span is None:
+        span = ir_set.span
     if is_binding is None:
         is_binding = ir_set.is_binding
+    if is_schema_alias is None:
+        is_schema_alias = ir_set.is_schema_alias
     if is_materialized_ref is None:
         is_materialized_ref = ir_set.is_materialized_ref
     if is_visible_binding_ref is None:
         is_visible_binding_ref = ir_set.is_visible_binding_ref
-    if skip_subtypes is None:
-        skip_subtypes = ir_set.skip_subtypes
     if ignore_rewrites is None:
         ignore_rewrites = ir_set.ignore_rewrites
     return new_set(
@@ -195,12 +220,11 @@ def new_set_from_set(
         path_scope_id=path_scope_id,
         stype=stype,
         expr=expr,
-        rptr=rptr,
-        context=context,
+        span=span,
         is_binding=is_binding,
+        is_schema_alias=is_schema_alias,
         is_materialized_ref=is_materialized_ref,
         is_visible_binding_ref=is_visible_binding_ref,
-        skip_subtypes=skip_subtypes,
         ignore_rewrites=ignore_rewrites,
         ircls=type(ir_set),
         ctx=ctx,
@@ -208,9 +232,11 @@ def new_set_from_set(
 
 
 def new_tuple_set(
-        elements: List[irast.TupleElement], *,
-        named: bool,
-        ctx: context.ContextLevel) -> irast.Set:
+    elements: List[irast.TupleElement],
+    *,
+    named: bool,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     element_types = {el.name: get_set_type(el.val, ctx=ctx) for el in elements}
     ctx.env.schema, stype = s_types.Tuple.create(
@@ -235,16 +261,18 @@ def new_tuple_set(
 
 
 def new_array_set(
-        elements: Sequence[irast.Set], *,
-        stype: Optional[s_types.Type]=None,
-        ctx: context.ContextLevel,
-        srcctx: Optional[parsing.ParserContext]=None) -> irast.Set:
+    elements: Sequence[irast.Set],
+    *,
+    stype: Optional[s_types.Type] = None,
+    ctx: context.ContextLevel,
+    span: Optional[qlast.Span]=None
+) -> irast.Set:
 
     if elements:
         element_type = typegen.infer_common_type(elements, ctx.env)
         if element_type is None:
             raise errors.QueryError('could not determine array type',
-                                    context=srcctx)
+                                    span=span)
     elif stype is not None:
         # When constructing an empty array, we should skip explicit cast any
         # time that we would skip it for an empty set because we can infer it
@@ -252,8 +280,8 @@ def new_array_set(
         assert stype.is_array()
     else:
         element_type = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
-        if srcctx is not None:
-            ctx.env.type_origins[element_type] = srcctx
+        if span is not None:
+            ctx.env.type_origins[element_type] = span
 
     if stype is None:
         assert element_type
@@ -265,7 +293,9 @@ def new_array_set(
 
 
 def raise_self_insert_error(
-    stype: s_obj.Object, source_context: Optional[parsing.ParserContext], *,
+    stype: s_obj.Object,
+    span: Optional[qlast.Span],
+    *,
     ctx: context.ContextLevel,
 ) -> NoReturn:
     dname = stype.get_displayname(ctx.env.schema)
@@ -276,7 +306,7 @@ def raise_self_insert_error(
             f'Use DETACHED if you meant to refer to an '
             f'uncorrelated {dname} set'
         ),
-        context=source_context,
+        span=span,
     )
 
 
@@ -290,7 +320,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         else:
             raise errors.QueryError(
                 'could not resolve partial path ',
-                context=expr.context)
+                span=expr.span
+            )
 
     computables: list[irast.Set] = []
     path_sets: list[irast.Set] = []
@@ -325,21 +356,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if refnode is not None:
                 path_tip = new_set_from_set(refnode, ctx=ctx)
             else:
-                stype = schemactx.get_schema_type(
-                    step,
-                    condition=lambda o: (
-                        isinstance(o, s_types.Type)
-                        and (
-                            o.is_object_type() or
-                            o.is_view(ctx.env.schema) or
-                            o.is_enum(ctx.env.schema)
-                        )
-                    ),
-                    label='object type or alias',
-                    item_type=s_types.QualifiedType,
-                    srcctx=step.context,
-                    ctx=ctx,
-                )
+                (view_set, stype) = resolve_name(step, ctx=ctx)
 
                 if (stype.is_enum(ctx.env.schema) and
                         not stype.is_view(ctx.env.schema)):
@@ -351,14 +368,15 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         raise errors.InvalidReferenceError(
                             f"cannot refer to alias link helper type "
                             f"'{stype.get_name(ctx.env.schema)}'",
-                            context=step.context,
+                            span=step.span,
                         )
 
                     # This is a schema-level view, as opposed to
                     # a WITH-block or inline alias view.
                     stype = stmtctx.declare_view_from_schema(stype, ctx=ctx)
 
-                view_set = ctx.view_sets.get(stype)
+                if not view_set:
+                    view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
                     view_scope_info = ctx.env.path_scope_map[view_set]
                     path_tip = new_set_from_set(
@@ -367,7 +385,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                             view_scope_info.pinned_path_id_ns is None
                         ),
                         is_binding=view_scope_info.binding_kind,
-                        context=step.context,
+                        span=step.span,
                         ctx=ctx,
                     )
 
@@ -398,36 +416,51 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if ptr_expr.type == 'property':
                 # Link property reference; the source is the
                 # link immediately preceding this step in the path.
-                if path_tip.rptr is None:
+                if not isinstance(path_tip.expr, irast.Pointer):
                     raise errors.EdgeQLSyntaxError(
                         f"unexpected reference to link property {ptr_name!r} "
                         "outside of a path expression",
-                        context=ptr_expr.context,
+                        span=ptr_expr.span,
                     )
 
-                if isinstance(path_tip.rptr.ptrref,
-                              irast.TypeIntersectionPointerRef):
+                # The backend can't really handle @source/@target
+                # outside of the singleton mode compiler, and they
+                # aren't really particularly useful outside that
+                # anyway, so disallow them.
+                if (
+                    ptr_expr.name in ('source', 'target')
+                    and ctx.env.options.schema_object_context
+                    not in (s_constr.Constraint, s_indexes.Index)
+                ):
+                    raise errors.QueryError(
+                        f'@{ptr_expr.name} may only be used in index and '
+                        'constraint definitions',
+                        span=step.span)
+
+                if isinstance(
+                    path_tip.expr.ptrref, irast.TypeIntersectionPointerRef
+                ):
                     ind_prefix, ptrs = typegen.collapse_type_intersection_rptr(
                         path_tip,
                         ctx=ctx,
                     )
 
-                    assert ind_prefix.rptr is not None
-                    prefix_type = get_set_type(ind_prefix.rptr.source, ctx=ctx)
+                    assert isinstance(ind_prefix.expr, irast.Pointer)
+                    prefix_type = get_set_type(ind_prefix.expr.source, ctx=ctx)
                     assert isinstance(prefix_type, s_objtypes.ObjectType)
 
                     if not ptrs:
                         tip_type = get_set_type(path_tip, ctx=ctx)
                         s_vn = prefix_type.get_verbosename(ctx.env.schema)
                         t_vn = tip_type.get_verbosename(ctx.env.schema)
-                        pn = ind_prefix.rptr.ptrref.shortname.name
+                        pn = ind_prefix.expr.ptrref.shortname.name
                         if direction is s_pointers.PointerDirection.Inbound:
                             s_vn, t_vn = t_vn, s_vn
                         raise errors.InvalidReferenceError(
                             f"property '{ptr_name}' does not exist because"
                             f" there are no '{pn}' links between"
                             f" {s_vn} and {t_vn}",
-                            context=ptr_expr.context,
+                            span=ptr_expr.span,
                         )
 
                     prefix_ptr_name = (
@@ -436,13 +469,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     ptr = schemactx.get_union_pointer(
                         ptrname=prefix_ptr_name,
                         source=prefix_type,
-                        direction=ind_prefix.rptr.direction,
+                        direction=ind_prefix.expr.direction,
                         components=ptrs,
                         ctx=ctx,
                     )
                 else:
                     ptr = typegen.ptrcls_from_ptrref(
-                        path_tip.rptr.ptrref, ctx=ctx)
+                        path_tip.expr.ptrref, ctx=ctx)
 
                 if isinstance(ptr, s_links.Link):
                     source = ptr
@@ -450,7 +483,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     raise errors.QueryError(
                         'improper reference to link property on '
                         'a non-link object',
-                        context=step.context,
+                        span=step.span,
                     )
             else:
                 source = get_set_type(path_tip, ctx=ctx)
@@ -471,7 +504,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if isinstance(source, s_types.Tuple):
                 path_tip = tuple_indirection_set(
                     path_tip, source=source, ptr_name=ptr_name,
-                    source_context=step.context, ctx=ctx)
+                    span=step.span, ctx=ctx)
 
             else:
                 path_tip = ptr_step_set(
@@ -479,11 +512,11 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     direction=direction,
                     upcoming_intersections=upcoming_intersections,
                     ignore_computable=True,
-                    source_context=step.context, ctx=ctx)
+                    span=step.span, ctx=ctx)
 
-                assert path_tip.rptr is not None
+                assert isinstance(path_tip.expr, irast.Pointer)
                 ptrcls = typegen.ptrcls_from_ptrref(
-                    path_tip.rptr.ptrref, ctx=ctx)
+                    path_tip.expr.ptrref, ctx=ctx)
                 if _is_computable_ptr(ptrcls, direction, ctx=ctx):
                     is_computable = True
 
@@ -494,22 +527,22 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     f'cannot apply type intersection operator to '
                     f'{arg_type.get_verbosename(ctx.env.schema)}: '
                     f'it is not an object type',
-                    context=step.context)
+                    span=step.span)
 
             if not isinstance(step.type, qlast.TypeName):
                 raise errors.QueryError(
                     f'complex type expressions are not supported here',
-                    context=step.context,
+                    span=step.span,
                 )
 
             typ = schemactx.get_schema_type(step.type.maintype, ctx=ctx)
 
             try:
                 path_tip = type_intersection_set(
-                    path_tip, typ, optional=False, source_context=step.context,
+                    path_tip, typ, optional=False, span=step.span,
                     ctx=ctx)
             except errors.SchemaError as e:
-                e.set_source_context(step.type.context)
+                e.set_span(step.type.span)
                 raise
 
         else:
@@ -542,8 +575,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         ctx=subctx)
 
                 if path_tip.path_id.is_type_intersection_path():
-                    assert path_tip.rptr is not None
-                    scope_set = path_tip.rptr.source
+                    assert isinstance(path_tip.expr, irast.Pointer)
+                    scope_set = path_tip.expr.source
                 else:
                     scope_set = path_tip
 
@@ -555,8 +588,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if mapped := get_view_map_remapping(path_tip.path_id, ctx):
             path_tip = new_set_from_set(
                 path_tip, path_id=mapped.path_id, ctx=ctx)
-            if path_tip.rptr:
-                path_tip.rptr = path_tip.rptr.replace(target=path_tip)
             # If we are remapping a source path, then we know that
             # the path is visible, so we shouldn't recompile it
             # if it is a computable path.
@@ -566,15 +597,15 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             computables.append(path_tip)
 
         if pathctx.path_is_inserting(path_tip.path_id, ctx=ctx):
-            raise_self_insert_error(stype, step.context, ctx=ctx)
+            raise_self_insert_error(stype, step.span, ctx=ctx)
 
         # Don't track this step of the path if it didn't change the set
         # (probably because of do-nothing intersection)
         if not path_sets or path_sets[-1] != path_tip:
             path_sets.append(path_tip)
 
-    if expr.context:
-        path_tip.context = expr.context
+    if expr.span:
+        path_tip.span = expr.span
     pathctx.register_set_in_scope(path_tip, ctx=ctx)
 
     for ir_set in computables:
@@ -592,13 +623,14 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
         with ctx.new() as subctx:
             subctx.path_scope = scope
-            assert ir_set.rptr is not None
+            assert isinstance(ir_set.expr, irast.Pointer)
             comp_ir_set = computable_ptr_set(
-                ir_set.rptr, srcctx=ir_set.context, ctx=subctx)
+                ir_set.expr, ir_set.path_id, span=ir_set.span, ctx=subctx
+            )
             i = path_sets.index(ir_set)
             if i != len(path_sets) - 1:
-                prptr = path_sets[i + 1].rptr
-                assert prptr is not None
+                prptr = path_sets[i + 1].expr
+                assert isinstance(prptr, irast.Pointer)
                 prptr.source = comp_ir_set
             else:
                 path_tip = comp_ir_set
@@ -607,9 +639,39 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     return path_tip
 
 
+def resolve_name(
+    name: qlast.ObjectRef, *, ctx: context.ContextLevel
+) -> Tuple[Optional[irast.Set], s_types.Type]:
+
+    view_set = None
+    stype = None
+    if not name.module:
+        view_set = ctx.aliased_views.get(s_name.UnqualName(name.name))
+        if view_set:
+            stype = get_set_type(view_set, ctx=ctx)
+            return (view_set, stype)
+
+    stype = schemactx.get_schema_type(
+        name,
+        condition=lambda o: (
+            isinstance(o, s_types.Type)
+            and (
+                o.is_object_type() or
+                o.is_view(ctx.env.schema) or
+                o.is_enum(ctx.env.schema)
+            )
+        ),
+        label='object type or alias',
+        item_type=s_types.QualifiedType,
+        span=name.span,
+        ctx=ctx,
+    )
+    return (None, stype)
+
+
 def resolve_special_anchor(
-        anchor: qlast.SpecialAnchor, *,
-        ctx: context.ContextLevel) -> irast.Set:
+    anchor: qlast.SpecialAnchor, *, ctx: context.ContextLevel
+) -> irast.Set:
 
     # '__source__' and '__subject__` can only appear as the
     # starting path label syntactically and must be pre-populated
@@ -623,35 +685,37 @@ def resolve_special_anchor(
     if not path_tip:
         raise errors.InvalidReferenceError(
             f'{token} cannot be used in this expression',
-            context=anchor.context,
+            span=anchor.span,
         )
 
     return path_tip
 
 
 def ptr_step_set(
-        path_tip: irast.Set, *,
-        upcoming_intersections: Sequence[s_types.Type] = (),
-        source: s_obj.Object,
-        expr: Optional[qlast.Base],
-        ptr_name: str,
-        direction: PtrDir = PtrDir.Outbound,
-        source_context: Optional[parsing.ParserContext],
-        ignore_computable: bool=False,
-        ctx: context.ContextLevel) -> irast.Set:
+    path_tip: irast.Set,
+    *,
+    upcoming_intersections: Sequence[s_types.Type] = (),
+    source: s_obj.Object,
+    expr: Optional[qlast.Base],
+    ptr_name: str,
+    direction: PtrDir = PtrDir.Outbound,
+    span: Optional[qlast.Span],
+    ignore_computable: bool = False,
+    ctx: context.ContextLevel,
+) -> irast.Set:
     ptrcls, path_id_ptrcls = resolve_ptr_with_intersections(
         source,
         ptr_name,
         upcoming_intersections=upcoming_intersections,
         track_ref=expr,
         direction=direction,
-        source_context=source_context,
+        span=span,
         ctx=ctx)
 
     return extend_path(
         path_tip, ptrcls, direction,
         path_id_ptrcls=path_id_ptrcls,
-        ignore_computable=ignore_computable, srcctx=source_context,
+        ignore_computable=ignore_computable, span=span,
         ctx=ctx)
 
 
@@ -680,13 +744,13 @@ def resolve_ptr(
     direction: s_pointers.PointerDirection = (
         s_pointers.PointerDirection.Outbound
     ),
-    source_context: Optional[parsing.ParserContext] = None,
+    span: Optional[qlast.Span] = None,
     track_ref: Optional[Union[qlast.Base, Literal[False]]],
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
     return resolve_ptr_with_intersections(
         near_endpoint, pointer_name,
-        direction=direction, source_context=source_context,
+        direction=direction, span=span,
         track_ref=track_ref, ctx=ctx)[0]
 
 
@@ -699,7 +763,7 @@ def resolve_ptr_with_intersections(
     direction: s_pointers.PointerDirection = (
         s_pointers.PointerDirection.Outbound
     ),
-    source_context: Optional[parsing.ParserContext] = None,
+    span: Optional[qlast.Span] = None,
     track_ref: Optional[Union[qlast.Base, Literal[False]]],
     ctx: context.ContextLevel,
 ) -> tuple[s_pointers.Pointer, s_pointers.Pointer]:
@@ -715,7 +779,7 @@ def resolve_ptr_with_intersections(
     if not isinstance(near_endpoint, s_sources.Source):
         # Reference to a property on non-object
         msg = 'invalid property reference on a primitive type expression'
-        raise errors.InvalidReferenceError(msg, context=source_context)
+        raise errors.InvalidReferenceError(msg, span=span)
 
     ptr: Optional[s_pointers.Pointer] = None
 
@@ -725,14 +789,15 @@ def resolve_ptr_with_intersections(
             s_name.UnqualName(pointer_name),
         )
 
-        # If we couldn't anything, but the source is a computed backlink,
-        # look for a link property on the reverse side of it. This allows
-        # us to access link properties in both directions on links, including
-        # when the backlink has been stuck in a computed.
+        # If we couldn't anything, but the source is a computed link
+        # that aliases some other link, look for a link property on
+        # it. This allows us to access link properties in both
+        # directions on links, including when the backlink has been
+        # stuck in a computed.
         if (
             ptr is None
-            and isinstance(near_endpoint, s_pointers.Pointer)
-            and (back := near_endpoint.get_computed_backlink(ctx.env.schema))
+            and isinstance(near_endpoint, s_links.Link)
+            and (back := near_endpoint.get_computed_link_alias(ctx.env.schema))
             and isinstance(back, s_links.Link)
             and (nptr := back.maybe_get_ptr(
                 ctx.env.schema,
@@ -742,8 +807,24 @@ def resolve_ptr_with_intersections(
             # around a bunch of stuff inside them.
             and not nptr.is_pure_computable(ctx.env.schema)
         ):
-            ptr = schemactx.derive_ptr(nptr, near_endpoint, ctx=ctx)
-            path_id_ptr = ptr
+            src_type = downcast(
+                s_types.Type, near_endpoint.get_source(ctx.env.schema)
+            )
+            if not src_type.is_view(ctx.env.schema):
+                # HACK: If the source is in the standard library, and
+                # not a view, we can't add a derived pointer.  For
+                # consistency, just always require it be a view.
+                new_source = downcast(
+                    s_objtypes.ObjectType,
+                    schemactx.derive_view(src_type, ctx=ctx),
+                )
+                new_endpoint = downcast(s_links.Link, schemactx.derive_ptr(
+                    near_endpoint, new_source, ctx=ctx))
+            else:
+                new_endpoint = near_endpoint
+
+            ptr = schemactx.derive_ptr(nptr, new_endpoint, ctx=ctx)
+            path_id_ptr = nptr
 
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
@@ -804,7 +885,7 @@ def resolve_ptr_with_intersections(
                     raise errors.InvalidReferenceError(
                         f'cannot follow backlink {pointer_name!r} because '
                         f'{vname} is computed',
-                        context=source_context
+                        span=span
                     )
 
             opaque = not far_endpoints
@@ -850,7 +931,7 @@ def resolve_ptr_with_intersections(
         path = f'{nep_name}.{direction}{pointer_name}'
         msg = f'{path!r} does not resolve to any known path'
 
-    err = errors.InvalidReferenceError(msg, context=source_context)
+    err = errors.InvalidReferenceError(msg, span=span)
 
     if (
         direction is s_pointers.PointerDirection.Outbound
@@ -875,7 +956,7 @@ def resolve_ptr_with_intersections(
 def _check_secret_ptr(
     ptrcls: s_pointers.Pointer,
     *,
-    srcctx: Optional[parsing.ParserContext]=None,
+    span: Optional[qlast.Span]=None,
     ctx: context.ContextLevel,
 ) -> None:
     module = ptrcls.get_name(ctx.env.schema).module
@@ -896,7 +977,7 @@ def _check_secret_ptr(
     vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
     raise errors.QueryError(
         f"cannot access {vn} because it is secret",
-        context=srcctx,
+        span=span,
     )
 
 
@@ -908,9 +989,9 @@ def extend_path(
     path_id_ptrcls: Optional[s_pointers.Pointer] = None,
     ignore_computable: bool = False,
     same_computable_scope: bool = False,
-    srcctx: Optional[parsing.ParserContext]=None,
+    span: Optional[qlast.Span]=None,
     ctx: context.ContextLevel,
-) -> irast.Set:
+) -> irast.SetE[irast.Pointer]:
     """Return a Set node representing the new path tip."""
 
     if ptrcls.is_link_property(ctx.env.schema):
@@ -923,7 +1004,7 @@ def extend_path(
             if not stype.issubclass(ctx.env.schema, source):
                 # Polymorphic link reference
                 source_set = type_intersection_set(
-                    source_set, source, optional=True, source_context=srcctx,
+                    source_set, source, optional=True, span=span,
                     ctx=ctx)
 
         src_path_id = source_set.path_id
@@ -952,31 +1033,30 @@ def extend_path(
     )
 
     if ptrcls.get_secret(ctx.env.schema):
-        _check_secret_ptr(ptrcls, srcctx=srcctx, ctx=ctx)
+        _check_secret_ptr(ptrcls, span=span, ctx=ctx)
 
     target = orig_ptrcls.get_far_endpoint(ctx.env.schema, direction)
     assert isinstance(target, s_types.Type)
-    target_set = new_set(
-        stype=target, path_id=path_id, context=srcctx, ctx=ctx)
-
     ptr = irast.Pointer(
         source=source_set,
-        target=target_set,
         direction=direction,
         ptrref=typegen.ptr_to_ptrref(ptrcls, ctx=ctx),
         is_definition=False,
     )
+    target_set = new_set(
+        stype=target, path_id=path_id, span=span, expr=ptr, ctx=ctx)
 
-    target_set.rptr = ptr
     is_computable = _is_computable_ptr(ptrcls, direction, ctx=ctx)
     if not ignore_computable and is_computable:
         target_set = computable_ptr_set(
             ptr,
+            path_id,
             same_computable_scope=same_computable_scope,
-            srcctx=srcctx,
+            span=span,
             ctx=ctx,
         )
 
+    assert irutils.is_set_instance(target_set, irast.Pointer)
     return target_set
 
 
@@ -1038,10 +1118,8 @@ def _is_computable_ptr(
 
 
 def compile_enum_path(
-        expr: qlast.Path,
-        *,
-        source: s_types.Type,
-        ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.Path, *, source: s_types.Type, ctx: context.ContextLevel
+) -> irast.Set:
 
     assert isinstance(source, s_scalars.ScalarType)
     enum_values = source.get_enum_values(ctx.env.schema)
@@ -1053,7 +1131,7 @@ def compile_enum_path(
             f"'{source.get_displayname(ctx.env.schema)}' enum "
             f"path expression lacks an enum member name, as in "
             f"'{source.get_displayname(ctx.env.schema)}.{enum_values[0]}'",
-            context=expr.steps[0].context,
+            span=expr.steps[0].span,
         )
 
     step2 = expr.steps[1]
@@ -1062,7 +1140,7 @@ def compile_enum_path(
             f"an enum member name must follow enum type name in the path, "
             f"as in "
             f"'{source.get_displayname(ctx.env.schema)}.{enum_values[0]}'",
-            context=step2.context,
+            span=step2.span,
         )
 
     ptr_name = step2.name
@@ -1073,19 +1151,19 @@ def compile_enum_path(
     if step2_direction is not s_pointers.PointerDirection.Outbound:
         raise errors.QueryError(
             f"enum types do not support backlink navigation",
-            context=step2.context,
+            span=step2.span,
         )
     if step2.type == 'property':
         raise errors.QueryError(
             f"unexpected reference to link property '{ptr_name}' "
             f"outside of a path expression",
-            context=step2.context,
+            span=step2.span,
         )
 
     if nsteps > 2:
         raise errors.QueryError(
             f"invalid property reference on a primitive type expression",
-            context=expr.steps[2].context,
+            span=expr.steps[2].span,
         )
 
     if ptr_name not in enum_values:
@@ -1097,23 +1175,24 @@ def compile_enum_path(
         raise errors.InvalidReferenceError(
             f"'{src_name}' enum has no member called {ptr_name!r}",
             hint=f"did you mean {rec_name!r}?",
-            context=step2.context,
+            span=step2.span,
         )
 
     return enum_indirection_set(
         source=source,
         ptr_name=step2.name,
-        source_context=expr.context,
+        span=expr.span,
         ctx=ctx,
     )
 
 
 def enum_indirection_set(
-        *,
-        source: s_types.Type,
-        ptr_name: str,
-        source_context: Optional[parsing.ParserContext],
-        ctx: context.ContextLevel) -> irast.Set:
+    *,
+    source: s_types.Type,
+    ptr_name: str,
+    span: Optional[qlast.Span],
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     strref = typegen.type_to_typeref(
         ctx.env.get_schema_type_and_track(s_name.QualName('std', 'str')),
@@ -1123,17 +1202,19 @@ def enum_indirection_set(
     return casts.compile_cast(
         irast.StringConstant(value=ptr_name, typeref=strref),
         source,
-        srcctx=source_context,
+        span=span,
         ctx=ctx,
     )
 
 
 def tuple_indirection_set(
-        path_tip: irast.Set, *,
-        source: s_types.Type,
-        ptr_name: str,
-        source_context: Optional[parsing.ParserContext] = None,
-        ctx: context.ContextLevel) -> irast.Set:
+    path_tip: irast.Set,
+    *,
+    source: s_types.Type,
+    ptr_name: str,
+    span: Optional[qlast.Span] = None,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     assert isinstance(source, s_types.Tuple)
 
@@ -1144,16 +1225,12 @@ def tuple_indirection_set(
     path_id = pathctx.get_tuple_indirection_path_id(
         path_tip.path_id, el_norm_name, el_type, ctx=ctx)
 
-    ti_set = new_set(stype=el_type, path_id=path_id, ctx=ctx)
-
     ptr = irast.TupleIndirectionPointer(
         source=path_tip,
-        target=ti_set,
         ptrref=downcast(irast.TupleIndirectionPointerRef, path_id.rptr()),
         direction=not_none(path_id.rptr_dir()),
     )
-
-    ti_set.rptr = ptr
+    ti_set = new_set(stype=el_type, path_id=path_id, expr=ptr, ctx=ctx)
 
     return ti_set
 
@@ -1163,7 +1240,7 @@ def type_intersection_set(
     stype: s_types.Type,
     *,
     optional: bool,
-    source_context: Optional[parsing.ParserContext] = None,
+    span: Optional[qlast.Span] = None,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Return an interesection of *source_set* with type *stype*."""
@@ -1174,18 +1251,21 @@ def type_intersection_set(
     if result.stype == arg_type:
         return source_set
 
-    poly_set = new_set(stype=result.stype, context=source_context, ctx=ctx)
-    rptr = source_set.rptr
     rptr_specialization = []
 
-    if rptr is not None and rptr.ptrref.union_components:
+    if (
+        isinstance(source_set.expr, irast.Pointer)
+        and source_set.expr.ptrref.union_components
+    ):
+        rptr = source_set.expr
+
         # This is a type intersection of a union pointer, most likely
         # a reverse link path specification.  If so, test the union
         # components against the type expression and record which
         # components match.  This information will be used later
         # when evaluating the path cardinality, as well as to
         # route link property references accordingly.
-        for component in rptr.ptrref.union_components:
+        for component in source_set.expr.ptrref.union_components:
             component_endpoint_ref = component.dir_target(rptr.direction)
             ctx.env.schema, component_endpoint = irtyputils.ir_typeref_to_type(
                 ctx.env.schema, component_endpoint_ref)
@@ -1195,9 +1275,6 @@ def type_intersection_set(
             elif stype.issubclass(ctx.env.schema, component_endpoint):
                 assert isinstance(stype, s_objtypes.ObjectType)
                 if rptr.direction is s_pointers.PointerDirection.Inbound:
-                    # assert isinstance(component, irast.PointerRef)
-                    # rptr_specialization.append(component)
-
                     narrow_ptr = stype.getptr(
                         ctx.env.schema,
                         component.shortname.get_local_name(),
@@ -1234,40 +1311,60 @@ def type_intersection_set(
         typeref_cache=ctx.env.type_ref_cache,
     )
 
-    poly_set.path_id = source_set.path_id.extend(ptrref=ptrref)
-
-    ptr = irast.TypeIntersectionPointer(
-        source=source_set,
-        target=poly_set,
-        ptrref=downcast(irast.TypeIntersectionPointerRef, ptrref),
-        direction=not_none(poly_set.path_id.rptr_dir()),
-        optional=optional,
+    poly_set = new_set(
+        stype=result.stype,
+        path_id=source_set.path_id.extend(ptrref=ptrref),
+        expr=irast.TypeIntersectionPointer(
+            source=source_set,
+            ptrref=downcast(irast.TypeIntersectionPointerRef, ptrref),
+            direction=s_pointers.PointerDirection.Outbound,
+            optional=optional,
+        ),
+        span=span,
+        ctx=ctx,
     )
-
-    poly_set.rptr = ptr
 
     return poly_set
 
 
 def class_set(
-        stype: s_types.Type, *,
-        path_id: Optional[irast.PathId]=None,
-        skip_subtypes: bool=False,
-        ignore_rewrites: bool=False,
-        ctx: context.ContextLevel) -> irast.Set:
+    stype: s_types.Type,
+    *,
+    path_id: Optional[irast.PathId] = None,
+    skip_subtypes: bool = False,
+    ignore_rewrites: bool = False,
+    ctx: context.ContextLevel,
+) -> irast.Set:
+    """Nominally, create a set representing selecting some type.
+
+    That is, create a set with a TypeRoot expr.
+
+    TODO(ir): In practice, a lot of call sites really want some kind
+    of handle to something that will be bound elsewhere, and we should
+    clean those up to use a different node.
+    """
 
     if path_id is None:
         path_id = pathctx.get_path_id(stype, ctx=ctx)
     return new_set(
-        path_id=path_id, stype=stype,
-        skip_subtypes=skip_subtypes, ignore_rewrites=ignore_rewrites, ctx=ctx)
+        path_id=path_id,
+        stype=stype,
+        ignore_rewrites=ignore_rewrites,
+        expr=irast.TypeRoot(
+            typeref=typegen.type_to_typeref(stype, env=ctx.env),
+            skip_subtypes=skip_subtypes,
+        ),
+        ctx=ctx,
+    )
 
 
 def expression_set(
-        expr: irast.Expr,
-        path_id: Optional[irast.PathId]=None, *,
-        type_override: Optional[s_types.Type]=None,
-        ctx: context.ContextLevel) -> irast.Set:
+    expr: irast.Expr,
+    path_id: Optional[irast.PathId] = None,
+    *,
+    type_override: Optional[s_types.Type] = None,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     if isinstance(expr, irast.Set):  # pragma: no cover
         raise errors.InternalServerError(f'{expr!r} is already a Set')
@@ -1286,18 +1383,20 @@ def expression_set(
         path_id=path_id,
         stype=stype,
         expr=expr,
-        context=expr.context,
+        span=expr.span,
         ctx=ctx
     )
 
 
 def scoped_set(
-        expr: Union[irast.Set, irast.Expr], *,
-        type_override: Optional[s_types.Type]=None,
-        typehint: Optional[s_types.Type]=None,
-        path_id: Optional[irast.PathId]=None,
-        force_reassign: bool=False,
-        ctx: context.ContextLevel) -> irast.Set:
+    expr: Union[irast.Set, irast.Expr],
+    *,
+    type_override: Optional[s_types.Type] = None,
+    typehint: Optional[s_types.Type] = None,
+    path_id: Optional[irast.PathId] = None,
+    force_reassign: bool = False,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     if not isinstance(expr, irast.Set):
         ir_set = expression_set(
@@ -1328,12 +1427,14 @@ def scoped_set(
 
 
 def ensure_set(
-        expr: Union[irast.Set, irast.Expr], *,
-        type_override: Optional[s_types.Type]=None,
-        typehint: Optional[s_types.Type]=None,
-        path_id: Optional[irast.PathId]=None,
-        srcctx: Optional[parsing.ParserContext]=None,
-        ctx: context.ContextLevel) -> irast.Set:
+    expr: Union[irast.Set, irast.Expr],
+    *,
+    type_override: Optional[s_types.Type] = None,
+    typehint: Optional[s_types.Type] = None,
+    path_id: Optional[irast.PathId] = None,
+    span: Optional[qlast.Span] = None,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     if not isinstance(expr, irast.Set):
         ir_set = expression_set(
@@ -1349,10 +1450,10 @@ def ensure_set(
 
         stype = type_override
 
-    if srcctx is not None:
-        ir_set = new_set_from_set(ir_set, context=srcctx, ctx=ctx)
+    if span is not None:
+        ir_set = new_set_from_set(ir_set, span=span, ctx=ctx)
 
-    if (isinstance(ir_set, irast.EmptySet)
+    if (irutils.is_set_instance(ir_set, irast.EmptySet)
             and (stype is None or stype.is_any(ctx.env.schema))
             and typehint is not None):
         typegen.amend_empty_set_type(ir_set, typehint, env=ctx.env)
@@ -1367,15 +1468,14 @@ def ensure_set(
             f'expecting expression of type '
             f'{typehint.get_displayname(ctx.env.schema)}, '
             f'got {stype.get_displayname(ctx.env.schema)}',
-            context=expr.context
+            span=expr.span
         )
 
     return ir_set
 
 
 def ensure_stmt(
-    expr: Union[irast.Set, irast.Expr], *,
-    ctx: context.ContextLevel
+    expr: Union[irast.Set, irast.Expr], *, ctx: context.ContextLevel
 ) -> irast.Stmt:
     if not isinstance(expr, irast.Stmt):
         expr = irast.SelectStmt(
@@ -1401,12 +1501,12 @@ def fixup_computable_source_set(
         source_set = new_set_from_set(
             source_set, stype=source_set_stype, ctx=ctx)
         source_set.shape = ()
-        if source_set.rptr is not None:
-            source_rptrref = source_set.rptr.ptrref
+
+        if isinstance(source_set.expr, irast.Pointer):
+            source_rptrref = source_set.expr.ptrref
             if source_rptrref.base_ptr is not None:
                 source_rptrref = source_rptrref.base_ptr
-            source_set.rptr = source_set.rptr.replace(
-                target=source_set,
+            source_set.expr = source_set.expr.replace(
                 ptrref=source_rptrref,
                 is_definition=True,
             )
@@ -1415,9 +1515,10 @@ def fixup_computable_source_set(
 
 def computable_ptr_set(
     rptr: irast.Pointer,
+    path_id: irast.PathId,
     *,
     same_computable_scope: bool=False,
-    srcctx: Optional[parsing.ParserContext]=None,
+    span: Optional[qlast.Span]=None,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Return ir.Set for a pointer defined as a computable."""
@@ -1436,14 +1537,14 @@ def computable_ptr_set(
         inner_source_path_id = comp_info.path_id
         path_id_ns = comp_info.path_id_ns
     except KeyError:
-        comp_expr = ptrcls.get_expr(ctx.env.schema)
+        comp_expr: Optional[s_expr.Expression] = ptrcls.get_expr(ctx.env.schema)
         schema_qlexpr: Optional[qlast.Expr] = None
         if comp_expr is None and ctx.env.options.apply_query_rewrites:
             assert isinstance(ptrcls, s_pointers.Pointer)
             ptrcls_n = ptrcls.get_shortname(ctx.env.schema).name
             path = qlast.Path(
                 steps=[
-                    qlast.Source(),
+                    qlast.SpecialAnchor(name='__source__'),
                     qlast.Ptr(
                         name=ptrcls_n,
                         direction=s_pointers.PointerDirection.Outbound,
@@ -1470,7 +1571,7 @@ def computable_ptr_set(
                 # the assert_exists.
                 # TODO: do something less bad
                 arg = qlast.SelectQuery(
-                    result=path, where=qlast.BooleanConstant(value='true'))
+                    result=path, where=qlast.Constant.boolean(True))
                 vname = ptrcls.get_verbosename(
                     ctx.env.schema, with_parent=True)
                 msg = f'required {vname} is hidden by access policy'
@@ -1483,7 +1584,7 @@ def computable_ptr_set(
                 schema_qlexpr = qlast.FunctionCall(
                     func=('__std__', 'assert_exists'),
                     args=[arg],
-                    kwargs={'message': qlast.StringConstant(value=msg)},
+                    kwargs={'message': qlast.Constant.string(value=msg)},
                 )
 
             # Is this is a view, we want to shadow the underlying
@@ -1499,7 +1600,7 @@ def computable_ptr_set(
                 raise errors.InternalServerError(
                     f'{ptrcls_sn!r} is not a computed pointer')
 
-            comp_qlexpr = comp_expr.qlast
+            comp_qlexpr = comp_expr.parse()
             assert isinstance(comp_qlexpr, qlast.Expr), 'expected qlast.Expr'
             schema_qlexpr = comp_qlexpr
 
@@ -1540,20 +1641,6 @@ def computable_ptr_set(
             qlctx=qlctx,
             ctx=ctx)
 
-    if ptrcls.is_link_property(ctx.env.schema):
-        source_path_id = rptr.source.path_id.ptr_path()
-    else:
-        src_path = rptr.target.path_id.src_path()
-        assert src_path is not None
-        source_path_id = src_path
-
-    result_path_id = pathctx.extend_path_id(
-        source_path_id,
-        ptrcls=ptrcls,
-        ns=ctx.path_id_namespace,
-        ctx=ctx,
-    )
-
     result_stype = ptrcls.get_target(ctx.env.schema)
     base_object = ctx.env.schema.get('std::BaseObject', type=s_types.Type)
     with newctx() as subctx:
@@ -1569,7 +1656,7 @@ def computable_ptr_set(
             subctx.view_scls = result_stype
         subctx.view_rptr = context.ViewRPtr(
             source=source_scls, ptrcls=ptrcls)
-        subctx.anchors[qlast.Source().name] = source_set
+        subctx.anchors['__source__'] = source_set
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
         subctx.partial_path_prefix = source_set
         # On a mutation, make the expr_exposed. This corresponds with
@@ -1580,12 +1667,12 @@ def computable_ptr_set(
 
         comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
+    # XXX: or should we update rptr in place??
+    rptr = rptr.replace(expr=comp_ir_set.expr)
     comp_ir_set = new_set_from_set(
-        comp_ir_set, path_id=result_path_id, rptr=rptr, context=srcctx,
+        comp_ir_set, path_id=path_id, expr=rptr, span=span,
         merge_current_ns=True,
         ctx=ctx)
-
-    rptr.target = comp_ir_set
 
     maybe_materialize(ptrcls, comp_ir_set, ctx=ctx)
 
@@ -1593,10 +1680,7 @@ def computable_ptr_set(
 
 
 def _get_schema_computed_ctx(
-    *,
-    rptr: irast.Pointer,
-    source: irast.Set,
-    ctx: context.ContextLevel
+    *, rptr: irast.Pointer, source: irast.Set, ctx: context.ContextLevel
 ) -> Callable[[], ContextManager[context.ContextLevel]]:
 
     @contextlib.contextmanager
@@ -1620,13 +1704,16 @@ def _get_schema_computed_ctx(
             # path derived from the pointer source.
             if not (
                 isinstance(src, s_pointers.Pointer)
-                and src.generic(ctx.env.schema)
+                and src.is_non_concrete(ctx.env.schema)
             ):
                 inner_path_id = not_none(irast.PathId.from_pointer(
                     ctx.env.schema, ptr, namespace=subctx.path_id_namespace,
+                    env=ctx.env,
                 ).src_path())
+
+                # XXX: THIS IS DODGY - wait, this is a no-op
                 remapped_source = new_set_from_set(
-                    rptr.source, rptr=rptr.source.rptr, ctx=ctx
+                    rptr.source, expr=rptr.source.expr, ctx=ctx
                 )
                 update_view_map(inner_path_id, remapped_source, ctx=subctx)
 
@@ -1759,8 +1846,9 @@ def _get_computable_ctx(
                 # get remapped first.
                 inner_path_id = remap_path_id(inner_path_id, remapctx)
 
+            # XXX: THIS IS DODGY - wait, this is a no-op
             remapped_source = new_set_from_set(
-                rptr.source, rptr=rptr.source.rptr, ctx=ctx)
+                rptr.source, expr=rptr.source.expr, ctx=ctx)
             update_view_map(inner_path_id, remapped_source, ctx=subctx)
 
             yield subctx
@@ -1806,10 +1894,11 @@ def maybe_materialize(
 
 
 def should_materialize(
-    ir: irast.Base, *,
-    ptrcls: Optional[s_pointers.Pointer]=None,
-    materialize_visible: bool=False,
-    skipped_bindings: AbstractSet[irast.PathId]=frozenset(),
+    ir: irast.Base,
+    *,
+    ptrcls: Optional[s_pointers.Pointer] = None,
+    materialize_visible: bool = False,
+    skipped_bindings: AbstractSet[irast.PathId] = frozenset(),
     ctx: context.ContextLevel,
 ) -> Sequence[irast.MaterializeReason]:
     volatility = inference.infer_volatility(ir, ctx.env, exclude_dml=True)
@@ -1878,7 +1967,8 @@ def should_materialize_type(
 
 
 def get_global_param(
-        glob: s_globals.Global, * , ctx: context.ContextLevel) -> irast.Global:
+    glob: s_globals.Global, *, ctx: context.ContextLevel
+) -> irast.Global:
     name = glob.get_name(ctx.env.schema)
 
     if name not in ctx.env.query_globals:
@@ -1900,8 +1990,10 @@ def get_global_param(
 
 
 def get_global_param_sets(
-    glob: s_globals.Global, *, ctx: context.ContextLevel,
-    is_implicit_global: bool=False,
+    glob: s_globals.Global,
+    *,
+    ctx: context.ContextLevel,
+    is_implicit_global: bool = False,
 ) -> Tuple[irast.Set, Optional[irast.Set]]:
     param = get_global_param(glob, ctx=ctx)
     default = glob.get_default(ctx.env.schema)
@@ -1933,9 +2025,7 @@ def get_global_param_sets(
     return param_set, present_set
 
 
-def get_func_global_json_arg(
-    *, ctx: context.ContextLevel
-) -> irast.Set:
+def get_func_global_json_arg(*, ctx: context.ContextLevel) -> irast.Set:
     json_type = ctx.env.schema.get('std::json', type=s_types.Type)
     json_typeref = typegen.type_to_typeref(json_type, env=ctx.env)
     name = '__edb_json_globals__'
@@ -1964,7 +2054,8 @@ def get_func_global_json_arg(
 
 
 def get_func_global_param_sets(
-    glob: s_globals.Global, *,
+    glob: s_globals.Global,
+    *,
     ctx: context.ContextLevel,
 ) -> Tuple[qlast.Expr, Optional[qlast.Expr]]:
     # NB: updates ctx anchors
@@ -1981,7 +2072,7 @@ def get_func_global_param_sets(
             func=('__std__', 'json_get'),
             args=[
                 subctx.create_anchor(glob_set, 'a'),
-                qlast.StringConstant(value=str(name)),
+                qlast.Constant.string(value=str(name)),
             ],
         )
 
@@ -2001,9 +2092,10 @@ def get_func_global_param_sets(
 
 
 def get_globals_as_json(
-    globs: Sequence[s_globals.Global], *,
+    globs: Sequence[s_globals.Global],
+    *,
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext],
+    span: Optional[qlast.Span],
 ) -> irast.Set:
     """Build a json object that contains the values of `globs`
 
@@ -2024,17 +2116,19 @@ def get_globals_as_json(
         globs = ()
 
     objctx = ctx.env.options.schema_object_context
-    if globs and objctx in (s_constr.Constraint, s_indexes.Index):
+    is_constraint_like = objctx in (s_constr.Constraint, s_indexes.Index)
+    if globs and is_constraint_like:
+        assert objctx
         typname = objctx.get_schema_class_displayname()
         # XXX: or should we pass in empty globals, in this situation?
         raise errors.SchemaDefinitionError(
             f'functions that reference global variables cannot be called '
             f'from {typname}',
-            context=srcctx)
+            span=span)
 
     null_expr = qlast.FunctionCall(
         func=('__std__', 'to_json'),
-        args=[qlast.StringConstant(value="null")],
+        args=[qlast.Constant.string(value="null")],
     )
 
     with ctx.new() as subctx:
@@ -2081,7 +2175,7 @@ def get_globals_as_json(
                     if_expr=tup,
                     else_expr=qlast.FunctionCall(
                         func=('__std__', 'to_json'),
-                        args=[qlast.StringConstant(value="{}")],
+                        args=[qlast.Constant.string(value="{}")],
                     )
                 ))
 
@@ -2092,10 +2186,10 @@ def get_globals_as_json(
         if (
             not ctx.env.options.apply_user_access_policies
             or not ctx.env.options.apply_query_rewrites
-        ):
+        ) and not is_constraint_like:
             full_objs.append(qlast.FunctionCall(
                 func=('__std__', 'to_json'),
-                args=[qlast.StringConstant(
+                args=[qlast.Constant.string(
                     value='{"__disable_access_policies": true}'
                 )],
             ))

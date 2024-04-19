@@ -1,27 +1,27 @@
 @font-face {
-  font-family: 'Roboto Flex';
+  font-family: "Roboto Flex";
   font-style: normal;
   font-display: swap;
   font-weight: 100 1000;
-  src: url(roboto-flex-latin-wght-normal.woff2) format('woff2-variations');
-  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+  src: url(roboto-flex-latin-wght-normal.woff2) format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 body {
-  background: #F3F4F6;;
+  background: #f3f4f6;
   margin: 0;
   padding: 0;
-  height: 100vh;
+  min-height: 100vh;
+  height: max-content;
   display: grid;
-  grid-template-rows: 1fr auto 1fr;
+  grid-template-rows: minmax(120px, 1fr) auto minmax(120px, 1fr);
   justify-content: center;
   justify-items: center;
-  font-family: 'Roboto Flex', sans-serif;
-}
-body:after {
-  content: '';
-  width: 100%;
-  height: 32px;
+  font-family: "Roboto Flex", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .brand-logo {
@@ -34,18 +34,24 @@ body:after {
   max-height: 100px;
 }
 
-.container {
+.container-wrapper {
   grid-row: 2;
+}
+.container {
   background: #fff;
   padding: 24px;
   padding-bottom: 16px;
   width: 326px;
   border-radius: 16px;
-  box-shadow: 0px 2px 2px rgba(3, 7, 18, 0.02),
-              0px 7px 7px rgba(3, 7, 18, 0.03),
-              0px 16px 16px rgba(3, 7, 18, 0.05);
+  box-shadow: 0px 2px 2px rgba(3, 7, 18, 0.02), 0px 7px 7px rgba(3, 7, 18, 0.03),
+    0px 16px 16px rgba(3, 7, 18, 0.05);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.container form {
+  display: contents;
 }
 
 .container h1 {
@@ -62,8 +68,8 @@ body:after {
 
 .container input {
   border-radius: 8px;
-  border: 1px solid #DEE2E6;
-  background: #F8F9FA;
+  border: 1px solid #dee2e6;
+  background: #f8f9fa;
   line-height: 40px;
   padding: 0 14px;
   color: #495057;
@@ -97,13 +103,14 @@ body:after {
   border: none;
   color: var(--accent-bg-text-color);
   font-family: inherit;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 550;
   cursor: pointer;
   margin: 8px 0;
 }
 .container button span {
   grid-column: 2;
+  margin: 0 12px;
 }
 .container button svg {
   margin-left: 8px;
@@ -115,6 +122,104 @@ body:after {
 .container button:focus-visible {
   outline: 3px solid var(--accent-focus-color);
   outline-offset: 2px;
+}
+.container button:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.container button.secondary {
+  background: none;
+  border: 1px solid #ced4da;
+  color: #6c757d;
+  font-weight: 500;
+}
+.container button.secondary svg {
+  color: #adb5bd;
+}
+.container button.secondary:hover {
+  background: #f5f6f8;
+}
+.container button.icon-only {
+  display: flex;
+  width: 46px;
+  padding: 0;
+  justify-content: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+.container button.icon-only svg {
+  margin-left: 0;
+  transform: scaleX(-1);
+}
+
+.button-group {
+  display: flex;
+}
+.button-group button:not(.icon-only) {
+  flex-grow: 1;
+}
+
+.slider-container {
+  width: calc(100% + 48px);
+  display: flex;
+  align-items: start;
+  margin: 0 -24px;
+  transition: transform 0.3s, height 0.3s;
+}
+
+.slider-section {
+  width: calc(100% - 48px);
+  margin: 0 24px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  height: 0;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.15s 0s linear, visibility 0s 0.3s linear;
+}
+.slider-section > *,
+.slider-section > form > * {
+  flex-shrink: 0;
+}
+.slider-section.active {
+  height: auto;
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.tab {
+  position: relative;
+  display: flex;
+  height: 38px;
+  align-items: center;
+  padding: 0 12px;
+  color: #6c757d;
+  font-size: 15px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.tab svg {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  fill: var(--accent-text-color);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.tab.active {
+  color: #495057;
+}
+.tab.active svg {
+  opacity: 1;
 }
 
 a {
@@ -131,7 +236,7 @@ a:focus-visible {
   justify-content: space-between;
 }
 .field-note {
-  color: #97A1AB;
+  color: #97a1ab;
   font-size: 14px;
   font-weight: 400;
 }
@@ -152,7 +257,7 @@ a.field-note:hover {
   height: 46px;
   border-radius: 8px;
   padding: 0 12px;
-  border: 1px solid #DEE2E6;
+  border: 1px solid #dee2e6;
   text-decoration: none;
   color: #495057;
   font-size: 16px;
@@ -167,11 +272,24 @@ a.field-note:hover {
 .oauth-buttons a span {
   margin-left: 12px;
 }
+.oauth-buttons.collapsed {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.oauth-buttons.collapsed a {
+  padding: 0;
+  width: 46px;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.oauth-buttons.collapsed a span {
+  display: none;
+}
 
 .divider {
   display: flex;
   align-items: center;
-  color: #6C757D;
+  color: #6c757d;
   font-size: 16px;
   font-weight: 450;
   line-height: 19px;
@@ -181,15 +299,16 @@ a.field-note:hover {
 .divider span {
   margin: 0 16px;
 }
-.divider:before, .divider:after {
-  content: '';
+.divider:before,
+.divider:after {
+  content: "";
   height: 0;
-  border-bottom: 1px solid #DEE2E6;
+  border-bottom: 1px solid #dee2e6;
   flex-grow: 1;
 }
 
 .bottom-note {
-  color: #6C757D;
+  color: #6c757d;
   font-size: 16px;
   font-weight: 400;
   line-height: 19px;
@@ -199,27 +318,31 @@ a.field-note:hover {
   color: var(--accent-text-color);
 }
 
-.error-message, .success-message {
+.error-message,
+.success-message {
   display: flex;
   padding: 10px 12px;
   align-items: center;
   gap: 12px;
   border-radius: 8px;
-  border: 1px solid #F9827B;
+  border: 1px solid #f9827b;
   background: #fee6e5;
-  color: #EB4B42;
+  color: #eb4b42;
   font-size: 14px;
   font-weight: 400;
   line-height: 19px;
   margin-bottom: 16px;
 }
-.error-message svg, .success-message svg {
+.error-message svg,
+.success-message svg {
   flex-shrink: 0;
 }
-.error-message a, .success-message a {
+.error-message a,
+.success-message a {
   color: var(--accent-text-color);
 }
-.error-message b, .success-message b {
+.error-message b,
+.success-message b {
   font-weight: 600;
 }
 
@@ -229,23 +352,43 @@ a.field-note:hover {
   background: #e4f1fc;
 }
 
+.no-webauthn-error {
+  border: 1px solid #f9827b;
+  background: #fee6e5;
+  color: #eb4b42;
+  margin: 8px 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
 @media (prefers-color-scheme: dark) {
   body {
-    background: #191C1F;
-    color: #DEE2E6;
+    background: #191c1f;
+    color: #dee2e6;
   }
 
   .container {
-    background: #2A2F34;
+    background: #2a2f34;
   }
   .container h1 {
-    color: #DEE2E6;
+    color: #dee2e6;
+  }
+
+  .container button.secondary {
+    border-color: #495057;
+    color: #ced4da;
+  }
+  .container button.secondary svg {
+    color: #6c757d;
+  }
+  .container button.secondary:hover {
+    background: #363c42;
   }
 
   .container input {
     border-color: #495057;
-    background: #31373D;
-    color: #DEE2E6;
+    background: #31373d;
+    color: #dee2e6;
   }
   .container input:focus-visible {
     outline-color: var(--accent-focus-dark-color);
@@ -260,7 +403,7 @@ a.field-note:hover {
   }
 
   .field-note {
-    color: #ADB5BD;
+    color: #adb5bd;
   }
   a.field-note:hover {
     color: var(--accent-text-dark-color);
@@ -278,27 +421,41 @@ a.field-note:hover {
   }
 
   .divider {
-    color: #6C757D;
+    color: #6c757d;
   }
-  .divider:before, .divider:after {
+  .divider:before,
+  .divider:after {
     border-bottom-color: #495057;
   }
 
+  .tab {
+    color: #adb5bd;
+  }
+  .tab.active {
+    color: #dee2e6;
+  }
+
   .bottom-note {
-    color: #CED4DA;
+    color: #ced4da;
   }
   .bottom-note a {
     color: var(--accent-text-dark-color);
   }
 
-  .error-message a, .success-message a {
+  .error-message a,
+  .success-message a {
     color: var(--accent-text-dark-color);
   }
   .error-message {
     background: #423336;
-    border-color: #A1433D;
+    border-color: #a1433d;
   }
   .success-message {
     background: #293a4a;
+  }
+
+  .no-webauthn-error {
+    background: #423336;
+    border-color: #a1433d;
   }
 }

@@ -20,7 +20,7 @@
 
 import functools
 import platform
-from typing import *
+from typing import Optional, Sequence, List
 
 from edb import errors
 
@@ -108,7 +108,7 @@ def eval_TypeCast(
 
             if 'false'.startswith(string) or 'no'.startswith(string):
                 return pgast.BooleanConstant(val=False)
-            raise errors.QueryError('invalid cast', context=expr.arg)
+            raise errors.QueryError('invalid cast', span=expr.arg.span)
 
     return None
 
@@ -138,7 +138,7 @@ def eval_FuncCall(
     ctx: Context,
 ) -> Optional[pgast.BaseExpr]:
     if len(expr.name) >= 3:
-        raise errors.QueryError("unknown function", context=expr.context)
+        raise errors.QueryError("unknown function", span=expr.span)
 
     fn_name = name_in_pg_catalog(expr.name)
     if not fn_name:
@@ -172,29 +172,33 @@ def eval_FuncCall(
     if fn_name == "set_config":
         # HACK: allow set_config('search_path', '', false) to support pg_dump
         # HACK: allow set_config('bytea_output','hex',false) to support pgadmin
+        # HACK: allow set_config('jit', ...) to support asyncpg
         if args := eval_list(expr.args, ctx=ctx):
             name, value, is_local = args
-            if (
-                isinstance(name, pgast.StringConstant)
-                and isinstance(value, pgast.StringConstant)
-                and isinstance(is_local, pgast.BooleanConstant)
-            ):
+            if isinstance(name, pgast.StringConstant):
                 if (
-                    name.val == "search_path"
-                    and value.val == ""
-                    and not is_local.val
+                    isinstance(value, pgast.StringConstant)
+                    and isinstance(is_local, pgast.BooleanConstant)
                 ):
-                    return value
+                    if (
+                        name.val == "search_path"
+                        and value.val == ""
+                        and not is_local.val
+                    ):
+                        return value
 
-                if (
-                    name.val == "bytea_output"
-                    and value.val == "hex"
-                    and not is_local.val
-                ):
+                    if (
+                        name.val == "bytea_output"
+                        and value.val == "hex"
+                        and not is_local.val
+                    ):
+                        return value
+
+                if name.val == "jit":
                     return value
 
         raise errors.QueryError(
-            "function set_config is not supported", context=expr.context
+            "function set_config is not supported", span=expr.span
         )
 
     if fn_name == 'current_setting':
@@ -210,7 +214,7 @@ def eval_FuncCall(
     if fn_name == "pg_filenode_relation":
         raise errors.QueryError(
             f"function pg_catalog.{fn_name} is not supported",
-            context=expr.context,
+            span=expr.span,
         )
 
     if fn_name == "to_regclass":
@@ -283,7 +287,7 @@ def require_a_string_literal(
     ):
         raise errors.QueryError(
             f"function pg_catalog.{fn_name} requires a string literal",
-            context=expr.context,
+            span=expr.span,
         )
 
     return args[0].val
@@ -305,7 +309,7 @@ def cast_to_regclass(param: pgast.BaseExpr, ctx: Context) -> pgast.BaseExpr:
         return expr
     raise errors.QueryError(
         "casting to `regclass` requires a string or number literal",
-        context=param.context,
+        span=param.span,
     )
 
 
@@ -332,6 +336,8 @@ def to_regclass(reg_class_name: str, ctx: Context) -> pgast.BaseExpr:
         name = (ctx.options.search_path[0], name[0])
 
     namespace, rel_name = name
+    assert isinstance(namespace, str)
+    assert isinstance(rel_name, str)
 
     # A bit hacky to parse SQL here, but I don't want to construct pgast
     [stmt] = pgparser.parse(

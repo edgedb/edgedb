@@ -29,7 +29,20 @@ EdgeQL AST visitor.
 """
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Optional,
+    Tuple,
+    Type,
+    AbstractSet,
+    Iterable,
+    Mapping,
+    MutableSet,
+    Dict,
+    List,
+    Set,
+    TypedDict,
+    cast,
+)
 
 import copy
 import functools
@@ -46,6 +59,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import parser as qlparser
 from edb.edgeql import tracer as qltracer
+from edb.edgeql import utils as qlutils
 
 from edb.schema import annos as s_anno
 from edb.schema import constraints as s_constr
@@ -425,7 +439,7 @@ def sdl_to_ddl(
     created_modules = set()
     for module_name, declarations in documents.items():
         tracectx.set_module(module_name)
-        # module (and any encosing modules) needs to be created
+        # module (and any enclosing modules) needs to be created
         # regardless of whether its contents are empty or not
         parts = module_name.split('::')
         for i in range(len(parts)):
@@ -471,7 +485,7 @@ def sdl_to_ddl(
             # A single schema object with a recursive definition.
             msg = f'{item_vn} is defined recursively'
 
-        raise errors.InvalidDefinitionError(msg, context=node.context) from e
+        raise errors.InvalidDefinitionError(msg, span=node.span) from e
 
     return tuple(mods) + tuple(ordered)
 
@@ -549,6 +563,15 @@ def trace_layout_Schema(
 ) -> None:
     for decl in node.declarations:
         trace_layout(decl, ctx=ctx)
+
+
+@trace_layout.register
+def trace_layout_CreateScalarType(
+    node: qlast.CreateScalarType,
+    *,
+    ctx: LayoutTraceContext,
+) -> None:
+    _trace_item_layout(node, ctx=ctx)
 
 
 @trace_layout.register
@@ -690,6 +713,13 @@ def _trace_item_layout(
         elif isinstance(decl, qlast.CreateAnnotationValue):
             # Validate that the annotation exists at all.
             _validate_schema_ref(decl, ctx=ctx)
+            _, anno_fq_name = ctx.get_fq_name(decl)
+
+            anno_name = s_name.QualName(
+                module=fq_name.module,
+                name=f'{fq_name.name}@{anno_fq_name}',
+            )
+            ctx.objects[anno_name] = qltracer.AnnotationValue(anno_name)
 
         elif isinstance(decl, qlast.CreateAccessPolicy):
             _, pol_fq_name = ctx.get_fq_name(decl)
@@ -736,7 +766,7 @@ def _trace_item_layout(
             if field_name in ctx.objects:
                 vn = get_verbosename_from_fqname(field_name, ctx)
                 msg = f'{vn} was already declared'
-                raise errors.InvalidDefinitionError(msg, context=decl.context)
+                raise errors.InvalidDefinitionError(msg, span=decl.span)
 
             ctx.objects[field_name] = qltracer.Field(field_name)
 
@@ -928,8 +958,21 @@ def trace_Index(
     exprs = [ExprDependency(expr=node.expr)]
     if node.except_expr:
         exprs.append(ExprDependency(expr=node.except_expr))
+    deps = set()
+    if node.kwargs:
+        for kwarg in node.kwargs:
+            # HACK: Search all objects and depend on any ext::ai annotations.
+            # FIXME: Can we make this more general and less slow?
+            if kwarg == "embedding_model":
+                for n, v in ctx.objects.items():
+                    if (
+                        "@ext::ai::" in n.name
+                        and isinstance(v, qltracer.AnnotationValue)
+                    ):
+                        deps.add(n)
     _register_item(
         node,
+        deps=deps,
         hard_dep_exprs=exprs,
         source=ctx.depstack[-1][1],
         subject=ctx.depstack[-1][1],
@@ -1071,7 +1114,7 @@ def _register_item(
     if fq_name in ctx.ddlgraph:
         vn = get_verbosename_from_fqname(fq_name, ctx)
         msg = f'{vn} was already declared'
-        raise errors.InvalidDefinitionError(msg, context=decl.context)
+        raise errors.InvalidDefinitionError(msg, span=decl.span)
 
     if deps:
         deps = set(deps)
@@ -1329,13 +1372,18 @@ def _get_pointer_deps(
 
 
 def _get_hard_deps(
-    expr: qlast.TypeExpr,
-    *,
-    ctx: DepTraceContext
+    expr: qlast.TypeExpr, *, ctx: DepTraceContext
 ) -> MutableSet[s_name.QualName]:
     deps: MutableSet[s_name.QualName] = set()
 
     if isinstance(expr, qlast.TypeName):
+
+        # Special case for `enum<VariantA, VariantB>`
+        # Don't trace at all, neither `enum` or `VariantA` are resolvable names.
+        # This case will fail later, saying that you need to declare a new type.
+        if qlutils.is_enum(expr):
+            return deps
+
         # We care about subtypes dependencies, because
         # they can either be custom scalars or illegal
         # ObjectTypes (then error message will depend on
@@ -1365,9 +1413,7 @@ def _get_hard_deps(
 
 
 def _get_bases(
-    decl: qlast.CreateObject,
-    *,
-    ctx: LayoutTraceContext
+    decl: qlast.CreateObject, *, ctx: LayoutTraceContext
 ) -> List[s_name.QualName]:
     """Resolve object bases from the "extends" declaration."""
     if not isinstance(decl, qlast.BasedOnTuple):
@@ -1377,21 +1423,14 @@ def _get_bases(
 
     if decl.bases:
         # Explicit inheritance
-        has_enums = any(
-            (
-                isinstance(br.maintype, qlast.TypeName)
-                and br.maintype.name == "enum"
-                and br.subtypes
-            )
-            for br in decl.bases
-        )
+        has_enums = any(qlutils.is_enum(br) for br in decl.bases)
 
         if has_enums:
             if len(decl.bases) > 1:
                 raise errors.SchemaError(
                     f"invalid scalar type definition, enumeration must "
                     f"be the only supertype specified",
-                    context=decl.bases[0].context,
+                    span=decl.bases[0].span,
                 )
 
             bases = [s_name.QualName("std", "anyenum")]
@@ -1470,7 +1509,7 @@ TRACER_TO_REAL_TYPE_MAP = {
 def _get_local_obj(
     refname: s_name.QualName,
     tracer_type: Type[qltracer.NamedObject],
-    sourcectx: Optional[parsing.ParserContext],
+    sourcectx: Optional[parsing.Span],
     *,
     ctx: LayoutTraceContext | DepTraceContext,
 ) -> Optional[qltracer.NamedObject]:
@@ -1481,7 +1520,7 @@ def _get_local_obj(
         raise errors.SchemaError(
             f'invalid type: {obj.get_verbosename(ctx.schema)} is a generic '
             f'type and they are not supported in user-defined schema',
-            context=sourcectx,
+            span=sourcectx,
         )
 
     elif obj is not None and not isinstance(obj, tracer_type):
@@ -1491,7 +1530,7 @@ def _get_local_obj(
             f'{str(refname)!r} exists, but is '
             f'{english.add_a(obj_type.get_schema_class_displayname())}, '
             f'not {english.add_a(real_type.get_schema_class_displayname())}',
-            context=sourcectx,
+            span=sourcectx,
         )
 
     return obj
@@ -1505,7 +1544,7 @@ def _resolve_type_name(
 ) -> qltracer.ObjectLike:
 
     refname = ctx.get_ref_name(ref)
-    local_obj = _get_local_obj(refname, tracer_type, ref.context, ctx=ctx)
+    local_obj = _get_local_obj(refname, tracer_type, ref.span, ctx=ctx)
     obj: qltracer.ObjectLike
     if local_obj is not None:
         obj = local_obj
@@ -1513,7 +1552,7 @@ def _resolve_type_name(
         obj = _resolve_schema_ref(
             refname,
             type=tracer_type,
-            sourcectx=ref.context,
+            span=ref.span,
             ctx=ctx,
         )
 
@@ -1562,7 +1601,7 @@ def _validate_schema_ref(
         # Bail out and rely on some other validation mechanism
         return
 
-    local_obj = _get_local_obj(refname, tracer_type, decl.context, ctx=ctx)
+    local_obj = _get_local_obj(refname, tracer_type, decl.span, ctx=ctx)
 
     if local_obj is None:
         if (tracer_type is qltracer.Index and
@@ -1572,7 +1611,7 @@ def _validate_schema_ref(
         _resolve_schema_ref(
             refname,
             type=tracer_type,
-            sourcectx=decl.context,
+            span=decl.span,
             ctx=ctx,
         )
 
@@ -1580,13 +1619,13 @@ def _validate_schema_ref(
 def _resolve_schema_ref(
     name: s_name.Name,
     type: Type[qltracer.NamedObject],
-    sourcectx: Optional[parsing.ParserContext],
+    span: Optional[parsing.Span],
     *,
     ctx: LayoutTraceContext | DepTraceContext,
 ) -> s_obj.SubclassableObject:
     real_type = TRACER_TO_REAL_TYPE_MAP[type]
     try:
-        return ctx.schema.get(name, type=real_type, sourcectx=sourcectx)
+        return ctx.schema.get(name, type=real_type, sourcectx=span)
     except errors.InvalidReferenceError as e:
         s_utils.enrich_schema_lookup_error(
             e,
@@ -1594,6 +1633,6 @@ def _resolve_schema_ref(
             schema=ctx.schema,
             modaliases=ctx.modaliases,
             item_type=real_type,
-            context=sourcectx,
+            span=span,
         )
         raise

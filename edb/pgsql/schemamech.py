@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Tuple, Sequence, Collection, Dict, List, Set
 
 import itertools
 import dataclasses
@@ -42,11 +42,12 @@ from edb.schema import types as s_types
 from edb.schema import constraints as s_constraints
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
+from edb.schema import expr as s_expr
 
 from edb.common import ast
 from edb.common import parsing
 
-from . import ast as pg_ast
+from . import ast as pgast
 from . import dbops
 from . import deltadbops
 from . import common
@@ -63,18 +64,7 @@ def _get_exclusive_refs(tree: irast.Statement) -> Sequence[irast.Base] | None:
     assert isinstance(tree.expr.expr, irast.SelectStmt)
     expr = tree.expr.expr.result
 
-    astexpr = irastexpr.DistinctConjunctionExpr()  # type: ignore
-    refs = astexpr.match(expr)
-
-    if refs is None:
-        return refs
-    else:
-        all_refs = []
-        for ref in refs:
-            # Unnest sequences in refs
-            all_refs.append(ref)
-
-        return all_refs
+    return irastexpr.get_constraint_references(expr)
 
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
@@ -106,26 +96,29 @@ class ExprDataSources:
     plain_chunks: Sequence[str]
 
 
-def _to_source(sql_expr: pg_ast.Base) -> str:
+def _to_source(sql_expr: pgast.Base) -> str:
     src = codegen.generate_source(sql_expr)
     # ColumnRefs are the most common thing, and they should be safe to
     # skip parenthesizing, for deuglification purposes. anything else
     # we put parens around, to be sure.
-    if not isinstance(sql_expr, pg_ast.ColumnRef):
+    if not isinstance(sql_expr, pgast.ColumnRef):
         src = f'({src})'
     return src
 
 
 def _edgeql_tree_to_expr_data(
-    sql_expr: pg_ast.Base, refs: Optional[Set[pg_ast.ColumnRef]] = None
+    sql_expr: pgast.Base, refs: Optional[Set[pgast.ColumnRef]] = None
 ) -> ExprDataSources:
     if refs is None:
-        refs = set(ast.find_children(
-            sql_expr, pg_ast.ColumnRef, lambda n: len(n.name) == 1))
+        refs = set(
+            ast.find_children(
+                sql_expr, pgast.ColumnRef, lambda n: len(n.name) == 1
+            )
+        )
 
     plain_expr = _to_source(sql_expr)
 
-    if isinstance(sql_expr, (pg_ast.RowExpr, pg_ast.ImplicitRowExpr)):
+    if isinstance(sql_expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
         chunks = []
 
         for elem in sql_expr.args:
@@ -133,7 +126,7 @@ def _edgeql_tree_to_expr_data(
     else:
         chunks = [plain_expr]
 
-    if isinstance(sql_expr, pg_ast.ColumnRef):
+    if isinstance(sql_expr, pgast.ColumnRef):
         refs.add(sql_expr)
 
     for ref in refs:
@@ -158,12 +151,12 @@ def _edgeql_ref_to_pg_constr(
 ) -> ExprData:
     sql_res = compiler.compile_ir_to_sql_tree(tree, singleton_mode=True)
 
-    sql_expr: pg_ast.Base
-    if isinstance(sql_res.ast, pg_ast.SelectStmt):
+    sql_expr: pgast.Base
+    if isinstance(sql_res.ast, pgast.SelectStmt):
         # XXX: use ast pattern matcher for this
         from_clause = sql_res.ast.from_clause[0]
-        assert isinstance(from_clause, pg_ast.RelRangeVar)
-        assert isinstance(from_clause.relation, pg_ast.CommonTableExpr)
+        assert isinstance(from_clause, pgast.RelRangeVar)
+        assert isinstance(from_clause.relation, pgast.CommonTableExpr)
         sql_expr = from_clause.relation.query.target_list[0].val
     else:
         sql_expr = sql_res.ast
@@ -174,22 +167,20 @@ def _edgeql_ref_to_pg_constr(
     if isinstance(tree, irast.Set) and isinstance(tree.expr, irast.SelectStmt):
         tree = tree.expr.result
 
-    is_multicol = isinstance(sql_expr, (pg_ast.RowExpr, pg_ast.ImplicitRowExpr))
+    is_multicol = isinstance(sql_expr, (pgast.RowExpr, pgast.ImplicitRowExpr))
 
     # Determine if the sequence of references are all simple refs, not
     # expressions.  This influences the type of Postgres constraint used.
     #
-    is_trivial = isinstance(sql_expr, pg_ast.ColumnRef) or (
-        isinstance(sql_expr, (pg_ast.RowExpr, pg_ast.ImplicitRowExpr))
-        and all(isinstance(el, pg_ast.ColumnRef) for el in sql_expr.args)
+    is_trivial = isinstance(sql_expr, pgast.ColumnRef) or (
+        isinstance(sql_expr, (pgast.RowExpr, pgast.ImplicitRowExpr))
+        and all(isinstance(el, pgast.ColumnRef) for el in sql_expr.args)
     )
 
     # Find all field references
     #
     refs = set(
-        ast.find_children(
-            sql_expr, pg_ast.ColumnRef, lambda n: len(n.name) == 1
-        )
+        ast.find_children(sql_expr, pgast.ColumnRef, lambda n: len(n.name) == 1)
     )
 
     if isinstance(subject, s_scalars.ScalarType):
@@ -224,7 +215,7 @@ def compile_constraint(
     subject: s_constraints.ConsistencySubject,
     constraint: s_constraints.Constraint,
     schema: s_schema.Schema,
-    source_context: Optional[parsing.ParserContext],
+    span: Optional[parsing.Span],
 ) -> SchemaDomainConstraint | SchemaTableConstraint:
     assert constraint.get_subject(schema) is not None
     TypeOrPointer = s_types.Type | s_pointers.Pointer
@@ -242,8 +233,8 @@ def compile_constraint(
         {(subject, is_optional)}
     )
     options = qlcompiler.CompilerOptions(
-        anchors={qlast.Subject().name: subject},
-        path_prefix_anchor=qlast.Subject().name,
+        anchors={'__subject__': subject},
+        path_prefix_anchor='__subject__',
         apply_query_rewrites=False,
         singletons=singletons,
         schema_object_context=type(constraint),
@@ -256,10 +247,10 @@ def compile_constraint(
         type_remaps={first_subject: subject},
     )
 
-    final_expr = constraint.get_finalexpr(schema)
-    assert final_expr is not None and final_expr.qlast is not None
+    final_expr: Optional[s_expr.Expression] = constraint.get_finalexpr(schema)
+    assert final_expr is not None and final_expr.parse() is not None
     ir = qlcompiler.compile_ast_to_ir(
-        final_expr.qlast,
+        final_expr.parse(),
         schema,
         options=options,
     )
@@ -268,8 +259,9 @@ def compile_constraint(
 
     except_data = None
     if except_expr := constraint.get_except_expr(schema):
+        assert isinstance(except_expr, s_expr.Expression)
         except_ir = qlcompiler.compile_ast_to_ir(
-            except_expr.qlast,
+            except_expr.parse(),
             schema,
             options=options,
         )
@@ -286,7 +278,7 @@ def compile_constraint(
             f'Constraint {constraint.get_displayname(schema)} on '
             f'{subject.get_displayname(schema)} is not supported '
             f'because it would depend on multiple objects',
-            context=source_context,
+            span=span,
         )
     elif ref_tables:
         subject_db_name, info = next(iter(ref_tables.items()))
@@ -325,15 +317,11 @@ def compile_constraint(
         assert isinstance(sub, (s_types.Type, s_pointers.Pointer))
         origin_subject: s_types.Type | s_pointers.Pointer = sub
 
-        origin_path_prefix_anchor = (
-            qlast.Subject().name
-            if isinstance(origin_subject, s_types.Type)
-            else None
-        )
+        origin_path_prefix_anchor = '__subject__'
         singletons = frozenset({(origin_subject, is_optional)})
 
         origin_options = qlcompiler.CompilerOptions(
-            anchors={qlast.Subject().name: origin_subject},
+            anchors={'__subject__': origin_subject},
             path_prefix_anchor=origin_path_prefix_anchor,
             apply_query_rewrites=False,
             singletons=singletons,
@@ -341,9 +329,9 @@ def compile_constraint(
         )
 
         final_expr = constraint_origin.get_finalexpr(schema)
-        assert final_expr is not None and final_expr.qlast is not None
+        assert final_expr is not None and final_expr.parse() is not None
         origin_ir = qlcompiler.compile_ast_to_ir(
-            final_expr.qlast,
+            final_expr.parse(),
             schema,
             options=origin_options,
         )
@@ -367,8 +355,9 @@ def compile_constraint(
 
         origin_except_data = None
         if except_expr := constraint_origin.get_except_expr(schema):
+            assert isinstance(except_expr, s_expr.Expression)
             except_ir = qlcompiler.compile_ast_to_ir(
-                except_expr.qlast,
+                except_expr.parse(),
                 schema,
                 options=origin_options,
             )
@@ -633,7 +622,7 @@ class SchemaTableConstraint:
                         "schema" => '{schemaname}',
                         detail => {detail}
                     )
-                FROM {common.qname(schemaname, tablename+"_t")} AS OLD
+                FROM {common.qname(schemaname, tablename + "_t")} AS OLD
                 CROSS JOIN {common.qname(*real_tablename)} AS NEW
                 WHERE {old_expr} = {new_expr} and OLD.{key} != NEW.{key}
                 {except_part}
@@ -707,7 +696,9 @@ def get_ref_storage_info(
     for ref in refs:
         ptr: s_pointers.PointerLike
         src: s_types.Type | s_pointers.PointerLike
-        if ref.rptr is None:
+
+        rptr = ref.expr if isinstance(ref.expr, irast.Pointer) else None
+        if rptr is None:
             source_typeref = ref.typeref
             if not irtyputils.is_object(source_typeref):
                 continue
@@ -715,13 +706,14 @@ def get_ref_storage_info(
             assert isinstance(t, s_sources.Source)
             ptr = t.getptr(schema, s_name.UnqualName('id'))
         else:
-            ptrref = ref.rptr.ptrref
+            ptrref = rptr.ptrref
             schema, ptr = irtyputils.ptrcls_from_ptrref(ptrref, schema=schema)
-            source_typeref = ref.rptr.source.typeref
+            source_typeref = rptr.source.typeref
 
         if ptr.is_link_property(schema):
-            assert ref.rptr and ref.rptr.source and ref.rptr.source.rptr
-            srcref = ref.rptr.source.rptr.ptrref
+            assert rptr and rptr.source
+            assert isinstance(rptr.source.expr, irast.Pointer)
+            srcref = rptr.source.expr.ptrref
             schema, src = irtyputils.ptrcls_from_ptrref(
                 srcref, schema=schema)
             if src.get_is_derived(schema):
@@ -729,12 +721,12 @@ def get_ref_storage_info(
                 # for the purposes of constraint expr compilation.
                 src = src.get_bases(schema).first(schema)
         elif ptr.is_tuple_indirection():
-            assert ref.rptr
-            refs.append(ref.rptr.source)
+            assert rptr
+            refs.append(rptr.source)  # noqa: B909
             continue
         elif ptr.is_type_intersection():
-            assert ref.rptr
-            refs.append(ref.rptr.source)
+            assert rptr
+            refs.append(rptr.source)  # noqa: B909
             continue
         else:
             schema, src = irtyputils.ir_typeref_to_type(schema, source_typeref)

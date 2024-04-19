@@ -569,6 +569,12 @@ Sets
         db> select assert_single((select User), message := "too many users!")
         ERROR: CardinalityViolationError: too many users!
 
+    .. note::
+
+        ``assert_single`` can be useful in many of the same contexts as ``limit
+        1`` with the key difference being that ``limit 1`` doesn't produce an
+        error if more than a single element exists in the set.
+
 ----------
 
 

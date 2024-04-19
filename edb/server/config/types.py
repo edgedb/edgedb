@@ -19,7 +19,10 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Any, TypeVar, TYPE_CHECKING, TypeGuard
+
+import enum
+import platform
 
 from edb import errors
 from edb.common import typeutils
@@ -31,6 +34,15 @@ from edb.ir import statypes
 
 if TYPE_CHECKING:
     from . import spec
+
+
+T_type = TypeVar('T_type', bound=type)
+
+
+def _issubclass(
+    typ: type | statypes.CompositeTypeSpec, parent: T_type
+) -> TypeGuard[T_type]:
+    return isinstance(typ, type) and issubclass(typ, parent)
 
 
 class ConfigTypeSpec(statypes.CompositeTypeSpec):
@@ -105,10 +117,14 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
         return f'{self._tspec.name}({body})'
 
     @classmethod
-    def from_pyvalue(cls, data, *,
-                     tspec: statypes.CompositeTypeSpec,
-                     spec: spec.Spec,
-                     allow_missing=False) -> CompositeConfigType:
+    def from_pyvalue(
+        cls,
+        data,
+        *,
+        tspec: statypes.CompositeTypeSpec,
+        spec: spec.Spec,
+        allow_missing=False,
+    ) -> CompositeConfigType:
         if allow_missing and data is None:
             return None  # type: ignore
 
@@ -177,6 +193,11 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
 
                 value = cls.from_pyvalue(value, tspec=actual_f_type, spec=spec)
 
+            elif _issubclass(f_type, statypes.Duration):
+                value = statypes.Duration.from_iso8601(value)
+            elif _issubclass(f_type, statypes.ConfigMemory):
+                value = statypes.ConfigMemory(value)
+
             elif not isinstance(f_type, type) or not isinstance(value, f_type):
                 raise cls._err(
                     tspec,
@@ -212,7 +233,7 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
     def from_json_value(cls, s, *, tspec: statypes.CompositeTypeSpec, spec):
         return cls.from_pyvalue(s, tspec=tspec, spec=spec)
 
-    def to_json_value(self, redacted: bool=False):
+    def to_json_value(self, redacted: bool = False):
         dct = {}
         dct['_tname'] = self._tspec.name
 
@@ -237,3 +258,25 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
     ) -> errors.ConfigurationError:
         return errors.ConfigurationError(
             f'invalid {tspec.name.lower()!r} value: {msg}')
+
+
+class QueryCacheMode(enum.StrEnum):
+    InMemory = "InMemory"
+    RegInline = "RegInline"
+    PgFunc = "PgFunc"
+    Default = "Default"
+
+    @classmethod
+    def effective(cls, value: str | None) -> QueryCacheMode:
+        if value is None:
+            rv = cls.Default
+        else:
+            rv = cls(value)
+        if rv is QueryCacheMode.Default:
+            # Persistent cache disabled for now by default on arm64 linux
+            # because of observed problems in CI test runs.
+            if platform.system() == 'Linux' and platform.machine() == 'arm64':
+                rv = QueryCacheMode.InMemory
+            else:
+                rv = QueryCacheMode.RegInline
+        return rv

@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Any, Optional, Tuple, Type, Dict, TYPE_CHECKING
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -38,6 +38,7 @@ from . import rewrites as s_rewrites
 from . import sources
 from . import types as s_types
 from . import utils
+from . import expr as s_expr
 
 if TYPE_CHECKING:
     from . import schema as s_schema
@@ -97,14 +98,16 @@ class Property(
             other, our_schema=our_schema,
             their_schema=their_schema, context=context)
 
-        if (not self.generic(our_schema) and
-                not other.generic(their_schema) and
-                self.issubclass(
-                    our_schema,
-                    our_schema.get('std::source', type=Property)) and
-                other.issubclass(
-                    their_schema,
-                    their_schema.get('std::source', type=Property))):
+        if (
+            not self.is_non_concrete(our_schema)
+            and not other.is_non_concrete(their_schema)
+            and self.issubclass(
+                our_schema, our_schema.get('std::source', type=Property)
+            )
+            and other.issubclass(
+                their_schema, their_schema.get('std::source', type=Property)
+            )
+        ):
             # Make std::source link property ignore differences in its target.
             # This is consistent with skipping the comparison on Pointer.source
             # in general.
@@ -148,7 +151,7 @@ class Property(
     ) -> bool:
         source = self.get_source(schema)
         if isinstance(source, pointers.Pointer):
-            if source.generic(schema):
+            if source.is_non_concrete(schema):
                 return True
             else:
                 source = source.get_source(schema)
@@ -241,13 +244,13 @@ class PropertyCommand(
             if self.get_attribute_value('required'):
                 raise errors.InvalidPropertyDefinitionError(
                     'link properties cannot be required',
-                    context=self.source_context,
+                    span=self.span,
                 )
             if (self.get_attribute_value('cardinality')
                     is qltypes.SchemaCardinality.Many):
                 raise errors.InvalidPropertyDefinitionError(
                     "multi properties aren't supported for links",
-                    context=self.source_context,
+                    span=self.span,
                 )
 
         target_type = scls.get_target(schema)
@@ -255,23 +258,23 @@ class PropertyCommand(
             raise TypeError(f'missing target type in scls {scls}')
 
         if target_type.is_polymorphic(schema):
-            srcctx = self.get_attribute_source_context('target')
+            span = self.get_attribute_span('target')
             raise errors.InvalidPropertyTargetError(
                 f'invalid property type: '
                 f'{target_type.get_verbosename(schema)} '
                 f'is a generic type',
-                context=srcctx,
+                span=span,
             )
 
         if (target_type.is_object_type()
                 or (isinstance(target_type, s_types.Collection)
                     and target_type.contains_object(schema))):
-            srcctx = self.get_attribute_source_context('target')
+            span = self.get_attribute_span('target')
             raise errors.InvalidPropertyTargetError(
                 f'invalid property type: expected a scalar type, '
                 f'or a scalar collection, got '
                 f'{target_type.get_verbosename(schema)}',
-                context=srcctx,
+                span=span,
             )
 
     def _check_linkprop_errors(self, node: qlast.DDLOperation) -> None:
@@ -280,7 +283,7 @@ class PropertyCommand(
             if isinstance(sub, qlast.CreateConcretePointer):
                 raise errors.InvalidDefinitionError(
                     f'cannot create a link property on a property',
-                    context=node.context,
+                    span=node.span,
                     hint='Link properties can only be created on links, whose '
                          'target types are object types.',
                 )
@@ -340,9 +343,11 @@ class CreateProperty(
 
         if op.property == 'target' and link:
             if isinstance(node, qlast.CreateConcreteProperty):
-                expr = self.get_attribute_value('expr')
+                expr: Optional[s_expr.Expression] = (
+                    self.get_attribute_value('expr')
+                )
                 if expr is not None:
-                    node.target = expr.qlast
+                    node.target = expr.parse()
                 else:
                     ref = op.new_value
                     assert isinstance(ref, (so.Object, so.ObjectShell))

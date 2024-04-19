@@ -10,11 +10,6 @@ In this guide we show how to deploy EdgeDB using a `Fly.io <https://fly.io>`_
 PostgreSQL cluster as the backend. The deployment consists of two apps: one
 running Postgres and the other running EdgeDB.
 
-.. note::
-
-    At the moment, it isn't possible to expose Fly-hosted EdgeDB instances to
-    the public internet, only internally to other Fly projects. As such your
-    application must also be hosted on Fly.
 
 Prerequisites
 =============
@@ -55,7 +50,7 @@ we'll need. There are a couple more environment variables we need to set:
 .. code-block:: bash
 
     $ flyctl secrets set \
-        EDGEDB_PASSWORD="$PASSWORD" \
+        EDGEDB_SERVER_PASSWORD="$PASSWORD" \
         EDGEDB_SERVER_BACKEND_DSN_ENV=DATABASE_URL \
         EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
         EDGEDB_SERVER_PORT=8080 \
@@ -77,16 +72,20 @@ Let's discuss what's going on with all these secrets.
   of the default 5656, because Fly.io prefers ``8080`` for its default health
   checks.
 
-Finally, let's scale the VM as EdgeDB requires a little bit more than the
-default Fly.io VM side provides:
+Finally, let's configure the VM size as EdgeDB requires a little bit more than
+the default Fly.io VM side provides. Put this in a file called ``fly.toml`` in
+your current directory.:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-    $ flyctl scale vm shared-cpu-1x --memory=1024 --app $EDB_APP
-    Scaled VM Type to
-     shared-cpu-1x
-          CPU Cores: 1
-             Memory: 1 GB
+    [build]
+      image = "edgedb/edgedb"
+
+    [[vm]]
+      memory = "512mb"
+      cpus = 1
+      cpu-kind = "shared"
+
 
 Create a PostgreSQL cluster
 ===========================
@@ -128,7 +127,7 @@ this command:
 
 .. code-block:: bash
 
-    $ flyctl machine update <machine-id> --memory 512 --app $PG_APP -y
+    $ flyctl machine update <machine-id> --memory 1024 --app $PG_APP -y
     Searching for image 'flyio/postgres:14.6' remotely...
     image found: img_0lq747j0ym646x35
     Image: registry-1.docker.io/flyio/postgres:14.6
@@ -165,6 +164,7 @@ to Postgres:
     ...
     ALTER ROLE
 
+.. _ref_guide_deployment_fly_io_start_edgedb:
 
 Start EdgeDB
 ============
@@ -173,11 +173,12 @@ Everything is set! Time to start EdgeDB.
 
 .. code-block:: bash
 
-    $ flyctl deploy --image=edgedb/edgedb \
-        --remote-only --app $EDB_APP
+    $ flyctl deploy --remote-only --app $EDB_APP
     ...
-    1 desired, 1 placed, 1 healthy, 0 unhealthy
-    --> v0 deployed successfully
+    Finished launching new machines
+    -------
+     ✔ Machine e286630dce9638 [app] was created
+    -------
 
 That's it!  You can now start using the EdgeDB instance located at
 ``edgedb://myorg-edgedb.internal`` in your Fly.io apps.
@@ -185,7 +186,7 @@ That's it!  You can now start using the EdgeDB instance located at
 
 If deploy did not succeed:
 
-1. make sure you've scaled the EdgeDB VM
+1. make sure you've created the ``fly.toml`` file.
 2. re-run the ``deploy`` command
 3. check the logs for more information: ``flyctl logs --app $EDB_APP``
 
@@ -268,14 +269,8 @@ From external application
 If you need to access EdgeDB from outside the Fly.io network, you'll need to
 configure the Fly.io proxy to let external connections in.
 
-First, save the EdgeDB app config in an **empty directory**:
-
-.. code-block:: bash
-
-    $ flyctl config save -a $EDB_APP
-
-A ``fly.toml`` file will be created upon result. Let's make sure our
-``[[services]]`` section looks something like this:
+Let's make sure the ``[[services]]`` section in our ``fly.toml`` looks
+something like this:
 
 .. code-block:: toml
 
@@ -299,10 +294,10 @@ A ``fly.toml`` file will be created upon result. Let's make sure our
             restart_limit = 0
             timeout = "2s"
 
-In the same directory, `redeploy the EdgeDB app <#start-edgedb>`_.
-This makes the EdgeDB port available to the outside world. You can now
-access the instance from any host via the following public DSN:
-``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev``.
+In the same directory, :ref:`redeploy the EdgeDB app
+<ref_guide_deployment_fly_io_start_edgedb>`. This makes the EdgeDB port
+available to the outside world. You can now access the instance from any host
+via the following public DSN: ``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev``.
 
 To secure communication between the server and the client, you will also
 need to set the ``EDGEDB_TLS_CA`` environment secret in your application.

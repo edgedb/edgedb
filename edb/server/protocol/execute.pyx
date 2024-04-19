@@ -42,11 +42,13 @@ from edb.edgeql import qltypes
 from edb.server import compiler
 from edb.server import config
 from edb.server import defines as edbdef
+from edb.server import metrics
 from edb.server.compiler import errormech
+from edb.server.compiler cimport rpc
+from edb.server.compiler import sertypes
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport frontend
-from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
@@ -54,6 +56,171 @@ from edb.server.pgcon import errors as pgerror
 cdef object logger = logging.getLogger('edb.server')
 
 cdef object FMT_NONE = compiler.OutputFormat.NONE
+cdef WriteBuffer NO_ARGS = args_ser.combine_raw_args()
+
+
+cdef class ExecutionGroup:
+    def __cinit__(self):
+        self.group = compiler.QueryUnitGroup()
+        self.bind_datas = []
+
+    cdef append(self, object query_unit, WriteBuffer bind_data=NO_ARGS):
+        self.group.append(query_unit, serialize=False)
+        self.bind_datas.append(bind_data)
+
+    async def execute(
+        self,
+        pgcon.PGConnection be_conn,
+        object dbv,  # can be DatabaseConnectionView or Database
+        fe_conn: frontend.AbstractFrontendConnection = None,
+        bytes state = None,
+    ):
+        cdef int dbver
+
+        rv = None
+        async with be_conn.parse_execute_script_context():
+            dbver = dbv.dbver
+            parse_array = [False] * len(self.group)
+            be_conn.send_query_unit_group(
+                self.group,
+                True,  # sync
+                self.bind_datas,
+                state,
+                0,  # start
+                len(self.group),  # end
+                dbver,
+                parse_array,
+            )
+            if state is not None:
+                await be_conn.wait_for_state_resp(state, state_sync=0)
+            for i, unit in enumerate(self.group):
+                if unit.output_format == FMT_NONE and unit.ddl_stmt_id is None:
+                    for sql in unit.sql:
+                        await be_conn.wait_for_command(
+                            unit, parse_array[i], dbver, ignore_data=True
+                        )
+                        rv = None
+                else:
+                    for sql in unit.sql:
+                        rv = await be_conn.wait_for_command(
+                            unit, parse_array[i], dbver,
+                            ignore_data=False,
+                            fe_conn=fe_conn,
+                        )
+        return rv
+
+
+cpdef ExecutionGroup build_cache_persistence_units(
+    pairs: list[tuple[rpc.CompilationRequest, compiler.QueryUnitGroup]],
+    ExecutionGroup group = None,
+):
+    if group is None:
+        group = ExecutionGroup()
+    insert_sql = b'''
+        INSERT INTO "edgedb"."_query_cache"
+        ("key", "schema_version", "input", "output", "evict")
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (key) DO NOTHING
+    '''
+    sql_hash = hashlib.sha1(insert_sql).hexdigest().encode('latin1')
+    for request, units in pairs:
+        # FIXME: this is temporary; drop this assertion when we support scripts
+        assert len(units) == 1
+        query_unit = units[0]
+
+        assert query_unit.cache_sql is not None
+        persist, evict = query_unit.cache_sql
+
+        serialized_result = units.maybe_get_serialized(0)
+        assert serialized_result is not None
+
+        if evict:
+            group.append(compiler.QueryUnit(sql=(evict,), status=b''))
+        if persist:
+            group.append(compiler.QueryUnit(sql=(persist,), status=b''))
+        group.append(
+            compiler.QueryUnit(
+                sql=(insert_sql,), sql_hash=sql_hash, status=b'',
+            ),
+            args_ser.combine_raw_args((
+                query_unit.cache_key.bytes,
+                query_unit.user_schema_version.bytes,
+                request.serialize(),
+                serialized_result,
+                evict,
+            )),
+        )
+    return group
+
+
+async def describe(
+    db: dbview.Database,
+    query: str,
+    *,
+    query_cache_enabled: Optional[bool] = None,
+    allow_capabilities: compiler.Capability = compiler.Capability.MODIFICATIONS,
+) -> sertypes.TypeDesc:
+    compiled, dbv = await _parse(
+        db,
+        query,
+        query_cache_enabled=query_cache_enabled,
+        allow_capabilities=allow_capabilities,
+    )
+
+    try:
+        desc = sertypes.parse(
+            compiled.query_unit_group.out_type_data,
+            edbdef.CURRENT_PROTOCOL,
+        )
+    finally:
+        db.tenant.remove_dbview(dbv)
+
+    return desc
+
+
+async def _parse(
+    db: dbview.Database,
+    query: str,
+    *,
+    input_format: compiler.InputFormat = compiler.InputFormat.BINARY,
+    output_format: compiler.OutputFormat = compiler.OutputFormat.BINARY,
+    allow_capabilities: compiler.Capability = compiler.Capability.MODIFICATIONS,
+    use_metrics: bool = True,
+    cached_globally: bool = False,
+    query_cache_enabled: Optional[bool] = None,
+) -> tuple[dbview.CompiledQuery, dbview.DatabaseConnectionView]:
+    if query_cache_enabled is None:
+        query_cache_enabled = not (
+            debug.flags.disable_qcache or debug.flags.edgeql_compile)
+
+    tenant = db.tenant
+    dbv = await tenant.new_dbview(
+        dbname=db.name,
+        query_cache=query_cache_enabled,
+        protocol_version=edbdef.CURRENT_PROTOCOL,
+    )
+    if use_metrics:
+        metrics.query_size.observe(
+            len(query.encode('utf-8')), tenant.get_instance_name(), 'edgeql'
+        )
+
+    query_req = rpc.CompilationRequest(
+        db.server.compilation_config_serializer
+    ).update(
+        edgeql.Source.from_string(query),
+        protocol_version=edbdef.CURRENT_PROTOCOL,
+        input_format=input_format,
+        output_format=output_format,
+    ).set_schema_version(dbv.schema_version)
+
+    compiled = await dbv.parse(
+        query_req,
+        cached_globally=cached_globally,
+        use_metrics=use_metrics,
+        allow_capabilities=allow_capabilities,
+    )
+
+    return compiled, dbv
 
 
 # TODO: can we merge execute and execute_script?
@@ -65,13 +232,11 @@ async def execute(
     *,
     fe_conn: frontend.AbstractFrontendConnection = None,
     use_prep_stmt: bint = False,
-    # HACK: A hook from the notebook ext, telling us to skip dbview.start
-    # so that it can handle things differently.
-    skip_start: bint = False,
 ):
     cdef:
         bytes state = None, orig_state = None
         WriteBuffer bound_args_buf
+        ExecutionGroup group
 
     query_unit = compiled.query_unit_group[0]
 
@@ -89,22 +254,25 @@ async def execute(
             # the current status in be_conn is in sync with dbview, skip the
             # state restoring
             state = None
-        if not skip_start:
-            dbv.start(query_unit)
+        dbv.start(query_unit)
         if query_unit.create_db_template:
             await tenant.on_before_create_db_from_template(
                 query_unit.create_db_template,
                 dbv.dbname,
             )
         if query_unit.drop_db:
-            await tenant.on_before_drop_db(query_unit.drop_db, dbv.dbname)
+            await tenant.on_before_drop_db(
+                query_unit.drop_db,
+                dbv.dbname,
+                close_frontend_conns=query_unit.drop_db_reset_connections,
+            )
         if query_unit.system_config:
             await execute_system_config(be_conn, dbv, query_unit, state)
         else:
             config_ops = query_unit.config_ops
 
             if query_unit.sql:
-                if query_unit.ddl_stmt_id:
+                if query_unit.user_schema:
                     ddl_ret = await be_conn.run_ddl(query_unit, state)
                     if ddl_ret and ddl_ret['new_types']:
                         new_types = ddl_ret['new_types']
@@ -158,6 +326,24 @@ async def execute(
                 dbv.declare_savepoint(
                     query_unit.sp_name, query_unit.sp_id)
 
+            if query_unit.create_db_template:
+                try:
+                    await tenant.on_after_create_db_from_template(
+                        query_unit.create_db,
+                        query_unit.create_db_template,
+                        query_unit.create_db_mode,
+                    )
+                except Exception:
+                    # Clean up the database if we failed to restore into it.
+                    # TODO: Is it worth having 'ready' flag that we set after
+                    # the database is fully set up, and use that to clean up
+                    # databases where a crash prevented doing this cleanup?
+                    db_name = f'{tenant.tenant_id}_{query_unit.create_db}'
+                    await be_conn.sql_execute(
+                        b'drop database "%s"' % db_name.encode('utf-8')
+                    )
+                    raise
+
             if query_unit.create_db:
                 await tenant.introspect_db(query_unit.create_db)
 
@@ -168,6 +354,12 @@ async def execute(
                 await dbv.apply_config_ops(be_conn, config_ops)
 
     except Exception as ex:
+        # If we made schema changes, include the new schema in the
+        # exception so that it can be used when interpreting.
+        if query_unit.user_schema:
+            if isinstance(ex, pgerror.BackendError):
+                ex._user_schema = query_unit.user_schema
+
         dbv.on_error()
 
         if query_unit.tx_commit and not be_conn.in_tx() and dbv.in_tx():
@@ -194,13 +386,12 @@ async def execute(
                 #   1. An orphan ROLLBACK command without a paring start tx
                 #   2. There was no SQL, so the state can't have been synced.
                 be_conn.last_state = state
+        if compiled.recompiled_cache:
+            for req, qu_group in compiled.recompiled_cache:
+                dbv.cache_compiled_query(req, qu_group)
     finally:
         if query_unit.drop_db:
             tenant.allow_database_connections(query_unit.drop_db)
-        if query_unit.create_db_template:
-            tenant.allow_database_connections(
-                query_unit.create_db_template,
-            )
 
     return data
 
@@ -349,6 +540,11 @@ async def execute_script(
     except Exception as e:
         dbv.on_error()
 
+        # Include the new schema in the exception so that it can be
+        # used when interpreting.
+        if isinstance(e, pgerror.BackendError):
+            e._user_schema = dbv.get_user_schema_pickle()
+
         if not in_tx and dbv.in_tx():
             # Abort the implicit transaction
             dbv.abort_tx()
@@ -492,32 +688,18 @@ async def parse_execute_json(
     # or anything from std schema, for example:
     #     YES:  select ext::auth::UIConfig { ... }
     #     NO:   select default::User { ... }
-
-    if query_cache_enabled is None:
-        query_cache_enabled = not (
-            debug.flags.disable_qcache or debug.flags.edgeql_compile)
-
-    tenant = db.tenant
-    dbv = await tenant.new_dbview(
-        dbname=db.name,
-        query_cache=query_cache_enabled,
-        protocol_version=edbdef.CURRENT_PROTOCOL,
-    )
-
-    query_req = dbview.QueryRequestInfo(
-        edgeql.Source.from_string(query),
-        protocol_version=edbdef.CURRENT_PROTOCOL,
+    compiled, dbv = await _parse(
+        db,
+        query,
         input_format=compiler.InputFormat.JSON,
         output_format=output_format,
         allow_capabilities=compiler.Capability.MODIFICATIONS,
-    )
-
-    compiled = await dbv.parse(
-        query_req,
-        cached_globally=cached_globally,
         use_metrics=use_metrics,
+        cached_globally=cached_globally,
+        query_cache_enabled=query_cache_enabled,
     )
 
+    tenant = db.tenant
     pgcon = await tenant.acquire_pgcon(db.name)
     try:
         return await execute_json(
@@ -529,6 +711,7 @@ async def parse_execute_json(
         )
     finally:
         tenant.release_pgcon(db.name, pgcon)
+        tenant.remove_dbview(dbv)
 
 
 async def execute_json(
@@ -597,6 +780,8 @@ class DecimalEncoder(json.JSONEncoder):
                 ) + '}'
         if isinstance(obj, list):
             return '[' + ', '.join(map(self.encode, obj)) + ']'
+        if isinstance(obj, bytes):
+            return self.encode(base64.b64encode(obj).decode())
         if isinstance(obj, decimal.Decimal):
             return f'{obj:f}'
         return super().encode(obj)
@@ -627,6 +812,10 @@ cdef bytes _encode_args(list args):
 
 
 cdef _check_for_ise(exc):
+    # Unwrap ExceptionGroup that has only one Exception
+    if isinstance(exc, BaseExceptionGroup) and len(exc.exceptions) == 1:
+        exc = exc.exceptions[0]
+
     if not isinstance(exc, errors.EdgeDBError):
         nexc = errors.InternalServerError(
             f'{type(exc).__name__}: {exc}',
@@ -640,6 +829,8 @@ cdef _check_for_ise(exc):
         formatted = getattr(exc, '__formatted_error__', None)
         if formatted:
             nexc.__formatted_error__ = formatted
+        if isinstance(exc, BaseExceptionGroup):
+            nexc.__cause__ = exc.with_traceback(None)
         exc = nexc
 
     return exc
@@ -672,8 +863,12 @@ async def interpret_error(
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:
+                # Grab the schema from the exception first, if it is present.
                 user_schema_pickle = (
-                    user_schema_pickle or db.user_schema_pickle)
+                    getattr(exc, '_user_schema', None)
+                    or user_schema_pickle
+                    or db.user_schema_pickle
+                )
                 global_schema_pickle = (
                     global_schema_pickle or db._index._global_schema_pickle
                 )

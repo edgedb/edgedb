@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Tuple, Type, Iterator, List, cast
 
 import contextlib
 import uuid
@@ -180,7 +180,7 @@ class ExtensionPackageCommand(
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
                 'user-defined extension packages are not supported yet',
-                context=astnode.context
+                span=astnode.span
             )
 
         return super()._cmd_tree_from_ast(schema, astnode, context)
@@ -196,7 +196,10 @@ def get_package(
     ]
     if version is not None:
         filters.append(
-            lambda schema, pkg: pkg.get_version(schema) == version,
+            lambda schema, pkg: (
+                pkg.get_version(schema) >= version
+                and pkg.get_version(schema).major == version.major
+            )
         )
 
     pkgs = list(schema.get_objects(
@@ -274,7 +277,7 @@ class CreateExtensionPackage(
                     qlparser.parse_block(op.new_value)),
             )
         elif op.property == 'version':
-            node.version = qlast.StringConstant(
+            node.version = qlast.Constant.string(
                 value=str(op.new_value),
             )
         else:
@@ -382,7 +385,17 @@ class CreateExtension(
         if pkg_attr := self.get_attribute_value('package'):
             pkg = pkg_attr.resolve(schema)
         else:
-            version = self.get_attribute_value('version')
+            # If we're restoring a dump ignore the extension package version
+            # as the current EdgeDB might have a different version available
+            # and we don't have a way to select specific versions yet.
+            #
+            # Use `compat_ver` as a way to detect that we're working with a
+            # dump rather than some other operation.
+            if context.compat_ver is not None:
+                version = None
+            else:
+                version = self.get_attribute_value('version')
+
             pkg = get_package(self.classname, version, schema)
 
         self.discard_attribute('version')
@@ -431,9 +444,14 @@ class CreateExtension(
         assert isinstance(node, qlast.CreateExtension)
         pkg = self.get_resolved_attribute_value(
             'package', schema=schema, context=context)
-        node.version = qlast.StringConstant(
-            value=str(pkg.get_version(schema))
-        )
+        # When performing dumps we don't want to include the extension version
+        # as we're not guaranteed that the same version will be avaialble when
+        # restoring the dump. We also have no mechanism of installing a specific
+        # extension version, yet.
+        if context.include_ext_version:
+            node.version = qlast.Constant.string(
+                value=str(pkg.get_version(schema))
+            )
         return node
 
 
@@ -466,9 +484,14 @@ class DeleteExtension(
                 or name == module_name
             )
 
-        # Clean up the casts separately for annoying reasons
+        # Clean up the casts separately because we can't keep them in
+        # our own module, so we keep them in __ext_casts__. (Cast
+        # names are derived solely from the names of their from and to
+        # types, which means that if we have a cast between ext::a::T
+        # and ext::b::S, we wouldn't have a way to distinguish which
+        # is should be.)
         for obj in schema.get_objects(
-            included_modules=(sn.UnqualName('__derived__'),),
+            included_modules=(sn.UnqualName('__ext_casts__'),),
             type=s_casts.Cast,
         ):
             if (

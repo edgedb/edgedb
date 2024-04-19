@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import TYPE_CHECKING
 
 import re
 
@@ -204,6 +204,21 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type Combo {
                multi link comp := {UniqueName, UniqueName_2};
             }
+        """
+
+    @tb.must_fail(errors.SchemaError,
+                  "cannot redefine property 'name' of object type "
+                  "'test::UniqueName_2' as scalar type 'std::bytes'",
+                  position=196)
+    def test_schema_overloaded_prop_11(self):
+        """
+            type UniqueName {
+                property name -> str;
+            };
+
+            type UniqueName_2 extending UniqueName {
+                overloaded property name -> bytes;
+            };
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
@@ -660,7 +675,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         errors.InvalidDefinitionError,
         "index 'fts::index' of object type 'test::Foo' " "was already declared",
     )
-    def test_schema_bad_type_17(self):
+    def test_schema_bad_type_17a(self):
         """
         type Foo {
             property val -> str;
@@ -673,6 +688,34 @@ class TestSchema(tb.BaseSchemaLoadTest):
             index fts::index on (
                 fts::with_options(.val, language := fts::Language.eng)
             );
+        };
+        """
+
+    @tb.must_fail(
+        errors.InvalidDefinitionError,
+        "multiple fts::index indexes defined for test::Foo",
+    )
+    def test_schema_bad_type_17b(self):
+        """
+        type Foo {
+            property val -> str;
+            index fts::index on (
+                fts::with_options(.val, language := fts::Language.eng)
+            );
+            index fts::index on (
+                fts::with_options(.val, language := fts::Language.ita)
+            );
+        };
+        """
+
+    @tb.must_fail(
+        errors.InvalidPropertyDefinitionError,
+        "this type cannot be anonymous",
+    )
+    def test_schema_bad_type_18(self):
+        """
+        type Foo {
+            property val -> enum<VariantA, VariantB>;
         };
         """
 
@@ -1023,6 +1066,25 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type B {
                 property bar := 1;
             };
+       """
+
+    def test_schema_hard_sorting_05(self):
+        """
+            type T {
+                multi as: A;
+                multi bs: B;
+                sections := (
+                    select (.as union .bs)
+                    filter .index > 0
+                );
+            }
+
+            abstract type I {
+                required index: int16;
+            }
+
+            type A extending I;
+            type B extending I;
        """
 
     def test_schema_refs_01(self):
@@ -1579,6 +1641,14 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    def test_schema_scalar_order_01(self):
+        # Make sure scalar types account for base types when tracing SDL
+        # dependencies.
+        """
+            scalar type two extending one;
+            scalar type one extending str;
+        """
+
     def test_schema_property_cardinality_alter_01(self):
         schema = self.load_schema('''
             type Foo {
@@ -1963,9 +2033,9 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
         obj = schema.get('test::Foo')
         asdf = obj.getptr(schema, s_name.UnqualName('asdf'))
-        expr_ast = asdf.get_expr(schema).qlast
+        expr_ast = asdf.get_expr(schema).parse()
         self.assertEqual(
-            expr_ast.context.name,
+            expr_ast.span.name,
             f'<{asdf.id} expr>'
         )
 
@@ -1975,9 +2045,9 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """)
         x = obj.getptr(schema, s_name.UnqualName('x'))
-        default_ast = x.get_default(schema).qlast
+        default_ast = x.get_default(schema).parse()
         self.assertEqual(
-            default_ast.context.name,
+            default_ast.span.name,
             f'<{x.id} default>'
         )
 
@@ -2394,6 +2464,158 @@ class TestSchema(tb.BaseSchemaLoadTest):
         scalar type Age extending int64;
         type Y {
             property age_requirement -> range<Age>
+        }
+        """
+
+    def test_schema_enum_01(self):
+        pass
+    test_schema_enum_01.__doc__ = (
+        "scalar type LongLabel extending enum<\n"
+        "    AAAAAAAAAA"
+            "BBBBBBBBBB"
+            "CCCCCCCCCC"
+            "DDDDDDDDDD"
+            "EEEEEEEEEE"
+            "FFFFFFFFFF"
+            "GGG\n"
+        ">"
+    )
+
+    def test_schema_enum_02(self):
+        pass
+    test_schema_enum_02.__doc__ = (
+        "scalar type LongLabel extending enum<\n"
+        "    'AAAAAAAAAA"
+            "BBBBBBBBBB"
+            "CCCCCCCCCC"
+            "DDDDDDDDDD"
+            "EEEEEEEEEE"
+            "FFFFFFFFFF"
+            "GGG'\n"
+        ">"
+    )
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "enum labels cannot exceed 63 characters",
+    )
+    def test_schema_enum_03(self):
+        pass
+    test_schema_enum_03.__doc__ = (
+        "scalar type LongLabel extending enum<\n"
+        "    AAAAAAAAAA"
+            "BBBBBBBBBB"
+            "CCCCCCCCCC"
+            "DDDDDDDDDD"
+            "EEEEEEEEEE"
+            "FFFFFFFFFF"
+            "GGGG\n"
+        ">"
+    )
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "enum labels cannot exceed 63 characters",
+    )
+    def test_schema_enum_04(self):
+        pass
+    test_schema_enum_04.__doc__ = (
+        "scalar type LongLabel extending enum<\n"
+        "    'AAAAAAAAAA"
+            "BBBBBBBBBB"
+            "CCCCCCCCCC"
+            "DDDDDDDDDD"
+            "EEEEEEEEEE"
+            "FFFFFFFFFF"
+            "GGGG'\n"
+        ">"
+    )
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_constraint_non_singleton_01(self):
+        """
+        type ConstraintNonSingletonTest {
+            property has_bad_constraint -> str {
+                constraint expression on (
+                    distinct __subject__ = __subject__
+                )
+            }
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_constraint_non_singleton_02(self):
+        """
+        type ConstraintNonSingletonTest {
+            property has_bad_constraint -> str {
+                constraint exclusive on (
+                    distinct __subject__
+                )
+            }
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_constraint_non_singleton_03(self):
+        """
+        type ConstraintNonSingletonTest {
+            property has_bad_constraint -> str;
+
+            constraint exclusive on (distinct .has_bad_constraint);
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_constraint_non_singleton_04(self):
+        """
+        type ConstraintNonSingletonTest {
+            property has_bad_constraint -> str;
+
+            constraint exclusive on (.has_bad_constraint) except (
+                distinct __subject__ = __subject__
+            );
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_constraint_non_singleton_05(self):
+        """
+        abstract constraint bad_constraint {
+            using (distinct __subject__ = __subject__);
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        'set returning operator std::DISTINCT is not supported '
+        'in singleton expressions',
+    )
+    def test_schema_index_non_singleton_01(self):
+        """
+        type IndexNonSingletonTest {
+            property has_bad_index -> str;
+
+            index on (distinct .has_bad_index)
         }
         """
 
@@ -4429,12 +4651,26 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    @test.xfail('''
+    @test.xerror(
+        '''
         This wants to transmute an object type into an alias. It
         produces DDL, but the DDL doesn't really make any sense. We
         are going to probably need to add DDL syntax to accomplish
         this.
-    ''')
+
+        Before we do that, we could just improve the error:
+        cannot produce migration because of a dependency cycle:
+          create alias 'default::Base' depends on
+          alter object type 'default::Alias01' depends on
+          create object type 'default::Base' depends on
+          drop object type 'default::Base' depends on
+          drop link '__type__' of object type 'default::Base' depends on
+          alter link '__type__' of link '__type__' depends on
+          alter object type 'default::Alias01' of
+            object type 'default::Alias01' depends on
+          create alias 'default::Base'
+        '''
+    )
     def test_schema_migrations_equivalence_23(self):
         self._assert_migration_equivalence([r"""
             type Child {
@@ -5376,23 +5612,57 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """])
 
     def test_schema_migrations_equivalence_60(self):
-        self._assert_migration_equivalence([r"""
-            type User {
-                required property name -> str;
-            };
-        """, r"""
-            type User {
-                required property name -> str;
-                index pg::spgist on (.name);
-            };
-        """, r"""
-            type User {
-                required property name -> str;
-                index pg::spgist on (.name) {
-                    annotation description := 'test';
+        self._assert_migration_equivalence(
+            [
+                r"""
+                type User {
+                    required property name -> str;
                 };
-            };
-        """])
+                """,
+                r"""
+                type User {
+                    required property name -> str;
+                    index pg::spgist on (.name);
+                };
+                """,
+                r"""
+                type User {
+                    required property name -> str;
+                    index pg::spgist on (.name) {
+                        annotation description := 'test';
+                    };
+                };
+                """,
+            ]
+        )
+
+    def test_schema_migrations_equivalence_61(self):
+        self._assert_migration_equivalence(
+            [
+            r"""
+            type Child {
+                property foo -> str;
+            }
+
+            type Base {
+                link bar -> Child;
+            }
+            """,
+            r"""
+            type Child {
+                property foo -> str;
+            }
+
+            # exchange a type for an alias
+            alias Base := (
+                SELECT Child {
+                    # bar is the same as the root object
+                    bar := Child
+                }
+            );
+            """,
+            ]
+        )
 
     def test_schema_migrations_equivalence_compound_01(self):
         # Check that union types can be referenced in computables
@@ -6458,6 +6728,21 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base {
                 property first_name -> str;
                 # drop index
+            }
+        """])
+
+    def test_schema_migrations_equivalence_index_06(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                required property name -> str;
+                required property year -> int64;
+                index on ((.name, .year));
+            }
+        """, r"""
+            type Base {
+                required property name -> str;
+                required property year -> int64;
+                index on ((.year, .name));
             }
         """])
 
@@ -7666,6 +7951,29 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_deferred_index_01(self):
+        self._assert_migration_equivalence([r"""
+            abstract index test() {
+                code := ' ((__col__) NULLS FIRST)';
+                deferrability := 'Permitted';
+            };
+
+            type Foo {
+                property bar -> str;
+                deferred index test on (.bar);
+            };
+        """, r"""
+            abstract index test() {
+                code := ' ((__col__) NULLS FIRST)';
+                deferrability := 'Permitted';
+            };
+
+            type Foo {
+                property bar -> str;
+                index test on (.bar);
+            };
+        """])
+
     def test_schema_migrations_drop_parent_01(self):
         self._assert_migration_equivalence([r"""
             type Parent {
@@ -8176,6 +8484,118 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 type ReNamedObject extending Base {
                         required property foo -> str;
                 }
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Branch{
+                  property branchURL: std::str {
+                    constraint max_len_value(500);
+                    constraint min_len_value(5);
+                  };
+                };
+            """,
+            r"""
+                type Branch{
+                  property email: std::str {
+                    constraint max_len_value(50);
+                    constraint min_len_value(5);
+                  };
+                };
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_02(self):
+        self._assert_migration_equivalence([
+            r"""
+                type X {
+                    obj: Object {
+                        foo: str;
+                    };
+                };
+            """,
+            r"""
+                type X {
+                    obj2: Object {
+                        bar: int64;
+                    };
+                };
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_03(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Branch{
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property branchURL: std::str {
+                    constraint max_len_value(500);
+                    constraint regexp("url");
+                    constraint min_len_value(5);
+                  };
+                };
+            """,
+            r"""
+                type Branch{
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property phoneNumber: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"phone");
+                  };
+                  property email: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"email");
+                  };
+                };
+            """
+        ])
+
+    def test_schema_migrations_rename_and_modify_04(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Branch{
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property branchURL: std::str {
+                    constraint max_len_value(500);
+                    constraint regexp("url");
+                    constraint min_len_value(5);
+                  };
+                };
+            """,
+            r"""
+                type Branch2 {
+                  property branchName: std::str {
+                    constraint min_len_value(0);
+                    constraint max_len_value(255);
+                  };
+                  property branchCode: std::int64;
+                  property phoneNumber: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"phone");
+                  };
+                  property email: std::str {
+                    constraint min_len_value(5);
+                    constraint max_len_value(50);
+                    constraint regexp(r"email");
+                  };
+                };
             """
         ])
 
@@ -9895,7 +10315,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
     def test_schema_describe_schema_03(self):
         self._assert_describe(
             """
-            using extension pgvector version '0.4';
+            using extension pgvector version '0.5';
             module default {
                 scalar type v3 extending ext::pgvector::vector<3>;
 
@@ -9908,7 +10328,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'describe schema as ddl',
 
             """
-            create extension vector version '0.4';
+            create extension vector version '0.5';
             create module default if not exists;
             create scalar type default::v3 extending ext::pgvector::vector<3>;
             create type default::Foo {
@@ -9919,7 +10339,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'describe schema as sdl',
 
             r"""
-            using extension pgvector version '0.4';
+            using extension pgvector version '0.5';
             module default {
                 scalar type v3 extending ext::pgvector::vector<3>;
                 type Foo {
@@ -10075,6 +10495,27 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 create link user := (.<identity[is test::User]);
             };
             """
+        )
+
+    def test_schema_describe_overload_01(self):
+        self._assert_describe(
+            """
+            abstract type Animal {
+                name: str;
+                parent: Animal;
+            }
+            type Human extending Animal {
+                overloaded parent: Human;
+            }
+            """,
+
+            'describe type test::Human as sdl',
+
+            """
+            type test::Human extending test::Animal {
+                overloaded link parent: test::Human;
+            };
+            """,
         )
 
 

@@ -114,7 +114,7 @@ async def _ping(tenant):
     if tenant.get_backend_runtime_params().has_create_database:
         dbname = edbdef.EDGEDB_SYSTEM_DB
     else:
-        dbname = edbdef.EDGEDB_SUPERUSER_DB
+        dbname = tenant.default_database
 
     return await execute.parse_execute_json(
         tenant.get_db(dbname=dbname),

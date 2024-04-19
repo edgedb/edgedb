@@ -68,4 +68,8 @@ type Tree {
     link parent -> Tree;
     link children := .<parent[IS Tree];
     property child_vals := .children.val;
+
+    index fts::index on (
+        fts::with_options(.val, language := fts::Language.eng)
+    );
 }

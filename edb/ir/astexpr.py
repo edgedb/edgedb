@@ -16,75 +16,83 @@
 # limitations under the License.
 #
 
-# type: ignore
-# AST matching is done via module attribute injection magic, which
-# mypy does not understand.
-
-from __future__ import annotations
-from typing import *
-
-from edb.common.ast import match as astmatch
+from typing import Optional, List
 
 from edb.schema import name as sn
 
 from . import ast as irast
-from . import astmatch as irastmatch
 
 
-class DistinctConjunctionExpr:
-    def __init__(self) -> None:
-        self.pattern = None
+def get_constraint_references(tree: irast.Base) -> Optional[List[irast.Base]]:
+    return is_constraint_expr(tree)
 
-    def get_pattern(self) -> astmatch.MatchASTNode:
-        if self.pattern is None:
-            # Basic std::_is_exclusive(blah) expression
-            pure_distinct_expr = irastmatch.FunctionCall(
-                func_shortname=sn.QualName('std', '_is_exclusive'),
-                args=[
-                    irastmatch.CallArg(
-                        expr=astmatch.group('expr', irastmatch.Base())
-                    ),
-                ],
-            )
 
-            possibly_wrapped_distinct_expr = irastmatch.SelectStmt(
-                result=pure_distinct_expr
-            )
+def is_constraint_expr(tree: irast.Base) -> Optional[List[irast.Base]]:
+    return (
+        is_distinct_expr(tree) or
+        is_set_expr(tree) or
+        is_binop(tree)
+    )
 
-            distinct_expr = astmatch.Or(
-                pure_distinct_expr, possibly_wrapped_distinct_expr
-            )
 
-            # A logical conjunction of unique constraint expressions
-            binop = irastmatch.OperatorCall(
-                func_shortname=sn.QualName('std', 'AND'),
-            )
+def is_distinct_expr(tree: irast.Base) -> Optional[List[irast.Base]]:
+    return (
+        is_pure_distinct_expr(tree) or
+        is_possibly_wrapped_distinct_expr(tree)
+    )
 
-            # Set expression with the above binop
-            set_expr = irastmatch.Set(
-                expr=astmatch.Or(
-                    distinct_expr, binop
-                )
-            )
 
-            # A unique constraint expression can be either one of the
-            # three above
-            constr_expr = astmatch.Or(
-                distinct_expr, binop, set_expr
-            )
+def is_pure_distinct_expr(tree: irast.Base) -> Optional[List[irast.Base]]:
+    if not isinstance(tree, irast.FunctionCall):
+        return None
+    if tree.func_shortname != sn.QualName('std', '_is_exclusive'):
+        return None
+    if len(tree.args) != 1:
+        return None
+    if 0 not in tree.args:
+        return None
+    if not isinstance(tree.args[0], irast.CallArg):
+        return None
 
-            # Populate expression alternatives to complete recursive
-            # pattern definition.
-            binop.args = [irastmatch.CallArg(expr=constr_expr),
-                          irastmatch.CallArg(expr=constr_expr)]
+    return [tree.args[0].expr]
 
-            self.pattern = constr_expr
 
-        return self.pattern
+def is_possibly_wrapped_distinct_expr(
+    tree: irast.Base
+) -> Optional[List[irast.Base]]:
+    if not isinstance(tree, irast.SelectStmt):
+        return None
 
-    def match(self, tree: irast.Base) -> Optional[List[irast.Base]]:
-        m = astmatch.match(self.get_pattern(), tree)
-        if m:
-            return [mg.node for mg in m.expr]
-        else:
+    return is_pure_distinct_expr(tree.result)
+
+
+def is_set_expr(tree: irast.Base) -> Optional[List[irast.Base]]:
+    if not isinstance(tree, irast.Set):
+        return None
+
+    return (
+        is_distinct_expr(tree.expr) or
+        is_binop(tree.expr)
+    )
+
+
+def is_binop(tree: irast.Base) -> Optional[List[irast.Base]]:
+    if not isinstance(tree, irast.OperatorCall):
+        return None
+    if not tree.func_shortname != sn.QualName('std', 'AND'):
+        return None
+    if len(tree.args) != 2:
+        return None
+
+    refs = []
+
+    for arg in tree.args:
+        if not isinstance(arg, irast.CallArg):
             return None
+        ref = is_constraint_expr(arg.expr)
+        if not ref:
+            return None
+
+        refs.extend(ref)
+
+    return refs

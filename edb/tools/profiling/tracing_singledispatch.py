@@ -10,10 +10,15 @@ See README.md in this package for more details.
 """
 
 
-# flake8: NoQA
-
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Tuple,
+    TypeVar,
+    Dict,
+    TYPE_CHECKING,
+)
 
 import functools
 import sys
@@ -59,7 +64,8 @@ def tracing_singledispatch(func: T) -> T:
     # There are many programs that use functools without singledispatch, so we
     # trade-off making singledispatch marginally slower for the benefit of
     # making start-up of such applications slightly faster.
-    import types, weakref
+    import types
+    import weakref
 
     registry = {}
     dispatch_cache = weakref.WeakKeyDictionary()

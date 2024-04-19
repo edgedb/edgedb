@@ -85,13 +85,12 @@ find it alongside the client itself. These clients will also have documentation
 stubs inside the edgedb repository directing you to the documentation's
 location.
 
-The `EdgeDB tutorial <https://www.edgedb.com/tutorial>`_ is part of `our web
+The `EdgeDB tutorial </tutorial>`_ is part of `our web
 site repository <https://github.com/edgedb/website>`_. You'll find it in `the
 tutorial directory <https://github.com/edgedb/website/tree/main/tutorial>`_.
 
-Finally, our book for beginners titled `Easy EdgeDB
-<https://www.edgedb.com/easy-edgedb>`_ lives in `its own repo
-<https://github.com/edgedb/easy-edgedb>`_.
+Finally, our book for beginners titled `Easy EdgeDB </easy-edgedb>`_ lives in
+`its own repo <https://github.com/edgedb/easy-edgedb>`_.
 
 
 How to Build It
@@ -378,7 +377,7 @@ We use tables and lists in a few different contexts.
     * - :ref:`Schema > Access policies <ref_datamodel_access_policies>`
     * - :ref:`SDL > Access policies <ref_eql_sdl_access_policies>`
 
-.. note:: 
+.. note::
 
     The ``seealso`` class adds a spacer above the table to push the table
     away from the main page content.
@@ -469,7 +468,7 @@ With the help of a ``with`` block, we can add filters, ordering, and
 pagination clauses.
 
 .. warning::
-    
+
     Marking up inline code with single backticks a la Markdown will throw an
     error in Sphinx when building the documentation.
 
@@ -743,7 +742,7 @@ elements:
         Return the array made from all of the input set elements.
 
         The ordering of the input set will be preserved if specified.
-        
+
 You can link to a function's documentation by using the ``:eql:func:`` role.
 For instance:
 
@@ -836,7 +835,7 @@ synopsis like this:
 These descriptions can each contain as many paragraphs as needed to adequately
 describe the clause. Follow the format used in the PostgreSQL documentation.
 See `the PostgreSQL SELECT statement reference page
-<https://www.postgresql.org/docs/10/static/sql-select.html>`_ for an example. 
+<https://www.postgresql.org/docs/10/static/sql-select.html>`_ for an example.
 
 Use ``:eql:stmt:`select``` to link to the statement's documentation. When
 rendered the link looks like this: :eql:stmt:`select`. Customize the label with
@@ -866,7 +865,7 @@ customized with ``:eql:type:`the bytes type <bytes>``` which renders like this:
 Keywords
 --------
 
-Document a keyword using the ``.. eql:keyword::`` directive. 
+Document a keyword using the ``.. eql:keyword::`` directive.
 
 .. code-block::
 
@@ -906,7 +905,7 @@ Document a CLI command using the ``cli:synopsis`` directive like this:
 
 The synopsis should follow the format used in the PostgreSQL documentation. See
 `the PostgreSQL SELECT statement reference page
-<https://www.postgresql.org/docs/10/static/sql-select.html>`_ for an example. 
+<https://www.postgresql.org/docs/10/static/sql-select.html>`_ for an example.
 
 You can then document arguments and options using the ``:cli:synopsis:`` role.
 
@@ -1093,7 +1092,7 @@ before the offending block and back on with ``.. lint-on`` after the block.
 
     .. code-block::
 
-        GET http://localhost:<port>/db/edgedb/edgeql?query=insert%20Person%20%7B%20name%20%3A%3D%20%3Cstr%3E$name%20%7D%3B&variables=%7B%22name%22%3A%20%22Pat%22%7D
+        GET http://localhost:<port>/branch/main/edgeql?query=insert%20Person%20%7B%20name%20%3A%3D%20%3Cstr%3E$name%20%7D%3B&variables=%7B%22name%22%3A%20%22Pat%22%7D
 
     .. lint-on
 

@@ -18,7 +18,22 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    AbstractSet,
+    Iterable,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    Set,
+    FrozenSet,
+    TYPE_CHECKING,
+)
 
 import copy
 import uuid
@@ -83,6 +98,11 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             '_irast': None,
         }
 
+    def __setstate__(self, state: Mapping[str, Any]) -> None:
+        # Since `origin` is omitted from the pickled schema, it needs to be
+        # explicitly set to `None` when loading pickles.
+        super().__setstate__({"origin": None, **state})
+
     def __eq__(self, rhs: object) -> bool:
         if not isinstance(rhs, Expression):
             return NotImplemented
@@ -92,8 +112,9 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             and self.origin == rhs.origin
         )
 
-    @property
-    def qlast(self) -> qlast_.Expr:
+    def parse(self) -> qlast_.Expr:
+        """Parse the expression text into an AST. Cached."""
+
         if self._qlast is None:
             self._qlast = qlparser.parse_fragment(
                 self.text, filename=f'<{self.origin}>' if self.origin else "")
@@ -116,22 +137,25 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
     def is_compiled(self) -> bool:
         return self.refs is not None
 
-    def _refs_keys(self, schema: s_schema.Schema) -> Set[
-            Tuple[Type[so.Object], sn.Name]]:
+    def _refs_keys(
+        self, schema: s_schema.Schema
+    ) -> Set[Tuple[Type[so.Object], sn.Name]]:
         return {
             (type(x), x.get_name(schema))
             for x in (self.refs.objects(schema) if self.refs else ())
         }
 
     @classmethod
-    def compare_values(cls: Type[Expression],
-                       ours: Expression,
-                       theirs: Expression,
-                       *,
-                       our_schema: s_schema.Schema,
-                       their_schema: s_schema.Schema,
-                       context: so.ComparisonContext,
-                       compcoef: float) -> float:
+    def compare_values(
+        cls: Type[Expression],
+        ours: Expression,
+        theirs: Expression,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+        compcoef: float,
+    ) -> float:
         if not ours and not theirs:
             return 1.0
         elif not ours or not theirs:
@@ -193,12 +217,12 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
         if as_fragment:
             ir: irast_.Command = qlcompiler.compile_ast_fragment_to_ir(
-                self.qlast,
+                self.parse(),
                 schema=schema,
                 options=options,
             )
         else:
-            ql_expr = self.qlast
+            ql_expr = self.parse()
             if detached:
                 ql_expr = qlast.DetachedExpr(
                     expr=ql_expr,
@@ -219,7 +243,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         return CompiledExpression(
             text=self.text,
             refs=so.ObjectSet.create(schema, srefs),
-            _qlast=self.qlast,
+            _qlast=self.parse(),
             _irast=ir,
             origin=self.origin,
         )
@@ -237,15 +261,24 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             return self.compiled(
                 schema, options=options, as_fragment=as_fragment)
 
+    def assert_compiled(self) -> CompiledExpression:
+        if self._irast:
+            return self  # type: ignore
+        else:
+            raise AssertionError(
+                f"uncompiled expression {self.text!r} (origin: {self.origin})")
+
     @classmethod
-    def from_ir(cls: Type[Expression],
-                expr: Expression,
-                ir: irast_.Statement,
-                schema: s_schema.Schema) -> CompiledExpression:
+    def from_ir(
+        cls: Type[Expression],
+        expr: Expression,
+        ir: irast_.Statement,
+        schema: s_schema.Schema,
+    ) -> CompiledExpression:
         return CompiledExpression(
             text=expr.text,
             refs=so.ObjectSet.create(schema, ir.schema_refs),
-            _qlast=expr.qlast,
+            _qlast=expr.parse(),
             _irast=ir,
             origin=expr.origin,
         )
@@ -341,6 +374,12 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
 
 class CompiledExpression(Expression):
+    refs = struct.Field(
+        so.ObjectSet,  # type: ignore
+        coerce=True,
+        frozen=True,
+    )
+
     def __init__(
         self,
         *args: Any,
@@ -354,6 +393,9 @@ class CompiledExpression(Expression):
     def irast(self) -> irast_.Statement:
         assert self._irast
         return self._irast
+
+    def as_python_value(self) -> Any:
+        return qlcompiler.evaluate_ir_statement_to_python_val(self.irast)
 
 
 class ExpressionShell(so.Shell):
@@ -377,14 +419,13 @@ class ExpressionShell(so.Shell):
             text=self.text,
             refs=so.ObjectSet.create(
                 schema,
-                (s.resolve(schema) for s in self.refs),
+                [s.resolve(schema) for s in self.refs],
             ) if self.refs is not None else None,
             _qlast=self._qlast,
             _irast=self._irast,  # type: ignore[arg-type]
         )
 
-    @property
-    def qlast(self) -> qlast_.Expr:
+    def parse(self) -> qlast_.Expr:
         if self._qlast is None:
             self._qlast = qlparser.parse_fragment(self.text)
         return self._qlast
@@ -400,12 +441,14 @@ class ExpressionShell(so.Shell):
 class ExpressionList(checked.FrozenCheckedList[Expression]):
 
     @staticmethod
-    def merge_values(target: so.Object,
-                     sources: Sequence[so.Object],
-                     field_name: str,
-                     *,
-                     ignore_local: bool = False,
-                     schema: s_schema.Schema) -> Any:
+    def merge_values(
+        target: so.Object,
+        sources: Sequence[so.Object],
+        field_name: str,
+        *,
+        ignore_local: bool = False,
+        schema: s_schema.Schema,
+    ) -> Any:
         if not ignore_local:
             result = target.get_explicit_field_value(schema, field_name, None)
         else:
@@ -421,14 +464,16 @@ class ExpressionList(checked.FrozenCheckedList[Expression]):
         return result
 
     @classmethod
-    def compare_values(cls: Type[ExpressionList],
-                       ours: Optional[ExpressionList],
-                       theirs: Optional[ExpressionList],
-                       *,
-                       our_schema: s_schema.Schema,
-                       their_schema: s_schema.Schema,
-                       context: so.ComparisonContext,
-                       compcoef: float) -> float:
+    def compare_values(
+        cls: Type[ExpressionList],
+        ours: Optional[ExpressionList],
+        theirs: Optional[ExpressionList],
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+        compcoef: float,
+    ) -> float:
         """See the comment in Object.compare_values"""
         if not ours and not theirs:
             basecoef = 1.0
@@ -452,12 +497,14 @@ class ExpressionList(checked.FrozenCheckedList[Expression]):
 class ExpressionDict(checked.CheckedDict[str, Expression]):
 
     @staticmethod
-    def merge_values(target: so.Object,
-                     sources: Sequence[so.Object],
-                     field_name: str,
-                     *,
-                     ignore_local: bool = False,
-                     schema: s_schema.Schema) -> Any:
+    def merge_values(
+        target: so.Object,
+        sources: Sequence[so.Object],
+        field_name: str,
+        *,
+        ignore_local: bool = False,
+        schema: s_schema.Schema,
+    ) -> Any:
         result = None
         # Assume that sources are given in MRO order, so we need to reverse
         # them to figure out the merged vaue.
@@ -480,14 +527,16 @@ class ExpressionDict(checked.CheckedDict[str, Expression]):
         return result
 
     @classmethod
-    def compare_values(cls: Type[ExpressionDict],
-                       ours: Optional[ExpressionDict],
-                       theirs: Optional[ExpressionDict],
-                       *,
-                       our_schema: s_schema.Schema,
-                       their_schema: s_schema.Schema,
-                       context: so.ComparisonContext,
-                       compcoef: float) -> float:
+    def compare_values(
+        cls: Type[ExpressionDict],
+        ours: Optional[ExpressionDict],
+        theirs: Optional[ExpressionDict],
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+        compcoef: float,
+    ) -> float:
         """See the comment in Object.compare_values"""
         if not ours and not theirs:
             basecoef = 1.0
@@ -559,8 +608,9 @@ def imprint_expr_context(
     return qltree
 
 
-def get_expr_referrers(schema: s_schema.Schema,
-                       obj: so.Object) -> Dict[so.Object, List[str]]:
+def get_expr_referrers(
+    schema: s_schema.Schema, obj: so.Object
+) -> Dict[so.Object, List[str]]:
     """Return schema referrers with refs in expressions."""
 
     refs: Dict[Tuple[Type[so.Object], str], FrozenSet[so.Object]] = (

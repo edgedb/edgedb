@@ -28,9 +28,6 @@ import logging
 from jwcrypto import jwt
 
 from edb import errors
-from edb.common import debug
-
-from edb.server.protocol cimport args_ser
 
 
 cdef object logger = logging.getLogger('edb.server')
@@ -235,3 +232,36 @@ cdef auth_basic(tenant, username: str, password: str):
     verifier, mock_auth = scram_get_verifier(tenant, username)
     if not scram_verify_password(password, verifier) or mock_auth:
         raise errors.AuthenticationError('authentication failed')
+
+
+cdef auth_mtls(transport):
+    sslobj = transport.get_extra_info('ssl_object')
+    if sslobj is None:
+        raise errors.AuthenticationError(
+            "mTLS authentication is not supported over plaintext transport")
+    cert_data = sslobj.getpeercert()
+    if not cert_data:  # None or empty dict
+        # If --tls-client-ca-file is specified, the SSLContext used here would
+        # have done load_verify_locations() in `server/server.py`, and we will
+        # have a valid client certificate (non-empty dict) now if one was
+        # provided by the client and passed validation; empty dict otherwise.
+        # `None` just means the peer didn't send a client certificate.
+        raise errors.AuthenticationError(
+            "valid client certificate required")
+    return cert_data
+
+
+cdef auth_mtls_with_user(transport, str username):
+    cert_data = auth_mtls(transport)
+    try:
+        for rdn in cert_data["subject"]:
+            if rdn[0][0] == 'commonName':
+                if rdn[0][1] == username:
+                    return
+    except Exception as ex:
+        raise errors.AuthenticationError(
+            "bad client certificate") from ex
+
+    raise errors.AuthenticationError(
+        f"Common Name of client certificate doesn't match {username!r}",
+    )

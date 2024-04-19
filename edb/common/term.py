@@ -21,7 +21,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Optional
 
 import os
 import sys
@@ -409,8 +409,17 @@ class AbstractStyle:
     _ropts_table = {v: k for k, v in _opts_table.items()}
 
     def __init__(
-            self, *, color=None, bgcolor=None, bold=False, faint=False,
-            italic=False, underline=False, overline=False, reverse=False):
+        self,
+        *,
+        color=None,
+        bgcolor=None,
+        bold=False,
+        faint=False,
+        italic=False,
+        underline=False,
+        overline=False,
+        reverse=False,
+    ):
 
         self._opts = set()
         self._color = None

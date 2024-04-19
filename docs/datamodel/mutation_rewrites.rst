@@ -231,6 +231,34 @@ to be set. This is different from a :ref:`default
 <ref_datamodel_props_default_values>` value because the rewrite happens on each
 update whereas a default value is applied only on insert of a new object.
 
+One shortcoming in using ``__specified__`` to decide whether to update the
+``modified`` property is that we still don't know whether the value changed —
+only that it was specified in the query. It's possible the value specified was
+the same as the existing value. You'd need to check the value itself to decide
+if it has changed.
+
+This is easy enough for a single value, but what if you want a global
+``modified`` property that is updated only if any of the properties or links
+were changed? That could get cumbersome quickly for an object of any
+complexity.
+
+Instead, you might try casting ``__subject__`` and ``__old__`` to ``json`` and
+comparing them:
+
+.. code-block:: sdl
+
+    type Post {
+      required title: str;
+      required body: str;
+      modified: datetime {
+        rewrite update using (
+          datetime_of_statement()
+          if <json>__subject__ {**} != <json>__old__ {**}
+          else __old__.modified
+        )
+      }
+    }
+
 Lastly, if we want to add an ``author`` property that can be set for each write
 and keep a history of all the authors, we can do this with the help of
 ``__old__``:

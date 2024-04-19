@@ -17,7 +17,18 @@
 #
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    ClassVar,
+    Generic,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    Dict,
+    get_type_hints,
+)
 
 import functools
 import types
@@ -92,7 +103,7 @@ class ParametricType:
             assert len(args) == 1
 
             arg = args[0]
-            if typing_inspect.get_origin(arg) != type:
+            if typing_inspect.get_origin(arg) is not type:
                 continue
 
             arg_args = typing_inspect.get_args(arg)
@@ -254,7 +265,7 @@ class ParametricType:
 
         if not all(isinstance(param, type) for param in type_params):
             if all(
-                type(param) == TypeVar  # type: ignore[comparison-overlap]
+                type(param) is TypeVar  # type: ignore[comparison-overlap]
                 for param in type_params
             ):
                 # All parameters are type variables: return the regular generic

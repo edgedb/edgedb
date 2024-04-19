@@ -39,6 +39,9 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'issues.esdl')
 
+    SCHEMA_cards = os.path.join(os.path.dirname(__file__), 'schemas',
+                                'cards.esdl')
+
     def _compile_to_tree(self, source):
         qltree = qlparser.parse_query(source)
         ir = compiler.compile_ast_to_ir(
@@ -183,12 +186,38 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             "update has unnecessary conflict check"
         )
 
-    def test_codegen_group_simple(self):
+    def test_codegen_group_simple_01(self):
         tree = self._compile_to_tree('''
         select (group Issue by .status) {
             name := .key.status.name,
             num := count(.elements),
         } order by .name
+        ''')
+        child = ast_visitor.find_children(
+            tree,
+            pgast.SelectStmt,
+            lambda x: bool(x.group_clause),
+            terminate_early=True
+        )[0]
+        group_sql = pg_codegen.generate_source(child, pretty=True)
+
+        # We want no array_agg in the group - it should just be able
+        # to do a count
+        self.assertNotIn(
+            "array_agg", group_sql,
+            "group has unnecessary array_agg",
+        )
+
+        # And we want no uuid generation, which is a huge perf killer
+        self.assertNotIn(
+            "uuid_generate", group_sql,
+            "group has unnecessary uuid_generate",
+        )
+
+    def test_codegen_group_simple_02(self):
+        tree = self._compile_to_tree('''
+        for g in (group Issue by .status)
+        select (g.key.status.name, count(g.elements))
         ''')
         child = ast_visitor.find_children(
             tree,
@@ -294,3 +323,75 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             sql,
             "fts::search score should not be serialized when not needed",
         )
+
+    def test_codegen_typeid_no_join(self):
+        sql = self._compile(
+            '''
+            select Issue { name, number, tid := .__type__.id }
+            '''
+        )
+
+        self.assertNotIn(
+            "edgedbstd",
+            sql,
+            "typeid injection shouldn't joining ObjectType table",
+        )
+
+    def test_codegen_nested_for_no_uuid(self):
+        sql = self._compile(
+            '''
+            for x in {1,2,3} union (for y in {3,4,5} union (x+y))
+            '''
+        )
+
+        self.assertNotIn(
+            "uuid_generate",
+            sql,
+            "unnecessary uuid_generate for FOR loop without volatility",
+        )
+
+    def test_codegen_linkprop_intersection_01(self):
+        # Should have no conflict check because it has no subtypes
+        sql = self._compile('''
+            with module cards
+            select User { deck[is SpecialCard]: { name, @count } }
+        ''')
+
+        card_obj = self.schema.get("cards::Card")
+        self.assertNotIn(
+            str(card_obj.id),
+            sql,
+            "Card being selected when SpecialCard should suffice"
+        )
+
+    def test_codegen_materialized_01(self):
+        sql = self._compile('''
+            with x := materialized(1 + 2)
+            select ({x}, {x})
+        ''')
+
+        count = sql.count('+')
+        self.assertEqual(
+            count,
+            1,
+            f"addition not materialized")
+
+    def test_codegen_materialized_02(self):
+        sql = self._compile('''
+            with x := materialized((
+              select User { x := (1 + 2) } filter .name = 'Alice'
+            ))
+            select ({x {x}}, {x {x}})
+        ''')
+
+        count = sql.count('+')
+        self.assertEqual(
+            count,
+            1,
+            f"addition not materialized")
+
+        count = sql.count('Alice')
+        self.assertEqual(
+            count,
+            1,
+            f"filter not materialized")

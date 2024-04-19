@@ -22,6 +22,7 @@ import decimal
 import json
 import os.path
 import random
+import uuid
 
 import edgedb
 
@@ -3116,6 +3117,162 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 ''',
             )
 
+    async def test_edgeql_functions_int_bytes_conversion_01(self):
+        # Make sure we can convert the bytes to ints and back
+        for num in range(256):
+            byte = num.to_bytes()
+            for numbytes in [2, 4, 8]:
+                raw = byte * numbytes
+                typename = f'int{numbytes * 8}'
+                await self.assert_query_result(
+                    f'''
+                    WITH
+                        val_b := <{typename}>$val_b,
+                        val_l := <{typename}>$val_l,
+                        bin := <bytes>$bin,
+                    SELECT (
+                        val_b = to_{typename}(bin, Endian.Big),
+                        val_l = to_{typename}(bin, Endian.Little),
+                        bin = to_bytes(val_b, Endian.Big),
+                        bin = to_bytes(val_l, Endian.Little),
+                    )
+                    ''',
+                    {(True, True, True, True)},
+                    variables={
+                        "val_b": int.from_bytes(raw, 'big', signed=True),
+                        "val_l": int.from_bytes(raw, 'little', signed=True),
+                        "bin": raw,
+                    },
+                    msg=f'Failed to convert {raw!r} to int or vice versa'
+                )
+
+    async def test_edgeql_functions_int_bytes_conversion_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int16.*the argument must be exactly 2 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int16(b'\x01', Endian.Big)
+                    ''',
+                )
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int16.*the argument must be exactly 2 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int16(
+                        to_bytes(<int32>123, Endian.Big),
+                        Endian.Big,
+                    )
+                    ''',
+                )
+
+    async def test_edgeql_functions_int_bytes_conversion_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int32.*the argument must be exactly 4 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int32(
+                        to_bytes(<int16>23, Endian.Big),
+                        Endian.Big,
+                    )
+                    ''',
+                )
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int32.*the argument must be exactly 4 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int32(
+                        to_bytes(<int64>16908295, Endian.Big),
+                        Endian.Big,
+                    )
+                    ''',
+                )
+
+    async def test_edgeql_functions_int_bytes_conversion_04(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int64.*the argument must be exactly 8 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int64(
+                        to_bytes(<int16>23, Endian.Big),
+                        Endian.Big,
+                    )
+                    ''',
+                )
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_int64.*the argument must be exactly 8 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_int64(
+                        b'\x00' ++ to_bytes(62620574343574340, Endian.Big),
+                        Endian.Big,
+                    )
+                    ''',
+                )
+
+    async def test_edgeql_functions_uuid_bytes_conversion_01(self):
+        uuid_val = uuid.uuid4()
+
+        await self.assert_query_result(
+            r'''
+            WITH
+                uuid_input := <uuid>$uuid_input,
+                bin_input := <bytes>$bin_input,
+            SELECT (
+                bin_input = to_bytes(uuid_input),
+                uuid_input = to_uuid(bin_input),
+            )
+            ''',
+            {(True, True)},
+            variables={
+                "uuid_input": uuid_val,
+                "bin_input": uuid_val.bytes,
+            },
+        )
+
+    async def test_edgeql_functions_uuid_bytes_conversion_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_uuid.*the argument must be exactly 16 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_uuid(to_bytes(uuid_generate_v4())[:10])
+                    ''',
+                )
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'to_uuid.*the argument must be exactly 16 bytes long',
+        ):
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    SELECT to_uuid(b'\xff\xff' ++ to_bytes(uuid_generate_v4()))
+                    ''',
+                )
+
     async def test_edgeql_functions_array_join_01(self):
         await self.assert_query_result(
             r'''SELECT array_join(['one', 'two', 'three'], ', ');''',
@@ -3130,6 +3287,43 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT array_join(<array<str>>[], ', ');''',
             [''],
+        )
+
+    async def test_edgeql_functions_array_join_02(self):
+        await self.assert_query_result(
+            r'''SELECT array_join(['one', 'two', 'three'], {', ', '@!'});''',
+            {'one, two, three', 'one@!two@!three'},
+        )
+
+    async def test_edgeql_functions_array_join_03(self):
+        await self.assert_query_result(
+            r'''SELECT array_join([b'one', b'two', b'three'], b', ');''',
+            [base64.b64encode(b'one, two, three').decode()],
+            [b'one, two, three'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_join([b'one', b'two', b'three'], b'');''',
+            [base64.b64encode(b'onetwothree').decode()],
+            [b'onetwothree'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_join(<array<bytes>>[], b', ');''',
+            [base64.b64encode(b'').decode()],
+            [b''],
+        )
+
+    async def test_edgeql_functions_array_join_04(self):
+        await self.assert_query_result(
+            r'''
+            SELECT array_join([b'one', b'two', b'three'], {b', ', b'@!'});
+            ''',
+            {
+                base64.b64encode(b'one, two, three').decode(),
+                base64.b64encode(b'one@!two@!three').decode(),
+            },
+            {b'one, two, three', b'one@!two@!three'},
         )
 
     async def test_edgeql_functions_str_split_01(self):
@@ -6148,6 +6342,141 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True, True, True, True],
         )
 
+    async def test_edgeql_functions_bitwise_15(self):
+        # bit_count counts the number of bits
+
+        # bit_count(0)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>0);''',
+            {0},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>0);''',
+            {0},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>0);''',
+            {0},
+        )
+
+        # bit_count(1)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>1);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>1);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>1);''',
+            {1},
+        )
+
+        # bit_count(255)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>255);''',
+            {8},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>255);''',
+            {8},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>255);''',
+            {8},
+        )
+
+        # bit_count(256)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>256);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>256);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>256);''',
+            {1},
+        )
+
+        # bit_count(max)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>32767);''',
+            {15},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>2147483647);''',
+            {31},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>9223372036854775807);''',
+            {63},
+        )
+
+        # bit_count(min)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>-32768);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>-2147483648);''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>-9223372036854775808);''',
+            {1},
+        )
+
+        # bit_count(-1)
+        await self.assert_query_result(
+            r'''select bit_count(<int16>-1);''',
+            {16},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int32>-1);''',
+            {32},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(<int64>-1);''',
+            {64},
+        )
+
+        # bit_count(bytes)
+        await self.assert_query_result(
+            r'''select bit_count(b'');''',
+            {0},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x00');''',
+            {0},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x01');''',
+            {1},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\xff');''',
+            {8},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x01\x01');''',
+            {2},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\xff\xff');''',
+            {16},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\x01\x01\x01\x01');''',
+            {4},
+        )
+        await self.assert_query_result(
+            r'''select bit_count(b'\xff\xff\xff\xff');''',
+            {32},
+        )
+
     async def test_edgeql_functions_range_contains_01(self):
         # Test `contains` for numeric ranges.
         for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
@@ -7585,3 +7914,31 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             await self.con.execute(
                 'select std::enc::base64_decode("AA")'
             )
+
+    async def test_edgeql_call_type_as_function_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.InvalidReferenceError,
+            "does not exist",
+            _hint="did you mean to cast to 'str'?",
+        ):
+            await self.con.execute(f"""
+                select str(1);
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.InvalidReferenceError,
+            "does not exist",
+            _hint="did you mean to cast to 'int32'?",
+        ):
+            await self.con.execute(f"""
+                select int32(1);
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.InvalidReferenceError,
+            "does not exist",
+            _hint="did you mean to cast to 'cal::local_date'?",
+        ):
+            await self.con.execute(f"""
+                select cal::local_date(1);
+            """)

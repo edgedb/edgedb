@@ -18,12 +18,10 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Optional
 
 import asyncio
 import itertools
-
-from . import taskgroup
 
 
 class Supervisor:
@@ -95,10 +93,9 @@ class Supervisor:
             # cycles (bad for GC); let's not keep a reference to
             # a bunch of them.
             errors = self._errors
-            self._errors = None
+            self._errors = []
 
-            me = taskgroup.TaskGroupError('unhandled errors in a Supervisor',
-                                          errors=errors)
+            me = ExceptionGroup('unhandled errors in a Supervisor', errors)
             raise me from None
 
     async def _wait(self):

@@ -18,8 +18,20 @@
 
 
 from __future__ import annotations
-from typing import *
-from typing import overload
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Literal,
+    Optional,
+    Type,
+    Iterable,
+    Mapping,
+    Sequence,
+    Dict,
+    cast,
+    overload,
+)
 
 import collections.abc
 import dataclasses
@@ -64,6 +76,7 @@ _uint32_packer = cast(Callable[[int], bytes], struct.Struct('!L').pack)
 _uint16_packer = cast(Callable[[int], bytes], struct.Struct('!H').pack)
 _uint8_packer = cast(Callable[[int], bytes], struct.Struct('!B').pack)
 _int64_struct = struct.Struct('!q')
+_float32_struct = struct.Struct('!f')
 
 
 EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple')
@@ -130,6 +143,14 @@ def _encode_int64(data: int) -> bytes:
 
 def _decode_int64(data: bytes) -> int:
     return _int64_struct.unpack(data)[0]  # type: ignore [no-any-return]
+
+
+def _encode_float32(data: float) -> bytes:
+    return _float32_struct.pack(data)
+
+
+def _decode_float32(data: bytes) -> float:
+    return _float32_struct.unpack(data)[0]  # type: ignore [no-any-return]
 
 
 def _string_packer(s: str) -> bytes:
@@ -1635,10 +1656,46 @@ class StateSerializerFactory:
         schema, config_type = derive_alias(
             schema, free_obj, 'state_config'
         )
-        config_shape: list[tuple[str, s_types.Type, enums.Cardinality]] = []
+        config_shape = self._make_config_shape(config_spec, schema)
+
+        # Build type descriptors and codecs for compiler RPC
+        # comp_config := cfg::Config { comp_cfg1, comp_cfg2, ... }
+        schema, self._comp_config_type = derive_alias(
+            schema, free_obj, 'comp_config'
+        )
+        self._comp_config_shape: tuple[InputShapeElement, ...] = (
+            self._make_config_shape(
+                config_spec,
+                schema,
+                lambda setting: setting.affects_compilation,
+            )
+        )
+
+        self._input_shapes: immutables.Map[
+            s_types.Type,
+            tuple[InputShapeElement, ...],
+        ] = immutables.Map([
+            (config_type, config_shape),
+            (self._state_type, (
+                ("module", str_type, enums.Cardinality.AT_MOST_ONE),
+                ("aliases", aliases_array, enums.Cardinality.AT_MOST_ONE),
+                ("config", config_type, enums.Cardinality.AT_MOST_ONE),
+            ))
+        ])
+        self.config_type = config_type
+        self._schema = schema
+        self._contexts: dict[edbdef.ProtocolVersion, Context] = {}
+
+    @staticmethod
+    def _make_config_shape(
+        config_spec: config.Spec,
+        schema: s_schema.Schema,
+        matches: Callable[[Any], bool] = lambda setting: not setting.system,
+    ) -> tuple[InputShapeElement, ...]:
+        config_shape: list[InputShapeElement] = []
 
         for setting in config_spec.values():
-            if not setting.system:
+            if matches(setting):
                 setting_type_name = setting.schema_type_name
                 setting_type = schema.get(setting_type_name, type=s_types.Type)
                 config_shape.append(
@@ -1649,20 +1706,7 @@ class StateSerializerFactory:
                         enums.Cardinality.AT_MOST_ONE,
                     )
                 )
-
-        self._input_shapes: immutables.Map[
-            s_types.Type,
-            tuple[InputShapeElement, ...],
-        ] = immutables.Map([
-            (config_type, tuple(sorted(config_shape))),
-            (self._state_type, (
-                ("module", str_type, enums.Cardinality.AT_MOST_ONE),
-                ("aliases", aliases_array, enums.Cardinality.AT_MOST_ONE),
-                ("config", config_type, enums.Cardinality.AT_MOST_ONE),
-            ))
-        ])
-        self._schema = schema
-        self._contexts: dict[edbdef.ProtocolVersion, Context] = {}
+        return tuple(sorted(config_shape))
 
     def make(
         self,
@@ -1688,6 +1732,12 @@ class StateSerializerFactory:
         ctx.schema = s_schema.ChainedSchema(
             self._schema, user_schema, global_schema)
 
+        # Update the config shape with any extension configs
+        ext_config_spec = config.load_ext_spec_from_schema(
+            user_schema, self._schema)
+        new_config = self._make_config_shape(ext_config_spec, ctx.schema)
+        full_config = self._input_shapes[self.config_type] + new_config
+
         globals_shape = []
         global_reps = {}
         for g in ctx.schema.get_objects(type=s_globals.Global):
@@ -1704,6 +1754,7 @@ class StateSerializerFactory:
             self._state_type,
             self._input_shapes.update({
                 self.globals_type: tuple(sorted(globals_shape)),
+                self.config_type: full_config,
                 self._state_type: self._input_shapes[self._state_type] + (
                     (
                         "globals",
@@ -1720,25 +1771,39 @@ class StateSerializerFactory:
             type_id, type_data, global_reps, protocol_version
         )
 
+    def make_compilation_config_serializer(self) -> InputShapeSerializer:
+        ctx = Context(
+            schema=self._schema,
+            protocol_version=edbdef.CURRENT_PROTOCOL,
+        )
+        type_id = describe_input_shape(
+            self._comp_config_type,
+            {self._comp_config_type: self._comp_config_shape},
+            ctx=ctx
+        )
+        type_data = b''.join(ctx.buffer)
+        return InputShapeSerializer(
+            type_id,
+            type_data,
+            edbdef.CURRENT_PROTOCOL
+        )
 
-class StateSerializer:
+
+class InputShapeSerializer:
     def __init__(
         self,
         type_id: uuid.UUID,
         type_data: bytes,
-        global_reps: dict[str, object],
         protocol_version: edbdef.ProtocolVersion,
     ) -> None:
         self._type_id = type_id
         self._type_data = type_data
-        self._global_reps = global_reps
         self._protocol_version = protocol_version
 
     @functools.cached_property
-    def _codec(self) -> TypeDesc:
+    def _codec(self) -> InputShapeDesc:
         codec = parse(self._type_data, self._protocol_version)
         assert isinstance(codec, InputShapeDesc)
-        codec.fields['globals'][1].__dict__['data_raw'] = True
         return codec
 
     @property
@@ -1753,6 +1818,31 @@ class StateSerializer:
 
     def decode(self, state: bytes) -> Any:
         return self._codec.decode(state)
+
+
+class StateSerializer(InputShapeSerializer):
+    def __init__(
+        self,
+        type_id: uuid.UUID,
+        type_data: bytes,
+        global_reps: dict[str, object],
+        protocol_version: edbdef.ProtocolVersion,
+    ) -> None:
+        super().__init__(type_id, type_data, protocol_version)
+        self._global_reps = global_reps
+
+    @functools.cached_property
+    def _codec(self) -> InputShapeDesc:
+        codec = super()._codec
+
+        # Global values are directly used in Postgres, so we don't need to
+        # encode/decode them in the I/O server. This feature doesn't worth a
+        # separate switch in the type desc, so we just hack it in here.
+        _, globals_type_desc = codec.fields['globals']
+        assert isinstance(globals_type_desc, InputShapeDesc)
+        globals_type_desc.__dict__['data_raw'] = True
+
+        return codec
 
     def get_global_type_rep(
         self,
@@ -1888,6 +1978,10 @@ class BaseScalarDesc(SchemaTypeDesc):
         s_obj.get_known_type_id('std::int64'): (
             _encode_int64,
             _decode_int64,
+        ),
+        s_obj.get_known_type_id('std::float32'): (
+            _encode_float32,
+            _decode_float32,
         ),
     }
 

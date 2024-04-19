@@ -11,7 +11,7 @@ edgedb watch
 
 Start a long-running process that watches for changes in schema files in your
 project's ``dbschema`` directory and applies those changes to your database in
-real time.
+real time. Starting it is as simple as running this command:
 
 .. cli:synopsis::
 
@@ -25,6 +25,12 @@ real time.
 
 To learn about our recommended development migration workflow using ``edgedb
 watch``, read our :ref:`intro to migrations <ref_intro_migrations>`.
+
+.. note::
+
+    If you want to apply a migration in the same manner as ``watch`` but
+    without the long-running process, use ``edgedb migrate --dev-mode``. See
+    :ref:`ref_cli_edgedb_migration_apply` for more details.
 
 Demo
 ====

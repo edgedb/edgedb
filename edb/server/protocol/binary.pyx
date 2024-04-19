@@ -65,6 +65,7 @@ from edb.server import defines as edbdef
 from edb.server.compiler import errormech
 from edb.server.compiler import enums
 from edb.server.compiler import sertypes
+from edb.server.compiler cimport rpc
 
 from edb.server.protocol cimport auth_helpers
 from edb.server.protocol import execute
@@ -77,8 +78,7 @@ from edb.schema import objects as s_obj
 
 from edb import errors
 from edb.errors import base as base_errors, EdgeQLSyntaxError
-from edb.common import debug, taskgroup
-from edb.common import context as pctx
+from edb.common import debug
 
 from edb.protocol import messages
 
@@ -92,9 +92,6 @@ cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
 cdef object CARD_AT_MOST_ONE = compiler.Cardinality.AT_MOST_ONE
 cdef object CARD_MANY = compiler.Cardinality.MANY
 
-cdef object FMT_BINARY = compiler.OutputFormat.BINARY
-cdef object FMT_JSON = compiler.OutputFormat.JSON
-cdef object FMT_JSON_ELEMENTS = compiler.OutputFormat.JSON_ELEMENTS
 cdef object FMT_NONE = compiler.OutputFormat.NONE
 
 cdef tuple DUMP_VER_MIN = (0, 7)
@@ -150,6 +147,7 @@ cdef inline bint parse_boolean(value: bytes, header: str):
 
 
 cdef class EdgeConnection(frontend.FrontendConnection):
+    interface = "edgeql"
 
     def __init__(
         self,
@@ -273,11 +271,13 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             )
 
         database = params.get('database')
-        if not database:
+        branch = params.get('branch')
+        if not database and not branch:
             raise errors.BinaryProtocolError(
                 f'missing required connection parameter in ClientHandshake '
-                f'message: "database"'
+                f'message: "branch" (or "database")'
             )
+        database = self.tenant.resolve_branch_name(database, branch)
 
         logger.debug('received connection request by %s to database %s',
                      user, database)
@@ -499,9 +499,31 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         else:
             return edgeql.NormalizedSource.from_string(text)
 
+    async def _suppress_tx_timeout(self):
+        async with self.with_pgcon() as conn:
+            await conn.sql_execute(b'''
+                select pg_catalog.set_config(
+                    'idle_in_transaction_session_timeout', '0', true)
+            ''')
+
+    async def _restore_tx_timeout(self, dbview.DatabaseConnectionView dbv):
+        old_timeout = dbv.get_session_config().get(
+            'session_idle_transaction_timeout',
+        )
+        timeout = (
+            'NULL' if not old_timeout
+            else repr(old_timeout.value.to_backend_str())
+        )
+        async with self.with_pgcon() as conn:
+            await conn.sql_execute(f'''
+                select pg_catalog.set_config(
+                    'idle_in_transaction_session_timeout', {timeout}, true)
+            '''.encode('utf-8'))
+
     async def _parse(
         self,
-        dbview.QueryRequestInfo query_req,
+        rpc.CompilationRequest query_req,
+        uint64_t allow_capabilities,
     ) -> dbview.CompiledQuery:
         cdef dbview.DatabaseConnectionView dbv
         dbv = self.get_dbview()
@@ -519,14 +541,29 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f"inline_typeids={query_req.inline_typeids}",
                 f"inline_typenames={query_req.inline_typenames}",
                 f"inline_objectids={query_req.inline_objectids}",
-                f"allow_capabilities={query_req.allow_capabilities}",
+                f"allow_capabilities={allow_capabilities}",
                 f"modaliazes={dbv.get_modaliases()}",
                 f"session_config={dbv.get_session_config()}",
             )
             self.debug_print('Extra variables', source.variables(),
                              'after', source.first_extra())
 
-        return await dbv.parse(query_req)
+        query_unit_group = dbv.lookup_compiled_query(query_req)
+        if query_unit_group is None:
+            # If we have to do a compile within a transaction, suppress
+            # the idle_in_transaction_session_timeout.
+            suppress_timeout = dbv.in_tx() and not dbv.in_tx_error()
+            if suppress_timeout:
+                await self._suppress_tx_timeout()
+            try:
+                return await dbv.parse(
+                    query_req, allow_capabilities=allow_capabilities
+                )
+            finally:
+                if suppress_timeout:
+                    await self._restore_tx_timeout(dbv)
+        else:
+            return dbv.as_compiled(query_req, query_unit_group)
 
     cdef parse_cardinality(self, bytes card):
         if card[0] == CARD_MANY.value:
@@ -545,19 +582,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     cdef char render_cardinality(self, query_unit_group) except -1:
         return query_unit_group.cardinality.value
-
-    cdef parse_output_format(self, bytes mode):
-        if mode == b'j':
-            return FMT_JSON
-        elif mode == b'J':
-            return FMT_JSON_ELEMENTS
-        elif mode == b'b':
-            return FMT_BINARY
-        elif mode == b'n':
-            return FMT_NONE
-        else:
-            raise errors.BinaryProtocolError(
-                f'unknown output mode "{repr(mode)[2:-1]}"')
 
     cdef inline reject_headers(self):
         cdef int16_t nheaders = self.buffer.read_int16()
@@ -722,7 +746,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 'server restart is required for the configuration '
                 'change to take effect')
 
-    cdef dbview.QueryRequestInfo parse_execute_request(self):
+    cdef parse_execute_request(self):
         cdef:
             uint64_t allow_capabilities = 0
             uint64_t compilation_flags = 0
@@ -733,6 +757,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             object output_format
             bint expect_one = False
             bytes query
+            dbview.DatabaseConnectionView _dbview
 
         allow_capabilities = <uint64_t>self.buffer.read_int64()
         compilation_flags = <uint64_t>self.buffer.read_int64()
@@ -756,7 +781,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             & messages.CompilationFlag.INJECT_OUTPUT_OBJECT_IDS
         )
 
-        output_format = self.parse_output_format(self.buffer.read_byte())
+        output_format = rpc.deserialize_output_format(self.buffer.read_byte())
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
         )
@@ -765,15 +790,21 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
+        metrics.query_size.observe(
+            len(query), self.get_tenant_label(), 'edgeql'
+        )
+
+        _dbview = self.get_dbview()
         state_tid = self.buffer.read_bytes(16)
         state_data = self.buffer.read_len_prefixed_bytes()
         try:
-            self.get_dbview().decode_state(state_tid, state_data)
+            _dbview.decode_state(state_tid, state_data)
         except errors.StateMismatchError:
             self.write(self.make_state_data_description_msg())
             raise
 
-        return dbview.QueryRequestInfo(
+        rv = rpc.CompilationRequest(self.server.compilation_config_serializer)
+        rv.update(
             self._tokenize(query),
             self.protocol_version,
             output_format=output_format,
@@ -782,16 +813,21 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-            allow_capabilities=allow_capabilities,
-        )
+        ).set_schema_version(_dbview.schema_version)
+        rv.set_modaliases(_dbview.get_modaliases())
+        rv.set_session_config(_dbview.get_session_config())
+        rv.set_database_config(_dbview.get_database_config())
+        rv.set_system_config(_dbview.get_compilation_system_config())
+        return rv, allow_capabilities
 
     async def parse(self):
         cdef:
             bytes eql
-            dbview.QueryRequestInfo query_req
+            rpc.CompilationRequest query_req
             dbview.DatabaseConnectionView _dbview
             WriteBuffer parse_complete
             WriteBuffer buf
+            uint64_t allow_capabilities
 
         self._last_anon_compiled = None
 
@@ -800,8 +836,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         _dbview = self.get_dbview()
         if _dbview.get_state_serializer() is None:
             await _dbview.reload_state_serializer()
-        query_req = self.parse_execute_request()
-        compiled = await self._parse(query_req)
+        query_req, allow_capabilities = self.parse_execute_request()
+        compiled = await self._parse(query_req, allow_capabilities)
 
         buf = self.make_command_data_description_msg(compiled)
 
@@ -818,22 +854,22 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     async def execute(self):
         cdef:
-            dbview.QueryRequestInfo query_req
+            rpc.CompilationRequest query_req
             dbview.DatabaseConnectionView _dbview
             bytes in_tid
             bytes out_tid
             bytes args
+            uint64_t allow_capabilities
 
         self.ignore_headers()
 
         _dbview = self.get_dbview()
         if _dbview.get_state_serializer() is None:
             await _dbview.reload_state_serializer()
-        query_req = self.parse_execute_request()
+        query_req, allow_capabilities = self.parse_execute_request()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         args = self.buffer.read_len_prefixed_bytes()
-
         self.buffer.finish_message()
 
         if (
@@ -850,7 +886,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print('EXECUTE /CACHE MISS', query_req.source.text())
 
-                compiled = await self._parse(query_req)
+                compiled = await self._parse(query_req, allow_capabilities)
                 query_unit_group = compiled.query_unit_group
                 if self._cancelled:
                     raise ConnectionAbortedError
@@ -865,6 +901,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     extra_blobs=query_req.source.extra_blobs(),
                 )
 
+        self._query_count += 1
+
         # Clear the _last_anon_compiled so that the next Execute - if
         # identical - will always lookup in the cache and honor the
         # `cacheable` flag to compile the query again.
@@ -872,7 +910,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         _dbview.check_capabilities(
             query_unit_group.capabilities,
-            query_req.allow_capabilities,
+            allow_capabilities,
             errors.DisabledCapabilityError,
             "disabled by the client",
         )
@@ -1053,7 +1091,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self.write_log(
             EdgeSeverity.EDGE_SEVERITY_NOTICE,
             errors.LogMessage.get_code(),
-            'server is stopped; disconnecting now')
+            'requested to stop; disconnecting now')
 
     async def recover_from_error(self):
         # Consume all messages until sync.
@@ -1098,6 +1136,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         fields = {}
         if isinstance(exc, errors.EdgeDBError):
             fields.update(exc._attrs)
+            if isinstance(exc, errors.TransactionSerializationError):
+                metrics.transaction_serialization_errors.inc(
+                    1.0, self.get_tenant_label()
+                )
 
         try:
             formatted_error = exc.__formatted_error__
@@ -1332,7 +1374,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             blocks_queue = collections.deque(blocks)
             output_queue = asyncio.Queue(maxsize=2)
 
-            async with taskgroup.TaskGroup() as g:
+            async with asyncio.TaskGroup() as g:
                 g.create_task(pgcon.dump(
                     blocks_queue,
                     output_queue,
@@ -1388,12 +1430,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self.flush()
 
     async def _execute_utility_stmt(self, eql: str, pgcon):
-        cdef dbview.DatabaseConnectionView _dbview
+        cdef dbview.DatabaseConnectionView _dbview = self.get_dbview()
 
-        query_req = dbview.QueryRequestInfo(edgeql.Source.from_string(eql),
-                                            self.protocol_version)
-
-        _dbview = self.get_dbview()
+        query_req = rpc.CompilationRequest(
+            self.server.compilation_config_serializer
+        )
+        query_req.update(
+            edgeql.Source.from_string(eql), self.protocol_version
+        ).set_schema_version(_dbview.schema_version)
 
         compiled = await _dbview.parse(query_req)
         query_unit_group = compiled.query_unit_group
@@ -1512,7 +1556,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 ''',
             )
 
-            schema_sql_units, restore_blocks, tables = \
+            schema_sql_units, restore_blocks, tables, repopulate_units = \
                 await compiler_pool.describe_database_restore(
                     user_schema_pickle,
                     global_schema_pickle,
@@ -1621,6 +1665,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 else:
                     self.fallthrough()
 
+            for repopulate_unit in repopulate_units:
+                await pgcon.sql_execute(repopulate_unit.encode())
+
             await pgcon.sql_execute(enable_trigger_q.encode())
 
         except Exception:
@@ -1678,9 +1725,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
 @cython.final
 cdef class VirtualTransport:
-    def __init__(self):
+    def __init__(self, transport):
         self.buf = WriteBuffer.new()
         self.closed = False
+        self.transport = transport
 
     def write(self, data):
         self.buf.write_bytes(bytes(data))
@@ -1697,6 +1745,9 @@ cdef class VirtualTransport:
     def abort(self):
         self.closed = True
 
+    def get_extra_info(self, name, default=None):
+        return self.transport.get_extra_info(name, default)
+
 
 async def eval_buffer(
     server,
@@ -1707,12 +1758,13 @@ async def eval_buffer(
     protocol_version: edbdef.ProtocolVersion,
     auth_data: bytes,
     transport: srvargs.ServerConnTransport,
+    tcp_transport: asyncio.Transport,
 ):
     cdef:
         VirtualTransport vtr
         EdgeConnection proto
 
-    vtr = VirtualTransport()
+    vtr = VirtualTransport(tcp_transport)
 
     proto = new_edge_connection(
         server,
@@ -1753,6 +1805,7 @@ def new_edge_connection(
     auth_data: bytes = b'',
     protocol_version: edbdef.ProtocolVersion = edbdef.CURRENT_PROTOCOL,
     conn_params: dict[str, str] | None = None,
+    connection_made_at: float | None = None,
 ):
     return EdgeConnection(
         server,
@@ -1763,6 +1816,7 @@ def new_edge_connection(
         auth_data=auth_data,
         protocol_version=protocol_version,
         conn_params=conn_params,
+        connection_made_at=connection_made_at,
     )
 
 
@@ -1776,15 +1830,19 @@ async def run_script(
     cdef:
         EdgeConnection conn
         dbview.CompiledQuery compiled
+        dbview.DatabaseConnectionView _dbview
     conn = new_edge_connection(server, tenant)
     await conn._start_connection(database)
     try:
-        compiled = await conn.get_dbview().parse(
-            dbview.QueryRequestInfo(
+        _dbview = conn.get_dbview()
+        compiled = await _dbview.parse(
+            rpc.CompilationRequest(
+                server.compilation_config_serializer
+            ).update(
                 edgeql.Source.from_string(script),
                 conn.protocol_version,
                 output_format=FMT_NONE,
-            )
+            ).set_schema_version(_dbview.schema_version)
         )
         if len(compiled.query_unit_group) > 1:
             await conn._execute_script(compiled, b'')

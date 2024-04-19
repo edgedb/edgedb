@@ -20,7 +20,6 @@
 """Patches to apply to databases"""
 
 from __future__ import annotations
-from typing import *
 
 
 def get_version_key(num_patches: int):
@@ -75,6 +74,7 @@ The current kinds are:
  * ...+config - updates config views
  * ext-pkg - installs an extension package given a name
  * repair - fix up inconsistencies in *user* schemas
+ * sql-introspection - refresh all sql introspection views
 """
 PATCHES: list[tuple[str, str]] = _setup_patches([
 ])

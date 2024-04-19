@@ -17,7 +17,7 @@
 #
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Iterator, FrozenSet
 
 import dataclasses
 import enum
@@ -102,9 +102,7 @@ class Child(to_json.ToJson):
 
 
 def _scan_relations(
-    path: str,
-    plan: fine_grained.Plan,
-    index: _Index
+    path: str, plan: fine_grained.Plan, index: _Index
 ) -> Iterator[pg_tree.Relation]:
     info = index.by_id[id(plan)]
     if info.shape_mark == path or info.shape_mark is None:

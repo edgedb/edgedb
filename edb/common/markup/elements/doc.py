@@ -40,6 +40,10 @@ class Section(DocMarkup):
     collapsed = Field(bool, coerce=True, default=False)
 
 
+class SubNode(DocMarkup):
+    body = Field(base.Markup)
+
+
 class Text(DocMarkup):
     text = Field(str)
 
@@ -53,8 +57,8 @@ class Diff(DocMarkup):
 
     @classmethod
     def get_diff(
-            cls, a, b, fromfile='', tofile='', fromfiledate='', tofiledate='',
-            n=10):
+        cls, a, b, fromfile='', tofile='', fromfiledate='', tofiledate='', n=10
+    ):
 
         lines = difflib.unified_diff(
             a, b, fromfile, tofile, fromfiledate, tofiledate, n)

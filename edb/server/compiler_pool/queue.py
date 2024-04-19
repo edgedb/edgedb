@@ -96,7 +96,7 @@ class WorkerQueue(typing.Generic[W]):
                     if condition(w):
                         self._queue.remove(w)
                         return w
-            elif weighter is not None:
+            if weighter is not None:
                 rv = self._queue[0]
                 weight = weighter(rv)
                 it = iter(self._queue)

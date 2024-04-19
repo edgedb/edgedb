@@ -17,7 +17,11 @@
 #
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import ClassVar, Generic, Type, TypeVar
+
+# I'm not really sure why this is needed here
+# These are things needed for ParametricType?
+from typing import Optional, Tuple, Dict, Any  # NoQA
 
 import unittest
 
@@ -33,7 +37,6 @@ B = TypeVar("B")
 class ParametricTypeTests(unittest.TestCase):
 
     def test_common_parametric_basics(self) -> None:
-
         with self.assertRaisesRegex(
             TypeError,
             'must be declared as Generic'

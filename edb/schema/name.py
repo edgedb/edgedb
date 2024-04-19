@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Type, TypeVar, List, NamedTuple, TYPE_CHECKING
 
 import abc
 import functools
@@ -113,7 +113,7 @@ if TYPE_CHECKING:
 
 else:
 
-    class Name(abc.ABC):
+    class Name(abc.ABC):  # noqa: B024
         pass
 
     class QualName(NamedTuple):

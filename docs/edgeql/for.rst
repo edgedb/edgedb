@@ -22,9 +22,22 @@ are merged into a single output set.
 
 .. note::
 
-  The ``union`` keyword is a required part of the ``for`` statement syntax; it
-  is intended to indicate explicitly that the results of each loop execution
-  are ultimately merged.
+  The ``union`` keyword is required prior to EdgeDB 5.0 and is intended to
+  indicate explicitly that the results of each loop execution are ultimately
+  merged.
+
+.. versionadded: 5.0
+
+    If the body of ``for`` is a statement — ``select``, ``insert``, ``update``,
+    ``delete``, ``group``, or ``with`` — ``union`` and the parentheses
+    surrounding the statement are no longer required:
+
+    .. code-block:: edgeql-repl
+
+      db> for number in {0, 1, 2, 3}
+      ... select { number, number + 0.5 }
+      {0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5}
+
 
 Bulk inserts
 ------------
@@ -74,6 +87,14 @@ A similar approach can be used for bulk updates.
 Conditional DML
 ---------------
 
+.. versionadded:: 4.0
+
+    DML is now supported in ``if..else``. The method of achieving conditional
+    DML demonstrated below is a workaround for earlier versions of EdgeDB
+    before this support was introduced in EdgeDB 4.0. If you're on EdgeDB 4.0
+    or higher, use :eql:op:`if..else` for a cleaner way to achieve conditional
+    DML.
+
 DML (i.e., :ref:`insert <ref_eql_insert>`, :ref:`update <ref_eql_update>`,
 :ref:`delete <ref_eql_delete>`) is not supported in :eql:op:`if..else`. If you
 need to do one of these conditionally, you can use a ``for`` loop as a
@@ -81,7 +102,7 @@ workaround. For example, you might want to write this conditional:
 
 .. code-block::
 
-    # 🚫
+    # 🚫 Does not work
     with admin := (select User filter .role = 'admin')
     select admin if exists admin
       else (insert User {role := 'admin'});
@@ -91,7 +112,7 @@ Here's how you can accomplish the same thing using the workaround:
 
 .. code-block:: edgeql
 
-    # ✅
+    # ✅ Works!
     with
       admin := (select User filter .role = 'admin'),
       new := (for _ in (select () filter not exists admin) union (

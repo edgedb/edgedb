@@ -18,7 +18,18 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Final,
+    Optional,
+    Tuple,
+    Union,
+    Iterable,
+    Mapping,
+    Sequence,
+    List,
+    Set,
+)
 
 import collections
 import enum
@@ -421,7 +432,7 @@ class Query(Command):
         else:
             return self.text
 
-    def code(self, block: PLBlock) -> str:
+    def code(self, block: Any) -> str:
         return self.text
 
     def __repr__(self):

@@ -18,7 +18,7 @@
 
 
 import base64
-import struct
+import urllib
 
 import edgedb
 from edgedb import scram
@@ -26,9 +26,15 @@ from edgedb import scram
 from edb import protocol
 from edb.server import defines as edbdef
 from edb.testbase import server as tb_server
+from edb.testbase import http as tb_http
 
 
-class BaseTestHttpAuth(tb_server.ConnectedTestCase):
+class BaseTestHttpAuth(
+    tb_http.BaseHttpExtensionTest,
+    tb_server.ConnectedTestCase,
+):
+    TRANSACTION_ISOLATION = False
+
     @classmethod
     def get_api_prefix(cls) -> str:
         return "/auth"
@@ -110,8 +116,8 @@ class BaseTestHttpAuth(tb_server.ConnectedTestCase):
             content,
             headers,
             status,
-            sid,
-            expected_server_sig,
+            _sid,
+            _expected_server_sig,
         ) = self._scram_auth(user, password)
         self.assertEqual(status, 401)
         self.assertEqual(content, b"Authentication failed")
@@ -137,46 +143,21 @@ class TestHttpAuth(BaseTestHttpAuth):
         server_final = base64.b64decode(values["data"])
         server_sig = scram.parse_server_final_message(server_final)
         self.assertEqual(server_sig, expected_server_sig)
+
         proto_ver = edbdef.CURRENT_PROTOCOL
         proto_ver_str = f"v_{proto_ver[0]}_{proto_ver[1]}"
         mime_type = f"application/x.edgedb.{proto_ver_str}.binary"
 
         with self.http_con() as con:
-            con.request(
-                "POST",
-                f"/db/{args['database']}",
-                body=protocol.Execute(
-                    annotations=[],
-                    allowed_capabilities=protocol.Capability.ALL,
-                    compilation_flags=protocol.CompilationFlag(0),
-                    implicit_limit=0,
-                    command_text="SELECT 42",
-                    output_format=protocol.OutputFormat.JSON,
-                    expected_cardinality=protocol.Cardinality.AT_MOST_ONE,
-                    input_typedesc_id=b"\0" * 16,
-                    output_typedesc_id=b"\0" * 16,
-                    state_typedesc_id=b"\0" * 16,
-                    arguments=b"",
-                    state_data=b"",
-                ).dump()
-                + protocol.Sync().dump(),
-                headers={
-                    "Content-Type": mime_type,
-                    "Authorization": f"Bearer {token.decode('ascii')}",
-                    "X-EdgeDB-User": args["user"],
-                },
+            msgs, headers, status = self.http_con_binary_request(
+                con,
+                "SELECT 42",
+                bearer_token=token.decode("ascii"),
+                user=args["user"],
+                database=args["database"],
             )
-            content, headers, status = self.http_con_read_response(con)
         self.assertEqual(status, 200)
         self.assertEqual(headers, headers | {"content-type": mime_type})
-        uint32_unpack = struct.Struct("!L").unpack
-        msgs = []
-        while content:
-            mtype = content[0]
-            (msize,) = uint32_unpack(content[1:5])
-            msg = protocol.ServerMessage.parse(mtype, content[5 : msize + 1])
-            msgs.append(msg)
-            content = content[msize + 1 :]
         self.assertIsInstance(msgs[0], protocol.CommandDataDescription)
         self.assertIsInstance(msgs[1], protocol.Data)
         self.assertEqual(bytes(msgs[1].data[0].data), b"42")
@@ -194,6 +175,73 @@ class TestHttpAuth(BaseTestHttpAuth):
 
     def test_http_auth_scram_no_user(self):
         self._scram_auth_expect_failure("scram_no_user", "bad-password")
+
+    async def test_http_auth_scram_cors(self):
+        # spin up a new server because we are doing instance configs
+        async with tb_server.start_edgedb_server() as sd:
+            conn_args = sd.get_connect_args()
+
+            url = f'https://{conn_args["host"]}:{conn_args["port"]}/auth/token'
+
+            req = urllib.request.Request(url, method='OPTIONS')
+            req.add_header('Origin', 'https://example.edgedb.com')
+            response = urllib.request.urlopen(
+                req, context=self.tls_context
+            )
+            self.assertNotIn('Access-Control-Allow-Origin', response.headers)
+
+            con = await sd.connect()
+            try:
+                await con.execute(
+                    'configure instance '
+                    'set cors_allow_origins := {"https://example.edgedb.com"}')
+            finally:
+                await con.aclose()
+            await self._wait_for_db_config(
+                'cors_allow_origins', instance_config=True, server=sd)
+
+            req = urllib.request.Request(url, method='OPTIONS')
+            req.add_header('Origin', 'https://example.edgedb.com')
+            response = urllib.request.urlopen(
+                req, context=self.tls_context
+            )
+            headers = response.headers
+
+            self.assertIn('Access-Control-Allow-Origin', headers)
+            self.assertEqual(
+                headers['Access-Control-Allow-Origin'],
+                'https://example.edgedb.com'
+            )
+            self.assertIn('GET', headers['Access-Control-Allow-Methods'])
+            self.assertIn(
+                'Authorization',
+                headers['Access-Control-Allow-Headers']
+            )
+            self.assertIn(
+                'WWW-Authenticate',
+                headers['Access-Control-Expose-Headers']
+            )
+            self.assertIn(
+                'Authentication-Info',
+                headers['Access-Control-Expose-Headers']
+            )
+
+            with self.http_con(sd) as con:
+                _, headers, status = self.http_con_request(
+                    con, {}, path="token",
+                    headers={'Origin': 'https://example.edgedb.com'}
+                )
+                self.assertEqual(status, 401)
+                self.assertIn('access-control-allow-origin', headers)
+                self.assertIn('access-control-expose-headers', headers)
+                self.assertIn(
+                    'WWW-Authenticate',
+                    headers['access-control-expose-headers']
+                )
+                self.assertIn(
+                    'Authentication-Info',
+                    headers['access-control-expose-headers']
+                )
 
 
 class TestHttpAuthSystem(BaseTestHttpAuth):

@@ -26,7 +26,7 @@ directory", "EdgeDB data directory", etc.
 - **Config**: contains auto-generated credentials for all local instances and
   project metadata.
 - **Data**: contains the *contents* of all local EdgeDB instances.
-- **CLI Binary**: contains the CLI binary, if insatlled.
+- **CLI Binary**: contains the CLI binary, if installed.
 - **Service**: the home for running processes/daemons.
 - **Cache**: a catchall for logs and various caches.
 

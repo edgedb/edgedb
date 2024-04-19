@@ -54,7 +54,7 @@ class FlagsMeta(type):
                 continue
             flag.name = flagname
             flags[flagname] = flag
-            dct[flagname] = False
+            dct[flagname] = flag.default
 
         dct['_items'] = flags
         return super().__new__(mcls, name, bases, dct)
@@ -64,9 +64,10 @@ class FlagsMeta(type):
 
 
 class Flag:
-    def __init__(self, *, doc: str):
+    def __init__(self, *, doc: str, default: bool=False):
         self.name = None
         self.doc = doc
+        self.default = default
 
 
 class flags(metaclass=FlagsMeta):
@@ -121,6 +122,9 @@ class flags(metaclass=FlagsMeta):
     graphql_compile = Flag(
         doc="Debug GraphQL compiler.")
 
+    sdl_loading = Flag(
+        doc="Print applied DDL when loading SDL.")
+
     delta_plan = Flag(
         doc="Print expanded delta command tree prior to processing.")
 
@@ -129,6 +133,9 @@ class flags(metaclass=FlagsMeta):
 
     delta_execute = Flag(
         doc="Output SQL commands as executed during migration.")
+
+    delta_execute_ddl = Flag(
+        doc="Output just the DDL commands as executed during migration.")
 
     server = Flag(
         doc="Print server errors.")
@@ -139,8 +146,8 @@ class flags(metaclass=FlagsMeta):
     server_clobber_pg_conns = Flag(
         doc="Discard Postgres connections when releasing them to the pool.")
 
-    http_inject_cors = Flag(
-        doc="Inject 'Access-Control-Allow-Origin: *' header in HTTP ports.")
+    edgeql_text_in_sql = Flag(
+        doc="Include the EdgeQL query text in the SQL sent to Postgres.")
 
     print_locals = Flag(
         doc="Include values of local variables in tracebacks.")
@@ -250,10 +257,8 @@ def init_debug_flags():
             warnings.warn(f'Unknown debug flag: {env_name!r}', stacklevel=2)
             continue
 
-        if env_val.strip() in {'', '0'}:
-            continue
-
-        setattr(flags, name, True)
+        value = env_val.strip() not in {'', '0'}
+        setattr(flags, name, value)
 
 
 init_debug_flags()

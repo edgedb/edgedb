@@ -1319,6 +1319,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT 1 LIMIT -1
             """)
 
+    async def test_edgeql_select_limit_11(self):
+        await self.assert_query_result(
+            r'''
+            SELECT (SELECT {<optional str>$0, 'x'} LIMIT 1)
+            ''',
+            ['x'],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT (SELECT {<optional str>$0, 'x'} OFFSET 1)
+            ''',
+            [],
+            variables=(None,),
+        )
+
     async def test_edgeql_select_offset_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
@@ -5913,6 +5930,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['[]'],
         )
 
+    async def test_edgeql_select_multi_property_shape_01(self):
+        await self.assert_query_result(
+            r"""
+            select (BooleanTest { tags }).tags
+            """,
+            tb.bag(['red', 'black', 'red', 'green', 'red']),
+        )
+
     async def test_edgeql_select_tuple_01(self):
         await self.assert_query_result(
             r"""
@@ -8051,16 +8076,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_select_free_object_distinct_01(self):
-        foo, bar = await self.con.query_single('''
-            select ({foo := "test"}, {bar := 1000})
+        foo = await self.con.query_single('''
+            select {foo := "test"}
         ''')
-        self.assertNotEqual(foo.id, bar.id)
-
-    async def test_edgeql_select_free_object_distinct_02(self):
-        vals = await self.con.query('''
-            for x in {1,2,3} union { asdf := 10*x };
-        ''')
-        self.assertEqual(len(vals), len({v.id for v in vals}))
+        self.assertFalse(hasattr(foo, 'id'))
 
     async def test_edgeql_select_shadow_computable_01(self):
         # The thing this is testing for
@@ -8074,13 +8093,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {"is_elvis": True, "name": "Elvis"}
             ]
         )
-
-    async def test_edgeql_select_free_object_distinct_03(self):
-        vals = await self.con.query('''
-            with w := {x := 10}
-            for x in {1,2,3} union w
-        ''')
-        self.assertEqual(1, len({v.id for v in vals}))
 
     async def test_edgeql_select_card_blowup_01(self):
         # This used to really blow up cardinality inference
@@ -8194,6 +8206,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_params_03(self):
         with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
             await self.con.query("select ($0, <std::int64>$0)")
+
+    async def test_edgeql_select_params_04(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    "cannot apply a shape to the parameter"):
+            await self.con.query("select <std::int64>$0 { id }")
 
     async def test_edgeql_type_pointer_inlining_01(self):
         await self.con._fetchall(

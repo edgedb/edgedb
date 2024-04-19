@@ -33,6 +33,7 @@ import logging
 import os.path
 import socket
 import ssl as ssl_mod
+import sys
 import struct
 import textwrap
 import time
@@ -76,6 +77,7 @@ from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
 from edb.server.dbview cimport dbview
+from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport pg_ext
 from edb.server import pgconnparams
 from edb.server import metrics
@@ -227,11 +229,13 @@ def _set_tcp_keepalive(transport):
 
 
 async def _create_ssl_connection(protocol_factory, host, port, *,
-                                 loop, ssl_context, ssl_is_advisory):
-    tr, pr = await loop.create_connection(
-        lambda: TLSUpgradeProto(loop, host, port,
-                                ssl_context, ssl_is_advisory),
-        host, port)
+                                 loop, ssl_context, ssl_is_advisory,
+                                 connect_timeout):
+    async with asyncio.timeout(connect_timeout):
+        tr, pr = await loop.create_connection(
+            lambda: TLSUpgradeProto(loop, host, port,
+                                    ssl_context, ssl_is_advisory),
+            host, port)
     _set_tcp_keepalive(tr)
 
     tr.write(struct.pack('!ll', 8, 80877103))  # SSLRequest message.
@@ -271,27 +275,39 @@ async def _connect(connargs, dbname, ssl):
     host = connargs.get("host")
     port = connargs.get("port")
     sslmode = connargs.get('sslmode', pgconnparams.SSLMode.prefer)
+    timeout = connargs.get('connect_timeout')
 
-    if host.startswith('/'):
-        addr = os.path.join(host, f'.s.PGSQL.{port}')
-        _, pgcon = await loop.create_unix_connection(
-            lambda: PGConnection(dbname, loop, connargs), addr)
+    try:
+        if host.startswith('/'):
+            addr = os.path.join(host, f'.s.PGSQL.{port}')
+            async with asyncio.timeout(timeout):
+                _, pgcon = await loop.create_unix_connection(
+                    lambda: PGConnection(dbname, loop, connargs), addr)
 
-    else:
-        if ssl:
-            _, pgcon = await _create_ssl_connection(
-                lambda: PGConnection(dbname, loop, connargs),
-                host,
-                port,
-                loop=loop,
-                ssl_context=ssl,
-                ssl_is_advisory=(sslmode == pgconnparams.SSLMode.prefer),
-            )
         else:
-            trans, pgcon = await loop.create_connection(
-                lambda: PGConnection(dbname, loop, connargs),
-                host=host, port=port)
-            _set_tcp_keepalive(trans)
+            if ssl:
+                _, pgcon = await _create_ssl_connection(
+                    lambda: PGConnection(dbname, loop, connargs),
+                    host,
+                    port,
+                    loop=loop,
+                    ssl_context=ssl,
+                    ssl_is_advisory=(
+                        sslmode == pgconnparams.SSLMode.prefer
+                    ),
+                    connect_timeout=timeout,
+                )
+            else:
+                async with asyncio.timeout(timeout):
+                    trans, pgcon = await loop.create_connection(
+                        lambda: PGConnection(dbname, loop, connargs),
+                        host=host, port=port)
+                _set_tcp_keepalive(trans)
+    except TimeoutError as ex:
+        raise pgerror.new(
+            pgerror.ERROR_CONNECTION_FAILURE,
+            "timed out connecting to backend",
+        ) from ex
 
     try:
         await pgcon.connect()
@@ -382,7 +398,11 @@ async def connect(
                     'in_hot_standby' not in pgcon.parameter_status
                 ),
             )
-        await pgcon.sql_execute(INIT_CON_SCRIPT)
+        try:
+            await pgcon.sql_execute(INIT_CON_SCRIPT)
+        except Exception:
+            await pgcon.close()
+            raise
 
     return pgcon
 
@@ -602,6 +622,7 @@ cdef class PGConnection:
             hex(id(self)),
             f'pgpid: {self.backend_pid}',
             *args,
+            file=sys.stderr,
         )
 
     def get_pgaddr(self):
@@ -756,7 +777,7 @@ cdef class PGConnection:
         cdef bint parse = 1
 
         while self.prep_stmts.needs_cleanup():
-            stmt_name_to_clean = self.prep_stmts.cleanup_one()
+            stmt_name_to_clean, _ = self.prep_stmts.cleanup_one()
             if self.debug:
                 self.debug_print(f"discarding ps {stmt_name_to_clean!r}")
             outbuf.write_buffer(
@@ -949,6 +970,11 @@ cdef class PGConnection:
                     out.write_buffer(buf.end_message())
                     parse_array[idx] = True
                     parsed.add(stmt_name)
+                    metrics.query_size.observe(
+                        len(query_unit.sql[0]),
+                        self.get_tenant_label(),
+                        'compiled',
+                    )
 
                 buf = WriteBuffer.new_message(b'B')
                 buf.write_bytestring(b'')  # portal name
@@ -968,6 +994,9 @@ cdef class PGConnection:
                     buf.write_bytestring(sql)
                     buf.write_int16(0)
                     out.write_buffer(buf.end_message())
+                    metrics.query_size.observe(
+                        len(sql), self.get_tenant_label(), 'compiled'
+                    )
 
                     buf = WriteBuffer.new_message(b'B')
                     buf.write_bytestring(b'')  # portal name
@@ -1214,6 +1243,9 @@ cdef class PGConnection:
                     buf.write_int16(0)
                     out.write_buffer(buf.end_message())
                     i += 1
+                    metrics.query_size.observe(
+                        len(sql), self.get_tenant_label(), 'compiled'
+                    )
             else:
                 if len(query.sql) != 1:
                     raise errors.InternalServerError(
@@ -1225,6 +1257,9 @@ cdef class PGConnection:
                 buf.write_bytestring(query.sql[0])
                 buf.write_int16(0)
                 out.write_buffer(buf.end_message())
+                metrics.query_size.observe(
+                    len(query.sql[0]), self.get_tenant_label(), 'compiled'
+                )
 
         assert bind_data is not None
         if stmt_name == b'' and msgs_num > 1:
@@ -1415,10 +1450,7 @@ cdef class PGConnection:
         use_prep_stmt: bool = False,
         state: Optional[bytes] = None,
     ) -> list[tuple[bytes, ...]]:
-        cdef:
-            WriteBuffer bind_data = WriteBuffer.new()
-            int arg_len
-            tuple sql_tuple
+        cdef tuple sql_tuple
 
         if not isinstance(sql, tuple):
             sql_tuple = (sql,)
@@ -1439,26 +1471,9 @@ cdef class PGConnection:
             status=b"",
         )
 
-        if len(args) > 32767:
-            raise AssertionError(
-                'the number of query arguments cannot exceed 32767')
-
-        bind_data.write_int32(0x00010001)
-        bind_data.write_int16(<int16_t>len(args))
-        for arg in args:
-            if arg is None:
-                bind_data.write_int32(-1)
-            else:
-                arg_len = len(arg)
-                if arg_len > 0x7fffffff:
-                    raise ValueError("argument too long")
-                bind_data.write_int32(<int32_t>arg_len)
-                bind_data.write_bytes(arg)
-        bind_data.write_int32(0x00010001)
-
         return await self.parse_execute(
             query=query,
-            bind_data=bind_data,
+            bind_data=args_ser.combine_raw_args(args),
             use_prep_stmt=use_prep_stmt,
             state=state,
         )
@@ -1645,6 +1660,7 @@ cdef class PGConnection:
         cdef:
             WriteBuffer buf, msg_buf
             PGMessage action
+            bint be_parse
 
         buf = WriteBuffer.new()
         state = None
@@ -1659,14 +1675,16 @@ cdef class PGConnection:
             if action.is_frontend_only():
                 continue
 
+            be_parse = True
             if action.action == PGAction.PARSE:
                 sql_text, data = action.args
                 if action.stmt_name in prepared:
                     action.frontend_only = True
                 else:
-                    be_parse = self.before_prepare(
-                        action.stmt_name, dbver, buf
-                    )
+                    if action.stmt_name:
+                        be_parse = self.before_prepare(
+                            action.stmt_name, dbver, buf
+                        )
                     if not be_parse:
                         if self.debug:
                             self.debug_print(
@@ -1679,6 +1697,9 @@ cdef class PGConnection:
                     msg_buf.write_bytestring(sql_text)
                     msg_buf.write_bytes(data)
                     buf.write_buffer(msg_buf.end_message())
+                    metrics.query_size.observe(
+                        len(sql_text), self.get_tenant_label(), 'compiled'
+                    )
                     if self.debug:
                         self.debug_print(
                             'Parse', action.stmt_name, sql_text, data
@@ -1690,9 +1711,10 @@ cdef class PGConnection:
                     if be_stmt_name in prepared:
                         action.frontend_only = True
                     else:
-                        be_parse = self.before_prepare(
-                            be_stmt_name, dbver, buf
-                        )
+                        if be_stmt_name:
+                            be_parse = self.before_prepare(
+                                be_stmt_name, dbver, buf
+                            )
                         if not be_parse:
                             if self.debug:
                                 self.debug_print(
@@ -1729,9 +1751,10 @@ cdef class PGConnection:
                     if be_stmt_name in prepared:
                         action.frontend_only = True
                     else:
-                        be_parse = self.before_prepare(
-                            be_stmt_name, dbver, buf
-                        )
+                        if be_stmt_name:
+                            be_parse = self.before_prepare(
+                                be_stmt_name, dbver, buf
+                            )
                         if not be_parse:
                             if self.debug:
                                 self.debug_print(
@@ -1978,7 +2001,8 @@ cdef class PGConnection:
                     self.buffer.finish_message()
                     if self.debug:
                         self.debug_print('PARSE COMPLETE MSG')
-                    self.prep_stmts[action.stmt_name] = dbver
+                    if action.stmt_name:
+                        self.prep_stmts[action.stmt_name] = dbver
                     if not action.is_injected():
                         msg_buf = WriteBuffer.new_message(mtype)
                         buf.write_buffer(msg_buf.end_message())
@@ -2008,14 +2032,17 @@ cdef class PGConnection:
                     data = self.buffer.consume_message()
                     if self.debug:
                         self.debug_print('END OF DESCRIBE', mtype)
-                    if not action.is_injected():
+                    if not action.is_injected() and not (
+                        mtype == b'n' and
+                        action.action == PGAction.DESCRIBE_STMT_ROWS
+                    ):
                         msg_buf = WriteBuffer.new_message(mtype)
                         msg_buf.write_bytes(data)
                         buf.write_buffer(msg_buf.end_message())
                     break
 
                 elif (
-                    mtype == b't'
+                    mtype == b't'  # ParameterDescription
                     and action.action == PGAction.DESCRIBE_STMT_ROWS
                 ):
                     self.buffer.consume_message()
@@ -2035,12 +2062,13 @@ cdef class PGConnection:
                         and action.query_unit.prepare is not None
                     ):
                         be_stmt_name = action.query_unit.prepare.be_stmt_name
-                        if self.debug:
-                            self.debug_print(
-                                f"remembering ps {be_stmt_name}, "
-                                f"dbver {dbver}"
-                            )
-                        self.prep_stmts[be_stmt_name] = dbver
+                        if be_stmt_name:
+                            if self.debug:
+                                self.debug_print(
+                                    f"remembering ps {be_stmt_name}, "
+                                    f"dbver {dbver}"
+                                )
+                            self.prep_stmts[be_stmt_name] = dbver
 
                     if not action.is_injected():
                         msg_buf = WriteBuffer.new_message(mtype)
@@ -2231,10 +2259,10 @@ cdef class PGConnection:
         object query_unit,
         bytes state=None
     ):
+        data = await self.sql_fetch(query_unit.sql, state=state)
         if query_unit.ddl_stmt_id is None:
-            return await self.sql_execute(query_unit.sql)
+            return
         else:
-            data = await self.sql_fetch(query_unit.sql, state=state)
             return self.load_ddl_return(query_unit, data)
 
     def load_ddl_return(self, object query_unit, data):
@@ -2914,6 +2942,10 @@ cdef class PGConnection:
                 elif event == 'ensure-database-not-used':
                     dbname = event_payload['dbname']
                     self.tenant.on_remote_database_quarantine(dbname)
+                elif event == 'query-cache-changes':
+                    dbname = event_payload['dbname']
+                    keys = event_payload.get('keys')
+                    self.tenant.on_remote_query_cache_change(dbname, keys=keys)
                 else:
                     raise AssertionError(f'unexpected system event: {event!r}')
 

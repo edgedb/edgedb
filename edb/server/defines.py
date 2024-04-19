@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import TypeAlias
 
 from edb import buildmeta
 from edb.schema import defines as s_def
@@ -29,7 +29,8 @@ EDGEDB_REMOTE_COMPILER_PORT = 5660
 EDGEDB_SUPERGROUP = 'edgedb_supergroup'
 EDGEDB_SUPERUSER = s_def.EDGEDB_SUPERUSER
 EDGEDB_TEMPLATE_DB = s_def.EDGEDB_TEMPLATE_DB
-EDGEDB_SUPERUSER_DB = 'edgedb'
+EDGEDB_OLD_DEFAULT_DB = 'edgedb'
+EDGEDB_SUPERUSER_DB = 'main'
 EDGEDB_SYSTEM_DB = s_def.EDGEDB_SYSTEM_DB
 EDGEDB_ENCODING = 'utf-8'
 EDGEDB_VISIBLE_METADATA_PREFIX = r'EdgeDB metadata follows, do not modify.\n'
@@ -53,6 +54,7 @@ BACKEND_COMPILER_POOL_SIZE_MIN = 1
 BACKEND_COMPILER_TEMPLATE_PROC_RESTART_INTERVAL = 1
 
 _MAX_QUERIES_CACHE = 1000
+_MAX_QUERIES_CACHE_DB = 1000
 
 _QUERY_ROLLING_AVG_LEN = 10
 _QUERIES_ROLLING_AVG_LEN = 300

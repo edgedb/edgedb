@@ -17,7 +17,21 @@
 #
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Tuple,
+    Iterator,
+    Iterable,
+    Mapping,
+    Coroutine,
+    AsyncGenerator,
+    Dict,
+    Set,
+    Optional,
+    TypedDict,
+    TYPE_CHECKING,
+)
 
 import asyncio
 import contextlib
@@ -29,12 +43,13 @@ import pickle
 import struct
 import sys
 import time
+import uuid
 
 import immutables
 
 from edb import errors
 from edb.common import retryloop
-from edb.common import taskgroup
+from edb.common.log import current_tenant
 
 from . import args as srvargs
 from . import config
@@ -75,9 +90,10 @@ class Tenant(ha_base.ClusterProtocol):
     _accepting_connections: bool
 
     __loop: asyncio.AbstractEventLoop
-    _task_group: taskgroup.TaskGroup | None
+    _task_group: asyncio.TaskGroup | None
     _tasks: Set[asyncio.Task]
     _accept_new_tasks: bool
+    _file_watch_finalizers: list[Callable[[], None]]
 
     __sys_pgcon: pgcon.PGConnection | None
     _sys_pgcon_waiter: asyncio.Lock
@@ -90,7 +106,7 @@ class Tenant(ha_base.ClusterProtocol):
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
-    _readiness_state_file: str | None
+    _readiness_state_file: pathlib.Path | None
     _readiness: srvargs.ReadinessState
     _readiness_reason: str
 
@@ -112,9 +128,6 @@ class Tenant(ha_base.ClusterProtocol):
         instance_name: str,
         max_backend_connections: int,
         backend_adaptive_ha: bool = False,
-        readiness_state_file: str | None = None,
-        jwt_sub_allowlist_file: pathlib.Path | None = None,
-        jwt_revocation_list_file: pathlib.Path | None = None,
     ):
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
@@ -126,7 +139,9 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._task_group = None
         self._tasks = set()
+        self._named_tasks: dict[str, asyncio.Task] = dict()
         self._accept_new_tasks = False
+        self._file_watch_finalizers = []
 
         # Never use `self.__sys_pgcon` directly; get it via
         # `async with self.use_sys_pgcon()`.
@@ -140,7 +155,7 @@ class Tenant(ha_base.ClusterProtocol):
             )
         else:
             self._backend_adaptive_ha = None
-        self._readiness_state_file = readiness_state_file
+        self._readiness_state_file = None
         self._readiness = srvargs.ReadinessState.Default
         self._readiness_reason = ""
 
@@ -164,12 +179,33 @@ class Tenant(ha_base.ClusterProtocol):
         # DB state will be initialized in init().
         self._dbindex = None
 
+        self._branch_sem = asyncio.Semaphore(value=1)
+
         self._roles = immutables.Map()
         self._sys_auth = tuple()
-        self._jwt_sub_allowlist_file = jwt_sub_allowlist_file
+        self._jwt_sub_allowlist_file = None
         self._jwt_sub_allowlist = None
-        self._jwt_revocation_list_file = jwt_revocation_list_file
+        self._jwt_revocation_list_file = None
         self._jwt_revocation_list = None
+
+        # If it isn't stored in instdata, it is the old default.
+        self.default_database = defines.EDGEDB_OLD_DEFAULT_DB
+
+    def set_reloadable_files(
+        self,
+        readiness_state_file: str | pathlib.Path | None = None,
+        jwt_sub_allowlist_file: str | pathlib.Path | None = None,
+        jwt_revocation_list_file: str | pathlib.Path | None = None,
+    ) -> None:
+        if isinstance(readiness_state_file, str):
+            readiness_state_file = pathlib.Path(readiness_state_file)
+        self._readiness_state_file = readiness_state_file
+        if isinstance(jwt_sub_allowlist_file, str):
+            jwt_sub_allowlist_file = pathlib.Path(jwt_sub_allowlist_file)
+        self._jwt_sub_allowlist_file = jwt_sub_allowlist_file
+        if isinstance(jwt_revocation_list_file, str):
+            jwt_revocation_list_file = pathlib.Path(jwt_revocation_list_file)
+        self._jwt_revocation_list_file = jwt_revocation_list_file
 
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
@@ -277,7 +313,7 @@ class Tenant(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.get_db(dbname)
 
-    def maybe_get_db(self, *, dbname: str) -> dbview.Database:
+    def maybe_get_db(self, *, dbname: str) -> dbview.Database | None:
         assert self._dbindex is not None
         return self._dbindex.maybe_get_db(dbname)
 
@@ -325,6 +361,15 @@ class Tenant(ha_base.ClusterProtocol):
                 data = await self._server.introspect_global_schema_json(syscon)
                 compiler_pool = self._server.get_compiler_pool()
 
+            default_database = await syscon.sql_fetch_val(
+                b"""\
+                    SELECT text::text FROM edgedbinstdata.instdata
+                    WHERE key = 'default_branch';
+                """
+            )
+            if default_database:
+                self.default_database = default_database.decode('utf-8')
+
         if data is not None:
             logger.debug("parsing global schema")
             global_schema_pickle = (
@@ -355,22 +400,25 @@ class Tenant(ha_base.ClusterProtocol):
         self._sys_pgcon_ready_evt.set()
 
         self.populate_sys_auth()
+        self.reload_readiness_state()
+        self._start_watching_files()
+        self._initing = False
 
+    def _start_watching_files(self):
         if self._readiness_state_file is not None:
 
             def reload_state_file(_file_modified, _event):
                 self.reload_readiness_state()
 
-            self.reload_readiness_state()
-            self._server.monitor_fs(
-                self._readiness_state_file, reload_state_file
+            self._file_watch_finalizers.append(
+                self._server.monitor_fs(
+                    self._readiness_state_file, reload_state_file
+                )
             )
-
-        self._initing = False
 
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
-        self._task_group = taskgroup.TaskGroup()
+        self._task_group = asyncio.TaskGroup()
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
         await self._cluster.start_watching(self.on_switch_over)
@@ -378,6 +426,9 @@ class Tenant(ha_base.ClusterProtocol):
     def start_running(self) -> None:
         self._running = True
         self._accepting_connections = True
+        assert self._dbindex is not None
+        for db in self._dbindex.iter_dbs():
+            db.start_stop_extensions()
 
     def stop_accepting_connections(self) -> None:
         self._accepting_connections = False
@@ -387,7 +438,11 @@ class Tenant(ha_base.ClusterProtocol):
         return self._accept_new_tasks
 
     def create_task(
-        self, coro: Coroutine, *, interruptable: bool
+        self,
+        coro: Coroutine,
+        *,
+        interruptable: bool,
+        name: Optional[str] = None,
     ) -> asyncio.Task:
         # Interruptable tasks are regular asyncio tasks that may be interrupted
         # randomly in the middle when the event loop stops; while tasks with
@@ -396,24 +451,41 @@ class Tenant(ha_base.ClusterProtocol):
         # Therefore, it is an error trying to create a task while the server is
         # not expecting one, so always couple the call with an additional check
         if self._accept_new_tasks and self._task_group is not None:
+            current_tenant.set(self.get_instance_name())
             if interruptable:
-                rv = self.__loop.create_task(coro)
+                rv = self.__loop.create_task(coro, name=name)
             else:
-                rv = self._task_group.create_task(coro)
+                rv = self._task_group.create_task(coro, name=name)
 
             # Keep a strong reference of the created Task
-            self._tasks.add(rv)
-            rv.add_done_callback(self._tasks.discard)
+            if name is not None:
+                if name in self._named_tasks:
+                    raise RuntimeError(
+                        f"task {name!r} already exists on on this server")
+                self._named_tasks[name] = rv
+                rv.add_done_callback(
+                    lambda task: self._named_tasks.pop(task.get_name(), None))
+            else:
+                self._tasks.add(rv)
+                rv.add_done_callback(self._tasks.discard)
 
             return rv
         else:
             # Hint: add `if tenant.accept_new_tasks` before `.create_task()`
             raise RuntimeError("task cannot be created at this time")
 
+    def get_task(self, name: str) -> Optional[asyncio.Task]:
+        return self._named_tasks.get(name)
+
     def stop(self) -> None:
         self._running = False
         self._accept_new_tasks = False
         self._cluster.stop_watching()
+        self._stop_watching_files()
+
+    def _stop_watching_files(self):
+        while self._file_watch_finalizers:
+            self._file_watch_finalizers.pop()()
 
     async def wait_stopped(self) -> None:
         if self._task_group is not None:
@@ -581,17 +653,19 @@ class Tenant(ha_base.ClusterProtocol):
         try:
             conn = None
             while self._running:
+                # Keep retrying as far as:
+                #   1. This tenant is still running
+                #   2. We still cannot connect to the Postgres cluster
                 try:
                     conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
                     break
                 except OSError:
-                    # Keep retrying as far as:
-                    #   1. This tenant is still running,
-                    #   2. We still cannot connect to the Postgres cluster, or
                     pass
                 except pgcon_errors.BackendError as e:
-                    #   3. The Postgres cluster is still starting up, or the
-                    #      HA failover is still in progress
+                    # Be quiet if the Postgres cluster is still starting up,
+                    # or the HA failover is still in progress.
+                    # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
+                    # once PostgreSQL supports SERIALIZABLE in hot standbys
                     if not (
                         e.code_is(pgcon_errors.ERROR_FEATURE_NOT_SUPPORTED)
                         or e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW)
@@ -599,11 +673,10 @@ class Tenant(ha_base.ClusterProtocol):
                             pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION
                         )
                     ):
-                        # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
-                        # once PostgreSQL supports SERIALIZABLE in hot standbys
-                        raise
+                        logger.error("Failed connecting to the backend: %s", e)
 
                 if self._running:
+                    logger.info("Waiting for the backend to recover")
                     try:
                         # Retry after INTERVAL seconds, unless the event is set
                         # and we can retry immediately after the event.
@@ -705,34 +778,40 @@ class Tenant(ha_base.ClusterProtocol):
             and dbname not in self._block_new_connections
         )
 
-    async def ensure_database_not_connected(self, dbname: str) -> None:
+    async def ensure_database_not_connected(
+        self, dbname: str, close_frontend_conns: bool = False
+    ) -> None:
         if self._dbindex and self._dbindex.count_connections(dbname):
-            # If there are open EdgeDB connections to the `dbname` DB
-            # just raise the error Postgres would have raised itself.
-            raise errors.ExecutionError(
-                f"database {dbname!r} is being accessed by other users"
-            )
-        else:
-            self._block_new_connections.add(dbname)
+            if close_frontend_conns:
+                self._server.request_stop_fe_conns(dbname)
+            else:
+                # If there are open EdgeDB connections to the `dbname` DB
+                # just raise the error Postgres would have raised itself.
+                raise errors.ExecutionError(
+                    f"database branch {dbname!r} is being accessed by "
+                    f"other users"
+                )
 
-            # Prune our inactive connections.
-            await self._pg_pool.prune_inactive_connections(dbname)
+        self._block_new_connections.add(dbname)
 
-            # Signal adjacent servers to prune their connections to this
-            # database.
-            await self.signal_sysevent(
-                "ensure-database-not-used", dbname=dbname
-            )
+        # Signal adjacent servers to prune their connections to this
+        # database.
+        await self.signal_sysevent(
+            "ensure-database-not-used", dbname=dbname
+        )
 
-            rloop = retryloop.RetryLoop(
-                backoff=retryloop.exp_backoff(),
-                timeout=10.0,
-                ignore=errors.ExecutionError,
-            )
+        rloop = retryloop.RetryLoop(
+            timeout=10.0,
+            ignore=errors.ExecutionError,
+        )
 
-            async for iteration in rloop:
-                async with iteration:
-                    await self._pg_ensure_database_not_connected(dbname)
+        async for iteration in rloop:
+            async with iteration:
+                # Prune our inactive connections.  (Do it in the loop
+                # to help in the close_frontend_conns situation.)
+                await self._pg_pool.prune_inactive_connections(dbname)
+
+                await self._pg_ensure_database_not_connected(dbname)
 
     async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
         async with self.use_sys_pgcon() as pgcon:
@@ -745,12 +824,12 @@ class Tenant(ha_base.ClusterProtocol):
                 WHERE
                     datname = $1
                 """,
-                args=[dbname.encode("utf-8")],
+                args=[self.get_pg_dbname(dbname).encode("utf-8")],
             )
 
         if conns:
             raise errors.ExecutionError(
-                f"database {dbname!r} is being accessed by other users"
+                f"database branch {dbname!r} is being accessed by other users"
             )
 
     async def _acquire_intro_pgcon(
@@ -762,7 +841,8 @@ class Tenant(ha_base.ClusterProtocol):
             if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
                 # database does not exist (anymore)
                 logger.warning(
-                    "Detected concurrently-dropped database %s; skipping.",
+                    "Detected concurrently-dropped database branch %s; "
+                    "skipping.",
                     dbname,
                 )
                 if self._dbindex is not None and self._dbindex.has_db(dbname):
@@ -787,7 +867,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         return extensions
 
-    async def introspect_db(self, dbname: str) -> None:
+    async def introspect_db(self, dbname: str) -> bool:
         """Use this method to (re-)introspect a DB.
 
         If the DB is already registered in self._dbindex, its
@@ -801,12 +881,21 @@ class Tenant(ha_base.ClusterProtocol):
         dropped and recreated again. It's safer to refresh the entire state
         than refreshing individual components of it. Besides, DDL and
         database-level config modifications are supposed to be rare events.
+
+        Returns True if the query cache mode changed.
         """
         logger.info("introspecting database '%s'", dbname)
 
+        assert self._dbindex is not None
+        if db := self._dbindex.maybe_get_db(dbname):
+            cache_mode_val = db.lookup_config('query_cache_mode')
+        else:
+            cache_mode_val = self._dbindex.lookup_config('query_cache_mode')
+        old_cache_mode = config.QueryCacheMode.effective(cache_mode_val)
+
         conn = await self._acquire_intro_pgcon(dbname)
         if not conn:
-            return
+            return False
 
         try:
             user_schema_json = (
@@ -852,6 +941,10 @@ class Tenant(ha_base.ClusterProtocol):
             db_config_json = await self._server.introspect_db_config(conn)
 
             extensions = await self._introspect_extensions(conn)
+
+            query_cache: list[tuple[bytes, ...]] | None = None
+            if old_cache_mode is not config.QueryCacheMode.InMemory:
+                query_cache = await self._load_query_cache(conn)
         finally:
             self.release_pgcon(dbname, conn)
 
@@ -859,10 +952,10 @@ class Tenant(ha_base.ClusterProtocol):
         parsed_db = await compiler_pool.parse_user_schema_db_config(
             user_schema_json, db_config_json, self.get_global_schema_pickle()
         )
-        assert self._dbindex is not None
         db = self._dbindex.register_db(
             dbname,
             user_schema_pickle=parsed_db.user_schema_pickle,
+            schema_version=parsed_db.schema_version,
             db_config=parsed_db.database_config,
             reflection_cache=reflection_cache,
             backend_ids=backend_ids,
@@ -873,6 +966,12 @@ class Tenant(ha_base.ClusterProtocol):
             parsed_db.protocol_version,
             parsed_db.state_serializer,
         )
+        cache_mode = config.QueryCacheMode.effective(
+            db.lookup_config('query_cache_mode')
+        )
+        if query_cache and cache_mode is not config.QueryCacheMode.InMemory:
+            db.hydrate_cache(query_cache)
+        return old_cache_mode is not cache_mode
 
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.
@@ -880,6 +979,7 @@ class Tenant(ha_base.ClusterProtocol):
         Otherwise, we won't know to accept connections for graphql or
         http, for example, until a native connection is made.
         """
+        current_tenant.set(self.get_instance_name())
         logger.info("introspecting extensions for database '%s'", dbname)
 
         conn = await self._acquire_intro_pgcon(dbname)
@@ -895,11 +995,13 @@ class Tenant(ha_base.ClusterProtocol):
                     self._dbindex.register_db(
                         dbname,
                         user_schema_pickle=None,
+                        schema_version=None,
                         db_config=None,
                         reflection_cache=None,
                         backend_ids=None,
                         extensions=extensions,
                         ext_config_settings=None,
+                        early=True,
                     )
         finally:
             self.release_pgcon(dbname, conn)
@@ -908,7 +1010,7 @@ class Tenant(ha_base.ClusterProtocol):
         async with self.use_sys_pgcon() as syscon:
             dbnames = await self._server.get_dbnames(syscon)
 
-        async with taskgroup.TaskGroup(name="introspect DB extensions") as g:
+        async with asyncio.TaskGroup() as g:
             for dbname in dbnames:
                 # There's a risk of the DB being dropped by another server
                 # between us building the list of databases and loading
@@ -971,6 +1073,23 @@ class Tenant(ha_base.ClusterProtocol):
         auth = self._server.config_lookup("auth", cfg) or ()
         self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
 
+    def resolve_branch_name(
+        self, database: str | None, branch: str | None
+    ) -> str:
+        default = self.default_database
+        if branch == '__default__':
+            return default
+        elif branch is not None:
+            return branch
+        elif (
+            database == defines.EDGEDB_OLD_DEFAULT_DB
+            and self.maybe_get_db(dbname=defines.EDGEDB_OLD_DEFAULT_DB) is None
+        ):
+            return default
+        else:
+            assert database is not None
+            return database
+
     async def get_auth_method(
         self,
         user: str,
@@ -1028,6 +1147,8 @@ class Tenant(ha_base.ClusterProtocol):
                     self._jwt_sub_allowlist_file.read_text().splitlines(),
                 )
             except Exception as e:
+                from . import server as edbserver
+
                 raise edbserver.StartupError(
                     f"cannot load JWT sub allowlist: {e}"
                 ) from e
@@ -1042,6 +1163,8 @@ class Tenant(ha_base.ClusterProtocol):
                     self._jwt_revocation_list_file.read_text().splitlines(),
                 )
             except Exception as e:
+                from . import server as edbserver
+
                 raise edbserver.StartupError(
                     f"cannot load JWT revocation list: {e}"
                 ) from e
@@ -1077,7 +1200,7 @@ class Tenant(ha_base.ClusterProtocol):
         if self._readiness_state_file is None:
             return
         try:
-            with open(self._readiness_state_file, "rt") as rt:
+            with self._readiness_state_file.open("rt") as rt:
                 line = rt.readline().strip()
                 try:
                     state, _, reason = line.partition(":")
@@ -1117,26 +1240,79 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._accepting_connections = self.is_online()
 
+    def reload(self):
+        # In multi-tenant mode, the file paths for the following states may be
+        # unset in a reload, while it's impossible in a regular server.
+        # Therefore, we are clearing the states here first, rather than doing
+        # so in reload_readiness_state() or load_jwcrypto().
+        self._readiness = srvargs.ReadinessState.Default
+        self._jwt_sub_allowlist = None
+        self._jwt_revocation_list = None
+
+        # Re-add the fs watchers in case the path changed
+        self._stop_watching_files()
+
+        self.reload_readiness_state()
+        self.load_jwcrypto()
+
+        self._start_watching_files()
+
     async def on_before_drop_db(
-        self, dbname: str, current_dbname: str
+        self,
+        dbname: str,
+        current_dbname: str,
+        close_frontend_conns: bool = False,
     ) -> None:
         if current_dbname == dbname:
             raise errors.ExecutionError(
-                f"cannot drop the currently open database {dbname!r}"
+                f"cannot drop the currently open database branch {dbname!r}"
             )
 
-        await self.ensure_database_not_connected(dbname)
+        await self.ensure_database_not_connected(
+            dbname, close_frontend_conns=close_frontend_conns
+        )
 
     async def on_before_create_db_from_template(
         self, dbname: str, current_dbname: str
     ) -> None:
-        if current_dbname == dbname:
-            raise errors.ExecutionError(
-                f"cannot create database using currently open database "
-                f"{dbname!r} as a template database"
-            )
+        # Make sure the database exists.
+        # TODO: Is it worth producing a nicer error message if it
+        # fails on the backside? (Because of a race?)
+        self.get_db(dbname=dbname)
 
-        await self.ensure_database_not_connected(dbname)
+    async def on_after_create_db_from_template(
+        self, tgt_dbname: str, src_dbname: str, mode: str
+    ) -> None:
+        logger.info('Starting copy from %s to %s', src_dbname, tgt_dbname)
+        from edb.pgsql import common
+        from . import bootstrap  # noqa: F402
+
+        real_tgt_dbname = common.get_database_backend_name(
+            tgt_dbname, tenant_id=self._tenant_id)
+        real_src_dbname = common.get_database_backend_name(
+            src_dbname, tenant_id=self._tenant_id)
+
+        # HACK: Limit the maximum number of in-flight branch
+        # creations. This is because branches use up to 3 concurrent
+        # connections (one direct, two via pg_dump/pg_restore), and so
+        # it can substantially blow our budget if many are in flight.
+        # The right way to handle this issue would probably be to use
+        # the connection pool to reserve the connections, but we would
+        # need to carefully consider deadlock concerns if we want to
+        # allow tasks to acquire multiple pool connections.
+        async with self._branch_sem:
+            async with self.direct_pgcon(tgt_dbname) as con:
+                await bootstrap.create_branch(
+                    self._cluster,
+                    self._server._refl_schema,
+                    con,
+                    real_src_dbname,
+                    real_tgt_dbname,
+                    mode,
+                    self._server._sys_queries['backend_id_fixup'],
+                )
+
+        logger.info('Finished copy from %s to %s', src_dbname, tgt_dbname)
 
     def on_after_drop_db(self, dbname: str) -> None:
         try:
@@ -1248,7 +1424,7 @@ class Tenant(ha_base.ClusterProtocol):
             async with self.use_sys_pgcon() as syscon:
                 dbnames = set(await self._server.get_dbnames(syscon))
 
-            tg = taskgroup.TaskGroup(name="new database introspection")
+            tg = asyncio.TaskGroup()
             async with tg as g:
                 for dbname in dbnames:
                     if not self._dbindex.has_db(dbname):
@@ -1291,7 +1467,16 @@ class Tenant(ha_base.ClusterProtocol):
         # of the DB and update all components of it.
         async def task():
             try:
-                await self.introspect_db(dbname)
+                if await self.introspect_db(dbname):
+                    logger.info(
+                        "clearing query cache for database '%s'", dbname)
+                    conn = await self.acquire_pgcon(dbname)
+                    try:
+                        await conn.sql_execute(
+                            b'SELECT edgedb._clear_query_cache()')
+                        self._dbindex.get_db(dbname).clear_query_cache()
+                    finally:
+                        self.release_pgcon(dbname, conn)
             except Exception:
                 metrics.background_errors.inc(
                     1.0, self._instance_name, "on_local_database_config_change"
@@ -1335,6 +1520,94 @@ class Tenant(ha_base.ClusterProtocol):
 
         self.create_task(task(), interruptable=True)
 
+    async def _load_query_cache(
+        self,
+        conn: pgcon.PGConnection,
+        keys: Optional[Iterable[uuid.UUID]] = None,
+    ) -> list[tuple[bytes, ...]] | None:
+        if keys is None:
+            return await conn.sql_fetch(
+                b'''
+                SELECT "schema_version", "input", "output"
+                FROM "edgedb"."_query_cache"
+                ''',
+                use_prep_stmt=True,
+            )
+        else:
+            # If keys were specified, just load those keys.
+            # TODO: Or should we do something time based?
+            return await conn.sql_fetch(
+                b'''
+                SELECT "schema_version", "input", "output"
+                ROWS FROM json_array_elements($1) j(ikey)
+                INNER JOIN "edgedb"."_query_cache"
+                ON (to_jsonb(ARRAY[ikey])->>0)::uuid = key
+                ''',
+                args=(json.dumps(keys).encode('utf-8'),),
+                use_prep_stmt=True,
+            )
+
+    async def evict_query_cache(
+        self,
+        dbname: str,
+        keys: Iterable[uuid.UUID],
+    ) -> None:
+        try:
+            conn = await self._acquire_intro_pgcon(dbname)
+            if not conn:
+                return
+
+            try:
+                for key in keys:
+                    await conn.sql_fetch(
+                        b'SELECT "edgedb"."_evict_query_cache"($1)',
+                        args=(key.bytes,),
+                        use_prep_stmt=True,
+                    )
+            finally:
+                self.release_pgcon(dbname, conn)
+
+            # XXX: TODO: We don't need to signal here in the
+            # non-function version, but in the function caching
+            # situation this will be fraught.
+            # await self.signal_sysevent("query-cache-changes", dbname=dbname)
+
+        except Exception:
+            logger.exception("error in evict_query_cache():")
+            metrics.background_errors.inc(
+                1.0, self._instance_name, "evict_query_cache"
+            )
+
+    def on_remote_query_cache_change(
+        self,
+        dbname: str,
+        keys: Optional[list[str]],
+    ) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        async def task():
+            try:
+                conn = await self._acquire_intro_pgcon(dbname)
+                if not conn:
+                    return
+
+                try:
+                    query_cache = await self._load_query_cache(conn, keys=keys)
+                finally:
+                    self.release_pgcon(dbname, conn)
+
+                if query_cache and (db := self.maybe_get_db(dbname=dbname)):
+                    db.hydrate_cache(query_cache)
+
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, self._instance_name, "on_remote_query_cache_change"
+                )
+                raise
+
+        self.create_task(task(), interruptable=True)
+
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(
             params=dict(
@@ -1342,6 +1615,8 @@ class Tenant(ha_base.ClusterProtocol):
                 suggested_client_pool_size=self._suggested_client_pool_size,
                 tenant_id=self._tenant_id,
             ),
+            instance_config=config.debug_serialize_config(
+                self.get_sys_config()),
             user_roles=self._roles,
             pg_addr={
                 k: v for k, v in self.get_pgaddr().items() if k not in ["ssl"]

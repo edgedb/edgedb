@@ -22,7 +22,18 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Type,
+    Union,
+    Iterable,
+    Sequence,
+    Dict,
+    NamedTuple,
+    cast,
+)
 
 from edb import errors
 
@@ -54,12 +65,12 @@ def get_schema_object(
     condition: Optional[Callable[[s_obj.Object], bool]]=None,
     label: Optional[str]=None,
     ctx: context.ContextLevel,
-    srcctx: Optional[parsing.ParserContext] = None,
+    span: Optional[parsing.Span] = None,
 ) -> s_obj.Object:
 
     if isinstance(ref, qlast.ObjectRef):
-        if srcctx is None:
-            srcctx = ref.context
+        if span is None:
+            span = ref.span
         module = ref.module
         lname = ref.name
     elif isinstance(ref, qlast.PseudoObjectRef):
@@ -72,10 +83,6 @@ def get_schema_object(
         name = sn.QualName(module=module, name=lname)
     else:
         name = sn.UnqualName(name=lname)
-
-    view = _get_type_variant(name, ctx)
-    if view is not None:
-        return view
 
     try:
         stype = ctx.env.get_schema_object_and_track(
@@ -96,21 +103,18 @@ def get_schema_object(
             item_type=item_type,
             pointer_parent=_get_partial_path_prefix_type(ctx),
             condition=condition,
-            context=srcctx,
+            span=span,
         )
         raise
 
-    view = _get_type_variant(stype.get_name(ctx.env.schema), ctx)
-    if view is not None:
-        return view
-    elif stype == ctx.defining_view:
+    if stype == ctx.defining_view:
         # stype is the view in process of being defined and as such is
         # not yet a valid schema object
         raise errors.SchemaDefinitionError(
             f'illegal self-reference in definition of {str(name)!r}',
-            context=srcctx)
-    else:
-        return stype
+            span=span)
+
+    return stype
 
 
 def _get_partial_path_prefix_type(
@@ -126,17 +130,6 @@ def _get_partial_path_prefix_type(
     return type
 
 
-def _get_type_variant(
-    name: sn.Name,
-    ctx: context.ContextLevel,
-) -> Optional[s_obj.Object]:
-    type_variant = ctx.aliased_views.get(name)
-    if type_variant is not None:
-        return type_variant
-    else:
-        return None
-
-
 def get_schema_type(
     name: qlast.BaseObjectRef,
     module: Optional[str] = None,
@@ -145,20 +138,20 @@ def get_schema_type(
     label: Optional[str] = None,
     condition: Optional[Callable[[s_obj.Object], bool]] = None,
     item_type: Optional[Type[s_obj.Object]] = None,
-    srcctx: Optional[parsing.ParserContext] = None,
+    span: Optional[parsing.Span] = None,
 ) -> s_types.Type:
     if item_type is None:
         item_type = s_types.Type
     obj = get_schema_object(name, module, item_type=item_type,
                             condition=condition, label=label,
-                            ctx=ctx, srcctx=srcctx)
+                            ctx=ctx, span=span)
     assert isinstance(obj, s_types.Type)
     return obj
 
 
 def resolve_schema_name(
-        name: str, module: str, *,
-        ctx: context.ContextLevel) -> Optional[sn.QualName]:
+    name: str, module: str, *, ctx: context.ContextLevel
+) -> Optional[sn.QualName]:
     schema_module = ctx.modaliases.get(module)
     if schema_module is None:
         return None
@@ -248,13 +241,18 @@ def derive_view(
                 inheritance_refdicts={'pointers'},
                 mark_derived=True,
                 transient=True,
+                # When compiling aliases, we can't elide
+                # @source/@target pointers, which normally we would
+                # when creating a view.
+                preserve_endpoint_ptrs=ctx.env.options.schema_view_mode,
                 attrs=attrs,
+                stdmode=ctx.env.options.bootstrap_mode,
             )
 
         if (
             stype.is_view(ctx.env.schema)
             # XXX: Previously, the main check here was just for
-            # (not stype.generic(...)). generic isn't really the
+            # (not stype.is_non_concrete(...)). is_non_concrete isn't really the
             # right way to figure out if something is a view, since
             # some aliases will be generic. On changing it to is_view
             # instead, though, two GROUP BY tests that grouped
@@ -266,7 +264,7 @@ def derive_view(
             # a way that they count as being generic, but for now
             # preserve that behavior.
             and not (
-                stype.generic(ctx.env.schema)
+                stype.is_non_concrete(ctx.env.schema)
                 and (view_ir := ctx.view_sets.get(stype))
                 and (scope_info := ctx.env.path_scope_map.get(view_ir))
                 and scope_info.binding_kind
@@ -327,7 +325,8 @@ def derive_ptr(
     # actually deriving from it.
     if derive_backlink:
         attrs = attrs.copy() if attrs else {}
-        attrs['computed_backlink'] = ptr
+        attrs['computed_link_alias'] = ptr
+        attrs['computed_link_alias_is_backward'] = True
         ptr = ctx.env.schema.get('std::link', type=s_pointers.Pointer)
 
     ctx.env.schema, derived = ptr.derive_ref(
@@ -340,9 +339,14 @@ def derive_ptr(
         inheritance_refdicts={'pointers'},
         mark_derived=True,
         transient=True,
-        attrs=attrs)
+        # When compiling aliases, we can't elide
+        # @source/@target pointers, which normally we would
+        # when creating a view.
+        preserve_endpoint_ptrs=ctx.env.options.schema_view_mode,
+        attrs=attrs,
+    )
 
-    if not ptr.generic(ctx.env.schema):
+    if not ptr.is_non_concrete(ctx.env.schema):
         if isinstance(derived, s_sources.Source):
             ptr = cast(s_links.Link, ptr)
             scls_pointers = ptr.get_pointers(ctx.env.schema)
@@ -467,7 +471,7 @@ def concretify(
         return get_union_type(ts, ctx=ctx)
     if els := t.get_intersection_of(ctx.env.schema):
         ts = [concretify(e, ctx=ctx) for e in els.objects(ctx.env.schema)]
-        return get_intersection_type(ts , ctx=ctx)
+        return get_intersection_type(ts, ctx=ctx)
     return t
 
 
@@ -501,10 +505,7 @@ class TypeIntersectionResult(NamedTuple):
 
 
 def apply_intersection(
-    left: s_types.Type,
-    right: s_types.Type,
-    *,
-    ctx: context.ContextLevel
+    left: s_types.Type, right: s_types.Type, *, ctx: context.ContextLevel
 ) -> TypeIntersectionResult:
     """Compute an intersection of two types: *left* and *right*.
 
@@ -592,7 +593,6 @@ def derive_dummy_ptr(
             },
             name=derived_name,
             mark_derived=True,
-            transient=True,
         )
         ctx.env.created_schema_objects.add(derived)
 

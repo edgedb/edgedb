@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Optional, Tuple, List
 
 from edb.ir import ast as irast
 
@@ -31,6 +31,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import policies as s_policies
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -42,7 +43,9 @@ from . import setgen
 
 
 def should_ignore_rewrite(
-    stype: s_types.Type, *, ctx: context.ContextLevel,
+    stype: s_types.Type,
+    *,
+    ctx: context.ContextLevel,
 ) -> bool:
     if not ctx.suppress_rewrites:
         return False
@@ -67,7 +70,9 @@ def should_ignore_rewrite(
 
 
 def get_access_policies(
-    stype: s_objtypes.ObjectType, *, ctx: context.ContextLevel,
+    stype: s_objtypes.ObjectType,
+    *,
+    ctx: context.ContextLevel,
 ) -> Tuple[s_policies.AccessPolicy, ...]:
     schema = ctx.env.schema
     if not ctx.env.options.apply_query_rewrites:
@@ -108,7 +113,8 @@ def has_own_policies(
 
 
 def compile_pol(
-    pol: s_policies.AccessPolicy, *,
+    pol: s_policies.AccessPolicy,
+    *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Compile the condition from an individual policy.
@@ -122,14 +128,15 @@ def compile_pol(
     """
     schema = ctx.env.schema
 
-    expr_field = pol.get_expr(schema)
+    expr_field: Optional[s_expr.Expression] = pol.get_expr(schema)
     if expr_field:
-        expr = expr_field.qlast
+        expr = expr_field.parse()
     else:
-        expr = qlast.BooleanConstant(value='true')
+        expr = qlast.Constant.boolean(True)
 
     if condition := pol.get_condition(schema):
-        expr = qlast.BinOp(op='AND', left=condition.qlast, right=expr)
+        assert isinstance(condition, s_expr.Expression)
+        expr = qlast.BinOp(op='AND', left=condition.parse(), right=expr)
 
     # Find all descendants of the original subject of the rule
     subject = pol.get_original_subject(schema)
@@ -162,11 +169,11 @@ def get_extra_function_rewrite_filter(ctx: context.ContextLevel) -> qlast.Expr:
         func=('__std__', 'json_get'),
         args=[
             ctx.create_anchor(glob_set, 'a'),
-            qlast.StringConstant(value="__disable_access_policies"),
+            qlast.Constant.string(value="__disable_access_policies"),
         ],
         kwargs={
             'default': qlast.TypeCast(
-                expr=qlast.BooleanConstant(value="false"),
+                expr=qlast.Constant.boolean(False),
                 type=json_type,
             )
         },
@@ -179,7 +186,8 @@ def get_extra_function_rewrite_filter(ctx: context.ContextLevel) -> qlast.Expr:
 
 
 def get_rewrite_filter(
-    stype: s_objtypes.ObjectType, *,
+    stype: s_objtypes.ObjectType,
+    *,
     mode: qltypes.AccessKind,
     ctx: context.ContextLevel,
 ) -> Optional[qlast.Expr]:
@@ -210,7 +218,7 @@ def get_rewrite_filter(
     if allow:
         filter_expr = astutils.extend_binop(None, *allow, op='OR')
     else:
-        filter_expr = qlast.BooleanConstant(value='false')
+        filter_expr = qlast.Constant.boolean(False)
 
     if deny:
         deny_expr = qlast.UnaryOp(
@@ -240,7 +248,8 @@ def get_rewrite_filter(
 
 
 def try_type_rewrite(
-    stype: s_objtypes.ObjectType, *,
+    stype: s_objtypes.ObjectType,
+    *,
     skip_subtypes: bool,
     ctx: context.ContextLevel,
 ) -> None:
@@ -329,7 +338,7 @@ def try_type_rewrite(
                 from . import clauses
 
                 filtered_stmt = irast.SelectStmt(result=base_set)
-                subctx.anchors[qlast.Subject().name] = base_set
+                subctx.anchors['__subject__'] = base_set
                 subctx.partial_path_prefix = base_set
                 subctx.path_scope = subctx.env.path_scope.root.attach_fence()
 
@@ -459,5 +468,5 @@ def _prepare_dml_policy_context(
         stype, path_id=result.path_id, skip_subtypes=skip_subtypes, ctx=ctx
     )
 
-    ctx.anchors[qlast.Subject().name] = result
+    ctx.anchors['__subject__'] = result
     ctx.partial_path_prefix = result

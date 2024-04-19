@@ -9,9 +9,9 @@ ext::pg_trgm
 This extension provides tools for determining similarity of text based on
 trigram matching.
 
-Word similarity tools can often suppliment :ref:`full-text search
+Word similarity tools can often supplement :ref:`full-text search
 <ref_std_fts>`. Full-text search concentrates on matching words and phrases
-typically trying to accound for some grammatical variations, while trigram
+typically trying to account for some grammatical variations, while trigram
 matching analyzes similarity between words. Thus trigram matching can account
 for misspelling or words that aren't dictionary words:
 
@@ -77,7 +77,7 @@ the following functions:
       - :eql:func-desc:`ext::pg_trgm::strict_word_similar`
 
 
-In addition to the funcitons this extension has two indexes that speed up
+In addition to the functions this extension has two indexes that speed up
 queries that involve similarity searches: ``ext::pg_trgm::gin`` and
 ``ext::pg_tgrm::gist``.
 

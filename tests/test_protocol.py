@@ -404,14 +404,14 @@ class TestProtocol(ProtocolTestCase):
 
         self.assertNotEqual(cdd1.output_typedesc_id, cdd2.output_typedesc_id)
 
-    async def _parse(self, query):
+    async def _parse(self, query, output_format=protocol.OutputFormat.BINARY):
         await self.con.send(
             protocol.Parse(
                 annotations=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
-                output_format=protocol.OutputFormat.BINARY,
+                output_format=output_format,
                 expected_cardinality=compiler.Cardinality.MANY,
                 command_text=query,
                 state_typedesc_id=b'\0' * 16,
@@ -511,9 +511,8 @@ class TestProtocol(ProtocolTestCase):
             await con2.aclose()
 
     async def _parse_execute(self, query, args):
-        await self.con.connect()
-
-        await self._parse(query)
+        output_format = protocol.OutputFormat.BINARY
+        await self._parse(query, output_format=output_format)
         res = await self.con.recv()
 
         await self.con.send(
@@ -523,7 +522,7 @@ class TestProtocol(ProtocolTestCase):
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 command_text=query,
-                output_format=protocol.OutputFormat.NONE,
+                output_format=output_format,
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=res.input_typedesc_id,
                 output_typedesc_id=res.output_typedesc_id,
@@ -533,7 +532,6 @@ class TestProtocol(ProtocolTestCase):
             ),
             protocol.Sync(),
         )
-        await self.con.recv()
 
     async def test_proto_execute_bad_array_01(self):
         q = "SELECT <array<int32>>$0"
@@ -558,6 +556,7 @@ class TestProtocol(ProtocolTestCase):
             len(array),   # len
         ) + array
 
+        await self.con.connect()
         await self._parse_execute(q, args)
         await self.con.recv_match(
             protocol.ErrorResponse,
@@ -586,6 +585,7 @@ class TestProtocol(ProtocolTestCase):
             len(array),   # len
         ) + array
 
+        await self.con.connect()
         await self._parse_execute(q, args)
         await self.con.recv_match(
             protocol.ErrorResponse,
@@ -614,6 +614,7 @@ class TestProtocol(ProtocolTestCase):
             len(array),   # len
         ) + array
 
+        await self.con.connect()
         await self._parse_execute(q, args)
         await self.con.recv_match(
             protocol.ErrorResponse,
@@ -656,6 +657,75 @@ class TestProtocol(ProtocolTestCase):
             protocol.ErrorResponse,
             message='invalid NULL'
         )
+
+    async def test_proto_parse_execute_transaction_id(self):
+        await self.con.connect()
+        await self._parse_execute("start transaction", b"")
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='START TRANSACTION'
+        )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.IN_TRANSACTION,
+        )
+        await self._parse_execute("commit", b"")
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='COMMIT'
+        )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
+        )
+
+    async def test_proto_state_change_in_tx(self):
+        await self.con.connect()
+
+        # Fixture
+        await self._execute('CREATE MODULE TestStateChangeInTx')
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        await self._execute('CREATE TYPE TestStateChangeInTx::StateChangeInTx')
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='CREATE TYPE'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Collect states
+        await self._execute('''
+            SET MODULE TestStateChangeInTx
+        ''')
+        cc = await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        await self._execute('''
+            CONFIGURE SESSION SET allow_user_specified_id := true
+        ''', cc=cc)
+        cc_true = await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        await self._execute('''
+            CONFIGURE SESSION SET allow_user_specified_id := false
+        ''')
+        cc_false = await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Start a transaction that doesn't allow_user_specified_id
+        await self._execute('START TRANSACTION', cc=cc_false)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # But insert with session that does allow_user_specified_id
+        await self._execute('''
+            INSERT StateChangeInTx {
+                id := <uuid>'a768e9d5-d908-4072-b370-865b450216ff'
+            };
+        ''', cc=cc_true)
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='INSERT'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
 
 
 class TestServerCancellation(tb.TestCase):

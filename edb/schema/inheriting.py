@@ -18,11 +18,26 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Generic,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    AbstractSet,
+    Iterable,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    cast,
+    TYPE_CHECKING,
+)
 
 from edb import errors
 
-from edb.common import context as ctx_utils
+from edb.common import span as edb_span
 from edb.common import struct
 from edb.edgeql import ast as qlast
 from edb.schema import schema as s_schema
@@ -77,6 +92,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         *,
         fields: Optional[Iterable[str]] = None,
         ignore_local: bool = False,
+        apply: bool = True,
     ) -> s_schema.Schema:
         from . import referencing as s_referencing
 
@@ -125,9 +141,9 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     ignore_local=ignore_local_field,
                     schema=schema,
                 )
-            except errors.SchemaDefinitionError as e:
-                if (srcctx := self.get_attribute_source_context(field_name)):
-                    e.set_source_context(srcctx)
+            except (errors.SchemaDefinitionError, errors.SchemaError) as e:
+                if (span := self.get_attribute_span(field_name)):
+                    e.set_span(span)
                 raise
 
             if not ignore_local_field:
@@ -150,10 +166,18 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 if (
                     inherited
                     and not context.transient_derivation
-                    and isinstance(result, s_expr.Expression)
                 ):
-                    result = self.compile_expr_field(
-                        schema, context, field=field, value=result)
+                    if isinstance(result, s_expr.Expression):
+                        result = self.compile_expr_field(
+                            schema, context, field=field, value=result)
+                    elif isinstance(result, s_expr.ExpressionDict):
+                        compiled = {}
+                        for k, v in result.items():
+                            if not v.is_compiled():
+                                v = self.compile_expr_field(
+                                    schema, context, field, v)
+                            compiled[k] = v
+                        result = compiled
                 sav = self.set_attribute_value(
                     field_name, result, inherited=inherited)
                 if isinstance(sav, sd.AlterObjectProperty):
@@ -176,8 +200,10 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 self.get_attribute_value("inherited_fields"),
             )
 
-        for op in deferred_complex_ops:
-            schema = op.apply(schema, context)
+        # In some cases, self will be applied later
+        if apply:
+            for op in deferred_complex_ops:
+                schema = op.apply(schema, context)
 
         return schema
 
@@ -748,9 +774,7 @@ class CreateInheritingObject(
                 'inherited_fields', frozenset(inherited_fields))
 
     def _create_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super()._create_begin(schema, context)
 
@@ -793,15 +817,15 @@ class CreateInheritingObject(
 
         assert isinstance(astnode, qlast.ObjectDDL)
         bases = cls._classbases_from_ast(schema, astnode, context)
-        ctxes = [b.sourcectx for b in bases if b.sourcectx is not None]
-        if ctxes:
-            srcctx = ctx_utils.merge_context(ctxes)
+        spans = [b.sourcectx for b in bases if b.sourcectx is not None]
+        if spans:
+            span = edb_span.merge_spans(spans)
         else:
-            srcctx = None
+            span = None
         cmd.set_attribute_value(
             'bases',
             so.ObjectCollectionShell(bases, collection_type=so.ObjectList),
-            source_context=srcctx,
+            span=span,
         )
 
         return cmd
@@ -940,7 +964,16 @@ class AlterInheritingObjectOrFragment(
         scls: so.InheritingObject,
         props: Tuple[str, ...],
     ) -> None:
-        for descendant in scls.ordered_descendants(schema):
+        descendant_names = [
+            d.get_name(schema) for d in scls.ordered_descendants(schema)
+        ]
+
+        for descendant_name in descendant_names:
+            descendant = schema.get(
+                descendant_name, type=so.InheritingObject, default=None
+            )
+            assert descendant, '.inherit_fields caused a drop of a descendant?'
+
             d_root_cmd, d_alter_cmd, ctx_stack = descendant.init_delta_branch(
                 schema, context, sd.AlterObject)
 
@@ -953,9 +986,10 @@ class AlterInheritingObjectOrFragment(
             with ctx_stack():
                 assert isinstance(d_alter_cmd, InheritingObjectCommand)
                 schema = d_alter_cmd.inherit_fields(
-                    schema, context, d_bases, fields=props)
+                    schema, context, d_bases, fields=props, apply=False
+                )
 
-            self.add(d_root_cmd)
+            self.add_caused(d_root_cmd)
 
     def _update_inherited_fields(
         self,
@@ -984,6 +1018,45 @@ class AlterInheritingObjectOrFragment(
                     None,
                     orig_value=cur_inh_fields,
                 )
+
+    # HACK: Recursively propagate the value of is_derived. Use to deal
+    # with altering computed pointers that are aliases. We should
+    # instead not have those be marked is_derived.
+    def _propagate_is_derived_flat(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        val: Optional[bool],
+    ) -> None:
+        self.set_attribute_value('is_derived', val)
+        self._propagate_field_alter(schema, context, self.scls, ('is_derived',))
+
+        mcls = self.get_schema_metaclass()
+        for refdict in mcls.get_refdicts():
+            attr = refdict.attr
+            if not issubclass(refdict.ref_cls, so.InheritingObject):
+                continue
+            for obj in self.scls.get_field_value(schema, attr).objects(schema):
+                cmd = obj.init_delta_command(schema, sd.AlterObject)
+                cmd._propagate_is_derived_flat(schema, context, val)
+                self.add(cmd)
+
+    def _propagate_is_derived(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        val: Optional[bool],
+    ) -> None:
+        self._propagate_is_derived_flat(schema, context, val)
+        for descendant in self.scls.ordered_descendants(schema):
+            d_root_cmd, d_alter_cmd, ctx_stack = descendant.init_delta_branch(
+                schema, context, sd.AlterObject)
+
+            with ctx_stack():
+                assert isinstance(d_alter_cmd, AlterInheritingObject)
+                d_alter_cmd._propagate_is_derived_flat(schema, context, val)
+
+            self.add(d_root_cmd)
 
 
 class AlterInheritingObject(
@@ -1110,9 +1183,7 @@ class RebaseInheritingObject(
         return 'alter'
 
     def _alter_finalize(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super()._alter_finalize(schema, context)
 

@@ -6,16 +6,6 @@ FastAPI
 
 :edb-alt-title: Building a REST API with EdgeDB and FastAPI
 
-.. warning::
-
-    FastAPI currently has some compatibility issues with Pydantic V2. As they
-    work to iron out those issues, you may need to fall back to older Pydantic
-    to run this example project.
-
-    .. code-block:: bash
-
-        $ pip install --force-reinstall -v "pydantic==1.10"
-
 Because FastAPI encourages and facilitates strong typing, it's a natural
 pairing with EdgeDB. Our Python code generation generates not only typed
 query functions but result types you can use to annotate your endpoint handler
@@ -1143,7 +1133,7 @@ your browser and head over to
 API navigator like this:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/fastapi/openapi.png
+    /docs/tutorials/fastapi/openapi.png
     :alt: FastAPI docs navigator
     :width: 100%
 
@@ -1153,7 +1143,7 @@ and then click on the **Try it out** button. You can do it in the UI as
 follows:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/fastapi/put.png
+    /docs/tutorials/fastapi/put.png
     :alt: FastAPI docs PUT events API
     :width: 100%
 
@@ -1161,7 +1151,7 @@ Clicking the **execute** button will make the request and return the following
 payload:
 
 .. image::
-    https://www.edgedb.com/docs/tutorials/fastapi/put_result.png
+    /docs/tutorials/fastapi/put_result.png
     :alt: FastAPI docs PUT events API result
     :width: 100%
 
@@ -1180,6 +1170,6 @@ Discord <https://discord.gg/umUueND6ag>`_. It's a great community of helpful
 folks, all passionate about being part of the next generation of databases.
 
 If you like what you see and want to dive deeper into EdgeDB and what it can
-do, check out our `Easy EdgeDB book <https://www.edgedb.com/easy-edgedb>`_. In
+do, check out our `Easy EdgeDB book </easy-edgedb>`_. In
 it, you'll get to learn more about EdgeDB as we build an imaginary role-playing
 game based on Bram Stoker's Dracula.

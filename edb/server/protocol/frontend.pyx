@@ -18,6 +18,7 @@
 
 
 import asyncio
+import contextlib
 import logging
 import time
 
@@ -25,7 +26,7 @@ from edgedb import scram
 
 from edb import errors
 from edb.common import debug
-from edb.server import args as srvargs
+from edb.server import args as srvargs, metrics
 from edb.server.pgcon import errors as pgerror
 
 from . cimport auth_helpers
@@ -45,6 +46,7 @@ cdef class AbstractFrontendConnection:
 
 
 cdef class FrontendConnection(AbstractFrontendConnection):
+    interface = "frontend"
 
     def __init__(
         self,
@@ -54,6 +56,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         passive: bool,
         transport: srvargs.ServerConnTransport,
         external_auth: bool,
+        connection_made_at: float | None = None,
     ):
         self._id = server.on_binary_client_created()
         self.server = server
@@ -65,6 +68,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         self._pinned_pgcon_in_tx = False
         self._get_pgcon_cc = 0
 
+        self.connection_made_at = connection_made_at
+        self._query_count = 0
         self._transport = None
         self._write_buf = None
         self._write_waiter = None
@@ -166,6 +171,14 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                     conn,
                     discard=debug.flags.server_clobber_pg_conns,
                 )
+
+    @contextlib.asynccontextmanager
+    async def with_pgcon(self):
+        con = await self.get_pgcon()
+        try:
+            yield con
+        finally:
+            self.maybe_release_pgcon(con)
 
     def on_aborted_pgcon(self, pgcon.PGConnection conn):
         try:
@@ -396,7 +409,12 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             # in this situation we just silently exit.
             pass
 
-        except (ConnectionError, pgerror.BackendQueryCancelledError):
+        except ConnectionError:
+            metrics.connection_errors.inc(
+                1.0, self.get_tenant_label(),
+            )
+
+        except pgerror.BackendQueryCancelledError:
             pass
 
         except Exception as ex:
@@ -445,7 +463,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             self._transport.abort()
             self._transport = None
 
-    def stop(self):
+    def request_stop(self):
         # Actively stop a frontend connection - this is used by the server
         # when it's stopping.
         self._stop_requested = True
@@ -481,6 +499,20 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         #
         # 3. We can interrupt some operations like auth with a CancelledError.
         #    Again, those operations don't mutate global state.
+
+        if self.connection_made_at is not None:
+            tenant_label = self.get_tenant_label()
+            metrics.client_connection_duration.observe(
+                time.monotonic() - self.connection_made_at,
+                tenant_label,
+                self.interface,
+            )
+            if self.authed:
+                metrics.queries_per_connection.observe(
+                    self._query_count, tenant_label, self.interface
+                )
+            if isinstance(exc, ConnectionError):
+                metrics.connection_errors.inc(1.0, tenant_label)
 
         if (self._msg_take_waiter is not None and
             not self._msg_take_waiter.done()):
@@ -582,6 +614,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 'Simple password authentication required but it is only '
                 'supported for HTTP endpoints'
             )
+        elif authmethod_name == 'mTLS':
+            auth_helpers.auth_mtls_with_user(self._transport, user)
         else:
             raise errors.InternalServerError(
                 f'unimplemented auth method: {authmethod_name}')

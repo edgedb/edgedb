@@ -1,48 +1,62 @@
-
-use cpython::exc::{RuntimeError, IndexError};
-use cpython::{py_class, PyErr, PyResult, PyInt, PyBytes, PyList, ToPyObject};
-use cpython::{Python, PyObject};
+use pyo3::{
+    exceptions::{PyIndexError, PyRuntimeError},
+    prelude::*,
+    types::PyBytes,
+};
 
 use edgeql_parser::position::InflatedPos;
 
-py_class!(pub class SourcePoint |py| {
-    data _position: InflatedPos;
-    @classmethod def from_offsets(_cls, data: PyBytes, offsets: PyObject)
-        -> PyResult<PyList>
-    {
+#[pyclass]
+pub struct SourcePoint {
+    _position: InflatedPos,
+}
+
+#[pymethods]
+impl SourcePoint {
+    #[staticmethod]
+    fn from_offsets(py: Python, data: &PyBytes, offsets: PyObject) -> PyResult<PyObject> {
         let mut list: Vec<usize> = offsets.extract(py)?;
-        let data: &[u8] = data.data(py);
+        let data: &[u8] = data.as_bytes();
         list.sort();
         let result = InflatedPos::from_offsets(data, &list)
-            .map_err(|e| PyErr::new::<RuntimeError, _>(py, e.to_string()))?;
-        Ok(result.into_iter()
-            .map(|pos| SourcePoint::create_instance(py, pos))
-            .collect::<Result<Vec<_>, _>>()?
-            .to_py_object(py))
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+        Ok(result
+            .into_iter()
+            .map(|_position| SourcePoint { _position })
+            .collect::<Vec<_>>()
+            .into_py(py))
     }
-    @property def line(&self) -> PyResult<PyInt> {
-        Ok((self._position(py).line + 1).to_py_object(py))
+
+    #[getter]
+    fn line(&self) -> u64 {
+        self._position.line + 1
     }
-    @property def zero_based_line(&self) -> PyResult<PyInt> {
-        Ok((self._position(py).line).to_py_object(py))
+    #[getter]
+    fn zero_based_line(&self) -> u64 {
+        self._position.line
     }
-    @property def column(&self) -> PyResult<PyInt> {
-        Ok((self._position(py).column + 1).to_py_object(py))
+    #[getter]
+    fn column(&self) -> u64 {
+        self._position.column + 1
     }
-    @property def utf16column(&self) -> PyResult<PyInt> {
-        Ok((self._position(py).utf16column).to_py_object(py))
+    #[getter]
+    fn utf16column(&self) -> u64 {
+        self._position.utf16column
     }
-    @property def offset(&self) -> PyResult<PyInt> {
-        Ok((self._position(py).offset).to_py_object(py))
+    #[getter]
+    fn offset(&self) -> u64 {
+        self._position.offset
     }
-    @property def char_offset(&self) -> PyResult<PyInt> {
-        Ok((self._position(py).char_offset).to_py_object(py))
+    #[getter]
+    fn char_offset(&self) -> u64 {
+        self._position.char_offset
     }
-});
+}
 
 fn _offset_of_line(text: &str, target: usize) -> Option<usize> {
     let mut was_lf = false;
-    let mut line = 0;  // this assumes line found by rfind
+    let mut line = 0; // this assumes line found by rfind
     for (idx, &byte) in text.as_bytes().iter().enumerate() {
         if line >= target {
             return Some(idx);
@@ -74,13 +88,11 @@ fn _offset_of_line(text: &str, target: usize) -> Option<usize> {
     Some(text.len())
 }
 
-pub fn offset_of_line(py: Python, text: &str, target: usize) -> PyResult<usize>
-{
+#[pyfunction]
+pub fn offset_of_line(text: &str, target: usize) -> PyResult<usize> {
     match _offset_of_line(text, target) {
         Some(offset) => Ok(offset),
-        None => {
-            Err(PyErr::new::<IndexError, _>(py, "line number is too large"))
-        }
+        None => Err(PyIndexError::new_err("line number is too large")),
     }
 }
 

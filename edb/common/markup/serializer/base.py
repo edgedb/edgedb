@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import TypeVar
 
 import collections
 import collections.abc
@@ -142,8 +142,16 @@ def serialize(obj, *, ctx):
 
 @no_ref_detect
 def _serialize_traceback_point(
-        obj, frame, lineno, *, ctx, include_source=True, source_window_size=2,
-        include_locals=False, point_cls=elements.lang.TracebackPoint):
+    obj,
+    frame,
+    lineno,
+    *,
+    ctx,
+    include_source=True,
+    source_window_size=2,
+    include_locals=False,
+    point_cls=elements.lang.TracebackPoint,
+):
     assert source_window_size >= 0
 
     name = frame.f_code.co_name
@@ -169,8 +177,14 @@ def _serialize_traceback_point(
 
 @no_ref_detect
 def serialize_traceback_point(
-        obj, *, ctx, include_source=True, source_window_size=2,
-        include_locals=False, point_cls=elements.lang.TracebackPoint):
+    obj,
+    *,
+    ctx,
+    include_source=True,
+    source_window_size=2,
+    include_locals=False,
+    point_cls=elements.lang.TracebackPoint,
+):
     assert isinstance(obj, types.TracebackType)
 
     return _serialize_traceback_point(
@@ -181,8 +195,14 @@ def serialize_traceback_point(
 
 @no_ref_detect
 def serialize_callstack_point(
-        obj, *, ctx, include_source=True, source_window_size=2,
-        include_locals=False, point_cls=elements.lang.TracebackPoint):
+    obj,
+    *,
+    ctx,
+    include_source=True,
+    source_window_size=2,
+    include_locals=False,
+    point_cls=elements.lang.TracebackPoint,
+):
     assert isinstance(obj, types.FrameType)
 
     return _serialize_traceback_point(
@@ -242,6 +262,20 @@ def serialize_exception(obj, *, ctx):
         class_module=obj.__class__.__module__,
         classname=obj.__class__.__name__, msg=str(obj), contexts=contexts,
         cause=cause, context=context, id=id(obj))
+
+    if isinstance(obj, BaseExceptionGroup):
+        markup = elements.doc.Section(
+            body=[
+                markup,
+                elements.doc.Section(
+                    title='Grouped exceptions',
+                    body=[
+                        elements.doc.SubNode(body=serializer(sub, ctx=ctx))
+                        for sub in obj.exceptions
+                    ]
+                )
+            ],
+        )
 
     return markup
 

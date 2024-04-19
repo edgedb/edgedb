@@ -44,7 +44,8 @@ CREATE ABSTRACT TYPE std::Object EXTENDING std::BaseObject {
         'Root object type for user-defined types';
 };
 
-CREATE TYPE std::FreeObject EXTENDING std::BaseObject {
+# N.B: This does *not* derive from std::BaseObject!
+CREATE TYPE std::FreeObject {
     CREATE ANNOTATION std::description :=
         'Object type for free shapes';
 };
@@ -145,6 +146,10 @@ std::`<` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
 
 # The only possible Object cast is into json.
 CREATE CAST FROM std::BaseObject TO std::json {
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+CREATE CAST FROM std::FreeObject TO std::json {
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };

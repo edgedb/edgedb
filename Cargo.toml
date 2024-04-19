@@ -5,6 +5,7 @@ members = [
     "edb/edgeql-parser/edgeql-parser-python",
     "edb/graphql-rewrite",
 ]
+resolver = "2"
 
 [profile.release]
 debug = true

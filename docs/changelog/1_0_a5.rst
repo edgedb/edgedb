@@ -7,7 +7,7 @@
 ===========
 
 This changelog summarizes new features and breaking changes in
-`EdgeDB 1.0 alpha 5 "Luhman" </blog/edgedb-1-0-alpha-5-luhman>`_.
+`EdgeDB 1.0 alpha 5 "Luhman" <https://www.edgedb.com/blog/edgedb-1-0-alpha-5-luhman>`_.
 
 
 EdgeQL
@@ -108,8 +108,7 @@ CLI
 Bindings
 ========
 
-* Add transaction `API
-  </docs/clients/01_js/api/connection#connection>`_ to JS binding
+* Add transaction :ref:`API <edgedb-js-api-transaction>` to JS binding
   (`#61 <https://github.com/edgedb/edgedb-js/pull/61>`_). Here's an
   example of using transactions:
 

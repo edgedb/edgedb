@@ -91,7 +91,7 @@ upgrade.
     - ``edgedb@0.21.0``
   * - :ref:`Python <edgedb-python-intro>`
     - ``edgedb@0.24.0``
-  * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
+  * - :ref:`Golang <edgedb-go-intro>`
     - ``edgedb@0.12.0``
   * - `Rust <https://github.com/edgedb/edgedb-rust>`_
     - ``edgedb-tokio@0.3.0``

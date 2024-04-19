@@ -42,9 +42,10 @@ completes, you may need to **restart your terminal** before you can use the
 .. note::
 
   Check out our additional installation methods `for various Linux distros\
-  </install#linux-debianubuntults>`_, `via Homebrew on macOS\
-  </install#macos-homebrew>`_, and `for the Windows Command Prompt\
-  </install#windows-commandprompt>`_.
+  <https://www.edgedb.com/install#linux-debianubuntults>`_, `via Homebrew on
+  macOS\ <https://www.edgedb.com/install#macos-homebrew>`_, and `for the
+  Windows Command Prompt\
+  <https://www.edgedb.com/install#windows-commandprompt>`_.
 
 Now let's set up your EdgeDB project.
 
@@ -79,19 +80,19 @@ up your first EdgeDB instance. You should see something like this:
   [default: quickstart]:
   > quickstart
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 4.x]:
-  > 4.x
+  Specify the version of EdgeDB to use with this project [default: 5.x]:
+  > 5.x
   ┌─────────────────────┬───────────────────────────────────────────────┐
   │ Project directory   │ ~/path/to/quickstart                          │
   │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
   │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema                 │
   │ Installation method │ portable package                              │
-  │ Version             │ 4.x+cc4f3b5                                   │
+  │ Version             │ 5.x+cc4f3b5                                   │
   │ Instance name       │ quickstart                                    │
   └─────────────────────┴───────────────────────────────────────────────┘
   Downloading package...
   00:00:01 [====================] 41.40 MiB/41.40 MiB 32.89MiB/s | ETA: 0s
-  Successfully installed 4.x+cc4f3b5
+  Successfully installed 5.x+cc4f3b5
   Initializing EdgeDB instance...
   Applying migrations...
   Everything is up to date. Revision initial
@@ -115,9 +116,10 @@ This did a couple things.
 .. note::
 
   Quick note! You can have several **instances** of EdgeDB running on your
-  computer simultaneously. Each instance contains several **databases**. Each
-  database may contain several **modules** (though commonly your schema
-  will be entirely defined inside the ``default`` module).
+  computer simultaneously. Each instance may be **branched** many times. Each
+  branch may have an independent schema consisting of a number of **modules**
+  (though commonly your schema will be entirely defined inside the ``default``
+  module).
 
 Let's connect to our new instance! Run ``edgedb`` in your terminal to open an
 interactive REPL to your instance. You're now connected to a live EdgeDB
@@ -356,14 +358,14 @@ into every EdgeDB instance (v2.0+ only). To open the dashboard:
   http://localhost:107xx/ui?authToken=<jwt token>
 
 You should see a simple landing page, as below. You'll see a card for each
-database running on your instance—remember: each instance can contain multiple
-databases!
+branch of your instance. Remember: each instance can be branched multiple
+times!
 
 .. image:: images/ui_landing.jpg
   :width: 100%
 
-Currently, there's only one database, which is simply called ``edgedb`` by
-default. Click the ``edgedb`` card.
+Currently, there's only one branch, which is simply called ``main`` by
+default. Click the ``main`` card.
 
 .. image:: images/ui_db.jpg
   :width: 100%
@@ -435,12 +437,17 @@ will look something like this:
 
 EdgeDB UI is a useful development tool, but in practice your application will
 likely be using one of EdgeDB's *client libraries* to execute queries. EdgeDB
-provides official libraries for
-`JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__,
-`Go <https://github.com/edgedb/edgedb-go>`__,
-`Python <https://github.com/edgedb/edgedb-python>`__,
-`Rust <https://github.com/edgedb/edgedb-rust>`__, and
-`C# and F# <https://github.com/edgedb/edgedb-net>`_.
+provides official libraries for many langauges:
+
+- :ref:`JavaScript/TypeScript <edgedb-js-intro>`
+- :ref:`Go <edgedb-go-intro>`
+- :ref:`Python <edgedb-python-intro>`
+- :ref:`Rust <ref_rust_index>`
+- :ref:`C# and F# <edgedb-dotnet-intro>`
+- :ref:`Java <edgedb-java-intro>`
+- :ref:`Dart <edgedb-dart-intro>`
+- :ref:`Elixir <edgedb-elixir-intro>`
+
 Check out the :ref:`Clients
 <ref_intro_clients>` guide to get started with the language of your choice.
 
@@ -459,9 +466,10 @@ and used a client library.
   the other pages in the Getting Started section, which will cover important
   topics like migrations, the schema language, and EdgeQL in greater detail.
 
-- For guided tours of major concepts, check out the
-  showcase pages for `Data Modeling </showcase/data-modeling>`_,
-  `EdgeQL </showcase/edgeql>`_, and `Migrations </showcase/migrations>`_.
+- For guided tours of major concepts, check out the showcase pages for `Data
+  Modeling <https://www.edgedb.com/showcase/data-modeling>`_, `EdgeQL
+  <https://www.edgedb.com/showcase/edgeql>`_, and `Migrations
+  <https://www.edgedb.com/showcase/migrations>`_.
 
 - For a deep dive into the EdgeQL query language, check out the
   `Interactive Tutorial </tutorial>`_.
@@ -471,10 +479,14 @@ and used a client library.
   total beginner through EdgeDB, from the basics all the way through advanced
   concepts.
 
-- To start building an application using the language of your choice, check
-  out our client libraries for
-  `JavaScript/TypeScript </docs/clients/01_js/index>`__,
-  `Python </docs/clients/00_python/index>`__, and
-  `Go </docs/clients/02_go/index>`__.
+- To start building an application using the language of your choice, check out
+  our client libraries:
 
-- Or just jump into the :ref:`docs <index_toplevel>`!
+  - :ref:`JavaScript/TypeScript <edgedb-js-intro>`
+  - :ref:`Go <edgedb-go-intro>`
+  - :ref:`Python <edgedb-python-intro>`
+  - :ref:`Rust <ref_rust_index>`
+  - :ref:`C# and F# <edgedb-dotnet-intro>`
+  - :ref:`Java <edgedb-java-intro>`
+  - :ref:`Dart <edgedb-dart-intro>`
+  - :ref:`Elixir <edgedb-elixir-intro>`

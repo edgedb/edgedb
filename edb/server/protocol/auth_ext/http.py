@@ -29,7 +29,7 @@ import os
 import mimetypes
 import uuid
 
-from typing import *
+from typing import Any, Optional, Tuple, FrozenSet, cast
 
 import aiosmtplib
 from jwcrypto import jwk, jwt
@@ -38,10 +38,21 @@ from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
-from edb.server import tenant as edbtenant
+from edb.server import tenant as edbtenant, metrics
 from edb.server.config.types import CompositeConfigType
 
-from . import oauth, local, errors, util, pkce, ui, config, email as auth_emails
+from . import (
+    email_password,
+    oauth,
+    errors,
+    util,
+    pkce,
+    ui,
+    config,
+    email as auth_emails,
+    webauthn,
+    magic_link,
+)
 
 
 logger = logging.getLogger('edb.server')
@@ -96,6 +107,30 @@ class Router:
                     return await self.handle_send_reset_email(*handler_args)
                 case ('reset-password',):
                     return await self.handle_reset_password(*handler_args)
+                case ('magic-link', 'register'):
+                    return await self.handle_magic_link_register(*handler_args)
+                case ('magic-link', 'email'):
+                    return await self.handle_magic_link_email(*handler_args)
+                case ('magic-link', 'authenticate'):
+                    return await self.handle_magic_link_authenticate(
+                        *handler_args
+                    )
+
+                # WebAuthn routes
+                case ('webauthn', 'register'):
+                    return await self.handle_webauthn_register(*handler_args)
+                case ('webauthn', 'register', 'options'):
+                    return await self.handle_webauthn_register_options(
+                        *handler_args
+                    )
+                case ('webauthn', 'authenticate'):
+                    return await self.handle_webauthn_authenticate(
+                        *handler_args
+                    )
+                case ('webauthn', 'authenticate', 'options'):
+                    return await self.handle_webauthn_authenticate_options(
+                        *handler_args
+                    )
 
                 # UI routes
                 case ('ui', 'signin'):
@@ -112,6 +147,8 @@ class Router:
                     return await self.handle_ui_resend_verification(
                         *handler_args
                     )
+                case ("ui", "magic-link-sent"):
+                    return await self.handle_ui_magic_link_sent(*handler_args)
                 case ('ui', '_static', filename):
                     filepath = os.path.join(
                         os.path.dirname(__file__), '_static', filename
@@ -130,60 +167,62 @@ class Router:
                 case _:
                     raise errors.NotFound("Unknown auth endpoint")
 
+        # User-facing errors
         except errors.NotFound as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.NOT_FOUND,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
             )
 
         except errors.InvalidData as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.BAD_REQUEST,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
-            )
-
-        except errors.MissingConfiguration as ex:
-            _fail_with_error(
-                response=response,
-                status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
             )
 
         except errors.PKCEVerificationFailed as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.FORBIDDEN,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
             )
 
-        except errors.NoIdentityFound:
+        except errors.NoIdentityFound as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.FORBIDDEN,
-                message="No identity found",
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
             )
 
         except errors.UserAlreadyRegistered as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.CONFLICT,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
             )
 
         except errors.VerificationRequired as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.UNAUTHORIZED,
-                message=str(ex),
-                ex_type=edb_errors.ProtocolError,
+                ex=ex,
+            )
+
+        # Server errors
+        except errors.MissingConfiguration as ex:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
+                ex=ex,
+            )
+
+        except errors.WebAuthnAuthenticationFailed as ex:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.UNAUTHORIZED,
+                ex=ex,
             )
 
         except Exception as ex:
@@ -192,8 +231,7 @@ class Router:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
-                message=str(ex),
-                ex_type=edb_errors.InternalServerError,
+                ex=edb_errors.InternalServerError(str(ex)),
             )
 
     async def handle_authorize(self, request: Any, response: Any):
@@ -215,7 +253,9 @@ class Router:
             raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
-        challenge = _get_search_param(query, "challenge")
+        challenge = _get_search_param(
+            query, "challenge", fallback_keys=["code_challenge"]
+        )
         oauth_client = oauth.Client(
             db=self.db, provider_name=provider_name, base_url=self.test_url
         )
@@ -278,9 +318,9 @@ class Router:
             }
             if error_description is not None:
                 params["error_description"] = error_description
-            response.custom_headers[
-                "Location"
-            ] = f"{redirect_to}?{urllib.parse.urlencode(params)}"
+            response.custom_headers["Location"] = util.join_url_params(
+                redirect_to, params
+            )
             response.status = http.HTTPStatus.FOUND
             return
 
@@ -330,16 +370,14 @@ class Router:
                 auth_token=auth_token,
                 refresh_token=refresh_token,
             )
-        parsed_url = urllib.parse.urlparse(
-            (redirect_to_on_signup or redirect_to)
-            if new_identity
-            else redirect_to
+        new_url = util.join_url_params(
+            (
+                (redirect_to_on_signup or redirect_to)
+                if new_identity
+                else redirect_to
+            ),
+            {"code": pkce_code, "provider": provider_name},
         )
-        query_params = urllib.parse.parse_qs(parsed_url.query)
-        query_params["code"] = [pkce_code]
-        new_query = urllib.parse.urlencode(query_params, doseq=True)
-        new_url = parsed_url._replace(query=new_query).geturl()
-
         session_token = self._make_session_token(identity.id)
         response.status = http.HTTPStatus.FOUND
         response.custom_headers["Location"] = new_url
@@ -350,7 +388,9 @@ class Router:
             request.url.query.decode("ascii") if request.url.query else ""
         )
         code = _get_search_param(query, "code")
-        verifier = _get_search_param(query, "verifier")
+        verifier = _get_search_param(
+            query, "verifier", fallback_keys=["code_verifier"]
+        )
 
         verifier_size = len(verifier)
 
@@ -404,14 +444,12 @@ class Router:
         if register_provider_name is None:
             raise errors.InvalidData('Missing "provider" in register request')
 
-        local_client = local.Client(
-            db=self.db, provider_name=register_provider_name
-        )
-        require_verification = local_client.provider.config.require_verification
+        email_password_client = email_password.Client(db=self.db)
+        require_verification = email_password_client.config.require_verification
         pkce_code: Optional[str] = None
 
         try:
-            identity = await local_client.register(data)
+            identity = await email_password_client.register(data)
             if not require_verification:
                 if maybe_challenge is None:
                     raise errors.InvalidData(
@@ -438,13 +476,17 @@ class Router:
             ).isoformat()
             if maybe_redirect_to is not None:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
+                redirect_params = (
                     {"verification_email_sent_at": now_iso8601}
                     if require_verification
-                    else {"code": pkce_code}
+                    else {
+                        "code": cast(str, pkce_code),
+                        "provider": register_provider_name,
+                    }
                 )
-                redirect_url = f"{maybe_redirect_to}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
+                response.custom_headers["Location"] = util.join_url_params(
+                    maybe_redirect_to, redirect_params
+                )
             else:
                 response.status = http.HTTPStatus.CREATED
                 response.content_type = b"application/json"
@@ -455,18 +497,22 @@ class Router:
                 else:
                     if pkce_code is None:
                         raise errors.PKCECreationFailed
-                    response.body = json.dumps({"code": pkce_code}).encode()
+                    response.body = json.dumps(
+                        {"code": pkce_code, "provider": register_provider_name}
+                    ).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
                 "redirect_on_failure", maybe_redirect_to
             )
             if redirect_on_failure is not None:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {"error": str(ex), "email": data.get('email', '')}
+                redirect_params = {
+                    "error": str(ex),
+                    "email": data.get('email', ''),
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    redirect_on_failure, redirect_params
                 )
-                redirect_url = f"{redirect_on_failure}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
             else:
                 raise ex
 
@@ -487,16 +533,16 @@ class Router:
                 "Redirect URL does not match any allowed URLs.",
             )
 
-        local_client = local.Client(
-            db=self.db, provider_name=authenticate_provider_name
-        )
+        email_password_client = email_password.Client(db=self.db)
         try:
-            local_identity = await local_client.authenticate(data)
-            verified_at = await local_client.get_verified_by_identity_id(
-                identity_id=local_identity.id
+            local_identity = await email_password_client.authenticate(data)
+            verified_at = (
+                await email_password_client.get_verified_by_identity_id(
+                    identity_id=local_identity.id
+                )
             )
             if (
-                local_client.provider.config.require_verification
+                email_password_client.config.require_verification
                 and verified_at is None
             ):
                 raise errors.VerificationRequired()
@@ -508,13 +554,12 @@ class Router:
             _set_cookie(response, "edgedb-session", session_token)
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {
-                        "code": pkce_code,
-                    }
+                redirect_params = {
+                    "code": pkce_code,
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    maybe_redirect_to, redirect_params
                 )
-                redirect_url = f"{maybe_redirect_to}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
             else:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
@@ -533,14 +578,13 @@ class Router:
                         "Redirect URL does not match any allowed URLs.",
                     )
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {
-                        "error": str(ex),
-                        "email": data.get('email', ''),
-                    }
+                redirect_params = {
+                    "error": str(ex),
+                    "email": data.get('email', ''),
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    redirect_on_failure, redirect_params
                 )
-                redirect_url = f"{redirect_on_failure}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
             else:
                 raise ex
 
@@ -552,6 +596,7 @@ class Router:
         (
             identity_id,
             issued_at,
+            _,
             maybe_challenge,
             maybe_redirect_to,
         ) = self._get_data_from_verification_token(data["verification_token"])
@@ -604,24 +649,53 @@ class Router:
     ):
         data = self._get_data_from_request(request)
 
-        _check_keyset(data, {"verification_token", "provider"})
-        (
-            identity_id,
-            _,
-            maybe_challenge,
-            maybe_redirect_to,
-        ) = self._get_data_from_verification_token(data["verification_token"])
+        _check_keyset(data, {"provider"})
+        email_password_client = email_password.Client(db=self.db)
+        verify_url = data.get("verify_url", f"{self.base_path}/ui/verify")
+        if "verification_token" in data:
+            (
+                identity_id,
+                _,
+                verify_url,
+                maybe_challenge,
+                maybe_redirect_to,
+            ) = self._get_data_from_verification_token(
+                data["verification_token"]
+            )
+            email = await email_password_client.get_email_by_identity_id(
+                identity_id
+            )
+        elif "email" in data:
+            email = data["email"]
+            maybe_challenge = data.get("challenge", data.get("code_challenge"))
+            maybe_redirect_to = data.get("redirect_to")
+            if maybe_redirect_to and not self._is_url_allowed(
+                maybe_redirect_to
+            ):
+                raise errors.InvalidData(
+                    "Redirect URL does not match any allowed URLs.",
+                )
 
-        local_client = local.Client(db=self.db, provider_name=data["provider"])
-        email = await local_client.get_email_by_identity_id(identity_id)
-        if email is None:
+            try:
+                (identity, _) = (
+                    await email_password_client.get_identity_and_secret(
+                        {"email": email}
+                    )
+                )
+                identity_id = identity.id
+            except errors.NoIdentityFound:
+                identity_id = None
+        else:
+            raise errors.InvalidData("Missing 'verification_token' or 'email'")
+
+        if identity_id is None or email is None:
             await auth_emails.send_fake_email(self.tenant)
         else:
             await self._send_verification_email(
                 provider=data["provider"],
                 identity_id=identity_id,
                 to_addr=email,
-                verify_url=f"{self.base_path}/verify",
+                verify_url=verify_url,
                 maybe_challenge=maybe_challenge,
                 maybe_redirect_to=maybe_redirect_to,
             )
@@ -631,8 +705,8 @@ class Router:
     async def handle_send_reset_email(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
 
-        _check_keyset(data, {"provider", "reset_url", "challenge"})
-        local_client = local.Client(db=self.db, provider_name=data["provider"])
+        _check_keyset(data, {"provider", "email", "reset_url", "challenge"})
+        email_password_client = email_password.Client(db=self.db)
         if not self._is_url_allowed(data["reset_url"]):
             raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
@@ -648,16 +722,16 @@ class Router:
                 (
                     identity,
                     secret,
-                ) = await local_client.get_identity_and_secret(data)
+                ) = await email_password_client.get_identity_and_secret(data)
 
                 new_reset_token = self._make_secret_token(
                     identity.id, secret, {"challenge": data["challenge"]}
                 )
 
-                reset_token_params = urllib.parse.urlencode(
-                    {"reset_token": new_reset_token}
+                reset_token_params = {"reset_token": new_reset_token}
+                reset_url = util.join_url_params(
+                    data['reset_url'], reset_token_params
                 )
-                reset_url = f"{data['reset_url']}?{reset_token_params}"
 
                 await auth_emails.send_password_reset_email(
                     db=self.db,
@@ -670,14 +744,14 @@ class Router:
                 await auth_emails.send_fake_email(self.tenant)
 
             return_data = {
-                "email_sent": data.get('email'),
+                "email_sent": data['email'],
             }
 
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(return_data)
-                redirect_url = f"{maybe_redirect_to}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
+                response.custom_headers["Location"] = util.join_url_params(
+                    maybe_redirect_to, return_data
+                )
             else:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
@@ -699,14 +773,13 @@ class Router:
                         "Redirect URL does not match any allowed URLs.",
                     )
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {
-                        "error": str(ex),
-                        "email": data.get('email', ''),
-                    }
+                redirect_params = {
+                    "error": str(ex),
+                    "email": data.get('email', ''),
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    redirect_on_failure, redirect_params
                 )
-                redirect_url = f"{redirect_on_failure}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
             else:
                 raise ex
 
@@ -714,7 +787,7 @@ class Router:
         data = self._get_data_from_request(request)
 
         _check_keyset(data, {"provider", "reset_token"})
-        local_client = local.Client(db=self.db, provider_name=data["provider"])
+        email_password_client = email_password.Client(db=self.db)
 
         maybe_redirect_to = data.get("redirect_to")
         if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
@@ -729,7 +802,9 @@ class Router:
                 reset_token
             )
 
-            await local_client.update_password(identity_id, secret, data)
+            await email_password_client.update_password(
+                identity_id, secret, data
+            )
             await pkce.create(self.db, challenge)
             code = await pkce.link_identity_challenge(
                 self.db, identity_id, challenge
@@ -737,9 +812,9 @@ class Router:
 
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode({"code": code})
-                redirect_url = f"{maybe_redirect_to}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
+                response.custom_headers["Location"] = util.join_url_params(
+                    maybe_redirect_to, {"code": code}
+                )
             else:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
@@ -754,16 +829,402 @@ class Router:
                         "Redirect URL does not match any allowed URLs.",
                     )
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {
-                        "error": str(ex),
-                        "reset_token": data.get('reset_token', ''),
-                    }
+                redirect_params = {
+                    "error": str(ex),
+                    "reset_token": data.get('reset_token', ''),
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    redirect_on_failure, redirect_params
                 )
-                redirect_url = f"{redirect_on_failure}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
             else:
                 raise ex
+
+    async def handle_magic_link_register(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(
+            data,
+            {
+                "provider",
+                "email",
+                "challenge",
+                "callback_url",
+                "redirect_on_failure",
+            },
+        )
+
+        email = data["email"]
+        challenge = data["challenge"]
+        callback_url = data["callback_url"]
+        redirect_on_failure = data["redirect_on_failure"]
+        if not self._is_url_allowed(callback_url):
+            raise errors.InvalidData(
+                "Callback URL does not match any allowed URLs.",
+            )
+        if not self._is_url_allowed(redirect_on_failure):
+            raise errors.InvalidData(
+                "Error redirect URL does not match any allowed URLs.",
+            )
+        maybe_redirect_to = data.get("redirect_to")
+        if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
+            raise errors.InvalidData(
+                "Redirect URL does not match any allowed URLs.",
+            )
+        magic_link_client = magic_link.Client(
+            db=self.db,
+            issuer=self.base_path,
+            tenant=self.tenant,
+            test_mode=self.test_mode,
+        )
+
+        request_accepts_json: bool = request.accept == b"application/json"
+
+        if not request_accepts_json and not maybe_redirect_to:
+            raise errors.InvalidData(
+                "Request must accept JSON or provide a redirect URL."
+            )
+
+        try:
+            await magic_link_client.register(
+                email=email,
+            )
+            await magic_link_client.send_magic_link(
+                email=email,
+                callback_url=callback_url,
+                link_url=f"{self.base_path}/magic-link/authenticate",
+                challenge=challenge,
+                redirect_on_failure=redirect_on_failure,
+            )
+
+            return_data = {
+                "email_sent": email,
+            }
+
+            if request_accepts_json:
+                response.status = http.HTTPStatus.OK
+                response.content_type = b"application/json"
+                response.body = json.dumps(return_data).encode()
+            elif maybe_redirect_to:
+                response.status = http.HTTPStatus.FOUND
+                response.custom_headers["Location"] = util.join_url_params(
+                    maybe_redirect_to, return_data
+                )
+            else:
+                # This should not happen since we check earlier for this case
+                # but this seems safer than a cast
+                raise errors.InvalidData(
+                    "Request must accept JSON or provide a redirect URL."
+                )
+        except Exception as ex:
+            if request_accepts_json:
+                raise ex
+
+            response.status = http.HTTPStatus.FOUND
+            redirect_params = {
+                "error": str(ex),
+                "email": data.get('email', ''),
+            }
+            response.custom_headers["Location"] = util.join_url_params(
+                redirect_on_failure, redirect_params
+            )
+
+    async def handle_magic_link_email(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        maybe_redirect_to = data.get("redirect_to")
+
+        try:
+            _check_keyset(
+                data,
+                {
+                    "provider",
+                    "email",
+                    "challenge",
+                    "callback_url",
+                    "redirect_on_failure",
+                },
+            )
+
+            email = data["email"]
+            challenge = data["challenge"]
+            callback_url = data["callback_url"]
+            redirect_on_failure = data["redirect_on_failure"]
+            if not self._is_url_allowed(callback_url):
+                raise errors.InvalidData(
+                    "Callback URL does not match any allowed URLs.",
+                )
+            if not self._is_url_allowed(redirect_on_failure):
+                raise errors.InvalidData(
+                    "Error redirect URL does not match any allowed URLs.",
+                )
+
+            if maybe_redirect_to and not self._is_url_allowed(
+                maybe_redirect_to
+            ):
+                raise errors.InvalidData(
+                    "Redirect URL does not match any allowed URLs.",
+                )
+            magic_link_client = magic_link.Client(
+                db=self.db,
+                issuer=self.base_path,
+                tenant=self.tenant,
+                test_mode=self.test_mode,
+            )
+            await magic_link_client.send_magic_link(
+                email=email,
+                callback_url=callback_url,
+                link_url=f"{self.base_path}/magic-link/authenticate",
+                challenge=challenge,
+                redirect_on_failure=redirect_on_failure,
+            )
+
+            return_data = {
+                "email_sent": email,
+            }
+
+            if maybe_redirect_to:
+                response.status = http.HTTPStatus.FOUND
+                response.custom_headers["Location"] = util.join_url_params(
+                    maybe_redirect_to, return_data
+                )
+            else:
+                response.status = http.HTTPStatus.OK
+                response.content_type = b"application/json"
+                response.body = json.dumps(return_data).encode()
+        except Exception as ex:
+            redirect_on_failure = data.get(
+                "redirect_on_failure", maybe_redirect_to
+            )
+            if redirect_on_failure is None:
+                raise ex
+            else:
+                if not self._is_url_allowed(redirect_on_failure):
+                    raise errors.InvalidData(
+                        "Redirect URL does not match any allowed URLs.",
+                    )
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = {
+                    "error": str(ex),
+                    "email": data.get('email', ''),
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    redirect_on_failure, redirect_params
+                )
+
+    async def handle_magic_link_authenticate(self, request: Any, response: Any):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        token = _get_search_param(query, "token")
+
+        try:
+            (identity_id, challenge, callback_url) = (
+                self._get_data_from_magic_link_token(token)
+            )
+            await pkce.create(self.db, challenge)
+            code = await pkce.link_identity_challenge(
+                self.db, identity_id, challenge
+            )
+            local_client = magic_link.Client(
+                db=self.db,
+                tenant=self.tenant,
+                test_mode=self.test_mode,
+                issuer=self.base_path,
+            )
+            await local_client.verify_email(
+                identity_id, datetime.datetime.now(datetime.timezone.utc)
+            )
+
+            response.status = http.HTTPStatus.FOUND
+            response.custom_headers["Location"] = util.join_url_params(
+                callback_url, {"code": code}
+            )
+        except Exception as ex:
+            redirect_on_failure = _maybe_get_search_param(
+                query, "redirect_on_failure"
+            )
+            if redirect_on_failure is None:
+                raise ex
+            else:
+                if not self._is_url_allowed(redirect_on_failure):
+                    raise errors.InvalidData(
+                        "Redirect URL does not match any allowed URLs.",
+                    )
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = {
+                    "error": str(ex),
+                }
+                response.custom_headers["Location"] = util.join_url_params(
+                    redirect_on_failure, redirect_params
+                )
+
+    async def handle_webauthn_register_options(
+        self, request: Any, response: Any
+    ):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        email = _get_search_param(query, "email")
+        webauthn_client = webauthn.Client(self.db)
+
+        (user_handle, registration_options) = (
+            await webauthn_client.create_registration_options_for_email(
+                email=email,
+            )
+        )
+
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"application/json"
+        _set_cookie(
+            response,
+            "edgedb-webauthn-registration-user-handle",
+            user_handle,
+            path="/",
+        )
+        response.body = registration_options
+
+    async def handle_webauthn_register(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(
+            data,
+            {"provider", "challenge", "email", "credentials", "verify_url"},
+        )
+        webauthn_client = webauthn.Client(self.db)
+
+        provider_name: str = data["provider"]
+        email: str = data["email"]
+        verify_url: str = data["verify_url"]
+        credentials: str = data["credentials"]
+        pkce_challenge: str = data["challenge"]
+
+        user_handle_cookie = request.cookies.get(
+            "edgedb-webauthn-registration-user-handle"
+        )
+        user_handle_base64url: Optional[str] = (
+            user_handle_cookie.value
+            if user_handle_cookie
+            else data.get("user_handle")
+        )
+        if user_handle_base64url is None:
+            raise errors.InvalidData(
+                "Missing user_handle from cookie or request body"
+            )
+        try:
+            user_handle = base64.urlsafe_b64decode(
+                f"{user_handle_base64url}==="
+            )
+        except Exception as e:
+            raise errors.InvalidData("Failed to decode user_handle") from e
+
+        require_verification = webauthn_client.provider.require_verification
+        pkce_code: Optional[str] = None
+
+        identity = await webauthn_client.register(
+            credentials=credentials,
+            email=email,
+            user_handle=user_handle,
+        )
+        if not require_verification:
+            await pkce.create(self.db, pkce_challenge)
+            pkce_code = await pkce.link_identity_challenge(
+                self.db, identity.id, pkce_challenge
+            )
+
+        await self._send_verification_email(
+            provider=provider_name,
+            identity_id=identity.id,
+            to_addr=data["email"],
+            verify_url=verify_url,
+            maybe_challenge=pkce_challenge,
+            maybe_redirect_to=None,
+        )
+
+        _set_cookie(
+            response,
+            "edgedb-webauthn-registration-user-handle",
+            "",
+            path="/",
+        )
+        response.status = http.HTTPStatus.CREATED
+        response.content_type = b"application/json"
+        if require_verification:
+            now_iso8601 = datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+            response.body = json.dumps(
+                {"verification_email_sent_at": (now_iso8601)}
+            ).encode()
+        else:
+            if pkce_code is None:
+                raise errors.PKCECreationFailed
+            response.body = json.dumps(
+                {"code": pkce_code, "provider": provider_name}
+            ).encode()
+
+    async def handle_webauthn_authenticate_options(
+        self, request: Any, response: Any
+    ):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        email = _get_search_param(query, "email")
+        webauthn_provider = self._get_webauthn_provider()
+        if webauthn_provider is None:
+            raise errors.MissingConfiguration(
+                "ext::auth::AuthConfig::providers",
+                "WebAuthn provider is not configured",
+            )
+        webauthn_client = webauthn.Client(self.db)
+
+        (_, registration_options) = (
+            await webauthn_client.create_authentication_options_for_email(
+                email=email, webauthn_provider=webauthn_provider
+            )
+        )
+
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"application/json"
+        response.body = registration_options
+
+    async def handle_webauthn_authenticate(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(
+            data,
+            {"challenge", "email", "assertion"},
+        )
+        webauthn_client = webauthn.Client(self.db)
+
+        email: str = data["email"]
+        assertion: str = data["assertion"]
+        pkce_challenge: str = data["challenge"]
+
+        identity = await webauthn_client.authenticate(
+            assertion=assertion,
+            email=email,
+        )
+
+        require_verification = webauthn_client.provider.require_verification
+        if require_verification:
+            email_is_verified = await webauthn_client.is_email_verified(
+                email, assertion
+            )
+            if not email_is_verified:
+                raise errors.VerificationRequired()
+
+        await pkce.create(self.db, pkce_challenge)
+        code = await pkce.link_identity_challenge(
+            self.db, identity.id, pkce_challenge
+        )
+
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"application/json"
+        response.body = json.dumps(
+            {
+                "code": code,
+            }
+        ).encode()
 
     async def handle_ui_signin(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
@@ -783,6 +1244,7 @@ class Router:
                     'No providers are configured',
                 )
 
+            app_details_config = self._get_app_details_config()
             query = urllib.parse.parse_qs(
                 request.url.query.decode("ascii") if request.url.query else ""
             )
@@ -799,17 +1261,19 @@ class Router:
 
             response.status = http.HTTPStatus.OK
             response.content_type = b'text/html'
-            response.body = ui.render_login_page(
+            response.body = ui.render_signin_page(
                 base_path=self.base_path,
                 providers=providers,
                 redirect_to=ui_config.redirect_to,
+                redirect_to_on_signup=ui_config.redirect_to_on_signup,
                 error_message=_maybe_get_search_param(query, 'error'),
                 email=_maybe_get_search_param(query, 'email'),
                 challenge=maybe_challenge,
-                app_name=ui_config.app_name,
-                logo_url=ui_config.logo_url,
-                dark_logo_url=ui_config.dark_logo_url,
-                brand_color=ui_config.brand_color,
+                selected_tab=_maybe_get_search_param(query, 'selected_tab'),
+                app_name=app_details_config.app_name,
+                logo_url=app_details_config.logo_url,
+                dark_logo_url=app_details_config.dark_logo_url,
+                brand_color=app_details_config.brand_color,
             )
 
     async def handle_ui_signup(self, request: Any, response: Any):
@@ -842,22 +1306,23 @@ class Router:
                 raise errors.InvalidData(
                     'Missing "challenge" in register request'
                 )
+            app_details_config = self._get_app_details_config()
 
             response.status = http.HTTPStatus.OK
             response.content_type = b'text/html'
             response.body = ui.render_signup_page(
                 base_path=self.base_path,
                 providers=providers,
-                redirect_to=(
-                    ui_config.redirect_to_on_signup or ui_config.redirect_to
-                ),
+                redirect_to=ui_config.redirect_to,
+                redirect_to_on_signup=ui_config.redirect_to_on_signup,
                 error_message=_maybe_get_search_param(query, 'error'),
                 email=_maybe_get_search_param(query, 'email'),
                 challenge=maybe_challenge,
-                app_name=ui_config.app_name,
-                logo_url=ui_config.logo_url,
-                dark_logo_url=ui_config.dark_logo_url,
-                brand_color=ui_config.brand_color,
+                selected_tab=_maybe_get_search_param(query, 'selected_tab'),
+                app_name=app_details_config.app_name,
+                logo_url=app_details_config.logo_url,
+                dark_logo_url=app_details_config.dark_logo_url,
+                brand_color=app_details_config.brand_color,
             )
 
     async def handle_ui_forgot_password(self, request: Any, response: Any):
@@ -877,7 +1342,10 @@ class Router:
             query = urllib.parse.parse_qs(
                 request.url.query.decode("ascii") if request.url.query else ""
             )
-            challenge = _get_search_param(query, "challenge")
+            challenge = _get_search_param(
+                query, "challenge", fallback_keys=["code_challenge"]
+            )
+            app_details_config = self._get_app_details_config()
 
             response.status = http.HTTPStatus.OK
             response.content_type = b'text/html'
@@ -888,10 +1356,10 @@ class Router:
                 email=_maybe_get_search_param(query, 'email'),
                 email_sent=_maybe_get_search_param(query, 'email_sent'),
                 challenge=challenge,
-                app_name=ui_config.app_name,
-                logo_url=ui_config.logo_url,
-                dark_logo_url=ui_config.dark_logo_url,
-                brand_color=ui_config.brand_color,
+                app_name=app_details_config.app_name,
+                logo_url=app_details_config.logo_url,
+                dark_logo_url=app_details_config.dark_logo_url,
+                brand_color=app_details_config.brand_color,
             )
 
     async def handle_ui_reset_password(self, request: Any, response: Any):
@@ -923,19 +1391,21 @@ class Router:
                         challenge,
                     ) = self._get_data_from_reset_token(reset_token)
 
-                    local_client = local.Client(
+                    email_password_client = email_password.Client(
                         db=self.db,
-                        provider_name=password_provider.name,
                     )
 
-                    is_valid = await local_client.validate_reset_secret(
-                        identity_id, secret
+                    is_valid = (
+                        await email_password_client.validate_reset_secret(
+                            identity_id, secret
+                        )
                     )
                 except Exception:
                     is_valid = False
             else:
                 is_valid = False
 
+            app_details_config = self._get_app_details_config()
             response.status = http.HTTPStatus.OK
             response.content_type = b'text/html'
             response.body = ui.render_reset_password_page(
@@ -946,10 +1416,10 @@ class Router:
                 reset_token=reset_token,
                 challenge=challenge,
                 error_message=_maybe_get_search_param(query, 'error'),
-                app_name=ui_config.app_name,
-                logo_url=ui_config.logo_url,
-                dark_logo_url=ui_config.dark_logo_url,
-                brand_color=ui_config.brand_color,
+                app_name=app_details_config.app_name,
+                logo_url=app_details_config.logo_url,
+                dark_logo_url=app_details_config.dark_logo_url,
+                brand_color=app_details_config.brand_color,
             )
 
     async def handle_ui_verify(self, request: Any, response: Any):
@@ -960,84 +1430,89 @@ class Router:
             response.body = b'Auth UI not enabled'
             return
 
-        password_provider = (
-            self._get_password_provider() if ui_config is not None else None
-        )
         is_valid = True
         maybe_pkce_code: str | None = None
         redirect_to = ui_config.redirect_to_on_signup or ui_config.redirect_to
 
-        if password_provider is None:
-            response.status = http.HTTPStatus.NOT_FOUND
-            response.body = b'Password provider not configured'
-            return
-
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
+
+        maybe_provider_name = _maybe_get_search_param(query, "provider")
         maybe_verification_token = _maybe_get_search_param(
             query, "verification_token"
         )
-        if maybe_verification_token is None:
-            error_messages.append("Missing email verification token.")
-            is_valid = False
-        else:
-            try:
-                (
-                    identity_id,
-                    issued_at,
-                    maybe_challenge,
-                    maybe_redirect_to,
-                ) = self._get_data_from_verification_token(
-                    maybe_verification_token
+
+        match (maybe_provider_name, maybe_verification_token):
+            case (None, None):
+                error_messages.append(
+                    "Missing provider and email verification token."
                 )
+                is_valid = False
+            case (None, _):
+                error_messages.append("Missing provider.")
+                is_valid = False
+            case (_, None):
+                error_messages.append("Missing email verification token.")
+                is_valid = False
+            case (str(provider_name), str(verification_token)):
                 try:
+                    (
+                        identity_id,
+                        issued_at,
+                        _,
+                        maybe_challenge,
+                        maybe_redirect_to,
+                    ) = self._get_data_from_verification_token(
+                        verification_token
+                    )
                     await self._try_verify_email(
-                        provider=password_provider.name,
+                        provider=provider_name,
                         issued_at=issued_at,
                         identity_id=identity_id,
                     )
+
+                    match maybe_challenge:
+                        case str(ch):
+                            await pkce.create(self.db, ch)
+                            maybe_pkce_code = (
+                                await pkce.link_identity_challenge(
+                                    self.db,
+                                    identity_id,
+                                    ch,
+                                )
+                            )
+                        case _:
+                            maybe_pkce_code = None
+
+                    redirect_to = maybe_redirect_to or redirect_to
+                    redirect_to = (
+                        _with_appended_qs(
+                            redirect_to,
+                            {
+                                "code": [maybe_pkce_code],
+                            },
+                        )
+                        if maybe_pkce_code
+                        else redirect_to
+                    )
+
                 except errors.VerificationTokenExpired:
+                    app_details_config = self._get_app_details_config()
                     response.status = http.HTTPStatus.OK
                     response.content_type = b"text/html"
                     response.body = ui.render_email_verification_expired_page(
-                        verification_token=maybe_verification_token,
-                        app_name=ui_config.app_name,
-                        logo_url=ui_config.logo_url,
-                        dark_logo_url=ui_config.dark_logo_url,
-                        brand_color=ui_config.brand_color,
+                        verification_token=verification_token,
+                        app_name=app_details_config.app_name,
+                        logo_url=app_details_config.logo_url,
+                        dark_logo_url=app_details_config.dark_logo_url,
+                        brand_color=app_details_config.brand_color,
                     )
                     return
 
-                match maybe_challenge:
-                    case str(ch):
-                        await pkce.create(self.db, ch)
-                        maybe_pkce_code = await pkce.link_identity_challenge(
-                            self.db,
-                            identity_id,
-                            ch,
-                        )
-                    case _:
-                        maybe_pkce_code = None
-
-                match maybe_redirect_to:
-                    case str(rt):
-                        redirect_to = (
-                            _with_appended_qs(
-                                rt,
-                                {
-                                    "code": [maybe_pkce_code],
-                                },
-                            )
-                            if maybe_pkce_code
-                            else rt
-                        )
-                    case _:
-                        redirect_to = cast(str, ui_config.redirect_to)
-
-            except Exception as ex:
-                error_messages.append(repr(ex))
-                is_valid = False
+                except Exception as ex:
+                    error_messages.append(repr(ex))
+                    is_valid = False
 
         # Only redirect back if verification succeeds
         if is_valid:
@@ -1045,16 +1520,17 @@ class Router:
             response.custom_headers["Location"] = redirect_to
             return
 
+        app_details_config = self._get_app_details_config()
         response.status = http.HTTPStatus.OK
         response.content_type = b'text/html'
         response.body = ui.render_email_verification_page(
             verification_token=maybe_verification_token,
             is_valid=is_valid,
             error_messages=error_messages,
-            app_name=ui_config.app_name,
-            logo_url=ui_config.logo_url,
-            dark_logo_url=ui_config.dark_logo_url,
-            brand_color=ui_config.brand_color,
+            app_name=app_details_config.app_name,
+            logo_url=app_details_config.logo_url,
+            dark_logo_url=app_details_config.dark_logo_url,
+            brand_color=app_details_config.brand_color,
         )
 
     async def handle_ui_resend_verification(self, request: Any, response: Any):
@@ -1077,11 +1553,12 @@ class Router:
             (
                 identity_id,
                 _,
+                _,
                 maybe_challenge,
                 maybe_redirect_to,
             ) = self._get_data_from_verification_token(verification_token)
-            local_client = local.Client(self.db, password_provider.name)
-            email = await local_client.get_email_by_identity_id(
+            email_password_client = email_password.Client(self.db)
+            email = await email_password_client.get_email_by_identity_id(
                 identity_id=identity_id
             )
             if email is None:
@@ -1100,6 +1577,7 @@ class Router:
         except Exception:
             is_valid = False
 
+        app_details_config = self._get_app_details_config()
         response.status = http.HTTPStatus.OK
         response.content_type = b"text/html"
         response.body = ui.render_resend_verification_done_page(
@@ -1107,10 +1585,25 @@ class Router:
             verification_token=_maybe_get_search_param(
                 query, "verification_token"
             ),
-            app_name=ui_config.app_name,
-            logo_url=ui_config.logo_url,
-            dark_logo_url=ui_config.dark_logo_url,
-            brand_color=ui_config.brand_color,
+            app_name=app_details_config.app_name,
+            logo_url=app_details_config.logo_url,
+            dark_logo_url=app_details_config.dark_logo_url,
+            brand_color=app_details_config.brand_color,
+        )
+
+    async def handle_ui_magic_link_sent(self, request: Any, response: Any):
+        """
+        Success page for when a magic link is sent
+        """
+
+        app_details = self._get_app_details_config()
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"text/html"
+        response.body = ui.render_magic_link_sent_page(
+            app_name=app_details.app_name,
+            logo_url=app_details.logo_url,
+            dark_logo_url=app_details.dark_logo_url,
+            brand_color=app_details.brand_color,
         )
 
     def _get_callback_url(self) -> str:
@@ -1173,6 +1666,7 @@ class Router:
             claims=claims,
         )
         session_token.make_signed_token(signing_key)
+        metrics.auth_successful_logins.inc(1.0, self.tenant.get_instance_name())
         return session_token.serialize()
 
     def _get_from_claims(self, state: str, key: str) -> str:
@@ -1191,30 +1685,25 @@ class Router:
         self,
         identity_id: str,
         secret: str,
-        additional_claims: dict[str, str | int | float | bool | None]
-        | None = None,
+        additional_claims: (
+            dict[str, str | int | float | bool | None] | None
+        ) = None,
         expires_in: datetime.timedelta | None = None,
     ) -> str:
         signing_key = self._get_auth_signing_key()
         expires_in = (
             datetime.timedelta(minutes=10) if expires_in is None else expires_in
         )
-        expires_at = datetime.datetime.now(datetime.timezone.utc) + expires_in
-
-        claims: dict[str, Any] = {
-            "iss": self.base_path,
-            "sub": identity_id,
-            "jti": secret,
-            **(additional_claims or {}),
-        }
-        if expires_in.total_seconds() != 0:
-            claims["exp"] = expires_at.timestamp()
-        session_token = jwt.JWT(
-            header={"alg": "HS256"},
-            claims=claims,
+        return util.make_token(
+            signing_key=signing_key,
+            subject=identity_id,
+            issuer=self.base_path,
+            expires_in=expires_in,
+            additional_claims={
+                "jti": secret,
+                **(additional_claims or {}),
+            },
         )
-        session_token.make_signed_token(signing_key)
-        return session_token.serialize()
 
     def _verify_and_extract_claims(
         self, jwtStr: str
@@ -1222,6 +1711,20 @@ class Router:
         signing_key = self._get_auth_signing_key()
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
+
+    def _get_data_from_magic_link_token(self, token: str):
+        try:
+            claims = self._verify_and_extract_claims(token)
+        except Exception:
+            raise errors.InvalidData("Invalid 'magic_link_token'")
+
+        identity_id = cast(Optional[str], claims.get('sub'))
+        challenge = cast(Optional[str], claims.get('challenge'))
+        callback_url = cast(Optional[str], claims.get('callback_url'))
+        if identity_id is None or challenge is None or callback_url is None:
+            raise errors.InvalidData("Invalid 'magic_link_token'")
+
+        return (identity_id, challenge, callback_url)
 
     def _get_data_from_reset_token(self, token: str) -> Tuple[str, str, str]:
         try:
@@ -1240,7 +1743,7 @@ class Router:
 
     def _get_data_from_verification_token(
         self, token: str
-    ) -> Tuple[str, float, Optional[str], Optional[str]]:
+    ) -> Tuple[str, float, str, Optional[str], Optional[str]]:
         try:
             claims = self._verify_and_extract_claims(token)
         except Exception:
@@ -1251,6 +1754,12 @@ class Router:
         if maybe_challenge is not None and not isinstance(maybe_challenge, str):
             raise errors.InvalidData(
                 "Invalid 'challenge' in 'verification_token'"
+            )
+
+        verify_url = claims.get("verify_url")
+        if not isinstance(verify_url, str):
+            raise errors.InvalidData(
+                "Invalid 'verify_url' in 'verification_token'"
             )
 
         maybe_redirect_to = claims.get("redirect_to")
@@ -1265,16 +1774,29 @@ class Router:
         if maybe_issued_at is None:
             raise errors.InvalidData("Missing 'iat' in 'verification_token'")
 
-        return_value: Tuple[str, float, Optional[str], Optional[str]]
+        return_value: Tuple[str, float, str, Optional[str], Optional[str]]
         match (
             identity_id,
             maybe_issued_at,
+            verify_url,
             maybe_challenge,
             maybe_redirect_to,
         ):
-            case (str(id), float(issued_at), challenge, redirect_to):
-                return_value = (id, issued_at, challenge, redirect_to)
-            case (_, _, _, _):
+            case (
+                str(id),
+                float(issued_at),
+                verify_url,
+                challenge,
+                redirect_to,
+            ):
+                return_value = (
+                    id,
+                    issued_at,
+                    verify_url,
+                    challenge,
+                    redirect_to,
+                )
+            case (_, _, _, _, _):
                 raise errors.InvalidData(
                     "Invalid claims in 'verification_token'"
                 )
@@ -1310,6 +1832,9 @@ class Router:
             ),
         )
 
+    def _get_app_details_config(self):
+        return util.get_app_details_config(self.db)
+
     def _get_password_provider(self):
         providers = cast(
             list[config.ProviderConfig],
@@ -1325,6 +1850,30 @@ class Router:
 
         return password_providers[0] if len(password_providers) == 1 else None
 
+    def _get_webauthn_provider(self) -> config.WebAuthnProvider | None:
+        providers = cast(
+            list[config.ProviderConfig],
+            util.get_config(
+                self.db,
+                "ext::auth::AuthConfig::providers",
+                frozenset,
+            ),
+        )
+        webauthn_providers = cast(
+            list[config.WebAuthnProviderConfig],
+            [p for p in providers if (p.name == 'builtin::local_webauthn')],
+        )
+
+        if len(webauthn_providers) == 1:
+            provider = webauthn_providers[0]
+            return config.WebAuthnProvider(
+                name=provider.name,
+                relying_party_origin=provider.relying_party_origin,
+                require_verification=provider.require_verification,
+            )
+        else:
+            return None
+
     async def _send_verification_email(
         self,
         *,
@@ -1335,6 +1884,11 @@ class Router:
         maybe_challenge: str | None,
         maybe_redirect_to: str | None,
     ):
+        if not self._is_url_allowed(verify_url):
+            raise errors.InvalidData(
+                "Verify URL does not match any allowed URLs.",
+            )
+
         # Generate verification token
         issued_at = datetime.datetime.now(datetime.timezone.utc).timestamp()
         verification_token = self._make_secret_token(
@@ -1344,6 +1898,7 @@ class Router:
                 "iat": issued_at,
                 "challenge": maybe_challenge,
                 "redirect_to": maybe_redirect_to,
+                "verify_url": verify_url,
             },
             expires_in=datetime.timedelta(seconds=0),
         )
@@ -1368,8 +1923,18 @@ class Router:
         if token_age > datetime.timedelta(hours=24):
             raise errors.VerificationTokenExpired()
 
-        local_client = local.Client(db=self.db, provider_name=provider)
-        updated = await local_client.verify_email(identity_id, current_time)
+        client: email_password.Client | webauthn.Client
+        match provider:
+            case "builtin::local_emailpassword":
+                client = email_password.Client(db=self.db)
+            case "builtin::local_webauthn":
+                client = webauthn.Client(self.db)
+            case _:
+                raise errors.InvalidData(
+                    f"Unknown provider: {provider}",
+                )
+
+        updated = await client.verify_email(identity_id, current_time)
         if updated is None:
             raise errors.NoIdentityFound(
                 "Could not verify email for identity"
@@ -1389,9 +1954,7 @@ class Router:
 
         ui_config = self._get_ui_config()
         if ui_config:
-            allowed_urls = allowed_urls.union(
-                {ui_config.redirect_to}
-            )
+            allowed_urls = allowed_urls.union({ui_config.redirect_to})
             if ui_config.redirect_to_on_signup:
                 allowed_urls = allowed_urls.union(
                     {ui_config.redirect_to_on_signup}
@@ -1410,13 +1973,11 @@ def _fail_with_error(
     *,
     response: Any,
     status: http.HTTPStatus,
-    message: str,
-    ex_type: Any,
+    ex: Exception,
 ):
     err_dct = {
-        "message": message,
-        "type": str(ex_type.__name__),
-        "code": ex_type.get_code(),
+        "message": str(ex),
+        "type": str(ex.__class__.__name__),
     }
 
     response.body = json.dumps({"error": err_dct}).encode()
@@ -1430,8 +1991,18 @@ def _maybe_get_search_param(
     return params[0] if params else None
 
 
-def _get_search_param(query_dict: dict[str, list[str]], key: str) -> str:
+def _get_search_param(
+    query_dict: dict[str, list[str]],
+    key: str,
+    *,
+    fallback_keys: Optional[list[str]] = None,
+) -> str:
     val = _maybe_get_search_param(query_dict, key)
+    if val is None and fallback_keys is not None:
+        for fallback_key in fallback_keys:
+            val = _maybe_get_search_param(query_dict, fallback_key)
+            if val is not None:
+                break
     if val is None:
         raise errors.InvalidData(f"Missing query parameter: {key}")
     return val
@@ -1453,7 +2024,9 @@ def _get_pkce_challenge(
     query_dict: dict[str, list[str]],
 ) -> str | None:
     cookie_name = 'edgedb-pkce-challenge'
-    challenge: str | None = _maybe_get_search_param(query_dict, 'challenge')
+    challenge: str | None = _maybe_get_search_param(
+        query_dict, 'challenge'
+    ) or _maybe_get_search_param(query_dict, "code_challenge")
     if challenge is not None:
         _set_cookie(response, cookie_name, challenge)
     else:
@@ -1466,14 +2039,18 @@ def _set_cookie(
     response: Any,
     name: str,
     value: str,
+    *,
     http_only: bool = True,
     secure: bool = True,
     same_site: str = "Strict",
+    path: Optional[str] = None,
 ):
     val: http.cookies.Morsel = http.cookies.SimpleCookie({name: value})[name]
     val["httponly"] = http_only
     val["secure"] = secure
     val["samesite"] = same_site
+    if path is not None:
+        val["path"] = path
     response.custom_headers["Set-Cookie"] = val.OutputString()
 
 
@@ -1490,5 +2067,5 @@ def _check_keyset(candidate: dict[str, Any], keyset: set[str]):
     missing_fields = [field for field in keyset if field not in candidate]
     if missing_fields:
         raise errors.InvalidData(
-            "Missing required fields: " ", ".join(missing_fields)
+            f"Missing required fields: {', '.join(missing_fields)}"
         )

@@ -19,7 +19,17 @@
 """Schema reflection helpers."""
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    Collection,
+    Dict,
+    List,
+    cast,
+)
 
 import functools
 import json
@@ -152,9 +162,7 @@ def _descend(
     if cmd_filter:
         commands = tuple(filter(cmd_filter, commands))
 
-    def _write_subcommands(
-        commands: Collection[sd.Command]
-    ) -> None:
+    def _write_subcommands(commands: Collection[sd.Command]) -> None:
         for subcmd in commands:
             if not isinstance(subcmd, sd.AlterObjectProperty):
                 write_meta(
@@ -299,12 +307,13 @@ def _build_object_mutation_shape(
             # an ObjectKeyDict collection that allow associating objects
             # with arbitrary values (a transposed ObjectDict).
             target_expr = f"""assert_distinct((
-                FOR v IN {{ json_array_unpack(<json>${var_n}) }}
+                FOR v IN {{ enumerate(json_array_unpack(<json>${var_n})) }}
                 UNION (
                     SELECT {target.get_name(schema)} {{
-                        @value := <str>v[1]
+                        @index := v.0,
+                        @value := <str>v.1[1],
                     }}
-                    FILTER .id = <uuid>v[0]
+                    FILTER .id = <uuid>v.1[0]
                 )
             ))"""
             args = props.get('args', [])
@@ -521,39 +530,39 @@ def _build_object_mutation_shape(
 
         variables[var_n] = json.dumps(target_value)
 
-    if isinstance(cmd, sd.CreateObject):
-        if (
-            issubclass(mcls, (s_scalars.ScalarType, s_types.Collection))
-            and not issubclass(mcls, s_types.CollectionExprAlias)
-            and not cmd.get_attribute_value('abstract')
-            and not cmd.get_attribute_value('transient')
-        ):
-            kind = f'"schema::{mcls.__name__}"'
+    object_actually_exists = schema.has_object(cmd.scls.id)
+    if (
+        isinstance(cmd, sd.CreateObject)
+        and object_actually_exists
+        and issubclass(mcls, (s_scalars.ScalarType, s_types.Collection))
+        and not issubclass(mcls, s_types.CollectionExprAlias)
+        and not cmd.get_attribute_value('abstract')
+        and not cmd.get_attribute_value('transient')
+    ):
+        kind = f'"schema::{mcls.__name__}"'
 
-            if issubclass(mcls, (s_types.Array,
-                                 s_types.Range,
-                                 s_types.MultiRange)):
-                assignments.append(
-                    f'backend_id := sys::_get_pg_type_for_edgedb_type('
-                    f'<uuid>$__{var_prefix}id, '
-                    f'{kind}, '
-                    f'<uuid>$__{var_prefix}element_type, '
-                    f'<str>$__{var_prefix}sql_type2), '
-                )
-            else:
-                assignments.append(
-                    f'backend_id := sys::_get_pg_type_for_edgedb_type('
-                    f'<uuid>$__{var_prefix}id, {kind}, <uuid>{{}}, '
-                    f'<str>$__{var_prefix}sql_type2), '
-                )
-            sql_type = None
-            if isinstance(cmd.scls, s_scalars.ScalarType):
-                sql_type, _ = cmd.scls.resolve_sql_type_scheme(schema)
+        if issubclass(mcls, (s_types.Array, s_types.Range, s_types.MultiRange)):
+            assignments.append(
+                f'backend_id := sys::_get_pg_type_for_edgedb_type('
+                f'<uuid>$__{var_prefix}id, '
+                f'{kind}, '
+                f'<uuid>$__{var_prefix}element_type, '
+                f'<str>$__{var_prefix}sql_type2), '
+            )
+        else:
+            assignments.append(
+                f'backend_id := sys::_get_pg_type_for_edgedb_type('
+                f'<uuid>$__{var_prefix}id, {kind}, <uuid>{{}}, '
+                f'<str>$__{var_prefix}sql_type2), '
+            )
+        sql_type = None
+        if isinstance(cmd.scls, s_scalars.ScalarType):
+            sql_type, _ = cmd.scls.resolve_sql_type_scheme(schema)
 
-            variables[f'__{var_prefix}id'] = json.dumps(
-                str(cmd.get_attribute_value('id')))
-            variables[f'__{var_prefix}sql_type2'] = json.dumps(
-                sql_type)
+        variables[f'__{var_prefix}id'] = json.dumps(
+            str(cmd.get_attribute_value('id'))
+        )
+        variables[f'__{var_prefix}sql_type2'] = json.dumps(sql_type)
 
     shape = ',\n'.join(assignments)
 

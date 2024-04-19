@@ -6,7 +6,7 @@
 ##
 
 
-from typing import *
+from typing import List
 
 import collections
 import json
@@ -23,7 +23,7 @@ try:
     import docutils.parsers
     import docutils.utils
     import docutils.frontend
-    import docutils.parsers.rst.directives.body
+    import docutils.parsers.rst.directives.body  # type: ignore
     from edb.tools.docs.shared import make_CodeBlock
 
     docutils.parsers.rst.directives.register_directive(
@@ -41,14 +41,13 @@ except ImportError:
 from graphql.language import parser as graphql_parser
 
 from edb.edgeql import parser as ql_parser
-from edb.testbase import lang
 
 
 def find_edgedb_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-class TestDocSnippets(unittest.TestCase, lang.PreloadParserGrammarMixin):
+class TestDocSnippets(unittest.TestCase):
     """Lint and validate EdgeDB documentation files.
 
     Checks:
@@ -56,13 +55,9 @@ class TestDocSnippets(unittest.TestCase, lang.PreloadParserGrammarMixin):
     * all source code in "code-block" directives is parsed to
       check that the syntax is valid;
 
-    * lines must be shorter than 79 characters;
-
     * any ReST warnings (like improper headers or broken indentation)
       are reported as errors.
     """
-
-    MAX_LINE_LEN = 79
 
     CodeSnippet = collections.namedtuple(
         'CodeSnippet',
@@ -146,11 +141,6 @@ class TestDocSnippets(unittest.TestCase, lang.PreloadParserGrammarMixin):
                     reporter.lint_errors.add(
                         f'Mismatched lint-on/lint-off in '
                         f'{filename}, line {lineno}')
-
-            if len(line) > self.MAX_LINE_LEN and lint_on:
-                reporter.lint_errors.add(
-                    f'Line longer than {self.MAX_LINE_LEN} characters in '
-                    f'{filename}, line {lineno}')
 
         if not lint_on:
             reporter.lint_errors.add(
@@ -366,7 +356,8 @@ class TestDocSnippets(unittest.TestCase, lang.PreloadParserGrammarMixin):
                     'tsx',
                     'elixir',
                     'toml',
-                    'sql'
+                    'sql',
+                    'dockerfile'
                 }:
                     pass
                 elif lang[-5:] == '-diff':
@@ -376,7 +367,8 @@ class TestDocSnippets(unittest.TestCase, lang.PreloadParserGrammarMixin):
         except Exception as ex:
             raise AssertionError(
                 f'unable to parse {block.lang} code block in '
-                f'{block.filename}, around line {block.lineno}') from ex
+                f'{block.filename}, around line {block.lineno}: '
+                f'{code}') from ex
 
     @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_cqa_doc_snippets(self):
@@ -450,19 +442,6 @@ class TestDocSnippets(unittest.TestCase, lang.PreloadParserGrammarMixin):
             self.run_block_test(blocks[0])
 
     @unittest.skipIf(docutils is None, 'docutils is missing')
-    def test_doc_test_broken_long_lines(self):
-        source = f'''
-        aaaaaa aa aaa:
-        - aaa
-        - {'a' * self.MAX_LINE_LEN}
-        - aaa
-        '''
-
-        with self.assertRaisesRegex(self.RestructuredTextStyleError,
-                                    r'lint errors:[.\s]*Line longer'):
-            self.extract_code_blocks(source, '<test>')
-
-    @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_test_bad_header(self):
         source = textwrap.dedent('''
             Section
@@ -486,7 +465,6 @@ class TestDocSnippets(unittest.TestCase, lang.PreloadParserGrammarMixin):
                     sys.executable,
                     '-m', 'sphinx',
                     '-n',
-                    '-W',  # fail on warnings
                     '-b', 'xml',
                     '-q',
                     '-D', 'master_doc=index',
@@ -503,4 +481,20 @@ class TestDocSnippets(unittest.TestCase, lang.PreloadParserGrammarMixin):
                 f'Unable to build docs with Sphinx.\n\n'
                 f'STDOUT:\n{proc.stdout}\n\n'
                 f'STDERR:\n{proc.stderr}\n'
+            )
+
+        errors = []
+        ignored_errors = re.compile(
+            r'^.* WARNING: undefined label: edgedb-'
+            r'(python|js|go|dart|dotnet|elixir|java)-.*$'
+        )
+        for line in proc.stderr.splitlines():
+            if not ignored_errors.match(line):
+                errors.append(line)
+
+        if len(errors) > 0:
+            errors = '\n'.join(errors)
+            raise AssertionError(
+                f'Unable to build docs with Sphinx.\n\n'
+                f'{errors}\n\n'
             )

@@ -1,3 +1,5 @@
+.. _edgedb-dotnet-intro:
+
 ====
 .NET
 ====

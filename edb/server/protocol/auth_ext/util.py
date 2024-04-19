@@ -17,31 +17,30 @@
 #
 
 
-from typing import TypeVar, Type, overload, Any
+import urllib.parse
+import datetime
 
-from edb.server import config
+from jwcrypto import jwt, jwk
+from typing import TypeVar, Type, overload, Any, cast, Optional
 
-from . import errors
+from edb.server import config as edb_config
+from edb.server.config.types import CompositeConfigType
+
+from . import errors, config
 
 T = TypeVar("T")
 
 
-def maybe_get_config_unchecked(
-    db: Any, key: str
-) -> Any:
-    return config.lookup(key, db.db_config, spec=db.user_config_spec)
+def maybe_get_config_unchecked(db: Any, key: str) -> Any:
+    return edb_config.lookup(key, db.db_config, spec=db.user_config_spec)
 
 
 @overload
-def maybe_get_config(
-    db: Any, key: str, expected_type: Type[T]
-) -> T | None:
-    ...
+def maybe_get_config(db: Any, key: str, expected_type: Type[T]) -> T | None: ...
 
 
 @overload
-def maybe_get_config(db: Any, key: str) -> str | None:
-    ...
+def maybe_get_config(db: Any, key: str) -> str | None: ...
 
 
 def maybe_get_config(
@@ -62,18 +61,14 @@ def maybe_get_config(
 
 
 @overload
-def get_config(db: Any, key: str, expected_type: Type[T]) -> T:
-    ...
+def get_config(db: Any, key: str, expected_type: Type[T]) -> T: ...
 
 
 @overload
-def get_config(db: Any, key: str) -> str:
-    ...
+def get_config(db: Any, key: str) -> str: ...
 
 
-def get_config(
-    db: Any, key: str, expected_type: Type[object] = str
-) -> object:
+def get_config(db: Any, key: str, expected_type: Type[object] = str) -> object:
     value = maybe_get_config(db, key, expected_type)
     if value is None:
         raise errors.MissingConfiguration(
@@ -83,9 +78,7 @@ def get_config(
     return value
 
 
-def get_config_unchecked(
-    db: Any, key: str
-) -> Any:
+def get_config_unchecked(db: Any, key: str) -> Any:
     value = maybe_get_config_unchecked(db, key)
     if value is None:
         raise errors.MissingConfiguration(
@@ -95,5 +88,74 @@ def get_config_unchecked(
     return value
 
 
-def get_config_typename(config_value: config.SettingValue) -> str:
+def get_config_typename(config_value: edb_config.SettingValue) -> str:
     return config_value._tspec.name  # type: ignore
+
+
+def get_app_details_config(db: Any) -> config.AppDetailsConfig:
+    ui_config = cast(
+        Optional[config.UIConfig],
+        maybe_get_config(db, "ext::auth::AuthConfig::ui", CompositeConfigType),
+    )
+
+    return config.AppDetailsConfig(
+        app_name=(
+            maybe_get_config(db, "ext::auth::AuthConfig::app_name")
+            or (ui_config.app_name if ui_config else None)
+        ),
+        logo_url=(
+            maybe_get_config(db, "ext::auth::AuthConfig::logo_url")
+            or (ui_config.logo_url if ui_config else None)
+        ),
+        dark_logo_url=(
+            maybe_get_config(db, "ext::auth::AuthConfig::dark_logo_url")
+            or (ui_config.dark_logo_url if ui_config else None)
+        ),
+        brand_color=(
+            maybe_get_config(db, "ext::auth::AuthConfig::brand_color")
+            or (ui_config.brand_color if ui_config else None)
+        ),
+    )
+
+
+def join_url_params(url: str, params: dict[str, str]):
+    parsed_url = urllib.parse.urlparse(url)
+    query_params = {
+        **urllib.parse.parse_qs(parsed_url.query),
+        **{key: [val] for key, val in params.items()},
+    }
+    new_query_params = urllib.parse.urlencode(query_params, doseq=True)
+    return parsed_url._replace(query=new_query_params).geturl()
+
+
+def make_token(
+    signing_key: jwk.JWK,
+    issuer: str,
+    subject: str,
+    additional_claims: dict[str, str | int | float | bool | None] | None = None,
+    include_issued_at: bool = False,
+    expires_in: datetime.timedelta | None = None,
+) -> str:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    expires_in = (
+        datetime.timedelta(seconds=0) if expires_in is None else expires_in
+    )
+    expires_at = now + expires_in
+
+    claims: dict[str, Any] = {
+        "iss": issuer,
+        "sub": subject,
+        **(additional_claims or {}),
+    }
+    if expires_in.total_seconds() != 0:
+        claims["exp"] = expires_at.timestamp()
+    if include_issued_at:
+        claims["iat"] = now.timestamp()
+
+    token = jwt.JWT(
+        header={"alg": "HS256"},
+        claims=claims,
+    )
+    token.make_signed_token(signing_key)
+
+    return token.serialize()

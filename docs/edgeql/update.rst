@@ -90,6 +90,27 @@ To remove items, use ``-=``.
   ... filter .title = "Black Widow";
   {default::Movie {num_characters: 2}}
 
+Returning data on update
+------------------------
+
+By default, ``update`` returns only the inserted object's ``id`` as seen in the
+examples above. If you want to get additional data back, you may wrap your
+``update`` with a ``select`` and apply a shape specifying any properties and
+links you want returned:
+
+.. code-block:: edgeql-repl
+
+  db> select (update Hero
+  ...   filter .name = "Hawkeye"
+  ...   set { name := "Ronin" }
+  ... ) {id, name};
+  {
+    default::Hero {
+      id: d476b12e-3e7b-11ec-af13-2717f3dc1d8a,
+      name: "Ronin"
+    }
+  }
+
 With blocks
 -----------
 
@@ -117,6 +138,27 @@ the results of a complex query.
 
   You can pass any object-type expression into ``update``, including
   polymorphic ones (as above).
+
+You can also use ``with`` to make returning additional data from an update more
+readable:
+
+.. code-block:: edgeql-repl
+
+  db> with UpdatedHero := (update Hero
+  ...   filter .name = "Hawkeye"
+  ...   set { name := "Ronin" }
+  ... )
+  ... select UpdatedHero {
+  ...   id,
+  ...   name
+  ... };
+  {
+    default::Hero {
+      id: d476b12e-3e7b-11ec-af13-2717f3dc1d8a,
+      name: "Ronin"
+    }
+  }
+
 
 See also
 --------

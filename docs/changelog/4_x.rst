@@ -524,17 +524,228 @@ Bug fixes
 
 4.1
 ===
-* Fix dump and restore of auth config 
+* Fix dump and restore of auth config
   (:eql:gh:`#6414`)
 
-* Clear ``_config_cache`` in ``sys_pgcon`` before reloading reported config 
+* Clear ``_config_cache`` in ``sys_pgcon`` before reloading reported config
   (:eql:gh:`#6427`)
 
 * Fix access policy type rewrites of ``std::Object``
   (:eql:gh:`#6420`)
 
-* Fix an error message of affected refs 
+* Fix an error message of affected refs
   (:eql:gh:`#6425`)
 
-* Fix DML with constraints on abstract types 
+* Fix DML with constraints on abstract types
   (:eql:gh:`#6421`)
+
+4.2
+===
+* Fix schema delta for RESET EXPRESSION
+  (:eql:gh:`#6463`)
+
+* Fix plain references to __old__ in rewrites
+  (:eql:gh:`#6470`)
+
+* Fix std::range in singleton mode
+  (:eql:gh:`#6475`)
+
+* Treat password reset as a verification event
+  (:eql:gh:`#6504`)
+
+* Fixes to auth redirect urls
+  (:eql:gh:`#6469`)
+
+* Fix SQL introspection of __fts_document__
+  (:eql:gh:`#6507`)
+
+* Type check mutation rewrites at migration time
+  (:eql:gh:`#6466`)
+
+  Mutation rewrite's ``using`` expression are now required to be of correct
+  type when the rewrite is created. Up until now, it was possible to migrate to
+  a schema that contained a rewrite rule that would always throw a type error
+  when an object was being inserted or updated.
+
+  This might be considered a breaking change, but as it is clearly a bug in
+  user schema and as it could also be considered a bug in the compiler, we are
+  fixing it in a minor version.
+
+4.3
+===
+* Fix non-rewritten tuple literals
+  (:eql:gh:`#6521`)
+
+* Support ``connect_timeout`` in backend DSN
+  (:eql:gh:`#6531`)
+
+* Fix coalesced DML in FOR loops over objects
+  (:eql:gh:`#6526`)
+
+* Fix inserts silently failing when a ``json->array`` handles 'null'
+  (:eql:gh:`#6544`)
+
+* Fix tracing of enums in type expressions
+  (:eql:gh:`#6548`)
+
+* Fix dumps with FTS indexes
+  (:eql:gh:`#6560`)
+
+* Allow indexes that use user-defined functions to actually get hit
+  (:eql:gh:`#6551`)
+
+* Fix reloading readiness state and JWT ``*_list`` files in multi-tenant mode
+  (:eql:gh:`#6562`)
+
+* Handle OPTIONS in the extension path which is needed for CORS preflight
+  (:eql:gh:`#6577`)
+
+* Optimize the compiler and reduce time of an update test by ~52%
+  (:eql:gh:`#6579`)
+
+* Always retry system connection on any BackendError
+  (:eql:gh:`#6588`)
+
+* Properly support @source/@target on multi-link constraints
+  (:eql:gh:`#6585`)
+
+* Fix constant extraction's interaction with the new if-then-else
+  (:eql:gh:`#6591`)
+
+* Fix migrating between aliased and non-aliased computeds
+  (:eql:gh:`#6566`)
+
+* Improve error message for illegal casts and parameters.
+  (:eql:gh:`#6511`)
+
+* Don't eval ext::auth::ClientTokenIdentity on every row in a filter
+  (:eql:gh:`#6607`)
+
+* Expose __type__ via SQL adapter
+  (:eql:gh:`#6519`)
+
+* Fix some bugs involving union and coalescing of optional values
+  (:eql:gh:`#6590`)
+
+* Avoid doing a join when injecting type ids
+  (:eql:gh:`#6601`)
+
+* Generate better code for ?? with multi RHS or object type
+  (:eql:gh:`#6532`)
+
+* Fix pgast nullability inference for subqueries and coalesce
+  (:eql:gh:`#6529`)
+
+* Fix changing a pointer to be computed when there is a subtype
+  (:eql:gh:`#6565`)
+
+4.4
+===
+* Fix DML-containing FOR when the iterator is an object set with duplicates
+  (:eql:gh:`#6609`)
+
+* Fix very slow global introspection query when there are lots of databases
+  (:eql:gh:`#6633`)
+
+* Use correct signature for in-memory cache method
+  (:eql:gh:`#6643`)
+
+4.5
+===
+
+* Fix spurious delete/create of constraints with arguments in migrations
+  (:eql:gh:`#6712`)
+
+* Speed up introspection of system objects like Database and Role
+  (:eql:gh:`#6665`)
+
+* Fix some alter+rename combos on pointers in POPULATE MIGRATION
+  (:eql:gh:`#6666`)
+
+* Fix issue with schema changes when trigger depends on a rewrite
+  (:eql:gh:`#6706`)
+
+* Get verification data from request body
+  (:eql:gh:`#6723`)
+
+* Make overloading a link when omitting ``link`` keyword work
+  (:eql:gh:`#6718`)
+
+4.6
+===
+
+* Fix issues with empty sets leaking out of optional scopes
+  (:eql:gh:`#6747`)
+
+* Fix empty array literals in SQL adapter
+  (:eql:gh:`#6806`)
+
+* Fix duration/memory config in config objects
+  (:eql:gh:`#6827`)
+
+* Fix hanging backend pool with fast connect
+  (:eql:gh:`#6813`)
+
+* Fix changing index expressions in migrations
+  (:eql:gh:`#6843`)
+
+* Properly report errors involving newly created types
+  (:eql:gh:`#6852`)
+
+* Make constraint error details contain useful information for developers
+  (:eql:gh:`#6796`)
+
+* Fix DML coalesce inside of IF/ELSE
+  (:eql:gh:`#6917`)
+
+* Allow trailing comma for GROUP's BY clause
+  (:eql:gh:`#7002`)
+
+* Fix computed single scalar globals
+  (:eql:gh:`#6999`)
+
+* Fix query cache dbver issue with concurrent DDL
+  (:eql:gh:`#6819`)
+
+* Several UI fixes
+
+  * Update behaviour of datatable editor to save input by default on closing
+    (:eql:gh:`edgedb/edgedb-ui/#325`)
+
+  * Store instance version with schema data, so schema is refreshed when
+    instance is upgraded (:eql:gh:`edgedb/edgedb-ui/#333`)
+
+  * De-duplicate queries when navigating repl history with ctrl+up/down
+    (:eql:gh:`edgedb/edgedb-ui/7916ee70`)
+
+  * Add max height to inline editor in dataview
+    (:eql:gh:`edgedb/edgedb-ui/b2fedb72`)
+
+  * Always order ``id`` column first in dataview
+    (:eql:gh:`edgedb/edgedb-ui/9a7c352e`)
+
+  * Improve rendering of long/multiline strings in dataview changes preview
+    (:eql:gh:`edgedb/edgedb-ui/13511ebd`)
+
+  * Fix link props in visual query builder
+    (:eql:gh:`edgedb/edgedb-ui/42492465`)
+
+  * And `many more UI fixes <https://github.com/edgedb/edgedb-ui/commits/4.x/?since=2024-02-25&until=2024-03-15>`__
+
+4.7
+===
+
+* UI: revert a few changes that were meant for 5.x only.
+
+* Revert "Compile single globals into materialized CTEs", since it introduced
+  multiple bugs. These bugs were already fixed in 5.x.
+  (:eql:gh:`#6613`)
+
+* Add optional PKCE challenge in email verification
+  (:eql:gh:`#7037`)
+
+* Fix very slow parsing performance of large files with unrecoverable errors
+  (:eql:gh:`#7046`)
+
+* Fix update rewrites on types that are children of updated type
+  (:eql:gh:`#7073`)

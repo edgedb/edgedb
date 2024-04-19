@@ -1273,18 +1273,18 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_for_01(self):
         await self.con.execute(r'''
             FOR x IN {3, 5, 7, 2}
-            UNION (INSERT InsertTest {
+            INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := x,
-            });
+            };
 
             FOR Q IN (SELECT InsertTest{foo := 'foo' ++ <str> InsertTest.l2}
                       FILTER .name = 'insert for 1')
-            UNION (INSERT InsertTest {
+            INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := 35 % Q.l2,
                 l3 := Q.foo,
-            });
+            };
         ''')
 
         await self.assert_query_result(
@@ -1384,12 +1384,10 @@ class TestInsert(tb.QueryTestCase):
                 l2 := 999,
                 subordinates := (
                     FOR x IN {('sub1', 'first'), ('sub2', 'second')}
-                    UNION (
-                        INSERT Subordinate {
-                            name := x.0,
-                            @comment := x.1,
-                        }
-                    )
+                    INSERT Subordinate {
+                        name := x.0,
+                        @comment := x.1,
+                    }
                 )
             };
         ''')
@@ -1417,9 +1415,9 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_06(self):
         res = await self.con.query(r'''
-            FOR a in {"a", "b"} UNION (
-                FOR b in {"c", "d"} UNION (
-                    INSERT Note {name := b}));
+            FOR a IN {"a", "b"}
+            FOR b IN {"c", "d"}
+            INSERT Note {name := b};
         ''')
         self.assertEqual(len(res), 4)
 
@@ -1433,9 +1431,9 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_07(self):
         res = await self.con.query(r'''
-            FOR a in {"a", "b"} UNION (
-                FOR b in {a++"c", a++"d"} UNION (
-                    INSERT Note {name := b}));
+            FOR a IN {"a", "b"}
+            FOR b IN {a++"c", a++"d"}
+            INSERT Note {name := b};
         ''')
         self.assertEqual(len(res), 4)
 
@@ -1449,10 +1447,10 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_08(self):
         res = await self.con.query(r'''
-            FOR a in {"a", "b"} UNION (
-                FOR b in {"a", "b"} UNION (
-                    FOR c in {a++b++"a", a++b++"b"} UNION (
-                        INSERT Note {name := c})));
+            FOR a IN {"a", "b"}
+            FOR b IN {"a", "b"}
+            FOR c IN {a++b++"a", a++b++"b"}
+            INSERT Note {name := c};
         ''')
         self.assertEqual(len(res), 8)
 
@@ -1734,6 +1732,35 @@ class TestInsert(tb.QueryTestCase):
             [
                 {'name': "a", 'l2': 1},
                 {'name': "a!", 'l2': 2},
+            ],
+        )
+
+    async def test_edgeql_insert_for_23(self):
+        await self.con.execute(r"""
+            INSERT Subordinate { name := "a" }
+        """)
+
+        await self.assert_query_result(
+            """
+            for x in {Subordinate, Subordinate} union (
+              (x { name }, (insert Note { name := '', subject := x }))
+            );
+            """,
+            [
+                [{'name': "a"}, {}],
+                [{'name': "a"}, {}],
+            ],
+        )
+
+        await self.assert_query_result(
+            """
+            for x in {Subordinate, Subordinate} union (
+              (x { name }, (insert InsertTest { l2 := 0, sub := x }))
+            );
+            """,
+            [
+                [{'name': "a"}, {}],
+                [{'name': "a"}, {}],
             ],
         )
 
@@ -5925,6 +5952,16 @@ class TestInsert(tb.QueryTestCase):
                 }
             ''')
 
+    async def test_edgeql_insert_optional_cast_01(self):
+        await self.assert_query_result(
+            r'''
+                insert CollectionTest {
+                    str_array := <array<str>>to_json('null')
+                };
+            ''',
+            [{}],
+        )
+
     async def test_edgeql_insert_except_constraint_01(self):
         # Test basic behavior of a constraint using except
         await self.con.execute('''
@@ -6461,4 +6498,228 @@ class TestInsert(tb.QueryTestCase):
                 {'l2': 3, 'name': "?", 'new': True},
             ],
             variables=([0, 1, 2, 3],)
+        )
+
+    async def test_edgeql_insert_coalesce_05(self):
+        await self.con.execute('''
+            insert Subordinate { name := "foo" };
+        ''')
+
+        Q = '''
+        for sub in Subordinate union (
+          (select Note filter .subject = sub) ??
+          (insert Note { name := "", subject := sub })
+        );
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{}],
+        )
+        await self.assert_query_result(
+            Q,
+            [{}],
+        )
+        await self.assert_query_result(
+            'select count(Note)',
+            [1],
+        )
+
+        await self.con.execute('''
+            insert Subordinate { name := "bar" };
+            insert Subordinate { name := "baz" };
+        ''')
+
+        await self.assert_query_result(
+            Q,
+            [{}] * 3,
+        )
+        await self.assert_query_result(
+            Q,
+            [{}] * 3,
+        )
+        await self.assert_query_result(
+            'select count(Note)',
+            [3],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_01(self):
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Person filter .name = name) ??
+               (insert Person { name := name})
+             ),
+        select { new := new }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'new': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'new': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_02(self):
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Person filter .name = name) ??
+               (insert Person { name := name})
+             ),
+        select (
+          insert Note { name := '??', subject := new }
+        ) { subject }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_03(self):
+        await self.con.execute('''
+            insert Note { name := 'x' }
+        ''')
+
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Person filter .name = name) ??
+               (insert Person { name := name})
+             ),
+        select (update Note filter .name = 'x' set { subject := new })
+               { subject }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_04(self):
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Note filter .name = name) ??
+               (insert Note { name := name })
+             ),
+        select { new := assert_single(new) }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'new': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'new': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_05(self):
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Note filter .name = name) ??
+               (insert Note { name := name})
+             ),
+        select (
+          insert Note { name := '??', subject := assert_single(new) }
+        ) { subject }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_06(self):
+        await self.con.execute('''
+            insert Note { name := 'x' }
+        ''')
+
+        Q = '''
+        with name := 'name',
+             new := (
+               (select Note filter .name = name) ??
+               (insert Note { name := name })
+             ),
+        select (update Note filter .name = 'x' set {
+                  subject := assert_single(new) })
+               { subject }
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{'subject': {}}],
+        )
+
+    async def test_edgeql_insert_coalesce_nulls_08(self):
+        Q = '''
+        with l2 := 420,
+        select (
+          if <bool>$0 then (
+            (delete DerivedTest filter .l2 = l2)
+            ??
+            (insert DerivedTest {l2 := l2})
+          ) else (
+            (update Note filter .name = <str>l2 set { note := "note" })
+            ??
+            (insert Note {name := <str>l2})
+          )
+        );
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{}],
+            variables=(True,),
+        )
+        await self.assert_query_result(
+            Q,
+            [{}],
+            variables=(True,),
+        )
+        await self.assert_query_result(
+            'select DerivedTest',
+            [],
+        )
+
+        await self.assert_query_result(
+            Q,
+            [{}],
+            variables=(False,),
+        )
+        await self.assert_query_result(
+            Q,
+            [{}],
+            variables=(False,),
+        )
+        await self.assert_query_result(
+            'select Note { note }',
+            [{'note': "note"}],
         )

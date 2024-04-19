@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Any, Optional, Tuple, Type, Iterable, List, Set, cast
 
 import collections
 
@@ -198,15 +198,15 @@ class ObjectType(
 
         for obj in (self,) + ancestor_objects:
             ptrs.update(
-                lnk for lnk in schema.get_referrers(obj, scls_type=links.Link,
-                                                    field_name='target')
+                lnk for lnk in schema.get_referrers(
+                    obj, scls_type=links.Link, field_name='target')
                 if (
                     lnk.get_shortname(schema).name == name
-                    and not lnk.get_source_type(schema).is_view(schema)
-                    and not lnk.get_source_type(schema).is_union_type(schema)
+                    and lnk.get_source_type(schema).is_material_object_type(
+                        schema)
                     # Only grab the "base" pointers
                     and all(
-                        b.generic(schema)
+                        b.is_non_concrete(schema)
                         for b in lnk.get_bases(schema).objects(schema)
                     )
                     and (not sources or lnk.get_source_type(schema) in sources)
@@ -233,9 +233,7 @@ class ObjectType(
         ]
 
     def implicitly_castable_to(
-        self,
-        other: s_types.Type,
-        schema: s_schema.Schema
+        self, other: s_types.Type, schema: s_schema.Schema
     ) -> bool:
         return self.issubclass(schema, other)
 
@@ -266,6 +264,7 @@ class ObjectType(
         return (
             sn.QualName(module='std', name='BaseObject'),
             sn.QualName(module='std', name='Object'),
+            sn.QualName(module='std', name='FreeObject'),
         )
 
     @classmethod
@@ -273,9 +272,7 @@ class ObjectType(
         return sn.QualName(module='std', name='Object')
 
     def _issubclass(
-        self,
-        schema: s_schema.Schema,
-        parent: so.SubclassableObject
+        self, schema: s_schema.Schema, parent: so.SubclassableObject
     ) -> bool:
         if self == parent:
             return True
@@ -334,10 +331,15 @@ class ObjectType(
     ) -> bool:
         return not self.is_view(schema) or refdict.attr == 'pointers'
 
-    def as_type_delete_if_dead(
+    def as_type_delete_if_unused(
         self,
         schema: s_schema.Schema,
     ) -> Optional[sd.DeleteObject[ObjectType]]:
+        if not schema.get_by_id(self.id, default=None):
+            # this type was already deleted by some other op
+            # (probably alias types cleanup)
+            return None
+
         # References to aliases can only occur inside other aliases,
         # so when they go, we need to delete the reference also.
         # Compound types also need to be deleted when their last
@@ -508,7 +510,7 @@ class ObjectTypeCommand(
                 ):
                     raise errors.SchemaDefinitionError(
                         f"cannot extend system type '{name}'",
-                        context=self.source_context,
+                        span=self.span,
                     )
 
     def get_dummy_expr_field_value(
@@ -547,9 +549,7 @@ class CreateObjectType(
             return super()._get_ast(schema, context, parent_node=parent_node)
 
     def _get_ast_node(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext
+        self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> Type[qlast.DDLOperation]:
         if self.get_attribute_value('expr_type'):
             return qlast.CreateAlias
@@ -571,8 +571,11 @@ class RebaseObjectType(
     pass
 
 
-class AlterObjectType(ObjectTypeCommand,
-                      inheriting.AlterInheritingObject[ObjectType]):
+class AlterObjectType(
+    ObjectTypeCommand,
+    s_types.AlterType[ObjectType],
+    inheriting.AlterInheritingObject[ObjectType],
+):
     astnode = qlast.AlterObjectType
 
     def _alter_begin(

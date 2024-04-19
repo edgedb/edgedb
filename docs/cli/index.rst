@@ -139,6 +139,7 @@ The ``cli.toml`` has the following structure. All fields are optional:
     network
     edgedb
     edgedb_analyze
+    edgedb_branch/index
     edgedb_configure
     edgedb_cli_upgrade
     edgedb_cloud/index

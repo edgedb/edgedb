@@ -42,13 +42,11 @@ First copy the code, initialize a new git repo, and create a new heroku app.
    $ heroku apps:create --buildpack heroku/nodejs
    $ edgedb project init --non-interactive
 
-If you are using the `JS query builder for EdgeDB <js-query-builder_>`_ then
+If you are using the :ref:`JS query builder for EdgeDB <edgedb-js-qb>` then
 you will need to check the ``dbschema/edgeql-js`` directory in to your git
 repo after running ``yarn edgeql-js``. The ``edgeql-js`` command cannot be
 run during the build step on Heroku because it needs access to a running
 EdgeDB instance which is not available at build time on Heroku.
-
-.. _js-query-builder: https://www.edgedb.com/docs/clients/js/index
 
 .. code-block:: bash
 

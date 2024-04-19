@@ -18,7 +18,20 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    AbstractSet,
+    Iterable,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    cast,
+    TYPE_CHECKING,
+)
 from copy import copy
 
 import collections.abc
@@ -78,12 +91,13 @@ from edb.pgsql import common
 from edb.pgsql import dbops
 from edb.pgsql import params
 from edb.pgsql import deltafts
+from edb.pgsql import delta_ext_ai
 
 from edb.server import defines as edbdef
 from edb.server import config
 from edb.server.config import ops as config_ops
 
-from . import ast as pg_ast
+from . import ast as pgast
 from .common import qname as q
 from .common import quote_literal as ql
 from .common import quote_ident as qi
@@ -102,16 +116,21 @@ if TYPE_CHECKING:
 VIEW_MODULES = ('sys', 'cfg')
 
 
-def has_table(obj, schema):
+def has_table(obj: Optional[so.InheritingObject], schema: s_schema.Schema):
+    assert obj
+
     if isinstance(obj, s_objtypes.ObjectType):
         return not (
             obj.is_compound_type(schema) or
             obj.get_is_derived(schema) or
             obj.is_view(schema)
         )
-    elif obj.is_pure_computable(schema) or obj.get_is_derived(schema):
+
+    assert isinstance(obj, s_pointers.Pointer)
+
+    if obj.is_pure_computable(schema) or obj.get_is_derived(schema):
         return False
-    elif obj.generic(schema):
+    elif obj.is_non_concrete(schema):
         return (
             not isinstance(obj, s_props.Property)
             and str(obj.get_name(schema)) != 'std::link'
@@ -330,6 +349,7 @@ class Query(MetaCommand, adapts=sd.Query):
             explicit_top_cast=irtyputils.type_to_typeref(
                 schema,
                 schema.get('std::str', type=s_types.Type),
+                cache=None,
             ),
             backend_runtime_params=context.backend_runtime_params,
         )
@@ -1093,10 +1113,11 @@ class FunctionCommand(MetaCommand):
             raise errors.QueryError(
                 f'could not compile parameter type {obj!r} '
                 f'of function {func.get_shortname(schema)}',
-                context=self.source_context) from None
+                span=self.span) from None
 
-    def compile_default(self, func: s_funcs.Function,
-                        default: s_expr.Expression, schema):
+    def compile_default(
+        self, func: s_funcs.Function, default: s_expr.Expression, schema
+    ):
         try:
             comp = default.compiled(
                 schema=schema,
@@ -1115,7 +1136,7 @@ class FunctionCommand(MetaCommand):
             raise errors.QueryError(
                 f'could not compile default expression {default!r} '
                 f'of function {func.get_shortname(schema)}: {ex}',
-                context=self.source_context) from ex
+                span=self.span) from ex
 
     def compile_args(self, func: s_funcs.Function, schema):
         func_params = func.get_params(schema)
@@ -1209,7 +1230,7 @@ class FunctionCommand(MetaCommand):
             qlexpr = qlcompiler.astutils.ensure_ql_query(
                 ql_ast.TypeCast(
                     type=s_utils.typeref_to_ast(schema, return_type),
-                    expr=nativecode.qlast,
+                    expr=nativecode.parse(),
                 )
             )
             nativecode = self._compile_edgeql_function(
@@ -1242,7 +1263,7 @@ class FunctionCommand(MetaCommand):
             nativecode.irast,
             ignore_shapes=True,
             explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
-                schema, func.get_return_type(schema)),
+                schema, func.get_return_type(schema), cache=None),
             output_format=compiler.OutputFormat.NATIVE,
             named_param_prefix=self.get_pgname(func, schema)[-1:],
         )
@@ -1368,7 +1389,7 @@ class FunctionCommand(MetaCommand):
                 nativecode.irast,
                 ignore_shapes=True,
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
-                    schema, func.get_return_type(schema)),
+                    schema, func.get_return_type(schema), cache=None),
                 output_format=compiler.OutputFormat.NATIVE,
                 named_param_prefix=self.get_pgname(func, schema)[-1:],
                 backend_runtime_params=context.backend_runtime_params,
@@ -1540,7 +1561,7 @@ class FunctionCommand(MetaCommand):
                 raise errors.QueryError(
                     f'cannot compile function {func.get_shortname(schema)}: '
                     f'unsupported language {func_language}',
-                    context=self.source_context)
+                    span=self.span)
 
             op = dbops.CreateFunction(dbf, or_replace=or_replace)
             return (op,)
@@ -1871,7 +1892,7 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
                 f'cannot create operator {oper.get_shortname(schema)}: '
                 f'only "FROM SQL" and "FROM SQL OPERATOR" operators '
                 f'are currently supported',
-                context=self.source_context)
+                span=self.span)
 
         return schema
 
@@ -1960,7 +1981,7 @@ class CreateCast(CastCommand, adapts=s_casts.CreateCast):
                 f'cannot create cast: '
                 f'only "FROM SQL" and "FROM SQL FUNCTION" casts '
                 f'are currently supported',
-                context=self.source_context)
+                span=self.span)
 
         return schema
 
@@ -2071,7 +2092,7 @@ class ConstraintCommand(MetaCommand):
 
         ancestors = [
             a for a in constraint.get_ancestors(schema).objects(schema)
-            if not a.generic(schema)
+            if not a.is_non_concrete(schema)
         ]
 
         if (
@@ -2085,7 +2106,7 @@ class ConstraintCommand(MetaCommand):
 
         match subject:
             case s_pointers.Pointer():
-                if subject.generic(schema):
+                if subject.is_non_concrete(schema):
                     return True
                 else:
                     return has_table(subject.get_source(schema), schema)
@@ -2097,8 +2118,7 @@ class ConstraintCommand(MetaCommand):
 
     @classmethod
     def fixup_base_constraint_triggers(
-        cls, constraint, orig_schema, schema, context,
-        source_context=None, *, is_delete
+        cls, constraint, orig_schema, schema, context, span=None, *, is_delete
     ):
         base_schema = orig_schema if is_delete else schema
 
@@ -2118,7 +2138,7 @@ class ConstraintCommand(MetaCommand):
             ):
                 subject = base.get_subject(schema)
                 bconstr = schemamech.compile_constraint(
-                    subject, base, schema, source_context
+                    subject, base, schema, span
                 )
                 op.add_command(bconstr.alter_ops(
                     bconstr, only_modify_enabled=True))
@@ -2130,7 +2150,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.ParserContext] = None,
+        span: Optional[parsing.Span] = None,
     ) -> dbops.Command:
         op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
@@ -2138,7 +2158,7 @@ class ConstraintCommand(MetaCommand):
 
             if subject is not None:
                 bconstr = schemamech.compile_constraint(
-                    subject, constraint, schema, source_context
+                    subject, constraint, schema, span
                 )
 
                 op.add_command(bconstr.create_ops())
@@ -2150,7 +2170,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.ParserContext] = None,
+        span: Optional[parsing.Span] = None,
     ) -> dbops.Command:
         op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
@@ -2158,7 +2178,7 @@ class ConstraintCommand(MetaCommand):
 
             if subject is not None:
                 bconstr = schemamech.compile_constraint(
-                    subject, constraint, schema, source_context
+                    subject, constraint, schema, span
                 )
 
                 op.add_command(bconstr.delete_ops())
@@ -2170,7 +2190,7 @@ class ConstraintCommand(MetaCommand):
         cls,
         constraint: s_constr.Constraint,
         schema: s_schema.Schema,
-        source_context: Optional[parsing.ParserContext] = None,
+        span: Optional[parsing.Span] = None,
     ) -> dbops.Command:
 
         if cls.constraint_is_effective(schema, constraint):
@@ -2178,7 +2198,7 @@ class ConstraintCommand(MetaCommand):
 
             if subject is not None:
                 bconstr = schemamech.compile_constraint(
-                    subject, constraint, schema, source_context
+                    subject, constraint, schema, span
                 )
 
                 return bconstr.enforce_ops()
@@ -2196,10 +2216,10 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
         schema = super().apply(schema, context)
         constraint = self.scls
 
-        op = self.create_constraint(constraint, schema, self.source_context)
+        op = self.create_constraint(constraint, schema, self.span)
         self.pgops.add(op)
         self.pgops.add(self.fixup_base_constraint_triggers(
-            constraint, orig_schema, schema, context, self.source_context,
+            constraint, orig_schema, schema, context, self.span,
             is_delete=False))
 
         # If the constraint is being added to existing data,
@@ -2213,7 +2233,7 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
             and not context.is_creating(subject)
         ):
             op = self.enforce_constraint(
-                constraint, schema, self.source_context
+                constraint, schema, self.span
             )
 
             # XXX: PostCommand or maybe even pg_ops have incorrect type
@@ -2265,14 +2285,14 @@ class AlterConstraint(
 
         if subject is not None:
             bconstr = schemamech.compile_constraint(
-                subject, constraint, schema, self.source_context
+                subject, constraint, schema, self.span
             )
 
             orig_bconstr = schemamech.compile_constraint(
                 constraint.get_subject(orig_schema),
                 constraint,
                 orig_schema,
-                self.source_context,
+                self.span,
             )
 
             op = dbops.CommandGroup()
@@ -2285,13 +2305,13 @@ class AlterConstraint(
                         child.get_subject(orig_schema),
                         child,
                         orig_schema,
-                        self.source_context,
+                        self.span,
                     )
                     cbconstr = schemamech.compile_constraint(
                         child.get_subject(schema),
                         child,
                         schema,
-                        self.source_context,
+                        self.span,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
             elif not self.constraint_is_effective(schema, constraint):
@@ -2302,13 +2322,13 @@ class AlterConstraint(
                         child.get_subject(orig_schema),
                         child,
                         orig_schema,
-                        self.source_context,
+                        self.span,
                     )
                     cbconstr = schemamech.compile_constraint(
                         child.get_subject(schema),
                         child,
                         schema,
-                        self.source_context,
+                        self.span,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
             else:
@@ -2323,7 +2343,7 @@ class AlterConstraint(
                 and not context.is_deleting(subject)
             ):
                 op = self.enforce_constraint(
-                    constraint, schema, self.source_context
+                    constraint, schema, self.span
                 )
                 self.schedule_post_inhview_update_command(
                     schema,
@@ -2333,7 +2353,7 @@ class AlterConstraint(
                     s_sources.SourceCommandContext)
 
             self.pgops.add(self.fixup_base_constraint_triggers(
-                constraint, orig_schema, schema, context, self.source_context,
+                constraint, orig_schema, schema, context, self.span,
                 is_delete=False))
 
         return schema
@@ -2351,12 +2371,12 @@ class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
 
         schema = super().apply(schema, context)
         op = self.delete_constraint(
-            constraint, orig_schema, self.source_context
+            constraint, orig_schema, self.span
         )
         self.pgops.add(op)
 
         self.pgops.add(self.fixup_base_constraint_triggers(
-            constraint, orig_schema, schema, context, self.source_context,
+            constraint, orig_schema, schema, context, self.span,
             is_delete=True))
 
         return schema
@@ -2627,7 +2647,9 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 prop:
                 s_utils.type_shell_multi_substitute(
                     type_substs,
-                    not_none(prop.get_target(schema)).as_shell(schema))
+                    not_none(prop.get_target(schema)).as_shell(schema),
+                    schema,
+                )
                 for prop in seen_props
             }
 
@@ -2658,7 +2680,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 pass
 
             if prop.get_default(schema):
-                delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
+                delta_alter, cmd_alter, _alter_context = prop.init_delta_branch(
                     schema, context, cmdtype=sd.AlterObject)
                 cmd_alter.set_attribute_value('default', None)
                 cmd.add(delta_alter)
@@ -2695,7 +2717,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             elif isinstance(obj, s_props.Property):
                 new_typ = props[obj]
 
-                delta_alter, cmd_alter, alter_context = obj.init_delta_branch(
+                delta_alter, cmd_alter, _alter_context = obj.init_delta_branch(
                     schema, context, cmdtype=sd.AlterObject)
                 cmd_alter.set_attribute_value('target', new_typ)
                 cmd_alter.set_attribute_value('default', None)
@@ -2758,7 +2780,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         cmd = sd.DeltaRoot()
         for prop, new_typ in props.items():
             rnew_typ = new_typ.resolve(schema)
-            if delete := rnew_typ.as_type_delete_if_dead(schema):
+            if delete := rnew_typ.as_type_delete_if_unused(schema):
                 cmd.add_caused(delete)
 
             delta_alter, cmd_alter, _ = prop.init_delta_branch(
@@ -2993,8 +3015,15 @@ class CompositeMetaCommand(MetaCommand):
         self.post_inhview_update_commands = []
 
     def _get_multicommand(
-            self, context, cmdtype, object_name, *,
-            force_new=False, manual=False, cmdkwargs=None):
+        self,
+        context,
+        cmdtype,
+        object_name,
+        *,
+        force_new=False,
+        manual=False,
+        cmdkwargs=None,
+    ):
         if cmdkwargs is None:
             cmdkwargs = {}
         key = (object_name, frozenset(cmdkwargs.items()))
@@ -3034,8 +3063,14 @@ class CompositeMetaCommand(MetaCommand):
                 self.pgops.update(commands)
 
     def get_alter_table(
-            self, schema, context, force_new=False,
-            contained=False, manual=False, table_name=None):
+        self,
+        schema,
+        context,
+        force_new=False,
+        contained=False,
+        manual=False,
+        table_name=None,
+    ):
 
         tabname = table_name if table_name else self.table_name
 
@@ -3071,9 +3106,9 @@ class CompositeMetaCommand(MetaCommand):
         if dbops.AlterTable not in self._multicommands:
             mod, name = common.get_backend_name(
                 schema, self.scls, aspect='inhview', catenate=False)
-            self.pgops.add(dbops.Query(f'''\
+            self.pgops.add(dbops.Query(textwrap.dedent(f'''\
                 ALTER VIEW IF EXISTS {mod}."{name}" SET SCHEMA {mod};
-            '''))
+            ''')))
 
         return self._get_multicommand(
             context, dbops.AlterTable, tabname,
@@ -3196,6 +3231,12 @@ class CompositeMetaCommand(MetaCommand):
                 elif ptrname == sn.UnqualName('__fts_document__'):
                     # an addon column
                     cols.append((ptrname.name, alias, True))
+                elif (
+                    ptrname.name.startswith('__ext_ai_')
+                    and ptrname.name.endswith('__')
+                ):
+                    # an addon column
+                    cols.append((ptrname.name, alias, True))
                 else:
                     return None
 
@@ -3273,8 +3314,8 @@ class CompositeMetaCommand(MetaCommand):
                         ptr_stor_info.column_type,
                     )
 
-            for name, type in obj.get_addon_columns(schema):
-                ptrs[sn.UnqualName(name)] = (name, type)
+            for name, alias, type in obj.get_addon_columns(schema):
+                ptrs[sn.UnqualName(name)] = (alias, type)
 
         else:
             # MULTI PROPERTY
@@ -3305,7 +3346,7 @@ class CompositeMetaCommand(MetaCommand):
             ptrs
             and isinstance(obj, s_links.Link)
             and sn.UnqualName('source') not in ptrs
-            and obj.generic(schema)
+            and obj.is_non_concrete(schema)
         ):
             ptrs[sn.UnqualName('source')] = ('source', ('uuid',))
 
@@ -3522,28 +3563,44 @@ class CompositeMetaCommand(MetaCommand):
 
 
 class IndexCommand(MetaCommand):
-    @classmethod
-    def get_compile_options(
-        cls,
-        index: s_indexes.Index,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        schema_object_context: Type[so.Object_T],
-    ) -> qlcompiler.CompilerOptions:
-        subject = index.get_subject(schema)
-        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+    pass
 
-        singletons = [subject]
-        path_prefix_anchor = ql_ast.Subject().name
 
-        return qlcompiler.CompilerOptions(
-            modaliases=context.modaliases,
-            schema_object_context=schema_object_context,
-            anchors={ql_ast.Subject().name: subject},
-            path_prefix_anchor=path_prefix_anchor,
-            singletons=singletons,
-            apply_query_rewrites=False,
-        )
+def get_index_compile_options(
+    index: s_indexes.Index,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    schema_object_context: Optional[Type[so.Object_T]],
+) -> qlcompiler.CompilerOptions:
+    subject = index.get_subject(schema)
+    assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+
+    return qlcompiler.CompilerOptions(
+        modaliases=modaliases,
+        schema_object_context=schema_object_context,
+        anchors={'__subject__': subject},
+        path_prefix_anchor='__subject__',
+        singletons=[subject],
+        apply_query_rewrites=False,
+    )
+
+
+def get_reindex_sql(
+    obj: s_objtypes.ObjectType,
+    schema: s_schema.Schema,
+) -> Optional[str]:
+    "Generate SQL statement that repopulates the index after a restore."
+    "Currently this only applies to FTS indexes."
+
+    (fts_index, _) = s_indexes.get_effective_object_index(
+        schema, obj, sn.QualName("fts", "index")
+    )
+    if fts_index:
+        options = get_index_compile_options(fts_index, schema, {}, None)
+        cmd = deltafts.update_fts_document(fts_index, options, schema)
+        return cmd.code(None)
+
+    return None
 
 
 class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
@@ -3556,8 +3613,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     ):
         from .compiler import astutils
 
-        options = cls.get_compile_options(
-            index, schema, context, cls.get_schema_metaclass()
+        options = get_index_compile_options(
+            index, schema, context.modaliases, cls.get_schema_metaclass()
         )
 
         index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
@@ -3596,25 +3653,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             root_code = root.get_code(schema)
 
             kwargs = index.get_concrete_kwargs(schema)
-            # Get all the concrete kwargs compiled (they are expected to be
-            # constants)
-            # These are expected to be constants, so we don't have anchors,
-            # path prefixes, etc.
-            kw_options = qlcompiler.CompilerOptions(
-                modaliases=context.modaliases,
-                schema_object_context=cls.get_schema_metaclass(),
-                apply_query_rewrites=False,
-            )
             for name, expr in kwargs.items():
-                # XXX: origin messes up compilation, but by this point we
-                # shouldn't care about the expression's origin.
-                expr.origin = None
-                kw_expr = expr.ensure_compiled(
-                    schema=schema,
-                    options=kw_options,
-                    as_fragment=True,
-                )
-                kw_ir = kw_expr.irast
+                kw_ir = expr.assert_compiled().irast
                 kw_sql_res = compiler.compile_ir_to_sql_tree(
                     kw_ir.expr, singleton_mode=True)
                 kw_sql_tree = kw_sql_res.ast
@@ -3622,13 +3662,10 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 # casts, strip them as they mess with the requirement that
                 # index expressions are IMMUTABLE (also indexes expect the
                 # usage of literals and will do their own implicit casts).
-                if isinstance(kw_sql_tree, pg_ast.TypeCast):
+                if isinstance(kw_sql_tree, pgast.TypeCast):
                     kw_sql_tree = kw_sql_tree.arg
                 sql = codegen.generate_source(kw_sql_tree)
                 sql_kwarg_exprs[name] = sql
-
-        if root_code is None:
-            raise AssertionError(f'index {root_name} is missing the code')
 
         # FTS
         if root_name == sn.QualName('fts', 'index'):
@@ -3641,6 +3678,18 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 schema,
                 context,
             )
+        elif root_name == sn.QualName('ext::ai', 'index'):
+            return delta_ext_ai.create_ext_ai_index(
+                index,
+                predicate_src,
+                sql_kwarg_exprs,
+                options,
+                schema,
+                context,
+            )
+
+        if root_code is None:
+            raise AssertionError(f'index {root_name} is missing the code')
 
         sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
         exprs = astutils.maybe_unpack_row(sql_res.ast)
@@ -3674,30 +3723,23 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         )
         return dbops.CreateIndex(pg_index)
 
-    def _create_begin(
+    def _create_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        schema = super()._create_begin(schema, context)
+        schema = super()._create_innards(schema, context)
         index = self.scls
 
         if index.get_abstract(schema):
             # Don't do anything for abstract indexes
             return schema
 
-        try:
+        with errors.ensure_span(self.span):
             self.pgops.add(self.create_index(index, schema, context))
 
-        except errors.EdgeDBError as e:
-            if not e.has_source_context():
-                e.set_source_context(self.source_context)
-            raise e
-
-        # FTS
-        if index.has_base_with_name(schema, sn.QualName('fts', 'index')):
+        if s_indexes.is_object_scope_index(schema, index):
             # update inhviews
-
             subject = index.get_subject(schema)
             assert isinstance(subject, s_objtypes.ObjectType)
             self.schedule_inhview_update(
@@ -3774,11 +3816,13 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
             drop_index = dbops.NoOpCommand()
 
         # FTS
-        if index.has_base_with_name(orig_schema, sn.QualName('fts', 'index')):
-
+        if s_indexes.is_fts_index(orig_schema, index):
             # compile commands for index drop
-            options = self.get_compile_options(
-                index, orig_schema, context, self.get_schema_metaclass()
+            options = get_index_compile_options(
+                index,
+                orig_schema,
+                context.modaliases,
+                self.get_schema_metaclass()
             )
             drop_ops = deltafts.delete_fts_index(
                 index, drop_index, options, schema, orig_schema, context
@@ -3804,6 +3848,40 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
                 self.schedule_post_inhview_update_command(
                     schema, context, drop_s_ops, s_sources.SourceCommandContext
                 )
+        # ext::ai::index
+        elif s_indexes.is_ext_ai_index(orig_schema, index):
+            # compile commands for index drop
+            options = get_index_compile_options(
+                index,
+                orig_schema,
+                context.modaliases,
+                self.get_schema_metaclass()
+            )
+            drop_support_ops, drop_col_ops = delta_ext_ai.delete_ext_ai_index(
+                index, drop_index, options, schema, orig_schema, context
+            )
+
+            # Even though the object type table is getting dropped, we have
+            # to drop the trigger and its function
+            self.pgops.add(drop_support_ops)
+            if not isinstance(drop_index, dbops.NoOpCommand):
+                # The object is not getting dropped, so we need to update the
+                # inh view *before* the __ext_ai_* cols are dropped.
+
+                # schedule inh view update
+                subject = index.get_subject(orig_schema)
+                assert isinstance(subject, s_objtypes.ObjectType)
+                self.schedule_inhview_update(
+                    schema, context, subject, s_sources.SourceCommandContext
+                )
+
+                # schedule the index to be dropped after
+                self.schedule_post_inhview_update_command(
+                    schema,
+                    context,
+                    cast(sd.Command, drop_col_ops),
+                    s_sources.SourceCommandContext,
+                )
         else:
             self.pgops.add(drop_index)
 
@@ -3822,8 +3900,7 @@ class CreateUnionType(
     pass
 
 
-class ObjectTypeMetaCommand(AliasCapableMetaCommand,
-                            CompositeMetaCommand):
+class ObjectTypeMetaCommand(AliasCapableMetaCommand, CompositeMetaCommand):
     def schedule_endpoint_delete_action_update(self, obj, schema, context):
         endpoint_delete_actions = context.get(
             sd.DeltaRootContext).op.update_endpoint_delete_actions
@@ -3847,13 +3924,18 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         # schema is in place.
         if not (
             is_cfg_view(scls, eff_schema)
-            and not scls.get_name(eff_schema).module in VIEW_MODULES
+            and scls.get_name(eff_schema).module not in VIEW_MODULES
         ):
             return
 
         from edb.pgsql import metaschema
 
-        new_local_spec = config.load_spec_from_schema(schema, only_exts=True)
+        new_local_spec = config.load_spec_from_schema(
+            schema,
+            only_exts=True,
+            # suppress validation because we might be in an intermediate state
+            validate=False,
+        )
         spec_json = config.spec_to_json(new_local_spec)
         self.pgops.add(dbops.Query(textwrap.dedent(f'''\
             UPDATE
@@ -3880,8 +3962,9 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         # need to fix that when we have patching configs.
 
 
-class CreateObjectType(ObjectTypeMetaCommand,
-                       adapts=s_objtypes.CreateObjectType):
+class CreateObjectType(
+    ObjectTypeMetaCommand, adapts=s_objtypes.CreateObjectType
+):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -3946,8 +4029,9 @@ class RenameObjectType(
     pass
 
 
-class RebaseObjectType(ObjectTypeMetaCommand,
-                       adapts=s_objtypes.RebaseObjectType):
+class RebaseObjectType(
+    ObjectTypeMetaCommand, adapts=s_objtypes.RebaseObjectType
+):
     def _alter_innards(
         self,
         schema: s_schema.Schema,
@@ -3963,8 +4047,7 @@ class RebaseObjectType(ObjectTypeMetaCommand,
         return schema
 
 
-class AlterObjectType(ObjectTypeMetaCommand,
-                      adapts=s_objtypes.AlterObjectType):
+class AlterObjectType(ObjectTypeMetaCommand, adapts=s_objtypes.AlterObjectType):
     def _alter_begin(
         self,
         schema: s_schema.Schema,
@@ -4033,8 +4116,9 @@ class AlterObjectType(ObjectTypeMetaCommand,
         self.pgops.add(dbops.Query(check_qry))
 
 
-class DeleteObjectType(ObjectTypeMetaCommand,
-                       adapts=s_objtypes.DeleteObjectType):
+class DeleteObjectType(
+    ObjectTypeMetaCommand, adapts=s_objtypes.DeleteObjectType
+):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -4784,7 +4868,7 @@ class PointerMetaCommand(
                 context,
                 s_expr.Expression.from_ast(
                     ql_ast.TypeCast(
-                        expr=conv_expr.qlast,
+                        expr=conv_expr.parse(),
                         type=s_utils.typeref_to_ast(schema, new_target),
                     ),
                     schema=orig_schema,
@@ -4808,7 +4892,7 @@ class PointerMetaCommand(
             raise errors.UnsupportedFeatureError(
                 f'{problem} may not be used when converting/populating '
                 f'data in migrations',
-                context=self.source_context,
+                span=self.span,
             )
 
         # Non-trivial conversion expression means that we
@@ -4826,8 +4910,7 @@ class PointerMetaCommand(
             tgt_path_id = ir.singletons[0]
         else:
             tgt_path_id = irpathid.PathId.from_pointer(
-                orig_schema,
-                pointer,
+                orig_schema, pointer, env=None
             )
 
         refs = irutils.get_longest_paths(ir.expr)
@@ -4886,7 +4969,7 @@ class PointerMetaCommand(
         # generate a unique path id for the outer scope
         typ = orig_schema.get(f'schema::ObjectType', type=s_types.Type)
         outer_path = irast.PathId.from_type(
-            orig_schema, typ, typename=sn.QualName("std", "obj")
+            orig_schema, typ, typename=sn.QualName("std", "obj"), env=None,
         )
 
         root_uid = -1
@@ -4935,6 +5018,7 @@ class PointerMetaCommand(
                             path_scope_id=iter_uid,
                             path_id=src_path_id,
                             typeref=src_path_id.target,
+                            expr=irast.TypeRoot(typeref=src_path_id.target),
                         )
                     )
                 ),
@@ -4952,7 +5036,7 @@ class PointerMetaCommand(
             backend_runtime_params=context.backend_runtime_params,
         )
         sql_tree = sql_res.ast
-        assert isinstance(sql_tree, pg_ast.SelectStmt)
+        assert isinstance(sql_tree, pgast.SelectStmt)
 
         if produce_ctes:
             # ensure the result contains the object id in the second column
@@ -4969,47 +5053,47 @@ class PointerMetaCommand(
         if check_non_null:
             # wrap into raise_on_null
             pointer_name = 'link' if is_link else 'property'
-            msg = pg_ast.StringConstant(
+            msg = pgast.StringConstant(
                 val=f"missing value for required {pointer_name}"
             )
             # Concat to string which is a JSON. Great. Equivalent to SQL:
             # '{"object_id": "' || {obj_id_ref} || '"}'
-            detail = pg_ast.Expr(
+            detail = pgast.Expr(
                 name='||',
-                lexpr=pg_ast.StringConstant(val='{"object_id": "'),
-                rexpr=pg_ast.Expr(
+                lexpr=pgast.StringConstant(val='{"object_id": "'),
+                rexpr=pgast.Expr(
                     name='||',
-                    lexpr=pg_ast.ColumnRef(name=('id', )),
-                    rexpr=pg_ast.StringConstant(val='"}'),
+                    lexpr=pgast.ColumnRef(name=('id',)),
+                    rexpr=pgast.StringConstant(val='"}'),
                 )
             )
-            column = pg_ast.StringConstant(val=str(pointer.id))
+            column = pgast.StringConstant(val=str(pointer.id))
 
-            null_check = pg_ast.FuncCall(
+            null_check = pgast.FuncCall(
                 name=("edgedb", "raise_on_null"),
                 args=[
-                    pg_ast.ColumnRef(name=("val", )),
-                    pg_ast.StringConstant(val="not_null_violation"),
-                    pg_ast.NamedFuncArg(name="msg", val=msg),
-                    pg_ast.NamedFuncArg(name="detail", val=detail),
-                    pg_ast.NamedFuncArg(name="column", val=column),
+                    pgast.ColumnRef(name=("val",)),
+                    pgast.StringConstant(val="not_null_violation"),
+                    pgast.NamedFuncArg(name="msg", val=msg),
+                    pgast.NamedFuncArg(name="detail", val=detail),
+                    pgast.NamedFuncArg(name="column", val=column),
                 ],
             )
 
             inner_colnames = ["val"]
-            target_list = [pg_ast.ResTarget(val=null_check)]
+            target_list = [pgast.ResTarget(val=null_check)]
             if produce_ctes:
                 inner_colnames.append("id")
                 target_list.append(
-                    pg_ast.ResTarget(val=pg_ast.ColumnRef(name=("id", )))
+                    pgast.ResTarget(val=pgast.ColumnRef(name=("id",)))
                 )
 
-            sql_tree = pg_ast.SelectStmt(
+            sql_tree = pgast.SelectStmt(
                 target_list=target_list,
                 from_clause=[
-                    pg_ast.RangeSubselect(
+                    pgast.RangeSubselect(
                         subquery=sql_tree,
-                        alias=pg_ast.Alias(
+                        alias=pgast.Alias(
                             aliasname="_inner", colnames=inner_colnames
                         )
                     )
@@ -5020,11 +5104,13 @@ class PointerMetaCommand(
 
         if produce_ctes:
             # convert root query into last CTE
-            ctes.append(pg_ast.CommonTableExpr(
-                name="_conv_rel",
-                aliascolnames=["val", "id"],
-                query=sql_tree
-            ))
+            ctes.append(
+                pgast.CommonTableExpr(
+                    name="_conv_rel",
+                    aliascolnames=["val", "id"],
+                    query=sql_tree,
+                )
+            )
             # compile to SQL
             ctes_sql = codegen.generate_ctes_source(ctes)
 
@@ -5041,7 +5127,8 @@ class PointerMetaCommand(
             return (select_sql, nullable)
 
     def schedule_endpoint_delete_action_update(
-            self, link, orig_schema, schema, context):
+        self, link, orig_schema, schema, context
+    ):
         endpoint_delete_actions = context.get(
             sd.DeltaRootContext).op.update_endpoint_delete_actions
         link_ops = endpoint_delete_actions.link_ops
@@ -5059,8 +5146,13 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
 
     @classmethod
     def _create_table(
-            cls, link, schema, context, conditional=False, create_bases=True,
-            create_children=True):
+        cls,
+        link: s_links.Link,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        conditional: bool = False,
+        create_children: bool = True,
+    ):
         new_table_name = cls._get_table_name(link, schema)
 
         create_c = dbops.CommandGroup()
@@ -5083,8 +5175,8 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 table_name=new_table_name,
                 columns=[src_col, tgt_col]))
 
-        if not link.generic(schema) and link.scalar():
-            tgt_prop = link.getptr(schema, 'target')
+        if not link.is_non_concrete(schema) and link.scalar():
+            tgt_prop = link.getptr(schema, sn.UnqualName('target'))
             tgt_ptr = types.get_pointer_storage_info(
                 tgt_prop, schema=schema)
             columns.append(
@@ -5131,8 +5223,12 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             for l_descendant in link.descendants(schema):
                 if has_table(l_descendant, schema):
                     lc = LinkMetaCommand._create_table(
-                        l_descendant, schema, context, conditional=True,
-                        create_bases=False, create_children=False)
+                        l_descendant,
+                        schema,
+                        context,
+                        conditional=True,
+                        create_children=False,
+                    )
                     create_c.add_command(lc)
 
         return create_c
@@ -5271,7 +5367,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
         old_table_name = self._get_table_name(link, schema)
 
         if (
-            not link.generic(orig_schema)
+            not link.is_non_concrete(orig_schema)
             and has_table(link.get_source(orig_schema), orig_schema)
             and not link.is_pure_computable(orig_schema)
         ):
@@ -5400,7 +5496,7 @@ class AlterLinkUpperCardinality(
         # or else the view update in the child might fail if a
         # link table isn't created in the parent yet.
         if (
-            not self.scls.generic(schema)
+            not self.scls.is_non_concrete(schema)
             and not self.scls.is_pure_computable(schema)
             and has_table(self.scls.get_source(schema), schema)
         ):
@@ -5424,7 +5520,7 @@ class AlterLinkLowerCardinality(
         orig_schema = schema
         schema = super().apply(schema, context)
 
-        if not self.scls.generic(schema):
+        if not self.scls.is_non_concrete(schema):
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
@@ -5462,7 +5558,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
         orig_schema = context.current().original_schema
 
         link = self.scls
-        is_abs = link.generic(schema)
+        is_abs = link.is_non_concrete(schema)
         is_comp = link.is_pure_computable(schema)
         was_comp = link.is_pure_computable(orig_schema)
 
@@ -5534,13 +5630,17 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
     @classmethod
     def _create_table(
-            cls, prop, schema, context, conditional=False, create_bases=True,
-            create_children=True):
+        cls,
+        prop: s_props.Property,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        conditional: bool = False,
+        create_children: bool = True,
+    ):
         new_table_name = cls._get_table_name(prop, schema)
 
         create_c = dbops.CommandGroup()
 
-        constraints = []
         columns = []
 
         src_col = common.edgedb_name_to_pg_name('source')
@@ -5561,13 +5661,12 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
         ci = dbops.CreateIndex(pg_index)
 
-        if not prop.generic(schema):
+        if not prop.is_non_concrete(schema):
             tgt_cols = cls.get_columns(prop, schema, None)
             columns.extend(tgt_cols)
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
-        table.constraints = constraints
 
         ct = dbops.CreateTable(table=table)
 
@@ -5593,8 +5692,12 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
             for p_descendant in prop.descendants(schema):
                 if has_table(p_descendant, schema):
                     pc = PropertyMetaCommand._create_table(
-                        p_descendant, schema, context, conditional=True,
-                        create_bases=False, create_children=False)
+                        p_descendant,
+                        schema,
+                        context,
+                        conditional=True,
+                        create_children=False,
+                    )
                     create_c.add_command(pc)
 
         return create_c
@@ -5666,7 +5769,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                             f'{prop.get_verbosename(schema, with_parent=True)}'
                             f' is too complicated; link property defaults '
                             f'must not depend on database contents',
-                            context=self.source_context)
+                            span=self.span)
 
                     cols = self.get_columns(
                         prop, schema, default_value, sets_required)
@@ -5867,7 +5970,7 @@ class AlterPropertyUpperCardinality(
         # or else the view update in the child might fail if a
         # link table isn't created in the parent yet.
         if (
-            not self.scls.generic(schema)
+            not self.scls.is_non_concrete(schema)
             and not self.scls.is_pure_computable(schema)
             and not self.scls.is_endpoint_pointer(schema)
             and has_table(self.scls.get_source(schema), schema)
@@ -5892,7 +5995,7 @@ class AlterPropertyLowerCardinality(
         orig_schema = schema
         schema = super().apply(schema, context)
 
-        if not self.scls.generic(schema):
+        if not self.scls.is_non_concrete(schema):
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
@@ -6035,7 +6138,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
 
     def _get_inline_link_table_union(
-            self, schema, links, include_children) -> str:
+        self, schema, links, include_children
+    ) -> str:
         selects = []
         aspect = 'inhview' if include_children else None
         for link in links:
@@ -6087,8 +6191,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
         else:
             return {link}
 
-    def get_trigger_name(self, schema, target,
-                         disposition, deferred=False, inline=False):
+    def get_trigger_name(
+        self, schema, target, disposition, deferred=False, inline=False
+    ):
         if disposition == 'target':
             aspect = 'target-del'
         else:
@@ -6120,8 +6225,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
         name = common.get_backend_name(schema, target, catenate=False)
         return f'{order_prefix}_{name[1]}_{aspect}'
 
-    def get_trigger_proc_name(self, schema, target,
-                              disposition, deferred=False, inline=False):
+    def get_trigger_proc_name(
+        self, schema, target, disposition, deferred=False, inline=False
+    ):
         if disposition == 'target':
             aspect = 'target-del'
         else:
@@ -6142,8 +6248,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
         name = common.get_backend_name(schema, target, catenate=False)
         return (name[0], f'{name[1]}_{aspect}')
 
-    def get_trigger_proc_text(self, target, links, *,
-                              disposition, inline, schema):
+    def get_trigger_proc_text(
+        self, target, links, *, disposition, inline, schema
+    ):
         if inline:
             return self._get_inline_link_trigger_proc_text(
                 target, links, disposition=disposition, schema=schema)
@@ -6152,7 +6259,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 target, links, disposition=disposition, schema=schema)
 
     def _get_outline_link_trigger_proc_text(
-            self, target, links, *, disposition, schema):
+        self, target, links, *, disposition, schema
+    ):
 
         chunks = []
 
@@ -6376,7 +6484,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return text
 
     def _get_inline_link_trigger_proc_text(
-            self, target, links, *, disposition, schema):
+        self, target, links, *, disposition, schema
+    ):
 
         chunks = []
 
@@ -6611,12 +6720,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 and link.get_implicit_bases(eff_schema)
             ) and isinstance(link, s_links.Link)
 
-            if (
-                link.generic(eff_schema)
-                or (
-                    link.is_pure_computable(eff_schema)
-                    and link.is_pure_computable(orig_schema)
-                )
+            if link.is_non_concrete(eff_schema) or (
+                link.is_pure_computable(eff_schema)
+                and link.is_pure_computable(orig_schema)
             ):
                 continue
 
@@ -6854,13 +6960,15 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return schema
 
     def _update_action_triggers(
-            self,
-            schema,
-            objtype: s_objtypes.ObjectType,
-            links: List[s_links.Link], *,
-            disposition: str,
-            deferred: bool=False,
-            inline: bool=False) -> None:
+        self,
+        schema,
+        objtype: s_objtypes.ObjectType,
+        links: List[s_links.Link],
+        *,
+        disposition: str,
+        deferred: bool = False,
+        inline: bool = False,
+    ) -> None:
 
         table_name = common.get_backend_name(
             schema, objtype, catenate=False)
@@ -6965,8 +7073,11 @@ class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
         tenant_id = self._get_tenant_id(context)
         db_name = common.get_database_backend_name(
             str(self.classname), tenant_id=tenant_id)
+        # We always use the base template, even for branches, since we
+        # implement branches ourselves using pg_dump in order to avoid
+        # connection restrictions.
         tpl_name = common.get_database_backend_name(
-            self.template or edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
+            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
         self.pgops.add(
             dbops.CreateDatabase(
                 dbops.Database(
@@ -6975,7 +7086,6 @@ class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
                         id=str(db.id),
                         tenant_id=tenant_id,
                         builtin=self.get_attribute_value('builtin'),
-                        name=str(self.classname),
                     ),
                 ),
                 template=tpl_name,
@@ -6998,6 +7108,36 @@ class DropDatabase(MetaCommand, DatabaseMixin, adapts=s_db.DropDatabase):
         db_name = common.get_database_backend_name(
             str(self.classname), tenant_id=tenant_id)
         self.pgops.add(dbops.DropDatabase(db_name))
+        return schema
+
+
+class AlterDatabase(MetaCommand, DatabaseMixin, adapts=s_db.AlterDatabase):
+    pass
+
+
+class RenameDatabase(MetaCommand, DatabaseMixin, adapts=s_db.RenameDatabase):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        backend_params = self._get_backend_params(context)
+        self.ensure_has_create_database(backend_params)
+
+        schema = super().apply(schema, context)
+        tenant_id = self._get_tenant_id(context)
+        db_name = common.get_database_backend_name(
+            str(self.classname), tenant_id=tenant_id)
+        new_name = common.get_database_backend_name(
+            str(self.new_name), tenant_id=tenant_id)
+        self.pgops.add(
+            dbops.RenameDatabase(
+                dbops.Database(
+                    new_name,
+                ),
+                old_name=db_name,
+            )
+        )
         return schema
 
 
@@ -7390,6 +7530,22 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
 
         return schema
 
+    def _create_innards(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._create_innards(schema, context)
+
+        if str(self.classname) == "ai":
+            self.pgops.add(
+                delta_ext_ai.pg_rebuild_all_pending_embeddings_views(
+                    schema,
+                ),
+            )
+
+        return schema
+
 
 class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
     def apply(
@@ -7399,6 +7555,11 @@ class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
     ) -> s_schema.Schema:
         extension = schema.get_global(s_exts.Extension, self.classname)
         package = extension.get_package(schema)
+
+        if str(self.classname) == "ai":
+            self.pgops.add(
+                delta_ext_ai.pg_drop_all_pending_embeddings_views(schema),
+            )
 
         schema = super().apply(schema, context)
 

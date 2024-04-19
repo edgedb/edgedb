@@ -9,7 +9,7 @@ Initialize a new EdgeDB instance.
 
 .. cli:synopsis::
 
-     edgedb instance create [<options>] <name>
+     edgedb instance create [<options>] [<name>] [<default-branch-or-database>]
 
 
 Description
@@ -31,19 +31,16 @@ instance and creating a corresponding credentials file in
 EdgeDB Cloud
 ------------
 
-.. TODO: Cloud release
-.. Update this after Cloud has released
-
 .. note::
 
     Creating a Cloud instance requires CLI version 3.0 or later.
 
-Users with access to the EdgeDB Cloud beta may use this command to create a
-Cloud instance after logging in using :ref:`ref_cli_edgedb_cloud_login`.
+EdgeDB Cloud users may use this command to create a Cloud instance after
+logging in using :ref:`ref_cli_edgedb_cloud_login`.
 
 To create a Cloud instance, your instance name should be in the format
-``<github-username>/<instance-name>``. Cloud instance names may contain
-alphanumeric characters and hyphens (i.e., ``-``).
+``<org-name>/<instance-name>``. Cloud instance names may contain alphanumeric
+characters and hyphens (i.e., ``-``).
 
 .. note::
 
@@ -53,7 +50,7 @@ alphanumeric characters and hyphens (i.e., ``-``).
     * can contain only Latin alpha-numeric characters or ``-``
     * cannot start with a dash (``-``) or contain double dashes (``--``)
     * maximum instance name length is 61 characters minus the length of your
-      GitHub username (i.e., length of GitHub username + length of instance
+      organization name (i.e., length of organization name + length of instance
       name must be fewer than 62 characters)
 
 
@@ -61,15 +58,14 @@ Options
 =======
 
 :cli:synopsis:`<name>`
-    The new EdgeDB instance name.
+    The new EdgeDB instance name. Asked interactively if not specified.
+
+:cli:synopsis:`<branch-or-database-name>`
+    The default branch (or database pre-v5) name on the new instance. Defaults
+    to ``main`` or, when creating a pre-v5 instance, ``edgedb``.
 
 :cli:synopsis:`--nightly`
     Use the nightly server for this instance.
-
-:cli:synopsis:`--default-database=<default-database>`
-    Specifies the default database name (created during
-    initialization, and saved in credentials file). Defaults to
-    ``edgedb``.
 
 :cli:synopsis:`--default-user=<default-user>`
     Specifies the default user name (created during initialization,
@@ -86,6 +82,10 @@ Options
     turn that off so that the instance can be manually started with
     :ref:`ref_cli_edgedb_instance_start` on demand. Defaults to:
     ``auto``.
+
+:cli:synopsis:`--channel=<channel>`
+    Indicate the channel of the new instance. Possible values are ``stable``,
+    ``testing``, or ``nightly``.
 
 :cli:synopsis:`--version=<version>`
     Specifies the version of the EdgeDB server to be used to run the
@@ -111,3 +111,22 @@ Options
 
         Some shells like ZSH may require you to escape the equals sign (e.g.,
         ``\=2.6``) or quote the version string (e.g., ``"=2.6"``).
+
+EdgeDB Cloud options
+--------------------
+
+:cli:synopsis:`--region=<region>`
+    The region in which to create the instance (for EdgeDB Cloud instances).
+    Possible values are ``aws-us-west-2``, ``aws-us-east-2``, and
+    ``aws-eu-west-1``.
+
+:cli:synopsis:`--tier=<tier>`
+    Cloud instance subscription tier for the new instance. Possible values are
+    ``pro`` and ``free``.
+
+:cli:synopsis:`--compute-size=<number>`
+    The size of compute to be allocated for the EdgeDB Cloud instance (in
+    Compute Units)
+
+:cli:synopsis:`--storage-size=<GiB>`
+    The size of storage to be allocated for the Cloud instance (in Gigabytes)

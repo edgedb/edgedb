@@ -26,15 +26,14 @@ from edb.testbase import server as tb
 
 class DumpTestCaseMixin:
 
-    async def ensure_schema_data_integrity(self):
-        tx = self.con.transaction()
-        await tx.start()
-        try:
-            await self._ensure_schema_data_integrity()
-        finally:
-            await tx.rollback()
+    async def ensure_schema_data_integrity(self, include_data=True):
+        async for tx in self._run_and_rollback_retrying():
+            async with tx:
+                await self._ensure_schema_integrity()
+                if include_data:
+                    await self._ensure_data_integrity()
 
-    async def _ensure_schema_data_integrity(self):
+    async def _ensure_schema_integrity(self):
         # Validate access policies
         await self.assert_query_result(
             r'''
@@ -76,6 +75,7 @@ class DumpTestCaseMixin:
             ],
         )
 
+    async def _ensure_data_integrity(self):
         # Test that on source delete all work correctly still
         await self.con.execute(r'DELETE SourceA FILTER .name = "s0"')
 
@@ -127,6 +127,11 @@ class TestDumpV2(tb.StableDumpTestCase, DumpTestCaseMixin):
     async def test_dump_v2_dump_restore(self):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)
+
+    async def test_dump_v2_branch_data(self):
+        await self.check_branching(
+            include_data=True,
+            check_method=DumpTestCaseMixin.ensure_schema_data_integrity)
 
 
 class TestDumpV2Compat(

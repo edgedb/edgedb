@@ -47,7 +47,7 @@ EDGEDBGUI_COMMIT = 'main'
 
 PGVECTOR_REPO = 'https://github.com/pgvector/pgvector.git'
 # This can be a branch, tag, or commit
-PGVECTOR_COMMIT = 'v0.4.2'
+PGVECTOR_COMMIT = 'v0.6.0'
 
 SAFE_EXT_CFLAGS: list[str] = []
 if flag := os.environ.get('EDGEDB_OPT_CFLAG'):
@@ -386,13 +386,24 @@ def _get_git_rev(repo, ref):
 
 def _get_pg_source_stamp():
     output = subprocess.check_output(
-        ['git', 'submodule', 'status', 'postgres'],
+        ['git', 'submodule', 'status', '--cached', 'postgres'],
         universal_newlines=True,
         cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
     source_stamp = revision + '+' + PGVECTOR_COMMIT
-    return source_stamp
+    return source_stamp.strip()
+
+
+def _get_libpg_query_source_stamp():
+    output = subprocess.check_output(
+        ['git', 'submodule', 'status', '--cached',
+         'edb/pgsql/parser/libpg_query'],
+        universal_newlines=True,
+        cwd=ROOT_PATH,
+    )
+    revision, _, _ = output[1:].partition(' ')
+    return revision.strip()
 
 
 def _compile_cli(build_base, build_temp):
@@ -433,21 +444,22 @@ def _compile_cli(build_base, build_temp):
     )
 
 
+_PYTHON_ONLY = os.environ.get("BUILD_EXT_MODE", "both") == "skip"
+
+
 class build(setuptools_build.build):
 
     user_options = setuptools_build.build.user_options
 
-    sub_commands = (
-        [
-            ("build_libpg_query", lambda self: True),
-            *setuptools_build.build.sub_commands,
-            ("build_metadata", lambda self: True),
-            ("build_parsers", lambda self: True),
-            ("build_postgres", lambda self: True),
-            ("build_cli", lambda self: True),
-            ("build_ui", lambda self: True),
-        ]
-    )
+    sub_commands = setuptools_build.build.sub_commands if _PYTHON_ONLY else [
+        ("build_libpg_query", lambda self: True),
+        *setuptools_build.build.sub_commands,
+        ("build_metadata", lambda self: True),
+        ("build_parsers", lambda self: True),
+        ("build_postgres", lambda self: True),
+        ("build_cli", lambda self: True),
+        ("build_ui", lambda self: True),
+    ]
 
 
 class build_metadata(setuptools.Command):
@@ -513,7 +525,7 @@ class ci_helper(setuptools.Command):
     description = "echo specified hash or build info for CI"
     user_options = [
         ('type=', None,
-         'one of: cli, rust, ext, parsers, postgres, bootstrap, '
+         'one of: cli, rust, ext, parsers, postgres, libpg_query, bootstrap, '
          'build_temp, build_lib'),
     ]
 
@@ -535,7 +547,10 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(parser_hash).decode())
 
         elif self.type == 'postgres':
-            print(_get_pg_source_stamp().strip())
+            print(_get_pg_source_stamp())
+
+        elif self.type == 'libpg_query':
+            print(_get_libpg_query_source_stamp())
 
         elif self.type == 'bootstrap':
             bootstrap_hash = hash_dirs(
@@ -562,7 +577,10 @@ class ci_helper(setuptools.Command):
                 (pkg_dir, '.pxd'),
                 (pkg_dir, '.pxi'),
             ])
-            print(binascii.hexlify(ext_hash).decode())
+            print(
+                binascii.hexlify(ext_hash).decode() + '-'
+                + _get_libpg_query_source_stamp()
+            )
 
         elif self.type == 'cli':
             print(_get_git_rev(EDGEDBCLI_REPO, EDGEDBCLI_COMMIT))
@@ -579,7 +597,7 @@ class ci_helper(setuptools.Command):
         else:
             raise RuntimeError(
                 f'Illegal --type={self.type}; can only be: '
-                'cli, rust, ext, postgres, bootstrap, parsers,'
+                'cli, rust, ext, postgres, libpg_query, bootstrap, parsers,'
                 'build_temp or build_lib'
             )
 
@@ -1078,17 +1096,25 @@ setuptools.setup(
             library_dirs=EXT_LIB_DIRS,
             libraries=['pg_query']
         ),
+
+        setuptools_extension.Extension(
+            "edb.server.compiler.rpc",
+            ["edb/server/compiler/rpc.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
     ],
     rust_extensions=[
         setuptools_rust.RustExtension(
             "edb._edgeql_parser",
             path="edb/edgeql-parser/edgeql-parser-python/Cargo.toml",
-            binding=setuptools_rust.Binding.RustCPython,
+            binding=setuptools_rust.Binding.PyO3,
         ),
         setuptools_rust.RustExtension(
             "edb._graphql_rewrite",
             path="edb/graphql-rewrite/Cargo.toml",
-            binding=setuptools_rust.Binding.RustCPython,
+            binding=setuptools_rust.Binding.PyO3,
         ),
     ],
 )

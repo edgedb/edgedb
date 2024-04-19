@@ -25,7 +25,9 @@ though if that starts becoming a problem it should just be abandoned.
 from __future__ import annotations
 
 
-from typing import *
+from typing import Optional, Tuple, AbstractSet, Dict, List
+
+from edb import errors
 
 from edb.common import ast
 from edb.common import ordered
@@ -57,7 +59,8 @@ def make_free_object(els: Dict[str, qlast.Expr]) -> qlast.Shape:
 
 
 def collect_grouping_atoms(
-        els: List[qlast.GroupingElement]) -> AbstractSet[str]:
+    els: List[qlast.GroupingElement],
+) -> AbstractSet[str]:
     atoms: ordered.OrderedSet[str] = ordered.OrderedSet()
 
     def _collect_atom(el: qlast.GroupingAtom) -> None:
@@ -92,7 +95,7 @@ def desugar_group(
     aliases: AliasGenerator,
 ) -> qlast.InternalGroupQuery:
     assert not isinstance(node, qlast.InternalGroupQuery)
-    alias_map: Dict[str, Tuple[str, qlast.Expr]] = {}
+    by_alias_map: Dict[str, Tuple[str, qlast.Path]] = {}
 
     def rewrite_atom(el: qlast.GroupingAtom) -> qlast.GroupingAtom:
         if isinstance(el, qlast.ObjectRef):
@@ -100,36 +103,62 @@ def desugar_group(
         elif isinstance(el, qlast.Path):
             assert isinstance(el.steps[0], qlast.Ptr)
             ptrname = el.steps[0].name
-            if ptrname not in alias_map:
+            ptrtype = el.steps[0].type
+            if ptrname not in by_alias_map:
                 alias = aliases.get(ptrname)
-                alias_map[ptrname] = (alias, el)
-            alias = alias_map[ptrname][0]
+                by_alias_map[ptrname] = (alias, el)
+            else:
+                alias = by_alias_map[ptrname][0]
+                aliased_el = by_alias_map[ptrname][1]
+                assert isinstance(aliased_el.steps[0], qlast.Ptr)
+                aliased_el_ptrtype = aliased_el.steps[0].type
+                if ptrtype != aliased_el_ptrtype:
+                    raise errors.QueryError(
+                        f"BY clause cannot refer to link property and object "
+                        f"property with the same name",
+                        span=el.span,
+                    )
             return qlast.ObjectRef(name=alias)
         else:
             return qlast.GroupingIdentList(
-                context=el.context,
+                span=el.span,
                 elements=tuple(rewrite_atom(at) for at in el.elements),
             )
 
     def rewrite(el: qlast.GroupingElement) -> qlast.GroupingElement:
         if isinstance(el, qlast.GroupingSimple):
             return qlast.GroupingSimple(
-                context=el.context, element=rewrite_atom(el.element))
+                span=el.span, element=rewrite_atom(el.element))
         elif isinstance(el, qlast.GroupingSets):
             return qlast.GroupingSets(
-                context=el.context, sets=[rewrite(s) for s in el.sets])
+                span=el.span, sets=[rewrite(s) for s in el.sets])
         elif isinstance(el, qlast.GroupingOperation):
             return qlast.GroupingOperation(
-                context=el.context,
+                span=el.span,
                 oper=el.oper,
                 elements=[rewrite_atom(a) for a in el.elements])
         raise AssertionError
 
+    # The rewrite calls on the grouping elements populate alias_map
+    # with any bindings for pointers the by clause refers to directly.
+    by = [rewrite(by_el) for by_el in node.by]
+
+    alias_map: Dict[str, Tuple[str, qlast.Expr]] = {
+        k: v for k, v in by_alias_map.items()
+    }
+
     for using_clause in (node.using or ()):
+        if using_clause.alias in alias_map:
+            # TODO: This would be a great place to allow multiple spans!
+            raise errors.QueryError(
+                f"USING clause binds a variable '{using_clause.alias}' "
+                f"but a property with that name is used directly in the BY "
+                f"clause",
+                span=alias_map[using_clause.alias][1].span,
+            )
         alias_map[using_clause.alias] = (using_clause.alias, using_clause.expr)
 
-    using = node.using[:] if node.using else []
-    by = [rewrite(by_el) for by_el in node.by]
+    using = []
     for alias, path in alias_map.values():
         using.append(qlast.AliasedExpr(alias=alias, expr=path))
 
@@ -152,7 +181,7 @@ def desugar_group(
     output_shape = make_free_object(output_dict)
 
     return qlast.InternalGroupQuery(
-        context=node.context,
+        span=node.span,
         aliases=node.aliases,
         subject_alias=node.subject_alias,
         subject=node.subject,

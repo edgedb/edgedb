@@ -17,6 +17,7 @@
 #
 
 import asyncio
+import socket
 import sys
 import unittest
 
@@ -28,11 +29,11 @@ exec(sys.argv[1], globals(), locals())
 
 class ProcTest(server.TestCase):
     def notify_parent(self, mark):
-        print(str(mark), flush=True)
+        self.parent_writer.write(str(mark).encode() + b"\n")
 
     async def wait_for_parent(self, mark):
         self.assertEqual(
-            (await self.stdin.readline()).strip(),
+            (await self.parent_reader.readline()).strip(),
             str(mark).encode(),
         )
 
@@ -41,10 +42,11 @@ class ProcTest(server.TestCase):
         super().setUpClass()
 
         async def _setup():
-            cls.stdin = asyncio.StreamReader()
-            await cls.loop.connect_read_pipe(
-                lambda: asyncio.StreamReaderProtocol(cls.stdin),
-                sys.stdin.buffer,
+            sock = socket.fromfd(
+                int(sys.argv[3]), socket.AF_UNIX, socket.SOCK_STREAM
+            )
+            cls.parent_reader, cls.parent_writer = (
+                await asyncio.open_connection(sock=sock)
             )
         cls.loop.run_until_complete(_setup())
 

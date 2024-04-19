@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import collections
 import textwrap
-from typing import *
+from typing import Optional, Tuple, Iterable, Sequence
 
 from edb.common import ordered
 
@@ -166,7 +166,8 @@ class TableColumn(base.DBObject):
 
     def get_id(self):
         return qn(
-            self.table_name[0], self.table_name[1], self.column.name)
+            self.table_name[0], self.table_name[1], self.column.name
+        )
 
 
 class ColumnConstraint:
@@ -225,9 +226,7 @@ class UniqueConstraint(TableConstraint):
 
 
 class CheckConstraint(TableConstraint):
-    def __init__(
-        self, table_name, constraint_name, expr, inherit: bool = True
-    ):
+    def __init__(self, table_name, constraint_name, expr, inherit: bool = True):
         super().__init__(table_name, constraint_name=constraint_name)
         self.expr = expr
         self.inherit = inherit
@@ -362,7 +361,7 @@ class CreateTable(ddl.SchemaObjectOperation):
 
         if any(isinstance(e, base.PLExpression) for e in elems):
             # Dynamic declaration
-            elem_chunks = []
+            elem_chunks: list[base.PLExpression | str] = []
             for e in elems:
                 if isinstance(e, base.PLExpression):
                     elem_chunks.append(e)
@@ -427,7 +426,8 @@ class AlterTableFragment(ddl.DDLOperation):
 
 
 class AlterTable(
-        AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGroup):
+    AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGroup
+):
     def __init__(
         self,
         name,

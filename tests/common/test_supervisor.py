@@ -20,7 +20,6 @@
 import asyncio
 
 from edb.common import supervisor
-from edb.common import taskgroup
 from edb.testbase import server as tb
 
 
@@ -95,7 +94,7 @@ class TestSupervisor(tb.TestCase):
 
         async def foo1():
             await asyncio.sleep(0.1)
-            1 / 0
+            return 1 / 0
 
         async def foo2():
             nonlocal NUM, t2_cancel
@@ -118,8 +117,7 @@ class TestSupervisor(tb.TestCase):
 
             NUM += 10
 
-        with self.assertRaisesRegex(taskgroup.TaskGroupError,
-                                    r'1 sub errors: \(ZeroDivisionError\)'):
+        with self.assertRaisesRegex(ExceptionGroup, r'1 sub-exception'):
             await self.loop.create_task(runner())
 
         self.assertEqual(NUM, 0)

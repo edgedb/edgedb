@@ -333,3 +333,36 @@ std::bit_lshift(val: std::int64, n: std::int64) -> std::int64
     )
     $$;
 };
+
+CREATE FUNCTION
+std::bit_count(val: std::int16) -> std::int64
+{
+    CREATE ANNOTATION std::description :=
+        'Count the number of set bits in a 16-bit integer.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT bit_count(val::int4::bit(16))
+    $$;
+};
+
+CREATE FUNCTION
+std::bit_count(val: std::int32) -> std::int64
+{
+    CREATE ANNOTATION std::description :=
+        'Count the number of set bits in a 32-bit integer.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT bit_count(val::bit(32))
+    $$;
+};
+
+CREATE FUNCTION
+std::bit_count(val: std::int64) -> std::int64
+{
+    CREATE ANNOTATION std::description :=
+        'Count the number of set bits in a 64-bit integer.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT bit_count(val::bit(64))
+    $$;
+};

@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Any, Optional, Sequence, Dict, Set, FrozenSet
 
 from edb.common import ast as ast_visitor
 
@@ -103,7 +103,7 @@ class FindAggregatingUses(ast_visitor.NodeVisitor):
         if isinstance(node, irast.Set):
             self.seen[node.path_id] = True
 
-    def visit_Set(self, node: irast.Set, skip_rptr: bool=False) -> None:
+    def visit_Set(self, node: irast.Set, skip_rptr: bool = False) -> None:
         self.seen[node.path_id] = True
 
         if node.path_id == self.target:
@@ -118,9 +118,9 @@ class FindAggregatingUses(ast_visitor.NodeVisitor):
         # because the bodies are executed one at a time, and so the
         # semi-join deduplication doesn't work.
         is_semijoin = (
-            node.rptr
+            isinstance(node.expr, irast.Pointer)
             and node.path_id.is_objtype_path()
-            and not self.scope_tree.is_visible(node.rptr.source.path_id)
+            and not self.scope_tree.is_visible(node.expr.source.path_id)
         )
 
         old = self.aggregate
@@ -129,16 +129,20 @@ class FindAggregatingUses(ast_visitor.NodeVisitor):
 
         self.visit(node.shape)
 
-        if not node.expr and node.rptr:
-            self.visit(node.rptr.source)
-        elif node.rptr:
-            if node.rptr.source.path_id not in self.seen:
-                self.seen[node.rptr.source.path_id] = False
-
-        if isinstance(node.expr, irast.Call):
-            self.process_call(node.expr, node)
+        if isinstance(node.expr, irast.Pointer):
+            sub_expr = node.expr.expr
+            if not sub_expr:
+                self.visit(node.expr.source)
+            else:
+                if node.expr.source.path_id not in self.seen:
+                    self.seen[node.expr.source.path_id] = False
         else:
-            self.visit(node.expr)
+            sub_expr = node.expr
+
+        if isinstance(sub_expr, irast.Call):
+            self.process_call(sub_expr, node)
+        else:
+            self.visit(sub_expr)
 
         self.aggregate = old
         self.scope_tree = old_scope
@@ -151,7 +155,8 @@ class FindAggregatingUses(ast_visitor.NodeVisitor):
             isinstance(node, irast.FunctionCall)
             and node.func_sql_function
         )
-        for arg, typemod in zip(node.args, node.params_typemods):
+        for arg in node.args.values():
+            typemod = arg.param_typemod
             old = self.aggregate
             # If this *returns* a set, it is going to mess things up since
             # the operation can't actually run on multiple things...

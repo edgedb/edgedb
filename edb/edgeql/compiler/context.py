@@ -20,8 +20,25 @@
 """EdgeQL to IR compiler context."""
 
 from __future__ import annotations
-from typing import *
-from typing import overload
+from typing import (
+    Callable,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    Mapping,
+    MutableMapping,
+    Sequence,
+    ChainMap,
+    Dict,
+    List,
+    Set,
+    FrozenSet,
+    cast,
+    overload,
+    TYPE_CHECKING,
+)
 
 import collections
 import dataclasses
@@ -41,7 +58,6 @@ from edb.ir import utils as irutils
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import expraliases as s_aliases
-from edb.schema import functions as s_func
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import pointers as s_pointers
@@ -135,7 +151,10 @@ class Environment:
     path_scope: irast.ScopeTreeNode
     """Overrall expression path scope tree."""
 
-    schema_view_cache: Dict[s_types.Type, tuple[s_types.Type, irast.Set]]
+    schema_view_cache: Dict[
+        tuple[s_types.Type, object],
+        tuple[s_types.Type, irast.Set],
+    ]
     """Type cache used by schema-level views."""
 
     query_parameters: Dict[str, irast.Param]
@@ -149,7 +168,7 @@ class Environment:
     set_types: Dict[irast.Set, s_types.Type]
     """A dictionary of all Set instances and their schema types."""
 
-    type_origins: Dict[s_types.Type, Optional[parsing.ParserContext]]
+    type_origins: Dict[s_types.Type, Optional[parsing.Span]]
     """A dictionary of notable types and their source origins.
 
     This is used to trace where a particular type instance originated in
@@ -178,7 +197,7 @@ class Environment:
         Tuple[
             Optional[qltypes.SchemaCardinality],
             Optional[bool],
-            Optional[parsing.ParserContext],
+            Optional[parsing.Span],
         ],
     ]
     """Cardinality/source context for pointers with unclear cardinality."""
@@ -311,7 +330,8 @@ class Environment:
         self.dml_rewrites = {}
 
     def add_schema_ref(
-            self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
+        self, sobj: s_obj.Object, expr: Optional[qlast.Base]
+    ) -> None:
         self.schema_refs.add(sobj)
         if self.schema_ref_exprs is not None and expr:
             self.schema_ref_exprs.setdefault(sobj, set()).add(expr)
@@ -419,9 +439,6 @@ class ContextLevel(compiler.ContextLevel):
     or passed to the compiler programmatically.
     """
 
-    func: Optional[s_func.Function]
-    """Schema function object required when compiling functions bodies."""
-
     view_nodes: Dict[s_name.Name, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
 
@@ -431,7 +448,7 @@ class ContextLevel(compiler.ContextLevel):
     suppress_rewrites: FrozenSet[s_types.Type]
     """Types to suppress using rewrites on"""
 
-    aliased_views: ChainMap[s_name.Name, s_types.Type]
+    aliased_views: ChainMap[s_name.Name, irast.Set]
     """A dictionary of views aliased in a statement body."""
 
     class_view_overrides: Dict[uuid.UUID, s_types.Type]
@@ -732,7 +749,7 @@ class ContextLevel(compiler.ContextLevel):
         return self.new(ContextSwitchMode.DETACHED)
 
     def create_anchor(
-        self, ir: irast.Set, name: str='v', *, check_dml: bool=False
+        self, ir: irast.Set, name: str = 'v', *, check_dml: bool = False
     ) -> qlast.Path:
         alias = self.aliases.get(name)
         # TODO: We should probably always check for DML, but I'm
@@ -744,12 +761,26 @@ class ContextLevel(compiler.ContextLevel):
         )
 
     def maybe_create_anchor(
-        self, ir: Union[irast.Set, qlast.Expr], name: str='v',
+        self,
+        ir: Union[irast.Set, qlast.Expr],
+        name: str = 'v',
     ) -> qlast.Expr:
         if isinstance(ir, irast.Set):
             return self.create_anchor(ir, name)
         else:
             return ir
+
+    def get_security_context(self) -> object:
+        '''Compute an additional compilation cache key.
+
+        Return an additional key for any compilation caches that may
+        vary based on "security contexts" such as whether we are in an
+        access policy.
+        '''
+        # N.B: Whether we are compiling a trigger is not included here
+        # since we clear cached rewrites when compiling them in the
+        # *pgsql* compiler.
+        return bool(self.suppress_rewrites)
 
 
 class CompilerContext(compiler.CompilerContext[ContextLevel]):

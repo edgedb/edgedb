@@ -20,14 +20,13 @@
 import unittest
 
 from edb.tools import toy_eval_model as model
-from edb.testbase.lang import PreloadParserGrammarMixin
 
 from edb.common import assert_data_shape
 
 bag = assert_data_shape.bag
 
 
-class TestModelGroupTests(unittest.TestCase, PreloadParserGrammarMixin):
+class TestModelGroupTests(unittest.TestCase):
     """Tests for GROUP BY in the toy evaluator model."""
 
     def assert_test_query(

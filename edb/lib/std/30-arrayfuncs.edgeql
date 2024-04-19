@@ -112,6 +112,20 @@ std::array_join(array: array<std::str>, delimiter: std::str) -> std::str
 };
 
 
+CREATE FUNCTION
+std::array_join(array: array<std::bytes>, delimiter: std::bytes) -> std::bytes
+{
+    CREATE ANNOTATION std::description := 'Render an array to a byte-string.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT
+        COALESCE (string_agg(el, "delimiter"), '\x')
+    FROM
+        (SELECT unnest("array") AS el) AS t
+    $$;
+};
+
+
 ## Array operators
 
 

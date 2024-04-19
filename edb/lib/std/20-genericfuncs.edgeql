@@ -96,6 +96,21 @@ std::assert(
     $$;
 };
 
+# std::materialized_exists -- force materialization of a set
+# ----------------------------------------------------------
+
+CREATE FUNCTION
+std::materialized(
+    input: anytype,
+) -> anytype
+{
+    CREATE ANNOTATION std::description :=
+        "Force materialization of a set.";
+    SET volatility := 'Volatile';
+    USING SQL EXPRESSION;
+};
+
+
 # std::len
 # --------
 

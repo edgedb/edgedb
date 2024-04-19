@@ -49,6 +49,18 @@ class TestRewrites(tb.QueryTestCase):
         };
 
         create type Project extending Resource;
+
+        create type Document extending Resource {
+          create property text: str;
+          create required property textUpdatedAt: std::datetime {
+            set default := (std::datetime_of_statement());
+            create rewrite update using ((
+              IF __specified__.text
+              THEN std::datetime_of_statement()
+              ELSE __old__.textUpdatedAt
+            ));
+          };
+        };
     """
     ]
 
@@ -1046,4 +1058,48 @@ class TestRewrites(tb.QueryTestCase):
         await self.assert_query_result(
             'select Foo { will_be_true }',
             [{'will_be_true': True}]
+        )
+
+    async def test_edgeql_rewrites_28(self):
+        await self.con.execute(
+            '''
+            create type Address {
+                create property coordinates: tuple<lat: float32, lng: float32>;
+                create property updated_at: str {
+                    create rewrite insert using ('now')
+                };
+            };
+            insert Address {
+                coordinates := (
+                    lat := <std::float32>40.07987,
+                    lng := <std::float32>20.56509
+                )
+            };
+            '''
+        )
+        await self.assert_query_result(
+            'select Address { coordinates, updated_at }',
+            [
+                {
+                    'coordinates': {'lat': 40.07987, 'lng': 20.56509},
+                    'updated_at': 'now'
+                }
+            ]
+        )
+
+    async def test_edgeql_rewrites_29(self):
+        # see https://github.com/edgedb/edgedb/issues/7048
+
+        # these tests check that subject of an update rewrite is the child
+        # object and not parent that is being updated
+        await self.con.execute(
+            '''
+            update std::Object set { };
+            '''
+        )
+
+        await self.con.execute(
+            '''
+            update Project set { name := '## redacted ##' }
+            '''
         )

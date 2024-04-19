@@ -40,9 +40,9 @@ fn test_int() {
 
 #[test]
 fn test_str() {
-    let entry = normalize(r###"
+    let entry = normalize(r#"
         SELECT "x" + "yy"
-    "###).unwrap();
+    "#).unwrap();
     assert_eq!(entry.processed_source,
         "SELECT <lit str>$0+<lit str>$1");
     assert_eq!(entry.variables, vec![vec![

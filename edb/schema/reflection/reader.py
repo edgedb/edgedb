@@ -17,7 +17,7 @@
 #
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Callable, Tuple, Type, Union, Dict, List
 
 import collections
 import functools
@@ -77,7 +77,7 @@ def parse_into(
     dict_of_dicts: Callable[
         [],
         Dict[Tuple[Type[s_obj.Object], str], Dict[uuid.UUID, None]],
-    ] = functools.partial(collections.defaultdict, dict)  # type: ignore
+    ] = functools.partial(collections.defaultdict, dict)
     refs_to: Dict[
         uuid.UUID,
         Dict[Tuple[Type[s_obj.Object], str], Dict[uuid.UUID, None]]

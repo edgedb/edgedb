@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import textwrap
-from typing import *
+from typing import Tuple
 
 from ..common import qname as qn
 from ..common import quote_ident as qi

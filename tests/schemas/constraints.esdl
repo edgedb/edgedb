@@ -141,6 +141,19 @@ type UniqueName {
         constraint exclusive on ((__subject__@source, __subject__@lang));
         constraint exclusive on (__subject__@prop1);
     }
+
+    multi link translated_labels extending translated_label -> Label {
+        constraint exclusive on ((@source, @lang));
+        constraint exclusive on (__subject__@prop1);
+    }
+
+    link translated_label_tgt extending translated_label -> Label {
+        constraint exclusive on ((__subject__@target, __subject__@lang));
+    }
+
+    multi link translated_labels_tgt extending translated_label -> Label {
+        constraint exclusive on ((@target, @lang));
+    }
 }
 
 type UniqueNameInherited extending UniqueName {

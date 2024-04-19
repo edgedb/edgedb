@@ -8,7 +8,7 @@
 
 This changelog summarizes new features and breaking changes in
 `EdgeDB 1.0 alpha 4 "Barnard's Star"
-</blog/edgedb-1-0-alpha-4-barnard-s-star>`_.
+<https://www.edgedb.com/blog/edgedb-1-0-alpha-4-barnard-s-star>`_.
 
 
 EdgeQL

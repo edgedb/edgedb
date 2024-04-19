@@ -19,7 +19,18 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import (
+    AbstractSet,
+    Any,
+    Callable,
+    Optional,
+    Type,
+    TypeVar,
+    cast,
+    TYPE_CHECKING,
+)
+
+import json
 
 from edb import errors
 
@@ -74,10 +85,9 @@ class AnnotationValue(
     def get_schema_class_displayname(cls) -> str:
         return 'annotation'
 
-    def get_verbosename(self,
-                        schema: s_schema.Schema,
-                        *,
-                        with_parent: bool=False) -> str:
+    def get_verbosename(
+        self, schema: s_schema.Schema, *, with_parent: bool = False
+    ) -> str:
         vn = super().get_verbosename(schema)
         if with_parent:
             subject = self.get_subject(schema)
@@ -86,6 +96,9 @@ class AnnotationValue(
             return f'{vn} of {pvn}'
         else:
             return vn
+
+
+T = TypeVar("T")
 
 
 class AnnotationSubject(so.Object):
@@ -107,6 +120,61 @@ class AnnotationSubject(so.Object):
         attrval = self.get_annotations(schema).get(schema, name, None)
         return attrval.get_value(schema) if attrval is not None else None
 
+    def must_get_annotation(
+        self,
+        schema: s_schema.Schema,
+        name: sn.QualName,
+    ) -> str:
+        annotation_text = self.get_annotation(schema, name)
+        if annotation_text is None:
+            vn = self.get_verbosename(schema, with_parent=True)
+            raise errors.SchemaDefinitionError(
+                f"annotation {name} on {vn} is not set")
+
+        return annotation_text
+
+    def get_json_annotation(
+        self,
+        schema: s_schema.Schema,
+        name: sn.QualName,
+        t: Callable[[Any], T],
+    ) -> Optional[T]:
+        annotation_text = self.get_annotation(schema, name)
+        if annotation_text is None:
+            return None
+        else:
+            try:
+                value = json.loads(annotation_text)
+            except Exception:
+                vn = self.get_verbosename(schema, with_parent=True)
+                raise errors.SchemaDefinitionError(
+                    f"annotation {name} on {vn} is not set to "
+                    f"a valid JSON value")
+
+            try:
+                return t(value)
+            except Exception as e:
+                vn = self.get_verbosename(schema, with_parent=True)
+                raise errors.SchemaDefinitionError(
+                    f"annotation {name} on {vn} is not set to "
+                    f"JSON containing a valid value of type {t}: {e}"
+                )
+
+    def must_get_json_annotation(
+        self,
+        schema: s_schema.Schema,
+        name: sn.QualName,
+        t: Callable[[Any], T],
+    ) -> T:
+        value = self.get_json_annotation(schema, name, t)
+        if value is None:
+            vn = self.get_verbosename(schema, with_parent=True)
+            raise errors.SchemaDefinitionError(
+                f"annotation {name} is not set on {vn}"
+            )
+        else:
+            return value
+
 
 class Annotation(
     so.QualifiedObject,
@@ -119,10 +187,9 @@ class Annotation(
     inheritable = so.SchemaField(
         bool, default=False, compcoef=0.2)
 
-    def get_verbosename(self,
-                        schema: s_schema.Schema,
-                        *,
-                        with_parent: bool=False) -> str:
+    def get_verbosename(
+        self, schema: s_schema.Schema, *, with_parent: bool = False
+    ) -> str:
         vn = super().get_verbosename(schema)
         return f"abstract {vn}"
 
@@ -163,13 +230,13 @@ class CreateAnnotation(AnnotationCommand, sd.CreateObject[Annotation]):
     astnode = qlast.CreateAnnotation
 
     @classmethod
-    def _cmd_tree_from_ast(cls,
-                           schema: s_schema.Schema,
-                           astnode: qlast.DDLOperation,
-                           context: sd.CommandContext) -> CreateAnnotation:
-        cmd = super()._cmd_tree_from_ast(schema,
-                                         astnode,
-                                         context)
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> CreateAnnotation:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         assert isinstance(astnode, qlast.CreateAnnotation)
 
@@ -247,11 +314,12 @@ class AnnotationValueCommand(
         return ref
 
     @classmethod
-    def _classname_from_ast(cls,
-                            schema: s_schema.Schema,
-                            astnode: qlast.NamedDDL,
-                            context: sd.CommandContext
-                            ) -> sn.QualName:
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.QualName:
         parent_ctx = cls.get_referrer_context_or_die(context)
         assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
         referrer_name = context.get_referrer_name(parent_ctx)
@@ -309,7 +377,7 @@ class CreateAnnotationValue(
             vn = ir.stype.get_verbosename(schema)
             raise errors.InvalidValueError(
                 f"annotation values must be 'std::str', got {vn}",
-                context=astnode.value.context,
+                span=astnode.value.span,
             )
 
         anno = utils.ast_objref_to_object_shell(
@@ -335,16 +403,18 @@ class CreateAnnotationValue(
         self.set_attribute_value('internal', True)
         return schema
 
-    def _apply_field_ast(self,
-                         schema: s_schema.Schema,
-                         context: sd.CommandContext,
-                         node: qlast.DDLOperation,
-                         op: sd.AlterObjectProperty) -> None:
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
         if op.property == 'value':
             assert isinstance(op.new_value, str)
             assert isinstance(node, (
                 qlast.CreateAnnotationValue, qlast.AlterAnnotationValue))
-            node.value = qlast.StringConstant.from_python(op.new_value)
+            node.value = qlast.Constant.string(op.new_value)
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -388,7 +458,7 @@ class AlterAnnotationValue(
                 vn = ir.stype.get_verbosename(schema)
                 raise errors.InvalidValueError(
                     f"annotation values must be 'std::str', got {vn}",
-                    context=astnode.value.context,
+                    span=astnode.value.span,
                 )
 
             cmd.set_attribute_value(
@@ -435,7 +505,7 @@ class AlterAnnotationValue(
 
         if op.property == 'value':
             assert isinstance(op.new_value, str)
-            node.value = qlast.StringConstant.from_python(op.new_value)
+            node.value = qlast.Constant.string(op.new_value)
         else:
             super()._apply_field_ast(schema, context, node, op)
 

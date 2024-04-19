@@ -54,6 +54,7 @@ type Bot extending User;
 type Card extending Named {
     required element: str;
     required cost: int64;
+    optional text: str;
     multi owners := .<deck[IS User];
     # computable property
     elemental_cost := <str>.cost ++ ' ' ++ .element;

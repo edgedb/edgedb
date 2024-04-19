@@ -18,7 +18,24 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    Iterable,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    Set,
+    FrozenSet,
+    cast,
+    TYPE_CHECKING,
+)
 
 import collections
 import decimal
@@ -33,6 +50,7 @@ from edb.ir import statypes
 
 from . import name as sn
 from . import objects as so
+from . import expr as s_expr
 
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
@@ -66,7 +84,7 @@ def ast_ref_to_unqualname(ref: qlast.ObjectRef) -> sn.UnqualName:
     if ref.module:
         raise errors.InternalServerError(
             f'unexpected fully-qualified name: {ast_ref_to_name(ref)}',
-            context=ref.context,
+            span=ref.span,
         )
     else:
         return sn.UnqualName(name=ref.name)
@@ -76,7 +94,7 @@ def resolve_name(
     lname: sn.Name,
     *,
     metaclass: Optional[Type[so.Object]] = None,
-    sourcectx: Optional[parsing.ParserContext] = None,
+    sourcectx: Optional[parsing.Span] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
 ) -> sn.Name:
@@ -121,14 +139,14 @@ def ast_objref_to_object_shell(
         metaclass=metaclass,
         modaliases=modaliases,
         schema=schema,
-        sourcectx=ref.context,
+        sourcectx=ref.span,
     )
 
     return so.ObjectShell(
         name=name,
         origname=lname,
         schemaclass=metaclass,
-        sourcectx=ref.context,
+        sourcectx=ref.span,
     )
 
 
@@ -152,14 +170,14 @@ def ast_objref_to_type_shell(
         metaclass=mcls,
         modaliases=modaliases,
         schema=schema,
-        sourcectx=ref.context,
+        sourcectx=ref.span,
     )
 
     return s_types.TypeShell(
         name=name,
         origname=lname,
         schemaclass=mcls,
-        sourcectx=ref.context,
+        sourcectx=ref.span,
     )
 
 
@@ -188,29 +206,51 @@ def ast_to_type_shell(
             and isinstance(node.maintype, qlast.ObjectRef)
             and node.maintype.name == 'enum'):
         from . import scalars as s_scalars
+        from edb.pgsql import common as pg_common
 
         assert node.subtypes
 
+        elements: List[str] = []
+        element_spans: List[Optional[parsing.Span]] = []
+
         if isinstance(node.subtypes[0], qlast.TypeExprLiteral):
-            return s_scalars.AnonymousEnumTypeShell(  # type: ignore
-                elements=[
-                    est.val.value
-                    for est in cast(List[qlast.TypeExprLiteral], node.subtypes)
-                ],
-            )
+            # handling enums as literals
+            # eg. enum<'A','B','C'>
+            for subtype_expr_literal in cast(
+                List[qlast.TypeExprLiteral], node.subtypes
+            ):
+                elements.append(subtype_expr_literal.val.value)
+                element_spans.append(subtype_expr_literal.val.span)
         else:
-            elements: List[str] = []
-            for est in cast(List[qlast.TypeName], node.subtypes):
-                if (not isinstance(est, qlast.TypeName) or
-                        not isinstance(est.maintype, qlast.ObjectRef)):
+            # handling enums as typenames
+            # eg. enum<A,B,C>
+            for subtype_type_name in cast(
+                List[qlast.TypeName], node.subtypes
+            ):
+                if (
+                    not isinstance(subtype_type_name, qlast.TypeName)
+                    or not isinstance(
+                        subtype_type_name.maintype, qlast.ObjectRef
+                    )
+                ):
                     raise errors.EdgeQLSyntaxError(
                         f'enums do not support mapped values',
-                        context=est.context,
+                        span=subtype_type_name.span,
                     )
-                elements.append(est.maintype.name)
-            return s_scalars.AnonymousEnumTypeShell(  # type: ignore
-                elements=elements
-            )
+                elements.append(subtype_type_name.maintype.name)
+                element_spans.append(subtype_type_name.maintype.span)
+
+        for element, element_span in zip(elements, element_spans):
+            if len(element) > pg_common.MAX_ENUM_LABEL_LENGTH:
+                raise errors.SchemaDefinitionError(
+                    f'enum labels cannot exceed '
+                    f'{pg_common.MAX_ENUM_LABEL_LENGTH} characters',
+                    span=element_span,
+                )
+
+        return s_scalars.AnonymousEnumTypeShell(  # type: ignore
+            elements=elements
+        )
 
     elif node.subtypes is not None:
         from . import types as s_types
@@ -253,7 +293,7 @@ def ast_to_type_shell(
                     if type_name in names:
                         raise errors.SchemaError(
                             f"named tuple has duplicate field '{type_name}'",
-                            context=st.context)
+                            span=st.span)
                     names.add(type_name)
                 else:
                     unnamed = True
@@ -263,7 +303,7 @@ def ast_to_type_shell(
                     raise errors.EdgeQLSyntaxError(
                         f'mixing named and unnamed tuple declaration '
                         f'is not supported',
-                        context=node.subtypes[0].context,
+                        span=node.subtypes[0].span,
                     )
 
                 subtypes[type_name] = ast_to_type_shell(
@@ -282,7 +322,7 @@ def ast_to_type_shell(
             except errors.SchemaError as e:
                 # all errors raised inside are pertaining to subtypes, so
                 # the context should point to the first subtype
-                e.set_source_context(node.subtypes[0].context)
+                e.set_span(node.subtypes[0].span)
                 raise e
 
         elif issubclass(coll, s_types.Array):
@@ -300,13 +340,13 @@ def ast_to_type_shell(
                 raise errors.SchemaError(
                     f'unexpected number of subtypes,'
                     f' expecting 1, got {len(subtypes_list)}',
-                    context=node.context,
+                    span=node.span,
                 )
 
             if isinstance(subtypes_list[0], s_types.ArrayTypeShell):
                 raise errors.UnsupportedFeatureError(
                     'nested arrays are not supported',
-                    context=node.subtypes[0].context,
+                    span=node.subtypes[0].span,
                 )
 
             try:
@@ -315,7 +355,7 @@ def ast_to_type_shell(
                     subtypes=subtypes_list,
                 )
             except errors.SchemaError as e:
-                e.set_source_context(node.context)
+                e.set_span(node.span)
                 raise e
 
         elif issubclass(coll, (s_types.Range, s_types.MultiRange)):
@@ -333,7 +373,7 @@ def ast_to_type_shell(
                 raise errors.SchemaError(
                     f'unexpected number of subtypes,'
                     f' expecting 1, got {len(subtypes_list)}',
-                    context=node.context,
+                    span=node.span,
                 )
 
             # FIXME: need to check that subtypes are only anypoint
@@ -344,14 +384,14 @@ def ast_to_type_shell(
                     subtypes=subtypes_list,
                 )
             except errors.SchemaError as e:
-                e.set_source_context(node.context)
+                e.set_span(node.span)
                 raise e
 
     elif isinstance(node.maintype, qlast.PseudoObjectRef):
         from . import pseudo as s_pseudo
         return s_pseudo.PseudoTypeShell(
             name=sn.UnqualName(node.maintype.name),
-            sourcectx=node.maintype.context,
+            sourcectx=node.maintype.span,
         )  # type: ignore
 
     assert isinstance(node.maintype, qlast.ObjectRef)
@@ -378,7 +418,7 @@ def type_op_ast_to_type_shell(
     if node.op != '|':
         raise errors.UnsupportedFeatureError(
             f'unsupported type expression operator: {node.op}',
-            context=node.context,
+            span=node.span,
         )
 
     if module is None:
@@ -387,7 +427,7 @@ def type_op_ast_to_type_shell(
     if module is None:
         raise errors.InternalServerError(
             'cannot determine module for derived compound type',
-            context=node.context,
+            span=node.span,
         )
 
     left = ast_to_type_shell(
@@ -692,8 +732,7 @@ def is_nontrivial_container(value: Any) -> Optional[Iterable[Any]]:
 
 
 def get_class_nearest_common_ancestors(
-    schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectT]
+    schema: s_schema.Schema, classes: Iterable[so.InheritingObjectT]
 ) -> List[so.InheritingObjectT]:
     # First, find the intersection of parents
     classes = list(classes)
@@ -714,8 +753,7 @@ def get_class_nearest_common_ancestors(
 
 
 def minimize_class_set_by_most_generic(
-    schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectT]
+    schema: s_schema.Schema, classes: Iterable[so.InheritingObjectT]
 ) -> List[so.InheritingObjectT]:
     """Minimize the given set of objects by filtering out all subclasses."""
 
@@ -736,8 +774,7 @@ def minimize_class_set_by_most_generic(
 
 
 def minimize_class_set_by_least_generic(
-    schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectT]
+    schema: s_schema.Schema, classes: Iterable[so.InheritingObjectT]
 ) -> List[so.InheritingObjectT]:
     """Minimize the given set of objects by filtering out all superclasses."""
 
@@ -765,21 +802,36 @@ def merge_reduce(
     *,
     ignore_local: bool,
     schema: s_schema.Schema,
-    f: Callable[[List[T]], T],
+    f: Callable[[T, T], T],
     type: Type[T],
 ) -> Optional[T]:
-    values = []
+    values: list[tuple[T, str]] = []
     if not ignore_local:
         ours = target.get_explicit_local_field_value(schema, field_name, None)
         if ours is not None:
-            values.append(ours)
+            vn = target.get_verbosename(schema, with_parent=True)
+            values.append((ours, vn))
     for source in sources:
         theirs = source.get_explicit_field_value(schema, field_name, None)
         if theirs is not None:
-            values.append(theirs)
+            vn = source.get_verbosename(schema, with_parent=True)
+            values.append((theirs, vn))
 
     if values:
-        return f(values)
+        val = values[0][0]
+        desc = values[0][1]
+        cdn = target.get_schema_class_displayname()
+        for other_val, other_desc in values[1:]:
+            try:
+                val = f(val, other_val)
+            except Exception:
+                raise errors.SchemaDefinitionError(
+                    f'invalid {cdn} definition: {field_name} is defined '
+                    f'as {val} in {desc}, but is defined as {other_val} '
+                    f'in {other_desc}, which is incompatible'
+                )
+
+        return val
     else:
         return None
 
@@ -932,8 +984,9 @@ def enrich_schema_lookup_error(
     item_type: Optional[so.ObjectMeta] = None,
     suggestion_limit: int = 3,
     condition: Optional[Callable[[so.Object], bool]] = None,
-    context: Optional[parsing.ParserContext] = None,
+    span: Optional[parsing.Span] = None,
     pointer_parent: Optional[so.Object] = None,
+    hint_text: str = 'did you mean'
 ) -> None:
 
     all_suggestions = itertools.chain(
@@ -955,14 +1008,14 @@ def enrich_schema_lookup_error(
         names = [name for _, name in suggestions]
 
         if len(names) > 1:
-            hint = f'did you mean one of these: {", ".join(names)}?'
+            hint = f'{hint_text} one of these: {", ".join(names)}?'
         else:
-            hint = f'did you mean {names[0]!r}?'
+            hint = f'{hint_text} {names[0]!r}?'
 
         error.set_hint_and_details(hint=hint)
 
-    if context is not None:
-        error.set_source_context(context)
+    if span is not None:
+        error.set_span(span)
 
 
 def ensure_union_type(
@@ -1089,8 +1142,9 @@ def get_non_overlapping_union(
         return frozenset(all_objects), True
 
 
-def _union_error(schema: s_schema.Schema, components: Iterable[s_types.Type]) \
-        -> errors.SchemaError:
+def _union_error(
+    schema: s_schema.Schema, components: Iterable[s_types.Type]
+) -> errors.SchemaError:
     names = ', '.join(sorted(c.get_displayname(schema) for c in components))
     return errors.SchemaError(f'cannot create a union of {names}')
 
@@ -1165,9 +1219,9 @@ def get_intersection_type(
     return schema, intersection
 
 
-def _intersection_error(schema: s_schema.Schema,
-                        components: Iterable[s_types.Type]) \
-        -> errors.SchemaError:
+def _intersection_error(
+    schema: s_schema.Schema, components: Iterable[s_types.Type]
+) -> errors.SchemaError:
     names = ', '.join(sorted(c.get_displayname(schema) for c in components))
     return errors.SchemaError(f'cannot create an intersection of {names}')
 
@@ -1178,26 +1232,26 @@ MIN_INT64 = -2 ** 63
 
 def const_ast_from_python(val: Any) -> qlast.Expr:
     if isinstance(val, str):
-        return qlast.StringConstant.from_python(val)
+        return qlast.Constant.string(val)
     elif isinstance(val, bool):
-        return qlast.BooleanConstant(value='true' if val else 'false')
+        return qlast.Constant.boolean(val)
     elif isinstance(val, int):
         if MIN_INT64 <= val <= MAX_INT64:
-            return qlast.IntegerConstant(value=str(val))
+            return qlast.Constant.integer(val)
         else:
             raise ValueError(f'int64 value out of range: {val}')
     elif isinstance(val, decimal.Decimal):
-        return qlast.DecimalConstant(value=f'{val}n')
+        return qlast.Constant(value=f'{val}n', kind=qlast.ConstantKind.DECIMAL)
     elif isinstance(val, float):
-        return qlast.FloatConstant(value=str(val))
+        return qlast.Constant(value=str(val), kind=qlast.ConstantKind.FLOAT)
     elif isinstance(val, bytes):
-        return qlast.BytesConstant.from_python(val)
+        return qlast.BytesConstant(value=val)
     elif isinstance(val, statypes.Duration):
         return qlast.TypeCast(
             type=qlast.TypeName(
                 maintype=qlast.ObjectRef(module='__std__', name='duration'),
             ),
-            expr=qlast.StringConstant(value=val.to_iso8601()),
+            expr=qlast.Constant.string(value=val.to_iso8601()),
         )
     elif isinstance(val, statypes.CompositeType):
         return qlast.InsertQuery(
@@ -1291,9 +1345,10 @@ def get_config_type_shape(
 def type_shell_multi_substitute(
     mapping: Dict[sn.Name, s_types.TypeShell[s_types.TypeT_co]],
     typ: s_types.TypeShell[s_types.TypeT_co],
+    schema: s_schema.Schema,
 ) -> s_types.TypeShell[s_types.TypeT_co]:
     for name, new in mapping.items():
-        typ = type_shell_substitute(name, new, typ)
+        typ = type_shell_substitute(name, new, typ, schema)
     return typ
 
 
@@ -1301,6 +1356,7 @@ def type_shell_substitute(
     name: sn.Name,
     new: s_types.TypeShell[s_types.TypeT_co],
     typ: s_types.TypeShell[s_types.TypeT_co],
+    schema: s_schema.Schema,
 ) -> s_types.TypeShell[s_types.TypeT_co]:
     from . import types as s_types
 
@@ -1309,48 +1365,71 @@ def type_shell_substitute(
         return new
 
     if isinstance(typ, s_types.UnionTypeShell):
+        assert isinstance(typ.name, sn.QualName)
         return s_types.UnionTypeShell(
-            module=typ.module,
+            module=typ.name.module,
             schemaclass=typ.schemaclass,
             opaque=typ.opaque,
             components=[
-                type_shell_substitute(name, new, c)
+                type_shell_substitute(name, new, c, schema)
                 for c in typ.components
-            ]
+            ],
         )
     elif isinstance(typ, s_types.IntersectionTypeShell):
+        assert isinstance(typ.name, sn.QualName)
         return s_types.IntersectionTypeShell(
-            module=typ.module,
+            module=typ.name.module,
             schemaclass=typ.schemaclass,
             components=[
-                type_shell_substitute(name, new, c)
+                type_shell_substitute(name, new, c, schema)
                 for c in typ.components
-            ]
+            ],
         )
     elif isinstance(typ, s_types.ArrayTypeShell):
         return s_types.ArrayTypeShell(
-            name=sn.UnqualName('__unresolved__'),
+            name=None,
             expr=typ.expr,
             typemods=typ.typemods,
             schemaclass=typ.schemaclass,
-            subtype=type_shell_substitute(name, new, typ.subtype),
+            subtype=type_shell_substitute(name, new, typ.subtype, schema),
         )
     elif isinstance(typ, s_types.TupleTypeShell):
         return s_types.TupleTypeShell(
-            name=sn.UnqualName('__unresolved__'),
+            name=None,
             typemods=typ.typemods,
             schemaclass=typ.schemaclass,
             subtypes={
-                k: type_shell_substitute(name, new, v)
+                k: type_shell_substitute(name, new, v, schema)
                 for k, v in typ.subtypes.items()
-            }
+            },
         )
     elif isinstance(typ, s_types.RangeTypeShell):
         return s_types.RangeTypeShell(
-            name=sn.UnqualName('__unresolved__'),
+            name=None,
             typemods=typ.typemods,
             schemaclass=typ.schemaclass,
-            subtype=type_shell_substitute(name, new, typ.subtype),
+            subtype=type_shell_substitute(name, new, typ.subtype, schema),
         )
     else:
         return typ
+
+
+def try_compile_irast_to_sql_tree(
+    compiled_expr: s_expr.CompiledExpression,
+    span: Optional[parsing.Span]
+) -> None:
+    # compile the expression to sql to preempt errors downstream
+
+    from edb.pgsql import compiler as pg_compiler
+
+    try:
+        pg_compiler.compile_ir_to_sql_tree(
+            compiled_expr.irast,
+            output_format=pg_compiler.OutputFormat.NATIVE,
+            singleton_mode=True,
+        )
+    except errors.EdgeDBError as exception:
+        exception.set_span(span)
+        raise exception
+    except:
+        raise

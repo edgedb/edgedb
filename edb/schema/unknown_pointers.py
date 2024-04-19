@@ -28,7 +28,6 @@ ddl.apply_sdl work.
 """
 
 from __future__ import annotations
-from typing import *
 
 
 from edb.common import struct
@@ -166,6 +165,10 @@ class AlterUnknownPointer(
             qlast.AlterConcreteProperty
             if isinstance(obj, s_props.Property)
             else qlast.AlterConcreteLink
+        ) if isinstance(astnode, qlast.AlterObject) else (
+            qlast.CreateConcreteProperty
+            if isinstance(obj, s_props.Property)
+            else qlast.CreateConcreteLink
         )
         astnode = astnode.replace(__class__=astcls)
         qlparser.append_module_aliases(astnode, context.modaliases)

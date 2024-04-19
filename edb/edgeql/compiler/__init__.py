@@ -126,8 +126,21 @@ dispatch.py
 
 
 from __future__ import annotations
-from typing import *
-from typing import overload
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    TypeVar,
+    AbstractSet,
+    Mapping,
+    Dict,
+    List,
+    Set,
+    cast,
+    overload,
+    TYPE_CHECKING,
+)
 
 # WARNING: this package is in a tight import loop with various modules
 # in edb.schema, so no direct imports from either this package or
@@ -346,7 +359,7 @@ def compile_ast_fragment_to_ir(
         view_shapes_metadata={},
         schema_refs=frozenset(),
         schema_ref_exprs=None,
-        new_coll_types=frozenset(),
+        created_schema_types=frozenset(),
         scope_tree=ctx.path_scope,
         type_rewrites={},
         singletons=[],
@@ -396,6 +409,26 @@ def evaluate_to_python_val(
     """
     tree = qlparser.parse_fragment(expr)
     return evaluate_ast_to_python_val(tree, schema, modaliases=modaliases)
+
+
+def evaluate_ir_statement_to_python_val(
+    ir: irast.Statement,
+) -> Any:
+    """Evaluate the given EdgeQL IR AST as a constant expression.
+
+    Args:
+        ir:
+            EdgeQL IR Statement AST.
+
+    Returns:
+        The result of the evaluation as a Python value and the associated IR.
+
+    Raises:
+        If the expression is not constant, or is otherwise not supported by
+        the const evaluator, the function will raise
+        :exc:`ir.staeval.UnsupportedExpressionError`.
+    """
+    return ireval.evaluate_to_python_val(ir.expr, schema=ir.schema)
 
 
 def evaluate_ast_to_python_val_and_ir(

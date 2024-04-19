@@ -21,13 +21,25 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Callable,
+    Optional,
+    Tuple,
+    Union,
+    AbstractSet,
+    Iterable,
+    Sequence,
+    List,
+    Set,
+    NamedTuple,
+)
 
 import uuid
 
 import immutables as immu
 
 from edb import errors
+
 
 from edb.edgeql import qltypes
 from edb.edgeql import ast as qlast
@@ -411,7 +423,7 @@ def maybe_get_path_var(
 
 
 def new_empty_rvar(
-        ir_set: irast.EmptySet, *,
+        ir_set: irast.SetE[irast.EmptySet], *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     nullrel = pgast.NullRelation(
         path_id=ir_set.path_id, type_or_ptr_ref=ir_set.typeref)
@@ -428,9 +440,14 @@ def new_free_object_rvar(
 ) -> pgast.PathRangeVar:
     """Create a fake source rel for a free object
 
-    We generate fake IDs for free objects. The only thing other than ids
-    that need to come from a free object is __type__, which we inject
-    in a special case way in pathctx.get_path_var.
+    Free objects don't *really* have ids, but the compiler needs all
+    objects to have ids, so we just inject the type id as if it was an
+    id. It shouldn't get used for anything but NULL testing, so no
+    problem.
+
+    The only thing other than ids that need to come from a free object
+    is __type__, which we inject in a special case way in
+    pathctx.get_path_var.
 
     We also have a special case in relgen.ensure_source_rvar to reuse an
     existing value rvar instead of creating a new root rvar.
@@ -443,14 +460,9 @@ def new_free_object_rvar(
     with ctx.subrel() as subctx:
         qry = subctx.rel
 
-        id_expr = pgast.FuncCall(
-            name=('edgedb', 'uuid_generate_v4'),
-            args=[],
-        )
-
+        id_expr = astutils.compile_typeref(typeref.real_material_type)
         pathctx.put_path_identity_var(qry, path_id, id_expr)
         pathctx.put_path_value_var(qry, path_id, id_expr)
-        apply_volatility_ref(qry, ctx=subctx)
 
     return rvar_for_rel(qry, typeref=typeref, lateral=lateral, ctx=ctx)
 
@@ -488,22 +500,34 @@ def new_primitive_rvar(
     lateral: bool,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
-    if not ir_set.path_id.is_objtype_path():
-        raise ValueError('cannot create root rvar for non-object path')
+    # XXX: is this needed?
+    expr = irutils.sub_expr(ir_set)
+    if isinstance(expr, irast.TypeRoot):
+        skip_subtypes = expr.skip_subtypes
+        is_global = expr.is_cached_global
+    else:
+        skip_subtypes = False
+        is_global = False
 
     typeref = ir_set.typeref
     dml_source = irutils.get_dml_sources(ir_set)
     set_rvar = range_for_typeref(
         typeref, path_id, lateral=lateral, dml_source=dml_source,
-        include_descendants=not ir_set.skip_subtypes,
-        ignore_rewrites=ir_set.ignore_rewrites, ctx=ctx)
+        include_descendants=not skip_subtypes,
+        ignore_rewrites=ir_set.ignore_rewrites,
+        is_global=is_global,
+        ctx=ctx,
+    )
     pathctx.put_rvar_path_bond(set_rvar, path_id)
 
-    rptr = ir_set.rptr
-    if rptr is not None:
-        if (isinstance(rptr.ptrref, irast.TypeIntersectionPointerRef)
-                and rptr.source.rptr):
-            rptr = rptr.source.rptr
+    # FIXME: This feels like it should all not be here.
+    if isinstance(ir_set.expr, irast.Pointer):
+        rptr = ir_set.expr
+        if (
+            isinstance(rptr.ptrref, irast.TypeIntersectionPointerRef)
+            and isinstance(rptr.source.expr, irast.Pointer)
+        ):
+            rptr = rptr.source.expr
 
         # If the set comes from an backlink, and the link is stored inline,
         # we want to output the source path.
@@ -561,11 +585,13 @@ def new_root_rvar(
 
 
 def new_pointer_rvar(
-        ir_ptr: irast.Pointer, *,
-        link_bias: bool=False,
-        src_rvar: pgast.PathRangeVar,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-
+    ir_set: irast.SetE[irast.Pointer],
+    *,
+    link_bias: bool=False,
+    src_rvar: pgast.PathRangeVar,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+    ir_ptr = ir_set.expr
     ptrref = ir_ptr.ptrref
 
     ptr_info = pg_types.get_ptrref_storage_info(
@@ -574,28 +600,30 @@ def new_pointer_rvar(
     if ptr_info and ptr_info.table_type == 'ObjectType':
         # Inline link
         return _new_inline_pointer_rvar(
-            ir_ptr, ptr_info=ptr_info,
+            ir_set, ptr_info=ptr_info,
             src_rvar=src_rvar, ctx=ctx)
     else:
-        return _new_mapped_pointer_rvar(ir_ptr, ctx=ctx)
+        return _new_mapped_pointer_rvar(ir_set, ctx=ctx)
 
 
 def _new_inline_pointer_rvar(
-        ir_ptr: irast.Pointer, *,
+        ir_set: irast.SetE[irast.Pointer], *,
         lateral: bool=True,
         ptr_info: pg_types.PointerStorageInfo,
         src_rvar: pgast.PathRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    ir_ptr = ir_set.expr
+
     ptr_rel = pgast.SelectStmt()
     ptr_rvar = rvar_for_rel(ptr_rel, lateral=lateral, ctx=ctx)
-    ptr_rvar.query.path_id = ir_ptr.target.path_id.ptr_path()
+    ptr_rvar.query.path_id = ir_set.path_id.ptr_path()
 
     is_inbound = ir_ptr.direction == s_pointers.PointerDirection.Inbound
 
     if is_inbound:
         far_pid = ir_ptr.source.path_id
     else:
-        far_pid = ir_ptr.target.path_id
+        far_pid = ir_set.path_id
 
     far_ref = pathctx.get_rvar_path_identity_var(
         src_rvar, far_pid, env=ctx.env)
@@ -607,11 +635,13 @@ def _new_inline_pointer_rvar(
 
 
 def _new_mapped_pointer_rvar(
-        ir_ptr: irast.Pointer, *,
+        ir_set: irast.SetE[irast.Pointer], *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    ir_ptr = ir_set.expr
+
     ptrref = ir_ptr.ptrref
     dml_source = irutils.get_dml_sources(ir_ptr.source)
-    ptr_rvar = range_for_pointer(ir_ptr, dml_source=dml_source, ctx=ctx)
+    ptr_rvar = range_for_pointer(ir_set, dml_source=dml_source, ctx=ctx)
 
     src_col = 'source'
     source_ref = pgast.ColumnRef(name=[src_col], nullable=False)
@@ -621,10 +651,9 @@ def _new_mapped_pointer_rvar(
         name=[tgt_col],
         nullable=not ptrref.required)
 
-    # Set up references according to the link direction.
     if (
         ir_ptr.direction == s_pointers.PointerDirection.Inbound
-        or ptrref.computed_backlink
+        or ptrref.computed_link_alias_is_backward
     ):
         near_ref = target_ref
         far_ref = source_ref
@@ -633,7 +662,7 @@ def _new_mapped_pointer_rvar(
         far_ref = target_ref
 
     src_pid = ir_ptr.source.path_id
-    tgt_pid = ir_ptr.target.path_id
+    tgt_pid = ir_set.path_id
     ptr_pid = tgt_pid.ptr_path()
 
     ptr_rvar.query.path_id = ptr_pid
@@ -674,11 +703,10 @@ def new_rel_rvar(
 
 def semi_join(
         stmt: pgast.SelectStmt,
-        ir_set: irast.Set, src_rvar: pgast.PathRangeVar, *,
+        ir_set: irast.SetE[irast.Pointer], src_rvar: pgast.PathRangeVar, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     """Join an IR Set using semi-join."""
-    rptr = ir_set.rptr
-    assert rptr is not None
+    rptr = ir_set.expr
 
     # Target set range.
     set_rvar = new_root_rvar(ir_set, lateral=True, ctx=ctx)
@@ -696,7 +724,7 @@ def semi_join(
     else:
         far_pid = ir_set.path_id
         # Link range.
-        map_rvar = new_pointer_rvar(rptr, src_rvar=src_rvar, ctx=ctx)
+        map_rvar = new_pointer_rvar(ir_set, src_rvar=src_rvar, ctx=ctx)
         include_rvar(
             ctx.rel, map_rvar,
             path_id=ir_set.path_id.ptr_path(), ctx=ctx)
@@ -712,19 +740,6 @@ def semi_join(
         stmt.where_clause, cond)
 
     return set_rvar
-
-
-def ensure_bond_for_expr(
-    ir_set: irast.Set,
-    stmt: pgast.BaseRelation,
-    *,
-    ctx: context.CompilerContextLevel,
-) -> None:
-    if ir_set.path_id.is_objtype_path():
-        # ObjectTypes have inherent identity
-        return
-
-    ensure_transient_identity_for_path(ir_set.path_id, stmt, ctx=ctx)
 
 
 def apply_volatility_ref(
@@ -745,11 +760,12 @@ def apply_volatility_ref(
         )
 
 
-def ensure_transient_identity_for_path(
+def create_iterator_identity_for_path(
     path_id: irast.PathId,
     stmt: pgast.BaseRelation,
     *,
     ctx: context.CompilerContextLevel,
+    apply_volatility: bool=True,
 ) -> None:
 
     id_expr = pgast.FuncCall(
@@ -757,11 +773,13 @@ def ensure_transient_identity_for_path(
         args=[],
     )
 
-    pathctx.put_path_identity_var(stmt, path_id, id_expr, force=True)
-    pathctx.put_path_bond(stmt, path_id)
-
     if isinstance(stmt, pgast.SelectStmt):
-        apply_volatility_ref(stmt, ctx=ctx)
+        path_id = pathctx.map_path_id(path_id, stmt.view_path_id_map)
+        if apply_volatility:
+            apply_volatility_ref(stmt, ctx=ctx)
+
+    pathctx.put_path_var(stmt, path_id, id_expr, force=True, aspect='iterator')
+    pathctx.put_path_bond(stmt, path_id, iterator=True)
 
 
 def get_scope(
@@ -803,9 +821,18 @@ def update_scope(
         assert p.path_id is not None
         ctx.path_scope[p.path_id] = stmt
 
+
+def update_scope_masks(
+        ir_set: irast.Set, rvar: pgast.PathRangeVar, *,
+        ctx: context.CompilerContextLevel) -> None:
+
+    if not isinstance(rvar, pgast.RangeSubselect):
+        return
+    stmt = rvar.subquery
+
     # Mark any paths under the scope tree as masked, so that they
     # won't get picked up by pull_path_namespace.
-    for child_path in scope_tree.get_all_paths():
+    for child_path in ctx.scope_tree.get_all_paths():
         pathctx.put_path_id_mask(stmt, child_path)
 
     # If this is an optional scope node, we need to be certain that
@@ -818,11 +845,11 @@ def update_scope(
     # with some DML linkprop cases (probably easy to fix) and a number
     # of materialization cases (possibly hard to fix), so I'm going
     # with a more conservative approach.
-    if scope_tree.optional:
+    if ctx.scope_tree.is_optional(ir_set.path_id):
         # Since compilation is done, anything visible to us *will* be
         # up on the spine. Anything tucked away under a node must have
         # been pulled up.
-        for anc in scope_tree.ancestors:
+        for anc in ctx.scope_tree.ancestors:
             for direct_child in anc.path_children:
                 if not direct_child.optional:
                     pathctx.put_path_id_mask(stmt, direct_child.path_id)
@@ -1060,8 +1087,7 @@ def unpack_var(
 
                 el_id = path_id.ptr_path().extend(ptrref=el_ptrref)
 
-                assert el.rptr
-                card = el.rptr.ptrref.dir_cardinality(el.rptr.direction)
+                card = el.expr.dir_cardinality
                 is_singleton = card.is_single() and not card.can_be_zero()
                 must_pack = not is_singleton
 
@@ -1101,6 +1127,18 @@ def unpack_var(
                 els.append(UnpackElement(
                     path_id, els[id_idx].colname,
                     multi=False, packed=False, ref=None,
+                ))
+            else:
+                colname = f'_t{ctr}'
+                ctr += 1
+                coldeflist.append(
+                    pgast.ColumnDef(
+                        name=colname,
+                        typename=pgast.TypeName(name=('uuid',)),
+                    )
+                )
+                els.append(UnpackElement(
+                    path_id, colname, packed=False, multi=False, ref=None
                 ))
 
             view_tvars.append((path_id, pgast.TupleVarBase(
@@ -1290,15 +1328,19 @@ def _plain_join(
 ) -> None:
     condition = None
 
-    for path_id in right_rvar.query.path_scope:
-        lref = maybe_get_path_var(query, path_id, aspect='identity', ctx=ctx)
-        if lref is None:
+    for path_id, iterator_var in right_rvar.query.path_bonds:
+        lref = None
+        aspect = 'iterator' if iterator_var else 'identity'
+
+        lref = maybe_get_path_var(
+            query, path_id, aspect=aspect, ctx=ctx)
+        if lref is None and not iterator_var:
             lref = maybe_get_path_var(query, path_id, aspect='value', ctx=ctx)
         if lref is None:
             continue
 
-        rref = pathctx.get_rvar_path_identity_var(
-            right_rvar, path_id, env=ctx.env)
+        rref = pathctx.get_rvar_path_var(
+            right_rvar, path_id, aspect=aspect, env=ctx.env)
 
         assert isinstance(lref, pgast.ColumnRef)
         assert isinstance(rref, pgast.ColumnRef)
@@ -1333,17 +1375,18 @@ def _lateral_union_join(
     for component in astutils.each_query_in_set(right_rvar.subquery):
         condition = None
 
-        for path_id in right_rvar.query.path_scope:
+        for path_id, iterator_var in right_rvar.query.path_bonds:
+            aspect = 'iterator' if iterator_var else 'identity'
             lref = maybe_get_path_var(
-                query, path_id, aspect='identity', ctx=ctx)
-            if lref is None:
+                query, path_id, aspect=aspect, ctx=ctx)
+            if lref is None and not iterator_var:
                 lref = maybe_get_path_var(
                     query, path_id, aspect='value', ctx=ctx)
             if lref is None:
                 continue
 
-            rref = pathctx.get_path_identity_var(
-                component, path_id, env=ctx.env)
+            rref = pathctx.get_path_var(
+                component, path_id, aspect=aspect, env=ctx.env)
 
             assert isinstance(lref, pgast.ColumnRef)
             assert isinstance(rref, pgast.ColumnRef)
@@ -1366,6 +1409,21 @@ def _lateral_union_join(
             type='cross', larg=larg, rarg=rarg)
 
 
+def _needs_cte(typeref: irast.TypeRef) -> bool:
+    """Check whether a typeref needs to be forced into a materialized CTE.
+
+    The main use case here is for sys::SystemObjects which are stored as
+    views that populate their data by parsing JSON metadata embedded in
+    comments on the SQL system objects. The query plans when fetching multi
+    links from these objects wind up being pretty pathologically quadratic.
+
+    So instead we force the objects and links into materialized CTEs
+    so that they *can't* be shoved into nested loops.
+    """
+    assert isinstance(typeref.name_hint, sn.QualName)
+    return typeref.name_hint.module == 'sys'
+
+
 def range_for_material_objtype(
     typeref: irast.TypeRef,
     path_id: irast.PathId,
@@ -1375,14 +1433,18 @@ def range_for_material_objtype(
     include_overlays: bool=True,
     include_descendants: bool=True,
     ignore_rewrites: bool=False,
+    is_global: bool=False,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
     env = ctx.env
 
-    if typeref.material_type is not None:
-        typeref = typeref.material_type
+    if not is_global:
+        typeref = typeref.real_material_type
+
+    if not is_global and not path_id.is_objtype_path():
+        raise ValueError('cannot create root rvar for non-object path')
 
     relation: Union[pgast.Relation, pgast.CommonTableExpr]
 
@@ -1393,12 +1455,25 @@ def range_for_material_objtype(
     )
     rw_key = (typeref.id, include_descendants)
     key = rw_key + (dml_source_key,)
+    force_cte = _needs_cte(typeref)
     if (
-        not ignore_rewrites
-        and (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
+        (not ignore_rewrites or is_global)
+        and (
+            (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
+            or force_cte
+        )
         and rw_key not in ctx.pending_type_ctes
         and not for_mutation
     ):
+        if not rewrite:
+            # If we are forcing CTE materialization but there is not a
+            # real rewrite, then create a trivial one.
+            rewrite = irast.Set(
+                path_id=irast.PathId.from_typeref(typeref, namespace={'rw'}),
+                typeref=typeref,
+                expr=irast.TypeRoot(typeref=typeref),
+            )
+
         # Don't include overlays in the normal way in trigger mode
         # when a type cte is used, because we bake the overlays into
         # the cte instead (and so including them normally could union
@@ -1429,13 +1504,13 @@ def range_for_material_objtype(
                 # If we are expanding inhviews, we also expand type
                 # rewrites, so don't populate type_ctes. The normal
                 # case is to stick it in a CTE and cache that, though.
-                if ctx.env.expand_inhviews:
+                if ctx.env.expand_inhviews and not is_global:
                     type_rel = sctx.rel
                 else:
                     type_cte = pgast.CommonTableExpr(
-                        name=ctx.env.aliases.get('t'),
+                        name=ctx.env.aliases.get(f't_{typeref.name_hint}'),
                         query=sctx.rel,
-                        materialized=False,
+                        materialized=is_global or force_cte,
                     )
                     ctx.type_ctes[key] = type_cte
                     type_rel = type_cte
@@ -1502,7 +1577,7 @@ def range_for_material_objtype(
         )
 
     else:
-
+        assert not typeref.is_view, "attempting to generate range from view"
         table_schema_name, table_name = common.get_objtype_backend_name(
             typeref.id,
             typeref.name_hint.module,
@@ -1601,6 +1676,7 @@ def range_for_typeref(
     for_mutation: bool=False,
     include_descendants: bool=True,
     ignore_rewrites: bool=False,
+    is_global: bool=False,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
@@ -1617,14 +1693,14 @@ def range_for_typeref(
         for child in typeref.union:
             mat_child = child.material_type or child
             if mat_child.id in seen:
-                assert typeref.union_is_concrete
+                assert typeref.union_is_exhaustive
                 continue
             seen.add(mat_child.id)
 
             c_rvar = range_for_typeref(
                 child,
                 path_id=path_id,
-                include_descendants=not typeref.union_is_concrete,
+                include_descendants=not typeref.union_is_exhaustive,
                 for_mutation=for_mutation,
                 dml_source=dml_source,
                 lateral=lateral,
@@ -1683,6 +1759,7 @@ def range_for_typeref(
             ignore_rewrites=ignore_rewrites,
             include_overlays=not for_mutation,
             for_mutation=for_mutation,
+            is_global=is_global,
             dml_source=dml_source,
             ctx=ctx,
         )
@@ -1718,6 +1795,7 @@ def wrap_set_op_query(
 def anti_join(
     lhs: pgast.SelectStmt, rhs: pgast.SelectStmt,
     path_id: Optional[irast.PathId], *,
+    aspect: str='identity',
     ctx: context.CompilerContextLevel,
 ) -> None:
     """Filter elements out of the LHS that appear on the RHS"""
@@ -1725,10 +1803,10 @@ def anti_join(
     if path_id:
         # grab the identity from the LHS and do an
         # anti-join against the RHS.
-        src_ref = pathctx.get_path_identity_var(
-            lhs, path_id=path_id, env=ctx.env)
-        pathctx.get_path_identity_output(
-            rhs, path_id=path_id, env=ctx.env)
+        src_ref = pathctx.get_path_var(
+            lhs, path_id=path_id, aspect=aspect, env=ctx.env)
+        pathctx.get_path_output(
+            rhs, path_id=path_id, aspect=aspect, env=ctx.env)
         cond_expr: pgast.BaseExpr = astutils.new_binop(
             src_ref, rhs, 'NOT IN')
     else:
@@ -1788,6 +1866,36 @@ def range_from_queryset(
     return rvar
 
 
+def _make_link_table_cte(
+    ptrref: irast.PointerRef,
+    relation: pgast.Relation,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.Relation:
+    if (ptr_cte := ctx.ptr_ctes.get(ptrref.id)) is None:
+        ptr_select = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(val=pgast.ColumnRef(name=[pgast.Star()])),
+            ],
+            from_clause=[pgast.RelRangeVar(relation=relation)],
+        )
+        ptr_cte = pgast.CommonTableExpr(
+            name=ctx.env.aliases.get(f'p_{ptrref.name}'),
+            query=ptr_select,
+            materialized=True,
+        )
+        ctx.ptr_ctes[ptrref.id] = ptr_cte
+
+    # We've set up the CTE to be a perfect drop in replacement for
+    # the real table (with a select *), so instead of pointing the
+    # rvar at the CTE (which would require routing path ids), just
+    # treat it like a base relation.
+    return pgast.Relation(
+        name=ptr_cte.name,
+        type_or_ptr_ref=ptrref,
+    )
+
+
 def table_from_ptrref(
     ptrref: irast.PointerRef,
     ptr_info: pg_types.PointerStorageInfo,
@@ -1809,6 +1917,9 @@ def table_from_ptrref(
         name=table_name,
         type_or_ptr_ref=ptrref,
     )
+
+    if aspect == 'inhview' and _needs_cte(ptrref.out_source):
+        relation = _make_link_table_cte(ptrref, relation, ctx=ctx)
 
     # Pseudo pointers (tuple and type intersection) have no schema id.
     sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
@@ -1854,8 +1965,8 @@ def range_for_ptrref(
         # needs to appear in *all* of the tables, so we just pick any
         # one of them.
         refs = {next(iter((ptrref.intersection_components)))}
-    elif ptrref.computed_backlink:
-        refs = {ptrref.computed_backlink}
+    elif ptrref.computed_link_alias:
+        refs = {ptrref.computed_link_alias}
     else:
         refs = {ptrref}
         assert isinstance(ptrref, irast.PointerRef), \
@@ -1863,7 +1974,7 @@ def range_for_ptrref(
         overlays = get_ptr_rel_overlays(
             ptrref, dml_source=dml_source, ctx=ctx)
 
-    include_descendants = not ptrref.union_is_concrete
+    include_descendants = not ptrref.union_is_exhaustive
 
     assert isinstance(ptrref.out_source.name_hint, sn.QualName)
     # expand_inhviews helps support EXPLAIN. see
@@ -1992,13 +2103,14 @@ def range_for_ptrref(
 
 
 def range_for_pointer(
-    pointer: irast.Pointer,
+    ir_set: irast.SetE[irast.Pointer],
     *,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
+    pointer = ir_set.expr
 
-    path_id = pointer.target.path_id.ptr_path()
+    path_id = ir_set.path_id.ptr_path()
     external_rvar = ctx.env.external_rvars.get((path_id, 'source'))
     if external_rvar is not None:
         return external_rvar

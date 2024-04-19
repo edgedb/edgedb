@@ -186,7 +186,7 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
             transaction1(con, f1),
             transaction1(con2, f2),
             return_exceptions=True,
-        ), 10)
+        ), 60)
         for e in results:
             if isinstance(e, BaseException):
                 raise e

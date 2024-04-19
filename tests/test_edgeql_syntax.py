@@ -2881,6 +2881,30 @@ aa';
             .age,
             .rank,
             .status;
+        GROUP
+            User
+        BY
+            .name,
+            .age,
+            .rank,
+            .status,;
+
+% OK %
+
+        GROUP
+            User
+        BY
+            .name,
+            .age,
+            .rank,
+            .status;
+        GROUP
+            User
+        BY
+            .name,
+            .age,
+            .rank,
+            .status;
         """
 
     def test_edgeql_syntax_group_07(self):
@@ -2915,6 +2939,24 @@ aa';
         USING
             letter := (.name)[0]
         BY {letter, .age, ROLLUP(.rank, .status)};
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status),};
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status)};
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status)};
         """
 
     def test_edgeql_syntax_group_09(self):
@@ -2924,10 +2966,46 @@ aa';
         USING
             letter := (.name)[0]
         BY CUBE(letter, .age, .rank, .status);
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status,);
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status);
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status);
         """
 
     def test_edgeql_syntax_group_10(self):
         """
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status)}};
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status,)},};
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status)}};
         GROUP
             User
         USING
@@ -2949,10 +3027,40 @@ aa';
             User
         BY
             {(.name, .age), (.rank, .status)};
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status),};
+
+% OK %
+
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status)};
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status)};
         """
 
     def test_edgeql_syntax_group_13(self):
         """
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status));
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status),);
+
+% OK %
+
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status));
         GROUP
             User
         BY
@@ -3519,6 +3627,19 @@ aa';
         UNION (UPDATE Foo FILTER (Foo.id = x.0) SET {bar := x.1});
         """
 
+    def test_edgeql_syntax_shorterfor_01(self):
+        """
+        FOR x IN {1}
+        INSERT Foo { x := x };
+        """
+
+    def test_edgeql_syntax_shorterfor_02(self):
+        """
+        FOR x IN 1
+        WITH y := x
+        INSERT Foo { y := y };
+        """
+
     def test_edgeql_syntax_coalesce_01(self):
         """
         SELECT (a ?? x);
@@ -3996,6 +4117,54 @@ aa';
 
         DROP DATABASE `if`;
         DROP DATABASE abstract;
+        """
+
+    def test_edgeql_syntax_ddl_branch_01(self):
+        """
+        CREATE EMPTY BRANCH mytestdb;
+        DROP BRANCH mytestdb;
+        CREATE EMPTY BRANCH `mytest"db"`;
+        DROP BRANCH `mytest"db"`;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=29)
+    def test_edgeql_syntax_ddl_branch_02(self):
+        """
+        CREATE EMPTY BRANCH (mytestdb);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=32)
+    def test_edgeql_syntax_ddl_branch_03(self):
+        """
+        CREATE EMPTY BRANCH foo::mytestdb;
+        """
+
+    def test_edgeql_syntax_ddl_branch_04(self):
+        """
+        CREATE EMPTY BRANCH if;
+        CREATE EMPTY BRANCH abstract;
+
+% OK %
+
+        CREATE EMPTY BRANCH `if`;
+        CREATE EMPTY BRANCH abstract;
+        """
+
+    def test_edgeql_syntax_ddl_branch_05(self):
+        """
+        DROP BRANCH if;
+        DROP BRANCH abstract;
+
+% OK %
+
+        DROP BRANCH `if`;
+        DROP BRANCH abstract;
+        """
+
+    def test_edgeql_syntax_ddl_branch_06(self):
+        """
+        CREATE SCHEMA BRANCH foo FROM bar;
+        CREATE DATA BRANCH foo FROM bar;
         """
 
     def test_edgeql_syntax_ddl_role_01(self):
@@ -4671,6 +4840,7 @@ aa';
             baz: std::str
         > USING (SELECT smth());
         """
+
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "AAA is not a valid language", line=3)
     def test_edgeql_syntax_ddl_function_16(self):
@@ -5563,25 +5733,25 @@ aa';
         """
         CONFIGURE INSTANCE SET foo := (SELECT User);
         CONFIGURE SESSION SET foo := (SELECT User);
-        CONFIGURE CURRENT DATABASE SET foo := (SELECT User);
+        CONFIGURE CURRENT BRANCH SET foo := (SELECT User);
         CONFIGURE INSTANCE SET cfg::foo := (SELECT User);
         CONFIGURE SESSION SET cfg::foo := (SELECT User);
-        CONFIGURE CURRENT DATABASE SET cfg::foo := (SELECT User);
+        CONFIGURE CURRENT BRANCH SET cfg::foo := (SELECT User);
         CONFIGURE INSTANCE RESET foo;
         CONFIGURE SESSION RESET foo;
-        CONFIGURE CURRENT DATABASE RESET foo;
+        CONFIGURE CURRENT BRANCH RESET foo;
         CONFIGURE INSTANCE RESET cfg::foo;
         CONFIGURE SESSION RESET cfg::foo;
-        CONFIGURE CURRENT DATABASE RESET cfg::foo;
+        CONFIGURE CURRENT BRANCH RESET cfg::foo;
         CONFIGURE INSTANCE INSERT Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT Foo {bar := (SELECT 1)};
-        CONFIGURE CURRENT DATABASE INSERT Foo {bar := (SELECT 1)};
+        CONFIGURE CURRENT BRANCH INSERT Foo {bar := (SELECT 1)};
         CONFIGURE INSTANCE INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT cfg::Foo {bar := (SELECT 1)};
-        CONFIGURE CURRENT DATABASE INSERT cfg::Foo {bar := (SELECT 1)};
+        CONFIGURE CURRENT BRANCH INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE INSTANCE RESET Foo FILTER (.bar = 2);
         CONFIGURE SESSION RESET Foo FILTER (.bar = 2);
-        CONFIGURE CURRENT DATABASE RESET Foo FILTER (.bar = 2);
+        CONFIGURE CURRENT BRANCH RESET Foo FILTER (.bar = 2);
         """
 
     @tb.must_fail(
@@ -5774,6 +5944,29 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_index_12(self):
+        """
+        CREATE TYPE Foo {
+            CREATE DEFERRED INDEX myindex0 ON (.bar);
+
+            CREATE DEFERRED INDEX
+                myindex1(a := 13, b := 'ab', conf := [4, 3, 2]) ON (.baz);
+
+            CREATE DEFERRED INDEX myindex2(num := 13, val := 'ab')
+                ON (.foo);
+
+            CREATE DEFERRED INDEX ON (.bar);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_index_13(self):
+        """
+        ALTER TYPE Foo {
+            ALTER INDEX myindex0 ON (.bar) SET DEFERRED;
+            ALTER INDEX ON (.bar) DROP DEFERRED;
+        };
+        """
+
     def test_edgeql_syntax_ddl_global_01(self):
         """
         CREATE GLOBAL Foo := (SELECT User);
@@ -5839,6 +6032,7 @@ aa';
             drop annotation title;
         };
         """
+
     def test_edgeql_syntax_ddl_global_07(self):
         """
         CREATE GLOBAL test::foo -> str;
@@ -6260,6 +6454,35 @@ aa';
         crEAte something;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected 'exclusive'", line=6, col=27)
+    def test_edgeql_syntax_ddl_01(self):
+        """
+        start migration to {
+          module default {
+            type Hello extending MetaHello {
+              property platform_fee_percentage: int16 {
+                constrant exclusive {
+                  errmessage := "asxasx";
+                }
+              }
+              required property blah := .bleh - .bloh - .blih;
+            }
+          }
+        }
+        """
+        # TODO: this actually returns a bunch of errors, but we throw all away
+        # and pick only first.
+        # When returning multiple errors is supported, we should still return
+        # just the first one.
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Missing keyword 'SELECT'", line=2, col=9)
+    def test_edgeql_syntax_ddl_02(self):
+        """
+        sys::get_version();
+        """
+
 
 class TestEdgeQLNormalization(EdgeQLSyntaxTest):
 
@@ -6291,3 +6514,28 @@ class TestEdgeQLNormalization(EdgeQLSyntaxTest):
         '''
         select count 1;
         '''
+
+
+class TestEdgeQLTokenSerialization(unittest.TestCase):
+    def test_edgeql_token_serialization(self):
+        query = "SELECT (12345678, <str>$0)"
+        src1 = tokenizer.Source.from_string(query)
+        src2 = tokenizer.deserialize(src1.serialize(), query)
+        self.assertSourceEqual(src1, src2)
+
+    def test_edgeql_normalized_token_serialization(self):
+        query = "SELECT (12345678, <str>$0)"
+        src1 = tokenizer.NormalizedSource.from_string(query)
+        src2 = tokenizer.deserialize(src1.serialize(), query)
+        self.assertSourceEqual(src1, src2)
+
+    def assertSourceEqual(self, src1, src2):
+        self.assertIs(type(src1), type(src2))
+        self.assertEqual(src1.text(), src2.text())
+        self.assertEqual(src1.cache_key(), src2.cache_key())
+        self.assertEqual(src1.variables(), src2.variables())
+        self.assertEqual(str(src1.tokens()), str(src2.tokens()))
+        self.assertEqual(src1.first_extra(), src2.first_extra())
+        self.assertEqual(src1.extra_counts(), src2.extra_counts())
+        self.assertEqual(src1.extra_blobs(), src2.extra_blobs())
+        self.assertIs(src1.serialize(), src2.serialize())

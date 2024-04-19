@@ -18,7 +18,21 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Union,
+    Iterator,
+    Mapping,
+    Dict,
+    NoReturn,
+    TYPE_CHECKING,
+)
+
+from edb.common.log import early_setup
+# ruff: noqa: E402
+early_setup()
 
 import asyncio
 import contextlib
@@ -38,9 +52,6 @@ import click
 import setproctitle
 import uvloop
 
-from . import logsetup
-logsetup.early_setup()
-
 from edb import buildmeta
 from edb.ir import statypes
 from edb.common import exceptions
@@ -53,6 +64,7 @@ from . import args as srvargs
 from . import compiler as edbcompiler
 from . import daemon
 from . import defines
+from . import logsetup
 from . import pgconnparams
 from . import pgcluster
 from . import service_manager
@@ -210,6 +222,8 @@ async def _run_server(
             instance_name=args.instance_name,
             max_backend_connections=args.max_backend_connections,
             backend_adaptive_ha=args.backend_adaptive_ha,
+        )
+        tenant.set_reloadable_files(
             readiness_state_file=args.readiness_state_file,
             jwt_sub_allowlist_file=args.jwt_sub_allowlist_file,
             jwt_revocation_list_file=args.jwt_revocation_list_file,
@@ -238,6 +252,10 @@ async def _run_server(
             disable_dynamic_system_config=args.disable_dynamic_system_config,
             compiler_state=compiler_state,
             tenant=tenant,
+            use_monitor_fs=args.reload_config_files in [
+                srvargs.ReloadTrigger.Default,
+                srvargs.ReloadTrigger.FileSystemEvent,
+            ],
         )
         # This coroutine runs as long as the server,
         # and compiler_state is *heavy*, so make sure we don't
@@ -255,16 +273,33 @@ async def _run_server(
             return
 
         ss.init_tls(
-            args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
+            args.tls_cert_file,
+            args.tls_key_file,
+            tls_cert_newly_generated,
+            args.tls_client_ca_file,
+        )
 
         ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
 
         def load_configuration(_signum):
+            if args.reload_config_files not in [
+                srvargs.ReloadTrigger.Default,
+                srvargs.ReloadTrigger.Signal,
+            ]:
+                logger.info(
+                    "SIGHUP received, but reload on signal is disabled"
+                )
+                return
+
             logger.info("reloading configuration")
             try:
                 if args.readiness_state_file:
                     tenant.reload_readiness_state()
-                ss.reload_tls(args.tls_cert_file, args.tls_key_file)
+                ss.reload_tls(
+                    args.tls_cert_file,
+                    args.tls_key_file,
+                    args.tls_client_ca_file,
+                )
                 ss.load_jwcrypto(args.jws_key_file)
             except Exception:
                 logger.critical(
@@ -829,7 +864,7 @@ def initialize_static_cfg(
         except KeyError:
             continue
         choices = setting.enum_values
-        if setting.type == bool:
+        if setting.type is bool:
             choices = ['true', 'false']
         env_value = env_value.lower()
         if choices is not None and env_value not in choices:
@@ -837,7 +872,7 @@ def initialize_static_cfg(
                 f"Environment variable {env_name!r} can only be one of: " +
                 ", ".join(choices)
             )
-        if setting.type == bool:
+        if setting.type is bool:
             env_value = env_value == 'true'
         elif not issubclass(setting.type, statypes.ScalarType):  # type: ignore
             env_value = setting.type(env_value)  # type: ignore

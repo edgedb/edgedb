@@ -21,7 +21,8 @@
 
 
 from __future__ import annotations
-from typing import *
+from dataclasses import dataclass, field
+from typing import Optional, Tuple, Dict, List
 
 from edb.common import ast
 from edb.common import view_patterns
@@ -82,19 +83,6 @@ def is_ql_empty_array(expr: qlast.Expr) -> bool:
     return isinstance(expr, qlast.Array) and len(expr.elements) == 0
 
 
-def is_ql_path(qlexpr: qlast.Expr) -> bool:
-    if isinstance(qlexpr, qlast.Shape):
-        if qlexpr.expr:
-            qlexpr = qlexpr.expr
-
-    if not isinstance(qlexpr, qlast.Path):
-        return False
-
-    start = qlexpr.steps[0]
-
-    return isinstance(start, (qlast.Source, qlast.ObjectRef, qlast.Ptr))
-
-
 def is_nontrivial_shape_element(shape_el: qlast.ShapeElement) -> bool:
     return bool(
         shape_el.where
@@ -121,6 +109,17 @@ def extend_path(expr: qlast.Expr, field: str) -> qlast.Path:
         return qlast.Path(steps=[expr, step])
 
 
+@dataclass
+class Params:
+    cast_params: List[
+        Tuple[qlast.TypeCast, Dict[Optional[str], str]]
+    ] = field(default_factory=list)
+    shaped_params: List[
+        Tuple[qlast.Parameter, qlast.Shape]
+    ] = field(default_factory=list)
+    loose_params: List[qlast.Parameter] = field(default_factory=list)
+
+
 class FindParams(ast.NodeVisitor):
     """Visitor to find all the parameters.
 
@@ -128,9 +127,7 @@ class FindParams(ast.NodeVisitor):
     """
     def __init__(self, modaliases: Dict[Optional[str], str]) -> None:
         super().__init__()
-        self.params: List[
-            Tuple[qlast.TypeCast, Dict[Optional[str], str]]] = []
-        self.loose_params: List[qlast.Parameter] = []
+        self.params: Params = Params()
         self.modaliases = modaliases
 
     def visit_Command(self, n: qlast.Command) -> None:
@@ -154,12 +151,17 @@ class FindParams(ast.NodeVisitor):
 
     def visit_TypeCast(self, n: qlast.TypeCast) -> None:
         if isinstance(n.expr, qlast.Parameter):
-            self.params.append((n, self.modaliases))
+            self.params.cast_params.append((n, self.modaliases))
+        elif isinstance(n.expr, qlast.Shape):
+            if isinstance(n.expr.expr, qlast.Parameter):
+                self.params.shaped_params.append((n.expr.expr, n.expr))
+            else:
+                self.generic_visit(n)
         else:
             self.generic_visit(n)
 
     def visit_Parameter(self, n: qlast.Parameter) -> None:
-        self.loose_params.append(n)
+        self.params.loose_params.append(n)
 
     def visit_CreateFunction(self, n: qlast.CreateFunction) -> None:
         pass
@@ -170,13 +172,11 @@ class FindParams(ast.NodeVisitor):
 
 def find_parameters(
     ql: qlast.Base, modaliases: Dict[Optional[str], str]
-) -> Tuple[
-        List[Tuple[qlast.TypeCast, Dict[Optional[str], str]]],
-        List[qlast.Parameter]]:
+) -> Params:
     """Get all query parameters"""
     v = FindParams(modaliases)
     v.visit(ql)
-    return v.params, v.loose_params
+    return v.params
 
 
 class alias_view(

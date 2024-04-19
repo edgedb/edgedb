@@ -18,7 +18,6 @@
 
 from __future__ import annotations
 
-
 from typing import (
     Any,
     Callable,
@@ -26,9 +25,7 @@ from typing import (
     Optional,
 )
 
-
 from edb.pgsql import params as pg_params
-
 
 class BackendError(Exception):
 
@@ -38,18 +35,14 @@ class BackendError(Exception):
     def code_is(self, code: str) -> bool:
         ...
 
-
 class BackendConnectionError(BackendError):
     ...
-
 
 class BackendPrivilegeError(BackendError):
     ...
 
-
 class BackendCatalogNameError(BackendError):
     ...
-
 
 async def connect(
     connargs: Dict[str, Any],
@@ -59,10 +52,8 @@ async def connect(
 ) -> PGConnection:
     ...
 
-
 def set_init_con_script_data(cfg: list[dict[str, Any]]):
     ...
-
 
 class PGConnection:
 
@@ -143,7 +134,6 @@ class PGConnection:
 
     def finish_pg_cancellation(self) -> None:
         ...
-
 
 SETUP_TEMP_TABLE_SCRIPT: str
 SETUP_CONFIG_CACHE_SCRIPT: str

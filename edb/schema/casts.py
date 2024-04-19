@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Type, Mapping, cast
 
 import functools
 
@@ -184,7 +184,7 @@ def get_cast_fullname_from_names(
             and sn.UnqualName(to_type.module) not in s_schema.STD_MODULES
         )
     )
-    module = 'std' if std else '__derived__'
+    module = 'std' if std else '__ext_casts__'
 
     quals = [str(from_type), str(to_type)]
     shortname = sn.QualName(module, 'cast')
@@ -270,7 +270,7 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
                 'user-defined casts are not supported',
-                context=astnode.context
+                span=astnode.span
             )
 
         return super()._cmd_tree_from_ast(schema, astnode, context)
@@ -331,7 +331,7 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
             raise errors.DuplicateCastDefinitionError(
                 f'a cast from {from_type.get_displayname(schema)!r} '
                 f'to {to_type.get_displayname(schema)!r} is already defined',
-                context=self.source_context)
+                span=self.span)
 
         return super()._create_begin(schema, context)
 
@@ -466,9 +466,9 @@ class DeleteCast(CastCommand, sd.DeleteObject[Cast]):
         schema = super()._delete_begin(schema, context)
         if not context.canonical:
             from_type = self.scls.get_from_type(schema)
-            if op := from_type.as_type_delete_if_dead(schema):
+            if op := from_type.as_type_delete_if_unused(schema):
                 self.add_caused(op)
             to_type = self.scls.get_to_type(schema)
-            if op := to_type.as_type_delete_if_dead(schema):
+            if op := to_type.as_type_delete_if_unused(schema):
                 self.add_caused(op)
         return schema

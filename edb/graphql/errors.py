@@ -18,15 +18,14 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Optional, Tuple
 
 from edb import errors
 
 
 class GraphQLError(errors.QueryError):
 
-    def __init__(self, msg, *,
-                 loc: Optional[Tuple[int, int]]=None):
+    def __init__(self, msg, *, loc: Optional[Tuple[int, int]] = None):
 
         super().__init__(msg)
 

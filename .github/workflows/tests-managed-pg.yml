@@ -14,44 +14,57 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
+      id: setup-python
       with:
-        python-version: '3.11.3'
-
-    # Build virtualenv
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
-          setup.py
+        python-version: '3.12.2'
+        cache: 'pip'
+        cache-dependency-path: |
           pyproject.toml
-        custom_cache_key_element: v2
+
+    # The below is technically a lie as we are technically not
+    # inside a virtual env, but there is really no reason to bother
+    # actually creating and activating one as below works just fine.
+    - name: Export $VIRTUAL_ENV
+      run: |
+        venv="$(python -c 'import sys; sys.stdout.write(sys.prefix)')"
+        echo "VIRTUAL_ENV=${venv}" >> $GITHUB_ENV
+
+    - name: Set up uv cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
+
+    - name: Cached requirements.txt
+      uses: actions/cache@v4
+      id: requirements-cache
+      with:
+        path: requirements.txt
+        key: edb-requirements-${{ hashFiles('pyproject.toml') }}
+
+    - name: Compute requirements.txt
+      if: steps.requirements-cache.outputs.cache-hit != 'true'
+      run: |
+        python -m pip install pip-tools
+        pip-compile --no-strip-extras --all-build-deps --extra test \
+          --output-file requirements.txt pyproject.toml
 
     - name: Install Python dependencies
-      if: steps.venv-cache.outputs.cache-hit != 'true'
-      shell: bash
       run: |
-        set -e
-        python -m pip install -U pip setuptools wheel build
-        bdeps_script="import build; print('\n'.join(build.ProjectBuilder('.').build_system_requires))"
-        readarray -t build_deps < <(python -c "${bdeps_script}")
-        python -m pip download --dest=$VIRTUAL_ENV/deps "${build_deps[@]}" .[test]
-        python -m pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
-
-    # Prepare environment variables and shared artifacts
+        python -c "import sys; print(sys.prefix)"
+        python -m pip install uv && uv pip install -U -r requirements.txt
 
     - name: Compute cache keys
       run: |
@@ -61,16 +74,18 @@ jobs:
         python setup.py -q ci_helper --type ext >.tmp/ext_cache_key.txt
         python setup.py -q ci_helper --type parsers >.tmp/parsers_cache_key.txt
         python setup.py -q ci_helper --type postgres >.tmp/postgres_git_rev.txt
-        echo 'v0.17.0' >.tmp/stolon_git_rev.txt
+        python setup.py -q ci_helper --type libpg_query >.tmp/libpg_query_git_rev.txt
+        echo 'f8cd94309eaccbfba5dea7835b88c78377608a37' >.tmp/stolon_git_rev.txt
         python setup.py -q ci_helper --type bootstrap >.tmp/bootstrap_cache_key.txt
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo LIBPG_QUERY_GIT_REV=$(cat .tmp/libpg_query_git_rev.txt) >> $GITHUB_ENV
         echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -79,14 +94,14 @@ jobs:
     # Restore binary cache
 
     - name: Handle cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
@@ -95,25 +110,32 @@ jobs:
           edb-rust-v3-
 
     - name: Handle cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Handle cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Handle cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
+
+    - name: Handle cached libpg_query build
+      uses: actions/cache@v4
+      id: libpg-query-cache
+      with:
+        path: edb/pgsql/parser/libpg_query/libpg_query.a
+        key: edb-libpg_query-v1-${{ env.LIBPG_QUERY_GIT_REV }}
 
     # Install system dependencies for building
 
@@ -132,16 +154,15 @@ jobs:
       if: |
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true'
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       with:
-        profile: minimal
-        toolchain: stable
-        default: true
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
 
     # Build EdgeDB CLI
 
     - name: Handle EdgeDB CLI build cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: steps.cli-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/cli
@@ -163,7 +184,7 @@ jobs:
     # Build Rust extensions
 
     - name: Handle Rust extensions build cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: steps.rust-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
@@ -189,13 +210,16 @@ jobs:
     # Build libpg_query
 
     - name: Build libpg_query
+      if: |
+        steps.libpg-query-cache.outputs.cache-hit != 'true' &&
+        steps.ext-cache.outputs.cache-hit != 'true'
       run: |
         python setup.py build_libpg_query
 
     # Build extensions
 
     - name: Handle Cython extensions build cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       if: steps.ext-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/edb
@@ -219,13 +243,13 @@ jobs:
     # Build parsers
 
     - name: Handle compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
         restore-keys: |
-          edb-parsers-v2-
+          edb-parsers-v3-
 
     - name: Build parsers
       env:
@@ -262,10 +286,10 @@ jobs:
       with:
         go-version: 1.16
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       if: steps.stolon-cache.outputs.cache-hit != 'true'
       with:
-        repository: sorintlab/stolon
+        repository: edgedb/stolon
         path: build/stolon
         ref: ${{ env.STOLON_GIT_REV }}
         fetch-depth: 0
@@ -281,24 +305,18 @@ jobs:
 
     # Install edgedb-server and populate egg-info
 
-    - name: Install edgedb-server and populate egg-info
+    - name: Install edgedb-server
       env:
-        CACHE_HIT: ${{ steps.venv-cache.outputs.cache-hit }}
         BUILD_EXT_MODE: skip
       run: |
-        if [[ "$CACHE_HIT" == "true" ]]; then
-          rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
-        else
-          # --no-build-isolation because we have explicitly installed all deps
-          # and don't want them to be reinstalled in an "isolated env".
-          pip install --no-build-isolation --no-deps -e .[test,docs]
-          rsync -av ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
-        fi
+        # --no-build-isolation because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-build-isolation --no-deps -e .[test,docs]
 
     # Refresh the bootstrap cache
 
     - name: Handle bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache
@@ -320,7 +338,7 @@ jobs:
       run:
         working-directory: .github/aws-rds
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
@@ -347,7 +365,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds/terraform.tfstate
@@ -362,34 +380,52 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-aws-rds, build]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
+      id: setup-python
       with:
-        python-version: '3.11.3'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
-          setup.py
+        python-version: '3.12.2'
+        cache: 'pip'
+        cache-dependency-path: |
           pyproject.toml
-        custom_cache_key_element: v2
+
+    # The below is technically a lie as we are technically not
+    # inside a virtual env, but there is really no reason to bother
+    # actually creating and activating one as below works just fine.
+    - name: Export $VIRTUAL_ENV
+      run: |
+        venv="$(python -c 'import sys; sys.stdout.write(sys.prefix)')"
+        echo "VIRTUAL_ENV=${venv}" >> $GITHUB_ENV
+
+    - name: Set up uv cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
+    
+    - name: Download requirements.txt
+      uses: actions/cache@v4
+      with:
+        path: requirements.txt
+        key: edb-requirements-${{ hashFiles('pyproject.toml') }}
+
+    - name: Install Python dependencies
+      run: python -m pip install uv && uv pip install -U -r requirements.txt
 
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -405,49 +441,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache
@@ -455,7 +491,6 @@ jobs:
 
     - name: Stop if we cannot retrieve the cache
       if: |
-        steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
@@ -474,7 +509,14 @@ jobs:
         rsync -av ./build/extensions/edb/ ./edb/
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
-        rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+
+    - name: Install edgedb-server
+      env:
+        BUILD_EXT_MODE: skip
+      run: |
+        # --no-build-isolation because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-build-isolation --no-deps -e .[test,docs]
 
     # Run the test
 
@@ -493,7 +535,7 @@ jobs:
       run:
         working-directory: .github/aws-rds
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
@@ -512,7 +554,7 @@ jobs:
           aws-region: us-east-2
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds
@@ -524,7 +566,7 @@ jobs:
           TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds/terraform.tfstate
@@ -537,7 +579,7 @@ jobs:
       run:
         working-directory: .github/do-database
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
@@ -556,7 +598,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
@@ -566,34 +608,52 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-do-database, build]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
+      id: setup-python
       with:
-        python-version: '3.11.3'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
-          setup.py
+        python-version: '3.12.2'
+        cache: 'pip'
+        cache-dependency-path: |
           pyproject.toml
-        custom_cache_key_element: v2
+
+    # The below is technically a lie as we are technically not
+    # inside a virtual env, but there is really no reason to bother
+    # actually creating and activating one as below works just fine.
+    - name: Export $VIRTUAL_ENV
+      run: |
+        venv="$(python -c 'import sys; sys.stdout.write(sys.prefix)')"
+        echo "VIRTUAL_ENV=${venv}" >> $GITHUB_ENV
+
+    - name: Set up uv cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
+    
+    - name: Download requirements.txt
+      uses: actions/cache@v4
+      with:
+        path: requirements.txt
+        key: edb-requirements-${{ hashFiles('pyproject.toml') }}
+
+    - name: Install Python dependencies
+      run: python -m pip install uv && uv pip install -U -r requirements.txt
 
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -609,49 +669,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache
@@ -659,7 +719,6 @@ jobs:
 
     - name: Stop if we cannot retrieve the cache
       if: |
-        steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
@@ -678,7 +737,14 @@ jobs:
         rsync -av ./build/extensions/edb/ ./edb/
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
-        rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+
+    - name: Install edgedb-server
+      env:
+        BUILD_EXT_MODE: skip
+      run: |
+        # --no-build-isolation because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-build-isolation --no-deps -e .[test,docs]
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v1
@@ -688,7 +754,7 @@ jobs:
       run: terraform init
 
     - name: Restore Terraform state
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: do-database-tfstate
         path: .github/do-database
@@ -740,7 +806,7 @@ jobs:
       run:
         working-directory: .github/do-database
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
@@ -752,7 +818,7 @@ jobs:
         run: terraform init
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: do-database-tfstate
           path: .github/do-database
@@ -763,7 +829,7 @@ jobs:
           TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
@@ -778,7 +844,7 @@ jobs:
       run:
         working-directory: .github/gcp-cloud-sql
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
@@ -803,7 +869,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
@@ -818,34 +884,52 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-gcp-cloud-sql, build]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
+      id: setup-python
       with:
-        python-version: '3.11.3'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
-          setup.py
+        python-version: '3.12.2'
+        cache: 'pip'
+        cache-dependency-path: |
           pyproject.toml
-        custom_cache_key_element: v2
+
+    # The below is technically a lie as we are technically not
+    # inside a virtual env, but there is really no reason to bother
+    # actually creating and activating one as below works just fine.
+    - name: Export $VIRTUAL_ENV
+      run: |
+        venv="$(python -c 'import sys; sys.stdout.write(sys.prefix)')"
+        echo "VIRTUAL_ENV=${venv}" >> $GITHUB_ENV
+
+    - name: Set up uv cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
+    
+    - name: Download requirements.txt
+      uses: actions/cache@v4
+      with:
+        path: requirements.txt
+        key: edb-requirements-${{ hashFiles('pyproject.toml') }}
+
+    - name: Install Python dependencies
+      run: python -m pip install uv && uv pip install -U -r requirements.txt
 
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -861,49 +945,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache
@@ -911,7 +995,6 @@ jobs:
 
     - name: Stop if we cannot retrieve the cache
       if: |
-        steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
@@ -930,7 +1013,14 @@ jobs:
         rsync -av ./build/extensions/edb/ ./edb/
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
-        rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+
+    - name: Install edgedb-server
+      env:
+        BUILD_EXT_MODE: skip
+      run: |
+        # --no-build-isolation because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-build-isolation --no-deps -e .[test,docs]
 
     # Run the test
 
@@ -949,7 +1039,7 @@ jobs:
       run:
         working-directory: .github/gcp-cloud-sql
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
@@ -967,7 +1057,7 @@ jobs:
           export_default_credentials: true
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql
@@ -978,7 +1068,7 @@ jobs:
           TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
@@ -993,7 +1083,7 @@ jobs:
       run:
         working-directory: .github/aws-aurora
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
@@ -1021,7 +1111,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora/terraform.tfstate
@@ -1036,34 +1126,52 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-aws-aurora, build]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
+      id: setup-python
       with:
-        python-version: '3.11.3'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
-          setup.py
+        python-version: '3.12.2'
+        cache: 'pip'
+        cache-dependency-path: |
           pyproject.toml
-        custom_cache_key_element: v2
+
+    # The below is technically a lie as we are technically not
+    # inside a virtual env, but there is really no reason to bother
+    # actually creating and activating one as below works just fine.
+    - name: Export $VIRTUAL_ENV
+      run: |
+        venv="$(python -c 'import sys; sys.stdout.write(sys.prefix)')"
+        echo "VIRTUAL_ENV=${venv}" >> $GITHUB_ENV
+
+    - name: Set up uv cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
+    
+    - name: Download requirements.txt
+      uses: actions/cache@v4
+      with:
+        path: requirements.txt
+        key: edb-requirements-${{ hashFiles('pyproject.toml') }}
+
+    - name: Install Python dependencies
+      run: python -m pip install uv && uv pip install -U -r requirements.txt
 
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -1079,49 +1187,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache
@@ -1129,7 +1237,6 @@ jobs:
 
     - name: Stop if we cannot retrieve the cache
       if: |
-        steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
@@ -1148,7 +1255,14 @@ jobs:
         rsync -av ./build/extensions/edb/ ./edb/
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
-        rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+
+    - name: Install edgedb-server
+      env:
+        BUILD_EXT_MODE: skip
+      run: |
+        # --no-build-isolation because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-build-isolation --no-deps -e .[test,docs]
 
     # Run the test
 
@@ -1167,7 +1281,7 @@ jobs:
       run:
         working-directory: .github/aws-aurora
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
@@ -1186,7 +1300,7 @@ jobs:
           aws-region: us-east-2
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora
@@ -1199,7 +1313,7 @@ jobs:
           TF_VAR_vpc_id: ${{ secrets.AWS_VPC_ID }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora/terraform.tfstate
@@ -1212,7 +1326,7 @@ jobs:
       run:
         working-directory: .github/heroku-postgres
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
@@ -1232,7 +1346,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate
@@ -1242,34 +1356,52 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-heroku-postgres, build]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
+      id: setup-python
       with:
-        python-version: '3.11.3'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
-          setup.py
+        python-version: '3.12.2'
+        cache: 'pip'
+        cache-dependency-path: |
           pyproject.toml
-        custom_cache_key_element: v2
+
+    # The below is technically a lie as we are technically not
+    # inside a virtual env, but there is really no reason to bother
+    # actually creating and activating one as below works just fine.
+    - name: Export $VIRTUAL_ENV
+      run: |
+        venv="$(python -c 'import sys; sys.stdout.write(sys.prefix)')"
+        echo "VIRTUAL_ENV=${venv}" >> $GITHUB_ENV
+
+    - name: Set up uv cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
+    
+    - name: Download requirements.txt
+      uses: actions/cache@v4
+      with:
+        path: requirements.txt
+        key: edb-requirements-${{ hashFiles('pyproject.toml') }}
+
+    - name: Install Python dependencies
+      run: python -m pip install uv && uv pip install -U -r requirements.txt
 
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: shared-artifacts
         path: .tmp
@@ -1285,49 +1417,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: bootstrap-cache
       with:
         path: build/cache
@@ -1335,7 +1467,6 @@ jobs:
 
     - name: Stop if we cannot retrieve the cache
       if: |
-        steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
@@ -1354,7 +1485,14 @@ jobs:
         rsync -av ./build/extensions/edb/ ./edb/
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
-        rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+
+    - name: Install edgedb-server
+      env:
+        BUILD_EXT_MODE: skip
+      run: |
+        # --no-build-isolation because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-build-isolation --no-deps -e .[test,docs]
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v1
@@ -1364,7 +1502,7 @@ jobs:
       run: terraform init
 
     - name: Restore Terraform state
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: heroku-postgres-tfstate
         path: .github/heroku-postgres
@@ -1393,7 +1531,7 @@ jobs:
       run:
         working-directory: .github/heroku-postgres
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
@@ -1412,7 +1550,7 @@ jobs:
           aws-region: us-east-2
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres
@@ -1424,7 +1562,7 @@ jobs:
           HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate

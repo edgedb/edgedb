@@ -19,6 +19,10 @@
 
 from __future__ import annotations
 
+from edb.common.log import early_setup
+# ruff: noqa: E402
+early_setup()
+
 import os
 import sys
 
@@ -70,6 +74,7 @@ from . import wipe  # noqa
 from . import gen_test_dumps  # noqa
 from . import gen_sql_introspection  # noqa
 from . import gen_rust_ast  # noqa
+from . import ast_inheritance_graph  # noqa
 from . import parser_demo  # noqa
 from .profiling import cli as prof_cli  # noqa
 from .experimental_interpreter import edb_entry # noqa

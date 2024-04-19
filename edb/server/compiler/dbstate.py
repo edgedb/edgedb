@@ -18,10 +18,12 @@
 
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import Any, Optional, Tuple, Iterator, Dict, List, NamedTuple, Self
 
 import dataclasses
 import enum
+import io
+import pickle
 import time
 import uuid
 
@@ -71,6 +73,9 @@ class MigrationAction(enum.IntEnum):
 class BaseQuery:
 
     sql: Tuple[bytes, ...]
+    cache_sql: Optional[Tuple[bytes, bytes]] = dataclasses.field(
+        kw_only=True, default=None
+    )  # (persist, evict)
 
     @property
     def is_transactional(self) -> bool:
@@ -102,7 +107,6 @@ class Query(BaseQuery):
 
     is_transactional: bool = True
     has_dml: bool = False
-    single_unit: bool = False
     cacheable: bool = True
     is_explain: bool = False
     query_asts: Any = None
@@ -115,7 +119,6 @@ class SimpleQuery(BaseQuery):
     sql: Tuple[bytes, ...]
     is_transactional: bool = True
     has_dml: bool = False
-    single_unit: bool = False
     # XXX: Temporary hack, since SimpleQuery will die
     in_type_args: Optional[List[Param]] = None
 
@@ -129,7 +132,6 @@ class SessionStateQuery(BaseQuery):
     is_system_config: bool = False
     config_op: Optional[config.Operation] = None
     is_transactional: bool = True
-    single_unit: bool = False
     globals: Optional[list[tuple[str, bool]]] = None
 
     in_type_data: Optional[bytes] = None
@@ -144,10 +146,11 @@ class DDLQuery(BaseQuery):
     global_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
     is_transactional: bool = True
-    single_unit: bool = False
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
+    drop_db_reset_connections: bool = False
     create_db_template: Optional[str] = None
+    create_db_mode: Optional[qlast.BranchType] = None
     ddl_stmt_id: Optional[str] = None
     config_ops: List[config.Operation] = (
         dataclasses.field(default_factory=list))
@@ -161,7 +164,6 @@ class TxControlQuery(BaseQuery):
 
     modaliases: Optional[immutables.Map[Optional[str], str]]
     is_transactional: bool = True
-    single_unit: bool = False
 
     user_schema: Optional[s_schema.Schema] = None
     global_schema: Optional[s_schema.Schema] = None
@@ -180,7 +182,6 @@ class MigrationControlQuery(BaseQuery):
 
     modaliases: Optional[immutables.Map[Optional[str], str]]
     is_transactional: bool = True
-    single_unit: bool = False
 
     user_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
@@ -215,6 +216,9 @@ class QueryUnit:
     # executed successfully.  When a QueryUnit contains multiple
     # EdgeQL queries, the status reflects the last query in the unit.
     status: bytes
+
+    cache_key: Optional[uuid.UUID] = None
+    cache_sql: Optional[Tuple[bytes, bytes]] = None  # (persist, evict)
 
     # Output format of this query unit
     output_format: enums.OutputFormat = enums.OutputFormat.NONE
@@ -267,11 +271,13 @@ class QueryUnit:
     # close all inactive unused pooled connections to it.
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
+    drop_db_reset_connections: bool = False
 
     # If non-None, contains a name of the DB that will be used as
     # a template database to create the database. The server should
     # close all inactive unused pooled connections to the template db.
     create_db_template: Optional[str] = None
+    create_db_mode: Optional[str] = None
 
     # If non-None, the DDL statement will emit data packets marked
     # with the indicated ID.
@@ -313,6 +319,10 @@ class QueryUnit:
     # If present, represents the future schema state after
     # the command is run. The schema is pickled.
     user_schema: Optional[bytes] = None
+    # Unlike user_schema, user_schema_version usually exist, pointing to the
+    # latest user schema, which is self.user_schema if changed, or the user
+    # schema this QueryUnit was compiled upon.
+    user_schema_version: uuid.UUID | None = None
     cached_reflection: Optional[bytes] = None
     extensions: Optional[set[str]] = None
     ext_config_settings: Optional[list[config.Setting]] = None
@@ -340,6 +350,20 @@ class QueryUnit:
             or self.tx_savepoint_rollback
         )
 
+    def serialize(self) -> bytes:
+        rv = io.BytesIO()
+        rv.write(b"\x00")  # 1 byte of version number
+        pickle.dump(self, rv, -1)
+        return rv.getvalue()
+
+    @classmethod
+    def deserialize(cls, data: bytes) -> Self:
+        buf = memoryview(data)
+        match buf[0]:
+            case 0x00:
+                return pickle.loads(buf[1:])  # type: ignore[no-any-return]
+        raise ValueError(f"Bad version number: {buf[0]}")
+
 
 @dataclasses.dataclass
 class QueryUnitGroup:
@@ -366,20 +390,45 @@ class QueryUnitGroup:
     in_type_args_real_count: int = 0
     globals: Optional[list[tuple[str, bool]]] = None
 
-    units: List[QueryUnit] = dataclasses.field(default_factory=list)
+    # Cacheable QueryUnit is serialized in the compiler, so that the I/O server
+    # doesn't need to serialize it again for persistence.
+    _units: List[QueryUnit | bytes] = dataclasses.field(default_factory=list)
+    # This is a I/O server-only cache for unpacked QueryUnits
+    _unpacked_units: List[QueryUnit] | None = None
 
     state_serializer: Optional[sertypes.StateSerializer] = None
+
+    cache_state: int = 0
+
+    @property
+    def units(self) -> List[QueryUnit]:
+        if self._unpacked_units is None:
+            self._unpacked_units = [
+                QueryUnit.deserialize(unit) if isinstance(unit, bytes) else unit
+                for unit in self._units
+            ]
+        return self._unpacked_units
 
     def __iter__(self) -> Iterator[QueryUnit]:
         return iter(self.units)
 
     def __len__(self) -> int:
-        return len(self.units)
+        return len(self._units)
 
     def __getitem__(self, item: int) -> QueryUnit:
         return self.units[item]
 
-    def append(self, query_unit: QueryUnit) -> None:
+    def maybe_get_serialized(self, item: int) -> bytes | None:
+        unit = self._units[item]
+        if isinstance(unit, bytes):
+            return unit
+        return None
+
+    def append(
+        self,
+        query_unit: QueryUnit,
+        serialize: bool = True,
+    ) -> None:
         self.capabilities |= query_unit.capabilities
 
         if not query_unit.cacheable:
@@ -400,7 +449,10 @@ class QueryUnitGroup:
                 self.globals = []
             self.globals.extend(query_unit.globals)
 
-        self.units.append(query_unit)
+        if not serialize or query_unit.cache_sql is None:
+            self._units.append(query_unit)
+        else:
+            self._units.append(query_unit.serialize())
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -473,6 +525,7 @@ class SQLQueryUnit:
 @dataclasses.dataclass
 class ParsedDatabase:
     user_schema_pickle: bytes
+    schema_version: uuid.UUID
     database_config: immutables.Map[str, config.SettingValue]
     ext_config_settings: list[config.Setting]
 
@@ -555,8 +608,7 @@ class SQLTransactionState:
                 self.set(name, value, query_unit.is_local)
 
     def set(
-        self, name: Optional[str], value: str | list[str] | None,
-        is_local: bool
+        self, name: Optional[str], value: str | list[str] | None, is_local: bool
     ) -> None:
         def _set(attr_name: str) -> None:
             settings = getattr(self, attr_name)
@@ -623,7 +675,7 @@ class TransactionState(NamedTuple):
 
     id: int
     name: Optional[str]
-    user_schema: s_schema.FlatSchema
+    local_user_schema: s_schema.FlatSchema | None
     global_schema: s_schema.FlatSchema
     modaliases: immutables.Map[Optional[str], str]
     session_config: immutables.Map[str, config.SettingValue]
@@ -633,6 +685,13 @@ class TransactionState(NamedTuple):
     tx: Transaction
     migration_state: Optional[MigrationState] = None
     migration_rewrite_state: Optional[MigrationRewriteState] = None
+
+    @property
+    def user_schema(self) -> s_schema.FlatSchema:
+        if self.local_user_schema is None:
+            return self.tx.root_user_schema
+        else:
+            return self.local_user_schema
 
 
 class Transaction:
@@ -664,7 +723,9 @@ class Transaction:
         self._current = TransactionState(
             id=self._id,
             name=None,
-            user_schema=user_schema,
+            local_user_schema=(
+                None if user_schema is self.root_user_schema else user_schema
+            ),
             global_schema=global_schema,
             modaliases=modaliases,
             session_config=session_config,
@@ -680,6 +741,10 @@ class Transaction:
     @property
     def id(self) -> int:
         return self._id
+
+    @property
+    def root_user_schema(self) -> s_schema.FlatSchema:
+        return self._constate.root_user_schema
 
     def is_implicit(self) -> bool:
         return self._implicit
@@ -796,9 +861,9 @@ class Transaction:
     def get_system_config(self) -> immutables.Map[str, config.SettingValue]:
         return self._current.system_config
 
-    def get_cached_reflection_if_updated(self) -> Optional[
-        immutables.Map[str, Tuple[str, ...]]
-    ]:
+    def get_cached_reflection_if_updated(
+        self,
+    ) -> Optional[immutables.Map[str, Tuple[str, ...]]]:
         if self._current.cached_reflection == self._state0.cached_reflection:
             return None
         else:
@@ -820,7 +885,7 @@ class Transaction:
         global_schema = new_schema.get_global_schema()
         assert isinstance(global_schema, s_schema.FlatSchema)
         self._current = self._current._replace(
-            user_schema=user_schema,
+            local_user_schema=user_schema,
             global_schema=global_schema,
         )
 
@@ -845,9 +910,7 @@ class Transaction:
     ) -> None:
         self._current = self._current._replace(cached_reflection=new)
 
-    def update_migration_state(
-        self, mstate: Optional[MigrationState]
-    ) -> None:
+    def update_migration_state(self, mstate: Optional[MigrationState]) -> None:
         self._current = self._current._replace(migration_state=mstate)
 
     def update_migration_rewrite_state(
@@ -856,11 +919,15 @@ class Transaction:
         self._current = self._current._replace(migration_rewrite_state=mrstate)
 
 
+CStateStateType = Tuple[Dict[int, TransactionState], Transaction, int]
+
+
 class CompilerConnectionState:
 
-    __slots__ = ('_savepoints_log', '_current_tx', '_tx_count',)
+    __slots__ = ('_savepoints_log', '_current_tx', '_tx_count', '_user_schema')
 
     _savepoints_log: Dict[int, TransactionState]
+    _user_schema: Optional[s_schema.FlatSchema]
 
     def __init__(
         self,
@@ -873,6 +940,8 @@ class CompilerConnectionState:
         system_config: immutables.Map[str, config.SettingValue],
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
     ):
+        assert isinstance(user_schema, s_schema.FlatSchema)
+        self._user_schema = user_schema
         self._tx_count = time.monotonic_ns()
         self._init_current_tx(
             user_schema=user_schema,
@@ -884,6 +953,21 @@ class CompilerConnectionState:
             cached_reflection=cached_reflection,
         )
         self._savepoints_log = {}
+
+    def __getstate__(self) -> CStateStateType:
+        return self._savepoints_log, self._current_tx, self._tx_count
+
+    def __setstate__(self, state: CStateStateType) -> None:
+        self._savepoints_log, self._current_tx, self._tx_count = state
+        self._user_schema = None
+
+    @property
+    def root_user_schema(self) -> s_schema.FlatSchema:
+        assert self._user_schema is not None
+        return self._user_schema
+
+    def set_root_user_schema(self, user_schema: s_schema.FlatSchema) -> None:
+        self._user_schema = user_schema
 
     def _new_txid(self) -> int:
         self._tx_count += 1

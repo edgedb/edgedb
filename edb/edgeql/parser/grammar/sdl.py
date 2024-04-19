@@ -342,16 +342,16 @@ class ModuleDeclaration(Nonterm):
             if isinstance(decl, qlast.ExtensionCommand):
                 raise errors.EdgeQLSyntaxError(
                     "'using extension' cannot be used inside a module block",
-                    context=decl.context)
+                    span=decl.span)
             elif isinstance(decl, qlast.FutureCommand):
                 raise errors.EdgeQLSyntaxError(
                     "'using future' cannot be used inside a module block",
-                    context=decl.context)
+                    span=decl.span)
             elif decl.name.module is not None:
                 raise errors.EdgeQLSyntaxError(
                     "fully-qualified name is not allowed in "
                     "a module declaration",
-                    context=decl.name.context)
+                    span=decl.name.span)
 
         self.val = qlast.ModuleDeclaration(
             # mirror what we do in CREATE MODULE
@@ -659,13 +659,28 @@ sdl_commands_block(
 
 
 class ConcreteIndexDeclarationBlock(Nonterm, commondl.ProcessIndexMixin):
-    def reduce_INDEX_OnExpr_OptExceptExpr_CreateConcreteIndexSDLCommandsBlock(
-            self, *kids):
+    def reduce_CreateConcreteAnonymousIndex(self, *kids):
+        r"""%reduce INDEX OnExpr OptExceptExpr
+                    CreateConcreteIndexSDLCommandsBlock
+        """
         _, on_expr, except_expr, commands = kids
         self.val = qlast.CreateConcreteIndex(
             name=qlast.ObjectRef(module='__', name='idx'),
             expr=on_expr.val,
             except_expr=except_expr.val,
+            commands=commands.val,
+        )
+
+    def reduce_CreateConcreteAnonymousDeferredIndex(self, *kids):
+        r"""%reduce DEFERRED INDEX OnExpr OptExceptExpr
+                    CreateConcreteIndexSDLCommandsBlock
+        """
+        _, _, on_expr, except_expr, commands = kids
+        self.val = qlast.CreateConcreteIndex(
+            name=qlast.ObjectRef(module='__', name='idx'),
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
             commands=commands.val,
         )
 
@@ -679,6 +694,20 @@ class ConcreteIndexDeclarationBlock(Nonterm, commondl.ProcessIndexMixin):
             name=name.val,
             expr=on_expr.val,
             except_expr=except_expr.val,
+            commands=commands.val,
+        )
+
+    def reduce_CreateConcreteDeferredIndex(self, *kids):
+        r"""%reduce DEFERRED INDEX NodeName \
+                    OnExpr OptExceptExpr \
+                    CreateConcreteIndexSDLCommandsBlock \
+        """
+        _, _, name, on_expr, except_expr, commands = kids
+        self.val = qlast.CreateConcreteIndex(
+            name=name.val,
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
             commands=commands.val,
         )
 
@@ -697,6 +726,22 @@ class ConcreteIndexDeclarationBlock(Nonterm, commondl.ProcessIndexMixin):
             commands=commands.val,
         )
 
+    def reduce_CreateConcreteDeferredIndexWithArgs(self, *kids):
+        r"""%reduce DEFERRED INDEX NodeName IndexExtArgList \
+                    OnExpr OptExceptExpr \
+                    CreateConcreteIndexSDLCommandsBlock \
+        """
+        _, _, name, arg_list, on_expr, except_expr, commands = kids
+        kwargs = self._process_arguments(arg_list.val)
+        self.val = qlast.CreateConcreteIndex(
+            name=name.val,
+            kwargs=kwargs,
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
+            commands=commands.val,
+        )
+
 
 class ConcreteIndexDeclarationShort(Nonterm, commondl.ProcessIndexMixin):
     def reduce_INDEX_OnExpr_OptExceptExpr(self, *kids):
@@ -707,15 +752,34 @@ class ConcreteIndexDeclarationShort(Nonterm, commondl.ProcessIndexMixin):
             except_expr=except_expr.val,
         )
 
+    def reduce_DEFERRED_INDEX_OnExpr_OptExceptExpr(self, *kids):
+        _, _, on_expr, except_expr = kids
+        self.val = qlast.CreateConcreteIndex(
+            name=qlast.ObjectRef(module='__', name='idx'),
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
+        )
+
     def reduce_CreateConcreteIndex(self, *kids):
-        r"""%reduce INDEX NodeName \
-                    OnExpr OptExceptExpr \
+        r"""%reduce INDEX NodeName OnExpr OptExceptExpr
         """
         _, name, on_expr, except_expr = kids
         self.val = qlast.CreateConcreteIndex(
             name=name.val,
             expr=on_expr.val,
             except_expr=except_expr.val,
+        )
+
+    def reduce_CreateConcreteDeferredIndex(self, *kids):
+        r"""%reduce DEFERRED INDEX NodeName OnExpr OptExceptExpr
+        """
+        _, _, name, on_expr, except_expr = kids
+        self.val = qlast.CreateConcreteIndex(
+            name=name.val,
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
         )
 
     def reduce_CreateConcreteIndexWithArgs(self, *kids):
@@ -729,6 +793,20 @@ class ConcreteIndexDeclarationShort(Nonterm, commondl.ProcessIndexMixin):
             kwargs=kwargs,
             expr=on_expr.val,
             except_expr=except_expr.val,
+        )
+
+    def reduce_CreateConcreteDeferredIndexWithArgs(self, *kids):
+        r"""%reduce DEFERRED INDEX NodeName IndexExtArgList
+                    OnExpr OptExceptExpr
+        """
+        _, _, name, arg_list, on_expr, except_expr = kids
+        kwargs = self._process_arguments(arg_list.val)
+        self.val = qlast.CreateConcreteIndex(
+            name=name.val,
+            kwargs=kwargs,
+            expr=on_expr.val,
+            except_expr=except_expr.val,
+            deferred=True,
         )
 
 
@@ -786,12 +864,12 @@ class PtrTarget(Nonterm):
         _arrow, type_expr = kids
 
         self.val = type_expr.val
-        self.context = type_expr.val.context
+        self.span = type_expr.val.span
 
     def reduce_COLON_FullTypeExpr(self, *kids):
         _, type_expr = kids
         self.val = type_expr.val
-        self.context = type_expr.val.context
+        self.span = type_expr.val.span
 
 
 class OptPtrTarget(Nonterm):
@@ -812,11 +890,11 @@ class ConcreteUnknownPointerBlock(Nonterm):
                 if on_target_delete:
                     raise errors.EdgeQLSyntaxError(
                         f"more than one 'on target delete' specification",
-                        context=cmd.context)
+                        span=cmd.span)
                 else:
                     on_target_delete = cmd
 
-    def _extract_target(self, target, cmds, context, *, overloaded=False):
+    def _extract_target(self, target, cmds, span, *, overloaded=False):
         if target:
             return target, cmds
 
@@ -825,13 +903,13 @@ class ConcreteUnknownPointerBlock(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed link with more than one expression',
-                        context=context)
+                        span=span)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed link without expression',
-                context=context)
+                span=span)
 
         return target, cmds
 
@@ -842,7 +920,7 @@ class ConcreteUnknownPointerBlock(Nonterm):
         """
         name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
-            opt_target.val, block.val, name.context)
+            opt_target.val, block.val, name.span)
         vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteUnknownPointer(
             name=name.val,
@@ -859,7 +937,7 @@ class ConcreteUnknownPointerBlock(Nonterm):
         """
         quals, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
-            opt_target.val, block.val, name.context)
+            opt_target.val, block.val, name.span)
         vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteUnknownPointer(
             is_required=quals.val.required,
@@ -878,7 +956,7 @@ class ConcreteUnknownPointerBlock(Nonterm):
         """
         _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
-            opt_target.val, block.val, name.context, overloaded=True)
+            opt_target.val, block.val, name.span, overloaded=True)
         vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteUnknownPointer(
             name=name.val,
@@ -898,7 +976,7 @@ class ConcreteUnknownPointerBlock(Nonterm):
         """
         _, quals, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
-            opt_target.val, block.val, name.context, overloaded=True)
+            opt_target.val, block.val, name.span, overloaded=True)
         vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteUnknownPointer(
             name=name.val,
@@ -1053,7 +1131,7 @@ sdl_commands_block(
 
 
 class ConcretePropertyBlock(Nonterm):
-    def _extract_target(self, target, cmds, context, *, overloaded=False):
+    def _extract_target(self, target, cmds, span, *, overloaded=False):
         if target:
             return target, cmds
 
@@ -1062,13 +1140,13 @@ class ConcretePropertyBlock(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed property with more than one expression',
-                        context=context)
+                        span=span)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed property without expression',
-                context=context)
+                span=span)
 
         return target, cmds
 
@@ -1080,7 +1158,7 @@ class ConcretePropertyBlock(Nonterm):
         _, name, extending, target, commands_block = kids
 
         target, cmds = self._extract_target(
-            target.val, commands_block.val, name.context
+            target.val, commands_block.val, name.span
         )
         vbases, vcmds = commondl.extract_bases(extending.val, cmds)
         self.val = qlast.CreateConcreteProperty(
@@ -1098,7 +1176,7 @@ class ConcretePropertyBlock(Nonterm):
         (quals, property, name, extending, target, commands) = kids
 
         target, cmds = self._extract_target(
-            target.val, commands.val, property.context
+            target.val, commands.val, property.span
         )
         vbases, vcmds = commondl.extract_bases(extending.val, cmds)
         self.val = qlast.CreateConcreteProperty(
@@ -1117,7 +1195,7 @@ class ConcretePropertyBlock(Nonterm):
         """
         _, _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
-            opt_target.val, block.val, name.context, overloaded=True)
+            opt_target.val, block.val, name.span, overloaded=True)
         vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteProperty(
             name=name.val,
@@ -1136,7 +1214,7 @@ class ConcretePropertyBlock(Nonterm):
         """
         _, quals, _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
-            opt_target.val, block.val, name.context, overloaded=True)
+            opt_target.val, block.val, name.span, overloaded=True)
         vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteProperty(
             name=name.val,
@@ -1277,15 +1355,6 @@ class LinkDeclarationShort(Nonterm):
         )
 
 
-class OptPtrKind(Nonterm):
-    @parsing.inline(0)
-    def reduce_LINK(self, *kids):
-        pass
-
-    def reduce_empty(self):
-        self.val = None
-
-
 sdl_commands_block(
     'CreateConcreteLink',
     Using,
@@ -1315,11 +1384,11 @@ class ConcreteLinkBlock(Nonterm):
                 if on_target_delete:
                     raise errors.EdgeQLSyntaxError(
                         f"more than one 'on target delete' specification",
-                        context=cmd.context)
+                        span=cmd.span)
                 else:
                     on_target_delete = cmd
 
-    def _extract_target(self, target, cmds, context, *, overloaded=False):
+    def _extract_target(self, target, cmds, span, *, overloaded=False):
         if target:
             return target, cmds
 
@@ -1328,13 +1397,13 @@ class ConcreteLinkBlock(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed link with more than one expression',
-                        context=context)
+                        span=span)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed link without expression',
-                context=context)
+                span=span)
 
         return target, cmds
 
@@ -1345,7 +1414,7 @@ class ConcreteLinkBlock(Nonterm):
         """
         _, name, extending, target, commands = kids
         target, cmds = self._extract_target(
-            target.val, commands.val, name.context
+            target.val, commands.val, name.span
         )
         vbases, vcmds = commondl.extract_bases(extending.val, cmds)
         self.val = qlast.CreateConcreteLink(
@@ -1363,7 +1432,7 @@ class ConcreteLinkBlock(Nonterm):
         """
         quals, _, name, extending, target, commands = kids
         target, cmds = self._extract_target(
-            target.val, commands.val, name.context
+            target.val, commands.val, name.span
         )
         vbases, vcmds = commondl.extract_bases(extending.val, cmds)
         self.val = qlast.CreateConcreteLink(
@@ -1383,7 +1452,7 @@ class ConcreteLinkBlock(Nonterm):
         """
         _, _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
-            opt_target.val, block.val, name.context, overloaded=True)
+            opt_target.val, block.val, name.span, overloaded=True)
         vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteLink(
             name=name.val,
@@ -1403,7 +1472,7 @@ class ConcreteLinkBlock(Nonterm):
         """
         _, quals, _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
-            opt_target.val, block.val, name.context, overloaded=True)
+            opt_target.val, block.val, name.span, overloaded=True)
         vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteLink(
             name=name.val,
@@ -1781,7 +1850,7 @@ sdl_commands_block(
 
 
 class GlobalDeclaration(Nonterm):
-    def _extract_target(self, target, cmds, context, *, overloaded=False):
+    def _extract_target(self, target, cmds, span, *, overloaded=False):
         if target:
             return target, cmds
 
@@ -1790,13 +1859,13 @@ class GlobalDeclaration(Nonterm):
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
                         f'computed global with more than one expression',
-                        context=context)
+                        span=span)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed property without expression',
-                context=context)
+                span=span)
 
         return target, cmds
 
@@ -1807,7 +1876,7 @@ class GlobalDeclaration(Nonterm):
         """
         quals, glob, name, target, commands = kids
         target, cmds = self._extract_target(
-            target.val, commands.val, glob.context
+            target.val, commands.val, glob.span
         )
         self.val = qlast.CreateGlobal(
             name=name.val,
@@ -1824,7 +1893,7 @@ class GlobalDeclaration(Nonterm):
         """
         glob, name, target, commands = kids
         target, cmds = self._extract_target(
-            target.val, commands.val, glob.context
+            target.val, commands.val, glob.span
         )
         self.val = qlast.CreateGlobal(
             name=name.val,

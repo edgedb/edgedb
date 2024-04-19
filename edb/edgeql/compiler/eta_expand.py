@@ -78,7 +78,7 @@ They are discussed in more detail at the implementation sites.
 
 from __future__ import annotations
 
-from typing import *
+from typing import Tuple
 
 from edb.ir import ast as irast
 
@@ -179,11 +179,11 @@ def needs_eta_expansion(
     # an important optimization to support, but our expansion can generate
     # this idiom, so on principle I wanted to support it.
     if (
-        isinstance(ir.rptr, irast.TupleIndirectionPointer)
-        and isinstance(ir.rptr.source.expr, irast.Tuple)
+        isinstance(ir.expr, irast.TupleIndirectionPointer)
+        and isinstance(ir.expr.source.expr, irast.Tuple)
     ):
-        name = ir.rptr.ptrref.shortname.name
-        els = [x for x in ir.rptr.source.expr.elements if x.name == name]
+        name = ir.expr.ptrref.shortname.name
+        els = [x for x in ir.expr.source.expr.elements if x.name == name]
         if len(els) == 1:
             return needs_eta_expansion(els[0].val, ctx=ctx)
 

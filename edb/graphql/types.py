@@ -18,7 +18,18 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    ClassVar,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    Dict,
+    List,
+    Set,
+    cast,
+)
 
 from functools import partial
 from graphql import (
@@ -695,6 +706,7 @@ class GQLCoreSchema:
                 pn = str(unqual_pn)
                 if pn == '__type__':
                     continue
+                assert isinstance(ptr, s_pointers.Pointer)
 
                 tgt = ptr.get_target(self.edb_schema)
                 assert tgt is not None
@@ -712,6 +724,7 @@ class GQLCoreSchema:
                     # We want to look at the pointer lineage because that
                     # will be reflected into GraphQL interface that is
                     # being extended and the type cannot be changed.
+                    ancestors: Tuple[s_pointers.Pointer, ...]
                     ancestors = ptr.get_ancestors(
                         self.edb_schema).objects(self.edb_schema)
 
@@ -723,7 +736,7 @@ class GQLCoreSchema:
                     # since we're inspecting the lineage of a pointer
                     # belonging to an actual type.
                     for ancestor in reversed((ptr,) + ancestors):
-                        if not ancestor.generic(self.edb_schema):
+                        if not ancestor.is_non_concrete(self.edb_schema):
                             ptr = ancestor
                             break
 
@@ -1242,16 +1255,24 @@ class GQLCoreSchema:
         )
 
     def define_generic_insert_types(self) -> None:
-        for itype in [GraphQLBoolean, GraphQLID, GraphQLInt, GraphQLInt64,
-                      GraphQLBigint, GraphQLFloat, GraphQLDecimal,
-                      GraphQLString, GraphQLJSON]:
+        for itype in [
+            GraphQLBoolean,
+            GraphQLID,
+            GraphQLInt,
+            GraphQLInt64,
+            GraphQLBigint,
+            GraphQLFloat,
+            GraphQLDecimal,
+            GraphQLString,
+            GraphQLJSON,
+        ]:
             self._gql_inobjtypes[f'Insert{itype.name}'] = itype
 
     def define_generic_order_types(self) -> None:
-        self._gql_ordertypes['directionEnum'] = \
-            self._gql_enums['directionEnum']
-        self._gql_ordertypes['nullsOrderingEnum'] = \
-            self._gql_enums['nullsOrderingEnum']
+        self._gql_ordertypes['directionEnum'] = self._gql_enums['directionEnum']
+        self._gql_ordertypes['nullsOrderingEnum'] = self._gql_enums[
+            'nullsOrderingEnum'
+        ]
         self._gql_ordertypes['Ordering'] = GraphQLInputObjectType(
             'Ordering',
             fields=dict(
@@ -1316,8 +1337,7 @@ class GQLCoreSchema:
         return fields
 
     def get_input_range_type(
-        self,
-        subtype: s_types.Type
+        self, subtype: s_types.Type
     ) -> GraphQLInputObjectType:
         sub_gqltype = self._convert_edb_type(subtype)
         assert isinstance(sub_gqltype, GraphQLScalarType)
@@ -1379,6 +1399,7 @@ class GQLCoreSchema:
                     description=self._get_description(t),
                 )
             else:
+
                 def _type_resolver(
                     obj: GraphQLObjectType,
                     info: GraphQLResolveInfo,
@@ -1847,11 +1868,14 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return False
 
     def issubclass(self, other: Any) -> bool:
-        if (self.edb_base is not None and
-            other.edb_base is not None and
-                isinstance(other, GQLShadowType)):
-            return self.edb_base.issubclass(self._schema.edb_schema,
-                                            other.edb_base)
+        if (
+            self.edb_base is not None
+            and other.edb_base is not None
+            and isinstance(other, GQLShadowType)
+        ):
+            return self.edb_base.issubclass(
+                self._schema.edb_schema, other.edb_base
+            )
         else:
             return False
 

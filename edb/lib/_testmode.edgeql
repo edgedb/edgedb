@@ -75,6 +75,24 @@ ALTER TYPE cfg::AbstractConfig {
 
     CREATE PROPERTY __internal_testmode -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        SET default := false;
+    };
+
+    # Fully suppress apply_query_rewrites, like is done for internal
+    # reflection queries.
+    CREATE PROPERTY __internal_no_apply_query_rewrites -> std::bool {
+        CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        SET default := false;
+    };
+
+    # Use the "reflection schema" as the base schema instead of the
+    # normal std schema. This allows looking at all the schema fields
+    # that are hidden in the public introspection schema.
+    CREATE PROPERTY __internal_query_reflschema -> std::bool {
+        CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
         SET default := false;
     };
 
@@ -152,6 +170,9 @@ create extension package _conf VERSION '1.0' {
     create type ext::_conf::SubObj extending ext::_conf::Obj {
         create required property extra -> int64 {
             set readonly := true;
+        };
+        create required property duration_config: std::duration {
+            set default := <std::duration>'10 minutes';
         };
     };
     create type ext::_conf::SecretObj extending ext::_conf::Obj {
@@ -340,6 +361,15 @@ std::_datetime_range_buckets(
         hi IS NOT NULL
     $$;
 };
+
+
+CREATE FUNCTION
+std::_current_setting(sqlname: str) -> OPTIONAL std::str {
+    USING SQL $$
+      SELECT current_setting(sqlname, true)
+    $$;
+};
+
 
 CREATE MODULE std::_test;
 

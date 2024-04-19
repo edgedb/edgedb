@@ -60,8 +60,7 @@ cdef class StatementsCache:
         return len(self._dict) > self._maxsize
 
     cpdef cleanup_one(self):
-        k, _ = self._dict.popitem(last=False)
-        return k
+        return self._dict.popitem(last=False)
 
     cpdef resize(self, int maxsize):
         if maxsize <= 0:
@@ -74,6 +73,12 @@ cdef class StatementsCache:
 
     def clear(self):
         self._dict.clear()
+
+    def pop(self, key, default=_LRU_MARKER):
+        if default is _LRU_MARKER:
+            return self._dict.pop(key)
+        else:
+            return self._dict.pop(key, default)
 
     def __getitem__(self, key):
         o = self._dict[key]

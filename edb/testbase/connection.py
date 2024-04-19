@@ -92,7 +92,10 @@ class BaseTransaction(abc.ABC):
         if self._state is TransactionState.STARTED:
             raise errors.InterfaceError(
                 'cannot start; the transaction is already started')
-        return self._make_start_query_inner()
+        qry = self._make_start_query_inner()
+        if self._connection._top_xact is None:
+            self._connection._top_xact = self
+        return qry
 
     @abc.abstractmethod
     def _make_start_query_inner(self):
@@ -100,6 +103,9 @@ class BaseTransaction(abc.ABC):
 
     def _make_commit_query(self):
         self.__check_state('commit')
+
+        if self._connection._top_xact is self:
+            self._connection._top_xact = None
 
         return 'COMMIT;'
 
@@ -163,9 +169,7 @@ class RawTransaction(BaseTransaction):
     def _make_start_query_inner(self):
         con = self._connection
 
-        if con._top_xact is None:
-            con._top_xact = self
-        else:
+        if con._top_xact is not None:
             # Nested transaction block
             self._nested = True
 
@@ -179,9 +183,6 @@ class RawTransaction(BaseTransaction):
     def _make_commit_query(self):
         query = super()._make_commit_query()
 
-        if self._connection._top_xact is self:
-            self._connection._top_xact = None
-
         if self._nested:
             query = f'RELEASE SAVEPOINT {self._id};'
 
@@ -189,9 +190,6 @@ class RawTransaction(BaseTransaction):
 
     def _make_rollback_query(self):
         query = super()._make_rollback_query()
-
-        if self._connection._top_xact is self:
-            self._connection._top_xact = None
 
         if self._nested:
             query = f'ROLLBACK TO SAVEPOINT {self._id};'
@@ -293,7 +291,7 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
 
 
 class Retry:
-    def __init__(self, connection):
+    def __init__(self, connection, raw=False):
         self._connection = connection
         self._iteration = 0
         self._done = False

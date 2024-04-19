@@ -124,44 +124,16 @@ class EdgeDBLogHandler(logging.StreamHandler):
         super().__init__(*args, **kwargs)
 
         fmt = EdgeDBLogFormatter(
-            '{levelname} {process} {asctime} {name}: {message}',
+            '{levelname} {process} {tenant} {asctime} {name}: {message}',
             style='{')
 
         self.setFormatter(fmt)
-
-
-class EdgeDBLogger(logging.Logger):
-
-    def makeRecord(
-        self,
-        name,
-        level,
-        fn,
-        lno,
-        msg,
-        args,
-        exc_info,
-        func=None,
-        extra=None,
-        sinfo=None,
-    ):
-        # Unlike the standard Logger class, we allow overwriting
-        # all attributes of the log record with stuff from *extra*.
-        factory = logging.getLogRecordFactory()
-        rv = factory(name, level, fn, lno, msg, args, exc_info, func, sinfo)
-        if extra is not None:
-            rv.__dict__.update(extra)
-        return rv
 
 
 IGNORE_DEPRECATIONS_IN = {
     'graphql',
     'promise',
 }
-
-
-def early_setup():
-    logging.setLoggerClass(EdgeDBLogger)
 
 
 def setup_logging(log_level, log_destination):
@@ -179,7 +151,7 @@ def setup_logging(log_level, log_destination):
 
     if log_destination == 'syslog':
         fmt = logging.Formatter(
-            '{processName}[{process}]: {name}: {message}',
+            '{processName}[{process}]: {tenant}: {name}: {message}',
             style='{')
         handler = logging.handlers.SysLogHandler(
             '/dev/log',
@@ -191,7 +163,7 @@ def setup_logging(log_level, log_destination):
 
     else:
         fmt = logging.Formatter(
-            '{levelname} {process} {asctime} {name}: {message}',
+            '{levelname} {process} {tenant} {asctime} {name}: {message}',
             style='{')
         handler = logging.FileHandler(log_destination)
         handler.setFormatter(fmt)

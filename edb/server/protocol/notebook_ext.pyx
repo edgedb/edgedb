@@ -177,6 +177,7 @@ async def execute(db, tenant, queries: list):
     pgcon = await tenant.acquire_pgcon(db.name)
     try:
         await pgcon.sql_execute(b'START TRANSACTION;')
+        dbv.start_tx()
 
         for is_error, unit_or_error in units:
             if is_error:
@@ -202,13 +203,10 @@ async def execute(db, tenant, queries: list):
 
                     fe_conn = NotebookConnection()
 
-                    dbv.start_implicit(query_unit)
-
                     compiled = dbview.CompiledQuery(
                         query_unit_group=query_unit_group)
                     await p_execute.execute(
                         pgcon, dbv, compiled, b'', fe_conn=fe_conn,
-                        skip_start=True,
                     )
 
                 except Exception as ex:
@@ -248,5 +246,6 @@ async def execute(db, tenant, queries: list):
             await pgcon.sql_execute(b'ROLLBACK;')
         finally:
             tenant.release_pgcon(db.name, pgcon)
+            tenant.remove_dbview(dbv)
 
     return json.dumps(result).encode()

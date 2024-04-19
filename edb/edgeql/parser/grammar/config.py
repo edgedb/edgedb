@@ -36,6 +36,9 @@ class ConfigScope(Nonterm):
     def reduce_CURRENT_DATABASE(self, _c, _d):
         self.val = qltypes.ConfigScope.DATABASE
 
+    def reduce_CURRENT_BRANCH(self, _c, _d):
+        self.val = qltypes.ConfigScope.DATABASE
+
     def reduce_SYSTEM(self, _):
         self.val = qltypes.ConfigScope.INSTANCE
 
@@ -72,7 +75,15 @@ class ConfigStmt(Nonterm):
             f"Did you mean '{configure.val} "
             f"{'current' if database.val[0] == 'd' else 'CURRENT'} "
             f"{database.val}'?",
-            context=database.context)
+            span=database.span)
+
+    def reduce_CONFIGURE_BRANCH_ConfigOp(self, configure, database, _config):
+        raise errors.EdgeQLSyntaxError(
+            f"'{configure.val} {database.val}' is invalid syntax. "
+            f"Did you mean '{configure.val} "
+            f"{'current' if database.val[0] == 'd' else 'CURRENT'} "
+            f"{database.val}'?",
+            span=database.span)
 
     def reduce_CONFIGURE_ConfigScope_ConfigOp(self, _, scope, op):
         self.val = op.val

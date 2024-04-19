@@ -15,6 +15,13 @@ cython: build-reqs
 	BUILD_EXT_MODE=py-only python setup.py build_ext --inplace
 
 
+# Just rebuild actually changed cython. This *should* work, since
+# that is how build systems are supposed to be, but it sometimes
+# fails in annoying ways.
+cython-fast: build-reqs
+	BUILD_EXT_MODE=py-only python setup.py build_ext --inplace
+
+
 rust: build-reqs
 	BUILD_EXT_MODE=rust-only python setup.py build_ext --inplace
 

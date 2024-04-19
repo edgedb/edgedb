@@ -293,6 +293,7 @@ class EdgeQL:
         "assert_exists",
         "assert_single",
         "bit_and",
+        "bit_count",
         "bit_lshift",
         "bit_not",
         "bit_or",

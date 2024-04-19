@@ -42,12 +42,18 @@ DEDENT_NO_NL = 21
 NEW_LINE = 30
 
 DATA = 100
+HEADER = 101
 
 
 class Buffer:
     def __init__(
-            self, *, max_width=None, styled=False, indentation=0,
-            indent_with=' ' * 4):
+        self,
+        *,
+        max_width=None,
+        styled=False,
+        indentation=0,
+        indent_with=' ' * 4,
+    ):
         self.data = []
         self.indentation = 0
         self.indent_with = indent_with
@@ -98,6 +104,13 @@ class Buffer:
 
         self.data.append((DATA, str(s), st))
 
+    def header(self, s, style=None, level=1):
+        st = None
+        if self.styled and style is not None and not style.empty:
+            st = style
+
+        self.data.append((HEADER, str(s), st, level))
+
     def flush(self):
         data = self.data
         self.data = None
@@ -125,7 +138,7 @@ class Buffer:
                     smlines -= 1
                     if not smlines:
                         break
-                elif code == DATA:
+                elif code == DATA or code == HEADER:
                     _len += len(item[1])
                 elif code == LINE_BREAK:
                     _len += 1
@@ -182,9 +195,33 @@ class Buffer:
             elif el == FOLDED_SPACE:
                 if folded_mode:
                     result.append(item[1])
-            elif el == DATA:
+            elif el == DATA or el == HEADER:
                 # ``item[1]`` -- text to output, ``item[2]`` -- its style
+                # ``item[3]`` -- its level, for headers
                 #
+                text, style = item[1], item[2]
+
+                if el == HEADER:
+                    text = ' {} '.format(text)
+                    strlevel = '=' if item[3] == 0 else '-'
+                    if self.max_width:
+                        width = self.max_width - offset
+                        text = '{{str:{strlevel}^{width:d}s}}'.format(
+                            strlevel=strlevel, width=width).format(str=text)
+                    else:
+                        text = strlevel * 4 + text + strlevel * 4
+
+                if style is None:
+                    result.append(text)
+                else:
+                    # If there's a style object - let's apply it
+                    #
+                    result.append(style.apply(text))
+                offset += len(text)
+            elif el == HEADER:
+                # ``item[1]`` -- text to output, ``item[2]`` -- its style,
+                #
+                _, text, style, _level = el
                 if item[2] is None:
                     result.append(item[1])
                 else:
@@ -240,22 +277,8 @@ class BaseRenderer:
 
         return renderer(markup)
 
-    def _render_header(self, str, level=1):
-        # TODO: Rendering should be moved to Buffer (as only there we're aware
-        # of the current indentation and, therefore, ``max_width``).  While
-        # here, we should only yield a buffer opcode.
-
-        str = ' {} '.format(str)
-
-        strlevel = '='
-        if level > 1:
-            strlevel = '-'
-
-        if self.max_width:
-            return '{{str:{strlevel}^{width:d}s}}'.format(
-                strlevel=strlevel, width=self.max_width).format(str=str)
-        else:
-            return '----{}----'.format(str)
+    def _render_header(self, str, style=None, level=1):
+        self.buffer.header(str, style=style, level=level)
 
     def _render_unknown(self, element):
         self.buffer.write(
@@ -292,10 +315,13 @@ class DocRenderer(BaseRenderer):
         self.buffer.write(element.text, style=self.styles.marker)
         self.buffer.write(' ')
 
+    def _render_doc_SubNode(self, element):
+        with self.buffer.indent():
+            self._render(element.body)
+
     def _render_doc_Section(self, element):
         if element.title:
-            self.buffer.write(
-                self._render_header(element.title), style=self.styles.header1)
+            self._render_header(element.title, style=self.styles.header1)
             self.buffer.new_line(2)
 
         for el in element.body:
@@ -533,9 +559,7 @@ class LangRenderer(BaseRenderer):
 
     def _render_lang_ExceptionContext(self, element):
         self.buffer.new_line(2)
-        self.buffer.write(
-            self._render_header(element.title, level=2),
-            style=self.styles.header2)
+        self._render_header(element.title, level=2, style=self.styles.header2)
         self.buffer.new_line()
 
         if element.body:
@@ -550,8 +574,7 @@ class LangRenderer(BaseRenderer):
                 if element.msg:
                     msg = '{}: {}'.format(msg, element.msg)
 
-                self.buffer.write(
-                    self._render_header(msg), style=self.styles.header1)
+                self._render_header(msg, style=self.styles.header1)
                 self.buffer.new_line(2)
 
             if (element.cause or element.context) is not None:
@@ -565,8 +588,7 @@ class LangRenderer(BaseRenderer):
                            'of the following exception')
 
                 self.buffer.new_line(2)
-                self.buffer.write(
-                    self._render_header(msg), style=self.styles.header1)
+                self._render_header(msg, style=self.styles.header1)
                 self.buffer.new_line(2)
 
             if element.class_module == 'builtins':

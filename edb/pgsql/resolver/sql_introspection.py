@@ -3,7 +3,7 @@
 
 """Declarations of information schema and pg_catalog"""
 
-from typing import *
+from typing import Tuple, Dict, List
 
 ColumnName = str
 ColumnType = str | None

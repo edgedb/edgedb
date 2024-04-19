@@ -250,7 +250,7 @@ impl<'s> Parser<'s> {
     ///              D - X
     ///              E
     /// ```
-    fn compare_stack<'a>(&self, expected: &[Cond], top_offset: usize, ctx: &Context) -> bool {
+    fn compare_stack(&self, expected: &[Cond], top_offset: usize, ctx: &Context) -> bool {
         let mut current = self.get_from_top(top_offset);
 
         for validator in expected.iter().rev() {
@@ -369,7 +369,7 @@ pub fn post_process(errors: Vec<Error>) -> Vec<Error> {
                 {
                     let last = new_errors.pop().unwrap();
                     let text = last.message.strip_prefix("Unexpected keyword '").unwrap();
-                    let text = text.strip_suffix("'").unwrap();
+                    let text = text.strip_suffix('\'').unwrap();
 
                     new_errors.push(unexpected_reserved_keyword(text, last.span));
                     continue;

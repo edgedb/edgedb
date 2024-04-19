@@ -41,8 +41,9 @@ class InlineCodeRole:
     def __init__(self, lang):
         self.lang = lang
 
-    def __call__(self, role, rawtext, text, lineno, inliner,
-                 options=None, content=None):
+    def __call__(
+        self, role, rawtext, text, lineno, inliner, options=None, content=None
+    ):
         if options is None:
             options = {}
         if content is None:

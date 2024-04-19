@@ -26,9 +26,9 @@ Linux or macOS.  Windows is not currently supported.
 
 * GNU make version 3.80 or newer;
 * C compiler (GCC or clang);
-* Rust compiler and Cargo 1.65 or later;
+* Rust compiler and Cargo 1.74 or later;
 * autotools;
-* Python 3.10 dev package;
+* Python 3.11 dev package;
 * Bison 1.875 or later;
 * Flex 2.5.31 or later;
 * Perl 5.8.3 or later;
@@ -51,6 +51,48 @@ On Ubuntu 22.10, these can be installed by running:
    $ npm i -g corepack
    $ corepack enable && corepack prepare yarn@stable --activate
 
+A Nix shell with all dependencies and a Python virtual environment can
+be built with the following ``shell.nix`` file.
+
+.. code::
+
+   with import <nixpkgs> {};
+   pkgs.mkShell {
+       name = "edgedb dev shell";
+       venvDir = "./venv";
+
+       buildInputs = with pkgs; [
+           python311Packages.python
+           python311Packages.venvShellHook
+           rustup
+           autoconf
+           automake
+           bison
+           flex
+           perl
+           zlib
+           readline
+           libuuid
+           nodejs
+           yarn
+           openssl
+           pkg-config
+           icu
+       ];
+       LD_LIBRARY_PATH = lib.makeLibraryPath [ pkgs.stdenv.cc.cc ];
+       LIBCLANG_PATH = "${llvmPackages.libclang.lib}/lib";
+
+       # If you are using NixOS:
+       # Postgres configure script uses /bin/pwd,
+       # which does not exist on NixOS.
+       #
+       # I had a workaround for replacing /bin/pwd with pwd,
+       # but it was annoying that postgres/ was dirty.
+       # So my fix now is:
+       # $ sudo sh -c "echo 'pwd' > /bin/pwd"
+       # $ sudo chmod +x /bin/pwd
+   }
+
 .. rubric:: Instructions
 
 The easiest way to set up a development environment is to create a
@@ -72,11 +114,11 @@ Python "venv" with all dependencies and commands installed into it.
 
       $ git clone --recursive https://github.com/edgedb/edgedb.git
 
-#. Create a Python 3.10 virtual environment and activate it:
+#. Create a Python 3.11 virtual environment and activate it:
 
    .. code-block:: bash
 
-      $ python3.10 -m venv edgedb-dev
+      $ python3.11 -m venv edgedb-dev
       $ source edgedb-dev/bin/activate
 
 #. Build edgedb (the build will take a while):
@@ -139,11 +181,11 @@ You can then use another terminal to open a REPL to the server using the
 ``$ edgedb`` command, or connect to it using one of the language bindings.
 
 
-Test Databases
-==============
+Test Branches
+=============
 
-Use the ``$ edb inittestdb`` command to create and populate databases
-that are used by unit tests.
+Use the ``$ edb inittestdb`` command to create and populate branches that are
+used by unit tests.
 
 .. _rst: https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html
 .. _edgedbpy: https://github.com/edgedb/edgedb-python

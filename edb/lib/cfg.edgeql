@@ -39,7 +39,9 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
 CREATE SCALAR TYPE cfg::AllowBareDDL EXTENDING enum<AlwaysAllow, NeverAllow>;
 CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<
-    TCP, TCP_PG, HTTP, SIMPLE_HTTP>;
+    TCP, TCP_PG, HTTP, SIMPLE_HTTP, HTTP_METRICS, HTTP_HEALTH>;
+CREATE SCALAR TYPE cfg::QueryCacheMode EXTENDING enum<
+    InMemory, RegInline, PgFunc, Default>;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
@@ -65,6 +67,14 @@ CREATE TYPE cfg::JWT EXTENDING cfg::AuthMethod {
 CREATE TYPE cfg::Password EXTENDING cfg::AuthMethod {
     ALTER PROPERTY transports {
         SET default := { cfg::ConnectionTransport.SIMPLE_HTTP };
+    };
+};
+CREATE TYPE cfg::mTLS EXTENDING cfg::AuthMethod {
+    ALTER PROPERTY transports {
+        SET default := {
+            cfg::ConnectionTransport.HTTP_METRICS,
+            cfg::ConnectionTransport.HTTP_HEALTH,
+        };
     };
 };
 
@@ -172,6 +182,25 @@ ALTER TYPE cfg::AbstractConfig {
             'Whether inserts are allowed to set the \'id\' property.';
     };
 
+    CREATE MULTI PROPERTY cors_allow_origins -> std::str {
+        CREATE ANNOTATION std::description :=
+            'List of origins that can be returned in the \
+            Access-Control-Allow-Origin HTTP header';
+    };
+
+    CREATE PROPERTY auto_rebuild_query_cache -> std::bool {
+        SET default := true;
+        CREATE ANNOTATION std::description :=
+            'Recompile all cached queries on DDL if enabled.';
+    };
+
+    CREATE PROPERTY query_cache_mode -> cfg::QueryCacheMode {
+        SET default := cfg::QueryCacheMode.Default;
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'Where the query cache is finally stored';
+    };
+
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
@@ -244,6 +273,7 @@ ALTER TYPE cfg::AbstractConfig {
 CREATE TYPE cfg::Config EXTENDING cfg::AbstractConfig;
 CREATE TYPE cfg::InstanceConfig EXTENDING cfg::AbstractConfig;
 CREATE TYPE cfg::DatabaseConfig EXTENDING cfg::AbstractConfig;
+CREATE ALIAS cfg::BranchConfig := cfg::DatabaseConfig;
 
 
 CREATE FUNCTION

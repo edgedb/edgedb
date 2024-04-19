@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Tuple, Iterable, List
 
 import functools
 
@@ -51,8 +51,10 @@ VOLATILE = qltypes.Volatility.Volatile
 # functions are allowed to still produce a single volatility value,
 # which is normalized when necessary.
 
-def _normalize_volatility(vol: InferredVolatility) -> Tuple[
-        qltypes.Volatility, qltypes.Volatility]:
+
+def _normalize_volatility(
+    vol: InferredVolatility,
+) -> Tuple[qltypes.Volatility, qltypes.Volatility]:
     if not isinstance(vol, tuple):
         return (vol, vol)
     else:
@@ -137,22 +139,48 @@ def __infer_type_introspection(
 
 
 @_infer_volatility_inner.register
+def __infer_type_root(
+    ir: irast.TypeRoot,
+    env: context.Environment,
+) -> InferredVolatility:
+    return STABLE
+
+
+@_infer_volatility_inner.register
+def __infer_cleared_expr(
+    ir: irast.RefExpr,
+    env: context.Environment,
+) -> InferredVolatility:
+    return IMMUTABLE
+
+
+@_infer_volatility_inner.register
+def _infer_pointer(
+    ir: irast.Pointer,
+    env: context.Environment,
+) -> InferredVolatility:
+    raise AssertionError('TODO: properly infer Pointer-as-Expr ')
+
+
+@_infer_volatility_inner.register
 def __infer_set(
     ir: irast.Set,
     env: context.Environment,
 ) -> InferredVolatility:
     vol: InferredVolatility
+
+    # TODO: Migrate to Pointer-as-Expr a little less half-assedly.
     if ir.path_id in env.singletons:
         vol = IMMUTABLE
-    elif ir.rptr is not None:
-        vol = _infer_volatility(ir.rptr.source, env)
+    elif isinstance(ir.expr, irast.Pointer):
+        vol = _infer_volatility(ir.expr.source, env)
         # If there's an expression on an rptr, and it comes from
         # the schema, we need to actually infer it, since it won't
         # have been processed at a shape declaration.
-        if ir.expr is not None and not ir.rptr.ptrref.defined_here:
+        if ir.expr.expr is not None and not ir.expr.ptrref.defined_here:
             vol = _max_volatility((
                 vol,
-                _infer_volatility(ir.expr, env),
+                _infer_volatility(ir.expr.expr, env),
             ))
 
         # If source is an object, then a pointer reference implies
@@ -162,14 +190,12 @@ def __infer_set(
         # though, which we need in order to enforce that indexes
         # don't call STABLE functions.
         if (
-            irtyputils.is_object(ir.rptr.source.typeref)
-            and ir.rptr.source.path_id not in env.singletons
+            irtyputils.is_object(ir.expr.source.typeref)
+            and ir.expr.source.path_id not in env.singletons
         ):
             vol = _max_volatility((vol, STABLE))
-    elif ir.expr is not None:
-        vol = _infer_volatility(ir.expr, env)
     else:
-        vol = STABLE
+        vol = _infer_volatility(ir.expr, env)
 
     # Cache our best-known as to this point volatility, to prevent
     # infinite recursion.
@@ -178,7 +204,7 @@ def __infer_set(
     if ir.shape:
         vol = _max_volatility([
             _common_volatility(
-                (el.expr for el, _ in ir.shape if el.expr), env
+                (el.expr.expr for el, _ in ir.shape if el.expr.expr), env
             ),
             vol,
         ])
@@ -194,9 +220,18 @@ def __infer_func_call(
     ir: irast.FunctionCall,
     env: context.Environment,
 ) -> InferredVolatility:
+    if ir.body is not None:
+        body_volatility = infer_volatility(ir.body, env=env)
+        if body_volatility > ir.volatility:
+            raise errors.QueryError(
+                f'inline function body expression is {body_volatility} '
+                f'while the function is declared as {ir.volatility}',
+                span=ir.span,
+            )
+
     if ir.args:
         return _max_volatility([
-            _common_volatility((arg.expr for arg in ir.args), env),
+            _common_volatility((arg.expr for arg in ir.args.values()), env),
             ir.volatility
         ])
     else:
@@ -210,7 +245,7 @@ def __infer_oper_call(
 ) -> InferredVolatility:
     if ir.args:
         return _max_volatility([
-            _common_volatility((arg.expr for arg in ir.args), env),
+            _common_volatility((arg.expr for arg in ir.args.values()), env),
             ir.volatility
         ])
     else:
@@ -392,6 +427,6 @@ def infer_volatility(
         raise errors.QueryError(
             'could not determine the volatility of '
             'set produced by expression',
-            context=ir.context)
+            span=ir.span)
 
     return result

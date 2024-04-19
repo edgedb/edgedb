@@ -26,7 +26,10 @@ union (
 for x in {[0, 1, 2.3], [1, 1, 10.11], [4.5, 6.7, 8.9]}
 union (
     (insert Basic {p_str := to_str(<json>x)}),
-    (insert L2 {vec := <v3>x}),
-    (insert IP {vec := <v3>x}),
-    (insert Cosine {vec := <v3>x}),
+    (insert IVFFlat_L2 {vec := <v3>x}),
+    (insert IVFFlat_IP {vec := <v3>x}),
+    (insert IVFFlat_Cosine {vec := <v3>x}),
+    (insert HNSW_L2 {vec := <v3>x}),
+    (insert HNSW_IP {vec := <v3>x}),
+    (insert HNSW_Cosine {vec := <v3>x}),
 );

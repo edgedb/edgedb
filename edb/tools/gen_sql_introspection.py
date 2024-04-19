@@ -94,7 +94,7 @@ def print_header(f):
 
         """Declarations of information schema and pg_catalog"""
 
-        from typing import *
+        from typing import *  # NoQA
 
         ColumnName = str
         ColumnType = str | None

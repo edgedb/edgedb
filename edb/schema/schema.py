@@ -19,8 +19,27 @@
 
 from __future__ import annotations
 
-from typing import *
-from typing import overload
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    Iterable,
+    Iterator,
+    Mapping,
+    Dict,
+    List,
+    Set,
+    FrozenSet,
+    cast,
+    NoReturn,
+    overload,
+    TYPE_CHECKING,
+)
 
 import abc
 import collections
@@ -69,6 +88,11 @@ STD_MODULES = (
     sn.UnqualName('fts'),
     EXT_MODULE,
     sn.UnqualName('std::enc'),
+)
+
+SPECIAL_MODULES = (
+    sn.UnqualName('__derived__'),
+    sn.UnqualName('__ext_casts__'),
 )
 
 # Specifies the order of processing of files and directories in lib/
@@ -293,9 +317,9 @@ class Schema(abc.ABC):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
     ) -> Optional[so.Object_T]:
         raise NotImplementedError
 
@@ -343,7 +367,7 @@ class Schema(abc.ABC):
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
         condition: Optional[Callable[[so.Object], bool]] = None,
         label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> so.Object:
         ...
 
@@ -356,7 +380,7 @@ class Schema(abc.ABC):
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
         condition: Optional[Callable[[so.Object], bool]] = None,
         label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.Object]:
         ...
 
@@ -370,7 +394,7 @@ class Schema(abc.ABC):
         type: Type[so.Object_T],
         condition: Optional[Callable[[so.Object], bool]] = None,
         label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> so.Object_T:
         ...
 
@@ -384,7 +408,7 @@ class Schema(abc.ABC):
         type: Type[so.Object_T],
         condition: Optional[Callable[[so.Object], bool]] = None,
         label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.Object_T]:
         ...
 
@@ -398,7 +422,7 @@ class Schema(abc.ABC):
         type: Optional[Type[so.Object_T]] = None,
         condition: Optional[Callable[[so.Object], bool]] = None,
         label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.Object]:
         ...
 
@@ -411,7 +435,7 @@ class Schema(abc.ABC):
         type: Optional[Type[so.Object_T]] = None,
         condition: Optional[Callable[[so.Object], bool]] = None,
         label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
     ) -> Optional[so.Object]:
         return self._get(
             name,
@@ -433,7 +457,7 @@ class Schema(abc.ABC):
         type: Optional[Type[so.Object_T]],
         condition: Optional[Callable[[so.Object], bool]],
         label: Optional[str],
-        sourcectx: Optional[parsing.ParserContext],
+        sourcectx: Optional[parsing.Span],
         disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Optional[so.Object]:
         raise NotImplementedError
@@ -484,7 +508,7 @@ class Schema(abc.ABC):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> SchemaIterator[so.Object_T]:
         raise NotImplementedError
 
@@ -625,7 +649,7 @@ class FlatSchema(Schema):
                 assert isinstance(new_name, sn.QualName)
                 if (
                     not self.has_module(new_name.module)
-                    and new_name.module != '__derived__'
+                    and new_name.get_module_name() not in SPECIAL_MODULES
                 ):
                     raise errors.UnknownModuleError(
                         f'module {new_name.module!r} is not in this schema')
@@ -970,7 +994,7 @@ class FlatSchema(Schema):
         if (
             issubclass(sclass, so.QualifiedObject)
             and not self.has_module(name.module)
-            and name.module != '__derived__'
+            and name.get_module_name() not in SPECIAL_MODULES
         ):
             raise errors.UnknownModuleError(
                 f'module {name.module!r} is not in this schema')
@@ -1274,7 +1298,7 @@ class FlatSchema(Schema):
             return frozenset(referrers)  # type: ignore
 
     @functools.lru_cache()
-    def get_referrers_ex(
+    def get_referrers_ex(  # type: ignore
         self,
         scls: so.Object,
         *,
@@ -1305,9 +1329,13 @@ class FlatSchema(Schema):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
+        # Deep u-optimization; this is the hottest path in the system,
+        # so avoid needing to do lookups for this function.
+        _raw_schema_restore: Callable[[str, uuid.UUID], so.Object] = (
+            so.Object.raw_schema_restore),
     ) -> Optional[so.Object_T]:
         try:
             sclass_name = self._id_to_type[obj_id]
@@ -1320,7 +1348,7 @@ class FlatSchema(Schema):
             else:
                 return default
         else:
-            obj = so.Object.schema_restore((sclass_name, obj_id))
+            obj = _raw_schema_restore(sclass_name, obj_id)
             if type is not None and not isinstance(obj, type):
                 raise TypeError(
                     f'schema object {obj_id!r} exists, but is a '
@@ -1330,6 +1358,10 @@ class FlatSchema(Schema):
 
             # Avoid the overhead of cast(Object_T) below
             return obj  # type: ignore
+
+    # Important micro-optimization
+    if not TYPE_CHECKING:
+        get_by_id = _get_by_id
 
     def _get_global(
         self,
@@ -1356,7 +1388,7 @@ class FlatSchema(Schema):
         type: Optional[Type[so.Object_T]],
         condition: Optional[Callable[[so.Object], bool]],
         label: Optional[str],
-        sourcectx: Optional[parsing.ParserContext],
+        sourcectx: Optional[parsing.Span],
         disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Optional[so.Object]:
         def getter(schema: FlatSchema, name: sn.Name) -> Optional[so.Object]:
@@ -1388,7 +1420,7 @@ class FlatSchema(Schema):
                 raise errors.InvalidReferenceError(
                     f'{refname!r} exists, but is {english.add_a(got_name)}, '
                     f'not {english.add_a(exp_name)}',
-                    context=sourcectx,
+                    span=sourcectx,
                 )
 
             return obj  # type: ignore
@@ -1407,7 +1439,7 @@ class FlatSchema(Schema):
         *,
         label: Optional[str] = None,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
+        sourcectx: Optional[parsing.Span] = None,
         type: Optional[Type[so.Object]] = None,
     ) -> NoReturn:
         refname = str(name)
@@ -1436,7 +1468,7 @@ class FlatSchema(Schema):
 
         raise errors.InvalidReferenceError(
             f'{label} {refname!r} does not exist',
-            context=sourcectx,
+            span=sourcectx,
         )
 
     def has_object(self, object_id: uuid.UUID) -> bool:
@@ -1459,7 +1491,7 @@ class FlatSchema(Schema):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> SchemaIterator[so.Object_T]:
         return SchemaIterator[so.Object_T](
             self,
@@ -1523,8 +1555,8 @@ def upgrade_schema(schema: FlatSchema) -> FlatSchema:
         exp_len = len(tfields)
         if len(data) < exp_len:
             ldata = list(data)
-            for i in range(len(ldata), exp_len):
-                ldata.append(tfields[i].get_default())
+            for _ in range(len(ldata), exp_len):
+                ldata.append(None)
 
             fixes[id] = tuple(ldata)
 
@@ -1545,7 +1577,7 @@ class SchemaIterator(Generic[so.Object_T]):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> None:
 
         filters = []
@@ -1621,10 +1653,7 @@ class ChainedSchema(Schema):
     __slots__ = ('_base_schema', '_top_schema', '_global_schema')
 
     def __init__(
-        self,
-        base_schema: Schema,
-        top_schema: Schema,
-        global_schema: Schema
+        self, base_schema: Schema, top_schema: Schema, global_schema: Schema
     ) -> None:
         self._base_schema = base_schema
         self._top_schema = top_schema
@@ -1755,7 +1784,7 @@ class ChainedSchema(Schema):
         self,
         obj: so.Object,
     ) -> Optional[Tuple[Any, ...]]:
-        if isinstance(obj, so.GlobalObject):
+        if obj.is_global_object:
             return self._global_schema.maybe_get_obj_data_raw(obj)
         else:
             top = self._top_schema.maybe_get_obj_data_raw(obj)
@@ -1768,14 +1797,17 @@ class ChainedSchema(Schema):
         self,
         obj: so.Object,
     ) -> Tuple[Any, ...]:
-        if isinstance(obj, so.GlobalObject):
-            return self._global_schema.get_obj_data_raw(obj)
+        top = self._top_schema.maybe_get_obj_data_raw(obj)
+        if top is not None:
+            return top
         else:
-            top = self._top_schema.maybe_get_obj_data_raw(obj)
-            if top is not None:
-                return top
-            else:
+            try:
                 return self._base_schema.get_obj_data_raw(obj)
+            except errors.SchemaError:
+                if obj.is_global_object:
+                    return self._global_schema.get_obj_data_raw(obj)
+                else:
+                    raise
 
     def set_obj_field(
         self,
@@ -1965,9 +1997,9 @@ class ChainedSchema(Schema):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
     ) -> Optional[so.Object_T]:
         obj = self._top_schema.get_by_id(obj_id, type=type, default=None)
         if obj is None:
@@ -1977,6 +2009,10 @@ class ChainedSchema(Schema):
                 obj = self._global_schema.get_by_id(
                     obj_id, default=default, type=type)
         return obj
+
+    # Important micro-optimization
+    if not TYPE_CHECKING:
+        get_by_id = _get_by_id
 
     def _get_global(
         self,
@@ -2003,7 +2039,7 @@ class ChainedSchema(Schema):
         type: Optional[Type[so.Object_T]],
         condition: Optional[Callable[[so.Object], bool]],
         label: Optional[str],
-        sourcectx: Optional[parsing.ParserContext],
+        sourcectx: Optional[parsing.Span],
         disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Optional[so.Object]:
         obj = self._top_schema._get(
@@ -2066,7 +2102,7 @@ class ChainedSchema(Schema):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> SchemaIterator[so.Object_T]:
         return SchemaIterator[so.Object_T](
             self,

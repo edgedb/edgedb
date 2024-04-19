@@ -24,8 +24,7 @@ import functools
 import hashlib
 import base64
 import re
-from typing import *
-from typing import overload
+from typing import Literal, Optional, Tuple, Union, overload
 import uuid
 
 from edb.common import uuidgen
@@ -48,6 +47,12 @@ from edb.pgsql import ast as pgast
 from . import keywords as pg_keywords
 
 
+# This is a postgres limitation.
+# Note that this can be overridden in custom builds.
+# https://www.postgresql.org/docs/current/datatype-enum.html
+MAX_ENUM_LABEL_LENGTH = 63
+
+
 def quote_e_literal(string: str) -> str:
     def escape_sq(s):
         split = re.split(r"(\n|\\\\|\\')", s)
@@ -61,7 +66,7 @@ def quote_e_literal(string: str) -> str:
     return "E'" + escape_sq(string) + "'"
 
 
-def quote_literal(string):
+def quote_literal(string: str) -> str:
     return "'" + string.replace("'", "''") + "'"
 
 
@@ -92,9 +97,12 @@ def quote_bytea_literal(data: bytes) -> str:
         return "''::bytea"
 
 
-def needs_quoting(string: str, column: bool=False) -> bool:
-    isalnum = (string and not string[0].isdecimal() and
-               string.replace('_', 'a').isalnum())
+def needs_quoting(string: str, column: bool = False) -> bool:
+    isalnum = (
+        string
+        and not string[0].isdecimal()
+        and string.replace('_', 'a').isalnum()
+    )
     return (
         not isalnum or
         string.lower() in pg_keywords.by_type[
@@ -107,12 +115,12 @@ def needs_quoting(string: str, column: bool=False) -> bool:
     )
 
 
-def qname(*parts: str | pgast.Star, column: bool=False) -> str:
+def qname(*parts: str | pgast.Star, column: bool = False) -> str:
     assert len(parts) <= 3, parts
     return '.'.join([quote_ident(q, column=column) for q in parts])
 
 
-def quote_type(type_: Tuple[str, ...] | str):
+def quote_type(type_: Tuple[str, ...] | str) -> str:
     if isinstance(type_, tuple):
         first = qname(*type_[:-1]) + '.' if len(type_) > 1 else ''
         last = type_[-1]
@@ -276,8 +284,12 @@ def get_objtype_backend_name(
 ):
     if aspect is None:
         aspect = 'table'
-    if aspect not in {'table', 'inhview', 'dummy'} and not re.match(
-            r'(source|target)-del-(def|imm)-(inl|otl)-(f|t)', aspect):
+    if (
+        aspect not in {'table', 'inhview', 'dummy'}
+        and not re.match(
+            r'(source|target)-del-(def|imm)-(inl|otl)-(f|t)', aspect)
+        and not aspect.startswith("ext")
+    ):
         raise ValueError(
             f'unexpected aspect for object type backend name: {aspect!r}')
 
@@ -371,8 +383,7 @@ def get_function_backend_name(name, backend_name, catenate=False):
         return schema, func_name
 
 
-def get_constraint_backend_name(
-        id, module_name, catenate=True, *, aspect=None):
+def get_constraint_backend_name(id, module_name, catenate=True, *, aspect=None):
     if aspect not in ('trigproc', 'index'):
         raise ValueError(
             f'unexpected aspect for constraint backend name: {aspect!r}')
@@ -394,6 +405,17 @@ def get_index_backend_name(id, module_name, catenate=True, *, aspect=None):
         aspect = 'index'
     name = s_name.QualName(module=module_name, name=str(id))
     return convert_name(name, aspect, catenate)
+
+
+def get_index_table_backend_name(
+    index: s_indexes.Index,
+    schema: s_schema.Schema,
+    *,
+    aspect: Optional[str] = None,
+) -> Tuple[str, str]:
+    subject = index.get_subject(schema)
+    assert isinstance(subject, s_types.Type)
+    return get_backend_name(schema, subject, aspect=aspect, catenate=False)
 
 
 def get_tuple_backend_name(

@@ -1,7 +1,8 @@
 .. _edgedb_client_connection:
 
+==========
 Connection
-----------
+==========
 
 There are several ways to provide connection information to a client
 library.
@@ -15,13 +16,15 @@ library.
 
 - Set the ``EDGEDB_DSN`` environment variable to a valid DSN (connection
   string). This is the recommended approach in *production*. A DSN is a
-  connection URL of the form ``edgedb://user:pass@host:port/database``. For a
+  connection URL of the form ``edgedb://user:pass@host:port/branch``. For a
   guide to DSNs, see the :ref:`DSN Specification <ref_dsn>`.
 
 - Set the ``EDGEDB_INSTANCE`` environment variable to a :ref:`name
-  <ref_reference_connection_instance_name>` of a local or remote linked
-  instance. You can create new instances manually with the
-  :ref:`edgedb instance create <ref_cli_edgedb_instance_create>` command.
+  <ref_reference_connection_instance_name>` of a local instance, remote linked
+  instance, or an EdgeDB Cloud instance. (:ref:`More info on EdgeDB Cloud
+  connection details below. <edgedb_client_connection_cloud>`) You can create
+  new instances manually with the :ref:`edgedb instance create
+  <ref_cli_edgedb_instance_create>` command.
 
 - Explicitly pass a DSN or :ref:`instance name
   <ref_reference_connection_instance_name>`
@@ -45,3 +48,15 @@ These are the most common ways to connect to an instance, however EdgeDB
 supports several other options for advanced use cases. For a complete reference
 on connection configuration, see :ref:`Reference > Connection Parameters
 <ref_reference_connection>`.
+
+.. _edgedb_client_connection_cloud:
+
+EdgeDB Cloud
+============
+
+To provide client connection information for an EdgeDB Cloud instance, set the
+``EDGEDB_INSTANCE`` variable to the instance name
+(``<org-name>/<instance-name>`` where ``<instance-name>`` is the name you set
+when you created the EdgeDB Cloud instance) and the ``EDGEDB_SECRET_KEY``
+variable to your secret key which can be created in the EdgeDB Cloud UI or by
+running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.

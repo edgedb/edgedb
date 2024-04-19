@@ -6,23 +6,46 @@ DSN specification
 DSNs (data source names) are a convenient and flexible way to specify
 connection information with a simple string. It takes the following form:
 
-.. code-block::
+.. versionchanged:: _default
 
-  edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/DATABASE
+    .. code-block::
 
-For instance, here is a typical DSN:
-``edgedb://alice:pa$$w0rd@example.com:1234/my_db``.
+      edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/DATABASE
+
+    For instance, here is a typical DSN:
+    ``edgedb://alice:pa$$w0rd@example.com:1234/my_db``.
+
+.. versionchanged:: 5.0
+
+    .. code-block::
+
+      edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/BRANCH
+
+    For instance, here is a typical DSN:
+    ``edgedb://alice:pa$$w0rd@example.com:1234/my_branch``.
 
 All components of the DSN are optional; in fact, ``edgedb://`` is a valid DSN.
 Any unspecified values will fall back to their defaults:
 
-.. code-block::
+.. versionchanged:: _default
 
-  Host: "localhost"
-  Port: 5656
-  User: "edgedb"
-  Password: null
-  Database name: "edgedb"
+    .. code-block::
+
+      Host: "localhost"
+      Port: 5656
+      User: "edgedb"
+      Password: null
+      Database name: "edgedb"
+
+.. versionchanged:: 5.0
+
+    .. code-block::
+
+      Host: "localhost"
+      Port: 5656
+      User: "edgedb"
+      Password: null
+      Branch name: "main"
 
 Query parameters
 ----------------
@@ -38,32 +61,63 @@ containing the value (``?host_file=./hostname.txt``).
   For a breakdown of these configuration options, see :ref:`Reference >
   Connection Parameters <ref_reference_connection_granular>`.
 
-.. list-table::
+.. versionchanged:: _default
 
-  * - **Plain param**
-    - **File param**
-    - **Environment param**
-  * - ``host``
-    - ``host_file``
-    - ``host_env``
-  * - ``port``
-    - ``port_file``
-    - ``port_env``
-  * - ``database``
-    - ``database_file``
-    - ``database_env``
-  * - ``user``
-    - ``user_file``
-    - ``user_env``
-  * - ``password``
-    - ``password_file``
-    - ``password_env``
-  * - ``tls_ca_file``
-    - ``tls_ca_file_file``
-    - ``tls_ca_file_env``
-  * - ``tls_security``
-    - ``tls_security_file``
-    - ``tls_security_env``
+    .. list-table::
+
+      * - **Plain param**
+        - **File param**
+        - **Environment param**
+      * - ``host``
+        - ``host_file``
+        - ``host_env``
+      * - ``port``
+        - ``port_file``
+        - ``port_env``
+      * - ``database``
+        - ``database_file``
+        - ``database_env``
+      * - ``user``
+        - ``user_file``
+        - ``user_env``
+      * - ``password``
+        - ``password_file``
+        - ``password_env``
+      * - ``tls_ca_file``
+        - ``tls_ca_file_file``
+        - ``tls_ca_file_env``
+      * - ``tls_security``
+        - ``tls_security_file``
+        - ``tls_security_env``
+
+.. versionchanged:: 5.0
+
+    .. list-table::
+
+      * - **Plain param**
+        - **File param**
+        - **Environment param**
+      * - ``host``
+        - ``host_file``
+        - ``host_env``
+      * - ``port``
+        - ``port_file``
+        - ``port_env``
+      * - ``branch``
+        - ``branch_file``
+        - ``branch_env``
+      * - ``user``
+        - ``user_file``
+        - ``user_env``
+      * - ``password``
+        - ``password_file``
+        - ``password_env``
+      * - ``tls_ca_file``
+        - ``tls_ca_file_file``
+        - ``tls_ca_file_env``
+      * - ``tls_security``
+        - ``tls_security_file``
+        - ``tls_security_env``
 
 **Plain params**
   These "plain" parameters can be used to provide values for options that can't

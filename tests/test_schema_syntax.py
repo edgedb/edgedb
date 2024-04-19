@@ -80,6 +80,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 \t      required property bar: str;
 };
         """
+
     def test_eschema_syntax_semicolon_01(self):
         """
         abstract type test::OwnedObject {
@@ -442,6 +443,9 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
                 };
                 constraint exclusive on (.asdf) except (.baz);
                 index on (.asdf) except (.baz);
+                deferred index on (.asdf) except (.baz);
+                deferred index bar on (.foo);
+                deferred index bar on (.foo) except (.bar);
             };
         };
         """

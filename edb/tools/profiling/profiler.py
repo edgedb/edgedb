@@ -22,7 +22,24 @@ See README.md in this package for more details.
 """
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    AbstractSet,
+    Iterator,
+    Sequence,
+    Counter,
+    Dict,
+    List,
+    Set,
+    NamedTuple,
+    cast,
+    TYPE_CHECKING,
+)
 
 import ast
 import atexit
@@ -110,6 +127,7 @@ class profile:
         self._dir: Union[str, pathlib.Path, None] = dir
         self._profiler: Optional[cProfile.Profile] = None
         self._dump_file_path: Optional[str] = None
+        self._profiler_enabled = False
 
     def __call__(self, func: T) -> T:
         """Apply decorator to a function."""
@@ -118,11 +136,16 @@ class profile:
         def wrapper(*args, **kwargs):
             tracing_singledispatch.profiling_in_progress.set()
             self.n_calls += 1
-            self.profiler.enable()
+            profiler_was_enabled_here = False
+            if not self._profiler_enabled:
+                self.profiler.enable()
+                self._profiler_enabled = True
+                profiler_was_enabled_here = True
             try:
                 return func(*args, **kwargs)
             finally:
-                self.profiler.disable()
+                if profiler_was_enabled_here:
+                    self.profiler.disable()
                 if self.n_calls % self.save_every_n_calls == 0:
                     self.dump_stats()
                 tracing_singledispatch.profiling_in_progress.clear()
@@ -344,7 +367,8 @@ def gradient_from_name(name: str) -> float:
 
 
 def calc_callers(
-    stats: Stats, threshold: float,
+    stats: Stats,
+    threshold: float,
 ) -> Tuple[Dict[FunctionID, Function], Dict[Call, Stat]]:
     """Calculate flattened stats of calls between functions."""
     roots: List[FunctionID] = []
@@ -413,7 +437,7 @@ class Block:
         result = self.func[0]
         edgedb = str(EDGEDB_DIR) + os.sep
         if result.startswith(edgedb):
-            return result[len(edgedb) :]
+            return result[len(edgedb):]
 
         parts = []
         maybe_stdlib = False
@@ -467,9 +491,9 @@ class ScopeRecorder(ast.NodeVisitor):
 
     def __init__(self):
         self.reset()
-        self.visit_FunctionDef = self.handle_scopes
-        self.visit_AsyncFunctionDef = self.handle_scopes
-        self.visit_ClassDef = self.handle_scopes
+        self.visit_Functiondef = self.handle_scopes
+        self.visit_AsyncFunctiondef = self.handle_scopes
+        self.visit_Classdef = self.handle_scopes
         super().__init__()
 
     def reset(self) -> None:
@@ -524,9 +548,7 @@ class ScopeCache:
 def count_calls(funcs: Dict[FunctionID, Function]) -> Counter[Call]:
     call_counter: Counter[Call] = Counter()
 
-    def _counts(
-        caller: FunctionID, visited: Set[Call], level: int = 0
-    ) -> None:
+    def _counts(caller: FunctionID, visited: Set[Call], level: int = 0) -> None:
         for callee in funcs[caller].calls:
             call = caller, callee
             call_counter[call] += 1
@@ -839,7 +861,7 @@ def build_svg_blocks_by_memory(
             color=color,
             level=level,
             tooltip=(
-                f"{caller.size / 1024 :.2f} KiB / {caller.blocks}"
+                f"{caller.size / 1024:.2f} KiB / {caller.blocks}"
                 f" blocks \N{RIGHTWARDS DOUBLE ARROW} {line}"
             ),
             w=caller.size,

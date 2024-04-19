@@ -54,6 +54,8 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         ptr_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
             ptrcls=ptr,
+            cache=None,
+            typeref_cache=None,
         )
 
         return pid.extend(ptrref=ptr_ref, ns=ns, direction=dir)
@@ -76,7 +78,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         start = path[0]
 
         typ = self.schema.get(f'default::{start}')
-        pid = pathid.PathId.from_type(self.schema, typ, namespace=ns)
+        pid = pathid.PathId.from_type(self.schema, typ, namespace=ns, env=None)
 
         return self.extend_many(pid, *path[1:])
 

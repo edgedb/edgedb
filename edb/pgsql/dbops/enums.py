@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Tuple, Sequence
 
 import textwrap
 
@@ -81,8 +81,9 @@ class AlterEnum(ddl.DDLOperation):
 
 
 class AlterEnumAddValue(AlterEnum):
-    def __init__(self, name, value, *, before=None, after=None,
-                 conditional=False):
+    def __init__(
+        self, name, value, *, before=None, after=None, conditional=False
+    ):
         super().__init__(name)
         self.value = value
         self.before = before

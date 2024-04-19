@@ -20,6 +20,9 @@ System
     * - :eql:func:`sys::get_current_database`
       - :eql:func-desc:`sys::get_current_database`
 
+    * - :eql:func:`sys::get_current_branch`
+      - :eql:func-desc:`sys::get_current_branch`
+
 
 ----------
 
@@ -87,6 +90,26 @@ System
 
         db> select sys::get_current_database();
         {'my_database'}
+
+    .. versionadded:: 5.0
+
+        In EdgeDB 5.0+, this function will return the name of the current
+        database branch.
+
+
+----------
+
+
+.. eql:function:: sys::get_current_branch() -> str
+
+    .. versionadded:: 5.0
+
+    Return the name of the current database branch as a string.
+
+    .. code-block:: edgeql-repl
+
+        db> select sys::get_current_branch();
+        {'my_branch'}
 
 
 -----------

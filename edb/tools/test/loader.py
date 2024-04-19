@@ -21,11 +21,21 @@ from __future__ import annotations
 
 import re
 import unittest
+from typing import Callable, Optional, Sequence
 
 
 class TestLoader(unittest.TestLoader):
-    def __init__(self, *, verbosity=1, exclude=None, include=None,
-                 progress_cb=None):
+    include: Optional[Sequence[re.Pattern]]
+    exclude: Optional[Sequence[re.Pattern]]
+
+    def __init__(
+        self,
+        *,
+        verbosity: int = 1,
+        exclude: Sequence[str] = (),
+        include: Sequence[str] = (),
+        progress_cb: Optional[Callable[[int, int], None]] = None,
+    ):
         super().__init__()
         self.verbosity = verbosity
 

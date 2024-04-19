@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Optional, Tuple, Mapping, Dict, List
 from dataclasses import dataclass
 
 from edb import errors
@@ -28,6 +28,7 @@ from edb.ir import ast as irast
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import params as pgparams
+from edb.pgsql import types as pgtypes
 
 from . import config as _config_compiler  # NOQA
 from . import expr as _expr_compiler  # NOQA
@@ -37,6 +38,7 @@ from . import clauses
 from . import context
 from . import dispatch
 from . import dml
+from . import pathctx
 
 from .context import OutputFormat as OutputFormat # NOQA
 
@@ -48,6 +50,8 @@ class CompileResult:
     env: context.Environment
 
     argmap: Dict[str, pgast.Param]
+
+    detached_params: Optional[List[Tuple[str, ...]]] = None
 
 
 def compile_ir_to_sql_tree(
@@ -70,6 +74,7 @@ def compile_ir_to_sql_tree(
         ]
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
+    detach_params: bool = False,
 ) -> CompileResult:
     try:
         # Transform to sql tree
@@ -144,6 +149,18 @@ def compile_ir_to_sql_tree(
             assert isinstance(qtree, pgast.Query)
             clauses.fini_toplevel(qtree, ctx)
 
+        if detach_params:
+            detached_params_idx = {
+                ctx.argmap[param.name].index: (
+                    pgtypes.pg_type_from_ir_typeref(
+                        param.ir_type.base_type or param.ir_type))
+                for param in ctx.env.query_params
+                if not param.sub_params
+            }
+        else:
+            detached_params_idx = {}
+        detached_params = [p for _, p in sorted(detached_params_idx.items())]
+
     except errors.EdgeDBError:
         # Don't wrap propertly typed EdgeDB errors into
         # InternalServerError; raise them as is.
@@ -156,7 +173,9 @@ def compile_ir_to_sql_tree(
             args = []
         raise errors.InternalServerError(*args) from e
 
-    return CompileResult(ast=qtree, env=env, argmap=ctx.argmap)
+    return CompileResult(
+        ast=qtree, env=env, argmap=ctx.argmap, detached_params=detached_params
+    )
 
 
 def new_external_rvar(
@@ -197,6 +216,25 @@ def new_external_rvar(
             rel.path_outputs[output_pid, aspect] = var
 
     return rvar
+
+
+def new_external_rvar_as_subquery(
+    *,
+    rel_name: tuple[str, ...],
+    path_id: irast.PathId,
+    aspects: tuple[str, ...],
+) -> pgast.SelectStmt:
+    rvar = new_external_rvar(
+        rel_name=rel_name,
+        path_id=path_id,
+        outputs={},
+    )
+    qry = pgast.SelectStmt(
+        from_clause=[rvar],
+    )
+    for aspect in aspects:
+        pathctx.put_path_rvar(qry, path_id, rvar, aspect=aspect)
+    return qry
 
 
 def new_external_rel(

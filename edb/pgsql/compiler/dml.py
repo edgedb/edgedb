@@ -32,7 +32,17 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import (
+    Optional,
+    Tuple,
+    Union,
+    Mapping,
+    Sequence,
+    Collection,
+    Dict,
+    List,
+    NamedTuple,
+)
 
 import immutables as immu
 
@@ -160,8 +170,7 @@ def init_dml_stmt(
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         else_cte = (dml_cte, dml_rvar)
 
-    if ctx.enclosing_cte_iterator:
-        pathctx.put_path_bond(ctx.rel, ctx.enclosing_cte_iterator.path_id)
+    put_iterator_bond(ctx.enclosing_cte_iterator, ctx.rel)
 
     ctx.dml_stmt_stack.append(ir_stmt)
 
@@ -210,8 +219,7 @@ def gen_dml_union(
             )
 
         assert qry.larg
-        if ctx.enclosing_cte_iterator:
-            pathctx.put_path_bond(qry.larg, ctx.enclosing_cte_iterator.path_id)
+        put_iterator_bond(ctx.enclosing_cte_iterator, qry.larg)
 
         union_cte = pgast.CommonTableExpr(
             query=qry.larg,
@@ -350,6 +358,15 @@ def wrap_dml_cte(
     return dml_rvar
 
 
+def put_iterator_bond(
+    iterator: Optional[pgast.IteratorCTE],
+    select: pgast.Query,
+) -> None:
+    if iterator:
+        pathctx.put_path_bond(
+            select, iterator.path_id, iterator=iterator.iterator_bond)
+
+
 def merge_iterator_scope(
     iterator: Optional[pgast.IteratorCTE],
     select: pgast.SelectStmt,
@@ -372,9 +389,12 @@ def merge_iterator(
     if iterator:
         iterator_rvar = relctx.rvar_for_rel(iterator.cte, ctx=ctx)
 
-        pathctx.put_path_bond(select, iterator.path_id)
+        put_iterator_bond(iterator, select)
         relctx.include_rvar(
             select, iterator_rvar,
+            aspects=('value', iterator.aspect) + (
+                ('source',) if iterator.path_id.is_objtype_path() else ()
+            ),
             path_id=iterator.path_id,
             overwrite_path_rvar=True,
             ctx=ctx)
@@ -537,7 +557,7 @@ def compile_iterator_cte(
         iterator_cte = ctx.dml_stmts[iterator_set]
         return pgast.IteratorCTE(
             path_id=iterator_set.path_id, cte=iterator_cte,
-            parent=last_iterator)
+            parent=last_iterator, iterator_bond=True)
 
     with ctx.newrel() as ictx:
         ictx.scope_tree = ctx.scope_tree
@@ -547,22 +567,26 @@ def compile_iterator_cte(
         merge_iterator(last_iterator, ictx.rel, ctx=ictx)
         clauses.setup_iterator_volatility(last_iterator, ctx=ictx)
 
-        clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
+        clauses.compile_iterator_expr(
+            ictx.rel, iterator_set, is_dml=True, ctx=ictx)
         if iterator_set.path_id.is_objtype_path():
             relgen.ensure_source_rvar(iterator_set, ictx.rel, ctx=ictx)
         ictx.rel.path_id = iterator_set.path_id
-        pathctx.put_path_bond(ictx.rel, iterator_set.path_id)
+        pathctx.put_path_bond(ictx.rel, iterator_set.path_id, iterator=True)
         iterator_cte = pgast.CommonTableExpr(
             query=ictx.rel,
-            name=ctx.env.aliases.get('iter')
+            name=ctx.env.aliases.get('iter'),
         )
         ictx.toplevel_stmt.append_cte(iterator_cte)
 
     ctx.dml_stmts[iterator_set] = iterator_cte
 
     return pgast.IteratorCTE(
-        path_id=iterator_set.path_id, cte=iterator_cte,
-        parent=last_iterator)
+        path_id=iterator_set.path_id,
+        cte=iterator_cte,
+        parent=last_iterator,
+        iterator_bond=True,
+    )
 
 
 def _mk_dynamic_get_path(
@@ -678,7 +702,7 @@ def process_insert_body(
     pathctx.put_path_value_rvar(select, ir_stmt.subject.path_id, fallback_rvar)
 
     # compile contents CTE
-    elements: List[Tuple[irast.Set, irast.BasePointerRef]] = []
+    elements: List[Tuple[irast.SetE[irast.Pointer], irast.BasePointerRef]] = []
     for shape_el, shape_op in ir_stmt.subject.shape:
         assert shape_op is qlast.ShapeOp.ASSIGN
 
@@ -687,11 +711,10 @@ def process_insert_body(
         if shape_el.path_id.is_linkprop_path():
             continue
 
-        assert shape_el.rptr is not None
-        ptrref = shape_el.rptr.ptrref
+        ptrref = shape_el.expr.ptrref
         if ptrref.material_ptr is not None:
             ptrref = ptrref.material_ptr
-        assert shape_el.expr
+        assert shape_el.expr.expr
         elements.append((shape_el, ptrref))
 
     external_inserts = process_insert_shape(
@@ -699,7 +722,7 @@ def process_insert_body(
     )
     single_external = [
         ir for ir in external_inserts
-        if ir.rptr and ir.rptr.dir_cardinality.is_single()
+        if ir.expr.dir_cardinality.is_single()
     ]
 
     # Put the select that builds the tuples to insert into its own CTE.
@@ -878,16 +901,18 @@ def process_insert_rewrites(
     iterator: Optional[pgast.IteratorCTE],
     inner_iterator: Optional[pgast.IteratorCTE],
     rewrites: irast.RewritesOfType,
-    single_external: List[irast.Set],
-    elements: List[Tuple[irast.Set, irast.BasePointerRef]],
+    single_external: List[irast.SetE[irast.Pointer]],
+    elements: Sequence[Tuple[irast.SetE[irast.Pointer], irast.BasePointerRef]],
     ctx: context.CompilerContextLevel,
 ) -> tuple[pgast.CommonTableExpr, pgast.PathRangeVar]:
-    assert ir_stmt.rewrites
-
     typeref = ir_stmt.subject.typeref.real_material_type
 
-    subject_path_id = ir_stmt.rewrites.subject_path_id
     object_path_id = ir_stmt.subject.path_id
+    subject_path_id = (
+        ir_stmt.rewrites.subject_path_id
+        if ir_stmt.rewrites
+        else object_path_id
+    )
 
     rew_stmt = ctx.rel
 
@@ -935,21 +960,20 @@ def process_insert_rewrites(
     # populate the field from the link overlays.
     handled = set(rewrites)
     for ext_ir in single_external:
-        assert ext_ir.rptr
-        handled.add(ext_ir.rptr.ptrref.shortname.name)
+        handled.add(ext_ir.expr.ptrref.shortname.name)
         with ctx.subrel() as ectx:
             ext_rvar = relctx.new_pointer_rvar(
-                ext_ir.rptr, link_bias=True, src_rvar=iterator_rvar, ctx=ectx)
+                ext_ir, link_bias=True, src_rvar=iterator_rvar, ctx=ectx)
             relctx.include_rvar(ectx.rel, ext_rvar, ext_ir.path_id, ctx=ectx)
             # Make the subquery output the target
             pathctx.get_path_value_output(
                 ectx.rel, ext_ir.path_id, env=ctx.env)
 
         ptr_info = pg_types.get_ptrref_storage_info(
-            ext_ir.rptr.ptrref, resolve_type=True, link_bias=False)
+            ext_ir.expr.ptrref, resolve_type=True, link_bias=False)
         rew_stmt.target_list.append(pgast.ResTarget(
             name=ptr_info.column_name, val=ectx.rel))
-        nptr_map[ext_ir.rptr.ptrref.real_material_ptr.name] = ectx.rel
+        nptr_map[ext_ir.expr.ptrref.real_material_ptr.name] = ectx.rel
 
     # Pull in pointers that were not rewritten
     not_rewritten = {
@@ -964,6 +988,7 @@ def process_insert_rewrites(
             val = pathctx.get_path_var(
                 rew_stmt, e.path_id, aspect='value', env=ctx.env
             )
+            val = output.output_as_value(val, env=ctx.env)
             rew_stmt.target_list.append(pgast.ResTarget(
                 name=ptr_info.column_name, val=val))
 
@@ -983,12 +1008,12 @@ def process_insert_shape(
     ir_stmt: irast.InsertStmt,
     select: pgast.SelectStmt,
     ptr_map: Dict[sn.Name, pgast.BaseExpr],
-    elements: List[Tuple[irast.Set, irast.BasePointerRef]],
+    elements: Sequence[Tuple[irast.SetE[irast.Pointer], irast.BasePointerRef]],
     iterator: Optional[pgast.IteratorCTE],
     inner_iterator: Optional[pgast.IteratorCTE],
     ctx: context.CompilerContextLevel,
     force_optional: bool=False,
-) -> List[irast.Set]:
+) -> List[irast.SetE[irast.Pointer]]:
     # Compile the shape
     external_inserts = []
 
@@ -1003,7 +1028,9 @@ def process_insert_shape(
             subctx.path_scope = ctx.path_scope.new_child()
             merge_iterator(inner_iterator, select, ctx=subctx)
             inner_iterator_id = relctx.get_path_var(
-                select, inner_iterator.path_id, aspect='identity', ctx=ctx)
+                select, inner_iterator.path_id,
+                aspect=inner_iterator.aspect,
+                ctx=ctx)
 
         # Process the Insert IR and separate links that go
         # into the main table from links that are inserted into
@@ -1047,8 +1074,7 @@ def process_insert_shape(
             if link_ptr_info and link_ptr_info.table_type == 'link':
                 external_inserts.append(element)
 
-        if iterator is not None:
-            pathctx.put_path_bond(select, iterator.path_id)
+        put_iterator_bond(iterator, select)
 
     for aspect in ('value', 'identity'):
         pathctx._put_path_output_var(
@@ -1060,7 +1086,7 @@ def process_insert_shape(
 
 
 def compile_insert_shape_element(
-    shape_el: irast.Set,
+    shape_el: irast.SetE[irast.Pointer],
     *,
     ir_stmt: irast.MutatingStmt,
     iterator_id: Optional[pgast.BaseExpr],
@@ -1068,19 +1094,7 @@ def compile_insert_shape_element(
     ctx: context.CompilerContextLevel,
 ) -> None:
 
-    with ctx.newscope() as insvalctx:
-        # This method is only called if the upper cardinality of
-        # the expression is one, so we check for AT_MOST_ONE
-        # to determine nullability.
-        # FIXME: Doing force_optional for all rewrites is kind of a bummer.
-        # (The issue is that the rewrites are compiled without fully
-        # understanding which of the pointers might not have been truly
-        # present in the original DML shape.)
-        assert shape_el.rptr is not None
-        if (shape_el.rptr.dir_cardinality
-                is qltypes.Cardinality.AT_MOST_ONE) or force_optional:
-            insvalctx.force_optional |= {shape_el.path_id}
-
+    with ctx.new() as insvalctx:
         if iterator_id is not None:
             id = iterator_id
             insvalctx.volatility_ref = (lambda _stmt, _ctx: id,)
@@ -1093,7 +1107,14 @@ def compile_insert_shape_element(
 
         insvalctx.current_insert_path_id = ir_stmt.subject.path_id
 
-        dispatch.visit(shape_el, ctx=insvalctx)
+        if shape_el.expr.dir_cardinality.can_be_zero() or force_optional:
+            # If the element can be empty, compile it in a subquery to force it
+            # to be NULL.
+            value = relgen.set_as_subquery(
+                shape_el, as_value=True, ctx=insvalctx)
+            pathctx.put_path_value_var(insvalctx.rel, shape_el.path_id, value)
+        else:
+            dispatch.visit(shape_el, ctx=insvalctx)
 
 
 def merge_overlays_globally(
@@ -1342,8 +1363,7 @@ def insert_needs_conflict_cte(
         return True
 
     for shape_el, _ in ir_stmt.subject.shape:
-        assert shape_el.rptr is not None
-        ptrref = shape_el.rptr.ptrref
+        ptrref = shape_el.expr.ptrref
         ptr_info = pg_types.get_ptrref_storage_info(
             ptrref, resolve_type=True, link_bias=False)
 
@@ -1351,8 +1371,8 @@ def insert_needs_conflict_cte(
         # pointer stored in the object itself
         if (
             ptr_info.table_type == 'ObjectType'
-            and shape_el.expr
-            and irutils.contains_dml(shape_el.expr, skip_bindings=True)
+            and shape_el.expr.expr
+            and irutils.contains_dml(shape_el.expr.expr, skip_bindings=True)
         ):
             return True
 
@@ -1491,7 +1511,7 @@ def compile_insert_else_body(
             dummy_pathid = irast.PathId.new_dummy(ctx.env.aliases.get('dummy'))
             with ictx.subrel() as dctx:
                 dummy_q = dctx.rel
-                relctx.ensure_transient_identity_for_path(
+                relctx.create_iterator_identity_for_path(
                     dummy_pathid, dummy_q, ctx=dctx)
             dummy_rvar = relctx.rvar_for_rel(
                 dummy_q, lateral=True, ctx=ictx)
@@ -1507,7 +1527,12 @@ def compile_insert_else_body(
             iter_path_id = (
                 enclosing_cte_iterator.path_id if
                 enclosing_cte_iterator else None)
-            relctx.anti_join(ictx.rel, subrel, iter_path_id, ctx=ctx)
+            aspect = (
+                enclosing_cte_iterator.aspect if enclosing_cte_iterator
+                else 'identity'
+            )
+            relctx.anti_join(ictx.rel, subrel, iter_path_id,
+                             aspect=aspect, ctx=ctx)
 
             # Package it up as a CTE
             anti_cte = pgast.CommonTableExpr(
@@ -1517,7 +1542,9 @@ def compile_insert_else_body(
             ictx.toplevel_stmt.append_cte(anti_cte)
             anti_cte_iterator = pgast.IteratorCTE(
                 path_id=dummy_pathid, cte=anti_cte,
-                parent=ictx.enclosing_cte_iterator)
+                parent=ictx.enclosing_cte_iterator,
+                iterator_bond=True
+            )
 
     return anti_cte_iterator
 
@@ -1602,9 +1629,7 @@ def process_update_body(
     contents_select = update_cte.query
     toplevel = ctx.toplevel_stmt
 
-    if ctx.enclosing_cte_iterator:
-        pathctx.put_path_bond(
-            contents_select, ctx.enclosing_cte_iterator.path_id)
+    put_iterator_bond(ctx.enclosing_cte_iterator, contents_select)
 
     assert dml_parts.range_cte
     iterator = pgast.IteratorCTE(
@@ -1626,7 +1651,7 @@ def process_update_body(
 
         # compile contents CTE
         elements = [
-            (shape_el, not_none(shape_el.rptr).ptrref, shape_op)
+            (shape_el, shape_el.expr.ptrref, shape_op)
             for shape_el, shape_op in ir_stmt.subject.shape
             if shape_op != qlast.ShapeOp.MATERIALIZE
         ]
@@ -1659,7 +1684,7 @@ def process_update_body(
 
     single_external = [
         ir for ir, _ in external_updates
-        if ir.rptr and ir.rptr.dir_cardinality.is_single()
+        if ir.expr.dir_cardinality.is_single()
     ]
 
     rewrites = ir_stmt.rewrites and ir_stmt.rewrites.by_type.get(typeref)
@@ -1808,19 +1833,24 @@ def process_update_rewrites(
     contents_select: pgast.SelectStmt,
     table_relation: pgast.RelRangeVar,
     range_relation: pgast.PathRangeVar,
-    single_external: List[irast.Set],
+    single_external: List[irast.SetE[irast.Pointer]],
     rewrites: irast.RewritesOfType,
-    elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
+    elements: Sequence[
+        Tuple[irast.SetE[irast.Pointer], irast.BasePointerRef, qlast.ShapeOp]],
     ctx: context.CompilerContextLevel,
 ) -> tuple[
     pgast.CommonTableExpr,
     pgast.PathRangeVar,
     list[tuple[pgast.ResTarget, irast.PathId]],
 ]:
-    assert ir_stmt.rewrites
+    # assert ir_stmt.rewrites
     object_path_id = ir_stmt.subject.path_id
-    subject_path_id = ir_stmt.rewrites.subject_path_id
-    old_path_id = ir_stmt.rewrites.old_path_id
+    if ir_stmt.rewrites:
+        subject_path_id = ir_stmt.rewrites.subject_path_id
+        old_path_id = ir_stmt.rewrites.old_path_id
+    else:
+        # Need values for the single external link case
+        subject_path_id = old_path_id = object_path_id
     assert old_path_id
 
     table_rel = table_relation.relation
@@ -1906,13 +1936,12 @@ def process_update_rewrites(
         # populate the field from the link overlays.
         handled = set(rewrites)
         for ext_ir in single_external:
-            assert ext_ir.rptr
-            handled.add(ext_ir.rptr.ptrref.shortname.name)
+            handled.add(ext_ir.expr.ptrref.shortname.name)
             actual_ptrref = irtyputils.find_actual_ptrref(
-                typeref, ext_ir.rptr.ptrref)
+                typeref, ext_ir.expr.ptrref)
             with rctx.subrel() as ectx:
                 ext_rvar = relctx.new_pointer_rvar(
-                    ext_ir.rptr, link_bias=True, src_rvar=contents_rvar,
+                    ext_ir, link_bias=True, src_rvar=contents_rvar,
                     ctx=ectx)
                 relctx.include_rvar(
                     ectx.rel, ext_rvar, ext_ir.path_id, ctx=ectx)
@@ -1966,16 +1995,17 @@ def process_update_rewrites(
 def process_update_shape(
     ir_stmt: irast.UpdateStmt,
     rel: pgast.SelectStmt,
-    elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
+    elements: Sequence[
+        Tuple[irast.SetE[irast.Pointer], irast.BasePointerRef, qlast.ShapeOp]],
     typeref: irast.TypeRef,
     ctx: context.CompilerContextLevel,
 ) -> Tuple[
     List[Tuple[pgast.ResTarget, irast.PathId]],
-    List[Tuple[irast.Set, qlast.ShapeOp]],
+    List[Tuple[irast.SetE[irast.Pointer], qlast.ShapeOp]],
     Dict[sn.Name, pgast.BaseExpr],
 ]:
     values: List[Tuple[pgast.ResTarget, irast.PathId]] = []
-    external_updates: List[Tuple[irast.Set, qlast.ShapeOp]] = []
+    external_updates: List[Tuple[irast.SetE[irast.Pointer], qlast.ShapeOp]] = []
     ptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
 
     for element, shape_ptrref, shape_op in elements:
@@ -1986,7 +2016,9 @@ def process_update_shape(
         link_ptr_info = pg_types.get_ptrref_storage_info(
             actual_ptrref, resolve_type=False, link_bias=True
         )
-        updvalue = element.expr
+        # XXX: Slightly nervous about this.
+        assert isinstance(element.expr, irast.Pointer)
+        updvalue = element.expr.expr
 
         if (
             ptr_info.table_type == "ObjectType"
@@ -2135,6 +2167,7 @@ def check_update_type(
     target type for this concrete subtype being handled.
     """
 
+    assert isinstance(actual_ptrref, irast.PointerRef)
     base_ptrref = shape_ptrref.real_material_ptr
 
     # We skip the check if either the base type matches exactly
@@ -2155,11 +2188,20 @@ def check_update_type(
         assert isinstance(rel_or_rvar, pgast.BaseRelation)
         rvar = relctx.rvar_for_rel(rel_or_rvar, ctx=ctx)
 
-    # Find the ptrref for the __type__ link on our actual target type
-    # and make up a new path_id to access it
-    assert isinstance(actual_ptrref, irast.PointerRef)
-    actual_type_ptrref = irtyputils.find_actual_ptrref(
-        actual_ptrref.out_target, ir_stmt.dunder_type_ptrref)
+    # Make up a ptrref for the __type__ link on our actual target type
+    # and make up a new path_id to access it. Relies on __type__ always
+    # being named __type__, but that's fine.
+    # (Arranging to actually get a legit pointer ref is pointlessly expensive.)
+    el_name = sn.QualName('__', '__type__')
+    actual_type_ptrref = irast.SpecialPointerRef(
+        name=el_name,
+        shortname=el_name,
+        out_source=actual_ptrref.out_target,
+        # HACK: This is obviously not the right target type, but we don't
+        # need it for anything and the pathid never escapes this function.
+        out_target=actual_ptrref.out_target,
+        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+    )
     type_pathid = ir_set.path_id.extend(ptrref=actual_type_ptrref)
 
     # Grab the actual value we have inserted and pull the __type__ out
@@ -2216,7 +2258,7 @@ def check_update_type(
 def process_link_update(
     *,
     ir_stmt: irast.MutatingStmt,
-    ir_set: irast.Set,
+    ir_set: irast.SetE[irast.Pointer],
     shape_op: qlast.ShapeOp = qlast.ShapeOp.ASSIGN,
     source_typeref: irast.TypeRef,
     dml_cte: pgast.CommonTableExpr,
@@ -2257,8 +2299,7 @@ def process_link_update(
     toplevel = ctx.toplevel_stmt
     is_insert = isinstance(ir_stmt, irast.InsertStmt)
 
-    rptr = ir_set.rptr
-    assert rptr is not None
+    rptr = ir_set.expr
     ptrref = rptr.ptrref
     assert isinstance(ptrref, irast.PointerRef)
     target_is_scalar = not irtyputils.is_object(ir_set.typeref)
@@ -2624,8 +2665,9 @@ def process_link_update(
                 path_id=ir_set.path_id,
                 path_scope_id=ir_set.path_scope_id,
                 typeref=ir_set.typeref,
-                rptr=ir_set.rptr,
+                expr=ir_set.expr.replace(expr=None),
             )
+            assert irutils.is_set_instance(ptr_ref_set, irast.Pointer)
 
             with ctx.new() as subctx:
                 # TODO: Do we really need a copy here? things /seem/
@@ -2798,7 +2840,7 @@ def process_link_update(
 def process_link_values(
     *,
     ir_stmt: irast.MutatingStmt,
-    ir_expr: irast.Set,
+    ir_expr: irast.SetE[irast.Pointer],
     dml_rvar: pgast.PathRangeVar,
     dml_cte: pgast.CommonTableExpr,
     source_typeref: irast.TypeRef,
@@ -2862,8 +2904,7 @@ def process_link_values(
                             path_id=ir_stmt.subject.path_id, ctx=subrelctx)
         subrelctx.path_scope[ir_stmt.subject.path_id] = row_query
 
-        ir_rptr = ir_expr.rptr
-        assert ir_rptr is not None
+        ir_rptr = ir_expr.expr
         ptrref = ir_rptr.ptrref
         if ptrref.material_ptr is not None:
             ptrref = ptrref.material_ptr

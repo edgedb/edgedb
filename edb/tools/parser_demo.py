@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-from typing import *
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import tokenizer
@@ -30,18 +29,17 @@ from edb.tools.edb import edbcommands
 
 @edbcommands.command("parser-demo")
 def main():
-
     qlparser.preload_spec()
 
-    for q in QUERIES[-10:]:
+    for q in QUERIES[-1:]:
         sdl = q.startswith('sdl')
         if sdl:
             q = q[3:]
 
         try:
-            # s = tokenizer.NormalizedSource.from_string(q)
-            source = tokenizer.Source.from_string(q)
-        except BaseException as e:
+            source = tokenizer.NormalizedSource.from_string(q)
+            # source = tokenizer.Source.from_string(q)
+        except Exception as e:
             print('Error during tokenization:')
             print(e)
             continue
@@ -54,11 +52,11 @@ def main():
         print('-' * 30)
         print()
 
-        for index, error in enumerate(result.errors()):
+        for index, error in enumerate(result.errors):
             message, span, hint, details = error
             (start, end) = tokenizer.inflate_span(source.text(), span)
 
-            print(f'Error [{index+1}/{len(result.errors())}]:')
+            print(f'Error [{index + 1}/{len(result.errors)}]:')
             print(
                 '\n'.join(
                     source.text().splitlines()[(start.line - 1) : end.line]
@@ -76,10 +74,10 @@ def main():
                 print(f'  Hint: {hint}')
             print()
 
-        if result.out():
+        if result.out:
             try:
-                ast = qlparser._cst_to_ast(result.out(), productions).val
-            except BaseException:
+                ast = qlparser._cst_to_ast(result.out, productions).val
+            except Exception:
                 ast = None
             if ast:
                 print('Recovered AST:')
@@ -330,4 +328,18 @@ QUERIES = [
     '''
     INSERT Foo FILTER Foo.bar = 42;
     ''',
+    '''
+    start migration to {
+      module default {
+        type Hello extending MetaHello {
+          property platform_fee_percentage: int16 {
+            constrant exclusive {
+              errmessage := "asxasx";
+            }
+          }
+          required property blah := .bleh - .bloh - .blih;
+        }
+      }
+    }
+    '''
 ]

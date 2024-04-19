@@ -1,8 +1,0 @@
-[flake8]
-ignore = B008,B306,E203,E402,E731,D100,D101,D102,D103,D104,D105,W503,W504,E252,F999,F541,E741,B019
-max-line-length = 80
-exclude = .git,__pycache__,build,dist,.eggs,postgres
-
-[flake8:local-plugins]
-extension =
-    FFF1 = edb.tools.flake8.typing:MonkeyPatchPyFlakesChecker

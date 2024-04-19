@@ -22,8 +22,7 @@ from __future__ import annotations
 import functools
 import dataclasses
 import uuid
-from typing import *
-from typing import overload
+from typing import Literal, Optional, Tuple, cast, overload
 
 from edb.common.typeutils import not_none
 
@@ -359,9 +358,11 @@ def pg_type_from_object(
 
 
 def pg_type_from_ir_typeref(
-        ir_typeref: irast.TypeRef, *,
-        serialized: bool = False,
-        persistent_tuples: bool = False) -> Tuple[str, ...]:
+    ir_typeref: irast.TypeRef,
+    *,
+    serialized: bool = False,
+    persistent_tuples: bool = False,
+) -> Tuple[str, ...]:
 
     if irtyputils.is_array(ir_typeref):
         if (irtyputils.is_generic(ir_typeref)
@@ -523,7 +524,7 @@ def get_pointer_storage_info(
     resolve_type: bool = True,
     link_bias: bool = False,
 ) -> PointerStorageInfo:
-    assert not pointer.generic(
+    assert not pointer.is_non_concrete(
         schema
     ), "only specialized pointers can be stored"
     if pointer.get_computable(schema):
@@ -599,22 +600,22 @@ class PointerStorageInfo:
 
 @overload
 def get_ptrref_storage_info(
-    ptrref: irast.BasePointerRef, *,
-    resolve_type: bool=...,
-    link_bias: Literal[False]=False,
-    allow_missing: Literal[False]=False,
-) -> PointerStorageInfo:
-    ...
+    ptrref: irast.BasePointerRef,
+    *,
+    resolve_type: bool = ...,
+    link_bias: Literal[False] = False,
+    allow_missing: Literal[False] = False,
+) -> PointerStorageInfo: ...
 
 
 @overload
 def get_ptrref_storage_info(
-    ptrref: irast.BasePointerRef, *,
-    resolve_type: bool=...,
-    link_bias: bool=...,
-    allow_missing: bool=...,
-) -> Optional[PointerStorageInfo]:
-    ...
+    ptrref: irast.BasePointerRef,
+    *,
+    resolve_type: bool = ...,
+    link_bias: bool = ...,
+    allow_missing: bool = ...,
+) -> Optional[PointerStorageInfo]: ...
 
 
 def get_ptrref_storage_info(

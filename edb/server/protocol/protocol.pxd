@@ -31,6 +31,7 @@ cdef class HttpRequest:
         public bytes accept
         public bytes body
         public bytes host
+        public bytes origin
         public bytes authorization
         public object params
         public object forwarded
@@ -45,6 +46,7 @@ cdef class HttpResponse:
         public bytes content_type
         public dict custom_headers
         public bytes body
+        public bint sent
 
 
 cdef class HttpProtocol:
@@ -66,6 +68,7 @@ cdef class HttpProtocol:
         object binary_endpoint_security
         object http_endpoint_security
         object tenant
+        object connection_made_at
 
         HttpRequest current_request
 
@@ -73,15 +76,17 @@ cdef class HttpProtocol:
                     str message = ?)
     cdef _bad_request(self, HttpRequest request, HttpResponse response,
                       str message)
+    cdef _unauthorized(self, HttpRequest request, HttpResponse response,
+                       str message)
     cdef _return_binary_error(self, binary.EdgeConnection proto)
     cdef _write(self, bytes req_version, bytes resp_status,
                 bytes content_type, dict custom_headers, bytes body,
                 bint close_connection)
 
-    cdef write(self, HttpRequest request, HttpResponse response)
+    cpdef write(self, HttpRequest request, HttpResponse response)
 
     cdef unhandled_exception(self, bytes status, ex)
     cdef resume(self)
-    cdef close(self)
+    cpdef close(self)
     cdef inline _schedule_handle_request(self, request)
     cdef inline _close_with_error(self, bytes status, bytes message)

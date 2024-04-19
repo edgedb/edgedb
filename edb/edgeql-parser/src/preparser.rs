@@ -154,11 +154,11 @@ pub fn full_statement(data: &[u8], continuation: Option<Continuation>)
             b'}' | b')' | b']'
             if braces_buf.last() == Some(b)
             => { braces_buf.pop(); }
-            b';' if braces_buf.len() == 0 => return Ok(idx+1),
+            b';' if braces_buf.is_empty() => return Ok(idx+1),
             _ => continue,
         }
     }
-    return Err(Continuation { position: data.len(), braces: braces_buf });
+    Err(Continuation { position: data.len(), braces: braces_buf })
 }
 
 /// Returns true if the text has no partial statements

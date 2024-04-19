@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import copy
 import itertools
-from typing import *
+from typing import Any, Optional, Mapping, Dict, List, Set
 
 from edb import errors
 from edb.common import ast
@@ -45,8 +45,9 @@ class ParameterInliner(ast.NodeTransformer):
         self.args_map = args_map
 
     def visit_Path(self, node: qlast.Path) -> qlast.Base:
-        if (len(node.steps) != 1 or
-                not isinstance(node.steps[0], qlast.ObjectRef)):
+        if len(node.steps) != 1 or not isinstance(
+            node.steps[0], qlast.ObjectRef
+        ):
             self.visit(node.steps[0])
             return node
 
@@ -61,8 +62,7 @@ class ParameterInliner(ast.NodeTransformer):
 
 
 def inline_parameters(
-    ql_expr: qlast.Base,
-    args: Mapping[str, qlast.Base]
+    ql_expr: qlast.Base, args: Mapping[str, qlast.Base]
 ) -> None:
 
     inliner = ParameterInliner(args)
@@ -88,7 +88,7 @@ def index_parameters(
         raise errors.SchemaDefinitionError(
             f'Expected {len(params) - 1} arguments, but found '
             f'{len(ql_args) - 1}',
-            context=ql_args[-1].context,
+            span=ql_args[-1].span,
             details='Did you mean to use ON (...) for specifying the subject?',
         )
 
@@ -137,8 +137,7 @@ class AnchorInliner(ast.NodeTransformer):
 
 
 def inline_anchors(
-    ql_expr: qlast.Base,
-    anchors: Mapping[Any, qlast.Base]
+    ql_expr: qlast.Base, anchors: Mapping[Any, qlast.Base]
 ) -> None:
 
     inliner = AnchorInliner(anchors)
@@ -154,7 +153,7 @@ def find_subject_ptrs(ast: qlast.Base) -> Set[str]:
     for path in find_paths(ast):
         if path.partial:
             p = path.steps[0]
-        elif isinstance(path.steps[0], qlast.Subject) and len(path.steps) > 1:
+        elif is_anchor(path.steps[0], '__subject__') and len(path.steps) > 1:
             p = path.steps[1]
         else:
             continue
@@ -162,6 +161,10 @@ def find_subject_ptrs(ast: qlast.Base) -> Set[str]:
         if isinstance(p, qlast.Ptr):
             ptrs.add(p.name)
     return ptrs
+
+
+def is_anchor(expr: qlast.PathElement, name: str):
+    return isinstance(expr, qlast.Anchor) and expr.name == name
 
 
 def subject_paths_substitute(
@@ -176,7 +179,7 @@ def subject_paths_substitute(
                 subject_ptrs,
             )
         elif (
-            isinstance(path.steps[0], qlast.Subject)
+            is_anchor(path.steps[0], '__subject__')
             and len(path.steps)
             and isinstance(path.steps[1], qlast.Ptr)
         ):
@@ -188,10 +191,11 @@ def subject_paths_substitute(
 
 
 def subject_substitute(
-        ast: qlast.Base_T, new_subject: qlast.Expr) -> qlast.Base_T:
+    ast: qlast.Base_T, new_subject: qlast.Expr
+) -> qlast.Base_T:
     ast = copy.deepcopy(ast)
     for path in find_paths(ast):
-        if isinstance(path.steps[0], qlast.Subject):
+        if is_anchor(path.steps[0], '__subject__'):
             path.steps[0] = new_subject
     return ast
 
@@ -214,3 +218,11 @@ def contains_dml(ql_expr: qlast.Base) -> bool:
     )
 
     return bool(res)
+
+
+def is_enum(type_name: qlast.TypeName):
+    return (
+        isinstance(type_name.maintype, (qlast.TypeName, qlast.ObjectRef))
+        and type_name.maintype.name == "enum"
+        and type_name.subtypes
+    )

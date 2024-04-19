@@ -65,8 +65,26 @@ class CreateView(ddl.SchemaObjectOperation):
 
 class DropView(ddl.SchemaObjectOperation):
 
+    def __init__(
+        self,
+        name,
+        *,
+        conditional=False,
+        conditions=None,
+        neg_conditions=None,
+    ):
+        super().__init__(
+            name,
+            conditions=conditions,
+            neg_conditions=neg_conditions,
+        )
+        self.conditional = conditional
+
     def code(self, block: base.PLBlock) -> str:
-        return f'DROP VIEW {qn(*self.name)}'
+        if self.conditional:
+            return f'DROP VIEW IF EXISTS {qn(*self.name)}'
+        else:
+            return f'DROP VIEW {qn(*self.name)}'
 
 
 class ViewExists(base.Condition):

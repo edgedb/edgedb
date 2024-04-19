@@ -235,9 +235,9 @@ class Server:
 
     async def stop(self):
         self._srv.close()
-        await self._srv.wait_closed()
         for con in self._pids.values():
             con.abort()
+        await self._srv.wait_closed()
 
     def kill_outdated_worker(self, current_version):
         for conn in self._pids.values():

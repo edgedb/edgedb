@@ -26,6 +26,7 @@ import sys
 import tempfile
 import time
 import unittest.mock
+import uuid
 
 import immutables
 
@@ -34,6 +35,7 @@ from edb.testbase import lang as tb
 from edb.testbase import server as tbs
 from edb.server import args as edbargs
 from edb.server import compiler as edbcompiler
+from edb.server.compiler import rpc
 from edb.server import config
 from edb.server.compiler_pool import amsg
 from edb.server.compiler_pool import pool
@@ -132,7 +134,7 @@ class TestAmsg(tbs.TestCase):
 
     async def test_server_compiler_pool_restart(self):
         pids = []
-        async with self.compiler_pool(2) as (server, proto, proc, sn):
+        async with self.compiler_pool(2) as (server, proto, _proc, _sn):
             # Make sure both compiler workers are up and ready
             pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
             pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
@@ -175,7 +177,7 @@ class TestAmsg(tbs.TestCase):
                 os.kill(pid, 0)
 
     async def test_server_compiler_pool_template_proc_exit(self):
-        async with self.compiler_pool(2) as (server, proto, proc, sn):
+        async with self.compiler_pool(2) as (server, proto, proc, _sn):
             # Make sure both compiler workers are up and ready
             pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
             pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
@@ -212,7 +214,7 @@ class TestAmsg(tbs.TestCase):
                     os.kill(pid, 0)
 
     async def test_server_compiler_pool_server_exit(self):
-        async with self.compiler_pool(2) as (server, proto, proc, sn):
+        async with self.compiler_pool(2) as (server, proto, proc, _sn):
             # Make sure both compiler workers are up and ready
             pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
             pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
@@ -379,7 +381,7 @@ class TestServerCompilerPool(tbs.TestCase):
             self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
 
 
-class TestCompilerPool(tbs.TestCase, tb.PreloadParserGrammarMixin):
+class TestCompilerPool(tbs.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -422,18 +424,35 @@ class TestCompilerPool(tbs.TestCase, tb.PreloadParserGrammarMixin):
                 os.kill(w2.get_pid(), signal.SIGTERM)
                 await asyncio.wait_for(pool_._ready_evt.wait(), LONG_WAIT)
 
+                compiler = edbcompiler.new_compiler(
+                    std_schema=self._std_schema,
+                    reflection_schema=self._refl_schema,
+                    schema_class_layout=self._schema_class_layout,
+                )
+
                 context = edbcompiler.new_compiler_context(
-                    compiler_state=None,
+                    compiler_state=compiler.state,
                     user_schema=self._std_schema,
                     modaliases={None: 'default'},
                 )
+
+                orig_query = 'SELECT 123'
+                request = rpc.CompilationRequest(
+                    compiler.state.compilation_config_serializer
+                ).update(
+                    source=edgeql.Source.from_string(orig_query),
+                    protocol_version=(1, 0),
+                    implicit_limit=101,
+                ).set_schema_version(uuid.uuid4())
+
                 await asyncio.gather(*(pool_.compile_in_tx(
+                    None,
+                    pickle.dumps(context.state.root_user_schema),
                     context.state.current_tx().id,
                     pickle.dumps(context.state),
                     0,
-                    edgeql.Source.from_string('SELECT 123'),
-                    edbcompiler.OutputFormat.BINARY,
-                    False, 101, False, True, (1, 0), True
+                    request.serialize(),
+                    orig_query,
                 ) for _ in range(4)))
             finally:
                 await pool_.stop()
@@ -443,3 +462,33 @@ class TestCompilerPool(tbs.TestCase, tb.PreloadParserGrammarMixin):
 
     async def test_server_compiler_pool_disconnect_queue_adaptive(self):
         await self._test_pool_disconnect_queue(pool.SimpleAdaptivePool)
+
+    def test_server_compiler_rpc_hash_eq(self):
+        compiler = edbcompiler.new_compiler(
+            std_schema=self._std_schema,
+            reflection_schema=self._refl_schema,
+            schema_class_layout=self._schema_class_layout,
+        )
+
+        def test(source: edgeql.Source):
+            request1 = rpc.CompilationRequest(
+                compiler.state.compilation_config_serializer
+            ).update(
+                source=source,
+                protocol_version=(1, 0),
+            ).set_schema_version(uuid.uuid4())
+            request2 = rpc.CompilationRequest(
+                compiler.state.compilation_config_serializer
+            ).deserialize(request1.serialize(), "<unknown>")
+            self.assertEqual(hash(request1), hash(request2))
+            self.assertEqual(request1, request2)
+
+            # schema_version affects the cache_key, hence the hash.
+            # But, it's not serialized so the 2 requests are still equal.
+            # This makes request2 a new key as being used in dicts.
+            request2.set_schema_version(uuid.uuid4())
+            self.assertNotEqual(hash(request1), hash(request2))
+            self.assertEqual(request1, request2)
+
+        test(edgeql.Source.from_string("SELECT 42"))
+        test(edgeql.NormalizedSource.from_string("SELECT 42"))

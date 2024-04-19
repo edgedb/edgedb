@@ -14,21 +14,54 @@ Connecting
 EdgeDB supports running read-only SQL queries via the Postgres protocol to
 enable connecting EdgeDB to existing BI and analytics solutions. Any
 Postgres-compatible client can connect to your EdgeDB database by using the
-same port that is used for the EdgeDB protocol and the same database name,
-username, and password you already use for your database.
+same port that is used for the EdgeDB protocol and the
+:versionreplace:`database;5.0:branch` name, username, and password you already
+use for your database.
 
-Here's how you might connect to a local instance on port 10701 (determined by
-running ``edgedb instance list``) with a database ``edgedb`` using the ``psql``
-CLI:
+.. versionchanged:: _default
 
-.. code-block:: bash
+    Here's how you might connect to a local instance on port 10701 (determined
+    by running ``edgedb instance list``) with a database ``edgedb`` using the
+    ``psql`` CLI:
 
-    $ psql -h localhost -p 10701 -U edgedb -d edgedb
+    .. code-block:: bash
 
-You'll then be prompted for a password. If you don't have it, you can run
-``edgedb instance credentials --insecure-dsn`` and grab it out of the DSN the
-command returns. (It's the string between the second colon and the "at" symbol:
-``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<database>``)
+        $ psql -h localhost -p 10701 -U edgedb -d edgedb
+
+    You'll then be prompted for a password. If you don't have it, you can run
+    ``edgedb instance credentials --insecure-dsn`` and grab it out of the DSN
+    the command returns. (It's the string between the second colon and the "at"
+    symbol: ``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<database>``)
+
+.. versionchanged:: 5.0
+
+    Here's how you might connect to a local instance on port 10701 (determined
+    by running ``edgedb instance list``) on a branch ``main`` using the
+    ``psql`` CLI:
+
+    .. code-block:: bash
+
+        $ psql -h localhost -p 10701 -U edgedb -d main
+
+    You'll then be prompted for a password. If you don't have it, you can run
+    ``edgedb instance credentials --insecure-dsn`` and grab it out of the DSN
+    the command returns. (It's the string between the second colon and the "at"
+    symbol: ``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<branch>``)
+
+.. note::
+
+    The insecure DSN returned by the CLI for EdgeDB Cloud instances will not
+    contain the password. You will need to either :ref:`create a new role and
+    set the password <ref_sql_support_new_role>`, using those values to connect
+    to your SQL client, or change the password of the existing role, using that
+    role name along with the newly created password.
+
+    .. code-block:: edgeql-repl
+
+        db> alter role edgedb {
+        ...   set password := 'my-password'
+        ... };
+        OK: ALTER ROLE
 
 .. warning::
 
@@ -43,6 +76,11 @@ command returns. (It's the string between the second colon and the "at" symbol:
     ``libpq.dll``, click "Properties," and find the version on the "Details"
     tab.
 
+.. _ref_sql_support_new_role:
+
+Creating a new role
+-------------------
+
 This works well to test SQL support, but if you are going to be using it on an
 ongoing basis, you may want to create a new role and use it to authenticate
 your SQL clients. Set a password when you create your role. Then, use the role
@@ -54,9 +92,17 @@ name as your user name when you connect via your SQL client.
       set password := 'your-password'
     };
 
-.. code-block:: bash
+.. versionchanged:: _default
 
-    $ psql -h localhost -p 10701 -U sql -d edgedb
+    .. code-block:: bash
+
+        $ psql -h localhost -p 10701 -U sql -d edgedb
+
+.. versionchanged:: 5.0
+
+    .. code-block:: bash
+
+        $ psql -h localhost -p 10701 -U sql -d main
 
 In this example, when prompted for the password, you would enter
 ``your-password``.

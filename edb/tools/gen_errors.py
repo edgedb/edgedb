@@ -229,8 +229,9 @@ class ErrorsTree:
 
         return classes
 
-    def generate_pycode(self, *, message_base_class, base_class,
-                        base_import, extra_all, client):
+    def generate_pycode(
+        self, *, message_base_class, base_class, base_import, extra_all, client
+    ):
         classes = self.generate_classes(
             message_base_class=message_base_class,
             base_class=base_class,
@@ -273,9 +274,16 @@ def die(msg):
     sys.exit(1)
 
 
-def main(*, base_class, message_base_class,
-         base_import, stdout, extra_all, client,
-         language):
+def main(
+    *,
+    base_class,
+    message_base_class,
+    base_import,
+    stdout,
+    extra_all,
+    client,
+    language,
+):
 
     for p in edb.__path__:
         ep = pathlib.Path(p) / 'api' / 'errors.txt'

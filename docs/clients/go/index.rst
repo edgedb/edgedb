@@ -1,3 +1,5 @@
+.. _edgedb-go-intro:
+
 ==
 Go
 ==

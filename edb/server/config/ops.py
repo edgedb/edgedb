@@ -21,7 +21,19 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import *
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    TypeVar,
+    Union,
+    Iterable,
+    Mapping,
+    Collection,
+    NamedTuple,
+    TYPE_CHECKING,
+    TypeGuard,
+)
 
 import immutables
 
@@ -91,8 +103,7 @@ def coerce_single_value(setting: spec.Setting, value: Any) -> Any:
 
 
 def _check_object_set_uniqueness(
-    setting: spec.Setting,
-    objs: Iterable[types.CompositeConfigType]
+    setting: spec.Setting, objs: Iterable[types.CompositeConfigType]
 ) -> frozenset[types.CompositeConfigType]:
     """Check the unique constraints for an object set"""
 
@@ -160,8 +171,13 @@ class Operation(NamedTuple):
             raise errors.ConfigurationError(
                 f'unknown setting {self.setting_name!r}') from None
 
-    def coerce_value(self, spec: spec.Spec, setting: spec.Setting, *,
-                     allow_missing: bool = False):
+    def coerce_value(
+        self,
+        spec: spec.Spec,
+        setting: spec.Setting,
+        *,
+        allow_missing: bool = False,
+    ):
         if isinstance(setting.type, types.ConfigTypeSpec):
             try:
                 if self.opcode is OpCode.CONFIG_SET:
@@ -201,7 +217,8 @@ class Operation(NamedTuple):
                     raise
 
     def coerce_global_value(
-            self, *, allow_missing: bool = False) -> Optional[bytes]:
+        self, *, allow_missing: bool = False
+    ) -> Optional[bytes]:
         if allow_missing and self.value is None:
             return None
         else:
@@ -317,6 +334,8 @@ def spec_to_json(spec: spec.Spec):
             typeid = s_obj.get_known_type_id('std::bool')
         elif _issubclass(setting.type, int):
             typeid = s_obj.get_known_type_id('std::int64')
+        elif _issubclass(setting.type, float):
+            typeid = s_obj.get_known_type_id('std::float32')
         elif _issubclass(setting.type, types.ConfigType):
             typeid = setting.type.get_edgeql_typeid()
         elif _issubclass(setting.type, statypes.Duration):
@@ -401,9 +420,7 @@ def value_from_json(spec, setting, value: str):
     return value_from_json_value(spec, setting, json.loads(value))
 
 
-def value_to_edgeql_const(
-    type: type | types.ConfigTypeSpec, value: Any
-) -> str:
+def value_to_edgeql_const(type: type | types.ConfigTypeSpec, value: Any) -> str:
     ql = s_utils.const_ast_from_python(value)
     return qlcodegen.generate_source(ql)
 

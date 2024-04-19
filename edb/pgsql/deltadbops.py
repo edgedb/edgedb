@@ -20,7 +20,7 @@
 """Abstractions for low-level database DDL and DML operations."""
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, Tuple, List, Set
 
 import itertools
 
@@ -77,7 +77,8 @@ class ConstraintCommon:
 
 
 class SchemaConstraintDomainConstraint(
-        ConstraintCommon, dbops.DomainConstraint):
+    ConstraintCommon, dbops.DomainConstraint
+):
     def __init__(self, domain_name, constraint, exprdata, schema):
         ConstraintCommon.__init__(self, constraint, schema)
         dbops.DomainConstraint.__init__(self, domain_name)
@@ -553,8 +554,7 @@ class AlterTableAddConstraint(AlterTableConstraintBase):
 
 class AlterTableAlterConstraint(AlterTableConstraintBase):
     def __init__(
-        self, name, *, constraint, new_constraint,
-        only_modify_enabled, **kwargs
+        self, name, *, constraint, new_constraint, only_modify_enabled, **kwargs
     ):
         super().__init__(name, constraint=constraint, **kwargs)
         self._new_constraint = new_constraint

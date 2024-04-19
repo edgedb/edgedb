@@ -21,6 +21,8 @@ cimport cython
 
 from libc.stdint cimport uint64_t
 
+from edb.server.cache cimport stmt_cache
+
 cdef DEFAULT_STATE
 
 cpdef enum SideEffects:
@@ -33,27 +35,13 @@ cpdef enum SideEffects:
 
 
 @cython.final
-cdef class QueryRequestInfo:
-    cdef public object source  # edgeql.Source
-    cdef public tuple protocol_version
-    cdef public object output_format
-    cdef public object input_format
-    cdef public bint expect_one
-    cdef public int implicit_limit
-    cdef public bint inline_typeids
-    cdef public bint inline_typenames
-    cdef public bint inline_objectids
-    cdef public uint64_t allow_capabilities
-
-    cdef int cached_hash
-
-
-@cython.final
 cdef class CompiledQuery:
     cdef public object query_unit_group
     cdef public object first_extra  # Optional[int]
     cdef public object extra_counts
     cdef public object extra_blobs
+    cdef public object request
+    cdef public object recompiled_cache
 
 
 cdef class DatabaseIndex:
@@ -70,12 +58,14 @@ cdef class DatabaseIndex:
         object _cached_compiler_args
 
     cdef invalidate_caches(self)
+    cdef inline set_current_branches(self)
 
 
 cdef class Database:
 
     cdef:
-        object _eql_to_compiled
+        stmt_cache.StatementsCache _eql_to_compiled
+        object _cache_locks
         object _sql_to_compiled
         DatabaseIndex _index
         object _views
@@ -83,7 +73,13 @@ cdef class Database:
         object _state_serializers
         readonly object user_config_spec
 
+        object _cache_worker_task
+        object _cache_queue
+        object _cache_notify_task
+        object _cache_notify_queue
+
         readonly str name
+        readonly object schema_version
         readonly object dbver
         readonly object db_config
         readonly bytes user_schema_pickle
@@ -94,19 +90,23 @@ cdef class Database:
     cdef schedule_config_update(self)
 
     cdef _invalidate_caches(self)
-    cdef _cache_compiled_query(self, key, query_unit)
+    cdef _cache_compiled_query(self, key, compiled)
     cdef _new_view(self, query_cache, protocol_version)
     cdef _remove_view(self, view)
+    cdef _observe_auth_ext_config(self)
     cdef _update_backend_ids(self, new_types)
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema_pickle,
+        schema_version,
         extensions,
         ext_config_settings,
         reflection_cache=?,
         backend_ids=?,
         db_config=?,
+        start_stop_extensions=?,
     )
+    cpdef start_stop_extensions(self)
     cdef get_state_serializer(self, protocol_version)
     cpdef set_state_serializer(self, protocol_version, serializer)
 
@@ -138,13 +138,12 @@ cdef class DatabaseConnectionView:
         tuple _session_state_db_cache
         tuple _session_state_cache
 
-
-        object _eql_to_compiled
-
         object _txid
         object _in_tx_db_config
         object _in_tx_savepoints
+        object _in_tx_root_user_schema_pickle
         object _in_tx_user_schema_pickle
+        object _in_tx_user_schema_version
         object _in_tx_user_config_spec
         object _in_tx_global_schema_pickle
         object _in_tx_new_types
@@ -163,8 +162,8 @@ cdef class DatabaseConnectionView:
 
         object __weakref__
 
-    cdef _invalidate_local_cache(self)
     cdef _reset_tx_state(self)
+    cdef inline _check_in_tx_error(self, query_unit_group)
 
     cdef clear_tx_error(self)
     cdef rollback_tx_to_savepoint(self, name)
@@ -175,13 +174,14 @@ cdef class DatabaseConnectionView:
     cpdef in_tx(self)
     cpdef in_tx_error(self)
 
-    cdef cache_compiled_query(self, object key, object query_unit)
+    cdef cache_compiled_query(self, object key, object query_unit_group)
     cdef lookup_compiled_query(self, object key)
+    cdef as_compiled(self, query_req, query_unit_group, bint use_metrics=?)
 
     cdef tx_error(self)
 
     cdef start(self, query_unit)
-    cdef _start_tx(self)
+    cdef start_tx(self)
     cdef _apply_in_tx(self, query_unit)
     cdef start_implicit(self, query_unit)
     cdef on_error(self)

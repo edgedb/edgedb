@@ -25,7 +25,17 @@ import contextlib
 import decimal
 import json
 import re
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Union,
+    Mapping,
+    Dict,
+    List,
+    FrozenSet,
+    NamedTuple,
+)
 
 import graphql
 from graphql.language import ast as gql_ast
@@ -85,8 +95,15 @@ INT_FLOAT_ERROR = re.compile(
 
 
 class GraphQLTranslatorContext:
-    def __init__(self, *, gqlcore: gt.GQLCoreSchema,
-                 variables, query, document_ast, operation_name):
+    def __init__(
+        self,
+        *,
+        gqlcore: gt.GQLCoreSchema,
+        variables,
+        query,
+        document_ast,
+        operation_name,
+    ):
         self.variables = variables
         self.fragments = {}
         self.validated_fragments = {}
@@ -205,10 +222,9 @@ class GraphQLTranslator:
         return self._context.gqlcore.get(name)
 
     def is_list_type(self, node):
-        return (
-            isinstance(node, gql_ast.ListTypeNode) or
-            (isinstance(node, gql_ast.NonNullTypeNode) and
-                self.is_list_type(node.type))
+        return isinstance(node, gql_ast.ListTypeNode) or (
+            isinstance(node, gql_ast.NonNullTypeNode)
+            and self.is_list_type(node.type)
         )
 
     def get_field_type(self, base, name, *, args=None):
@@ -288,7 +304,7 @@ class GraphQLTranslator:
                         raise err
 
                 name = el.expr.steps[0].name
-                el.compexpr.args[0] = qlast.StringConstant.from_python(
+                el.compexpr.args[0] = qlast.Constant.string(
                     json.dumps(result.data[name]))
                 for var in vars.touched:
                     operation.critvars[var] = self._context.vars[var].val
@@ -522,7 +538,7 @@ class GraphQLTranslator:
         if self._is_duplicate_field(node):
             return
 
-        is_top, path, prevt, target, steps = \
+        _is_top, _path, prevt, target, steps = \
             self._prepare_field(node)
 
         json_mode = False
@@ -846,9 +862,9 @@ class GraphQLTranslator:
 
         # convert integers into qlast literals
         if offset is not None and not isinstance(offset, qlast.Base):
-            offset = qlast.IntegerConstant(value=str(max(0, offset)))
+            offset = qlast.Constant.integer(max(0, offset))
         if limit is not None:
-            limit = qlast.IntegerConstant(value=str(max(0, limit)))
+            limit = qlast.Constant.integer(max(0, limit))
 
         return offset, limit
 
@@ -862,7 +878,7 @@ class GraphQLTranslator:
                 expr=value
             )
         else:
-            return qlast.IntegerConstant(value=str(value))
+            return qlast.Constant.integer(value)
 
     def _get_general_offset_limit(self, after, before, first, last):
         # Convert any static values to corresponding qlast and
@@ -884,7 +900,7 @@ class GraphQLTranslator:
             offset = qlast.BinOp(
                 left=after,
                 op='+',
-                right=qlast.IntegerConstant(value='1')
+                right=qlast.Constant.integer('1')
             )
 
         if before is not None:
@@ -1171,7 +1187,7 @@ class GraphQLTranslator:
                         func='assert_distinct',
                         args=[compexpr],
                         kwargs={
-                            'message': qlast.StringConstant.from_python(msg)
+                            'message': qlast.Constant.string(msg)
                         }
                     )
                 else:
@@ -1181,7 +1197,7 @@ class GraphQLTranslator:
                         func='assert_single',
                         args=[compexpr],
                         kwargs={
-                            'message': qlast.StringConstant.from_python(msg)
+                            'message': qlast.Constant.string(msg)
                         }
                     )
 
@@ -1719,26 +1735,30 @@ class GraphQLTranslator:
         )
 
     def visit_StringValueNode(self, node):
-        return qlast.StringConstant.from_python(node.value)
+        return qlast.Constant.string(node.value)
 
     def visit_IntValueNode(self, node):
         # produces an int64 or bigint
         val = int(node.value)
         if s_utils.MIN_INT64 <= val <= s_utils.MAX_INT64:
-            return qlast.IntegerConstant(value=str(val))
+            return qlast.Constant.integer(val)
         else:
-            return qlast.BigintConstant(value=f'{val}n')
+            return qlast.Constant(
+                value=f'{val}n', kind=qlast.ConstantKind.BIGINT
+            )
 
     def visit_FloatValueNode(self, node):
         # Treat all Float as Decimal by default and downcast as necessary
-        return qlast.DecimalConstant(value=f'{node.value}n')
+        return qlast.Constant(
+            value=f'{node.value}n', kind=qlast.ConstantKind.DECIMAL
+        )
 
     def visit_BooleanValueNode(self, node):
         value = 'true' if node.value else 'false'
-        return qlast.BooleanConstant(value=value)
+        return qlast.Constant.boolean(value)
 
     def visit_EnumValueNode(self, node):
-        return qlast.StringConstant.from_python(node.value)
+        return qlast.Constant.string(node.value)
 
     def _visit_list_of_inputs(self, inputlist, op):
         if not isinstance(inputlist, gql_ast.ListValueNode):
@@ -1864,8 +1884,7 @@ class TokenLexer(graphql.language.lexer.Lexer):
 
 
 def parse_tokens(
-    text: str,
-    tokens: List[Tuple[gql_lexer.TokenKind, int, int, int, int, str]]
+    text: str, tokens: List[Tuple[gql_lexer.TokenKind, int, int, int, int, str]]
 ) -> graphql.Document:
     try:
         src = graphql.Source(text)
@@ -1879,7 +1898,8 @@ def parse_tokens(
 
 
 def convert_errors(
-    errs: List[gql_error.GraphQLError], *,
+    errs: List[gql_error.GraphQLError],
+    *,
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
 ) -> List[gql_error.GraphQLErrors]:
     result = []
@@ -1973,8 +1993,7 @@ def augment_error_message(gqlcore: gt.GQLCoreSchema, message: str):
 
 
 def convert_default(
-    node: gql_ast.ValueNode,
-    varname: str
+    node: gql_ast.ValueNode, varname: str
 ) -> Union[str, float, int, bool]:
     if isinstance(node, (gql_ast.StringValueNode,
                          gql_ast.BooleanValueNode,

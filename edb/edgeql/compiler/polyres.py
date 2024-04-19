@@ -22,7 +22,20 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import (
+    Optional,
+    Tuple,
+    Union,
+    AbstractSet,
+    Iterable,
+    Mapping,
+    Sequence,
+    Dict,
+    List,
+    Set,
+    NamedTuple,
+    cast,
+)
 
 from edb import errors
 
@@ -33,6 +46,7 @@ from edb.schema import functions as s_func
 from edb.schema import name as sn
 from edb.schema import types as s_types
 from edb.schema import pseudo as s_pseudo
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -80,10 +94,12 @@ _SINGLETON = ft.TypeModifier.SingletonType
 
 
 def find_callable_typemods(
-        candidates: Sequence[s_func.CallableLike], *,
-        num_args: int,
-        kwargs_names: AbstractSet[str],
-        ctx: context.ContextLevel) -> Dict[Union[int, str], ft.TypeModifier]:
+    candidates: Sequence[s_func.CallableLike],
+    *,
+    num_args: int,
+    kwargs_names: AbstractSet[str],
+    ctx: context.ContextLevel,
+) -> Dict[Union[int, str], ft.TypeModifier]:
     """Find the type modifiers for a callable.
 
     We do this early, before we've compiled/checked the arguments,
@@ -91,7 +107,7 @@ def find_callable_typemods(
     """
 
     typ = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
-    dummy = irast.EmptySet()  # type: ignore
+    dummy = irast.DUMMY_SET
     args = [(typ, dummy)] * num_args
     kwargs = {k: (typ, dummy) for k in kwargs_names}
     options = find_callable(
@@ -129,11 +145,13 @@ def find_callable_typemods(
 
 
 def find_callable(
-        candidates: Iterable[s_func.CallableLike], *,
-        args: Sequence[Tuple[s_types.Type, irast.Set]],
-        kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
-        basic_matching_only: bool=False,
-        ctx: context.ContextLevel) -> List[BoundCall]:
+    candidates: Iterable[s_func.CallableLike],
+    *,
+    args: Sequence[Tuple[s_types.Type, irast.Set]],
+    kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
+    basic_matching_only: bool = False,
+    ctx: context.ContextLevel,
+) -> List[BoundCall]:
 
     implicit_cast_distance = None
     matched = []
@@ -193,12 +211,13 @@ def find_callable(
 
 
 def try_bind_call_args(
-        args: Sequence[Tuple[s_types.Type, irast.Set]],
-        kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
-        func: s_func.CallableLike,
-        basic_matching_only: bool,
-        *,
-        ctx: context.ContextLevel) -> Optional[BoundCall]:
+    args: Sequence[Tuple[s_types.Type, irast.Set]],
+    kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
+    func: s_func.CallableLike,
+    basic_matching_only: bool,
+    *,
+    ctx: context.ContextLevel,
+) -> Optional[BoundCall]:
 
     return_type = func.get_return_type(ctx.env.schema)
     is_abstract = func.get_abstract(ctx.env.schema)
@@ -468,10 +487,12 @@ def try_bind_call_args(
                 defaults_mask |= 1 << i
 
                 if not has_inlined_defaults:
-                    param_default = param.get_default(schema)
+                    param_default: Optional[s_expr.Expression] = (
+                        param.get_default(schema)
+                    )
                     assert param_default is not None
                     default = compile_arg(
-                        param_default.qlast, param_typemod, ctx=ctx)
+                        param_default.parse(), param_typemod, ctx=ctx)
 
                 empty_default = (
                     has_inlined_defaults or
@@ -599,7 +620,7 @@ def compile_arg(
 
         if fenced:
             arg_ql = qlast.SelectQuery(
-                result=arg_ql, context=arg_ql.context,
+                result=arg_ql, span=arg_ql.span,
                 implicit=True, rptr_passthrough=True)
 
         argctx.inhibit_implicit_limit = True

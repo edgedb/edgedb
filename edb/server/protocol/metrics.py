@@ -29,9 +29,15 @@ from edb.common import markup
 async def handle_request(
     request,
     response,
+    tenant,
 ):
     try:
-        output = metrics.registry.generate()
+        if tenant is None:
+            output = metrics.registry.generate()
+        else:
+            output = metrics.registry.generate(
+                tenant=tenant.get_instance_name()
+            )
         response.status = http.HTTPStatus.OK
         response.content_type = b'text/plain; version=0.0.4; charset=utf-8'
         response.body = output.encode()

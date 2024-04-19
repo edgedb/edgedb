@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Type, cast, TYPE_CHECKING
 
 from edb import errors
 
@@ -35,6 +35,9 @@ from . import objects as so
 from . import referencing
 from . import schema as s_schema
 from . import types as s_types
+
+if TYPE_CHECKING:
+    from . import pointers as s_pointers
 
 
 class Rewrite(
@@ -69,6 +72,13 @@ class Rewrite(
         # inheritance for rewrites, and do lookups into parent object types
         # when retrieving them.
         return False
+
+    def get_ptr_target(self, schema: s_schema.Schema) -> s_types.Type:
+        pointer: s_pointers.Pointer = cast(
+            's_pointers.Pointer', self.get_subject(schema))
+        ptr_target = pointer.get_target(schema)
+        assert ptr_target
+        return ptr_target
 
 
 class RewriteCommandContext(
@@ -145,10 +155,10 @@ class RewriteCommand(
                 subject = source.get_target(schema)
                 assert subject
 
-                source_context = self.get_attribute_source_context('expr')
+                span = self.get_attribute_span('expr')
                 raise errors.SchemaDefinitionError(
                     'rewrites on link properties are not supported',
-                    context=source_context,
+                    span=span,
                 )
             else:
                 raise NotImplementedError('unsupported rewrite source')
@@ -170,6 +180,7 @@ class RewriteCommand(
                 schema,
                 subject,
                 typename=sn.QualName(module="__derived__", name="__subject__"),
+                env=None,
             )
             # __specified__
             bool_type = schema.get("std::bool", type=s_types.Type)
@@ -189,6 +200,7 @@ class RewriteCommand(
                     schema,
                     subject,
                     typename=sn.QualName(module='__derived__', name='__old__'),
+                    env=None,
                 )
 
             singletons = frozenset(anchors.values())
@@ -221,7 +233,9 @@ class RewriteCommand(
         value: Any,
     ) -> Optional[s_expr.Expression]:
         if field.name == 'expr':
-            return s_expr.Expression(text='false')
+            pt = self.scls.get_ptr_target(schema)
+            text = f'<{pt.get_displayname(schema)}>{{}}'
+            return s_expr.Expression(text=text)
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 
@@ -230,8 +244,6 @@ class RewriteCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        from . import pointers as s_pointers
-
         expr: s_expr.Expression = self.scls.get_expr(schema)
 
         if not expr.irast:
@@ -254,23 +266,20 @@ class RewriteCommand(
                 and shape[0].is_id_pointer(compiled_schema)
             )
         ):
-            source_context = self.get_attribute_source_context('expr')
+            span = self.get_attribute_span('expr')
             raise errors.SchemaDefinitionError(
                 f'rewrite expression may not include a shape',
-                context=source_context,
+                span=span,
             )
 
-        pointer = self.scls.get_subject(compiled_schema)
-        assert isinstance(pointer, s_pointers.Pointer)
-        ptr_target = pointer.get_target(compiled_schema)
-        assert ptr_target
+        ptr_target = self.scls.get_ptr_target(compiled_schema)
         if not typ.assignment_castable_to(ptr_target, compiled_schema):
-            source_context = self.get_attribute_source_context('expr')
+            span = self.get_attribute_span('expr')
             raise errors.SchemaDefinitionError(
                 f'rewrite expression is of invalid type: '
                 f'{typ.get_displayname(compiled_schema)}, '
                 f'expected {ptr_target.get_displayname(compiled_schema)}',
-                context=source_context,
+                span=span,
             )
 
     @classmethod
@@ -344,7 +353,7 @@ class CreateRewrite(
                     context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.expr.context,
+                span=astnode.expr.span,
             )
         return group
 
@@ -397,7 +406,7 @@ class AlterRewrite(
             raise errors.SchemaDefinitionError(
                 f'cannot alter the definition of inherited trigger '
                 f'{self.scls.get_displayname(schema)}',
-                context=self.source_context,
+                span=self.span,
             )
 
         return schema

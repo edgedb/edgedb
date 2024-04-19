@@ -20,13 +20,21 @@
 """Database structure and objects supporting EdgeDB metadata."""
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Callable,
+    Optional,
+    Protocol,
+    Tuple,
+    Iterable,
+    List,
+    Set,
+    cast,
+)
 
 import re
 
 import edb._edgeql_parser as ql_parser
 
-from edb.common import context as parser_context
 from edb.common import debug
 from edb.common import exceptions
 from edb.common import uuidgen
@@ -82,6 +90,11 @@ CONFIG_ID = {
     qltypes.ConfigScope.DATABASE: uuidgen.UUID(
         '172097a4-39f4-11e9-b189-9321eb2f4b99'),
 }
+
+
+def qtl(t: tuple[str, ...]) -> str:
+    """Quote type literal"""
+    return ql(f'{t[0]}.{t[1]}') if len(t) == 2 else ql(f'pg_catalog.{t[0]}')
 
 
 class PGConnection(Protocol):
@@ -158,6 +171,87 @@ class DMLDummyTable(dbops.Table):
     SETUP_QUERY = '''
         INSERT INTO edgedb._dml_dummy VALUES (0, false)
     '''
+
+
+class QueryCacheTable(dbops.Table):
+    def __init__(self) -> None:
+        super().__init__(name=('edgedb', '_query_cache'))
+
+        self.add_columns([
+            dbops.Column(name='key', type='uuid', required=True),
+            dbops.Column(name='schema_version', type='uuid', required=True),
+            dbops.Column(name='input', type='bytea', required=True),
+            dbops.Column(name='output', type='bytea', required=True),
+            dbops.Column(name='evict', type='text', required=True),
+            dbops.Column(
+                name='creation_time',
+                type='timestamp with time zone',
+                required=True,
+                default='current_timestamp',
+            ),
+        ])
+
+        self.add_constraint(
+            dbops.PrimaryKey(
+                table_name=('edgedb', '_query_cache'),
+                columns=['key'],
+            ),
+        )
+
+
+class EvictQueryCacheFunction(dbops.Function):
+
+    text = f'''
+    DECLARE
+        evict_sql text;
+    BEGIN
+        DELETE FROM "edgedb"."_query_cache"
+            WHERE "key" = cache_key
+            RETURNING "evict" INTO evict_sql;
+        IF evict_sql IS NOT NULL THEN
+            EXECUTE evict_sql;
+        END IF;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_evict_query_cache'),
+            args=[("cache_key", ("uuid",))],
+            returns=("void",),
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
+class ClearQueryCacheFunction(dbops.Function):
+
+    # TODO(fantix): this may consume a lot of memory in Postgres
+    text = f'''
+    DECLARE
+        row record;
+    BEGIN
+        FOR row IN
+            DELETE FROM "edgedb"."_query_cache"
+            RETURNING "input", "evict"
+        LOOP
+            EXECUTE row."evict";
+            RETURN NEXT row."input";
+        END LOOP;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_clear_query_cache'),
+            args=[],
+            returns=('bytea',),
+            set_returning=True,
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
 
 
 class BigintDomain(dbops.Domain):
@@ -747,6 +841,37 @@ class AlterCurrentDatabaseSetArray(dbops.Function):
         )
 
 
+class CopyDatabaseConfigs(dbops.Function):
+    """Copy database configs from one database to the current one"""
+    text = '''
+        SELECT edgedb._alter_current_database_set(nameval.name, nameval.value)
+        FROM
+            pg_db_role_setting AS cfg,
+            LATERAL unnest(cfg.setconfig) as cfg_set(s),
+            LATERAL (
+                SELECT
+                    split_part(cfg_set.s, '=', 1) AS name,
+                    split_part(cfg_set.s, '=', 2) AS value
+            ) AS nameval
+        WHERE
+            setdatabase = (
+                SELECT oid
+                FROM pg_database
+                WHERE datname = source_db
+            )
+            AND setrole = 0;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_copy_database_configs'),
+            args=[('source_db', ('text',))],
+            returns=('text',),
+            volatility='volatile',
+            text=self.text,
+        )
+
+
 class StrToBigint(dbops.Function):
     """Parse bigint from text."""
 
@@ -996,6 +1121,32 @@ class GetDatabaseBackendNameFunction(dbops.Function):
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'get_database_backend_name'),
+            args=[('db_name', ('text',))],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetDatabaseFrontendNameFunction(dbops.Function):
+
+    text = f'''
+    SELECT
+        CASE
+        WHEN
+            (edgedb.get_backend_capabilities()
+             & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+        THEN
+            substring(db_name, position('_' in db_name) + 1)
+        ELSE
+            'edgedb'
+        END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_database_frontend_name'),
             args=[('db_name', ('text',))],
             returns=('text',),
             language='sql',
@@ -2649,9 +2800,9 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             SELECT
             coalesce(string_agg(
                 CASE WHEN
-                    role.{qi(name_col)} = { ql(defines.EDGEDB_SUPERUSER) } THEN
+                    role.{qi(name_col)} = {ql(defines.EDGEDB_SUPERUSER)} THEN
                     NULLIF(concat(
-                        'ALTER ROLE { qi_superuser } {{',
+                        'ALTER ROLE {qi_superuser} {{',
                         NULLIF((SELECT
                             concat(
                                 ' EXTENDING ',
@@ -2672,7 +2823,7 @@ class DescribeRolesAsDDLFunction(dbops.Function):
                                    ';')
                         ELSE '' END,
                         '}};'
-                    ), 'ALTER ROLE { qi_superuser } {{}};')
+                    ), 'ALTER ROLE {qi_superuser} {{}};')
                 ELSE
                     concat(
                         'CREATE SUPERUSER ROLE ',
@@ -2918,12 +3069,12 @@ class ConvertPostgresConfigUnitsFunction(dbops.Function):
             )
 
             WHEN "unit" = ''
-            THEN trunc("value" * "multiplier")::text::jsonb
+            THEN ("value" * "multiplier")::text::jsonb
 
             ELSE edgedb.raise(
                 NULL::jsonb,
                 msg => (
-                    'unknown configutation unit "' ||
+                    'unknown configuration unit "' ||
                     COALESCE("unit", '<NULL>') ||
                     '"'
                 )
@@ -2941,6 +3092,54 @@ class ConvertPostgresConfigUnitsFunction(dbops.Function):
                 ('unit', ('text',))
             ],
             returns=('jsonb',),
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class TypeIDToConfigType(dbops.Function):
+    """Get a postgres config type from a type id.
+
+    (We typically try to read extension configs straight from the
+    config tables, but for extension configs those aren't present.)
+    """
+
+    config_types = {
+        'bool': ['std::bool'],
+        'string': ['std::str'],
+        'integer': ['std::int16', 'std::int32', 'std::int64'],
+        'real': ['std::float32', 'std::float64'],
+    }
+    cases = [
+        f'''
+        WHEN "typeid" = '{s_obj.get_known_type_id(t)}' THEN '{ct}'
+        '''
+        for ct, types in config_types.items()
+        for t in types
+    ]
+    scases = '\n'.join(cases)
+
+    text = f"""
+    SELECT (
+        CASE
+            {scases}
+            ELSE edgedb.raise(
+                NULL::text,
+                msg => (
+                    'unknown configuration type "' || "typeid" || '"'
+                )
+            )
+        END
+    )
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_type_id_to_config_type'),
+            args=[
+                ('typeid', ('uuid',)),
+            ],
+            returns=('text',),
             volatility='immutable',
             text=self.text,
         )
@@ -3025,7 +3224,7 @@ class InterpretConfigValueToJsonFunction(dbops.Function):
                 edgedb.raise(
                     NULL::jsonb,
                     msg => (
-                        'unknown configutation type "' ||
+                        'unknown configuration type "' ||
                         COALESCE("type", '<NULL>') ||
                         '"'
                     )
@@ -3097,17 +3296,6 @@ class PostgresConfigValueToJsonFunction(dbops.Function):
 
             END)
         FROM
-            (
-                SELECT
-                    epg_settings.vartype AS vartype,
-                    epg_settings.multiplier AS multiplier,
-                    epg_settings.unit AS unit
-                FROM
-                    edgedb._normalized_pg_settings AS epg_settings
-                WHERE
-                    epg_settings.name = "setting_name"
-            ) AS settings,
-
             LATERAL (
                 SELECT regexp_match(
                     "setting_value", '^(\d+)\s*([a-zA-Z]{0,3})$') AS v
@@ -3118,6 +3306,27 @@ class PostgresConfigValueToJsonFunction(dbops.Function):
                     COALESCE(_unit.v[1], "setting_value") AS val,
                     COALESCE(_unit.v[2], '') AS unit
             ) AS parsed_value
+        LEFT OUTER JOIN
+            (
+                SELECT
+                    epg_settings.vartype AS vartype,
+                    epg_settings.multiplier AS multiplier,
+                    epg_settings.unit AS unit
+                FROM
+                    edgedb._normalized_pg_settings AS epg_settings
+                WHERE
+                    epg_settings.name = "setting_name"
+            ) AS settings_in ON true
+        CROSS JOIN LATERAL
+            (
+                SELECT
+                    COALESCE(settings_in.vartype,
+                             edgedb._type_id_to_config_type("setting_typeid"))
+                    as vartype,
+                    COALESCE(settings_in.multiplier, '1') as multiplier,
+                    COALESCE(settings_in.unit, '') as unit
+            ) as settings
+
     """
 
     def __init__(self) -> None:
@@ -3125,6 +3334,7 @@ class PostgresConfigValueToJsonFunction(dbops.Function):
             name=('edgedb', '_postgres_config_value_to_json'),
             args=[
                 ('setting_name', ('text',)),
+                ('setting_typeid', ('uuid',)),
                 ('setting_value', ('text',)),
             ],
             returns=('jsonb',),
@@ -3169,6 +3379,9 @@ class SysConfigFullFunction(dbops.Function):
                 s.backend_setting IS NOT NULL AS is_backend
             FROM
                 config_spec s
+        ),
+        config_extension_defaults AS (
+            SELECT * FROM config_defaults WHERE name like '%::%'
         ),
 
         config_sys AS (
@@ -3217,7 +3430,7 @@ class SysConfigFullFunction(dbops.Function):
             SELECT
                 spec.name,
                 edgedb._postgres_config_value_to_json(
-                    spec.backend_setting, nameval.value
+                    spec.backend_setting, spec.typeid, nameval.value
                 ) AS value,
                 'database' AS source,
                 TRUE AS is_backend
@@ -3243,7 +3456,8 @@ class SysConfigFullFunction(dbops.Function):
                 LATERAL (
                     SELECT
                         config_spec.name,
-                        config_spec.backend_setting
+                        config_spec.backend_setting,
+                        config_spec.typeid
                     FROM
                         config_spec
                     WHERE
@@ -3258,7 +3472,7 @@ class SysConfigFullFunction(dbops.Function):
                 SELECT
                     spec.name,
                     edgedb._postgres_config_value_to_json(
-                        spec.backend_setting, setting
+                        spec.backend_setting, spec.typeid, setting
                     ) AS value,
                     'postgres configuration file' AS source,
                     TRUE AS is_backend
@@ -3267,7 +3481,8 @@ class SysConfigFullFunction(dbops.Function):
                     LATERAL (
                         SELECT
                             config_spec.name,
-                            config_spec.backend_setting
+                            config_spec.backend_setting,
+                            config_spec.typeid
                         FROM
                             config_spec
                         WHERE
@@ -3285,7 +3500,7 @@ class SysConfigFullFunction(dbops.Function):
                 SELECT
                     spec.name,
                     edgedb._postgres_config_value_to_json(
-                        spec.backend_setting, setting
+                        spec.backend_setting, spec.typeid, setting
                     ) AS value,
                     'system override' AS source,
                     TRUE AS is_backend
@@ -3294,7 +3509,8 @@ class SysConfigFullFunction(dbops.Function):
                     LATERAL (
                         SELECT
                             config_spec.name,
-                            config_spec.backend_setting
+                            config_spec.backend_setting,
+                            config_spec.typeid
                         FROM
                             config_spec
                         WHERE
@@ -3352,6 +3568,25 @@ class SysConfigFullFunction(dbops.Function):
                 ) AS spec
             ),
 
+        -- extension session configs don't show up in any system view, so we
+        -- check _edgecon_state to see when they are present.
+        pg_extension_config AS (
+            SELECT
+                config_spec.name,
+                -- XXX: Or would it be better to just use the json directly?
+                edgedb._postgres_config_value_to_json(
+                    config_spec.backend_setting,
+                    config_spec.typeid,
+                    current_setting(config_spec.backend_setting, true)
+                ) AS value,
+                'session' AS source,
+                TRUE AS is_backend
+            FROM _edgecon_state s
+            INNER JOIN config_spec
+            ON s.name = config_spec.name
+            WHERE s.type = 'B' AND s.name LIKE '%::%'
+        ),
+
         edge_all_settings AS MATERIALIZED (
             SELECT
                 q.*
@@ -3375,10 +3610,13 @@ class SysConfigFullFunction(dbops.Function):
                     q.*
                 FROM
                     (
+                        -- extension defaults aren't in any system views
+                        SELECT * FROM config_extension_defaults UNION ALL
                         SELECT * FROM pg_db_setting UNION ALL
                         SELECT * FROM pg_conf_settings UNION ALL
                         SELECT * FROM pg_auto_conf_settings UNION ALL
-                        SELECT * FROM pg_config
+                        SELECT * FROM pg_config UNION ALL
+                        SELECT * FROM pg_extension_config
                     ) AS q
                 WHERE
                     q.is_backend
@@ -3391,12 +3629,15 @@ class SysConfigFullFunction(dbops.Function):
                     q.*
                 FROM
                     (
+                        -- extension defaults aren't in any system views
+                        SELECT * FROM config_extension_defaults UNION ALL
                         -- config_sys is here, because there
                         -- is no other way to read instance-level
                         -- configuration overrides.
                         SELECT * FROM config_sys UNION ALL
                         SELECT * FROM pg_db_setting UNION ALL
-                        SELECT * FROM pg_config
+                        SELECT * FROM pg_config UNION ALL
+                        SELECT * FROM pg_extension_config
                     ) AS q
                 WHERE
                     q.is_backend
@@ -3632,10 +3873,6 @@ class ResetSessionConfigFunction(dbops.Function):
         )
 
 
-# TODO: Support extension-defined configs that affect the backend
-# Not needed for supporting auth, so can skip temporarily.
-# If perf seems to matter, can hardcode things for base config
-# and consult json for just extension stuff.
 class ApplySessionConfigFunction(dbops.Function):
     """Apply an EdgeDB config setting to the backend, if possible.
 
@@ -3659,7 +3896,7 @@ class ApplySessionConfigFunction(dbops.Function):
                 backend_settings[setting_name] = setting.backend_setting
 
         variants_list = []
-        for setting_name in backend_settings:
+        for setting_name, backend_setting_name in backend_settings.items():
             setting = config_spec[setting_name]
 
             valql = '"value"->>0'
@@ -3675,11 +3912,23 @@ class ApplySessionConfigFunction(dbops.Function):
                 WHEN "name" = {ql(setting_name)}
                 THEN
                     pg_catalog.set_config(
-                        {ql(setting.backend_setting)}::text,
+                        {ql(backend_setting_name)}::text,
                         {valql},
                         false
                     )
             ''')
+
+        ext_config = '''
+            SELECT pg_catalog.set_config(
+                (s.val->>'backend_setting')::text,
+                "value"->>0,
+                false
+            )
+            FROM
+                edgedbinstdata.instdata as id,
+            LATERAL jsonb_each(id.json) AS s(key, val)
+            WHERE id.key = 'configspec_ext' AND s.key = "name"
+        '''
 
         variants = "\n".join(variants_list)
         text = f'''
@@ -3698,6 +3947,13 @@ class ApplySessionConfigFunction(dbops.Function):
                         ELSE "name"
                     END
                 )
+
+                WHEN "name" LIKE '%::%'
+                THEN
+                    CASE WHEN ({ext_config}) IS NULL
+                    THEN "name"
+                    ELSE "name"
+                END
 
                 ELSE "name"
             END
@@ -3776,18 +4032,10 @@ class GetCachedReflection(dbops.Function):
 class GetBaseScalarTypeMap(dbops.Function):
     """Return a map of base EdgeDB scalar type ids to Postgres type names."""
 
-    text = f'''
-        VALUES
-            {", ".join(
-                f"""(
-                    {ql(str(k))}::uuid,
-                    {
-                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
-                        else ql(f'pg_catalog.{v[0]}')
-                    }
-                )"""
-            for k, v in types.base_type_name_map.items())}
-    '''
+    text = "VALUES" + ", ".join(
+        f"({ql(str(k))}::uuid, {qtl(v)})"
+        for k, v in types.base_type_name_map.items()
+    )
 
     def __init__(self) -> None:
         super().__init__(
@@ -3803,21 +4051,10 @@ class GetBaseScalarTypeMap(dbops.Function):
 class GetTypeToRangeNameMap(dbops.Function):
     """Return a map of type names to the name of the associated range type"""
 
-    text = f'''
-        VALUES
-            {", ".join(
-                f"""(
-                    {
-                        ql(f'{k[0]}.{k[1]}') if len(k) == 2
-                        else ql(f'pg_catalog.{k[0]}')
-                    },
-                    {
-                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
-                        else ql(f'pg_catalog.{v[0]}')
-                    }
-                )"""
-            for k, v in types.type_to_range_name_map.items())}
-    '''
+    text = f"VALUES" + ", ".join(
+        f"({qtl(k)}, {qtl(v)})"
+        for k, v in types.type_to_range_name_map.items()
+    )
 
     def __init__(self) -> None:
         super().__init__(
@@ -3833,21 +4070,10 @@ class GetTypeToRangeNameMap(dbops.Function):
 class GetTypeToMultiRangeNameMap(dbops.Function):
     "Return a map of type names to the name of the associated multirange type"
 
-    text = f'''
-        VALUES
-            {", ".join(
-                f"""(
-                    {
-                        ql(f'{k[0]}.{k[1]}') if len(k) == 2
-                        else ql(f'pg_catalog.{k[0]}')
-                    },
-                    {
-                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
-                        else ql(f'pg_catalog.{v[0]}')
-                    }
-                )"""
-            for k, v in types.type_to_multirange_name_map.items())}
-    '''
+    text = f"VALUES" + ", ".join(
+        f"({qtl(k)}, {qtl(v)})"
+        for k, v in types.type_to_multirange_name_map.items()
+    )
 
     def __init__(self) -> None:
         super().__init__(
@@ -4388,7 +4614,10 @@ async def bootstrap(
         dbops.CreateView(NormalizedPgSettingsView()),
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
+        dbops.CreateTable(QueryCacheTable()),
         dbops.Query(DMLDummyTable.SETUP_QUERY),
+        dbops.CreateFunction(EvictQueryCacheFunction()),
+        dbops.CreateFunction(ClearQueryCacheFunction()),
         dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
         dbops.CreateFunction(UuidGenerateV4Function('edgedbext')),
         dbops.CreateFunction(UuidGenerateV5Function('edgedbext')),
@@ -4400,9 +4629,11 @@ async def bootstrap(
         dbops.CreateFunction(AlterCurrentDatabaseSetStringArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetNonArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetArray()),
+        dbops.CreateFunction(CopyDatabaseConfigs()),
         dbops.CreateFunction(GetBackendCapabilitiesFunction()),
         dbops.CreateFunction(GetBackendTenantIDFunction()),
         dbops.CreateFunction(GetDatabaseBackendNameFunction()),
+        dbops.CreateFunction(GetDatabaseFrontendNameFunction()),
         dbops.CreateFunction(GetRoleBackendNameFunction()),
         dbops.CreateFunction(GetUserSequenceBackendNameFunction()),
         dbops.CreateFunction(GetStdModulesFunction()),
@@ -4467,6 +4698,7 @@ async def bootstrap(
         dbops.CreateEnum(SysConfigScopeType()),
         dbops.CreateCompositeType(SysConfigValueType()),
         dbops.CreateCompositeType(SysConfigEntryType()),
+        dbops.CreateFunction(TypeIDToConfigType()),
         dbops.CreateFunction(ConvertPostgresConfigUnitsFunction()),
         dbops.CreateFunction(InterpretConfigValueToJsonFunction()),
         dbops.CreateFunction(PostgresConfigValueToJsonFunction()),
@@ -4661,8 +4893,12 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
                 )
              ELSE False END
         )""",
-        'name': "(d.description)->>'name'",
-        'name__internal': "(d.description)->>'name'",
+        'name': (
+            'edgedb.get_database_frontend_name(datname) COLLATE "default"'
+        ),
+        'name__internal': (
+            'edgedb.get_database_frontend_name(datname) COLLATE "default"'
+        ),
         'computed_fields': 'ARRAY[]::text[]',
         'builtin': "((d.description)->>'builtin')::bool",
     }
@@ -5526,21 +5762,16 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 f'''
         SELECT
             edgedb.get_current_database()::{sql_ident} AS table_catalog,
-            vt.schema_name::{sql_ident} AS table_schema,
-            vt.table_name::{sql_ident} AS table_name,
-            COALESCE(
-                sp.name || case when sl.id is not null then '_id' else '' end,
-                isc.column_name
-            )::{sql_ident} AS column_name,
+            vt_table_schema::{sql_ident} AS table_schema,
+            vt_table_name::{sql_ident} AS table_name,
+            v_column_name::{sql_ident} as column_name,
             ROW_NUMBER() OVER (
-                PARTITION BY vt.schema_name, vt.table_name
-                ORDER BY
-                    CASE WHEN isc.column_name = 'id' THEN 0 ELSE 1 END,
-                    COALESCE(sp.name, isc.column_name)
+                PARTITION BY vt_table_schema, vt_table_name
+                ORDER BY position, v_column_name
             ) AS ordinal_position,
-            isc.column_default,
-            isc.is_nullable,
-            isc.data_type,
+            column_default,
+            is_nullable,
+            data_type,
             NULL::{sql_card} AS character_maximum_length,
             NULL::{sql_card} AS character_octet_length,
             NULL::{sql_card} AS numeric_precision,
@@ -5577,11 +5808,34 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'NEVER'::{sql_str} AS is_generated,
             NULL::{sql_str} AS generation_expression,
             'YES'::{sql_bool} AS is_updatable
+        FROM (
+        SELECT
+            vt.schema_name AS vt_table_schema,
+            vt.table_name AS vt_table_name,
+            COALESCE(
+                -- this happends for id and __type__
+                spec.name,
+
+                -- fallback to pointer name, with suffix '_id' for links
+                sp.name || case when sl.id is not null then '_id' else '' end
+            ) AS v_column_name,
+            COALESCE(spec.position, 2) as position,
+            isc.*
         FROM information_schema.columns isc
         JOIN edgedbsql.virtual_tables vt ON vt.id::text = isc.table_name
+
+        -- id is duplicated to get id and __type__ columns out of it
+        LEFT JOIN (
+            VALUES  ('id', 'id', 0),
+                    ('id', '__type__', 1),
+                    ('source', 'source', 0),
+                    ('target', 'target', 1)
+        ) spec(k, name, position) ON (spec.k = isc.column_name)
+
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = isc.column_name
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = isc.column_name
-        WHERE column_name != '__type__'
+        WHERE isc.column_name <> '__fts_document__'
+        ) t
             '''
             ),
         ),
@@ -5794,8 +6048,16 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN edgedbsql.pg_index pi ON pc.oid = pi.indexrelid
         """,
         ),
+
+        # Because we hide some columns and
+        # because pg_dump expects attnum to be sequential numbers
+        # we have to invent new attnums with ROW_NUMBER().
+        # Since attnum is used elsewhere, we need to know the mapping from
+        # constructed attnum into underlying attnum.
+        # To do that, we have pg_attribute_ext view with additional
+        # attnum_internal column.
         dbops.View(
-            name=("edgedbsql", "pg_attribute"),
+            name=("edgedbsql", "pg_attribute_ext"),
             query="""
         SELECT attrelid,
             attname,
@@ -5803,6 +6065,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attstattarget,
             attlen,
             attnum,
+            attnum as attnum_internal,
             attndims,
             attcacheoff,
             atttypmod,
@@ -5836,16 +6099,19 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
             OR
             tup.backend_id IS NOT NULL
+
         UNION ALL
+
         SELECT attrelid,
-            COALESCE(
-                sp.name || case when sl.id is not null then '_id' else '' end,
-                pa.attname
-            ) AS attname,
+            col_name as attname,
             atttypid,
             attstattarget,
             attlen,
-            attnum,
+            (ROW_NUMBER() OVER (
+                PARTITION BY attrelid
+                ORDER BY col_position, col_name
+            ) - 6)::smallint AS attnum,
+            t.attnum as attnum_internal,
             attndims,
             attcacheoff,
             atttypmod,
@@ -5866,20 +6132,77 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attoptions,
             attfdwoptions,
             null::int[] as attmissingval,
-            pa.tableoid,
-            pa.xmin,
-            pa.cmin,
-            pa.xmax,
-            pa.cmax,
-            pa.ctid
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM (
+        SELECT
+            COALESCE(
+                spec.name, -- for special columns
+                sp.name || case when sl.id is not null then '_id' else '' end,
+                pa.attname -- for system columns
+            ) as col_name,
+            CASE
+                WHEN pa.attnum <= 0 THEN pa.attnum
+                ELSE COALESCE(spec.position, 2)
+            END as col_position,
+            pa.*,
+            pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
         FROM pg_attribute pa
         JOIN pg_class pc ON pc.oid = pa.attrelid
         JOIN edgedbsql.virtual_tables vt ON vt.backend_id = pc.reltype
+
+        -- id is duplicated to get id and __type__ columns out of it
+        LEFT JOIN (
+            VALUES  ('id', 'id', 0),
+                    ('id', '__type__', 1),
+                    ('source', 'source', 0),
+                    ('target', 'target', 1)
+        ) spec(k, name, position) ON (spec.k = pa.attname)
+
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = pa.attname
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = pa.attname
-        WHERE pa.attname NOT IN ('__type__')
+        WHERE pa.attname <> '__fts_document__'
+        ) t
         """,
         ),
+        dbops.View(
+            name=("edgedbsql", "pg_attribute"),
+            query="""
+        SELECT
+          attrelid,
+          attname,
+          atttypid,
+          attstattarget,
+          attlen,
+          attnum,
+          attndims,
+          attcacheoff,
+          atttypmod,
+          attbyval,
+          attstorage,
+          attalign,
+          attnotnull,
+          atthasdef,
+          atthasmissing,
+          attidentity,
+          attgenerated,
+          attisdropped,
+          attislocal,
+          attinhcount,
+          attcollation,
+          attacl,
+          attoptions,
+          attfdwoptions,
+          attmissingval,
+          tableoid,
+          xmin,
+          cmin,
+          xmax,
+          cmax,
+          ctid
+        FROM edgedbsql.pg_attribute_ext
+        """,
+        ),
+
         dbops.View(
             name=("edgedbsql", "pg_database"),
             query="""
@@ -5926,7 +6249,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             s.stanumbers1 AS elem_count_histogram
         FROM pg_statistic s
         JOIN pg_class c ON c.oid = s.starelid
-        JOIN pg_attribute a ON c.oid = a.attrelid and a.attnum = s.staattnum
+        JOIN edgedbsql.pg_attribute_ext a ON (
+            c.oid = a.attrelid and a.attnum_internal = s.staattnum
+        )
         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE FALSE
         """,
@@ -5936,7 +6261,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             query="""
         SELECT
             starelid,
-            staattnum,
+            a.attnum as staattnum,
             stainherit,
             stanullfrac,
             stawidth,
@@ -5967,7 +6292,10 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             NULL::real[] AS stavalues4,
             NULL::real[] AS stavalues5,
             tableoid, xmin, cmin, xmax, cmax, ctid
-        FROM pg_statistic
+        FROM pg_statistic s
+        JOIN edgedbsql.pg_attribute_ext a ON (
+            a.attrelid = s.starelid AND a.attnum_internal = s.staattnum
+        )
         """,
         ),
         dbops.View(
@@ -6287,8 +6615,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ),
             returns=('bool',),
             text="""
-                SELECT has_column_privilege(tbl, attnum, privilege)
-                FROM edgedbsql.pg_attribute pa
+                SELECT has_column_privilege(tbl, attnum_internal, privilege)
+                FROM edgedbsql.pg_attribute_ext pa
                 WHERE attrelid = tbl AND attname = col
             """
         ),
@@ -6301,9 +6629,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ),
             returns=('bool',),
             text="""
-                SELECT has_column_privilege(pc.oid, attnum, privilege)
+                SELECT has_column_privilege(pc.oid, attnum_internal, privilege)
                 FROM edgedbsql.pg_class pc
-                JOIN edgedbsql.pg_attribute pa ON pa.attrelid = pc.oid
+                JOIN edgedbsql.pg_attribute_ext pa ON pa.attrelid = pc.oid
                 WHERE pc.relname = tbl AND pa.attname = col;
             """
         ),
@@ -6676,7 +7004,7 @@ def _generate_config_type_view(
             source0 = f'''
                 (SELECT
                     (SELECT jsonb_object_agg(
-                      substr(name, {len(cfg_name)+3}), value) AS val
+                      substr(name, {len(cfg_name) + 3}), value) AS val
                     FROM edgedb._read_sys_config(
                       NULL, scope::edgedb._sys_config_source_t) cfg
                     WHERE name LIKE {ql(escaped_name + '%')}
@@ -7117,11 +7445,11 @@ async def execute_sql_script(
         text = None
 
         if position is not None:
-            point = int(position)
+            point = int(position) - 1
             text = sql_text
 
         elif internal_position is not None:
-            point = int(internal_position)
+            point = int(internal_position) - 1
             text = e.get_field('q')
 
         elif pl_func_line:
@@ -7129,8 +7457,9 @@ async def execute_sql_script(
             text = sql_text
 
         if point is not None:
-            pcontext = parser_context.ParserContext(
-                'query', text, start=point, end=point, context_lines=30)
-            exceptions.replace_context(e, pcontext)
+            span = qlast.Span(
+                'query', text, start=point, end=point, context_lines=30
+            )
+            exceptions.replace_context(e, span)
 
         raise

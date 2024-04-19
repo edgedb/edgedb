@@ -21,7 +21,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Optional, TYPE_CHECKING
 
 from edb import errors
 
@@ -135,7 +135,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
                 f'specified migration name does not match the name derived '
                 f'from the migration contents: {specified_name!r}, expected '
                 f'{name!r}',
-                context=astnode.name.context,
+                span=astnode.name.span,
             )
 
         if specified_name is not None and schema.has_migration(specified_name):
@@ -144,7 +144,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
             # parent (and you can't specify parent without a name).
             raise errors.DuplicateMigrationError(
                 f'migration {name!r} is already applied',
-                context=astnode.name.context,
+                span=astnode.name.span,
             )
 
         if astnode.parent is not None:
@@ -152,7 +152,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
                 if astnode.parent.name.lower() != 'initial':
                     raise errors.SchemaDefinitionError(
                         f'specified migration parent does not exist',
-                        context=astnode.parent.context,
+                        span=astnode.parent.span,
                     )
             else:
                 astnode_parent = s_utils.ast_objref_to_object_shell(
@@ -167,7 +167,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
                     raise errors.SchemaDefinitionError(
                         f'specified migration parent is not the most recent '
                         f'migration, expected {str(actual_parent_name)!r}',
-                        context=astnode.parent.context,
+                        span=astnode.parent.span,
                     )
 
         cmd = cls(classname=sn.UnqualName(name))
@@ -199,6 +199,23 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         assert isinstance(cmd, CreateMigration)
 
         return cmd
+
+    def apply_subcommands(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        assert not self.get_prerequisites() and not self.get_caused()
+        # Renames shouldn't persist between commands in a migration script.
+        context.renames.clear()
+        for op in self.get_subcommands(
+            include_prerequisites=False,
+            include_caused=False,
+        ):
+            if not isinstance(op, sd.AlterObjectProperty):
+                schema = op.apply(schema, context=context)
+                context.renames.clear()
+        return schema
 
     def _get_ast(
         self,

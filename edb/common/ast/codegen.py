@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Union, Iterable, Sequence, List
 from dataclasses import dataclass
 
 import itertools
@@ -76,11 +76,7 @@ class SourceGenerator(NodeVisitor):
             self.new_lines = 1
         return res
 
-    def write(
-        self,
-        *x: str,
-        delimiter: Optional[str] = None
-    ) -> None:
+    def write(self, *x: str, delimiter: Optional[str] = None) -> None:
         if not x:
             return
         if self.new_lines:

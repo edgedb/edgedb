@@ -19,7 +19,7 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import *
+from typing import Optional, Tuple, List
 
 from edb import errors
 from edb.server.pgcon import errors as pgerror
@@ -48,7 +48,6 @@ Context = context.ResolverContextLevel
 def resolve_SelectStmt(
     stmt: pgast.SelectStmt, *, ctx: Context
 ) -> Tuple[pgast.SelectStmt, context.Table]:
-
     # VALUES
     if stmt.values:
         values = dispatch.resolve_list(stmt.values, ctx=ctx)
@@ -78,7 +77,7 @@ def resolve_SelectStmt(
         if len(ltable.columns) != len(rtable.columns):
             raise errors.QueryError(
                 f'{stmt.op} requires equal number of columns in both sides',
-                context=stmt.context,
+                span=stmt.span,
             )
 
         relation = pgast.SelectStmt(
@@ -185,7 +184,7 @@ def resolve_DMLQuery(
 ) -> Tuple[pgast.DMLQuery, context.Table]:
     raise errors.UnsupportedFeatureError(
         'DML queries (INSERT/UPDATE/DELETE) are not supported',
-        context=query.context,
+        span=query.span,
     )
 
 
@@ -207,7 +206,7 @@ def resolve_relation(
     if relation.catalogname and relation.catalogname != 'postgres':
         raise errors.QueryError(
             f'queries cross databases are not supported',
-            context=relation.context,
+            span=relation.span,
         )
 
     # try information_schema, pg_catalog and pg_toast
@@ -234,9 +233,7 @@ def resolve_relation(
 
     # try a CTE
     if not schema_name or schema_name == 'public':
-        cte = next(
-            (t for t in ctx.scope.ctes if t.name == relation.name), None
-        )
+        cte = next((t for t in ctx.scope.ctes if t.name == relation.name), None)
         if cte:
             table = context.Table(name=cte.name, columns=cte.columns.copy())
             return pgast.Relation(name=cte.name, schemaname=None), table
@@ -276,7 +273,7 @@ def resolve_relation(
         rel_name = pgcodegen.generate_source(relation)
         raise errors.QueryError(
             f'unknown table `{rel_name}`',
-            context=relation.context,
+            span=relation.span,
             pgext_code=pgerror.ERROR_UNDEFINED_TABLE,
         )
 
@@ -291,22 +288,27 @@ def resolve_relation(
         pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
 
         for p in pointers:
-            # TODO: We ought to support type
-            if p.get_shortname(ctx.schema).name == '__type__':
-                continue
             card = p.get_cardinality(ctx.schema)
             if card.is_multi():
                 continue
             if p.get_computable(ctx.schema):
                 continue
 
-            columns.append(_construct_column(p, ctx))
+            columns.append(_construct_column(p, ctx, ctx.include_inherited))
     else:
         for c in ['source', 'target']:
             columns.append(context.Column(name=c, reference_as=c))
 
+    def column_order_key(c: context.Column) -> Tuple[int, str]:
+        spec = {
+            'id': 0,
+            'source': 0,
+            'target': 1
+        }
+        return (spec.get(c.reference_as or '', 2), c.name or '')
+
     # sort by name but put `id` first
-    columns.sort(key=lambda c: () if c.name == 'id' else (c.name or '',))
+    columns.sort(key=column_order_key)
     table.columns.extend(columns)
 
     aspect = 'inhview' if ctx.include_inherited else 'table'
@@ -372,11 +374,14 @@ def _lookup_pointer_table(
     raise NotImplementedError()
 
 
-def _construct_column(p: s_pointers.Pointer, ctx: Context) -> context.Column:
+def _construct_column(
+    p: s_pointers.Pointer, ctx: Context, include_inherited: bool
+) -> context.Column:
     col = context.Column()
+    short_name = p.get_shortname(ctx.schema)
 
     if isinstance(p, s_properties.Property):
-        col.name = p.get_shortname(ctx.schema).name
+        col.name = short_name.name
 
         if p.is_link_source_property(ctx.schema):
             col.reference_as = 'source'
@@ -385,16 +390,26 @@ def _construct_column(p: s_pointers.Pointer, ctx: Context) -> context.Column:
         elif p.is_id_pointer(ctx.schema):
             col.reference_as = 'id'
         else:
-            _, dbname = pgcommon.get_backend_name(
-                ctx.schema, p, catenate=False
-            )
+            _, dbname = pgcommon.get_backend_name(ctx.schema, p, catenate=False)
             col.reference_as = dbname
 
-    if isinstance(p, s_links.Link):
-        col.name = p.get_shortname(ctx.schema).name + '_id'
+    elif isinstance(p, s_links.Link):
+        if short_name.name == '__type__':
+            col.name = '__type__'
+            col.reference_as = '__type__'
 
-        _, dbname = pgcommon.get_backend_name(ctx.schema, p, catenate=False)
-        col.reference_as = dbname
+            if not include_inherited:
+                # When using FROM ONLY, we will be referencing actual tables
+                # and not inheritance views. Actual tables don't contain
+                # __type__ column, which means that we have to provide value
+                # in some other way. Fortunately, it is a constant value, so we
+                # can compute it statically.
+                source_id = p.get_source_type(ctx.schema).get_id(ctx.schema)
+                col.static_val = source_id
+        else:
+            col.name = short_name.name + '_id'
+            _, dbname = pgcommon.get_backend_name(ctx.schema, p, catenate=False)
+            col.reference_as = dbname
 
     return col
 

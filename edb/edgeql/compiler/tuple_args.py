@@ -92,7 +92,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from typing import *
+from typing import Optional, Tuple, Sequence, TYPE_CHECKING
 
 from edb import errors
 from edb.common.typeutils import not_none
@@ -127,7 +127,8 @@ def _lmost_is_array(typ: irast.ParamTransType) -> bool:
 
 
 def translate_type(
-    typeref: irast.TypeRef, *,
+    typeref: irast.TypeRef,
+    *,
     schema: s_schema.Schema,
 ) -> tuple[irast.ParamTransType, tuple[irast.TypeRef, ...]]:
     """Translate the type of a tuple-containing param to multiple params.
@@ -158,7 +159,8 @@ def translate_type(
                     sn.QualName('std', 'int32'), type=s_types.Type)
                 nschema, array_styp = s_types.Array.from_subtypes(
                     schema, [int_typeref])
-                typs.append(irtypeutils.type_to_typeref(nschema, array_styp))
+                typs.append(irtypeutils.type_to_typeref(
+                    nschema, array_styp, cache=None))
 
             return irast.ParamArray(
                 typeref=typ,
@@ -185,7 +187,7 @@ def translate_type(
             if in_array:
                 nschema, styp = irtypeutils.ir_typeref_to_type(schema, typ)
                 nschema, styp = s_types.Array.from_subtypes(nschema, [styp])
-                nt = irtypeutils.type_to_typeref(nschema, styp)
+                nt = irtypeutils.type_to_typeref(nschema, styp, cache=None)
             typs.append(nt)
             return irast.ParamScalar(typeref=typ, idx=start)
 
@@ -216,7 +218,7 @@ def _plus_const(expr: qlast.Expr, val: int) -> qlast.Expr:
     return qlast.BinOp(
         left=expr,
         op='+',
-        right=qlast.IntegerConstant(value=str(val)),
+        right=qlast.Constant.integer(val),
     )
 
 
@@ -277,7 +279,7 @@ def make_decoder(
             lo: qlast.Expr
             hi: qlast.Expr
             if idx is None:
-                lo = qlast.IntegerConstant(value='0')
+                lo = qlast.Constant.integer(0)
                 hi = qlast.FunctionCall(
                     func=('__std__', 'len'), args=[params[typ.idx]])
                 # If the leftmost element inside a toplevel array is
@@ -359,7 +361,10 @@ def make_decoder(
 
 
 def create_sub_params(
-    name: str, required: bool, typeref: irast.TypeRef, pt: s_types.Type,
+    name: str,
+    required: bool,
+    typeref: irast.TypeRef,
+    pt: s_types.Type,
     *,
     ctx: context.ContextLevel,
 ) -> Optional[irast.SubParams]:
@@ -396,7 +401,9 @@ def create_sub_params(
 
 
 def finish_sub_params(
-    subps: irast.SubParams, *, ctx: context.ContextLevel,
+    subps: irast.SubParams,
+    *,
+    ctx: context.ContextLevel,
 ) -> Optional[irast.SubParams]:
     """Finalize the subparams by compiling the IR in the proper context.
 

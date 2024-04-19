@@ -24,8 +24,3 @@ flow. Once authentication is successful, the CLI will log a success message:
 
 If you are unable to complete authentication in the browser, you can interrupt
 the command by pressing Ctrl-C.
-
-.. note::
-
-    During the Cloud beta, you will only be able to successfully complete
-    authentication if you have been invited to the beta.

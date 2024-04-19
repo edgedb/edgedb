@@ -59,7 +59,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         object _startup_msg_waiter
 
         dbview.CompiledQuery _last_anon_compiled
-        int _last_anon_compiled_hash
+        int64_t _last_anon_compiled_hash
 
         bint query_cache_enabled
 
@@ -77,8 +77,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
-    cdef dbview.QueryRequestInfo parse_execute_request(self)
-    cdef parse_output_format(self, bytes mode)
+    cdef parse_execute_request(self)
     cdef parse_cardinality(self, bytes card)
     cdef char render_cardinality(self, query_unit) except -1
 
@@ -110,3 +109,4 @@ cdef class VirtualTransport:
     cdef:
         WriteBuffer buf
         bint closed
+        object transport

@@ -402,3 +402,31 @@ class TestIndexes(tb.DDLTestCase):
                 };
                 """
             )
+
+    async def test_index_11(self):
+        # indexes should not be rebased, but should be dropped and recreated
+
+        await self.con.execute(
+            '''
+            create type Hello {
+                create required property world: str;
+                create index pg::btree on (.world);
+            };
+            '''
+        )
+        await self.migrate(
+            r"""
+            type Hello {
+                property world: str;
+                index pg::hash on (.world);
+            };
+            """
+        )
+        await self.migrate(
+            r"""
+            type Hello {
+                property world: str;
+                index pg::btree on (.world);
+            };
+            """
+        )

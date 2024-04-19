@@ -20,7 +20,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Type
 
 import typing
 import functools
@@ -28,7 +28,7 @@ import os
 import re
 import unittest
 
-from edb.common import context
+from edb.common import span
 from edb.common import debug
 from edb.common import devmode
 from edb.common import markup
@@ -175,24 +175,7 @@ class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
         )
 
 
-class PreloadParserGrammarMixin:
-    pass
-
-
-def should_preload_parser(
-    cases: Iterable[unittest.TestCase],
-) -> bool:
-    for cas in cases:
-        if issubclass(cas, PreloadParserGrammarMixin):
-            return True
-    return False
-
-
-def preload_parser() -> None:
-    qlparser.preload_spec()
-
-
-class BaseSyntaxTest(BaseDocTest, PreloadParserGrammarMixin):
+class BaseSyntaxTest(BaseDocTest):
     ast_to_source: Optional[Any] = None
     markup_dump_lexer: Optional[str] = None
 
@@ -211,7 +194,7 @@ class BaseSyntaxTest(BaseDocTest, PreloadParserGrammarMixin):
             markup.dump(inast)
 
         # make sure that the AST has context
-        context.ContextValidator().visit(inast)
+        span.SpanValidator().visit(inast)
 
         processed_src = self.ast_to_source(inast)
 
@@ -300,7 +283,7 @@ def new_compiler():
     )
 
 
-class BaseSchemaTest(BaseDocTest, PreloadParserGrammarMixin):
+class BaseSchemaTest(BaseDocTest):
     DEFAULT_MODULE = 'default'
     SCHEMA: Optional[str] = None
 
@@ -347,7 +330,7 @@ class BaseSchemaTest(BaseDocTest, PreloadParserGrammarMixin):
                     raise errors.QueryError(
                         'unexpected POPULATE MIGRATION:'
                         ' not currently in a migration block',
-                        context=stmt.context,
+                        span=stmt.span,
                     )
 
                 migration_diff = s_ddl.delta_schemas(
@@ -396,7 +379,7 @@ class BaseSchemaTest(BaseDocTest, PreloadParserGrammarMixin):
                     raise errors.QueryError(
                         'unexpected COMMIT MIGRATION:'
                         ' not currently in a migration block',
-                        context=stmt.context,
+                        span=stmt.span,
                     )
 
                 last_migration = current_schema.get_last_migration()
@@ -455,7 +438,8 @@ class BaseSchemaTest(BaseDocTest, PreloadParserGrammarMixin):
 
     @classmethod
     def load_schema(
-            cls, source: str, modname: Optional[str]=None) -> s_schema.Schema:
+        cls, source: str, modname: Optional[str] = None
+    ) -> s_schema.Schema:
         if not modname:
             modname = cls.DEFAULT_MODULE
         sdl_schema = qlparser.parse_sdl(f'module {modname} {{ {source} }}')

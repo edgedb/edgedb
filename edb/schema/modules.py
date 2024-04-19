@@ -19,7 +19,6 @@
 
 from __future__ import annotations
 
-from typing import *
 
 from edb import errors
 
@@ -86,7 +85,7 @@ class ModuleCommand(
             raise errors.SchemaDefinitionError(
                 f'cannot {self._delta_action} {self.get_verbosename()}: '
                 f'module {first} is read-only',
-                context=self.source_context)
+                span=self.span)
 
 
 class CreateModule(ModuleCommand, sd.CreateObject[Module]):
@@ -95,6 +94,19 @@ class CreateModule(ModuleCommand, sd.CreateObject[Module]):
 
 class AlterModule(ModuleCommand, sd.AlterObject[Module]):
     astnode = qlast.AlterModule
+
+
+class RenameModule(ModuleCommand, sd.RenameObject[Module]):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        raise errors.SchemaError(
+            f'renaming modules is not supported',
+            span=self.span,
+        )
 
 
 class DeleteModule(ModuleCommand, sd.DeleteObject[Module]):

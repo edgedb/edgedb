@@ -18,7 +18,18 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Type,
+    Sequence,
+    Dict,
+    List,
+    Set,
+    NamedTuple,
+    TYPE_CHECKING,
+)
 
 import collections
 
@@ -29,9 +40,11 @@ from edb.common import topological
 from . import delta as sd
 from . import expraliases as s_expraliases
 from . import functions as s_func
+from . import indexes as s_indexes
 from . import inheriting
 from . import name as sn
 from . import objects as so
+from . import objtypes as s_objtypes
 from . import pointers as s_pointers
 from . import constraints as s_constraints
 from . import referencing
@@ -110,7 +123,18 @@ def linearize_delta(
         item.deps &= everything
         item.weak_deps &= everything
 
-    sortedlist = [i[1] for i in topological.sort_ex(depgraph)]
+    try:
+        sortedlist = [i[1] for i in topological.sort_ex(depgraph)]
+    except topological.CycleError as ex:
+        cycle = [depgraph[k].item for k in (ex.item,) + ex.path + (ex.item,)]
+        messages = [
+            '  ' + nodes[-1].get_friendly_description(parent_op=nodes[-2])
+            for nodes in cycle
+        ]
+        raise errors.SchemaDefinitionError(
+            'cannot produce migration because of a dependency cycle:\n'
+            + ' depends on\n'.join(messages)
+        ) from None
     reconstructed = reconstruct_tree(sortedlist, depgraph)
     delta.replace_all(reconstructed.get_subcommands())
     return delta
@@ -376,7 +400,7 @@ def reconstruct_tree(
 
             allowed_ops = []
             create_cmd_t = ancestor_op.get_other_command_class(sd.CreateObject)
-            if type(ancestor_op) != create_cmd_t:
+            if type(ancestor_op) is not create_cmd_t:
                 allowed_ops.append(create_cmd_t)
             allowed_ops.append(type(ancestor_op))
 
@@ -700,7 +724,7 @@ def _trace_op(
                 # new one is created)
                 if not isinstance(ref, s_expraliases.Alias):
                     deps.add(('alter', ref_name_str))
-                if type(ref) == type(obj):
+                if type(ref) is type(obj):
                     deps.add(('rebase', ref_name_str))
 
                 # The deletion of any implicit ancestors needs to come after
@@ -826,6 +850,26 @@ def _trace_op(
                 )
                 for old_func in old_funcs:
                     deps.add(('delete', str(old_func.get_name(old_schema))))
+
+            # Some index types only allow one per object type. Make
+            # sure we drop the old one before creating the new.
+            if (
+                isinstance(obj, s_indexes.Index)
+                and s_indexes.is_exclusive_object_scope_index(new_schema, obj)
+                and old_schema is not None
+                and (subject := obj.get_subject(new_schema))
+                and (old_subject := old_schema.get(
+                    subject.get_name(new_schema),
+                    type=s_objtypes.ObjectType,
+                    default=None
+                ))
+                and (eff_index := s_indexes.get_effective_object_index(
+                    old_schema,
+                    old_subject,
+                    obj.get_root(new_schema).get_name(new_schema),
+                )[0])
+            ):
+                deps.add(('delete', str(eff_index.get_name(old_schema))))
 
         if tag == 'alter':
             # Alteration must happen after creation, if any.

@@ -30,7 +30,10 @@ class HttpClient(httpx.AsyncClient):
         if edgedb_test_url:
             self.edgedb_orig_base_url = urllib.parse.quote(base_url, safe='')
             base_url = edgedb_test_url
-        cache = hishel.AsyncCacheTransport(httpx.AsyncHTTPTransport())
+        cache = hishel.AsyncCacheTransport(
+            transport=httpx.AsyncHTTPTransport(),
+            storage=hishel.AsyncInMemoryStorage(capacity=5),
+        )
         super().__init__(*args, base_url=base_url, transport=cache, **kwargs)
 
     async def post(self, path, *args, **kwargs):

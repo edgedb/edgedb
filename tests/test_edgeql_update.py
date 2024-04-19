@@ -255,7 +255,7 @@ class TestUpdate(tb.QueryTestCase):
         )
 
     async def test_edgeql_update_returning_01(self):
-        orig1, orig2, orig3 = self.original
+        _orig1, orig2, _orig3 = self.original
 
         await self.assert_query_result(
             r"""
@@ -326,7 +326,7 @@ class TestUpdate(tb.QueryTestCase):
         )
 
     async def test_edgeql_update_returning_03(self):
-        orig1, orig2, orig3 = self.original
+        _orig1, _orig2, _orig3 = self.original
 
         await self.assert_query_result(
             r"""

@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Any, Optional, Tuple, Type, Iterable, Sequence, cast
 
 from edb import errors
 
@@ -62,13 +62,13 @@ class ScalarType(
     )
 
     sql_type = so.SchemaField(
-        str, default=None, inheritable=False, compcoef=0.9)
+        str, default=None, inheritable=False, compcoef=0.0)
 
     # A type scheme for supporting type mods in scalar types.
     # If present, describes what the sql_type of children scalars
     # should be, such as 'varchar({__arg_0__})'.
     sql_type_scheme = so.SchemaField(
-        str, default=None, inheritable=False, compcoef=0.9)
+        str, default=None, inheritable=False, compcoef=0.0)
 
     # The number of parameters that the type takes. Currently all parameters
     # must be integer literals.
@@ -76,14 +76,16 @@ class ScalarType(
     num_params = so.SchemaField(
         int, default=None,
         inheritable=False,
-        compcoef=0.8,
+        compcoef=0.0,
     )
 
     # Arguments to fill in a parent type's parameterized type scheme.
     arg_values = so.SchemaField(
-        checked.FrozenCheckedList[str], default=None,
+        checked.FrozenCheckedList[str],
+        default=None,
         inheritable=False,
-        coerce=True, compcoef=0.8,
+        coerce=True,
+        compcoef=0.0,
     )
 
     @classmethod
@@ -260,7 +262,8 @@ class ScalarType(
         return f"{clsname} '{dname}'"
 
     def resolve_sql_type_scheme(
-        self, schema: s_schema.Schema,
+        self,
+        schema: s_schema.Schema,
     ) -> tuple[Optional[str], Optional[str]]:
         if sql := self.get_sql_type(schema):
             return sql, None
@@ -276,11 +279,12 @@ class ScalarType(
         return None, None
 
     def resolve_sql_type(
-        self, schema: s_schema.Schema,
+        self,
+        schema: s_schema.Schema,
     ) -> Optional[str]:
         type, scheme = self.resolve_sql_type_scheme(schema)
         if scheme:
-            return constraints.interpolate_errmessage(
+            return constraints.interpolate_error_text(
                 scheme,
                 {
                     f'__arg_{i}__': v
@@ -337,9 +341,10 @@ class AnonymousEnumTypeShell(s_types.TypeShell[ScalarType]):
     def __init__(
         self,
         *,
-        name: s_name.Name = s_name.QualName(module='std', name='anyenum'),
+        name: Optional[s_name.Name] = None,
         elements: Iterable[str],
     ) -> None:
+        name = name or s_name.QualName(module='std', name='anyenum')
         super().__init__(name=name, schemaclass=ScalarType)
         self.elements = list(elements)
 
@@ -374,7 +379,7 @@ class ScalarTypeCommand(
             if len(self.scls.get_constraints(schema)):
                 raise errors.SchemaError(
                     f'parameterized scalar types may not have constraints',
-                    context=self.source_context,
+                    span=self.span,
                 )
 
         if args := self.scls.get_arg_values(schema):
@@ -384,14 +389,14 @@ class ScalarTypeCommand(
                 raise errors.SchemaDefinitionError(
                     f'base type {base.get_name(schema)} does not '
                     f'accept parameters',
-                    context=self.source_context,
+                    span=self.span,
                 )
             if num_params != len(args):
                 raise errors.SchemaDefinitionError(
                     f'incorrect number of arguments provided to base type '
                     f'{base.get_name(schema)}: expected {num_params} '
                     f'but got {len(args)}',
-                    context=self.source_context,
+                    span=self.span,
                 )
 
     def validate_scalar_ancestors(
@@ -421,7 +426,7 @@ class ScalarTypeCommand(
             raise errors.SchemaError(
                 f'scalar type may not have more than '
                 f'one concrete base type',
-                context=self.source_context,
+                span=self.span,
             )
         abstract = self.get_attribute_value('abstract')
         enum = self.get_attribute_value('enum_values')
@@ -442,7 +447,7 @@ class ScalarTypeCommand(
 
             raise errors.SchemaError(
                 f'scalar type must have a concrete base type',
-                context=self.source_context,
+                span=self.span,
                 hint=hint,
             )
 
@@ -520,7 +525,7 @@ class CreateScalarType(
                 if isinstance(b, s_types.CollectionTypeShell):
                     raise errors.SchemaError(
                         f'scalar type may not have a collection base type',
-                        context=ab.context,
+                        span=ab.span,
                     )
 
             # We don't support FINAL, but old dumps and migrations specify
@@ -529,7 +534,7 @@ class CreateScalarType(
             if not is_enum and astnode.final:
                 raise errors.UnsupportedFeatureError(
                     f'FINAL is not supported',
-                    context=astnode.context,
+                    span=astnode.span,
                 )
 
             if is_enum:
@@ -539,13 +544,13 @@ class CreateScalarType(
                     raise errors.SchemaError(
                         f'invalid scalar type definition, enumeration must be'
                         f' the only supertype specified',
-                        context=astnode.bases[0].context,
+                        span=astnode.bases[0].span,
                     )
                 if create_cmd.has_attribute_value('default'):
                     raise errors.UnsupportedFeatureError(
                         f'enumerated types do not support defaults',
-                        context=(
-                            create_cmd.get_attribute_source_context('default')
+                        span=(
+                            create_cmd.get_attribute_span('default')
                         ),
                     )
 
@@ -554,7 +559,7 @@ class CreateScalarType(
                 if len(set(shell.elements)) != len(shell.elements):
                     raise errors.SchemaDefinitionError(
                         f'enums cannot contain duplicate values',
-                        context=astnode.bases[0].context,
+                        span=astnode.bases[0].span,
                     )
                 create_cmd.set_attribute_value('enum_values', shell.elements)
                 create_cmd.set_attribute_value(
@@ -577,18 +582,19 @@ class CreateScalarType(
                         raise errors.SchemaDefinitionError(
                             'scalars with parameterized bases may '
                             'only have one',
-                            context=astnode.bases[0].context,
+                            span=astnode.bases[0].span,
                         )
                     base = bases[0]
                     args = []
                     for x in (base.extra_args or ()):
                         if (
                             not isinstance(x, qlast.TypeExprLiteral)
-                            or not isinstance(x.val, qlast.IntegerConstant)
+                            or not isinstance(x.val, qlast.Constant)
+                            or x.val.kind != qlast.ConstantKind.INTEGER
                         ):
                             raise errors.SchemaDefinitionError(
                                 'invalid scalar type argument',
-                                context=x.context,
+                                span=x.span,
                             )
                         args.append(x.val.value)
                     cmd.set_attribute_value('arg_values', args)
@@ -596,8 +602,8 @@ class CreateScalarType(
                 cmd.set_attribute_value(
                     'bases',
                     so.ObjectCollectionShell(
-                        bases, collection_type=so.ObjectList),
-                    # source_context=srcctx,
+                        bases, collection_type=so.ObjectList
+                    ),
                 )
 
         return cmd
@@ -650,11 +656,11 @@ class CreateScalarType(
                 super()._apply_field_ast(schema, context, node, op)
                 if arg_values := self.get_local_attribute_value('arg_values'):
                     frags = [
-                        s_expr.Expression(text=x).qlast for x in arg_values]
+                        s_expr.Expression(text=x).parse() for x in arg_values]
                     assert isinstance(node, qlast.BasedOnTuple)
                     node.bases[0].subtypes = [
                         qlast.TypeExprLiteral(
-                            val=downcast(qlast.BaseConstant, frag)
+                            val=downcast(qlast.Constant, frag)
                         )
                         for frag in frags
                     ]
@@ -733,7 +739,7 @@ class RebaseScalarType(
                 if isinstance(b, s_types.CollectionTypeShell):
                     raise errors.SchemaError(
                         f'scalar type may not have a collection base type',
-                        context=self.source_context,
+                        span=self.span,
                     )
 
             schema = super().apply(schema, context)
@@ -801,6 +807,7 @@ def _prettyprint_enum(elements: Iterable[str]) -> str:
 
 class AlterScalarType(
     ScalarTypeCommand,
+    s_types.AlterType[ScalarType],
     inheriting.AlterInheritingObject[ScalarType],
 ):
     astnode = qlast.AlterScalarType

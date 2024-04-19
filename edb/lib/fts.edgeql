@@ -92,7 +92,7 @@ CREATE FUNCTION fts::search(
         Search an object using its fts::index index.
         Returns objects that match the specified query and the matching score.
     ';
-    SET volatility := 'Immutable';
+    SET volatility := 'Stable';
     USING SQL EXPRESSION;
 };
 

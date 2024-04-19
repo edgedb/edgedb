@@ -160,7 +160,7 @@ effect on subsequent container runs.
 EDGEDB_SERVER_BOOTSTRAP_COMMAND
 ...............................
 
-Useful to fine-tune initial user and database creation, and other initial
+Useful to fine-tune initial user and branch creation, and other initial
 setup. If neither the ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
 ``EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE`` are explicitly specified, the container
 will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
@@ -176,7 +176,7 @@ Deprecated in image version 2.8: use ``EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE``
 instead.
 
 Run the script when initializing the database. The script is run by default
-user within default database.
+user within default branch.
 
 
 EDGEDB_SERVER_PASSWORD

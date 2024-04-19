@@ -91,6 +91,8 @@ Refer to the Datatypes page of your preferred :ref:`client library
 language-native types.
 
 
+.. _ref_eql_params_types:
+
 Parameter types and JSON
 ------------------------
 
@@ -135,9 +137,6 @@ the type cast if the parameter is optional.
   db> select <optional str>$name;
   Parameter <str>$name (Ctrl+D for empty set `{}`):
   {}
-
-When using a client library, pass the idiomatic null pointer for your language:
-``null``, ``None``, ``nil``, etc.
 
 .. note::
 

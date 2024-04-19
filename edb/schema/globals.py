@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *
+from typing import Any, Optional, Type, TYPE_CHECKING
 
 from edb import errors
 
@@ -93,6 +93,11 @@ class Global(
         compcoef=0.909,
     )
 
+    created_types = so.SchemaField(
+        so.ObjectSet[s_types.Type],
+        default=so.DEFAULT_CONSTRUCTOR,
+    )
+
     def is_computable(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_expr(schema))
 
@@ -118,7 +123,7 @@ class GlobalCommand(
         return cls._mangle_name(type_name)
 
     @classmethod
-    def _is_alias(cls, obj: Global, schema: s_schema.Schema) -> bool:
+    def _is_computable(cls, obj: Global, schema: s_schema.Schema) -> bool:
         return obj.is_computable(schema)
 
     def _check_expr(
@@ -143,26 +148,26 @@ class GlobalCommand(
         glob_name = self.get_verbosename()
 
         if spec_required and not required:
-            srcctx = self.get_attribute_source_context('target')
+            span = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'possibly an empty set returned by an '
                 f'expression for the computed '
                 f'{glob_name} '
                 f"explicitly declared as 'required'",
-                context=srcctx
+                span=span
             )
 
         if (
             spec_card is qltypes.SchemaCardinality.One
             and card is not qltypes.SchemaCardinality.One
         ):
-            srcctx = self.get_attribute_source_context('target')
+            span = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(
                 f'possibly more than one element returned by an '
                 f'expression for the computed '
                 f'{glob_name} '
                 f"explicitly declared as 'single'",
-                context=srcctx
+                span=span
             )
 
         if spec_card is None:
@@ -205,17 +210,17 @@ class GlobalCommand(
             ):
                 raise errors.SchemaDefinitionError(
                     "required globals must have a default",
-                    context=self.source_context,
+                    span=self.span,
                 )
             if scls.get_cardinality(schema) == qltypes.SchemaCardinality.Many:
                 raise errors.SchemaDefinitionError(
                     "non-computed globals may not be multi",
-                    context=self.source_context,
+                    span=self.span,
                 )
             if target.contains_object(schema):
                 raise errors.SchemaDefinitionError(
                     "non-computed globals may not have have object type",
-                    context=self.source_context,
+                    span=self.span,
                 )
 
         default_expr = scls.get_default(schema)
@@ -226,12 +231,12 @@ class GlobalCommand(
             default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
 
-            source_context = self.get_attribute_source_context('default')
+            span = self.get_attribute_span('default')
 
             if is_computable:
                 raise errors.SchemaDefinitionError(
                     f'computed globals may not have default values',
-                    context=source_context,
+                    span=span,
                 )
 
             if not default_type.assignment_castable_to(target, default_schema):
@@ -239,7 +244,7 @@ class GlobalCommand(
                     f'default expression is of invalid type: '
                     f'{default_type.get_displayname(default_schema)}, '
                     f'expected {target.get_displayname(schema)}',
-                    context=source_context,
+                    span=span,
                 )
 
             ptr_cardinality = scls.get_cardinality(schema)
@@ -253,7 +258,7 @@ class GlobalCommand(
                     f'the default expression for '
                     f'{scls.get_verbosename(schema)} declared as '
                     f"'single'",
-                    context=source_context,
+                    span=span,
                 )
 
             if scls.get_required(schema) and not default_required:
@@ -262,14 +267,14 @@ class GlobalCommand(
                     f'the default expression for '
                     f'{scls.get_verbosename(schema)} declared as '
                     f"'required'",
-                    context=source_context,
+                    span=span,
                 )
 
             if default_expr.irast.volatility.is_volatile():
                 raise errors.SchemaDefinitionError(
                     f'{scls.get_verbosename(schema)} has a volatile '
                     f'default expression, which is not allowed',
-                    context=source_context,
+                    span=span,
                 )
 
     def get_dummy_expr_field_value(
@@ -351,9 +356,11 @@ class CreateGlobal(
         assert isinstance(node, qlast.CreateGlobal)
         if op.property == 'target':
             if not node.target:
-                expr = self.get_attribute_value('expr')
+                expr: Optional[s_expr.Expression] = (
+                    self.get_attribute_value('expr')
+                )
                 if expr is not None:
-                    node.target = expr.qlast
+                    node.target = expr.parse()
                 else:
                     t = op.new_value
                     assert isinstance(t, (so.Object, so.ObjectShell))
@@ -377,14 +384,14 @@ class CreateGlobal(
             cmd.set_attribute_value(
                 'required',
                 astnode.is_required,
-                source_context=astnode.context,
+                span=astnode.span,
             )
 
         if astnode.cardinality is not None:
             cmd.set_attribute_value(
                 'cardinality',
                 astnode.cardinality,
-                source_context=astnode.context,
+                span=astnode.span,
             )
 
         assert astnode.target is not None
@@ -399,7 +406,7 @@ class CreateGlobal(
             cmd.set_attribute_value(
                 'target',
                 type_ref,
-                source_context=astnode.target.context,
+                span=astnode.target.span,
             )
 
         else:
@@ -423,7 +430,7 @@ class CreateGlobal(
         ):
             raise errors.UnsupportedFeatureError(
                 "cannot specify a type and an expression for a global",
-                context=astnode.context,
+                span=astnode.span,
             )
 
         return cmd
@@ -478,7 +485,7 @@ class AlterGlobal(
             ):
                 raise errors.UnsupportedFeatureError(
                     "cannot specify a type and an expression for a global",
-                    context=self.source_context,
+                    span=self.span,
                 )
 
             if clears_expr and old_expr:
@@ -532,7 +539,7 @@ class SetGlobalType(
                 raise errors.UnsupportedFeatureError(
                     f'USING casts for SET TYPE on globals are not supported',
                     hint='Use RESET TO DEFAULT instead',
-                    context=self.source_context,
+                    span=self.span,
                 )
 
             if not self.reset_value:
@@ -540,7 +547,7 @@ class SetGlobalType(
                     f"SET TYPE on global must explicitly reset the "
                     f"global's value",
                     hint='Use RESET TO DEFAULT after the type',
-                    context=self.source_context,
+                    span=self.span,
                 )
 
         return schema
@@ -582,17 +589,21 @@ class SetGlobalType(
         else:
             assert isinstance(set_field, qlast.SetField)
             assert not isinstance(set_field.value, qlast.Expr)
+
+            case_expr = None
+            if self.cast_expr:
+                assert isinstance(self.cast_expr, s_expr.Expression)
+                case_expr = self.cast_expr.parse()
+
             return qlast.SetGlobalType(
                 value=set_field.value,
-                cast_expr=(
-                    self.cast_expr.qlast
-                    if self.cast_expr is not None else None
-                ),
+                cast_expr=case_expr,
                 reset_value=self.reset_value,
             )
 
     def record_diff_annotations(
-        self, *,
+        self,
+        *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,

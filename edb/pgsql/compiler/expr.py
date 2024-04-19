@@ -21,7 +21,7 @@
 
 from __future__ import annotations
 
-from typing import *
+from typing import Optional, Tuple, Union, Sequence
 
 from edb import errors
 
@@ -53,7 +53,7 @@ def compile_Set(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if ctx.singleton_mode:
-        return _compile_set_in_singleton_mode(ir_set, ctx=ctx)
+        return dispatch.compile(ir_set.expr, ctx=ctx)
 
     is_toplevel = ctx.toplevel_stmt is context.NO_STMT
 
@@ -80,7 +80,7 @@ def visit_Set(
         ctx: context.CompilerContextLevel) -> None:
 
     if ctx.singleton_mode:
-        _compile_set_in_singleton_mode(ir_set, ctx=ctx)
+        dispatch.compile(ir_set.expr, ctx=ctx)
 
     _compile_set_impl(ir_set, ctx=ctx)
 
@@ -264,9 +264,11 @@ def compile_IndexIndirection(
 
     # line, column and filename are captured here to be used with the
     # error message
-    srcctx = pgast.StringConstant(
-        val=irutils.get_source_context_as_json(expr.index,
-                                               errors.InvalidValueError))
+    span = pgast.StringConstant(
+        val=irutils.get_span_as_json(
+            expr.index, errors.InvalidValueError
+        )
+    )
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False
@@ -275,7 +277,7 @@ def compile_IndexIndirection(
 
     result = pgast.FuncCall(
         name=('edgedb', '_index'),
-        args=[subj, index, srcctx]
+        args=[subj, index, span]
     )
 
     return result
@@ -350,14 +352,6 @@ def _inline_array_slicing(
     )
 
 
-@dispatch.compile.register(irast.TypeIntrospection)
-def compile_TypeIntrospection(
-        expr: irast.TypeIntrospection, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
-    raise errors.UnsupportedFeatureError(
-        'type introspection not supported in simple expressions')
-
-
 def _compile_call_args(
     expr: irast.Call, *,
     ctx: context.CompilerContextLevel
@@ -366,14 +360,14 @@ def _compile_call_args(
     maybe_null = []
     if isinstance(expr, irast.FunctionCall) and expr.global_args:
         args += [dispatch.compile(arg, ctx=ctx) for arg in expr.global_args]
-    for ir_arg, typemod in zip(expr.args, expr.params_typemods):
+    for ir_arg in expr.args.values():
         ref = dispatch.compile(ir_arg.expr, ctx=ctx)
         args.append(ref)
         if (
             not expr.impl_is_strict
             and ir_arg.cardinality.can_be_zero()
             and ref.nullable
-            and typemod == ql_ft.TypeModifier.SingletonType
+            and ir_arg.param_typemod == ql_ft.TypeModifier.SingletonType
         ):
             maybe_null.append(ref)
     return args, maybe_null
@@ -404,7 +398,7 @@ def compile_OperatorCall(
     if (str(expr.func_shortname) == 'std::IF'
             and expr.args[0].cardinality.is_single()
             and expr.args[2].cardinality.is_single()):
-        if_expr, condition, else_expr = (a.expr for a in expr.args)
+        if_expr, condition, else_expr = (a.expr for a in expr.args.values())
         return pgast.CaseExpr(
             args=[
                 pgast.CaseWhen(
@@ -415,7 +409,7 @@ def compile_OperatorCall(
     elif (str(expr.func_shortname) == 'std::??'
             and expr.args[0].cardinality.is_single()
             and expr.args[1].cardinality.is_single()):
-        l_expr, r_expr = (a.expr for a in expr.args)
+        l_expr, r_expr = (a.expr for a in expr.args.values())
         return pgast.CoalesceExpr(
             args=[
                 dispatch.compile(l_expr, ctx=ctx),
@@ -424,8 +418,8 @@ def compile_OperatorCall(
         )
     elif expr.typemod is ql_ft.TypeModifier.SetOfType:
         raise errors.UnsupportedFeatureError(
-            f'set returning operator {expr.func_shortname!r} is not supported '
-            f'in simple expressions')
+            f'set returning operator {expr.func_shortname} is not supported '
+            f'in singleton expressions')
 
     args, maybe_null = _compile_call_args(expr, ctx=ctx)
     return _wrap_call(
@@ -600,6 +594,15 @@ def compile_TypeCheckOp(
     return result
 
 
+@dispatch.compile.register(irast.ConstantSet)
+def compile_ConstantSet(
+        expr: irast.ConstantSet, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    raise errors.UnsupportedFeatureError(
+        "Constant sets not allowed in singleton mode",
+        hint="Are you passing a set into a variadic function?")
+
+
 @dispatch.compile.register(irast.Array)
 def compile_Array(
         expr: irast.Array, *,
@@ -640,6 +643,13 @@ def compile_TypeRef(
         expr: irast.TypeRef, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     return astutils.compile_typeref(expr)
+
+
+@dispatch.compile.register(irast.TypeIntrospection)
+def compile_TypeIntrospection(
+        expr: irast.TypeIntrospection, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    return astutils.compile_typeref(expr.output_typeref)
 
 
 @dispatch.compile.register(irast.FunctionCall)
@@ -726,7 +736,7 @@ def _compile_set(
 
 def _compile_shape(
         ir_set: irast.Set,
-        shape: Sequence[Tuple[irast.Set, qlast.ShapeOp]],
+        shape: Sequence[Tuple[irast.SetE[irast.Pointer], qlast.ShapeOp]],
         *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
 
@@ -759,6 +769,9 @@ def _compile_shape(
             name=el.name,
             val=ser_val
         ))
+        # Don't let the elements themselves leak out, since they may
+        # be wrapped in arrays.
+        pathctx.put_path_id_mask(ctx.rel, el.path_id)
 
     ser_result = pgast.TupleVar(elements=ser_elements, named=True)
     sval = output.serialize_expr(
@@ -769,53 +782,69 @@ def _compile_shape(
     return result
 
 
-def _compile_set_in_singleton_mode(
-        node: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
-    if isinstance(node, irast.EmptySet):
-        return pgast.NullConstant()
-    elif node.expr is not None:
-        return dispatch.compile(node.expr, ctx=ctx)
-    else:
-        if node.rptr:
-            ptrref = node.rptr.ptrref
-            source = node.rptr.source
+@dispatch.compile.register
+def compile_EmptySet(
+    expr: irast.EmptySet, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+    return pgast.NullConstant()
 
-            if isinstance(ptrref, irast.TupleIndirectionPointerRef):
-                tuple_val = dispatch.compile(source, ctx=ctx)
-                set_expr = astutils.tuple_getattr(
-                    tuple_val,
-                    source.typeref,
-                    ptrref.shortname.name,
-                )
-                return set_expr
 
-            if ptrref.source_ptr is None and source.rptr is not None:
-                raise errors.UnsupportedFeatureError(
-                    'unexpectedly long path in simple expr')
+@dispatch.compile.register
+def compile_TypeRoot(
+    expr: irast.TypeRoot, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+    name = [common.edgedb_name_to_pg_name(str(expr.typeref.id))]
+    if irtyputils.is_object(expr.typeref):
+        name.append('id')
 
-            # In most cases, we don't need to reference the rvar (since there
-            # will be only one in scope), but sometimes we do (for example NEW
-            # in trigger functions).
-            rvar_name = []
-            if src := ctx.env.external_rvars.get((source.path_id, 'source')):
-                rvar_name = [src.alias.aliasname]
+    return pgast.ColumnRef(name=name)
 
-            # compile column name
-            ptr_stor_info = pg_types.get_ptrref_storage_info(
-                ptrref, resolve_type=False)
 
-            colref = pgast.ColumnRef(
-                name=rvar_name + [ptr_stor_info.column_name],
-                nullable=node.rptr.dir_cardinality.can_be_zero())
-        else:
-            name = [common.edgedb_name_to_pg_name(str(node.typeref.id))]
-            if node.path_id.is_objtype_path():
-                name.append('id')
+@dispatch.compile.register
+def compile_Pointer(
+    rptr: irast.Pointer, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+    assert ctx.singleton_mode
 
-            colref = pgast.ColumnRef(name=name)
+    if rptr.expr:
+        return dispatch.compile(rptr.expr, ctx=ctx)
 
-        return colref
+    ptrref = rptr.ptrref
+    source = rptr.source
+
+    if ptrref.source_ptr is None and isinstance(source.expr, irast.Pointer):
+        raise errors.UnsupportedFeatureError(
+            'unexpectedly long path in simple expr')
+
+    # In most cases, we don't need to reference the rvar (since there
+    # will be only one in scope), but sometimes we do (for example NEW
+    # in trigger functions).
+    rvar_name = []
+    if src := ctx.env.external_rvars.get((source.path_id, 'source')):
+        rvar_name = [src.alias.aliasname]
+
+    # compile column name
+    ptr_stor_info = pg_types.get_ptrref_storage_info(
+        ptrref, resolve_type=False)
+
+    colref = pgast.ColumnRef(
+        name=rvar_name + [ptr_stor_info.column_name],
+        nullable=rptr.dir_cardinality.can_be_zero())
+
+    return colref
+
+
+@dispatch.compile.register
+def compile_TupleIndirectionPointer(
+    rptr: irast.TupleIndirectionPointer, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+    tuple_val = dispatch.compile(rptr.source, ctx=ctx)
+    set_expr = astutils.tuple_getattr(
+        tuple_val,
+        rptr.source.typeref,
+        rptr.ptrref.shortname.name,
+    )
+    return set_expr
 
 
 @dispatch.compile.register(irast.FTSDocument)
