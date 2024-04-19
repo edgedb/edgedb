@@ -234,7 +234,9 @@ class BaseServer:
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
 
-        self._default_auth_method = default_auth_method
+        self._default_auth_method_spec = default_auth_method
+        self._default_auth_methods = self._get_auth_method_types(
+            default_auth_method)
         self._binary_endpoint_security = binary_endpoint_security
         self._http_endpoint_security = http_endpoint_security
 
@@ -247,6 +249,22 @@ class BaseServer:
 
         self._disable_dynamic_system_config = disable_dynamic_system_config
         self._report_config_typedesc = {}
+
+    def _get_auth_method_types(
+        self,
+        auth_methods_spec: srvargs.ServerAuthMethods,
+    ) -> dict[srvargs.ServerConnTransport, list[config.CompositeConfigType]]:
+        mapping = {}
+        for transport, methods in auth_methods_spec.items():
+            result = []
+            for method in methods:
+                auth_type = self.config_settings.get_type_by_name(
+                    f'cfg::{method.value}'
+                )
+                result.append(auth_type())
+            mapping[transport] = result
+
+        return mapping
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -1063,7 +1081,7 @@ class BaseServer:
             params=dict(
                 dev_mode=self._devmode,
                 test_mode=self._testmode,
-                default_auth_method=str(self._default_auth_method),
+                default_auth_methods=str(self._default_auth_method_spec),
                 listen_hosts=self._listen_hosts,
                 listen_port=self._listen_port,
             ),
@@ -1081,10 +1099,10 @@ class BaseServer:
     ) -> dict[defines.ProtocolVersion, bytes]:
         return self._report_config_typedesc
 
-    def get_default_auth_method(
+    def get_default_auth_methods(
         self, transport: srvargs.ServerConnTransport
-    ) -> srvargs.ServerAuthMethod:
-        return self._default_auth_method.get(transport)
+    ) -> list[config.CompositeConfigType]:
+        return self._default_auth_methods.get(transport, [])
 
     def get_std_schema(self) -> s_schema.Schema:
         return self._std_schema
