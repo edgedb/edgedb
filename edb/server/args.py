@@ -167,29 +167,31 @@ class ServerAuthMethods:
 
     def __init__(
         self,
-        methods: Mapping[ServerConnTransport, ServerAuthMethod],
+        methods: Mapping[ServerConnTransport, list[ServerAuthMethod]],
     ) -> None:
         self._methods = dict(methods)
 
-    def get(self, transport: ServerConnTransport) -> ServerAuthMethod:
+    def get(self, transport: ServerConnTransport) -> list[ServerAuthMethod]:
         return self._methods[transport]
 
-    def items(self) -> ItemsView[ServerConnTransport, ServerAuthMethod]:
+    def items(self) -> ItemsView[ServerConnTransport, list[ServerAuthMethod]]:
         return self._methods.items()
 
     def __str__(self):
         return ','.join(
-            f'{t.lower()}:{m.lower()}' for t, m in self._methods.items()
+            f'{t.lower()}:{'/'.join(m.lower() for m in mm)}'
+            for t, mm in self._methods.items()
         )
 
 
 DEFAULT_AUTH_METHODS = ServerAuthMethods({
-    ServerConnTransport.TCP: ServerAuthMethod.Scram,
-    ServerConnTransport.TCP_PG: ServerAuthMethod.Scram,
-    ServerConnTransport.HTTP: ServerAuthMethod.JWT,
-    ServerConnTransport.SIMPLE_HTTP: ServerAuthMethod.Password,
-    ServerConnTransport.HTTP_METRICS: ServerAuthMethod.Auto,
-    ServerConnTransport.HTTP_HEALTH: ServerAuthMethod.Auto,
+    ServerConnTransport.TCP: [ServerAuthMethod.Scram],
+    ServerConnTransport.TCP_PG: [ServerAuthMethod.Scram],
+    ServerConnTransport.HTTP: [ServerAuthMethod.JWT],
+    ServerConnTransport.SIMPLE_HTTP: [
+        ServerAuthMethod.Password, ServerAuthMethod.JWT],
+    ServerConnTransport.HTTP_METRICS: [ServerAuthMethod.Auto],
+    ServerConnTransport.HTTP_HEALTH: [ServerAuthMethod.Auto],
 })
 
 
@@ -516,7 +518,7 @@ def _validate_default_auth_method(
                     ):
                         continue
 
-                methods[t] = method
+                methods[t] = [method]
     elif "," not in value and ":" not in value:
         raise click.BadParameter(
             f"invalid authentication method: {value}, "
@@ -531,23 +533,26 @@ def _validate_default_auth_method(
         }
         for transport_spec in transport_specs:
             transport_spec = transport_spec.strip()
-            transport_name, _, method_name = transport_spec.partition(':')
-            if not method_name:
+            transport_name, _, method_names = transport_spec.partition(':')
+            if not method_names:
                 raise click.BadParameter(
-                    "format is <transport>:<method>[,...]")
+                    "format is <transport>:<method>[/method...][,...]")
             transport = transport_names.get(transport_name.lower())
             if not transport:
                 raise click.BadParameter(
                     f"invalid connection transport: {transport_name}, "
                     f"supported values are: {', '.join(transport_names)})"
                 )
-            method = names.get(method_name)
-            if not method:
-                raise click.BadParameter(
-                    f"invalid authentication method: {method_name}, "
-                    f"supported values are: {', '.join(names)})"
-                )
-            methods[transport] = method
+            transport_methods = []
+            for method_name in method_names.split('/'):
+                method = names.get(method_name)
+                if not method:
+                    raise click.BadParameter(
+                        f"invalid authentication method: {method_name}, "
+                        f"supported values are: {', '.join(names)})"
+                    )
+                transport_methods.append(method)
+            methods[transport] = transport_methods
 
     return ServerAuthMethods(methods)
 
@@ -1201,7 +1206,7 @@ def parse_args(**kwargs: Any):
             kwargs['http_endpoint_security'] = 'optional'
         if not kwargs['default_auth_method']:
             kwargs['default_auth_method'] = ServerAuthMethods({
-                t: ServerAuthMethod.Trust
+                t: [ServerAuthMethod.Trust]
                 for t in ServerConnTransport.__members__.values()
             })
         if kwargs['tls_cert_mode'] == 'default':
@@ -1210,10 +1215,11 @@ def parse_args(**kwargs: Any):
     elif not kwargs['default_auth_method']:
         kwargs['default_auth_method'] = DEFAULT_AUTH_METHODS
 
-    methods = dict(kwargs['default_auth_method'].items())
+    transport_methods = dict(kwargs['default_auth_method'].items())
     for transport in ServerConnTransport.__members__.values():
-        method = methods[transport]
-        if method is ServerAuthMethod.Auto:
+        methods = transport_methods[transport]
+        if ServerAuthMethod.Auto in methods:
+            pos = methods.index(ServerAuthMethod.Auto)
             if transport in (
                 ServerConnTransport.HTTP_METRICS,
                 ServerConnTransport.HTTP_HEALTH,
@@ -1222,24 +1228,33 @@ def parse_args(**kwargs: Any):
                     method = ServerAuthMethod.Trust
                 else:
                     method = ServerAuthMethod.mTLS
+                methods[pos] = method
             else:
-                method = DEFAULT_AUTH_METHODS.get(transport)
-            methods[transport] = method
+                methods = (
+                    methods[:pos]
+                    + DEFAULT_AUTH_METHODS.get(transport)
+                    + methods[pos + 1:]
+                )
+            transport_methods[transport] = [method]
         elif transport in (
             ServerConnTransport.HTTP_METRICS,
             ServerConnTransport.HTTP_HEALTH,
         ):
-            if method is ServerAuthMethod.mTLS:
+            if ServerAuthMethod.mTLS in methods:
                 if kwargs['tls_client_ca_file'] is None:
                     abort('--tls-client-ca-file is required '
                           'for mTLS authentication')
-            elif method is not ServerAuthMethod.Trust:
+
+            if not all(
+                m is ServerAuthMethod.Trust or m is ServerAuthMethod.mTLS
+                for m in methods
+            ):
                 abort(
                     f'--default-auth-method of {transport} can only be one '
                     f'of: {ServerAuthMethod.Trust}, {ServerAuthMethod.mTLS} '
                     f'or {ServerAuthMethod.Auto}'
                 )
-    kwargs['default_auth_method'] = ServerAuthMethods(methods)
+    kwargs['default_auth_method'] = ServerAuthMethods(transport_methods)
 
     if kwargs['binary_endpoint_security'] == 'default':
         kwargs['binary_endpoint_security'] = 'tls'

@@ -1090,12 +1090,13 @@ class Tenant(ha_base.ClusterProtocol):
             assert database is not None
             return database
 
-    async def get_auth_method(
+    async def get_auth_methods(
         self,
         user: str,
         transport: srvargs.ServerConnTransport,
-    ) -> Any:
+    ) -> list[config.CompositeConfigType]:
         authlist = self._sys_auth
+        methods = []
 
         if authlist:
             for auth in authlist:
@@ -1105,13 +1106,13 @@ class Tenant(ha_base.ClusterProtocol):
                 )
 
                 if match:
-                    return auth.method
+                    methods.append(auth.method)
+                    break
 
-        default_method = self._server.get_default_auth_method(transport)
-        auth_type = self._server.config_settings.get_type_by_name(
-            f'cfg::{default_method.value}'
-        )
-        return auth_type()
+        if not methods:
+            methods = self._server.get_default_auth_methods(transport)
+
+        return methods
 
     async def new_dbview(
         self,

@@ -596,29 +596,49 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         # The user has already been authenticated by other means
         # (such as the ability to write to a protected socket).
         if self._external_auth:
-            authmethod_name = 'Trust'
+            authmethods = [
+                self.server.config_settings.get_type_by_name('cfg::Trust')()
+            ]
         else:
-            authmethod = await self.tenant.get_auth_method(
+            authmethods = await self.tenant.get_auth_methods(
                 user, self._transport_proto)
+
+        auth_errors = {}
+
+        for authmethod in authmethods:
             authmethod_name = authmethod._tspec.name.split('::')[1]
 
-        if authmethod_name == 'SCRAM':
-            await self._auth_scram(user)
-        elif authmethod_name == 'JWT':
-            self._auth_jwt(user, database, params)
-        elif authmethod_name == 'Trust':
-            self._auth_trust(user)
-        elif authmethod_name == 'Password':
-            raise errors.AuthenticationError(
-                'authentication failed: '
-                'Simple password authentication required but it is only '
-                'supported for HTTP endpoints'
-            )
-        elif authmethod_name == 'mTLS':
-            auth_helpers.auth_mtls_with_user(self._transport, user)
-        else:
-            raise errors.InternalServerError(
-                f'unimplemented auth method: {authmethod_name}')
+            try:
+                if authmethod_name == 'SCRAM':
+                    await self._auth_scram(user)
+                elif authmethod_name == 'JWT':
+                    self._auth_jwt(user, database, params)
+                elif authmethod_name == 'Trust':
+                    self._auth_trust(user)
+                elif authmethod_name == 'Password':
+                    raise errors.AuthenticationError(
+                        'authentication failed: '
+                        'Simple password authentication required but it is '
+                        'only supported for HTTP endpoints'
+                    )
+                elif authmethod_name == 'mTLS':
+                    auth_helpers.auth_mtls_with_user(self._transport, user)
+                else:
+                    raise errors.InternalServerError(
+                        f'unimplemented auth method: {authmethod_name}')
+            except errors.AuthenticationError as e:
+                auth_errors[authmethod_name] = e
+            else:
+                break
+
+        if len(auth_errors) == len(authmethods):
+            if len(auth_errors) > 1:
+                desc = "; ".join(
+                    f"{k}: {e.args[0]}" for k, e in auth_errors.items())
+                raise errors.AuthenticationError(
+                    f"all authentication methods failed: {desc}")
+            else:
+                raise next(iter(auth_errors.values()))
 
     cdef WriteBuffer _make_authentication_sasl_initial(self, list methods):
         raise NotImplementedError
