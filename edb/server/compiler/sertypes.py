@@ -1856,7 +1856,7 @@ class CompilationConfigSerializer(InputShapeSerializer):
     def encode_configs(
         self, *configs: immutables.Map[str, config.SettingValue] | None
     ) -> bytes:
-        state = {}
+        state: dict[str, Any] = {}
         for conf in configs:
             if conf is not None:
                 state.update((k, v.value) for k, v in conf.items())
