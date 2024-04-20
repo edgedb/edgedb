@@ -3984,9 +3984,7 @@ def _ext_ai_search_inner_pgvector(
         ],
     )
 
-    valid = pgast.NullTest(arg=embedding, negated=True)
-
-    return similarity, valid
+    return similarity, None
 
 
 def _process_set_as_object_search(
