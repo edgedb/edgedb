@@ -641,7 +641,7 @@ class AlterObjectType(
                 nschema = _delete_to_delist(delete, schema)
 
                 types = utils.simplify_union_types(
-                    schema, union.get_union_of(schema).objects(schema), False
+                    schema, union.get_union_of(schema).objects(schema)
                 )
                 nschema, nunion, _ = utils.ensure_union_type(
                     nschema,

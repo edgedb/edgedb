@@ -403,9 +403,16 @@ def get_union_type(
     ctx: context.ContextLevel,
 ) -> s_types.TypeT:
 
-    targets: Sequence[s_types.Type] = s_utils.simplify_union_types(
-        ctx.env.schema, types, preserve_derived
-    )
+    targets: Sequence[s_types.Type]
+    if preserve_derived:
+        targets = s_utils.simplify_union_types_preserve_derived(
+            ctx.env.schema, types
+        )
+    else:
+        targets = s_utils.simplify_union_types(
+            ctx.env.schema, types
+        )
+
     ctx.env.schema, union, created = s_utils.ensure_union_type(
         ctx.env.schema, targets,
         opaque=opaque, transient=True)

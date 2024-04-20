@@ -883,7 +883,7 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
                 c.resolve(schema)
                 for c in self.get_attribute_value('components')
             ]
-            components = utils.simplify_union_types(schema, components, False)
+            components = utils.simplify_union_types(schema, components)
 
             new_schema, union_type, _ = utils.ensure_union_type(
                 schema,

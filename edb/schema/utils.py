@@ -1077,45 +1077,62 @@ def ensure_union_type(
 def simplify_union_types(
     schema: s_schema.Schema,
     types: Sequence[s_types.Type],
-    preserve_derived: bool,
 ) -> Sequence[s_types.Type]:
 
     from edb.schema import types as s_types
 
-    type_set: Set[s_types.Type] = set()
+    components: Set[s_types.Type] = set()
     for t in types:
         union_of = t.get_union_of(schema)
         if union_of:
-            type_set.update(union_of.objects(schema))
-        else:
-            type_set.add(t)
-    # IF we need to preserve derived types, that means that we don't
-    # want to minimize them and instead keep them as is to be
-    # considered in the type union.
-    derived: Set[s_types.Type] = set()
-    components: Set[s_types.Type] = set()
-    for t in type_set:
-        if (
-            preserve_derived and
-            isinstance(t, s_types.InheritingType) and
-            t.get_is_derived(schema)
-        ):
-            derived.add(t)
+            components.update(union_of.objects(schema))
         else:
             components.add(t)
 
-    components_list: List[s_types.Type]
-
     if all(isinstance(c, s_types.InheritingType) for c in components):
-        components_list = list(minimize_class_set_by_most_generic(
+        return list(minimize_class_set_by_most_generic(
             schema,
             cast(Set[s_types.InheritingType], components),
         ))
     else:
-        components_list = list(components)
-    components_list.extend(list(derived))
+        return list(components)
 
-    return components_list
+
+def simplify_union_types_preserve_derived(
+    schema: s_schema.Schema,
+    types: Sequence[s_types.Type],
+) -> Sequence[s_types.Type]:
+
+    from edb.schema import types as s_types
+
+    components: Set[s_types.Type] = set()
+    for t in types:
+        union_of = t.get_union_of(schema)
+        if union_of:
+            components.update(union_of.objects(schema))
+        else:
+            components.add(t)
+
+    derived = set(
+        t
+        for t in components
+        if (
+            isinstance(t, s_types.InheritingType)
+            and t.get_is_derived(schema)
+        )
+    )
+
+    nonderived: Sequence[s_types.Type] = [
+        t
+        for t in components
+        if t not in derived
+    ]
+    nonderived = minimize_class_set_by_most_generic(
+        schema,
+        cast(Set[s_types.InheritingType], nonderived),
+    )
+
+    return list(nonderived) + list(derived)
 
 
 def get_non_overlapping_union(
