@@ -7,8 +7,8 @@ use num_bigint::BigInt;
 fn test_verbatim() {
     let entry = normalize(r###"
         SELECT $1 + $2
-    "###).unwrap();
-    assert_eq!(entry.processed_source, "SELECT$1+$2");
+    "###.trim()).unwrap();
+    assert_eq!(entry.processed_source, "SELECT $1 + $2");
     assert_eq!(entry.variables, vec![vec![]]);
 }
 
@@ -16,8 +16,8 @@ fn test_verbatim() {
 fn test_configure() {
     let entry = normalize(r###"
         CONFIGURE INSTANCE SET some_setting := 7
-    "###).unwrap();
-    assert_eq!(entry.processed_source, "CONFIGURE INSTANCE SET some_setting:=7");
+    "###.trim()).unwrap();
+    assert_eq!(entry.processed_source, "CONFIGURE INSTANCE SET some_setting := 7");
     assert_eq!(entry.variables, vec![] as Vec<Vec<Variable>>);
 }
 
