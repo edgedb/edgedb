@@ -396,16 +396,19 @@ def derive_view_name(
 
 
 def get_union_type(
-    types: Iterable[s_types.TypeT],
+    types: Sequence[s_types.TypeT],
     *,
     opaque: bool = False,
     preserve_derived: bool = False,
     ctx: context.ContextLevel,
 ) -> s_types.TypeT:
 
+    targets: Sequence[s_types.Type] = s_utils.simplify_union_types(
+        ctx.env.schema, types, preserve_derived
+    )
     ctx.env.schema, union, created = s_utils.ensure_union_type(
-        ctx.env.schema, types,
-        opaque=opaque, preserve_derived=preserve_derived, transient=True)
+        ctx.env.schema, targets,
+        opaque=opaque, transient=True)
 
     if created:
         ctx.env.created_schema_objects.add(union)

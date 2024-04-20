@@ -876,11 +876,14 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
 
+        from edb.schema import types as s_types
+
         if not context.canonical:
-            components = [
+            components: Sequence[s_types.Type] = [
                 c.resolve(schema)
                 for c in self.get_attribute_value('components')
             ]
+            components = utils.simplify_union_types(schema, components, False)
 
             new_schema, union_type, _ = utils.ensure_union_type(
                 schema,

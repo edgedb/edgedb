@@ -1020,15 +1020,66 @@ def enrich_schema_lookup_error(
 
 def ensure_union_type(
     schema: s_schema.Schema,
-    types: Iterable[s_types.Type],
+    types: Sequence[s_types.Type],
     *,
     opaque: bool = False,
     module: Optional[str] = None,
-    preserve_derived: bool = False,
     transient: bool = False,
 ) -> Tuple[s_schema.Schema, s_types.Type, bool]:
 
     from edb.schema import objtypes as s_objtypes
+
+    if len(types) == 1 and not opaque:
+        return schema, next(iter(types)), False
+
+    seen_scalars = False
+    seen_objtypes = False
+    created = False
+
+    for t in types:
+        if isinstance(t, s_objtypes.ObjectType):
+            if seen_scalars:
+                raise _union_error(schema, types)
+            seen_objtypes = True
+        else:
+            if seen_objtypes:
+                raise _union_error(schema, types)
+            seen_scalars = True
+
+    if seen_scalars:
+        uniontype: s_types.Type = types[0]
+        for t1 in types[1:]:
+
+            schema, common_type = (
+                uniontype.find_common_implicitly_castable_type(t1, schema)
+            )
+
+            if common_type is None:
+                raise _union_error(schema, types)
+            else:
+                uniontype = common_type
+    else:
+        objtypes = cast(
+            Sequence[s_objtypes.ObjectType],
+            types,
+        )
+        schema, uniontype, created = s_objtypes.get_or_create_union_type(
+            schema,
+            components=objtypes,
+            opaque=opaque,
+            module=module,
+            transient=transient,
+        )
+
+    return schema, uniontype, created
+
+
+def simplify_union_types(
+    schema: s_schema.Schema,
+    types: Sequence[s_types.Type],
+    preserve_derived: bool,
+) -> Sequence[s_types.Type]:
+
     from edb.schema import types as s_types
 
     type_set: Set[s_types.Type] = set()
@@ -1064,49 +1115,7 @@ def ensure_union_type(
         components_list = list(components)
     components_list.extend(list(derived))
 
-    if len(components_list) == 1 and not opaque:
-        return schema, next(iter(components_list)), False
-
-    seen_scalars = False
-    seen_objtypes = False
-    created = False
-
-    for component in components_list:
-        if isinstance(component, s_objtypes.ObjectType):
-            if seen_scalars:
-                raise _union_error(schema, components_list)
-            seen_objtypes = True
-        else:
-            if seen_objtypes:
-                raise _union_error(schema, components_list)
-            seen_scalars = True
-
-    if seen_scalars:
-        uniontype: s_types.Type = components_list[0]
-        for t1 in components_list[1:]:
-
-            schema, common_type = (
-                uniontype.find_common_implicitly_castable_type(t1, schema)
-            )
-
-            if common_type is None:
-                raise _union_error(schema, components_list)
-            else:
-                uniontype = common_type
-    else:
-        objtypes = cast(
-            Sequence[s_objtypes.ObjectType],
-            components_list,
-        )
-        schema, uniontype, created = s_objtypes.get_or_create_union_type(
-            schema,
-            components=objtypes,
-            opaque=opaque,
-            module=module,
-            transient=transient,
-        )
-
-    return schema, uniontype, created
+    return components_list
 
 
 def get_non_overlapping_union(

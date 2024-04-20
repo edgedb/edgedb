@@ -3139,8 +3139,9 @@ def get_or_create_union_pointer(
 
     far_endpoints = [p.get_far_endpoint(schema, direction)
                      for p in components]
-    targets: List[s_types.Type] = [p for p in far_endpoints
+    targets: Sequence[s_types.Type] = [p for p in far_endpoints
                                    if isinstance(p, s_types.Type)]
+    targets = utils.simplify_union_types(schema, targets, False)
 
     target: s_types.Type
 
