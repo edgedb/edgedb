@@ -12542,12 +12542,13 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
             };
         ''', explicit_modules=True)
 
+        arg = [0.0] * 1536
         await self.con.query('''
             select {
-                base := ext::ai::search(Base, <array<float32>>[1]),
-                sub := ext::ai::search(Sub, <array<float32>>[1]),
+                base := ext::ai::search(Base, <array<float32>>$0),
+                sub := ext::ai::search(Sub, <array<float32>>$0),
             }
-        ''')
+        ''', arg)
 
         await self.migrate('''
             using extension ai;
@@ -12571,10 +12572,10 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
 
         await self.con.query('''
             select {
-                base := ext::ai::search(Base, <array<float32>>[1]),
-                sub := ext::ai::search(Sub, <array<float32>>[1]),
+                base := ext::ai::search(Base, <array<float32>>$0),
+                sub := ext::ai::search(Sub, <array<float32>>$0),
             }
-        ''')
+        ''', arg)
 
         await self.migrate('''
             using extension ai;
@@ -12596,9 +12597,9 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
         # Base lost the index, just select Sub
         await self.con.query('''
             select {
-                sub := ext::ai::search(Sub, <array<float32>>[1]),
+                sub := ext::ai::search(Sub, <array<float32>>$0),
             }
-        ''')
+        ''', arg)
 
     async def test_edgeql_migration_ai_09(self):
         with self.assertRaisesRegex(
