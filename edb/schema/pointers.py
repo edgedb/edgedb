@@ -3137,10 +3137,14 @@ def get_or_create_union_pointer(
     if len(components) == 1 and direction is PointerDirection.Outbound:
         return schema, components[0]
 
-    far_endpoints = [p.get_far_endpoint(schema, direction)
-                     for p in components]
-    targets: Sequence[s_types.Type] = [p for p in far_endpoints
-                                   if isinstance(p, s_types.Type)]
+    far_endpoints = [
+        p.get_far_endpoint(schema, direction)
+        for p in components
+    ]
+    targets: Sequence[s_types.Type] = [
+        p for p in far_endpoints
+        if isinstance(p, s_types.Type)
+    ]
     targets = utils.simplify_union_types(schema, targets)
 
     target: s_types.Type
