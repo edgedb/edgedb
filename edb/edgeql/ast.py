@@ -734,9 +734,7 @@ class NamedDDL(DDLCommand):
 
 
 class ObjectDDL(NamedDDL):
-    __ast_hidden__ = {'object_class'}
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass
 
 
 class CreateObject(ObjectDDL):
@@ -783,9 +781,6 @@ class MigrationCommand(DDLCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.MIGRATION
-    )
 
 
 class CreateMigration(CreateObject, MigrationCommand):
@@ -883,7 +878,6 @@ class DatabaseCommand(ExternalObjectCommand, NonTransactionalDDLCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.BRANCH
     flavor: str = 'BRANCH'
 
 
@@ -905,9 +899,6 @@ class ExtensionPackageCommand(GlobalObjectCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.EXTENSION_PACKAGE
-    )
     version: Constant
 
 
@@ -924,18 +915,13 @@ class ExtensionCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.EXTENSION
-    )
     version: typing.Optional[Constant] = None
 
 
 class CreateExtension(CreateObject, ExtensionCommand):
     # HACK: I think there is a bug in our plugin that made us not
     # understand that this was overridden in ExtensionCommand.
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.EXTENSION
-    )
+    pass
 
 
 class DropExtension(DropObject, ExtensionCommand):
@@ -946,7 +932,6 @@ class FutureCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.FUTURE
 
 
 class CreateFuture(CreateObject, FutureCommand):
@@ -961,7 +946,6 @@ class ModuleCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.MODULE
 
 
 class CreateModule(ModuleCommand, CreateObject):
@@ -979,7 +963,6 @@ class DropModule(ModuleCommand, DropObject):
 class RoleCommand(GlobalObjectCommand):
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.ROLE
 
 
 class CreateRole(CreateObject, RoleCommand):
@@ -999,9 +982,6 @@ class AnnotationCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.ANNOTATION
-    )
 
 
 class CreateAnnotation(CreateExtendingObject, AnnotationCommand):
@@ -1021,9 +1001,6 @@ class PseudoTypeCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.PSEUDO_TYPE
-    )
 
 
 class CreatePseudoType(CreateObject, PseudoTypeCommand):
@@ -1034,9 +1011,6 @@ class ScalarTypeCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.SCALAR_TYPE
-    )
 
 
 class CreateScalarType(CreateExtendingObject, ScalarTypeCommand):
@@ -1055,7 +1029,6 @@ class PropertyCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.PROPERTY
 
 
 class CreateProperty(CreateExtendingObject, PropertyCommand):
@@ -1104,7 +1077,6 @@ class ObjectTypeCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.TYPE
 
 
 class CreateObjectType(CreateExtendingObject, ObjectTypeCommand):
@@ -1123,7 +1095,6 @@ class AliasCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.ALIAS
 
 
 class CreateAlias(CreateObject, AliasCommand):
@@ -1142,7 +1113,6 @@ class GlobalCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.GLOBAL
 
 
 class CreateGlobal(CreateObject, GlobalCommand):
@@ -1171,7 +1141,6 @@ class LinkCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.LINK
 
 
 class CreateLink(CreateExtendingObject, LinkCommand):
@@ -1206,9 +1175,6 @@ class ConstraintCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.CONSTRAINT
-    )
 
 
 class CreateConstraint(
@@ -1259,7 +1225,6 @@ class IndexCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.INDEX
 
 
 class IndexCode(DDL):
@@ -1343,9 +1308,6 @@ class AccessPolicyCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.ACCESS_POLICY
-    )
 
 
 class CreateAccessPolicy(CreateObject, AccessPolicyCommand):
@@ -1372,7 +1334,6 @@ class TriggerCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.TRIGGER
 
 
 class CreateTrigger(CreateObject, TriggerCommand):
@@ -1404,7 +1365,6 @@ class RewriteCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.REWRITE
 
     kinds: typing.List[qltypes.RewriteKind]
 
@@ -1438,7 +1398,6 @@ class FunctionCommand(DDLCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.FUNCTION
     params: typing.List[FuncParam] = ast.field(factory=list)
 
 
@@ -1472,7 +1431,6 @@ class OperatorCommand(DDLCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.OPERATOR
     kind: qltypes.OperatorKind
     params: typing.List[FuncParam] = ast.field(factory=list)
 
@@ -1503,7 +1461,6 @@ class CastCommand(ObjectDDL):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.CAST
     from_type: TypeName
     to_type: TypeName
 
