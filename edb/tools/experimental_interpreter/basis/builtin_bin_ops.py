@@ -207,8 +207,8 @@ def except_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [arg1, arg2]:
             if all(isinstance(v, e.RefVal) for v in arg1) and all(isinstance(v, e.RefVal) for v in arg2):
-                id1 = [v.refid for v in arg1]
-                id2 = [v.refid for v in arg2]
+                id1 = [v.refid for v in arg1] # type: ignore
+                id2 = [v.refid for v in arg2] # type: ignore
                 id_diff = list((mset(id1) - mset(id2)).elements())
                 return [v for v in arg1 if v.refid in id_diff] # type: ignore
             else:

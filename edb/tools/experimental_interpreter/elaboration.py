@@ -40,8 +40,8 @@ def elab_expr_with_default_head(node: qlast.Expr) -> BindingExpr:
     return abstract_over_expr(elab(node), DEFAULT_HEAD_NAME)
 
 
-def elab_error(msg: str, ctx) -> Any:
-    raise errors.QueryError(msg, context=ctx)
+def elab_error(msg: str, ctx: Optional[qlast.Span]) -> Any:
+    raise errors.QueryError(msg, span=ctx)
 
 
 def elab_not_implemented(node: qlast.Base, msg: str = "") -> Any:
@@ -631,7 +631,7 @@ def elab_NamedTuple(qle: qlast.NamedTuple) -> NamedTupleExpr:
 
     for element in qle.elements:
         if element.name.name in result.keys():
-            raise elab_error("Duplicate Value in Named Tuple", qle.context)
+            raise elab_error("Duplicate Value in Named Tuple", qle.span)
         result[element.name.name] = elab(element.val)
 
     return NamedTupleExpr(val=result)
