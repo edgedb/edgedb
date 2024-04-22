@@ -62,8 +62,8 @@ be built with the following ``shell.nix`` file.
        venvDir = "./venv";
 
        buildInputs = with pkgs; [
-           python311Packages.python
-           python311Packages.venvShellHook
+           python312Packages.python
+           python312Packages.venvShellHook
            rustup
            autoconf
            automake
