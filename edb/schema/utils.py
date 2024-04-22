@@ -1111,7 +1111,7 @@ def simplify_union_types_preserve_derived(
 
     Any unions types are unwrapped. Then, any unnecessary subclasses are
     removed.
-    
+
     Derived types are always preserved for 'std::UNION', 'std::IF', and
     'std::??'.
     """
