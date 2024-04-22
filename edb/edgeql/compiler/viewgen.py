@@ -64,6 +64,7 @@ from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+from edb.edgeql import utils as qlutils
 
 from . import astutils
 from . import context
@@ -406,6 +407,91 @@ def _process_view(
 
     for shape_el_desc in shape_desc:
         with ctx.new() as scopectx:
+            # when doing insert or update with a compexpr, generate the
+            # the anchor for __default__
+            if (
+                (s_ctx.exprtype.is_insert() or s_ctx.exprtype.is_update())
+                and shape_el_desc.ql.compexpr is not None
+                and shape_el_desc.ptr_name not in (
+                    ctx.special_computables_in_mutation_shape
+                )
+            ):
+                # mutating statement, ptrcls guaranteed to exist
+                ptrcls = setgen.resolve_ptr(
+                    shape_el_desc.source,
+                    shape_el_desc.ptr_name,
+                    track_ref=shape_el_desc.ptr_ql,
+                    ctx=scopectx
+                )
+
+                compexpr_uses_default = False
+                compexpr_default_span: Optional[parsing.Span] = None
+                for path_node in ast.find_children(
+                    shape_el_desc.ql.compexpr, qlast.Path
+                ):
+                    for step in path_node.steps:
+                        if not isinstance(step, qlast.SpecialAnchor):
+                            continue
+                        if step.name != '__default__':
+                            continue
+
+                        compexpr_uses_default = True
+                        compexpr_default_span = step.span
+                        break
+
+                    if compexpr_uses_default:
+                        break
+
+                if compexpr_uses_default and compexpr_default_span is not None:
+                    def make_error(
+                            span: parsing.Span, hint: str
+                        ) -> errors.InvalidReferenceError:
+                        return errors.InvalidReferenceError(
+                            f'__default__ cannot be used in this expression',
+                            span=span,
+                            hint=hint,
+                        )
+
+                    default_expr: Optional[s_expr.Expression] = (
+                        ptrcls.get_default(scopectx.env.schema)
+                    )
+                    if default_expr is None:
+                        raise make_error(
+                            compexpr_default_span,
+                            'No default expression exists',
+                        )
+
+                    default_ast_expr = default_expr.parse()
+
+                    if any(
+                        any(
+                            (
+                                isinstance(step, qlast.SpecialAnchor)
+                                and step.name == '__source__'
+                            )
+                            for step in path_node.steps
+                        )
+                        for path_node in ast.find_children(
+                            default_ast_expr, qlast.Path
+                        )
+                    ):
+                        raise make_error(
+                            compexpr_default_span,
+                            'Default expression uses __source__',
+                        )
+
+                    if qlutils.contains_dml(default_ast_expr):
+                        raise make_error(
+                            compexpr_default_span,
+                            'Default expression uses DML',
+                        )
+
+                    default_set = dispatch.compile(
+                        default_ast_expr, ctx=scopectx
+                    )
+
+                    scopectx.anchors['__default__'] = default_set
+
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set,
                 shape_el_desc,

@@ -93,3 +93,50 @@ type MultiRequiredTest {
     required multi property prop -> str;
     required multi link tags -> Tag;
 }
+
+type DunderDefaultTest01 {
+    required a: int64;
+    required b: int64 {
+        default := __source__.a+1
+    };
+    required c: int64 {
+        default := 1
+    }
+}
+
+type DunderDefaultTest02_A {
+    required a: int64 {
+        default := 1
+    };
+}
+
+type DunderDefaultTest02_B {
+    multi default_with_insert: DunderDefaultTest02_A {
+        default := (
+            insert DunderDefaultTest02_A {
+                a := 1
+            }
+        )
+    };
+    multi default_with_update: DunderDefaultTest02_A {
+        default := (
+            update DunderDefaultTest02_A
+            filter DunderDefaultTest02_A.a = 2
+            set {
+                a := 22
+            }
+        )
+    };
+    multi default_with_delete: DunderDefaultTest02_A {
+        default := (
+            delete DunderDefaultTest02_A
+            filter DunderDefaultTest02_A.a = 3
+        )
+    };
+    multi default_with_select: DunderDefaultTest02_A {
+        default := (
+            select DunderDefaultTest02_A
+            filter DunderDefaultTest02_A.a = 4
+        )
+    };
+}
