@@ -28,7 +28,7 @@ Linux or macOS.  Windows is not currently supported.
 * C compiler (GCC or clang);
 * Rust compiler and Cargo 1.74 or later;
 * autotools;
-* Python 3.11 dev package;
+* Python 3.12 dev package;
 * Bison 1.875 or later;
 * Flex 2.5.31 or later;
 * Perl 5.8.3 or later;
@@ -41,12 +41,12 @@ Linux or macOS.  Windows is not currently supported.
 .. zlib, readline and libuuid are required to build postgres. Should be removed
    when custom postgres build is no longer needed.
 
-On Ubuntu 22.10, these can be installed by running:
+On Ubuntu 24.04, these can be installed by running:
 
 .. code-block:: bash
 
-   $ apt install make gcc rust-all autotools-dev python3.11-dev \
-     python3.11-venv bison flex libreadline-dev perl zlib1g-dev \
+   $ apt install make gcc rust-all autotools-dev python3.12-dev \
+     python3.12-venv bison flex libreadline-dev perl zlib1g-dev \
      uuid-dev nodejs npm
    $ npm i -g corepack
    $ corepack enable && corepack prepare yarn@stable --activate
@@ -62,8 +62,8 @@ be built with the following ``shell.nix`` file.
        venvDir = "./venv";
 
        buildInputs = with pkgs; [
-           python311Packages.python
-           python311Packages.venvShellHook
+           python312Packages.python
+           python312Packages.venvShellHook
            rustup
            autoconf
            automake
@@ -114,11 +114,11 @@ Python "venv" with all dependencies and commands installed into it.
 
       $ git clone --recursive https://github.com/edgedb/edgedb.git
 
-#. Create a Python 3.11 virtual environment and activate it:
+#. Create a Python 3.12 virtual environment and activate it:
 
    .. code-block:: bash
 
-      $ python3.11 -m venv edgedb-dev
+      $ python3.12 -m venv edgedb-dev
       $ source edgedb-dev/bin/activate
 
 #. Build edgedb (the build will take a while):
