@@ -4029,6 +4029,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_union_ptrs_02(self):
+        schema = r'''
+        type A;
+        type A_ extending A;
+        type B;
+        type C {
+            link foo -> A | A_ | B;
+        };
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_except_01(self):
         schema = r'''
         type ExceptTest {
