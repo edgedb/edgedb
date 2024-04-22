@@ -313,7 +313,7 @@ class TestDocSnippets(unittest.TestCase):
 
                     # the snippet itself may either contain a module
                     # block or have a fully-qualified top-level name
-                    if not sdl or re.search(
+                    if not sdl or re.match(
                             r'''(?xm)
                                 (\bmodule\s+\w+\s*{) |
                                 (^.*
