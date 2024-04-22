@@ -2106,11 +2106,68 @@ class TestInsert(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
             edgedb.InvalidReferenceError,
             r"__default__ cannot be used in this expression",
-            _hint='Default expression uses INSERT',
+            _hint='Default expression uses DML',
         ):
             await self.con.execute(r'''
-                INSERT DunderDefaultTest02_B { a := __default__ };
+                INSERT DunderDefaultTest02_B {
+                    default_with_insert := __default__
+                };
             ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"__default__ cannot be used in this expression",
+            _hint='Default expression uses DML',
+        ):
+            await self.con.execute(r'''
+                INSERT DunderDefaultTest02_B {
+                    default_with_update := __default__
+                };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"__default__ cannot be used in this expression",
+            _hint='Default expression uses DML',
+        ):
+            await self.con.execute(r'''
+                INSERT DunderDefaultTest02_B {
+                    default_with_delete := __default__
+                };
+            ''')
+
+        await self.con.execute(r'''
+            INSERT DunderDefaultTest02_A { a := 1 };
+            INSERT DunderDefaultTest02_A { a := 2 };
+            INSERT DunderDefaultTest02_A { a := 3 };
+            INSERT DunderDefaultTest02_A { a := 4 };
+            INSERT DunderDefaultTest02_B {
+                default_with_insert := (
+                    select DunderDefaultTest02_A
+                    filter DunderDefaultTest02_A.a = 1
+                ),
+                default_with_update := (
+                    select DunderDefaultTest02_A
+                    filter DunderDefaultTest02_A.a = 2
+                ),
+                default_with_delete := (
+                    select DunderDefaultTest02_A
+                    filter DunderDefaultTest02_A.a = 3
+                ),
+                default_with_select := __default__
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT DunderDefaultTest02_B {
+                    a := .default_with_select.a
+                };
+            ''',
+            [
+                {'a': [4]},
+            ]
+        )
 
     async def test_edgeql_insert_as_expr_01(self):
         await self.con.execute(r'''

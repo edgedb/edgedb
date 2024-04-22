@@ -111,9 +111,32 @@ type DunderDefaultTest02_A {
 }
 
 type DunderDefaultTest02_B {
-    required a: DunderDefaultTest02_A {
-        default := (insert DunderDefaultTest02_A {
-            a := 1
-        })
+    multi default_with_insert: DunderDefaultTest02_A {
+        default := (
+            insert DunderDefaultTest02_A {
+                a := 1
+            }
+        )
+    };
+    multi default_with_update: DunderDefaultTest02_A {
+        default := (
+            update DunderDefaultTest02_A
+            filter DunderDefaultTest02_A.a = 2
+            set {
+                a := 22
+            }
+        )
+    };
+    multi default_with_delete: DunderDefaultTest02_A {
+        default := (
+            delete DunderDefaultTest02_A
+            filter DunderDefaultTest02_A.a = 3
+        )
+    };
+    multi default_with_select: DunderDefaultTest02_A {
+        default := (
+            select DunderDefaultTest02_A
+            filter DunderDefaultTest02_A.a = 4
+        )
     };
 }

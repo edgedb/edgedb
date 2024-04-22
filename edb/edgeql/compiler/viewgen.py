@@ -64,6 +64,7 @@ from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+from edb.edgeql import utils as qlutils
 
 from . import astutils
 from . import context
@@ -479,20 +480,10 @@ def _process_view(
                             'Default expression uses __source__',
                         )
 
-                    if len(
-                        ast.find_children(default_ast_expr, qlast.InsertQuery)
-                    ) > 0:
+                    if qlutils.contains_dml(default_ast_expr):
                         raise make_error(
                             compexpr_default_span,
-                            'Default expression uses INSERT',
-                        )
-
-                    if len(
-                        ast.find_children(default_ast_expr, qlast.UpdateQuery)
-                    ) > 0:
-                        raise make_error(
-                            compexpr_default_span,
-                            'Default expression uses UPDATE',
+                            'Default expression uses DML',
                         )
 
                     default_set = dispatch.compile(
