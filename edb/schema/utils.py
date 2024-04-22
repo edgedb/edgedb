@@ -1078,6 +1078,11 @@ def simplify_union_types(
     schema: s_schema.Schema,
     types: Sequence[s_types.Type],
 ) -> Sequence[s_types.Type]:
+    """Minimize the types used to create a union of types.
+
+    Any unions types are unwrapped. Then, any unnecessary subclasses are
+    removed.
+    """
 
     from edb.schema import types as s_types
 
@@ -1102,6 +1107,14 @@ def simplify_union_types_preserve_derived(
     schema: s_schema.Schema,
     types: Sequence[s_types.Type],
 ) -> Sequence[s_types.Type]:
+    """Minimize the types used to create a union of types.
+
+    Any unions types are unwrapped. Then, any unnecessary subclasses are
+    removed.
+    
+    Derived types are always preserved for 'std::UNION', 'std::IF', and
+    'std::??'.
+    """
 
     from edb.schema import types as s_types
 
@@ -1203,6 +1216,11 @@ def simplify_intersection_types(
     schema: s_schema.Schema,
     types: Sequence[s_types.Type],
 ) -> Sequence[s_types.Type]:
+    """Minimize the types used to create an intersection of types.
+
+    Any intersection types are unwrapped. Then, any unnecessary superclasses are
+    removed.
+    """
 
     from edb.schema import types as s_types
 
