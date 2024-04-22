@@ -154,12 +154,16 @@ class SortExpr(Base):
     nones_order: typing.Optional[NonesOrder] = None
 
 
-class AliasedExpr(Base):
+class Alias(Base):
+    __abstract_node__ = True
+
+
+class AliasedExpr(Alias):
     alias: str
     expr: Expr
 
 
-class ModuleAliasDecl(Base):
+class ModuleAliasDecl(Alias):
     module: str
     alias: typing.Optional[str]
 
@@ -415,9 +419,7 @@ class Command(Base):
     """
 
     __abstract_node__ = True
-    aliases: typing.Optional[
-        typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
-    ] = None
+    aliases: typing.Optional[typing.List[Alias]] = None
 
 
 class SessionSetAliasDecl(Command):
@@ -495,9 +497,7 @@ class Shape(Expr):
 class Query(Expr):
     __abstract_node__ = True
 
-    aliases: typing.Optional[
-        typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
-    ] = None
+    aliases: typing.Optional[typing.List[Alias]] = None
 
 
 class SelectQuery(Query):
@@ -673,9 +673,7 @@ class DDLOperation(DDL):
 class DDLCommand(DDLOperation):
     __abstract_node__ = True
 
-    aliases: typing.Optional[
-        typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
-    ] = None
+    aliases: typing.Optional[typing.List[Alias]] = None
 
 
 class NonTransactionalDDLCommand(DDLCommand):
