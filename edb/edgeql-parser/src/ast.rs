@@ -1810,6 +1810,7 @@ pub enum ShapeOp {
     APPEND,
     SUBTRACT,
     ASSIGN,
+    ASSIGN_COALESCE,
     MATERIALIZE,
 }
 

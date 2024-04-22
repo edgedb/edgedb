@@ -1568,6 +1568,46 @@ def _normalize_view_ptr_expr(
                 if is_linkprop_mutation:
                     raise
 
+        if shape_el.operation.op == qlast.ShapeOp.ASSIGN_COALESCE:
+            assert shape_el.compexpr is not None
+
+            existing_expr: Optional[qlast.Expr] = None
+            if s_ctx.exprtype.is_insert():
+                default_expr = None
+                if ptrcls is not None:
+                    default_expr = ptrcls.get_default(ctx.env.schema)
+                if default_expr is not None:
+                    existing_expr = qlast.DetachedExpr(
+                        expr=default_expr.qlast,
+                        preserve_path_prefix=True,
+                    )
+            elif s_ctx.exprtype.is_update():
+                existing_expr = qlast.SelectQuery(
+                    result=qlast.Path(
+                        steps=shape_el.expr.steps.copy(),
+                        partial=True,
+                    ),
+                    implicit=True,
+                )
+            else:
+                raise errors.QueryError(
+                    f'coalescing assignments are prohibited outside of insert '
+                    f'and update',
+                    span=shape_el.operation.span
+                )
+
+            if existing_expr is not None:
+                left: qlast.Expr = shape_el.compexpr
+                right: qlast.Expr = existing_expr
+
+                compexpr = shape_el.compexpr = qlast.BinOp(
+                    left=left,
+                    op='??',
+                    right=right
+                )
+
+            shape_el.operation = qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN)
+
         qlexpr = astutils.ensure_ql_query(compexpr)
         # HACK: For scope tree related reasons, DML inside of free objects
         # needs to be wrapped in a SELECT. This is probably fixable.
