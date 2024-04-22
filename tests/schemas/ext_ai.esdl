@@ -42,3 +42,9 @@ type Stuff extending Astronomy {
 type Star extending Astronomy;
 
 type Supernova extending Star;
+
+function _set_seqscan(val: std::str) -> std::str {
+    using sql $$
+      select set_config('enable_seqscan', val, true)
+    $$;
+};

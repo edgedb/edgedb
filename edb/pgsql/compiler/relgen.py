@@ -47,6 +47,8 @@ from edb.edgeql import qltypes
 from edb.schema import objects as s_obj
 from edb.schema import name as sn
 
+from edb.edgeql import ast as qlast
+
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
@@ -3221,6 +3223,7 @@ def _compile_call_args(
     ir_set: irast.Set,
     *,
     skip: Collection[int] = (),
+    no_subquery_args: bool = False,
     ctx: context.CompilerContextLevel,
 ) -> List[pgast.BaseExpr]:
     """
@@ -3256,6 +3259,7 @@ def _compile_call_args(
             and ir_arg.cardinality.is_single()
             and (arg_typeref.is_scalar or arg_typeref.collection)
             and not _needs_arg_null_check(expr, ir_arg, typemod, ctx=ctx)
+            and not no_subquery_args
         )
 
         if make_subquery:
@@ -3984,9 +3988,28 @@ def _ext_ai_search_inner_pgvector(
         ],
     )
 
+    # Install the filter directly in newctx.rel. We could return it
+    # and have it put in inner_ctx.rel, and that does seem to work,
+    # but seems weirder.
     valid = pgast.NullTest(arg=embedding, negated=True)
+    newctx.rel.where_clause = astutils.extend_binop(
+        newctx.rel.where_clause, valid
+    )
 
-    return similarity, valid
+    # Do an integrated sort. This ensures we can hit the index, and is
+    # more ergonomic anyway. Having the ORDER BY operate directly on
+    # the function call is not the *only* way to have it work, but it
+    # is the most reliable.
+    sort_by = pgast.SortBy(
+        node=similarity,
+        dir=qlast.SortOrder.Asc,
+        nulls=qlast.NonesOrder.Last,
+    )
+    if newctx.rel.sort_clause is None:
+        newctx.rel.sort_clause = []
+    newctx.rel.sort_clause.append(sort_by)
+
+    return similarity, None
 
 
 def _process_set_as_object_search(
@@ -3996,16 +4019,21 @@ def _process_set_as_object_search(
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
     func_call = ir_set.expr
+
+    # We skip the object, as it has to be compiled as rvar source.
+    #
+    # Also, disable subquery args. ai::search needs it for its
+    # scoping effects, but we don't need to use it here, since
+    # it can cause the ai search to duplicate arguments.
+    args_pg = _compile_call_args(
+        ir_set, skip={0}, no_subquery_args=True, ctx=ctx)
+
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
         obj_ir = func_call.args[0].expr
         obj_id = obj_ir.path_id
         obj_rvar = ensure_source_rvar(obj_ir, newctx.rel, ctx=newctx)
-
-        # we skip the object, as it has to be compiled as rvar source
-        args_pg = _compile_call_args(
-            ir_set, skip={0}, ctx=newctx)
 
         out_obj_id, out_score_id = func_call.tuple_path_ids
 
@@ -4075,12 +4103,14 @@ def _process_set_as_object_search(
 
     pathctx.put_path_id_map(newctx.rel, out_obj_id, obj_id)
 
-    aspects = {'value'}
+    aspects = {'value', 'source'}
 
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(
         ctx.rel, func_rvar, ir_set.path_id, aspects=aspects, ctx=ctx
     )
+
+    pathctx.put_path_rvar(ctx.rel, out_obj_id, func_rvar, aspect='source')
 
     return new_stmt_set_rvar(ir_set, ctx.rel, aspects=aspects, ctx=ctx)
 

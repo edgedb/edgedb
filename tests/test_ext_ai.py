@@ -305,3 +305,63 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                         ],
                     }
                 )
+
+    async def _assert_index_use(self, query, *args):
+        def look(obj):
+            if isinstance(obj, dict) and obj.get('plan_type') == "IndexScan":
+                return any(
+                    prop['title'] == 'index_name'
+                    and f'ai::index' in prop['value']
+                    for prop in obj.get('properties', [])
+                )
+
+            if isinstance(obj, dict):
+                return any([look(v) for v in obj.values()])
+            elif isinstance(obj, list):
+                return any(look(v) for v in obj)
+            else:
+                return False
+
+        async with self._run_and_rollback():
+            await self.con.execute('select _set_seqscan("off");')
+            plan = await self.con.query_json(f'analyze {query};', *args)
+        if not look(json.loads(plan)):
+            raise AssertionError(f'query did not use ext::ai::index index')
+
+    async def test_ext_ai_indexing_04(self):
+        qv = [1.0, -2.0, 3.0, -4.0, 5.0, -6.0, 7.0, -8.0, 9.0, -10.0]
+
+        await self._assert_index_use(
+            f'''
+            with vector := <array<float32>>$0
+            select ext::ai::search(Stuff, vector) limit 5;
+            ''',
+            qv,
+        )
+        await self._assert_index_use(
+            f'''
+            with vector := <array<float32>>$0
+            select ext::ai::search(Stuff, vector).object limit 5;
+            ''',
+            qv,
+        )
+        await self._assert_index_use(
+            f'''
+            select ext::ai::search(Stuff, <array<float32>>$0) limit 5;
+            ''',
+            qv,
+        )
+
+        await self._assert_index_use(
+            f'''
+            with vector := <array<float32>><json>$0
+            select ext::ai::search(Stuff, vector) limit 5;
+            ''',
+            json.dumps(qv),
+        )
+        await self._assert_index_use(
+            f'''
+            select ext::ai::search(Stuff, <array<float32>><json>$0) limit 5;
+            ''',
+            json.dumps(qv),
+        )
