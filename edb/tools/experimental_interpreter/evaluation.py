@@ -19,10 +19,9 @@ from .data import data_ops as e
 from .data import expr_ops as eops
 from .data import type_ops as tops
 from .data.expr_ops import (
-    combine_object_val,
-    get_object_val, instantiate_expr,
+     instantiate_expr,
     map_expand_multiset_val,
-      val_is_link_convertible, val_is_ref_val)
+       val_is_ref_val)
 from .data.type_ops import is_nominal_subtype_in_schema
 from .db_interface import *
 from .evaluation_tools.storage_coercion import coerce_to_storage
@@ -315,17 +314,17 @@ def eval_expr(ctx: EvalEnv,
                     for id in db.storage.query_ids_for_a_type(expr, e.EdgeDatabaseTrueFilter())]
                 return e.ResultMultiSetVal(all_ids)
         case e.QualifiedNameWithFilter(name=name, filter=filter):
-            def filter_map(filter_expr: Expr) -> Expr:
-                if isinstance(filter_expr, e.EdgeDatabaseSelectFilter):
+            def filter_map(filter_expr: Expr) -> Optional[Expr]:
+                if isinstance(filter_expr, e.EdgeDatabaseSelectFilter): # type: ignore
                     return None
                 match filter_expr:
                     case e.FreeVarExpr(var=var):
-                        return ctx[var]
+                        return ctx[var] # type: ignore
                     case e.ScalarVal(_):
-                        return e.ResultMultiSetVal([filter_expr])
+                        return e.ResultMultiSetVal([filter_expr]) # type: ignore
                     case _:
                         raise ValueError("Unrecognized filter expression, check post processing: ", filter_expr)
-            filter_val = eops.map_edge_select_filter(filter_map, filter)
+            filter_val = eops.map_edge_select_filter(filter_map, filter) # type: ignore
             all_ids: Sequence[Val] = [
                 RefVal(id, name, ObjectVal({}))
                 for id in db.storage.query_ids_for_a_type(name, filter_val)]
@@ -512,12 +511,8 @@ def eval_expr(ctx: EvalEnv,
             return exprv
         case LinkPropProjExpr(subject=subject, linkprop=label):
             subjectv = eval_expr(ctx, db, subject)
-            if isinstance(subjectv, e.ResultMultiSetVal):
-                projected = [p for v in subjectv.getVals() for p in singular_proj(
-                    ctx, db, v, LinkPropLabel(label)).getVals()]
-            elif isinstance(subjectv, e.ConditionalDedupMultiSetVal):
-                projected = [p for v in subjectv.getRawVals() for p in singular_proj(
-                    ctx, db, v, LinkPropLabel(label)).getVals()]
+            projected = [p for v in subjectv.getVals() for p in singular_proj(
+                ctx, db, v, LinkPropLabel(label)).getVals()]
             return e.ResultMultiSetVal(projected)
         case ForExpr(bound=bound, next=next):
             boundv = eval_expr(ctx, db, bound)
@@ -562,7 +557,7 @@ def eval_expr(ctx: EvalEnv,
     raise ValueError("Not Implemented", expr)
 
 def eval_ctx_from_variables(variables) -> EvalEnv:
-    def get_prim_param_value(v) -> MultiSetVal:
+    def get_prim_param_value(v) -> Val:
         if isinstance(v, str):
             return e.StrVal(v)
         elif isinstance(v, int):
@@ -590,7 +585,7 @@ def eval_ctx_from_variables(variables) -> EvalEnv:
 
 
 def eval_expr_toplevel(db: EdgeDatabase, expr: Expr,
-                       variables: Dict[str, Val] | Tuple[Val] = None,
+                       variables: Optional[Dict[str, Val] | Tuple[Val]] = None,
                        logs: Optional[Any] = None) -> MultiSetVal:
 
     # on exception, this is not none

@@ -128,7 +128,7 @@ def run_prepared_statement(db: EdgeDatabase,
                            deduped: e.Expr, tp: e.ResultTp, dbschema: DBSchema,
                            should_print: bool,
                            logs: Optional[List[Any]],
-                           variables: Dict[str, Val] = {},
+                           variables: Optional[Dict[str, Val]] = {},
                           ) -> MultiSetVal:
     result = eval_expr_toplevel(db, deduped, variables=variables, logs=logs)
     if should_print:
@@ -170,7 +170,7 @@ def run_stmts(db: EdgeDatabase, stmts: Sequence[qlast.Expr],
             return [cur_val, *rest_val]
     raise ValueError("Not Possible")
 
-def run_meta_cmd(db: EdgeDatabase, dbschema: DBSchema, cmd: str) -> MultiSetVal:
+def run_meta_cmd(db: EdgeDatabase, dbschema: DBSchema, cmd: str) -> None:
     if cmd == "\ps":
         print(pp.show_module(dbschema.modules[("default",)]) + "\n")
     elif cmd == "\ps --all":

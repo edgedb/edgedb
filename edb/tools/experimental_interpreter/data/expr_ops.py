@@ -1,6 +1,7 @@
 
 
 from typing import Callable, Dict, Optional, Sequence, Tuple, cast
+import typing
 
 from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
                        BoundVarExpr, DetachedExpr, Expr, FilterOrderExpr,
@@ -79,22 +80,25 @@ def map_tp(
                 raise ValueError("Not Implemented", tp)
 
 
-def map_edge_select_filter(f : Callable[[Expr], Optional[Expr]], expr: Expr) -> Expr:
-    tentative = f(expr)
+def map_edge_select_filter(
+        f : Callable[[Expr], Optional[Expr]], 
+        expr: e.Expr | e.EdgeDatabaseSelectFilter
+        ) -> e.Expr | e.EdgeDatabaseSelectFilter:
+    tentative = f(expr) # type: ignore[arg-type]
     if tentative is not None:
         return tentative
     else:
         match expr:
             case e.EdgeDatabaseConjunctiveFilter(filters):
                 new_filters = [map_edge_select_filter(f, filter) for filter in filters]
-                return e.EdgeDatabaseConjunctiveFilter(new_filters)
+                return e.EdgeDatabaseConjunctiveFilter(new_filters) # type: ignore[arg-type]
             case e.EdgeDatabaseDisjunctiveFilter(filters):
                 new_filters = [map_edge_select_filter(f, filter) for filter in filters]
-                return e.EdgeDatabaseDisjunctiveFilter(new_filters)
+                return e.EdgeDatabaseDisjunctiveFilter(new_filters) # type: ignore[arg-type]
             case e.EdgeDatabaseEqFilter(label, arg):
-                return e.EdgeDatabaseEqFilter(label, map_edge_select_filter(f, arg))
+                return e.EdgeDatabaseEqFilter(label, map_edge_select_filter(f, arg)) # type: ignore[arg-type]
             case _:
-                assert not isinstance(expr, e.EdgeDatabaseSelectFilter)
+                assert not isinstance(expr, e.EdgeDatabaseSelectFilter) # type: ignore[arg-type]
                 return expr
 
 
@@ -228,7 +232,7 @@ def map_expr(
             case e.ParameterExpr(name=name, tp=tp, is_required=is_required):
                 return e.ParameterExpr(name=name, tp=recur_tp(tp), is_required=is_required)
             case _:
-                return map_tp(f, expr)
+                return map_tp(f, expr) # type: ignore[arg-value]
     raise ValueError("Not Implemented: map_expr ", expr)
 
 
@@ -435,15 +439,6 @@ def operate_under_binding(e: BindingExpr, op: Callable[[Expr], Expr]):
         name)
 
 
-def get_object_val(val: Val) -> ObjectVal:
-    match val:
-        # case FreeVal(dictval):
-        #     return dictval
-        case RefVal(_, dictval):
-            return dictval
-    raise ValueError("Cannot get object val", val)
-
-
 def val_is_primitive(rt: Val) -> bool:
     match rt:
         case (e.ScalarVal(_)):
@@ -453,33 +448,11 @@ def val_is_primitive(rt: Val) -> bool:
     raise ValueError("not implemented")
 
 
-def val_is_object(rt: Val) -> bool:
-    match rt:
-        case RefVal(_):
-            return True
-        case (StrVal(_) | IntVal(_) | ArrVal(_)
-                | UnnamedTupleVal(_) | BoolVal(_)):
-            return False
-    raise ValueError("not implemented", rt)
-
-
 def val_is_ref_val(rt: Val) -> bool:
     match rt:
         case RefVal(_):
             return True
     return False
-
-
-def remove_link_props(rt: Val) -> Val:
-    match rt:
-        case RefVal(refid=id, val=ObjectVal(val=dic)):
-            return RefVal(
-                refid=id,
-                val=ObjectVal(
-                    val={k: v for (k, v) in dic.items()
-                         if isinstance(k, StrLabel)}))
-    raise ValueError("Expected RefVal")
-
 
 def remove_unless_link_props(dic: ObjectVal) -> ObjectVal:
     return ObjectVal(
@@ -532,35 +505,6 @@ def object_dedup(val: Sequence[Val]) -> Sequence[Val]:
             case _:
                 raise ValueError("must pass in objects")
     return list(temp.values())
-
-
-# def get_link_target(val: Val) -> Val:
-#     match val:
-#         case LinkPropVal(refid=id, linkprop=_):
-#             return RefVal(refid=id, val=ObjectVal({}))
-#         case _:
-#             raise ValueError("Not LinkPropVal")
-
-
-# def assume_link_target(val: MultiSetVal) -> MultiSetVal:
-#     targets = [get_link_target(v) if isinstance(
-#         v, LinkPropVal) else v for v in val.getVals()]
-#     if all(val_is_object(t) for t in targets):
-#         return e.ResultMultiSetVal(object_dedup(targets))
-#     elif all(val_is_primitive(t) for t in targets):
-#         return e.ResultMultiSetVal(targets)
-#     else:
-#         raise ValueError("link targets not uniform", val)
-
-
-# def map_assume_link_target(
-#         sv: Sequence[MultiSetVal]) -> Sequence[MultiSetVal]:
-#     return [assume_link_target(v) for v in sv]
-
-
-# def map_assume_link_target(
-#         sv: Sequence[Sequence[Val]]) -> Sequence[Sequence[Val]]:
-#     return [assume_link_target(v) for v in sv]
 
 
 def map_expand_multiset_val(
@@ -665,7 +609,7 @@ def is_effect_free(expr: Expr) -> bool:
 
 
 def collect_names_in_select_filter(filter: e.EdgeDatabaseSelectFilter) -> List[str]:
-    res = []
+    res : List[str] = []
     def map_func(candidate: Expr) -> Optional[Expr]:
         if isinstance(candidate, e.EdgeDatabaseEqFilter):
             res.append(candidate.propname)
@@ -673,6 +617,7 @@ def collect_names_in_select_filter(filter: e.EdgeDatabaseSelectFilter) -> List[s
     map_edge_select_filter(map_func, filter)
     return res
 
+@typing.no_type_check
 def val_eq(v1 : e.Val, v2: e.Val) -> bool:
     match v1, v2:
         case e.ScalarVal(t1, v1), e.ScalarVal(t2, v2):
