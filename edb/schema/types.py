@@ -876,25 +876,28 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
 
+        from edb.schema import types as s_types
+
         if not context.canonical:
-            components = [
+            components: Sequence[s_types.Type] = [
                 c.resolve(schema)
                 for c in self.get_attribute_value('components')
             ]
 
-            new_schema, union_type = utils.get_union_type(
+            new_schema, union_type, created = utils.ensure_union_type(
                 schema,
                 components,
                 opaque=self.get_attribute_value('is_opaque_union') or False,
                 module=self.classname.module,
             )
 
-            delta = union_type.as_create_delta(
-                schema=new_schema,
-                context=so.ComparisonContext(),
-            )
+            if created:
+                delta = union_type.as_create_delta(
+                    schema=new_schema,
+                    context=so.ComparisonContext(),
+                )
 
-            self.add(delta)
+                self.add(delta)
 
         for cmd in self.get_subcommands():
             schema = cmd.apply(schema, context)

@@ -8859,6 +8859,40 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """,
         ])
 
+    def test_schema_migrations_union_ptrs_01(self):
+        self._assert_migration_equivalence([
+            r"""
+            type A;
+            type A_ extending A;
+            type B;
+            type C {
+                # link of type and base type
+                link foo -> A | A_;
+            };
+            """,
+            r"""
+            type A;
+            type A_ extending A;
+            type B;
+            type C {
+                # link of type, base type, and other type
+                link foo -> A | A_ | B;
+            };
+            """,
+            r"""
+            type A;
+            type A_ extending A;
+            type B;
+            type C {
+                # remove link
+            };
+            """,
+        ])
+        schema = r'''
+        '''
+
+        self._assert_migration_consistency(schema)
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""

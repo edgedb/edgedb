@@ -3137,10 +3137,15 @@ def get_or_create_union_pointer(
     if len(components) == 1 and direction is PointerDirection.Outbound:
         return schema, components[0]
 
-    far_endpoints = [p.get_far_endpoint(schema, direction)
-                     for p in components]
-    targets: List[s_types.Type] = [p for p in far_endpoints
-                                   if isinstance(p, s_types.Type)]
+    far_endpoints = [
+        p.get_far_endpoint(schema, direction)
+        for p in components
+    ]
+    targets: Sequence[s_types.Type] = [
+        p for p in far_endpoints
+        if isinstance(p, s_types.Type)
+    ]
+    targets = utils.simplify_union_types(schema, targets)
 
     target: s_types.Type
 
@@ -3219,8 +3224,10 @@ def get_or_create_intersection_pointer(
     if len(components) == 1:
         return schema, components[0]
 
+    targets: Sequence[s_types.Type]
     targets = list(filter(None, [p.get_target(schema) for p in components]))
-    schema, target = utils.get_intersection_type(
+    targets = utils.simplify_intersection_types(schema, targets)
+    schema, target, _ = utils.ensure_intersection_type(
         schema, targets, module=modname)
 
     cardinality = qltypes.SchemaCardinality.One

@@ -396,16 +396,26 @@ def derive_view_name(
 
 
 def get_union_type(
-    types: Iterable[s_types.TypeT],
+    types: Sequence[s_types.TypeT],
     *,
     opaque: bool = False,
     preserve_derived: bool = False,
     ctx: context.ContextLevel,
 ) -> s_types.TypeT:
 
+    targets: Sequence[s_types.Type]
+    if preserve_derived:
+        targets = s_utils.simplify_union_types_preserve_derived(
+            ctx.env.schema, types
+        )
+    else:
+        targets = s_utils.simplify_union_types(
+            ctx.env.schema, types
+        )
+
     ctx.env.schema, union, created = s_utils.ensure_union_type(
-        ctx.env.schema, types,
-        opaque=opaque, preserve_derived=preserve_derived, transient=True)
+        ctx.env.schema, targets,
+        opaque=opaque, transient=True)
 
     if created:
         ctx.env.created_schema_objects.add(union)
@@ -422,13 +432,15 @@ def get_union_type(
 
 
 def get_intersection_type(
-    types: Iterable[s_types.TypeT],
+    types: Sequence[s_types.TypeT],
     *,
     ctx: context.ContextLevel,
 ) -> s_types.TypeT:
 
+    targets: Sequence[s_types.Type]
+    targets = s_utils.simplify_intersection_types(ctx.env.schema, types)
     ctx.env.schema, intersection, created = s_utils.ensure_intersection_type(
-        ctx.env.schema, types, transient=True)
+        ctx.env.schema, targets, transient=True)
 
     if created:
         ctx.env.created_schema_objects.add(intersection)
