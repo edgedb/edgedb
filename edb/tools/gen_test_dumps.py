@@ -64,8 +64,7 @@ async def execute(
         exit=False,
     )
 
-    setup_scripts = tb.get_test_cases_setup(runner.cases,
-                                            use_experimental_interpreter=False)
+    setup_scripts = tb.get_test_cases_setup(runner.cases)
     dump_cases = {
         db_name: case
         for case, db_name, _ss in setup_scripts

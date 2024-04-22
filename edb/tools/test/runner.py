@@ -59,7 +59,6 @@ from edb.testbase import server as tb
 from . import cpython_state
 from . import mproc_fixes
 from . import styles
-from edb.tools.experimental_interpreter import new_interpreter as model
 from . import results
 
 if TYPE_CHECKING:
@@ -395,106 +394,6 @@ class SequentialTestSuite(unittest.TestSuite):
         return result
 
 
-class ExperimentalInterpreterTestSuite(unittest.TestSuite):
-
-    def __init__(self, test_suites, sort_test_func):
-        self.test_suites = test_suites
-        self.sort_test_func = sort_test_func
-        self.stop_requested = False
-        from edb.edgeql import parser as ql_parser
-
-        ql_parser.preload_spec()
-
-    def run(self, result_):
-        global result
-        result = result_
-
-        random.seed(py_random_seed)
-
-        for sk, suite in self.test_suites.items():
-            setup = tb.get_test_cases_setup(
-                {sk: suite},
-                use_experimental_interpreter=True)
-            assert len(setup) <= 1, "expecting optional single setup"
-
-            if len(setup) == 1:
-                try:
-                    (init_sdl, init_ql) = setup[0][2]
-                    if sqlite_file_name := os.environ.get('EDGEDB_INTERPRETER_USE_SQLITE'):
-                        if sqlite_file_name == "0":
-                            sqlite_file_name = None
-                        elif not sqlite_file_name.endswith(".sqlite"):
-                            sqlite_file_name = ":memory:"
-                        else:
-                            # always start with a clean db for tests
-                            if os.path.exists(sqlite_file_name):
-                                os.remove(sqlite_file_name)
-                        dbschema, db = (
-                            model.dbschema_and_db_with_initial_schema_and_queries(
-                                            init_sdl, init_ql, sqlite_file_name))
-                    else:
-                        dbschema, db = (
-                            model.dbschema_and_db_with_initial_schema_and_queries(
-                                            init_sdl, init_ql))
-                except (ValueError, Exception)  as e:
-                    print("ERROR: Test Case Setup Failed:", e)
-                    raise e
-
-            else:
-                dbschema = model.empty_dbschema()
-                db = model.empty_db(dbschema)
-            
-            class PseudoExperimentalInterpreterTransaction:
-                async def start(self):
-                    pass
-
-                async def rollback(self):
-                    pass
-
-                    
-            class PseudoExperimentalInterpreterConnection:
-                def __init__(self):
-                    self.tx = PseudoExperimentalInterpreterTransaction()
-
-                async def query(self, query):
-                    return model.run_single_str_get_json(
-                        (dbschema, db), query, variables=None,
-                        print_asts=False)
-                async def _fetchall(self, query, __typenames__=False):
-                    return await self.query(query)
-
-                async def execute(self, query):
-                    await self.query(query)
-
-                async def query_single(self, query):
-                    return (await self.query(query))[0]
-
-                def transaction(self):
-                    return self.tx
-
-            sk.con = PseudoExperimentalInterpreterConnection()
-
-            for test in self.sort_test_func({sk: suite}):
-                test.use_experimental_interpreter = True
-                test.experimental_interpreter_dbschema_and_db = dbschema, db
-                restore_state = db.dump_state()
-                test.run(result)
-                db.restore_state(restore_state)
-                # TODO: QUESTION HOW DOES OUR TESTS RUN?
-
-                if self.stop_requested:
-                    break
-
-            if self.stop_requested:
-                break
-        # Make sure the class and the module teardown methods are
-        # executed for the trailing test, _run_test() does not do
-        # this for us.
-        teardown_suite()
-
-        return result
-
-
 class Markers(enum.Enum):
     passed = '.'
     errored = 'E'
@@ -779,8 +678,7 @@ class MultiLineRenderer(BaseRenderer):
 
 class ParallelTextTestResult(unittest.result.TestResult):
     def __init__(self, *, stream, verbosity, warnings, tests,
-                 output_format=OutputFormat.auto, failfast=False, suite,
-                 use_experimental_interpreter):
+                 output_format=OutputFormat.auto, failfast=False, suite):
         super().__init__(stream, False, verbosity)
         self.verbosity = verbosity
         self.catch_warnings = warnings
@@ -789,13 +687,11 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self.test_annotations = collections.defaultdict(dict)
         self.warnings = []
         self.notImplemented = []
-        self.successes = []
         self.currently_running = {}
         # An index of all seen warnings to keep track
         # of repeated warnings.
         self._warnings = {}
         self.suite = suite
-        self.use_experimental_interpreter = use_experimental_interpreter
 
         if (output_format is OutputFormat.verbose or
                 (output_format is OutputFormat.auto and self.verbosity > 1)):
@@ -841,7 +737,6 @@ class ParallelTextTestResult(unittest.result.TestResult):
 
     def addSuccess(self, test):
         super().addSuccess(test)
-        self.successes.append(test)
         self.report_progress(test, Markers.passed)
 
     def addError(self, test, err):
@@ -929,8 +824,7 @@ class ParallelTextTestRunner:
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
                  failfast=False, shuffle=False, backend_dsn=None,
-                 data_dir=None, try_cached_db=False,
-                 use_experimental_interpreter=False):
+                 data_dir=None, try_cached_db=False):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
@@ -941,7 +835,6 @@ class ParallelTextTestRunner:
         self.backend_dsn = backend_dsn
         self.data_dir = data_dir
         self.try_cached_db = try_cached_db
-        self.use_experimental_interpreter = use_experimental_interpreter
 
     def run(
         self,
@@ -962,12 +855,8 @@ class ParallelTextTestRunner:
         cases = tb.get_cases_by_shard(
             cases, selected_shard, total_shards, self.verbosity, stats,
         )
-        setup = tb.get_test_cases_setup(
-            cases,
-            use_experimental_interpreter=self.use_experimental_interpreter)
-        server_used = (
-            False if self.use_experimental_interpreter
-            else tb.test_cases_use_server(cases))
+        setup = tb.get_test_cases_setup(cases)
+        server_used = tb.test_cases_use_server(cases)
         worker_init = None
         bootstrap_time_taken = 0.0
         tests_time_taken = 0.0
@@ -1008,9 +897,7 @@ class ParallelTextTestRunner:
                 os.environ["EDGEDB_SERVER_JWS_KEY_FILE"] = str(jwk_file)
 
         try:
-            if setup and not self.use_experimental_interpreter:
-                # NOTE: THE setup is actually not USED!!!
-
+            if setup:
                 if self.verbosity >= 1:
                     self._echo(
                         'Populating test databases... ',
@@ -1131,13 +1018,7 @@ class ParallelTextTestRunner:
                 tests for tests in cases.values()))
 
             suite: unittest.TestSuite
-            if self.use_experimental_interpreter:
-                # self._sort_tests(cases)
-                def sort_tests_func(cases2):
-                    return self._sort_tests(cases2)
-                suite = ExperimentalInterpreterTestSuite(
-                    cases, sort_tests_func)
-            elif self.num_workers > 1:
+            if self.num_workers > 1:
                 suite = ParallelTestSuite(
                     self._sort_tests(cases),
                     conn,
@@ -1157,8 +1038,7 @@ class ParallelTextTestRunner:
                 stream=self.stream, verbosity=self.verbosity,
                 warnings=self.warnings, failfast=self.failfast,
                 output_format=self.output_format,
-                tests=all_tests, suite=suite,
-                use_experimental_interpreter=self.use_experimental_interpreter)
+                tests=all_tests, suite=suite)
             unittest.signals.registerResult(result)
 
             self._echo()
@@ -1187,7 +1067,7 @@ class ParallelTextTestRunner:
             if tempdir is not None:
                 tempdir.cleanup()
 
-            if setup and not self.use_experimental_interpreter:
+            if setup:
                 self._echo()
                 self._echo('Shutting down test cluster... ', nl=False)
                 tb._shutdown_cluster(cluster, destroy=self.data_dir is None)
@@ -1204,114 +1084,6 @@ class ParallelTextTestRunner:
         if self.verbosity > 0:
             click.secho(s, file=self.stream, **kwargs)
 
-# <<<<<<< HEAD
-#     def _fill(self, char, **kwargs):
-#         self._echo(char * self._get_term_width(), **kwargs)
-
-#     def _format_time(self, seconds):
-#         hours = int(seconds // 3600)
-#         seconds %= 3600
-#         minutes = int(seconds // 60)
-#         seconds %= 60
-
-#         return f'{hours:02d}:{minutes:02d}:{seconds:04.1f}'
-
-#     def _print_errors(self, result):
-#         uxsuccesses = ((s, '') for s in result.unexpectedSuccesses)
-#         data = zip(
-#             ('WARNING', 'ERROR', 'FAIL', 'UNEXPECTED SUCCESS'),
-#             ('yellow', 'red', 'red', 'red'),
-#             (result.warnings, result.errors, result.failures, uxsuccesses)
-#         )
-
-#         for kind, fg, errors in data:
-#             for test, err in errors:
-#                 self._fill('=', fg=fg)
-#                 self._echo(f'{kind}: {result.getDescription(test)}',
-#                            fg=fg, bold=True)
-#                 self._fill('-', fg=fg)
-
-#                 if annos := result.get_test_annotations(test):
-#                     if phs := annos.get('py-hash-secret'):
-#                         phs_hex = binascii.hexlify(phs).decode()
-#                         self._echo(f'Py_HashSecret: {phs_hex}')
-#                     if prs := annos.get('py-random-seed'):
-#                         prs_hex = binascii.hexlify(prs).decode()
-#                         self._echo(f'random.seed(): {prs_hex}')
-#                     self._fill('-', fg=fg)
-
-#                 srv_tb = None
-#                 if _is_exc_info(err):
-#                     if isinstance(err[1], edgedb.EdgeDBError):
-#                         srv_tb = err[1].get_server_context()
-#                     err = unittest.result.TestResult._exc_info_to_string(
-#                         result, err, test)
-#                 elif isinstance(err, SerializedServerError):
-#                     err, srv_tb = err.test_error, err.server_error
-#                 if srv_tb:
-#                     self._echo('Server Traceback:',
-#                                fg='red', bold=True)
-#                     self._echo(srv_tb)
-#                     self._echo('Test Traceback:',
-#                                fg='red', bold=True)
-#                 self._echo(err)
-
-#     def _render_result(self, result, boot_time_taken, tests_time_taken):
-#         self._echo()
-
-#         if self.verbosity > 0:
-#             self._print_errors(result)
-
-#         if result.wasSuccessful():
-#             fg = 'green'
-#             outcome = 'SUCCESS'
-#         else:
-#             fg = 'red'
-#             outcome = 'FAILURE'
-
-#         if self.verbosity > 1:
-#             self._fill('=', fg=fg)
-#         self._echo(outcome, fg=fg, bold=True)
-
-#         counts = [('tests ran', result.testsRun)]
-
-#         display = {
-#             'successes': 'successes',
-#             'expectedFailures': 'expected failures',
-#             'notImplemented': 'not implemented',
-#             'unexpectedSuccesses': 'unexpected successes',
-#         }
-
-#         for bit in ['successes', 'failures', 'errors', 'expectedFailures',
-#                     'notImplemented', 'unexpectedSuccesses', 'skipped']:
-#             count = len(getattr(result, bit))
-#             if count:
-#                 counts.append((display.get(bit, bit), count))
-
-#         for bit, count in counts:
-#             self._echo(f'  {bit}: ', nl=False)
-#             self._echo(f'{count}', bold=True)
-
-#         self._echo()
-#         self._echo(f'Running times: ')
-#         if boot_time_taken:
-#             self._echo('  bootstrap: ', nl=False)
-#             self._echo(self._format_time(boot_time_taken), bold=True)
-
-#         self._echo('  tests: ', nl=False)
-#         self._echo(self._format_time(tests_time_taken), bold=True)
-
-#         if boot_time_taken:
-#             self._echo('  total: ', nl=False)
-#             self._echo(self._format_time(boot_time_taken + tests_time_taken),
-#                        bold=True)
-
-#         self._echo()
-
-#         return result
-
-# =======
-# >>>>>>> origin/master
     def _sort_tests(self, cases):
         serialized_suites = {}
         exclusive_suites = set()

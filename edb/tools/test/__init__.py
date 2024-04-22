@@ -106,8 +106,6 @@ __all__ = ('not_implemented', 'xerror', 'xfail', '_xfail', 'skip')
               help='attempt to use a cache of the test databases (unsound!)')
 @click.option('--data-dir', type=str,
               help='use a specified data dir')
-@click.option('--use-experimental-interpreter', is_flag=True, default=False,
-              help='Use a experimental interpreter to run the tests')
 def test(
     *,
     files: typing.Sequence[str],
@@ -131,7 +129,6 @@ def test(
     data_dir: typing.Optional[str],
     log_result: bool,
     include_unsuccessful: bool,
-    use_experimental_interpreter: bool,
 ):
     """Run EdgeDB test suite.
 
@@ -211,7 +208,6 @@ def test(
         data_dir=data_dir,
         log_result=log_result,
         include_unsuccessful=include_unsuccessful,
-        use_experimental_interpreter=use_experimental_interpreter
     )
 
     if cov:
@@ -306,11 +302,7 @@ def _run(
     data_dir: typing.Optional[str],
     log_result: bool,
     include_unsuccessful: bool,
-    use_experimental_interpreter: bool,
 ):
-    if use_experimental_interpreter:
-        click.echo("Running tests using the experimental interpreter ...")
-
     suite = unittest.TestSuite()
 
     total = 0
@@ -364,9 +356,6 @@ def _run(
 
     jobs = max(min(total, jobs), 1)
 
-    if use_experimental_interpreter:
-        jobs = 1
-
     if verbosity > 0:
         click.echo()
         if jobs > 1:
@@ -382,8 +371,7 @@ def _run(
             verbosity=verbosity, output_format=output_format,
             warnings=warnings, num_workers=jobs,
             failfast=failfast, shuffle=shuffle, backend_dsn=backend_dsn,
-            try_cached_db=try_cached_db, data_dir=data_dir,
-            use_experimental_interpreter=use_experimental_interpreter)
+            try_cached_db=try_cached_db, data_dir=data_dir)
 
         result = test_runner.run(
             suite, selected_shard, total_shards, running_times_log_file,
