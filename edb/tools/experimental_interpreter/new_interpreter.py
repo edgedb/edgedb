@@ -187,15 +187,7 @@ def run_str(
 ) -> Sequence[MultiSetVal]:
 
     q = parse_ql(s)
-    # if print_asts:
-    #     debug.dump(q)
     res = run_stmts(db, q, dbschema, print_asts, logs)
-    # if output_mode == 'pprint':
-    #     pprint.pprint(res)
-    # elif output_mode == 'json':
-    #     print(EdbJSONEncoder().encode(res))
-    # elif output_mode == 'debug':
-    #     debug.dump(res)
     return res
 
 
@@ -351,8 +343,8 @@ class EdgeQLInterpreter:
 
 
     def __init__(self, 
-                initial_schema_defs: str=None,
-                sqlite_file_name: Optional[str] = None):
+                initial_schema_defs: Optional[str]=None,
+                sqlite_file_name: Optional[str] = None,):
         interpreter_parser_init()
         dbschema, db = dbschema_and_db_with_initial_schema_and_queries(
             initial_schema_defs, "", sqlite_file_name)
@@ -383,17 +375,19 @@ class EdgeQLInterpreter:
         
         return result
 
-    def query_json(self, s: str, **kwargs) -> json_like:
-        result = self.run_single_str_get_json_with_cache(s, kwargs)
-        return result
-
     def query_single_json(self, s: str, **kwargs) -> json_like:
-        result = self.query_json(s, **kwargs)
+        result = self.run_single_str_get_json_with_cache(s, **kwargs)
         if isinstance(result, list) and len(result) == 1:
             return result[0]
         else:
             raise ValueError("Expected a single result")
     
+    def query_str(self, s: str) -> Sequence[MultiSetVal]:
+        q = parse_ql(s)
+        res = run_stmts(self.db, q, self.dbschema,
+                        debug_print=False, logs=None)
+        return res
+
 
 
 if __name__ == "__main__":

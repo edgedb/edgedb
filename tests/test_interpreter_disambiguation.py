@@ -1,8 +1,9 @@
 
 from edb.common import assert_data_shape
 import os
-from edb.testbase import server as tb
-class TestInterpreterDisambiguationSmokeTests(tb.QueryTestCase):
+from edb.testbase import experimental_interpreter as tb
+class TestInterpreterDisambiguationSmokeTests(tb.ExperimentalInterpreterTestCase):
+    INTERPRETER_USE_SQLITE = False
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'interpreter_disambiguation.esdl')
@@ -10,24 +11,27 @@ class TestInterpreterDisambiguationSmokeTests(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'interpreter_disambiguation_setup.edgeql')
 
-    async def test_example_test_01(self):
-        await self.assert_query_result(
+    def test_example_test_01(self):
+        self.assert_query_result(
             "SELECT 1",
             [1],
         )
 
-    async def test_link_dedup_test_02(self):
-        await self.assert_query_result(
+    def test_link_dedup_test_02(self):
+        self.assert_query_result(
             """select {
                  (select A filter True), (select A filter True)
                  }.b""",
             [{}],
         )
 
-    async def test_link_dedup_test_03(self):
-        await self.assert_query_result(
+    def test_link_dedup_test_03(self):
+        self.assert_query_result(
             """select {
                  (select A filter True), (select A filter True)
                  }.b@b_lp""",
             ['a1_b1_lp', 'a1_b1_lp'],
         )
+
+class TestInterpreterDisambiguationSmokeTestsSQLite(TestInterpreterDisambiguationSmokeTests):
+    INTERPRETER_USE_SQLITE = True
