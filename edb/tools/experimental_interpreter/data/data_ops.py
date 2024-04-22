@@ -449,8 +449,6 @@ class ScalarVal:
             raise ValueError("val must be an int")
         if self.val is None:
             raise ValueError("val cannot be None")
-        if isinstance(self.val, Val):
-            raise ValueError("val cannot be Val")
 
 def IntVal(val: int):
     return ScalarVal(IntTp(), val)

@@ -129,7 +129,7 @@ def run_prepared_statement(db: EdgeDatabase,
                            should_print: bool,
                            logs: Optional[List[Any]],
                            variables: Dict[str, Val] = {},
-                          ) -> Tuple[MultiSetVal]:
+                          ) -> MultiSetVal:
     result = eval_expr_toplevel(db, deduped, variables=variables, logs=logs)
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")

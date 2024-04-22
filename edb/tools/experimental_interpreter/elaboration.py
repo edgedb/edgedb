@@ -1,7 +1,7 @@
 
 
 from functools import singledispatch
-from typing import Any, Dict, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, Optional, Sequence, Tuple, cast, List
 
 from edb import errors
 # import edb as edgedb
@@ -52,7 +52,7 @@ def elab_not_implemented(node: qlast.Base, msg: str = "") -> Any:
 
 def elab_Shape(elements: Sequence[qlast.ShapeElement]) -> ShapeExpr:
     """ Convert a concrete syntax shape to object expressions"""
-    result = {}
+    result: Dict[e.Label, e.BindingExpr] = {}
     for se in elements:
         if path_contains_splat(se.expr):
             i_logging.print_warning("Splat is not implemented")
@@ -62,7 +62,7 @@ def elab_Shape(elements: Sequence[qlast.ShapeElement]) -> ShapeExpr:
                 if name not in result.keys():
                     result = {**result, name: e}
                 else:
-                    (elab_error("Duplicate Value in Shapes", se.context))
+                    (elab_error("Duplicate Value in Shapes", se.span))
     return ShapeExpr(result)
 
 
@@ -73,7 +73,7 @@ def elab(node: qlast.Base) -> Expr:
 
 @elab.register(qlast.Parameter)
 def elab_Parameter(node: qlast.Parameter) -> None:
-    raise errors.QueryError("missing a type cast", context=node.context)
+    raise errors.QueryError("missing a type cast", span=node.span)
 
 @elab.register(qlast.Introspect)
 def elab_Introspect(node: qlast.Introspect) -> Expr:
@@ -130,7 +130,7 @@ def elab_Path(p: qlast.Path) -> Expr:
                 else:
                     match elab_single_type_expr(tp):
                         case e.UncheckedTypeName(name=tp_name):
-                            result = TpIntersectExpr(result, tp_name)
+                            result = TpIntersectExpr(result, e.UncheckedTypeName(tp_name))
                         case _:
                             raise ValueError(
                                 "expecting single type name here")
@@ -327,14 +327,14 @@ def elab_orderby(qle: Optional[Sequence[qlast.SortExpr]]) -> Dict[str, BindingEx
 
         empty_label = (e.OrderEmptyFirst if sort_expr.nones_order == qlast.NonesOrder.First or sort_expr.nones_order is None
                           else e.OrderEmptyLast if sort_expr.nones_order == qlast.NonesOrder.Last
-                          else elab_error("unknown nones order", sort_expr.context))
+                          else elab_error("unknown nones order", sort_expr.span))
 
 
         direction_label = (OrderAscending
              if sort_expr.direction == qlast.SortOrder.Asc else
              OrderDescending
              if sort_expr.direction == qlast.SortOrder.Desc else
-             elab_error("unknown direction", sort_expr.context))
+             elab_error("unknown direction", sort_expr.span))
 
         key = (
             str(idx) + OrderLabelSep + direction_label + OrderLabelSep + empty_label
@@ -415,6 +415,7 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
 def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
     if fcall.window:
         return elab_not_implemented(fcall)
+    fname : e.RawName
     if type(fcall.func) is str:
         fname = e.UnqualifiedName(fcall.func)
     else:
@@ -424,7 +425,7 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
             #     e.QualifiedName(["std", fcall.func])
             #     if ( fcall.func) in all_std_funcs.keys()
             #     else elab_error("unknown function name: " +
-            #                     fcall.func, fcall.context))
+            #                     fcall.func, fcall.span))
     args = [elab(arg) for arg in fcall.args]
     kwargs = {k: elab(v) for (k,v) in fcall.kwargs.items()}
     return FunAppExpr(fname, None, args, kwargs)
@@ -490,7 +491,7 @@ def elab_single_type_str(name: str, module_name: Optional[str]) -> Tp:
                     return e.UncheckedTypeName(e.UnqualifiedName(name))
 
 
-def elab_CompositeTp(basetp: qlast.ObjectRef, sub_tps: Sequence[Tp], labels=[]) -> Tp:
+def elab_CompositeTp(basetp: qlast.ObjectRef, sub_tps: List[Tp], labels=[]) -> Tp:
     if basetp.name in {k.value for k in e.CompositeTpKind}:
         return e.CompositeTp(kind=e.CompositeTpKind(basetp.name), tps=sub_tps, labels=labels)  
     else:
@@ -545,7 +546,7 @@ def elab_single_type_expr(typedef: qlast.TypeExpr) -> Tp:
 
 
 @elab.register(qlast.TypeCast)
-def elab_TypeCast(qle: qlast.TypeCast) -> TypeCastExpr:
+def elab_TypeCast(qle: qlast.TypeCast) -> TypeCastExpr | e.ParameterExpr:
     if isinstance(qle.expr, qlast.Parameter):
             if qle.cardinality_mod == qlast.CardinalityModifier.Optional:
                 is_required = False
