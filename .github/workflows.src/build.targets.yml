@@ -136,7 +136,7 @@ targets:
           platform: macos
           platform_version: x86_64
           family: generic
-          runs_on: [macos-14]
+          runs_on: [macos-13]
         - name: macos-aarch64
           arch: aarch64
           platform: macos
