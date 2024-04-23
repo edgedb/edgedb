@@ -469,7 +469,7 @@ jobs:
         path: artifacts/linuxmusl-aarch64
 
   build-macos-x86_64:
-    runs-on: ['macos-14']
+    runs-on: ['macos-13']
     needs: prep
 
 
@@ -982,7 +982,7 @@ jobs:
 
   test-macos-x86_64:
     needs: [build-macos-x86_64]
-    runs-on: ['macos-14']
+    runs-on: ['macos-13']
 
     steps:
     - uses: actions/checkout@v4
