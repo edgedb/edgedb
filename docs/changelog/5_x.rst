@@ -10,7 +10,7 @@ and will not be automatically suggested:
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version 5.0-rc.1
+  $ edgedb project init
 
 
 Upgrading
@@ -24,13 +24,13 @@ directory.
 
 .. code-block:: bash
 
-  $ edgedb project upgrade --to-testing
+  $ edgedb project upgrade
 
 Alternatively, specify an instance name if you aren't using a project.
 
 .. code-block:: bash
 
-  $ edgedb instance upgrade --to-testing -I my_instance
+  $ edgedb instance upgrade -I my_instance
 
 The CLI will first check to see if your schema will migrate cleanly to EdgeDB
 5.0. If the upgrade check finds any problems, it will report them back to you.
@@ -98,6 +98,28 @@ dump-and-restore process.
 
 New features
 ============
+
+EdgeDB + AI
+-----------
+
+We've added an ``ext::ai`` extension for handling the integration of EdgeDB
+with various AI backends such as: OpenAI, Mistral and Anthropic.
+
+There is a special ``ext::ai::index`` that can be used to delegate the search
+functionality of EdgeDB objects to a specific AI search provider.
+
+The function ``ext::ai::to_context(object: anyobject)`` evaluates the
+expression of the specific ``ext::ai::index`` defined on the passed object
+type and returns it.
+
+The function ``ext::ai:search(object: anyobject, query: array<float32>)``
+searches the specified objects using the associated AI search provider and the
+specified semantic query representation.
+
+There are also two HTTP API points for interacting with the data:
+
+* ``/ai/embeddings``
+* ``/ai/rag``
 
 EdgeDB branches
 ---------------
@@ -358,6 +380,11 @@ EdgeQL
 * Support closing all connections to a database on ``drop database``.
   (:eql:gh:`#6780`)
 
+* Add a ``std::get_current_branch()`` function.
+  (:eql:gh:`#7001`)
+
+* Add ``cfg::Config.query_cache_mode``
+  (:eql:gh:`#7158`)
 
 Bug fixes
 ---------
@@ -402,18 +429,6 @@ Bug fixes
 * Don't leak objects out of access policies when used in a computed global
   (:eql:gh:`#6926`)
 
-Beta 2
-======
-
-Additional changes
-------------------
-
-* Add a ``std::get_current_branch()`` function.
-  (:eql:gh:`#7001`)
-
-Bug fixes
----------
-
 * Allow grouping to have trailing comma
   (:eql:gh:`#7002`)
 
@@ -440,19 +455,6 @@ Bug fixes
 
 * Fix update rewrites on types that are children of updated type
   (:eql:gh:`#7073`)
-
-
-Beta 3
-======
-
-Additional changes
-------------------
-
-* Add ``cfg::Config.query_cache_mode``
-  (:eql:gh:`#7158`)
-
-Bug fixes
----------
 
 * Make escaping strings more consistent
   (:eql:gh:`#7059`)
@@ -487,44 +489,6 @@ Bug fixes
 * Fix two ``group`` bugs involving ``using`` clauses
   (:eql:gh:`#7143`)
 
-
-RC 1
-====
-
-EdgeDB + AI
------------
-
-We've added an ``ext::ai`` extension for handling the integration of EdgeDB
-with various AI backends such as: OpenAI, Mistral and Anthropic.
-
-There is a special ``ext::ai::index`` that can be used to delegate the search
-functionality of EdgeDB objects to a specific AI search provider.
-
-The function ``ext::ai::to_context(object: anyobject)`` evaluates the
-expression of the specific ``ext::ai::index`` defined on the passed object
-type and returns it.
-
-The function ``ext::ai:search(object: anyobject, query: array<float32>)``
-searches the specified objects using the associated AI search provider and the
-specified semantic query representation.
-
-There are also two HTTP API points for interacting with the data:
-
-* ``/ai/embeddings``
-* ``/ai/rag``
-
-Additional changes
-------------------
-
-* Add support for marking indexes as ``deferred``
-  (:eql:gh:`#7129`)
-
-* Generalize some aspects of handling object-only indexes
-  (:eql:gh:`#7179`)
-
-Bug fixes
----------
-
 * Fix deserialization of persistent cache entries after upgrade
   (:eql:gh:`#7203`)
 
@@ -536,3 +500,9 @@ Bug fixes
 
 * pg_ext: don't yield NoData in SimpleQuery
   (:eql:gh:`#7200`)
+
+* Make changing ``fts`` and ``ai`` indexes work consistently in migrations
+  (:eql:gh:`#7218`)
+
+* Include ``fts`` and ``ai`` shadow index columns in dumps
+  (:eql:gh:`#7235`)
