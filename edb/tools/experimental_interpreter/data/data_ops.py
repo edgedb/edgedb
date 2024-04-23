@@ -640,11 +640,11 @@ class EdgeDatabaseEqFilter:
 
 @dataclass
 class EdgeDatabaseConjunctiveFilter:
-    conjuncts: Sequence[EdgeDatabaseEqFilter]
+    conjuncts: Sequence[EdgeDatabaseSelectFilter]
 
 @dataclass 
 class EdgeDatabaseDisjunctiveFilter:
-    disjuncts: Sequence[EdgeDatabaseConjunctiveFilter]
+    disjuncts: Sequence[EdgeDatabaseSelectFilter]
 
 @dataclass
 class EdgeDatabaseTrueFilter:

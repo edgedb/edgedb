@@ -146,19 +146,17 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case e.ScalarVal(tp, s):
             match tp.name.names:
                 case ["std", "str"]:
-                    return qlast.StringConstant(value=s)
+                    return qlast.Constant.string(value=s)
                 case ["std", "int64"]:
                     i = s
-                    return qlast.IntegerConstant(
-                        value=str(abs(i)),
-                        is_negative=(i < 0))
+                    return qlast.Constant.integer(i)
                 case ["std", "bool"]:
                     b = s
-                    return qlast.BooleanConstant(value=str(b))
+                    return qlast.Constant.boolean(b)
                 case _:
                     raise ValueError("Unimplemented", tp.name)
         case RefVal(_):
-            return qlast.StringConstant(
+            return qlast.Constant.string(
                 value=str("<REFVAL, TODO: UUID_CASTING>"))
         # case LinkPropVal(_):
         #     return qlast.StringConstant(value=str("<TODO: LINK_PROP_VAL>"))
@@ -202,9 +200,9 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
             else:
                 return qlast.Path(steps=[qlast.ObjectRef(name=name)])
         case e.QualifiedName(names=names):
-            return reverse_elab_raw_name(ir_expr)
+            return qlast.Path(steps=[reverse_elab_raw_name(ir_expr)])
         case e.UnqualifiedName(name=name):
-            return reverse_elab_raw_name(ir_expr)
+            return qlast.Path(steps=[reverse_elab_raw_name(ir_expr)])
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
             # if (isinstance(fname, e.QualifiedName) 
             #     and fname.names[0] == "std" 
@@ -244,7 +242,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                 label_path_component)
         case e.IsTpExpr(subject=subject, tp=tp_name):
             if isinstance(tp_name, e.AnyTp):
-                original_tp = qlast.TypeName(maintype=reverse_elab_raw_name(e.QualifiedName(["std", "any" + tp_name.specifier])))
+                original_tp = qlast.TypeName(maintype=reverse_elab_raw_name(e.QualifiedName(["std", "any" + (tp_name.specifier or "")])))
             else:
                 original_tp = reverse_elab_type_name(tp_name)
             return qlast.IsOp(left=reverse_elab(subject),
@@ -252,7 +250,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                               right=original_tp)
         case TpIntersectExpr(subject=subject, tp=tp_name):
             tp_path_component = qlast.TypeIntersection(
-                type=qlast.TypeName(maintype=reverse_elab_raw_name(tp_name)))
+                type=reverse_elab_type_name(tp_name))
             return append_path_element(
                 reverse_elab(subject),
                 tp_path_component)

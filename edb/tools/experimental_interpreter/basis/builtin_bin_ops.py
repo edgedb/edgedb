@@ -114,7 +114,8 @@ def in_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
         case [[singleton], l]:
             if isinstance(singleton, RefVal):
                 assert all(isinstance(v, RefVal) for v in l)
-                return [BoolVal(singleton.refid in [v.refid for v in l])]
+                return [BoolVal(singleton.refid in
+                                [v.refid for v in l])] # type: ignore
             elif all(isinstance(v, e.ScalarVal) for v in l) and isinstance(singleton, e.ScalarVal):
                 return [BoolVal(singleton.val in (v.val for v in l))]
             else:
@@ -195,10 +196,10 @@ def intersect_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [arg1, arg2]:
             if all(isinstance(v, e.RefVal) for v in arg1) and all(isinstance(v, e.RefVal) for v in arg2):
-                id1 = [v.refid for v in arg1]
-                id2 = [v.refid for v in arg2]
+                id1 = [v.refid for v in arg1] # type: ignore[union-attr]
+                id2 = [v.refid for v in arg2] # type: ignore[union-attr]
                 id_common = list_interset(id1, id2)
-                return [v for v in arg1 if v.refid in id_common]
+                return [v for v in arg1 if v.refid in id_common] # type: ignore[union-attr]
             else:
                 return list_interset(arg1, arg2)
     raise FunCallErr()

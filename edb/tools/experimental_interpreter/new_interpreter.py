@@ -39,6 +39,7 @@ from .type_checking_tools import name_resolution
 # sys.setrecursionlimit(10000)
 
 
+VariablesTp = Optional[Dict[str, Val] | Tuple[Val, ...]]
 
 
 def empty_db(schema : DBSchema) -> EdgeDatabase:
@@ -212,7 +213,7 @@ def run_single_str(
 def run_single_str_get_json(
     dbschema_and_db: Tuple[DBSchema, EdgeDatabase],
     s: str,
-    variables: Optional[Dict[str, Any] | Tuple[Any, ...]],
+    variables: VariablesTp = None,
     print_asts: bool = False
 ) -> json_like:
     (res, tp) = run_single_str(dbschema_and_db, 

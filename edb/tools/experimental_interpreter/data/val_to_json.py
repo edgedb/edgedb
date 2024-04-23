@@ -34,7 +34,7 @@ def val_to_json_like(v: Val) -> json_like:
                 return v
             else:
                 raise ValueError("not implemented")
-        case RefVal(refid, object):
+        case RefVal(refid, _, object):
             object_val_result =  objectval_to_json_like(object)
             if len(object_val_result) == 0:
                 object_val_result['id'] = refid

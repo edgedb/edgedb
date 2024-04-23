@@ -232,7 +232,7 @@ def map_expr(
             case e.ParameterExpr(name=name, tp=tp, is_required=is_required):
                 return e.ParameterExpr(name=name, tp=recur_tp(tp), is_required=is_required)
             case _:
-                return map_tp(f, expr) # type: ignore[arg-value]
+                return map_tp(f, expr) # type: ignore[arg-type]
     raise ValueError("Not Implemented: map_expr ", expr)
 
 

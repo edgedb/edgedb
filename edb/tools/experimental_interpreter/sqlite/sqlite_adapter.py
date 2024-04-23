@@ -47,7 +47,7 @@ class PropertyTypeView:
 @dataclass(frozen=True)
 class TableTypeView:
     columns: Dict[str, PropertyTypeView] # property name -> property type
-    indexes : List[List[str]]
+    indexes : Sequence[Sequence[str]]
 
 @dataclass(frozen=True)
 class ColumnSpec:
@@ -57,8 +57,8 @@ class ColumnSpec:
 @dataclass(frozen=True)
 class TableSpec:
     columns: Dict[str, ColumnSpec]
-    primary_key: List[str]
-    indexes : List[List[str]]
+    primary_key: Sequence[str]
+    indexes : Sequence[Sequence[str]]
 
 def get_property_type_view(result_tp: e.ResultTp) -> PropertyTypeView:
     tp = result_tp.tp
@@ -103,6 +103,8 @@ def get_schema_property_view(schema: e.DBSchema) -> Dict[str, TableTypeView]:
     for name, mdef in default_module.defs.items():
         match mdef:
             case e.ModuleEntityTypeDef(typedef=e.ObjectTp(_), is_abstract=False, constraints=_, indexes=indexes):
+                if isinstance(mdef.typedef, e.ScalarTp):
+                    raise ValueError("User defined scalar type is not supported yet")
                 type_def_view = TableTypeView(
                     columns={pname : get_property_type_view(t) for (pname, t) in mdef.typedef.val.items() if not isinstance(t.tp, e.ComputableTp)},
                     indexes=indexes
@@ -201,13 +203,13 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         self.id_initialization()
         self.create_or_populate_schema_table()
 
-    def do_execute_query(self, query: str, *args) -> None:
+    # result should be fetched using self.cursor.fetchall()
+    def do_execute_query(self, query: str, *args):
         if SQLITE_PRINT_QUERIES:
             print(query, *args)
-        result = self.cursor.execute(query, *args)
+        self.cursor.execute(query, *args)
         if SQLITE_PRINT_QUERIES:
             print("[DONE]", query, *args)
-        return result
 
     def get_tp_name(self, tp: e.QualifiedName) -> str:
         assert len(tp.names) == 2 and tp.names[0] == "default", "Only default module is supported"
@@ -296,15 +298,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         return self.schema
 
       
-    def next_id(self) -> EdgeID:
-        ## XXX: This is not thread safe
-        self.do_execute_query("SELECT id FROM next_id_to_return_gen LIMIT 1")
-        id_row = self.cursor.fetchone()
-        if id_row is None:
-            raise ValueError("Cannot fetch next id, check initialization")
-        id = id_row[0]
-        self.do_execute_query("UPDATE next_id_to_return_gen SET id = id + 1")
-        return id
+
 
     
     def query_ids_for_a_type(self, tp: e.QualifiedName, filters: e.EdgeDatabaseSelectFilter) -> List[EdgeID]:
@@ -380,7 +374,6 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         id = id_row[0]
         self.do_execute_query("UPDATE next_id_to_return_gen SET id = id + 1")
         return id
-    
 
     def project(self, id: EdgeID, tp: e.QualifiedName, prop: str) -> MultiSetVal:
         tp_name = self.get_tp_name(tp)
@@ -457,6 +450,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 lp_table_name = f"{tp_name}.{pname}"
                 lp_property_names = list(pview.link_props.keys())
                 for v in props[pname].getVals():
+                    assert isinstance(v, e.RefVal)
                     if len(lp_property_names) > 0:
                         lp_props = [convert_val_to_sqlite_val(v.val.val[e.LinkPropLabel(lp_prop_name)][1]) for lp_prop_name in lp_property_names]
                         self.do_execute_query(f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
@@ -500,6 +494,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 # Delete all existing links
                 self.do_execute_query(f"DELETE FROM '{lp_table_name}' WHERE source=?", (id,))
                 for v in props[pname].getVals():
+                    assert isinstance(v, e.RefVal)
                     if len(lp_property_names) > 0:
                         lp_props = [convert_val_to_sqlite_val(v.val.val[e.LinkPropLabel(lp_prop_name)][1]) for lp_prop_name in lp_property_names]
                         # insert

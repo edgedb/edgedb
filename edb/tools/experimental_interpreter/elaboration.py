@@ -58,9 +58,9 @@ def elab_Shape(elements: Sequence[qlast.ShapeElement]) -> ShapeExpr:
             i_logging.print_warning("Splat is not implemented")
             continue
         match elab_ShapeElement(se):
-            case (name, e):
+            case (name, elem):
                 if name not in result.keys():
-                    result = {**result, name: e}
+                    result = {**result, name: elem}
                 else:
                     (elab_error("Duplicate Value in Shapes", se.span))
     return ShapeExpr(result)
