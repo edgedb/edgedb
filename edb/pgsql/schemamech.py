@@ -257,6 +257,7 @@ def compile_constraint(
     assert isinstance(ir, irast.Statement)
     assert isinstance(ir.expr.expr, irast.SelectStmt)
 
+    except_ir: Optional[irast.Statement] = None
     except_data = None
     if except_expr := constraint.get_except_expr(schema):
         assert isinstance(except_expr, s_expr.Expression)
@@ -270,7 +271,13 @@ def compile_constraint(
         )
         except_data = _edgeql_tree_to_expr_data(except_sql.ast)
 
-    terminal_refs = ir_utils.get_longest_paths(ir.expr.expr.result)
+    terminal_refs: set[irast.Set] = (
+        ir_utils.get_longest_paths(ir.expr.expr.result)
+    )
+    if except_ir is not None:
+        terminal_refs.update(
+            ir_utils.get_longest_paths(except_ir.expr)
+        )
     ref_tables = get_ref_storage_info(ir.schema, terminal_refs)
 
     if len(ref_tables) > 1:
