@@ -119,9 +119,9 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
             # assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
             if args:
                 [res_tps, args_cks_tuple] = zip(*[tc.synthesize_type(ctx, v) for v in args])
-                [tps, arg_cards] = zip(*res_tps)
-                tps = list(tps)
-                arg_cards = list(arg_cards)
+                [tps_tuple, arg_cards_tuple] = zip(*res_tps)
+                tps = list(tps_tuple)
+                arg_cards = list(arg_cards_tuple)
                 args_cks = list(args_cks_tuple)
             else:
                 tps = []
