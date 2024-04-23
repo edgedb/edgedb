@@ -1286,7 +1286,20 @@ class Server(BaseServer):
                     # particular, so we can compiler from exactly the
                     # right state. (Since self._std_schema and the like might
                     # be further advanced.)
-                    state = (await edbcompiler.new_compiler_from_pg(conn)).state
+                    try:
+                        state = (
+                            await edbcompiler.new_compiler_from_pg(conn)).state
+                    except RuntimeError:
+                        # If it fails on the current database, it will have
+                        # been because it was created on a beta and then
+                        # upgraded to rc first, before we started saving
+                        # updated stdschemas in user databases.
+                        # Try grabbing it from the system connection.
+                        async with self._tenant.use_sys_pgcon() as syscon:
+                            state = (
+                                await edbcompiler.new_compiler_from_pg(
+                                    syscon, num)
+                            ).state
 
                     assert state.global_intro_query and state.local_intro_query
                     global_schema = self._parse_global_schema(
