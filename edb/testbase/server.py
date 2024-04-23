@@ -47,6 +47,7 @@ import inspect
 import json
 import os
 import pathlib
+import platform
 import random
 import re
 import secrets
@@ -2459,6 +2460,12 @@ def start_edgedb_server(
     extra_args: Optional[List[str]] = None,
     default_branch: Optional[str] = None,
 ):
+    if platform.system() == "Darwin" and platform.machine() == 'x86_64':
+        raise unittest.SkipTest(
+            "Postgres is not getting getting enough shared memory on macos-14 "
+            "GitHub runner by default"
+        )
+
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if backend_dsn or adjacent_to:
             # We don't want to implicitly "fix the issue" for the test author
