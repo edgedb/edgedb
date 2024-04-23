@@ -450,8 +450,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 lp_table_name = f"{tp_name}.{pname}"
                 lp_property_names = list(pview.link_props.keys())
                 for v in props[pname].getVals():
-                    assert isinstance(v, e.RefVal)
                     if len(lp_property_names) > 0:
+                        assert isinstance(v, e.RefVal)
                         lp_props = [convert_val_to_sqlite_val(v.val.val[e.LinkPropLabel(lp_prop_name)][1]) for lp_prop_name in lp_property_names]
                         self.do_execute_query(f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), *lp_props))
