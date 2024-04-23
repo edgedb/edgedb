@@ -248,8 +248,12 @@ def new_compiler(
     ))
 
 
-async def new_compiler_from_pg(con: metaschema.PGConnection) -> Compiler:
-    num_patches = await get_patch_count(con)
+async def new_compiler_from_pg(
+    con: metaschema.PGConnection,
+    num_patches: Optional[int] = None,
+) -> Compiler:
+    if num_patches is None:
+        num_patches = await get_patch_count(con)
 
     std_schema, reflection_schema = await load_std_and_reflection_schema(
         con, num_patches)
