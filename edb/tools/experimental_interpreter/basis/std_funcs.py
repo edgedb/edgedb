@@ -147,9 +147,7 @@ def std_sum_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [l]:
             if all(isinstance(elem, e.ScalarVal) and isinstance(elem.val, int) for elem in l):
-                return [IntVal(sum(elem.val
-                                   for elem in l
-                                   ))]
+                return [IntVal(sum(elem.val for elem in l))] # type: ignore
             else:
                 raise ValueError("not implemented: std::sum")
     raise FunCallErr()
@@ -176,8 +174,8 @@ def std_assert_distinct(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             msg = None
 
             match pmsg:
-                case [msg]:
-                    msg = msg
+                case [e.ScalarVal(_, errmsg)]:
+                    msg = errmsg
                 case []:
                     msg = "Expected distinct values, got duplicates."
                 
@@ -263,7 +261,7 @@ def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def math_mean_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [l]:
-            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "float64"])), sum(elem.val for elem in l) / len(l))]
+            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "float64"])), sum(elem.val for elem in l) / len(l))] # type: ignore
     raise FunCallErr()
 
 def std_contains_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:

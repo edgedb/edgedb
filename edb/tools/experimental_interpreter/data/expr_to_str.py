@@ -29,7 +29,7 @@ def show_raw_name(name: e.QualifiedName | e.UnqualifiedName) -> str:
         return name.name
 
 
-def show_tp(tp: e.Tp) -> str:
+def show_tp(tp: e.Tp | e.RawName) -> str:
     match tp:
         case e.ObjectTp(val=tp_val):
             return ('{' + ', '.join(lbl + ": " + show_tp(md_tp.tp)
@@ -55,7 +55,7 @@ def show_tp(tp: e.Tp) -> str:
         case e.SomeTp(index=index):
             return f'some_{{{index}}}'
         case e.AnyTp(name):
-            return 'any' + name
+            return 'any' + (name or '')
         # case e.VarTp(name=name):
         #     return f'{name}'
         # case e.UnifiableTp(id=id, resolution=resolution):
@@ -121,7 +121,7 @@ def show_scalar_val(val: e.ScalarVal) -> str:
 def show_edge_database_select_filter(filter: e.EdgeDatabaseSelectFilter) -> str:
     match filter:
         case e.EdgeDatabaseEqFilter(propname=propname, arg=arg):
-            return f'({propname} = {show_expr(arg)})'
+            return f'({propname} = {show(arg)})'
         case e.EdgeDatabaseConjunctiveFilter(conjuncts=conjuncts):
             return f'({" AND ".join(show_edge_database_select_filter(f) for f in conjuncts)})'
         case e.EdgeDatabaseDisjunctiveFilter(disjuncts=disjuncts):
@@ -347,11 +347,11 @@ def show_ctx(ctx: e.TcCtx) -> str:
 
 
 def show(expr : Any) -> str:
-    if isinstance(expr, e.Tp):
+    if isinstance(expr, e.Tp): # type: ignore
         return show_tp(expr)
-    elif isinstance(expr, e.Expr):
+    elif isinstance(expr, e.Expr): # type: ignore
         return show_expr(expr)
-    elif isinstance(expr, e.Val):
+    elif isinstance(expr, e.Val): # type: ignore
         return show_val(expr)
     elif isinstance(expr, e.TcCtx):
         return show_ctx(expr)

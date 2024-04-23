@@ -170,7 +170,7 @@ def convert_val_to_sqlite_val(val: e.ResultMultiSetVal) -> Any:
                         return v
                     case _:
                         return str(v)
-            case e.RefVal(refid=refid, tpname=tpname, val=v):
+            case e.RefVal(refid=refid, tpname=tpname, val=_):
                 return refid
             case e.ArrVal(val=vals):
                 return json.dumps([sub_convert(v) for v in vals])

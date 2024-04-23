@@ -72,12 +72,12 @@ def reverse_elab_shape(expr: ShapeExpr) -> List[qlast.ShapeElement]:
             ]
 
 
-def reverse_elab_type_name(tp: Tp) -> qlast.TypeName:
+def reverse_elab_type_name(tp: Tp | e.RawName) -> qlast.TypeName:
     match tp:
         case e.QualifiedName(_):
             qname = tp
             if len(qname.names) == 2:
-                return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.names[-1]), module="::".join(qname.names[:-1]))
+                return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.names[-1], module="::".join(qname.names[:-1])))
             elif len(qname.names) == 1:
                 return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.names[0]))
             else:
@@ -94,7 +94,7 @@ def reverse_elab_type_name(tp: Tp) -> qlast.TypeName:
                 maintype=qlast.ObjectRef(name=kind.name),
                 subtypes=[reverse_elab_type_name(tp) for tp in tps])
         case e.AnyTp(specifier=specifier):
-            return qlast.TypeName(maintype=reverse_elab_raw_name(e.QualifiedName(names=["std", "any"+specifier])))
+            return qlast.TypeName(maintype=reverse_elab_raw_name(e.QualifiedName(names=["std", "any"+(specifier or "")])))
     raise ValueError("Unimplemented")
 
 
@@ -340,9 +340,8 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
             return qlast.TypeCast(
                 type=reverse_elab_type_name(tp),
                 expr=qlast.Parameter(name=name),
-                is_required=is_required
-            )
+                cardinality_mod=qlast.CardinalityModifier.Required if is_required else qlast.CardinalityModifier.Optional)
         case e.QualifiedNameWithFilter(name=name, filter=filter):
-            return reverse_elab_raw_name(name)
+            return qlast.Path(steps=[reverse_elab_raw_name(name)])
         case _:
             raise ValueError("Unimplemented", ir_expr)

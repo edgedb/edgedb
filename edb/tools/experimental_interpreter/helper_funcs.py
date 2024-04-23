@@ -20,8 +20,8 @@ def parse_ddl(ddlstr: str) -> List[qlast.DDLOperation]:
     return ddls # type: ignore[return-value]
 
 def parse_ql(querystr: str) -> Sequence[qlast.Expr]:
-    def notExpr(e: qlast.Base) -> Any:
-        raise EdgeQLSyntaxError("Not an Expression", context=e.context)
+    def notExpr(expr: qlast.Base) -> Any:
+        raise EdgeQLSyntaxError("Not an Expression", span=expr.span)
 
     source = Source.from_string(querystr)
     base_statements = parser.parse_block(source)  # type : Sequence[Expr]

@@ -118,11 +118,11 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
             qualified_fname, fun_defs = mops.resolve_raw_name_and_func_def(ctx, fname)
             # assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
             if args:
-                [res_tps, args_cks] = zip(*[tc.synthesize_type(ctx, v) for v in args])
+                [res_tps, args_cks_tuple] = zip(*[tc.synthesize_type(ctx, v) for v in args])
                 [tps, arg_cards] = zip(*res_tps)
                 tps = list(tps)
                 arg_cards = list(arg_cards)
-                args_cks = list(args_cks)
+                args_cks = list(args_cks_tuple)
             else:
                 tps = []
                 arg_cards = []

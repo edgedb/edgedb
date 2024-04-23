@@ -46,7 +46,7 @@ def object_tp_comp_name_resolve(
         case e.UncheckedComputableTp(expr=c_expr):
             return tp_comp
         case e.ComputableTp(expr=c_expr, tp=c_tp):
-            return e.CompositeTp(expr=c_expr, tp=object_tp_comp_name_resolve(root_ctx,c_tp))
+            return e.ComputableTp(expr=c_expr, tp=object_tp_comp_name_resolve(root_ctx,c_tp))
         case e.DefaultTp(expr=c_expr, tp=c_tp):
             return e.DefaultTp(expr=c_expr, tp=object_tp_comp_name_resolve(root_ctx,c_tp))
         case e.OverloadedTargetTp(linkprop=linkprop):

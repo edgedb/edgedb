@@ -182,8 +182,8 @@ def make_invisible(val : MultiSetVal) -> MultiSetVal:
     result : List[Val] = []
     for v in val.getVals():
         match v:
-            case RefVal(refid=id, val=dictval):
-                result = [*result, RefVal(refid=id, val=ObjectVal({k: (Invisible(), v) for k, (_, v) in dictval.val.items()}))]
+            case RefVal(refid=id, tpname=tpname, val=dictval):
+                result = [*result, RefVal(refid=id, tpname=tpname, val=ObjectVal({k: (Invisible(), v) for k, (_, v) in dictval.val.items()}))]
             case _:
                 result = [*result, v]
     return e.ResultMultiSetVal(result)
@@ -325,9 +325,10 @@ def eval_expr(ctx: EvalEnv,
                     case _:
                         raise ValueError("Unrecognized filter expression, check post processing: ", filter_expr)
             filter_val = eops.map_edge_select_filter(filter_map, filter) # type: ignore
-            all_ids: Sequence[Val] = [
+            assert isinstance(filter_val, e.EdgeDatabaseSelectFilter) # type: ignore
+            all_ids = [
                 RefVal(id, name, ObjectVal({}))
-                for id in db.storage.query_ids_for_a_type(name, filter_val)]
+                for id in db.storage.query_ids_for_a_type(name, filter_val)] # type: ignore
             return e.ResultMultiSetVal(all_ids)
         
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):
@@ -359,16 +360,18 @@ def eval_expr(ctx: EvalEnv,
                         argv_final = [[*cur, argv_i] for cur in argv_final]
                     case _:
                         raise ValueError()
-            # argv_final = [map_assume_link_target(f) for f in argv_final]
+
+            after_fun_vals: Sequence[Val] 
             if isinstance(looked_up_fun, e.BuiltinFuncDef):
-                after_fun_vals: Sequence[Val] = [
+                after_fun_vals = [
                     v for arg in argv_final for v in looked_up_fun.impl(arg)]
             elif isinstance(looked_up_fun, e.DefinedFuncDef):
-                after_fun_vals: Sequence[Val] = []
+                after_fun_vals = []
                 for vset in argv_final:
                     body = looked_up_fun.impl
-                    for i, arg in enumerate(vset):
-                        ctx, body = ctx_extend(ctx, body, e.ResultMultiSetVal(arg))
+                    for i, farg in enumerate(vset):
+                        assert isinstance(body, e.BindingExpr)
+                        ctx, body = ctx_extend(ctx, body, e.ResultMultiSetVal(farg))
                     after_fun_vals = [*after_fun_vals, *eval_expr(ctx, db, body).getVals()]
             else:
                 raise ValueError("Not implemented yet", looked_up_fun)
@@ -395,7 +398,7 @@ def eval_expr(ctx: EvalEnv,
             if not isinstance(tp_name, e.QualifiedName):
                 raise ValueError("Should be updated during tcking")
             subjectv = eval_expr(ctx, db, subject)
-            after_intersect: List[Val] = []
+            is_result: List[Val] = []
             for v in subjectv.getVals():
                 match v:
                     case RefVal(refid=vid, tpname=val_tp, val=_):
@@ -406,8 +409,8 @@ def eval_expr(ctx: EvalEnv,
                                 s_name, tp_name)
                     case _:
                         raise ValueError("UnExpected Value Type")
-                after_intersect = [*after_intersect, e.BoolVal(is_subtype)]
-            return e.ResultMultiSetVal(after_intersect)
+                is_result = [*is_result, e.BoolVal(is_subtype)]
+            return e.ResultMultiSetVal(is_result)
         case TpIntersectExpr(subject=subject, tp=tp_name):
             if not isinstance(tp_name, e.QualifiedName):
                 raise ValueError("Should be updated during tcking")
@@ -438,7 +441,7 @@ def eval_expr(ctx: EvalEnv,
             return e.ResultMultiSetVal(result_list)
         case NamedTupleExpr(val=tuples):
             tuplesv = eval_expr_list(ctx, db, list(tuples.values()))
-            result_list: List[Val] = []
+            result_list = []
             for prod in itertools.product(*map_expand_multiset_val(tuplesv)):
                 result_list.append(NamedTupleVal({k: p
                            for (k, p) in zip(tuples.keys(), prod, strict=True)})
@@ -585,7 +588,7 @@ def eval_ctx_from_variables(variables) -> EvalEnv:
 
 
 def eval_expr_toplevel(db: EdgeDatabase, expr: Expr,
-                       variables: Optional[Dict[str, Val] | Tuple[Val]] = None,
+                       variables: Optional[Dict[str, Val] | Tuple[Val, ...]] = None,
                        logs: Optional[Any] = None) -> MultiSetVal:
 
     # on exception, this is not none

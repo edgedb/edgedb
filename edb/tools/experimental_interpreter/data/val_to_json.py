@@ -61,7 +61,7 @@ def multi_set_val_to_json_like(m: MultiSetVal) -> json_like:
 
 
 def typed_objectval_to_json_like(objv: ObjectVal,
-                                 obj_tp: e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp | e.UnionTp,
+                                 obj_tp: e.Tp,
                                  dbschema: e.DBSchema) -> Dict[str, json_like]:
     result: Dict[str, json_like] = {}
     for (k, v) in objv.val.items():
@@ -195,7 +195,7 @@ def typed_multi_set_val_to_json_like(
             if top_level:
                 result = []
             else:
-                result = None
+                result = []
     else:
         # do not dedup when converting to json (see test_edgeql_shape_for_01)
         result = [typed_val_to_json_like(v, tp.tp, dbschema) for v in m.getRawVals()]

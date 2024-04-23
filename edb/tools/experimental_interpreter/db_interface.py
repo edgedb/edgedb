@@ -47,7 +47,7 @@ class EdgeDatabaseStorageProviderInterface:
     def restore_state(self, dumped_state) -> None:
         raise NotImplementedError()
 
-    def commit() -> None:
+    def commit(self) -> None:
         raise NotImplementedError()
 
 class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
@@ -65,6 +65,7 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         def check_filter(filter: EdgeDatabaseEqFilter, id: EdgeID) -> bool:
             data_to_check = self.db.dbdata[id].data
             target_vals = data_to_check[filter.propname]
+            assert isinstance(filter.arg, MultiSetVal)
             return any(eops.val_eq(v, vv)  for v in target_vals.getVals() for vv in filter.arg.getVals())
             
         def check_filter_top(filter: EdgeDatabaseSelectFilter, id: EdgeID) -> bool:

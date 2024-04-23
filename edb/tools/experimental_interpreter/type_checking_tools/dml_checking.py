@@ -137,30 +137,31 @@ def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.Resu
                     raise ValueError("TODO")
                 if not all(isinstance(tp, e.NamedNominalLinkTp) for tp in all_target_tps):
                     raise ValueError("TODO")
-                all_target_names = {tp.name : tp for tp in all_target_tps}
+                all_target_names : Dict[e.QualifiedName, e.Tp] = {tp.name : tp for tp in all_target_tps} # type: ignore
                 # synthesize once to get the type
                 (synthesized_tp, expr_ck) = synthesize_type(ctx, attr_expr)
                 if isinstance(synthesized_tp.tp, e.NamedNominalLinkTp | e.NominalLinkTp):
                     synthesized_name = synthesized_tp.tp.name
                     if synthesized_name not in all_target_names:
                         raise ValueError("Synthesized name not in union types", synthesized_name, all_target_names)
+                    assert isinstance(synthesized_name, e.QualifiedName)
                     return insert_proprerty_checking(ctx, attr_expr, e.ResultTp(all_target_names[synthesized_name], target_mode))
                 elif isinstance(synthesized_tp.tp, e.UnionTp):
                     all_synthesized_tps = tops.collect_tp_union(synthesized_tp.tp)
                     assert all(isinstance(tp, e.NamedNominalLinkTp | e.NominalLinkTp) for tp in all_synthesized_tps)
 
-                    all_synthesized_names = {tp.name : tp for tp in all_synthesized_tps}
+                    all_synthesized_names = {tp.name : tp for tp in all_synthesized_tps} # type: ignore
 
-                    if not all(any(tops.is_nominal_subtype_in_schema(ctx, synth_name, ck_name) for ck_name in all_target_names.keys()) for synth_name in all_synthesized_names.keys()):
+                    if not all(any(tops.is_nominal_subtype_in_schema(ctx, synth_name, ck_name) for ck_name in all_target_names.keys()) for synth_name in all_synthesized_names.keys()): # type: ignore
                         raise ValueError("Synthesized names not in union types", all_synthesized_names.keys(), all_target_names.keys())
 
 
                     assert isinstance(all_synthesized_tps[0], e.NamedNominalLinkTp | e.NominalLinkTp)
                     synth_lp = all_synthesized_tps[0].linkprop.val
-                    assert all(synth_lp == tp.linkprop.val for tp in all_synthesized_tps)
+                    assert all(synth_lp == tp.linkprop.val for tp in all_synthesized_tps) #type: ignore
                     assert isinstance(all_target_tps[0], e.NamedNominalLinkTp | e.NominalLinkTp)
                     ck_lp = all_target_tps[0].linkprop.val
-                    assert all(ck_lp == tp.linkprop.val for tp in all_target_tps)
+                    assert all(ck_lp == tp.linkprop.val for tp in all_target_tps) #type: ignore
                     return insert_link_prop_checking(ctx, expr_ck, synth_lp, ck_lp)
                 else:
                     raise ValueError("TODO", pp.show(synthesized_tp.tp), pp.show(attr_expr))

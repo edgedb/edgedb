@@ -130,7 +130,7 @@ def elab_Path(p: qlast.Path) -> Expr:
                 else:
                     match elab_single_type_expr(tp):
                         case e.UncheckedTypeName(name=tp_name):
-                            result = TpIntersectExpr(result, e.UncheckedTypeName(tp_name))
+                            result = TpIntersectExpr(result, tp_name)
                         case _:
                             raise ValueError(
                                 "expecting single type name here")

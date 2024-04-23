@@ -136,9 +136,11 @@ def check_filter_body_is_exclusive(ctx: e.TcCtx, filter_ck: e.Expr) -> bool:
                             case e.NominalLinkTp(subject=tp, name=name, linkprop=linkprop):
                                 type_def = mops.resolve_type_def(ctx.schema, name)
                             case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
+                                assert isinstance(name, e.QualifiedName), "should have been resolved"
                                 type_def = mops.resolve_type_def(ctx.schema, name)
                             case _:
                                 return False
+                        assert isinstance(type_def.typedef, e.ObjectTp)
                         if label in type_def.typedef.val:
                             if [c for c in type_def.constraints if isinstance(c, e.ExclusiveConstraint) and c.name == label]:
                                 return True
@@ -274,20 +276,20 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.BackLinkExpr(subject=subject, label=label):
             (_, subject_ck) = synthesize_type(ctx, subject)
             candidates: List[e.NamedNominalLinkTp] = []
-            for (name, name_def) in mops.enumerate_all_object_type_defs(ctx):
+            for (t_name, name_def) in mops.enumerate_all_object_type_defs(ctx):
                 for (name_label, comp_tp) in name_def.val.items():
                     if name_label == label:
                         match comp_tp.tp:
                             case e.NamedNominalLinkTp(_):
                                 candidates = [
                                     *candidates,
-                                    e.NamedNominalLinkTp(name,
+                                    e.NamedNominalLinkTp(t_name,
                                                  comp_tp.tp.linkprop)
                                 ] 
                             case _:
                                 candidates = [
                                     *candidates,
-                                    e.NamedNominalLinkTp(name,
+                                    e.NamedNominalLinkTp(t_name,
                                                  e.ObjectTp({}))
                                 ]
             result_expr = e.BackLinkExpr(subject_ck, label)
@@ -301,11 +303,12 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.IsTpExpr(subject=subject, tp=intersect_tp):
             # intersect_tp = check_type_valid(ctx, intersect_tp)
             if isinstance(intersect_tp, e.UncheckedTypeName):
-                intersect_tp = intersect_tp.name
+                intersect_tp_name , _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp.name)
             if isinstance(intersect_tp, e.AnyTp):
-                intersect_tp_name = e.QualifiedName(["std", "any"+intersect_tp.specifier])
+                intersect_tp_name = e.QualifiedName(["std", "any"+(intersect_tp.specifier or "")])
             else:
-                intersect_tp_name , _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp)
+                assert isinstance(intersect_tp, e.RawName) # type: ignore
+                intersect_tp_name , _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp) # type: ignore
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.IsTpExpr(subject_ck, intersect_tp_name)
             result_card = subject_tp.mode
@@ -314,7 +317,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             # intersect_tp = check_type_valid(ctx, intersect_tp)
             if isinstance(intersect_tp, e.UncheckedTypeName):
                 intersect_tp = intersect_tp.name
-            intersect_tp_name , _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp)
+            assert isinstance(intersect_tp, e.RawName) # type: ignore
+            intersect_tp_name , _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp) # type: ignore
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.TpIntersectExpr(subject_ck, intersect_tp_name)
             if all(isinstance(t, e.NamedNominalLinkTp)
@@ -521,7 +525,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     for arr_elem in arr[1:]])
             else:
                 rest_card = []
-                rest_cks = []
+                rest_cks = ()
             # TODO: change to use unions
             result_expr = e.ArrExpr([first_ck] + list(rest_cks))
             result_tp = e.ArrTp(first_tp.tp)

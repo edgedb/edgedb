@@ -45,7 +45,7 @@ def process_ddl(
             abstract=is_abstract):
             assert module_name is not None, "Scalar types cannot be created in top level"
             assert "::" not in module_name, "TODO"
-            schema.modules[(module_name, )].defs[type_name] = e.ModuleEntityTypeDef(e.ScalarTp(e.QualifiedName([module_name, type_name])), constraints={}, is_abstract=is_abstract, indexes=[])
+            schema.modules[(module_name, )].defs[type_name] = e.ModuleEntityTypeDef(e.ScalarTp(e.QualifiedName([module_name, type_name])), constraints=[], is_abstract=is_abstract, indexes=[])
             # We require DDL to contain fully qualified names
             schema.subtyping_relations[e.QualifiedName([module_name, type_name])] = []
             for base_tp in bases:
@@ -53,10 +53,11 @@ def process_ddl(
                 match base_elabed:
                     # for bare ddl, we assume qualified type name is actually checked
                     case e.UncheckedTypeName(name=e.QualifiedName(_)):
+                        assert isinstance(base_elabed.name, e.QualifiedName)
                         schema.subtyping_relations[e.QualifiedName([module_name, type_name])].append(base_elabed.name)
                     case e.AnyTp(spec):
                         # choice: make anytype live in std
-                        schema.subtyping_relations[e.QualifiedName([module_name, type_name])].append(e.QualifiedName(["std", "any"+spec]))
+                        schema.subtyping_relations[e.QualifiedName([module_name, type_name])].append(e.QualifiedName(["std", "any"+(spec or "")]))
                     case e.CompositeTp(kind=e.CompositeTpKind.Enum, tps=_):
                         print_warning("WARNING: behavior of extending enum types undefined", base_elabed)
                     case _:

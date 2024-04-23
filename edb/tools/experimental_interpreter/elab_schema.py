@@ -69,14 +69,14 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> Tuple[ObjectTp,
                     cardinality=p_cardinality,
                     declared_overloaded=declared_overloaded,
                     commands=pcommands):
+                base_target_type: Tp
                 if ptarget is None:
                     if declared_overloaded:
                         base_target_type = e.OverloadedTargetTp(linkprop=None)
                     else:
                         raise ValueError("expecting target")
                 if isinstance(ptarget, qlast.TypeExpr):
-                    base_target_type = elab_schema_target_tp(
-                        ptarget)
+                    base_target_type = elab_schema_target_tp(ptarget)
                 elif isinstance(ptarget, qlast.Expr):
                     base_target_type = e.UncheckedComputableTp(
                         elab_expr_with_default_head(ptarget)
@@ -294,7 +294,7 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
                 this_name = e.QualifiedName(["default", name])
                 add_bases_for_name(existing, current_module_name, name, bases)
                 assert name not in type_defs
-                type_defs[name] = e.ModuleEntityTypeDef(e.ScalarTp(this_name), is_abstract=abstract, constraints={}, indexes=[])
+                type_defs[name] = e.ModuleEntityTypeDef(e.ScalarTp(this_name), is_abstract=abstract, constraints=[], indexes=[])
             case qlast.CreateConstraint():
                 print_warning("WARNING: not supported yet", t_decl)
             case qlast.CreateFunction(

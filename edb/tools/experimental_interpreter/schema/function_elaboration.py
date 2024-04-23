@@ -12,6 +12,7 @@ from .. import elab_schema as elab_schema
 from ..type_checking_tools import typechecking as tck
 from ..interpreter_logging import print_warning
 from ..type_checking_tools import name_resolution as name_res
+from typing import Optional
 
 from edb.common import debug
 
@@ -23,7 +24,7 @@ def fun_arg_type_polymorphism_post_processing(tp: e.Tp) -> e.Tp:
     This is how the current polymorphism status quo.
     """
 
-    def replace_any(tp: e.Tp) -> e.Tp:
+    def replace_any(tp: e.Tp) -> Optional[e.Tp]:
         match tp:
             case e.AnyTp(spec):
                 if spec == "type":
@@ -47,10 +48,10 @@ def elaboarate_ret_typemod(ret_typemod: qltypes.TypeModifier) -> e.CMMode:
 
 def elaborate_fun_def_arg_type(
                     params: List[qlast.FuncParam],
-                    ret_tp: qlast.TypeName, 
+                    ret_tp: qlast.TypeExpr, 
                     ret_typemod: qltypes.TypeModifier) -> e.FunArgRetType:
     return_cad = elaboarate_ret_typemod(ret_typemod)
-    return_tp = elab.elab_TypeName(ret_tp)
+    return_tp = elab.elab_single_type_expr(ret_tp)
     return_tp = fun_arg_type_polymorphism_post_processing(return_tp)
     params_elab = []
     params_mod_elab = []
@@ -62,7 +63,7 @@ def elaborate_fun_def_arg_type(
                 type = param_type,
                 typemod = modifier):
                 params_label_elab.append(param_name)
-                param_type_raw = elab.elab_TypeName(param_type)
+                param_type_raw = elab.elab_single_type_expr(param_type)
                 param_type_ck = fun_arg_type_polymorphism_post_processing(param_type_raw)
                 params_elab.append(param_type_ck)
                 params_mod_elab.append(elab.elab_param_modifier(modifier))
@@ -80,10 +81,12 @@ def elaborate_fun_def_arg_type(
 def process_builtin_fun_def(schema: e.DBSchema,
             name : qlast.ObjectRef, 
                     params: List[qlast.FuncParam],
-                    ret_tp: qlast.TypeName, 
+                    ret_tp: qlast.TypeExpr, 
                     ret_typemod: qltypes.TypeModifier) -> None:
     match name:
         case qlast.ObjectRef(name=fun_name, module=module_name):
+            assert module_name is not None, "Functions cannot be created in top level"
+            assert "::" not in module_name, "TODO"
             func_type = elaborate_fun_def_arg_type(params, ret_tp, ret_typemod)
             func_type = name_res.fun_arg_ret_type_name_resolve(eops.emtpy_tcctx_from_dbschema(schema), func_type)
             defaults = {p.name : elab.elab(p.default) for p in params if p.default}
@@ -92,8 +95,6 @@ def process_builtin_fun_def(schema: e.DBSchema,
                             impl=get_default_func_impl_for_function(e.QualifiedName([module_name, fun_name])),
                             defaults=defaults
                             )
-            assert module_name is not None, "Functions cannot be created in top level"
-            assert "::" not in module_name, "TODO"
             if fun_name in schema.modules[(module_name, )].defs:
                 current_def = schema.modules[(module_name, )].defs[fun_name]
                 assert isinstance(current_def, e.ModuleEntityFuncDef)

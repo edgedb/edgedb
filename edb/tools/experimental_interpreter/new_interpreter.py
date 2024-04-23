@@ -129,7 +129,7 @@ def run_prepared_statement(db: EdgeDatabase,
                            deduped: e.Expr, tp: e.ResultTp, dbschema: DBSchema,
                            should_print: bool,
                            logs: Optional[List[Any]],
-                           variables: Optional[Dict[str, Val]] = {},
+                           variables: VariablesTp = None,
                           ) -> MultiSetVal:
     result = eval_expr_toplevel(db, deduped, variables=variables, logs=logs)
     if should_print:
@@ -146,7 +146,7 @@ def run_statement(db: EdgeDatabase,
                   stmt: qlast.Expr, dbschema: DBSchema,
                   should_print: bool,
                   logs: Optional[List[Any]],
-                  variables: Dict[str, Val] = {},
+                  variables: VariablesTp = None,
                   ) -> Tuple[MultiSetVal, e.ResultTp]:
 
     deduped, tp = prepare_statement(stmt, dbschema, should_print)
@@ -195,7 +195,7 @@ def run_str(
 def run_single_str(
     dbschema_and_db: Tuple[DBSchema, EdgeDatabase],
     s: str,
-    variables: Dict[str, Val] = {},
+    variables: VariablesTp = {},
     print_asts: bool = False
 ) -> Tuple[MultiSetVal, ResultTp]:
     q = parse_ql(s)
@@ -326,7 +326,7 @@ def repl(*, init_sdl_file=None,
 
 
 def dbschema_and_db_with_initial_schema_and_queries(
-        initial_schema_defs: str,
+        initial_schema_defs: Optional[str],
         initial_queries: str,
         sqlite_file_name: Optional[str] = None,
         debug_print=False,
@@ -334,7 +334,9 @@ def dbschema_and_db_with_initial_schema_and_queries(
     if sqlite_file_name is not None:
         dbschema, db = sqlite_adapter.schema_and_db_from_sqlite(initial_schema_defs, sqlite_file_name)
     else:
-        dbschema = add_module_from_sdl_defs(default_dbschema(), initial_schema_defs)
+        dbschema = default_dbschema()
+        if initial_schema_defs is not None:
+            dbschema = add_module_from_sdl_defs(dbschema, initial_schema_defs)
         db = empty_db(dbschema)
     run_str(db, dbschema, initial_queries,
                       print_asts=debug_print, logs=logs)
@@ -356,7 +358,7 @@ class EdgeQLInterpreter:
     def run_single_str_get_json_with_cache(
         self,
         s: str,
-        variables: Optional[Dict[str, Any] | Tuple[Any, ...]] = None,
+        variables: VariablesTp = None,
         disable_cache: bool = False,
     ) -> json_like:
         if not disable_cache and s in self.query_cache:

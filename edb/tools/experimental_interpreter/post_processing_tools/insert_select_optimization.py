@@ -77,9 +77,9 @@ def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilt
         case e.QualifiedName(name):
             bindings = {}
             binding_extraction_failed = False
-            def extract_expression_bindings(expr: e.Expr) -> None:
+            def extract_expression_bindings(expr: e.Expr) -> Optional[e.Expr]:
                 nonlocal binding_extraction_failed
-                if isinstance(expr, e.EdgeDatabaseSelectFilter):
+                if isinstance(expr, e.EdgeDatabaseSelectFilter): # type: ignore
                     return None
                 elif isinstance(expr, e.FreeVarExpr | e.ScalarVal):
                     return expr
@@ -87,10 +87,14 @@ def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilt
                     binder_name = e.next_name("filter_bnd")
                     bindings[binder_name] = expr
                     return e.FreeVarExpr(binder_name)
+                else:
+                    binding_extraction_failed = True
+                    return None
             after_filter = eops.map_edge_select_filter(extract_expression_bindings, filter)
             if binding_extraction_failed:
                 return None
-            return_expr = e.QualifiedNameWithFilter(subject, after_filter)
+            assert isinstance(after_filter, e.EdgeDatabaseSelectFilter) # type: ignore
+            return_expr : e.Expr = e.QualifiedNameWithFilter(subject, after_filter) # type: ignore
             for bnd_name, bnd_expr in bindings.items():
                 return_expr = e.WithExpr(bnd_expr, 
                     eops.abstract_over_expr(return_expr, bnd_name)
@@ -111,12 +115,14 @@ def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilt
                     )
                 else:
                     return None
+        case _:
+            return None
     
 
 
 
 def select_optimize(expr: e.Expr) -> e.Expr:
-    def sub_f(sub: e.Expr) -> e.Expr:
+    def sub_f(sub: e.Expr) -> Optional[e.Expr]:
         match sub:
             case e.FilterOrderExpr(
                 subject=subject,
@@ -128,6 +134,7 @@ def select_optimize(expr: e.Expr) -> e.Expr:
                 else:
                     subject_new = select_optimize(subject)
                     filter_new = select_optimize(filter)
+                    assert isinstance(filter_new, e.BindingExpr)
 
                     default_return_expr = e.FilterOrderExpr(
                         subject=subject_new,
@@ -147,5 +154,7 @@ def select_optimize(expr: e.Expr) -> e.Expr:
                             return default_return_expr
                     else:
                         return default_return_expr
+            case _:
+                return None
                 
     return eops.map_expr(sub_f, expr)

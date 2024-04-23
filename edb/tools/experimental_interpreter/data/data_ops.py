@@ -580,12 +580,12 @@ class BackLinkExpr:
 @dataclass(frozen=True)
 class IsTpExpr:
     subject: Expr
-    tp: Tp
+    tp: Tp | RawName
 
 @dataclass(frozen=True)
 class TpIntersectExpr:
     subject: Expr
-    tp: Tp
+    tp: Tp | RawName
 
 
 @dataclass(frozen=True)
@@ -747,9 +747,9 @@ class ObjectVal:
         for lbl, (marker, val) in self.val.items():
             if not isinstance(val, MultiSetVal):
                 raise ValueError("val must be a MultiSetVal")
-            if not isinstance(marker, Marker):
+            if not isinstance(marker, Marker): # type: ignore
                 raise ValueError("marker must be a Marker")
-            if not isinstance(lbl, Label):
+            if not isinstance(lbl, Label): # type: ignore
                 raise ValueError("label must be a Label")
 
 
@@ -817,7 +817,7 @@ class ResultMultiSetVal:
         return self._vals
 
     def __post_init__(self):
-        if not isinstance(self._vals, list) or not all(isinstance(v, Val) for v in self._vals):
+        if not isinstance(self._vals, list) or not all(isinstance(v, Val) for v in self._vals): # type: ignore
             raise ValueError("vals must be a list")
 
 
