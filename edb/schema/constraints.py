@@ -871,12 +871,6 @@ class ConstraintCommand(
             )
 
         except_expr: s_expr.Expression | None = attrs.get('except_expr')
-        if except_expr:
-            if isinstance(subject, s_pointers.Pointer):
-                raise errors.InvalidConstraintDefinitionError(
-                    "only object constraints may use EXCEPT",
-                    span=sourcectx
-                )
 
         if subjectexpr is not None:
             options = qlcompiler.CompilerOptions(

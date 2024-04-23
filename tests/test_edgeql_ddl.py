@@ -10507,25 +10507,50 @@ type default::Foo {
                 else:
                     await op
 
-    @test.xerror('only object constraints may use EXCEPT')
     async def test_edgeql_ddl_constraint_19(self):
-        # This is pretty marginal, but make sure we can distinguish
-        # on and except in name creation;
+        # Make sure we distinguish between on and except in name creation;
         await self.con.execute(r"""
-            create abstract constraint always_ok extending constraint {
-                using (true)
+            create abstract constraint always_fail extending constraint {
+                using (false)
+            };
+            create type Foo;
+            create type OnTest {
+                create link l -> Foo {
+                    create property flag -> bool;
+                    create constraint always_fail on (@flag);
+                };
+            };
+            create type ExceptTest {
+                create link l -> Foo {
+                    create property flag -> bool;
+                    create constraint always_fail except (@flag);
+                };
             };
         """)
 
-        await self.con.execute(r"""
-            create type ExceptTest {
-                create property b -> bool;
-                create property e -> bool;
-                create link l -> Object {
-                    create constraint always_ok except (.e);
-                    create constraint always_ok on (.e);
-                };
-            };
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'invalid l'):
+            await self.con.execute("""
+                insert OnTest { l := (insert Foo) { @flag := false } }
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'invalid l'):
+            await self.con.execute("""
+                insert OnTest { l := (insert Foo) { @flag := true } }
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'invalid l'):
+            await self.con.execute("""
+                insert ExceptTest { l := (insert Foo) { @flag := false } }
+            """)
+
+        await self.con.execute("""
+            insert ExceptTest { l := (insert Foo) { @flag := true } }
         """)
 
     async def test_edgeql_ddl_constraint_20(self):
