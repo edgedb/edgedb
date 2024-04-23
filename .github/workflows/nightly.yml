@@ -853,7 +853,7 @@ jobs:
         path: artifacts/linuxmusl-aarch64
 
   build-macos-x86_64:
-    runs-on: ['macos-14']
+    runs-on: ['macos-13']
     needs: prep
 
     if: needs.prep.outputs.if_macos_x86_64 == 'true'
@@ -1390,7 +1390,7 @@ jobs:
 
   test-macos-x86_64:
     needs: [build-macos-x86_64]
-    runs-on: ['macos-14']
+    runs-on: ['macos-13']
 
     steps:
     - uses: actions/checkout@v4
