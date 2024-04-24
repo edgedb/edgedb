@@ -266,7 +266,7 @@ def map_expr(f: Callable[[Expr], Optional[Expr]], expr: Expr) -> Expr:
                     else_branch=recur(else_branch),
                 )
             case e.CheckedTypeCastExpr(
-                cast_tp=cast_tp,  # this should be absolute names, no need to recur
+                cast_tp=cast_tp,
                 cast_spec=cast_spec,
                 arg=arg,
             ):

@@ -25,9 +25,10 @@ def try_resolve_module_entity(
     """
     assert len(name.names) >= 2
     if name.names[0] == "module":
-        assert isinstance(
-            ctx, e.TcCtx
-        ), "qualified names beginning with module cannot be resolved in a schema"
+        assert isinstance(ctx, e.TcCtx), (
+            "qualified names beginning with"
+            " module cannot be resolved in a schema"
+        )
         name = e.QualifiedName([*ctx.current_module, *name.names[1:]])
     module: e.DBModule
     if isinstance(ctx, e.TcCtx):
@@ -148,7 +149,8 @@ def enumerate_all_object_type_defs(
     ctx: e.TcCtx,
 ) -> List[Tuple[e.QualifiedName, e.ObjectTp]]:
     """
-    Enumerate all type definitions in the current module and the default `std` module.
+    Enumerate all type definitions in the current module
+    and the default `std` module.
     """
     result: List[Tuple[e.QualifiedName, e.ObjectTp]] = []
     for module_name, module_def in [

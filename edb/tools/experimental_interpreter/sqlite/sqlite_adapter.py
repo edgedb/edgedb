@@ -392,12 +392,14 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 index_name = f"{tname}_{'_'.join(index)}_idx"
                 index_spec = ','.join(index)
                 self.do_execute_query(
-                    f"CREATE INDEX IF NOT EXISTS '{index_name}' ON '{tname}' ({index_spec})"
+                    f"CREATE INDEX IF NOT EXISTS '{index_name}'"
+                    + f" ON '{tname}' ({index_spec})"
                 )
 
     def id_initialization(self):
         self.do_execute_query(
-            "CREATE TABLE IF NOT EXISTS next_id_to_return_gen (id INTEGER PRIMARY KEY)"
+            "CREATE TABLE IF NOT EXISTS"
+            " next_id_to_return_gen (id INTEGER PRIMARY KEY)"
         )
         self.do_execute_query("SELECT id FROM next_id_to_return_gen LIMIT 1")
         next_id_row = self.cursor.fetchone()
@@ -425,7 +427,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 case e.EdgeDatabaseEqFilter(propname=propname, arg=arg):
                     if not isinstance(arg, e.MultiSetVal):
                         raise ValueError(
-                            "Only MultiSetVal is supported, check evaluation implementation"
+                            "Only MultiSetVal is supported,"
+                            " check evaluation implementation"
                         )
                     if len(arg.getVals()) != 1:
                         equivalent_disjuctive_filter = (
@@ -595,7 +598,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                             )
                         else:
                             query = (
-                                f"SELECT source FROM '{lp_table_name}' WHERE target IN "
+                                f"SELECT source FROM '{lp_table_name}'"
+                                + " WHERE target IN "
                                 + f"({','.join(['?']*len(subject_ids))})"
                             )
                     else:
@@ -722,7 +726,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         ]
         if len(single_prop_vals) > 0:
             self.do_execute_query(
-                f"UPDATE '{tp_name}' SET {','.join([f'{pname}=?' for pname in props])} WHERE id=?",
+                f"UPDATE '{tp_name}' SET "
+                f"{','.join([f'{pname}=?' for pname in props])} WHERE id=?",
                 (*single_prop_vals, id),
             )
 
@@ -761,7 +766,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                         )
                     else:
                         self.do_execute_query(
-                            f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
+                            f"INSERT INTO '{lp_table_name}'"
+                            " (source, target) VALUES (?, ?)",
                             (
                                 id,
                                 convert_val_to_sqlite_val(
@@ -770,8 +776,10 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                             ),
                         )
 
-    # By default commit is called per query, doing a bunch of consecutive queries
-    # will cause significant delays. This function can be used to pause the commit.
+    # By default commit is called per query,
+    # doing a bunch of consecutive queries
+    # will cause significant delays.
+    # This function can be used to pause the commit.
     def pause_disk_commit(self) -> None:
         self.should_commit_to_disk = False
 
@@ -793,7 +801,8 @@ def schema_and_db_from_sqlite(
 
     # Check if sdl_schema table exists
     c.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='sdl_schema'"
+        "SELECT name FROM sqlite_master "
+        "WHERE type='table' AND name='sdl_schema'"
     )
     table_exists = c.fetchone()
     db_sdl = None

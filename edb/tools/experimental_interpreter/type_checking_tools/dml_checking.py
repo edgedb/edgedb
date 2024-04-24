@@ -43,7 +43,8 @@ def insert_link_prop_checking(
     ck_lp: Dict[str, e.ResultTp],
 ) -> e.Expr:
     """
-    Check link properties, return additional link props that need to be inserted (default fields)
+    Check link properties, return additional link props
+    that need to be inserted (default fields)
     """
     # we do not support heterogenous link targets
     for k in synth_lp.keys():
@@ -114,7 +115,8 @@ def insert_dynamic_cardinality_check(
             [attr_expr, e.StrVal("Single links turn our to be multiples")],
             {},
         )
-    # this is a hack that insertions on link targets ignores required at compile time
+    # this is a hack that insertions on link targets ignores
+    # required at compile time
     if target_mode.lower == e.OneCardinal():
         attr_expr = e.FunAppExpr(
             e.QualifiedName(["std", "assert_exists"]),
@@ -227,11 +229,16 @@ def insert_proprerty_checking(
                         for tp in all_synthesized_tps
                     )
 
-                    all_synthesized_names = {tp.name: tp for tp in all_synthesized_tps}  # type: ignore
+                    all_synthesized_names = {
+                        tp.name: tp  # type: ignore
+                        for tp in all_synthesized_tps
+                    }
 
                     if not all(
                         any(
-                            tops.is_nominal_subtype_in_schema(ctx, synth_name, ck_name)  # type: ignore
+                            tops.is_nominal_subtype_in_schema(
+                                ctx, synth_name, ck_name  # type: ignore
+                            )
                             for ck_name in all_target_names.keys()
                         )
                         for synth_name in all_synthesized_names.keys()

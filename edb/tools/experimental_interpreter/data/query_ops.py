@@ -142,7 +142,8 @@ def map_query(
                     if mods is not None
                 ]
                 if len(args_mods) == 0:
-                    # This is due to named only arguments, need some time to sort out
+                    # This is due to named only arguments,
+                    # need some time to sort out
                     raise ValueError("Expecting fun_defs [TODO named args]")
                 assert all(
                     [args_mods[0] == args_mod for args_mod in args_mods]

@@ -170,7 +170,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     result_expr = e.MultiSetExpr(
                         expr=[
                             name
-                            for name in subtp_resol.find_all_subtypes_of_tp_in_schema(
+                            for name in subtp_resol.find_all_subtypes_of_tp_in_schema( # NoQA
                                 ctx.schema, expr
                             )
                             if not mops.tp_name_is_abstract(name, ctx.schema)
@@ -244,7 +244,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_tp, result_card = tops.tp_project(
                 ctx, subject_tp, e.StrLabel(label)
             )
-            # If the projection is a computable expression, project from the subject
+            # If the projection is a computable expression,
+            # project from the subject
             if isinstance(result_tp, e.ComputableTp):
                 comp_expr = e.WithExpr(subject_ck, result_tp.expr)
                 result_expr = check_type(

@@ -459,7 +459,8 @@ def eval_expr(ctx: EvalEnv, db: EdgeDatabase, expr: Expr) -> MultiSetVal:
                         return e.ResultMultiSetVal([filter_expr])  # type: ignore
                     case _:
                         raise ValueError(
-                            "Unrecognized filter expression, check post processing: ",
+                            "Unrecognized filter expression,"
+                            " check post processing: ",
                             filter_expr,
                         )
 

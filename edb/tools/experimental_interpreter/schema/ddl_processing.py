@@ -55,7 +55,8 @@ def process_ddl(schema: e.DBSchema, ddl: qlast.DDLOperation) -> None:
             for base_tp in bases:
                 base_elabed = elab.elab_TypeName(base_tp)
                 match base_elabed:
-                    # for bare ddl, we assume qualified type name is actually checked
+                    # for bare ddl, we assume qualified type name
+                    # is actually checked
                     case e.UncheckedTypeName(name=e.QualifiedName(_)):
                         assert isinstance(base_elabed.name, e.QualifiedName)
                         schema.subtyping_relations[
@@ -70,7 +71,8 @@ def process_ddl(schema: e.DBSchema, ddl: qlast.DDLOperation) -> None:
                         )
                     case e.CompositeTp(kind=e.CompositeTpKind.Enum, tps=_):
                         print_warning(
-                            "WARNING: behavior of extending enum types undefined",
+                            "WARNING: behavior of extending"
+                            " enum types undefined",
                             base_elabed,
                         )
                     case _:

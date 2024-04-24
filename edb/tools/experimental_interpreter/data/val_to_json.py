@@ -160,9 +160,17 @@ def typed_val_to_json_like(
                             and tp.kind == e.CompositeTpKind.Tuple
                             for tp in all_u_tps
                         ):
-                            if all(len(all_u_tps[0].tps) == len(tp.tps) for tp in all_u_tps):  # type: ignore
+                            if all(
+                                len(all_u_tps[0].tps) == len(tp.tps)  # type: ignore
+                                for tp in all_u_tps
+                            ):
                                 tps = [
-                                    tops.construct_tps_union([tp.tps[i] for tp in all_u_tps])  # type: ignore
+                                    tops.construct_tps_union(
+                                        [
+                                            tp.tps[i]  # type: ignore
+                                            for tp in all_u_tps
+                                        ]
+                                    )
                                     for i in range(len(all_u_tps[0].tps))  # type: ignore
                                 ]
                     case _:

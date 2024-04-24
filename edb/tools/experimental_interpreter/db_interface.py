@@ -240,7 +240,8 @@ class EdgeDatabase:
     ) -> e.MultiSetVal:
         if id in self.to_insert.dbdata.keys():
             raise ValueError(
-                "Semantic Change: Insert should carry properties before storage coercion"
+                "Semantic Change: Insert should carry "
+                "properties before storage coercion"
             )
 
         result = self.storage.project(id, tp, prop)

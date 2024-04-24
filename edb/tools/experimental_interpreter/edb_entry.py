@@ -43,7 +43,7 @@ import os
     help="""specify a single name.
 Will search the test schema directory for esdl file containing the case
 insensitive specified esdl file.
-Will also load the corresponding ql file. 
+Will also load the corresponding ql file.
 Will turn on trace-to-file to a default html file.
 Will populate next ql file if it exists.
               """,

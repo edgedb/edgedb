@@ -133,9 +133,21 @@ def show_edge_database_select_filter(
         case e.EdgeDatabaseEqFilter(propname=propname, arg=arg):
             return f'({propname} = {show(arg)})'
         case e.EdgeDatabaseConjunctiveFilter(conjuncts=conjuncts):
-            return f'({" AND ".join(show_edge_database_select_filter(f) for f in conjuncts)})'
+            return (
+                '('
+                + " AND ".join(
+                    show_edge_database_select_filter(f) for f in conjuncts
+                )
+                + ')'
+            )
         case e.EdgeDatabaseDisjunctiveFilter(disjuncts=disjuncts):
-            return f'({" OR ".join(show_edge_database_select_filter(f) for f in disjuncts)})'
+            return (
+                '('
+                + " OR ".join(
+                    show_edge_database_select_filter(f) for f in disjuncts
+                )
+                + ')'
+            )
         case e.EdgeDatabaseTrueFilter():
             return 'TRUE'
         case _:
@@ -430,7 +442,8 @@ def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
             return (
                 "{"
                 + ", ".join(
-                    f'{show_label(lbl)} ({show_visibility_marker(m)}): {show_multiset_val(el)}'
+                    show_label(lbl)
+                    + f' ({show_visibility_marker(m)}): {show_multiset_val(el)}'
                     for (lbl, (m, el)) in elems.items()
                 )
                 + "}"
@@ -459,8 +472,6 @@ def show_multiset_val(val: e.MultiSetVal) -> str:
             return (
                 "(multiset val){" + ", ".join(show_val(el) for el in arr) + "}"
             )
-        # case e.ConditionalDedupMultiSetVal(_vals=arr):
-        #     return "(dedup pending){" + ", ".join(show_val(el) for el in arr) + "}"
         case _:
             raise ValueError('Unimplemented', val)
 

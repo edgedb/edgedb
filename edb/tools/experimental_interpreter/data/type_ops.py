@@ -251,7 +251,8 @@ def collect_is_subtype_with_instantiation(
     some_tp_mapping: Dict[int, List[e.Tp]],
 ) -> bool:
     """
-    Here, tp2 may be a some type (parametric morphism, and need to be instantiated)
+    Here, tp2 may be a some type
+    (parametric morphism, and need to be instantiated)
     """
     if isinstance(ck_tp, e.SomeTp):
         if ck_tp.index in some_tp_mapping:
@@ -275,9 +276,6 @@ def collect_is_subtype_with_instantiation(
 def check_is_subtype_with_instantiation(
     ctx: e.TcCtx, syn_tp: e.Tp, ck_tp: e.Tp, some_tp_mapping: Dict[int, e.Tp]
 ) -> bool:
-    """
-    Here, tp2 may be a some type (parametric morphism, and need to be instantiated)
-    """
     if isinstance(ck_tp, e.SomeTp):
         if ck_tp.index in some_tp_mapping:
             real_ck_tp = some_tp_mapping[ck_tp.index]
@@ -532,7 +530,6 @@ def tp_project(
                 raise ValueError("Ambiguous union projection", result_tps)
         case e.IntersectTp(_, _):
             tps = collect_tp_intersection(tp.tp)
-            # if all(isinstance(itp, e.NominalLinkTp | e.NamedNominalLinkTp) for itp in tps):
             projectable_tps = [
                 itp
                 for itp in tps

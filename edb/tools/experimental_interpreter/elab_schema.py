@@ -316,8 +316,8 @@ def add_bases_for_name(
         raise ValueError("TODO")
         # you cannot do this for std Object becuase the way id projection
         # is treated is differnt in the interpreter,
-        # default id generation is not treated as properties in the interpter but rather a builtin concept
-        # base_tps_ck.append((current_module_name, e.QualifiedName(["std", "Object"])))
+        # default id generation is not treated as properties in the interpter
+        # but rather a builtin concept
     assert this_type_name not in schema.unchecked_subtyping_relations
     schema.unchecked_subtyping_relations[this_type_name] = base_tps_ck
 
