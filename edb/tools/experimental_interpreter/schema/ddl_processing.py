@@ -1,18 +1,16 @@
 
 from ..data import data_ops as e
-from ..data import expr_ops as eops
 from typing import List
 
 from edb.edgeql import ast as qlast
 from edb.common import debug
 from .. import elaboration as elab
-from ..basis.server_funcs import get_default_func_impl_for_function, get_default_func_impl_for_cast
+from ..basis.server_funcs import get_default_func_impl_for_cast
 from edb.edgeql import qltypes as qltypes
 from .. import elab_schema as elab_schema
 from ..type_checking_tools import typechecking as tck
 from ..interpreter_logging import print_warning
 
-from edb.common import debug
 from .function_elaboration import process_builtin_fun_def
 
 
@@ -27,7 +25,7 @@ def process_ddl(
     # debug.dump_edgeql(ddl)
     match ddl:
         case qlast.CreateModule(
-            name=qlast.ObjectRef(name=module_name), 
+            name=qlast.ObjectRef(name=module_name),
             commands=[]):
             assert "::" not in module_name, "TODO"
             schema.modules[(module_name, )] = e.DBModule({})
@@ -39,9 +37,9 @@ def process_ddl(
             print_warning("WARNING: not supported yet", ddl)
         case qlast.CreateScalarType(
             name=qlast.ObjectRef(
-                module=module_name, name=type_name), 
-            commands=[], 
-            bases=bases, 
+                module=module_name, name=type_name),
+            commands=[],
+            bases=bases,
             abstract=is_abstract):
             assert module_name is not None, "Scalar types cannot be created in top level"
             assert "::" not in module_name, "TODO"
@@ -66,7 +64,7 @@ def process_ddl(
             kind = _,
             params = params,
             name = name,
-            returning = ret_tp, 
+            returning = ret_tp,
             returning_typemod = ret_typemod,
             ):
             process_builtin_fun_def(schema, name, params, ret_tp, ret_typemod)
@@ -78,7 +76,7 @@ def process_ddl(
             returning_typemod = ret_typemod,
         ):
             process_builtin_fun_def(schema, name, params, ret_tp, ret_typemod)
-            
+
         case qlast.CreateCast(
             from_type = from_type,
             to_type = to_type,
@@ -106,7 +104,7 @@ def process_ddl(
                 case _:
                     raise ValueError("TODO", cast_code)
             schema.casts[(from_tp_ck, to_tp_ck)] = e.TpCast(
-                (e.TpCastKind.Implicit if allow_implicit else 
+                (e.TpCastKind.Implicit if allow_implicit else
                  e.TpCastKind.Assignment if allow_assignment else
                  e.TpCastKind.Explicit),
                  cast_impl
@@ -126,7 +124,7 @@ def process_ddl(
             print_warning("WARNING: not supported yet", ddl)
         case qlast.CreateLink():
             print_warning("WARNING: not supported yet", ddl)
-        
+
         case qlast.CreateObjectType(bases=bases,
                     commands=commands,
                     name=qlast.ObjectRef(name=name, module=module_name),
@@ -143,7 +141,7 @@ def process_ddl(
             raise ValueError("DDL not yet supported", ddl)
 
 def process_ddls(
-    schema: e.DBSchema, 
+    schema: e.DBSchema,
     ddls: List[qlast.DDLOperation]) -> None:
     for ddl in ddls:
         process_ddl(schema, ddl)

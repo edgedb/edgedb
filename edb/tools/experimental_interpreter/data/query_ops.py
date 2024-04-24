@@ -4,14 +4,13 @@ from enum import Enum
 from typing import Callable, Optional, Sequence, Dict
 
 from . import data_ops as e
-from .data_ops import (ArrExpr, BackLinkExpr, BindingExpr, BoolVal,
-                       BoundVarExpr, DBSchema, DetachedExpr, Expr,
+from .data_ops import (ArrExpr, BackLinkExpr, BindingExpr, BoundVarExpr, DetachedExpr, Expr,
                        FilterOrderExpr, ForExpr, FreeVarExpr, FunAppExpr,
-                       InsertExpr, IntVal, LinkPropProjExpr, MultiSetExpr,
+                       InsertExpr, LinkPropProjExpr, MultiSetExpr,
                        NamedTupleExpr,  ObjectProjExpr,
                        OffsetLimitExpr, OptionalForExpr, ParamOptional,
                        ParamSetOf, ParamSingleton, ShapedExprExpr, ShapeExpr,
-                       StrVal, SubqueryExpr, TpIntersectExpr, TypeCastExpr,
+                       SubqueryExpr, TpIntersectExpr, TypeCastExpr,
                        UnionExpr, UnnamedTupleExpr, UpdateExpr, WithExpr)
 
 from . import module_ops as mops
@@ -95,8 +94,8 @@ def map_query(f: Callable[[Expr, QueryLevel],
             case FunAppExpr(fun=fname, args=args, overloading_index=idx, kwargs=kwargs):
                 mapped_args: Sequence[Expr] = []
                 _, resolved_fun_defs = mops.resolve_raw_name_and_func_def(schema, fname)
-                
-                # args_mods = [resolved_fun_defs[i].tp.args_mod 
+
+                # args_mods = [resolved_fun_defs[i].tp.args_mod
                 #              for i in range(len(resolved_fun_defs))
                 #              if len(resolved_fun_defs[i].tp.args_mod) == len(args)]
                 from ..type_checking_tools import function_checking as fun_ck

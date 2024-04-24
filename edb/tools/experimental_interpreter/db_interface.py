@@ -20,10 +20,10 @@ class EdgeDatabaseStorageProviderInterface:
 
     def insert(self, id: EdgeID, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> None:
         raise NotImplementedError()
-    
+
     def delete(self, id: EdgeID, tp : e.QualifiedName) -> None:
         raise NotImplementedError()
-    
+
     def update(self, id: EdgeID, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> None:
         raise NotImplementedError()
 
@@ -34,9 +34,9 @@ class EdgeDatabaseStorageProviderInterface:
     def project(self, id: EdgeID, tp: e.QualifiedName, property: str) -> MultiSetVal:
         raise NotImplementedError()
 
-    # get all reverse links for a given object in a set of 
+    # get all reverse links for a given object in a set of
     # objects, including its link properties
-    # That is, return a list of ids which has a link (via the given property) 
+    # That is, return a list of ids which has a link (via the given property)
     # to any object in the given set
     def reverse_project(self, ids: Sequence[EdgeID], property: str) -> MultiSetVal:
         raise NotImplementedError()
@@ -57,7 +57,7 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         self.schema = schema
         self.db = DB({})
         self.next_id_to_return = 1
-    
+
     def get_schema(self) -> DBSchema:
         return self.schema
 
@@ -67,7 +67,7 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             target_vals = data_to_check[filter.propname]
             assert isinstance(filter.arg, MultiSetVal)
             return any(eops.val_eq(v, vv)  for v in target_vals.getVals() for vv in filter.arg.getVals())
-            
+
         def check_filter_top(filter: EdgeDatabaseSelectFilter, id: EdgeID) -> bool:
             match filter:
                 case EdgeDatabaseEqFilter(propname, arg):
@@ -135,13 +135,13 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         id = self.next_id_to_return
         self.next_id_to_return += 1
         return id
-    
+
     def insert(self, id: EdgeID, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> None:
         self.db.dbdata[id] = DBEntry(tp, props)
-    
+
     def delete(self, id: EdgeID, tp: e.QualifiedName) -> None:
         del self.db.dbdata[id]
-    
+
     def update(self, id: EdgeID, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> None:
         if id not in self.db.dbdata.keys():
             raise ValueError(f"ID {id} not found in database")
@@ -156,7 +156,7 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
     def commit(self) -> None:
         pass
 
-    
+
 
 class EdgeDatabase:
 
@@ -192,7 +192,7 @@ class EdgeDatabase:
         result =  self.storage.project(id, tp, prop)
         assert isinstance(result, MultiSetVal)
         return result
-    
+
         # updates are queried before insert as we are able to update an inserted object
         # elif id in self.to_update.keys():
         #     props = self.to_update[id] # with x := insert ... , _ := update x {p1 := v}, select x.p1;
@@ -226,7 +226,7 @@ class EdgeDatabase:
             )
         else:
             self.to_update[id] = (tp, props)
-    
+
     def commit_dml(self) -> None:
         # updates must happen after insert because it may update inserted data
         for (id, insert_obj) in self.to_insert.dbdata.items():
@@ -240,8 +240,7 @@ class EdgeDatabase:
         self.to_update = {}
         self.to_insert = DB({})
         self.storage.commit()
-        
+
 
     def get_schema(self) -> DBSchema:
         return self.storage.get_schema()
-    

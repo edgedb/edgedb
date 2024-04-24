@@ -1,8 +1,6 @@
 
 from ..data import data_ops as e
-from ..data import expr_ops as eops
 from ..data import type_ops as tops
-from ..data import path_factor as pops
 from ..data import expr_to_str as pp
 from ..data import module_ops as mops
 from ..interpreter_logging import print_warning
@@ -10,8 +8,6 @@ from typing import List, Tuple, Dict, Optional, Sequence
 # from itertools import *
 from functools import reduce
 import operator
-from edb.common import debug
-from ..data import expr_to_str as pp
 
 
 def refine_candidate_tp(tp : e.Tp) -> e.Tp:
@@ -61,7 +57,7 @@ def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunA
 
     if len(args_ck_tps) != len(tps_syn):
         return None
-    
+
     for i, (syn_tp, ck_tp) in enumerate(zip(tps_syn, args_ck_tps)):
         tops.collect_is_subtype_with_instantiation(ctx, syn_tp, ck_tp, some_tp_mapping_candidates)
 
@@ -87,7 +83,7 @@ def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunA
                 else:
                     # cannot find a unique assignment for a candidate type
                     return None
-        
+
     for i, (syn_tp, ck_tp) in enumerate(zip(tps_syn, args_ck_tps)):
         if tops.check_is_subtype_with_instantiation(ctx, syn_tp, ck_tp, some_tp_mapping):
             continue
@@ -127,7 +123,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                 tps = []
                 arg_cards = []
                 args_cks = []
-            
+
             kwargs_ck = {k : tc.synthesize_type(ctx, v) for k, v in kwargs.items()}
 
 
@@ -167,7 +163,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                             result_tp = check_args_ret_type_match(ctx, new_tps, fun_def.tp)
                     if result_tp is not None:
                         ok_candidates.append((fun_idx, result_tp))
-                
+
                 if len(ok_candidates) > 1 :
                     print_warning("WARNING: Ambiguous overloading", pp.show_qname(qualified_fname),
                           "picking the first one")
@@ -176,14 +172,14 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                 if len(ok_candidates) == 0:
                     for i, fun_def in enumerate(fun_defs):
                         result_tp = check_args_ret_type_match(ctx, tps, fun_def.tp)
-                    raise ValueError("No overloading matches", pp.show_qname(qualified_fname), 
+                    raise ValueError("No overloading matches", pp.show_qname(qualified_fname),
                                      "args type", [pp.show_tp(tp) for tp in tps],
                                      "candidates", [pp.show_func_tps(fun_def.tp) for fun_def in fun_defs],
                                      pp.show_expr(fun_call))
                 elif len(ok_candidates) == 1:
                     idx, result_tp = ok_candidates[0]
                 else:
-                    raise ValueError("Ambiguous overloading", pp.show_qname(qualified_fname), 
+                    raise ValueError("Ambiguous overloading", pp.show_qname(qualified_fname),
                                      "args type", [pp.show_tp(tp) for tp in tps],
                                      "candidates", [pp.show_func_tps(fun_def.tp) for fun_def in fun_defs],
                                      pp.show_expr(fun_call))
@@ -238,8 +234,8 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
             return (e.ResultTp(result_tp, result_card), result_expr)
         case _:
             raise ValueError("impossible", fun_call)
-            
-    
+
+
     # result_tp = args_ret_type.ret_tp.tp
     #         result_expr = e.FunAppExpr(fun=fname, args=arg_cks,
     #                                     overloading_index=idx)

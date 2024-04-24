@@ -1,10 +1,7 @@
 
-from .data_ops import DBSchema
-from .expr_to_str import show_tp
 from . import data_ops as e
 from . import expr_ops as eops
-from . import type_ops as tops
-from typing import List, Dict, Tuple, Optional, Callable
+from typing import List, Dict, Optional, Callable
 from . import module_ops as mops
 from ..data import expr_to_str as pp
 from functools import reduce
@@ -103,7 +100,7 @@ def assert_real_subtype(
         raise ValueError("not subtype", tp1, tp2)
     else:
         pass
-    
+
 
 def resolve_named_nominal_link_tp(ctx: e.TcCtx, tp: e.NamedNominalLinkTp) -> e.NominalLinkTp:
     match tp:
@@ -167,10 +164,10 @@ def type_subtyping_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
                 return True
             case (e.NominalLinkTp(name=n_1, subject=s_1, linkprop=lp_1),
                     e.NominalLinkTp(name=n_2, subject=s_2, linkprop=lp_2)):
-                    
+
                 if is_nominal_subtype_in_schema(ctx, n_1, n_2):
                     return (
-                        recurse(ctx, s_1, s_2) and  
+                        recurse(ctx, s_1, s_2) and
                         recurse(ctx, lp_1, lp_2))
                 else:
                     return False
@@ -247,7 +244,7 @@ def check_is_subtype_with_instantiation(
         def recurse(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp) -> bool:
             return check_is_subtype_with_instantiation(ctx, tp1, tp2, some_tp_mapping)
         return type_subtyping_walk(recurse, ctx, syn_tp, ck_tp)
-        
+
 
 def recursive_instantiate_tp(
         tp: e.Tp, some_tp_mapping: Dict[int, e.Tp]
@@ -269,7 +266,7 @@ def recursive_instantiate_tp(
 
 
 def is_cardinal_subtype(cm: e.CMMode, cm2: e.CMMode) -> bool:
-    return cm2.lower <= cm.lower and cm.upper <= cm2.upper 
+    return cm2.lower <= cm.lower and cm.upper <= cm2.upper
 
 def assert_cardinal_subtype(cm: e.CMMode, cm2: e.CMMode) -> None:
     if not (is_cardinal_subtype(cm, cm2)):
@@ -371,7 +368,7 @@ def match_param_modifier(p : e.ParamModifier, m : e.CMMode) -> e.CMMode:
         case e.ParamSingleton():
             return m
         case e.ParamOptional():
-            return e.CMMode(e.max_cardinal(e.CardNumOne, m.lower), 
+            return e.CMMode(e.max_cardinal(e.CardNumOne, m.lower),
                             e.max_cardinal(e.CardNumOne, m.upper),
                             # e.max_cardinal(e.Fin(1), m.multiplicity)
                             )
@@ -393,7 +390,7 @@ def is_tp_projection_tuple_proj(tp: e.Tp) -> bool:
             return True
         case _:
             return False
-    
+
 def can_project_label_from_tp(ctx: e.TcCtx | e.DBSchema, tp: e.Tp, label: e.Label) -> bool:
     match tp:
         case e.UnionTp(l, r):
@@ -431,7 +428,7 @@ def can_project_label_from_tp(ctx: e.TcCtx | e.DBSchema, tp: e.Tp, label: e.Labe
 
 def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
 
-    def post_process_result_base_tp(result_base_tp: e.Tp, 
+    def post_process_result_base_tp(result_base_tp: e.Tp,
                                     result_mode: e.CMMode) -> e.ResultTp:
 
         if isinstance(result_base_tp, e.UncheckedTypeName):
@@ -490,7 +487,7 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                     _, tp_def = mops.resolve_raw_name_and_type_def(ctx, name)
                     assert isinstance(tp_def, e.ObjectTp)
                     return tp_project(
-                        ctx, 
+                        ctx,
                         e.ResultTp(tp_def, tp.mode),
                                    e.StrLabel(lbl))
                 case e.ObjectTp(val=tp_obj):
@@ -504,14 +501,14 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                             e.UuidTp(), tp.mode
                         )
                     elif lbl == "__type__":
-                        return post_process_result_base_tp(e.NamedNominalLinkTp(name=e.QualifiedName(["schema", "ObjectType"]), linkprop=e.ObjectTp({})), 
+                        return post_process_result_base_tp(e.NamedNominalLinkTp(name=e.QualifiedName(["schema", "ObjectType"]), linkprop=e.ObjectTp({})),
                                                            tp.mode)
                     else:
                         raise ValueError("Label not found", lbl, tp_obj.keys())
                 # case e.NamedTupleTp(val=tp_tuple):
                 #     if lbl in tp_tuple.keys():
                 #         result_base_tp = tp_tuple[lbl]
-                #         result_mode = tp.mode 
+                #         result_mode = tp.mode
                 #         return post_process_result_base_tp(
                 #             result_base_tp, result_mode)
                 #     elif lbl.isdigit():
@@ -529,7 +526,7 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                             result_base_tp, result_mode)
                     if lbl in lbls:
                         result_base_tp = tp_tuple[lbls.index(lbl)]
-                        result_mode = tp.mode 
+                        result_mode = tp.mode
                         return post_process_result_base_tp(
                             result_base_tp, result_mode)
                     else:
@@ -592,7 +589,7 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
 def combine_object_tp(o1: e.ObjectTp, o2: e.ObjectTp) -> e.ObjectTp:
     if isinstance(o1, e.ObjectTp) and isinstance(o2, e.ObjectTp):
         return e.ObjectTp({**o1.val, **o2.val})
-    else: 
+    else:
         raise ValueError("not implemented combine object tp", pp.show(o1), pp.show(o2))
 
 def combine_tp_with_subject_tp(ctx: e.TcCtx, o1: e.Tp, o2: e.ObjectTp) -> e.Tp:
@@ -628,7 +625,7 @@ def create_union_tp(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
         return tp1
     else:
         return e.UnionTp(tp1, tp2)
-    
+
 def create_intersect_tp(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
     if tp1 == tp2:
         return tp1

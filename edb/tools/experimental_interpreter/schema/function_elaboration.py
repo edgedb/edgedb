@@ -4,17 +4,13 @@ from ..data import expr_ops as eops
 from typing import List
 
 from edb.edgeql import ast as qlast
-from edb.common import debug
 from .. import elaboration as elab
 from ..basis.server_funcs import get_default_func_impl_for_function
 from edb.edgeql import qltypes as qltypes
 from .. import elab_schema as elab_schema
-from ..type_checking_tools import typechecking as tck
-from ..interpreter_logging import print_warning
 from ..type_checking_tools import name_resolution as name_res
 from typing import Optional
 
-from edb.common import debug
 
 
 def fun_arg_type_polymorphism_post_processing(tp: e.Tp) -> e.Tp:
@@ -48,7 +44,7 @@ def elaboarate_ret_typemod(ret_typemod: qltypes.TypeModifier) -> e.CMMode:
 
 def elaborate_fun_def_arg_type(
                     params: List[qlast.FuncParam],
-                    ret_tp: qlast.TypeExpr, 
+                    ret_tp: qlast.TypeExpr,
                     ret_typemod: qltypes.TypeModifier) -> e.FunArgRetType:
     return_cad = elaboarate_ret_typemod(ret_typemod)
     return_tp = elab.elab_single_type_expr(ret_tp)
@@ -79,9 +75,9 @@ def elaborate_fun_def_arg_type(
 
 
 def process_builtin_fun_def(schema: e.DBSchema,
-            name : qlast.ObjectRef, 
+            name : qlast.ObjectRef,
                     params: List[qlast.FuncParam],
-                    ret_tp: qlast.TypeExpr, 
+                    ret_tp: qlast.TypeExpr,
                     ret_typemod: qltypes.TypeModifier) -> None:
     match name:
         case qlast.ObjectRef(name=fun_name, module=module_name):

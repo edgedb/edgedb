@@ -26,4 +26,3 @@ def find_all_supertypes_of_tp_in_schema(schema: e.DBSchema, tp: e.QualifiedName)
         frontier.extend(schema.subtyping_relations[next_tp])
 
     return checked_tps
-    

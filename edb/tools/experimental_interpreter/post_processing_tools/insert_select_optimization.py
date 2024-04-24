@@ -70,7 +70,7 @@ def is_trivial_shape_element(shape: e.ShapeExpr, label: str) -> bool:
         case _:
             return False
 
-    
+
 def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilter) -> Optional[e.Expr]:
     all_labels = eops.collect_names_in_select_filter(filter)
     match subject:
@@ -96,14 +96,14 @@ def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilt
             assert isinstance(after_filter, e.EdgeDatabaseSelectFilter) # type: ignore
             return_expr : e.Expr = e.QualifiedNameWithFilter(subject, after_filter) # type: ignore
             for bnd_name, bnd_expr in bindings.items():
-                return_expr = e.WithExpr(bnd_expr, 
+                return_expr = e.WithExpr(bnd_expr,
                     eops.abstract_over_expr(return_expr, bnd_name)
                 )
             return return_expr
         case e.MultiSetExpr(expr=[e.QualifiedName(name)]):
             return refine_subject_with_filter(e.QualifiedName(name), filter)
         case e.ShapedExprExpr(expr=main, shape=shape):
-            if any(l.label in all_labels for l in shape.shape.keys() 
+            if any(l.label in all_labels for l in shape.shape.keys()
                     if isinstance(l, e.StrLabel) and not is_trivial_shape_element(shape, l.label)):
                 return None
             else:
@@ -117,7 +117,7 @@ def refine_subject_with_filter(subject: e.Expr, filter: e.EdgeDatabaseSelectFilt
                     return None
         case _:
             return None
-    
+
 
 
 
@@ -156,5 +156,5 @@ def select_optimize(expr: e.Expr) -> e.Expr:
                         return default_return_expr
             case _:
                 return None
-                
+
     return eops.map_expr(sub_f, expr)

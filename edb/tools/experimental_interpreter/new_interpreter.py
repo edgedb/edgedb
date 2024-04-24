@@ -1,7 +1,5 @@
 
-import signal
 
-import json
 import sys
 import traceback
 import os
@@ -16,17 +14,15 @@ from .type_checking_tools import typechecking as tc
 from .back_to_ql import reverse_elab
 # from .basis.built_ins import all_builtin_funcs
 from .data import data_ops as e
-from .data import expr_ops as eops
-from .data.data_ops import DB, DBSchema, MultiSetVal, ResultTp
+from .data.data_ops import DBSchema, MultiSetVal, ResultTp
 from .data.data_ops import *
-from .data.expr_to_str import show_expr, show_result_tp, show_schema
+from .data.expr_to_str import show_expr, show_result_tp
 from .data.path_factor import select_hoist
 from .post_processing_tools import post_processing
-from .data.val_to_json import (json_like, multi_set_val_to_json_like,
-                               typed_multi_set_val_to_json_like)
+from .data.val_to_json import (json_like, typed_multi_set_val_to_json_like)
 from .elab_schema import add_module_from_sdl_defs, add_module_from_sdl_file
 from .elaboration import elab
-from .evaluation import RTExpr, eval_expr_toplevel
+from .evaluation import eval_expr_toplevel
 from .helper_funcs import parse_ql
 from .logs import write_logs_to_file
 from .sqlite import sqlite_adapter
@@ -34,7 +30,7 @@ from .data import expr_to_str as pp
 from .db_interface import *
 from .schema.library_discovery import *
 from .type_checking_tools import schema_checking as sck
-from .type_checking_tools import name_resolution 
+from .type_checking_tools import name_resolution
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
 # sys.setrecursionlimit(10000)
 
@@ -121,7 +117,7 @@ def prepare_statement(
         reverse_elabed = reverse_elab(deduped)
         debug.dump_edgeql(reverse_elabed)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
-    
+
     return deduped, tp
 
 
@@ -140,7 +136,7 @@ def run_prepared_statement(db: EdgeDatabase,
         print(typed_multi_set_val_to_json_like(tp, result, dbschema))
         print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
     return result
-                           
+
 
 def run_statement(db: EdgeDatabase,
                   stmt: qlast.Expr, dbschema: DBSchema,
@@ -172,9 +168,9 @@ def run_stmts(db: EdgeDatabase, stmts: Sequence[qlast.Expr],
     raise ValueError("Not Possible")
 
 def run_meta_cmd(db: EdgeDatabase, dbschema: DBSchema, cmd: str) -> None:
-    if cmd == "\ps":
+    if cmd == r"\ps":
         print(pp.show_module(dbschema.modules[("default",)]) + "\n")
-    elif cmd == "\ps --all":
+    elif cmd == r"\ps --all":
         print(pp.show_schema(dbschema) + "\n")
     else:
         raise ValueError("Unknown meta command: " + cmd)
@@ -203,7 +199,7 @@ def run_single_str(
         raise ValueError("Not a single query")
     dbschema, db = dbschema_and_db
     (res, tp) = run_statement(
-        db, q[0], dbschema, 
+        db, q[0], dbschema,
         print_asts,
         variables=variables,
         logs=None)
@@ -216,7 +212,7 @@ def run_single_str_get_json(
     variables: VariablesTp = None,
     print_asts: bool = False
 ) -> json_like:
-    (res, tp) = run_single_str(dbschema_and_db, 
+    (res, tp) = run_single_str(dbschema_and_db,
                                         s, variables=variables,
                                         print_asts=print_asts)
     return typed_multi_set_val_to_json_like(
@@ -240,7 +236,7 @@ def repl(*, init_sdl_file=None,
     #                      " be specified at the same time")
     interpreter_parser_init()
 
-    dbschema: DBSchema 
+    dbschema: DBSchema
     db: EdgeDatabase
     logs: List[Any] = []  # type: ignore[var]
 
@@ -322,7 +318,7 @@ def repl(*, init_sdl_file=None,
                 #                 for v in res))
         except Exception:
             traceback.print_exception(*sys.exc_info())
-        
+
 
 
 def dbschema_and_db_with_initial_schema_and_queries(
@@ -345,7 +341,7 @@ def dbschema_and_db_with_initial_schema_and_queries(
 class EdgeQLInterpreter:
 
 
-    def __init__(self, 
+    def __init__(self,
                 initial_schema_defs: Optional[str]=None,
                 sqlite_file_name: Optional[str] = None,):
         interpreter_parser_init()
@@ -354,7 +350,7 @@ class EdgeQLInterpreter:
         self.dbschema : e.DBSchema = dbschema
         self.db : EdgeDatabase = db
         self.query_cache : Dict[str, Tuple[Expr, ResultTp]] = {}
-    
+
     def run_single_str_get_json_with_cache(
         self,
         s: str,
@@ -371,11 +367,11 @@ class EdgeQLInterpreter:
                 raise ValueError("Not a single query")
             query_expr, tp = prepare_statement(q[0], self.dbschema, False)
             self.query_cache[s] = (query_expr, tp)
-        
+
         res = run_prepared_statement(self.db, query_expr, tp, self.dbschema,
                                      should_print=False, logs=None, variables=variables)
         result = typed_multi_set_val_to_json_like(tp, res, self.dbschema, top_level=True)
-        
+
         return result
 
     def query_single_json(self, s: str, **kwargs) -> json_like:
@@ -384,7 +380,7 @@ class EdgeQLInterpreter:
             return result[0]
         else:
             raise ValueError("Expected a single result")
-    
+
     def query_str(self, s: str) -> Sequence[MultiSetVal]:
         q = parse_ql(s)
         res = run_stmts(self.db, q, self.dbschema,

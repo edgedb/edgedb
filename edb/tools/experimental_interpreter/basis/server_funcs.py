@@ -2,7 +2,6 @@
 from typing import *
 
 from ..data import data_ops as e
-from .errors import FunCallErr
 from .std_funcs import *
 from .builtin_bin_ops import *
 from .reserved_ops import *
@@ -95,13 +94,12 @@ def get_default_func_impl_for_function(
                 raise ValueError("Cannot get a default implementaiton for a non-std function", name)
     else:
         raise ValueError("Cannot get a default implementaiton for a non-std function", name)
-    
-    
+
+
 def get_default_func_impl_for_cast(
         from_tp: e.Tp, to_tp: e.Tp) -> Callable[[e.Val], e.Val]:
     def default_impl(arg: e.Val) -> e.Val:
         return type_cast(to_tp, arg)
         # raise ValueError("Not implemented: cast ", from_tp, to_tp)
     return default_impl
-    
-    
+

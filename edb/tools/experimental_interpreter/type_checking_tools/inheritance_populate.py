@@ -1,17 +1,12 @@
 
-from functools import reduce
-import operator
-from typing import Tuple, Dict, Sequence, Optional, List
+from typing import Tuple, Dict, Sequence, List
 
 from ..data import data_ops as e
 from ..data import expr_ops as eops
-from ..data import type_ops as tops
-from edb.common import debug
 from ..data import path_factor as path_factor
 from .dml_checking import *
 from ..data import expr_to_str as pp
 from .function_checking import *
-from . import typechecking as tck
 
 
 def merge_result_tp(ctx: e.TcCtx,
@@ -44,12 +39,12 @@ def merge_result_tp(ctx: e.TcCtx,
 
 
 
-def copy_construct_inheritance(ctx: e.TcCtx, 
-                               typedef: e.ObjectTp, 
-                               super_types: List[e.QualifiedName], 
+def copy_construct_inheritance(ctx: e.TcCtx,
+                               typedef: e.ObjectTp,
+                               super_types: List[e.QualifiedName],
                                constraints: Sequence[e.Constraint],
                                indexes: Sequence[Sequence[str]]) -> Tuple[e.ObjectTp, Sequence[e.Constraint], Sequence[Sequence[str]]]:
-    
+
     definitions = [mops.resolve_type_def(ctx, super_type) for super_type in super_types]
     final_tp_dict : Dict[str, e.ResultTp] = {}
     final_constraints : List[e.Constraint] = [*constraints]
@@ -81,7 +76,7 @@ def copy_construct_inheritance(ctx: e.TcCtx,
             final_tp_dict[lbl] = merge_result_tp(ctx, final_tp_dict[lbl], e.ResultTp(t_comp_tp, t_comp_card))
     return e.ObjectTp(final_tp_dict), final_constraints, final_indexes
 
-    
+
 
 
 def module_inheritance_populate(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -> None:
@@ -99,11 +94,11 @@ def module_inheritance_populate(dbschema: e.DBSchema, module_name : Tuple[str, .
                         new_typedef, new_constraints, new_indexes = copy_construct_inheritance(
                                 root_ctx,
                                 typedef,
-                                dbschema.subtyping_relations[e.QualifiedName([*module_name, t_name])], 
+                                dbschema.subtyping_relations[e.QualifiedName([*module_name, t_name])],
                                 constraints, indexes)
 
                         result_vals = {**result_vals, t_name: e.ModuleEntityTypeDef(typedef=new_typedef,
-                                is_abstract=is_abstract, 
+                                is_abstract=is_abstract,
                                 constraints=new_constraints,
                                 indexes=new_indexes)}
                     else:
@@ -139,6 +134,6 @@ def module_subtyping_resolve(dbschema: e.DBSchema) -> None:
             resolved_name, _ = mops.resolve_raw_name_and_type_def(e.TcCtx(dbschema, cur_module, {}), rname)
             rname_ck_list.append(resolved_name)
         dbschema.subtyping_relations[qname] = rname_ck_list
-    
+
     # remove everything from unchecked_subtyping_relations
     dbschema.unchecked_subtyping_relations.clear()

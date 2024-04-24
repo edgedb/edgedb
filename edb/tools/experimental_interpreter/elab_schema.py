@@ -4,17 +4,15 @@ from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast, List
 from edb.edgeql import ast as qlast
 
 # from .basis.built_ins import all_builtin_funcs
-from .data.data_ops import (CMMode, DBSchema,  ObjectTp,
+from .data.data_ops import (CMMode, ObjectTp,
                             ResultTp, Tp)
 from .elaboration import elab_single_type_expr, elab_expr_with_default_head, elab, DEFAULT_HEAD_NAME
 from .helper_funcs import parse_sdl
 from .data import data_ops as e
 from .data import expr_ops as eops
 from .type_checking_tools import schema_checking  as tck
-from edb.common import debug
 from .interpreter_logging import print_warning
 from .schema import function_elaboration as fun_elab
-from .type_checking_tools import name_resolution as name_res
 
 def elab_schema_error(obj: Any) -> Any:
     raise ValueError(obj)
@@ -39,7 +37,7 @@ def construct_final_schema_target_tp(base : Tp, linkprops: Dict[str, ResultTp]) 
     if linkprops:
         match base:
             case e.UnionTp(tp1, tp2):
-                return e.UnionTp(construct_final_schema_target_tp(tp1, linkprops), 
+                return e.UnionTp(construct_final_schema_target_tp(tp1, linkprops),
                                 construct_final_schema_target_tp(tp2, linkprops))
             case e.UncheckedTypeName(e.QualifiedName(name)):
                 return e.NamedNominalLinkTp(name=e.QualifiedName(name), linkprop=ObjectTp(linkprops))
@@ -54,7 +52,7 @@ def construct_final_schema_target_tp(base : Tp, linkprops: Dict[str, ResultTp]) 
                     return base
     else:
         return base
-            
+
 def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> Tuple[ObjectTp, Sequence[e.Constraint], Sequence[Sequence[str]]]:
     object_tp_content: Dict[str, ResultTp] = {}
     constrants : List[e.Constraint] = []
@@ -241,9 +239,9 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> Tuple[ObjectTp,
     return ObjectTp(val=object_tp_content), constrants, indexes
 
 
-def add_bases_for_name(schema: e.DBSchema, 
+def add_bases_for_name(schema: e.DBSchema,
                        current_module_name: Tuple[str, ...] ,
-                       current_type_name: str, bases: List[qlast.TypeName], 
+                       current_type_name: str, bases: List[qlast.TypeName],
                        add_object_type=False) -> None:
     base_tps = [elab_single_type_expr(base) for base in bases]
     base_tps_ck : List[Tuple[Tuple[str, ...], e.RawName]] = []
@@ -272,7 +270,7 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
         sdef.declarations)[0].declarations
 
     current_module_name = ("default", )
-    
+
 
     type_defs: Dict[str, e.ModuleEntityTypeDef | e.ModuleEntityFuncDef] = {}
     existing.unchecked_modules[current_module_name] = e.DBModule(type_defs)

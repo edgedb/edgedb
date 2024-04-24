@@ -1,12 +1,9 @@
 
-from functools import reduce
-import operator
-from typing import Tuple, Dict, Sequence, Optional, List
+from typing import Tuple, Dict
 
 from ..data import data_ops as e
 from ..data import expr_ops as eops
 from ..data import type_ops as tops
-from edb.common import debug
 from ..data import path_factor as path_factor
 from .dml_checking import *
 from ..data import expr_to_str as pp
@@ -163,7 +160,7 @@ def check_fun_def_validity(ctx: e.TcCtx, fun_def: e.FuncDef) -> e.FuncDef:
                 impl_ck = eops.abstract_over_expr(impl_ck, binder)
             return e.DefinedFuncDef(
                 tp=tp,
-                impl=impl_ck, 
+                impl=impl_ck,
                 defaults={k: synthesize_type(ctx, v)[1] for k,v in defaults.items()}
                 )
         case e.BuiltinFuncDef(tp=tp, impl=impl, defaults=defaults):
@@ -171,7 +168,7 @@ def check_fun_def_validity(ctx: e.TcCtx, fun_def: e.FuncDef) -> e.FuncDef:
             return e.BuiltinFuncDef(tp=tp, impl=impl, defaults=defaults)
         case _:
             raise ValueError("Not Implemented", fun_def)
-        
+
 
 
 
@@ -190,10 +187,10 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
     #         case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract):
     #             if isinstance(typedef, e.ObjectTp):
     #                 result_vals = {
-    #                     **result_vals, 
+    #                     **result_vals,
     #                     t_name: e.ModuleEntityTypeDef(typedef=
     #                         check_object_tp_validity(
-    #                             dbschema, 
+    #                             dbschema,
     #                             module_name,
     #                             e.NamedNominalLinkTp(name=e.QualifiedName([*module_name,t_name]), linkprop=e.ObjectTp({})),
     #                             typedef), is_abstract=is_abstract)}

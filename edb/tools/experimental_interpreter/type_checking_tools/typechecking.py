@@ -1,17 +1,15 @@
 
 from functools import reduce
 import operator
-from typing import Tuple, Dict, Sequence, Optional, List
+from typing import Tuple, Dict, Sequence, List
 
 from edb import errors
 from ..data import data_ops as e
 from ..data import expr_ops as eops
 from ..data import type_ops as tops
-from edb.common import debug
 from ..data import path_factor as path_factor
-from .dml_checking import *
+from .dml_checking import insert_checking, update_checking
 from ..data import expr_to_str as pp
-from .. import back_to_ql as bql
 from .function_checking import *
 from .cast_checking import check_castable
 from ..schema import subtyping_resolution as subtp_resol
@@ -55,7 +53,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                 result_expr = e.ShapeExpr(
                     {**result_expr.shape,
                         lbl: eops.abstract_over_expr(checked_body, bnd_var)})
-                
+
     ret_tp = tops.combine_tp_with_subject_tp(ctx, tp, result_s_tp)
     ret_tp = tops.combine_tp_with_linkprop_tp(ctx, ret_tp, result_l_tp)
     return ret_tp, result_expr
@@ -153,7 +151,7 @@ def check_filter_body_is_exclusive(ctx: e.TcCtx, filter_ck: e.Expr) -> bool:
 
             else:
                 return False
-        
+
         case _:
             return False
 
@@ -183,7 +181,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 case e.ModuleEntityTypeDef(typedef=typedef):
                     assert isinstance(typedef, e.ObjectTp), "Cannot select Scalar type"
                     result_tp = e.NominalLinkTp(subject=typedef,
-                                                name=expr, 
+                                                name=expr,
                                                 linkprop=e.ObjectTp({}))
                     result_expr = e.MultiSetExpr(expr=[name for name in subtp_resol.find_all_subtypes_of_tp_in_schema(ctx.schema, expr) if not mops.tp_name_is_abstract(name, ctx.schema)])
                     result_card = e.CardAny
@@ -285,7 +283,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                                     *candidates,
                                     e.NamedNominalLinkTp(t_name,
                                                  comp_tp.tp.linkprop)
-                                ] 
+                                ]
                             case _:
                                 candidates = [
                                     *candidates,
@@ -342,7 +340,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     subject_tp.tp, e.NamedNominalLinkTp(name=intersect_tp_name, linkprop=e.ObjectTp({}))) #TODO: get linkprop
             result_card = e.CMMode(
                 e.CardNumZero,
-                subject_tp.mode.upper, 
+                subject_tp.mode.upper,
                 # subject_tp.mode.multiplicity
             )
         case e.SubqueryExpr(expr=sub_expr):
@@ -367,7 +365,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             filter_ctx, filter_body, filter_bound_var = eops.tcctx_add_binding(
                 ctx, filter, e.ResultTp(subject_tp.tp, e.CardOne))
-            
+
             order_ck : Dict[str, e.BindingExpr] = {}
             for (order_label, o) in order.items():
                 order_ctx, order_body, order_bound_var = eops.tcctx_add_binding(
@@ -376,7 +374,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 # if order_result_tp.mode.upper == e.CardNumInf:
                 #     raise errors.QueryError("Order expression must have cardinality (<=1) " + pp.show(o_ck))
                 order_ck = {**order_ck, order_label : eops.abstract_over_expr(o_ck, order_bound_var)}
-            
+
             assert eops.is_effect_free(filter), "Expecting effect-free filter"
             assert all(eops.is_effect_free(o) for o in order.values()), "Expecting effect-free order"
 
@@ -427,18 +425,18 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 e.CardNumZero,
                 upper_card_bound,
                 # subject_tp.mode.multiplicity
-            ) 
-            
+            )
+
             # if isinstance(limit_ck, e.IntVal):
             #     lim_num = limit_ck.val
             #     result_card = e.CMMode(
             #         e.CardNumZero,
-            #         e.min_cardinal(result_card.upper, 
-            #                        e.CardNumInf if lim_num > 1 else 
+            #         e.min_cardinal(result_card.upper,
+            #                        e.CardNumInf if lim_num > 1 else
             #                        (e.CardNumOne if lim_num == 0 else e.CardNumZero)),
             #         # e.min_cardinal(result_card.multiplicity, e.Fin(lim_num))
             #         )
-        case e.InsertExpr(name=tname, new=arg):
+        case e.InsertExpr(name=_, new=arg):
             result_expr = insert_checking(ctx, expr)
             assert isinstance(result_expr, e.InsertExpr) and isinstance(result_expr.name, e.QualifiedName)
             result_tp = e.NamedNominalLinkTp(name=result_expr.name, linkprop=e.ObjectTp({}))
@@ -486,7 +484,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.OptionalForExpr(bound=bound, next=next):
             (bound_tp, bound_ck) = synthesize_type(ctx, bound)
             if (bound_tp.mode.lower == e.CardNumZero):
-                bound_card = e.CardAtMostOne 
+                bound_card = e.CardAtMostOne
             elif (bound_tp.mode.lower == e.CardNumOne):
                 bound_card = e.CardOne
             else:
@@ -562,7 +560,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
     if isinstance(result_tp, e.UncheckedTypeName):
         raise ValueError("Must not return UncheckedTypeName", expr, result_tp)
 
-    
+
     # Comment this safety check to improve type checking performance
     # if eops.appears_in_expr_pred(lambda x: isinstance(x, e.UncheckedTypeName), result_tp):
     #     raise ValueError("Unchecked type name in result", result_tp)
@@ -598,11 +596,11 @@ def check_type_no_card(ctx: e.TcCtx, expr: e.Expr,
                         case e.TpCastKind.Explicit:
                             raise ValueError("Not a sub type", expr_tp.tp, tp)
                         case e.TpCastKind.Implicit:
-                            return (expr_tp.mode, 
+                            return (expr_tp.mode,
                                     e.CheckedTypeCastExpr((expr_tp.tp, tp), cast_fun, expr_ck))
                         case e.TpCastKind.Assignment:
                             if with_assignment_cast:
-                                return (expr_tp.mode, 
+                                return (expr_tp.mode,
                                         e.CheckedTypeCastExpr((expr_tp.tp, tp), cast_fun, expr_ck))
                             else:
                                 raise ValueError("Not a sub type", expr_tp.tp, tp)
@@ -625,7 +623,7 @@ def check_type(ctx: e.TcCtx, expr: e.Expr, tp: e.ResultTp, with_assignment_cast:
     tops.assert_cardinal_subtype(synth_mode, tp.mode)
     # ( "Expecting cardinality %s, got %s" % (tp.mode, synth_mode))
     return expr_ck
-    
+
 
 def check_type_valid(ctx: e.TcCtx | e.DBSchema, tp : e.Tp) -> e.Tp:
     """

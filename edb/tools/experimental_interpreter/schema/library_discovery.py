@@ -6,7 +6,7 @@ from .ddl_processing import process_ddls
 import os
 
 def process_edgeql_file(
-    schema: e.DBSchema, 
+    schema: e.DBSchema,
     path: str) -> None:
     """
     Process an edgeql file as ddl.
@@ -20,7 +20,7 @@ def process_edgeql_file(
 
 
 def add_ddl_library(
-    schema: e.DBSchema, 
+    schema: e.DBSchema,
     libpaths: List[str]) -> None :
     """
     Add a library to the schema.

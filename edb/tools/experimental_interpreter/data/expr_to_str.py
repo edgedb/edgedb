@@ -131,7 +131,7 @@ def show_edge_database_select_filter(filter: e.EdgeDatabaseSelectFilter) -> str:
         case _:
             raise ValueError('Unimplemented', filter)
 
-        
+
 
 def show_expr(expr: e.Expr) -> str:
     match expr:
@@ -188,7 +188,7 @@ def show_expr(expr: e.Expr) -> str:
             return ("(" + show_expr(subject) + " offset " + show_expr(offset) +
                     " limit " + show_expr(limit) + ")")
         case e.InsertExpr(name=name, new=new):
-            return ("insert " + show_raw_name(name) + " {" + 
+            return ("insert " + show_raw_name(name) + " {" +
                     ", ".join([k + " := " + show_expr(n) for (k,n) in new.items()]) + "}")
         case e.UpdateExpr(subject=subject, shape=shape):
             return ("update " + show_expr(subject) + " " + show_expr(shape))
@@ -237,9 +237,9 @@ def show_arg_mod(mod: e.ParamModifier) -> str:
             raise ValueError('Unimplemented', mod)
 
 def show_arg_ret_type(tp: e.FunArgRetType) -> str:
-    return ("[" + 
-            (", ".join(show_tp(arg_tp) + "^" + show_arg_mod(mod) 
-                       for arg_tp, mod in 
+    return ("[" +
+            (", ".join(show_tp(arg_tp) + "^" + show_arg_mod(mod)
+                       for arg_tp, mod in
                        zip(tp.args_tp, tp.args_mod)))
             + "]" + " -> " + show_result_tp(tp.ret_tp))
 
@@ -334,7 +334,7 @@ def show_multiset_val(val: e.MultiSetVal) -> str:
         #     return "(dedup pending){" + ", ".join(show_val(el) for el in arr) + "}"
         case _:
             raise ValueError('Unimplemented', val)
-        
+
 def show_ctx(ctx: e.TcCtx) -> str:
     return (
         "Schema:" + "\n" +
@@ -342,7 +342,7 @@ def show_ctx(ctx: e.TcCtx) -> str:
         "Current Module: " + show_module_name(ctx.current_module) + "\n" +
         "VarCtx:" + "\n" +
         ("\n".join(name + " : " + show_result_tp(r_tp)
-                   for name, r_tp in ctx.varctx.items())) + "\n" 
+                   for name, r_tp in ctx.varctx.items())) + "\n"
     )
 
 

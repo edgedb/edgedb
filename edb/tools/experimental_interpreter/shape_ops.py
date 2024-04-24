@@ -1,9 +1,7 @@
 from typing import *
 
 # from .data.data_ops import ShapeExpr, ObjectExpr
-from .data.expr_ops import binding_is_unnamed
 
-from .errors import ElaborationError
 
 
 # def shape_to_expr(node: ShapeExpr) -> ObjectExpr:

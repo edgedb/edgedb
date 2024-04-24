@@ -1,12 +1,10 @@
 from typing import Any, Dict, Sequence
 import json
 from . import data_ops as e
-from .data_ops import (ArrVal, BoolVal, IntVal, Label, LinkPropLabel,
+from .data_ops import (ArrVal, Label, LinkPropLabel,
                        MultiSetVal, NamedTupleVal, ObjectVal, RefVal, StrLabel,
-                       StrVal, UnnamedTupleVal, Val, Visible)
-from . import expr_ops as eops
+                       UnnamedTupleVal, Val, Visible)
 from . import type_ops as tops
-from . import module_ops as mops
 from . import expr_to_str as pp
 
 json_like = str | int | bool | Dict[str, Any] | Sequence[Any]

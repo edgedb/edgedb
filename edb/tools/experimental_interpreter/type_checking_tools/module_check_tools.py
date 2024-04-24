@@ -1,21 +1,15 @@
 
-from functools import reduce
-import operator
-from typing import Tuple, Dict, Sequence, Optional, List, Callable
+from typing import Tuple, Dict, Callable
 
 from ..data import data_ops as e
 from ..data import expr_ops as eops
-from ..data import type_ops as tops
-from edb.common import debug
 from ..data import path_factor as path_factor
 from .dml_checking import *
-from ..data import expr_to_str as pp
 from .function_checking import *
-from . import typechecking as tck
 
 
-def unchecked_module_map(dbschema: e.DBSchema, module_name : Tuple[str, ...], 
-                         f: Callable[[e.TcCtx, e.Tp, e.Tp, e.CMMode], e.Tp], 
+def unchecked_module_map(dbschema: e.DBSchema, module_name : Tuple[str, ...],
+                         f: Callable[[e.TcCtx, e.Tp, e.Tp, e.CMMode], e.Tp],
                          g: Callable[[e.TcCtx, e.FuncDef], e.FuncDef]) -> None:
     """
     Modifies the db schema after checking
@@ -37,7 +31,7 @@ def unchecked_module_map(dbschema: e.DBSchema, module_name : Tuple[str, ...],
             case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract, constraints=constraints, indexes=indexes):
                 if isinstance(typedef, e.ObjectTp):
                     result_vals = {
-                        **result_vals, 
+                        **result_vals,
                         t_name: e.ModuleEntityTypeDef(typedef=
                             unchecked_object_tp_map(
                                 e.NamedNominalLinkTp(name=e.QualifiedName([*module_name,t_name]), linkprop=e.ObjectTp({})),

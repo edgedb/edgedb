@@ -59,6 +59,6 @@ def insert_conditional_dedup(expr : e.Expr):
                 return do_recursive_insert(sub)
         else:
             return None
-    
+
     result = eops.map_expr(insert_function_top, expr)
     return result

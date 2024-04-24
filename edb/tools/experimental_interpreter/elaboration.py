@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple, cast, List
 from edb import errors
 # import edb as edgedb
 # import edgedb
-from edb.common import debug, parsing
+from edb.common import debug
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as qltypes
 from edb.schema import pointers as s_pointers
@@ -16,14 +16,14 @@ from . import interpreter_logging as i_logging
 # from .basis.built_ins import all_builtin_funcs, all_std_funcs
 from .data import data_ops as e
 from .data.data_ops import (
-    ArrExpr, ArrTp, BackLinkExpr, BindingExpr, BoolVal, BoundVarExpr,
+    ArrExpr, BackLinkExpr, BindingExpr, BoolVal, BoundVarExpr,
      DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
-    FunAppExpr,  IndirectionIndexOp, 
+    FunAppExpr,  IndirectionIndexOp,
     InsertExpr,  IntVal,  Label, LinkPropLabel,
     LinkPropProjExpr, MultiSetExpr, NamedTupleExpr,
     ObjectProjExpr, OffsetLimitExpr, OptionalForExpr, OrderAscending,
     OrderDescending, OrderLabelSep, ShapedExprExpr, ShapeExpr, StrLabel,
-     StrVal, SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
+     SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
     UnionExpr, UnionTp, UnnamedTupleExpr, UpdateExpr, WithExpr,
     next_name)
 from .data.expr_ops import (abstract_over_expr, instantiate_expr, is_path,
@@ -249,7 +249,7 @@ def elab_InsertQuery(expr: qlast.InsertQuery) -> InsertExpr:
             raise ValueError("Expecting Plain Labels")
         assert eops.binding_is_unnamed(v), "Not expecting leading dot notaiton in Shapes"
         unshaped[k.label] = v.body
-    
+
     return cast(
         InsertExpr,
         elab_aliases(
@@ -275,9 +275,9 @@ def elab_Constant(expr: qlast.Constant) -> e.ScalarVal:
                     raise ValueError("Unknown Bool Value", expr)
         case _:
             raise ValueError("Unknown Constant Kind", expr.kind)
-        
 
-        
+
+
 # @elab.register(qlast.StringConstant)
 # def elab_StringConstant(e: qlast.StringConstant) -> StrVal:
 #     return StrVal(val=e.value)
@@ -360,7 +360,7 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
     else:
         subject_elab = elab(qle.result)
         # if isinstance(subject_elab, FreeVarExpr):
-        #     subject_elab = e.ShapedExprExpr(expr=subject_elab, shape=ShapeExpr({})) # if selecting only a variable, we need to add an empty shape to shadow the 
+        #     subject_elab = e.ShapedExprExpr(expr=subject_elab, shape=ShapeExpr({})) # if selecting only a variable, we need to add an empty shape to shadow the
         filter_elab = elab_where(qle.where)
         order_elab = elab_orderby(qle.orderby)
         if qle.result_alias is not None:
@@ -493,7 +493,7 @@ def elab_single_type_str(name: str, module_name: Optional[str]) -> Tp:
 
 def elab_CompositeTp(basetp: qlast.ObjectRef, sub_tps: List[Tp], labels=[]) -> Tp:
     if basetp.name in {k.value for k in e.CompositeTpKind}:
-        return e.CompositeTp(kind=e.CompositeTpKind(basetp.name), tps=sub_tps, labels=labels)  
+        return e.CompositeTp(kind=e.CompositeTpKind(basetp.name), tps=sub_tps, labels=labels)
     else:
         raise ValueError("Unknown Composite Type", basetp.name)
 @elab.register(qlast.TypeName)
@@ -502,7 +502,7 @@ def elab_TypeName(qle: qlast.TypeName) -> Tp:
     #     return elab_not_implemented(qle)
     if qle.dimensions:
         return elab_not_implemented(qle)
-        
+
     basetp = qle.maintype
     if isinstance(basetp, qlast.ObjectRef):
         if basetp.itemclass:

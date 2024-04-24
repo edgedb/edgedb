@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import sqlite3
-import pickle
 from typing import List
 import json
 from ..db_interface import EdgeID, EdgeDatabaseStorageProviderInterface
@@ -12,10 +11,8 @@ from ..data.data_ops import *
 from ..data import data_ops as e
 from typing import *
 # from ..basis.built_ins import all_builtin_funcs
-from .. import db_interface
-from ..elab_schema import add_module_from_sdl_file, add_module_from_sdl_defs
+from ..elab_schema import add_module_from_sdl_defs
 
-import copy
 
 # SQLITE_PRINT_QUERIES = True
 SQLITE_PRINT_QUERIES = False
@@ -129,7 +126,7 @@ def get_table_view_from_property_view(schema_property_view: Dict[str, TableTypeV
                      }},
             primary_key=["id"],
             indexes=tview.indexes)
-        
+
         for (pname, pdef) in tdef.items():
             if pname in all_single_prop_names and len(pdef.link_props) == 0:
                 continue
@@ -185,7 +182,7 @@ def convert_val_to_sqlite_val(val: e.ResultMultiSetVal) -> Any:
         return None
     else:
         return sub_convert(val.getVals()[0])
-    
+
 
 
 
@@ -229,18 +226,18 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
     def to_type_for_an_id(self, tp: e.QualifiedName) -> str:
         return "::".join(tp.names)
 
-    def convert_sqlite_link_props_to_object_val(self, 
-                                                link_props: Dict[str, Any], 
+    def convert_sqlite_link_props_to_object_val(self,
+                                                link_props: Dict[str, Any],
                                                 link_props_view: Dict[str, PropertyTypeView]) -> ObjectVal:
         assert link_props.keys() == link_props_view.keys(), "Link props mismatch"
-        return ObjectVal({e.LinkPropLabel(lpname) : (e.Invisible(), 
+        return ObjectVal({e.LinkPropLabel(lpname) : (e.Invisible(),
                                                      e.ResultMultiSetVal([self.convert_sqlite_result_to_val(link_props[lpname], link_props_view[lpname], {})])
                                                      if link_props[lpname] else e.ResultMultiSetVal([]))
                           for lpname in link_props})
 
 
-    def convert_sqlite_result_to_val(self, 
-                                    result_data: Any, 
+    def convert_sqlite_result_to_val(self,
+                                    result_data: Any,
                                     result_tp: PropertyTypeView,
                                     link_props: Dict[str, Any]) -> Val:
         if result_data is None:
@@ -270,19 +267,19 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 return e.RefVal(refid=result_data, tpname=tp_name, val=e.ObjectVal({}))
 
     def create_or_populate_schema_table(self) -> None:
-        
+
         for tname, tspec in self.table_view.items():
-            column_spec = ', '.join([f"{cname} {cspec.type}" + ("" if cspec.is_nullable else " NOT NULL") 
+            column_spec = ', '.join([f"{cname} {cspec.type}" + ("" if cspec.is_nullable else " NOT NULL")
                                     for (cname, cspec) in tspec.columns.items()])
             primary_key_spec = f"PRIMARY KEY ({','.join(tspec.primary_key)})"
-                                                
+
             self.do_execute_query(f"""CREATE TABLE IF NOT EXISTS "{tname}" ({column_spec}, {primary_key_spec}) STRICT, WITHOUT ROWID""")
 
             for index in tspec.indexes:
                 index_name = f"{tname}_{'_'.join(index)}_idx"
                 index_spec = ','.join(index)
                 self.do_execute_query(f"CREATE INDEX IF NOT EXISTS '{index_name}' ON '{tname}' ({index_spec})")
-            
+
 
     def id_initialization(self):
         self.do_execute_query("CREATE TABLE IF NOT EXISTS next_id_to_return_gen (id INTEGER PRIMARY KEY)")
@@ -293,14 +290,14 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         else:
             self.do_execute_query("INSERT INTO next_id_to_return_gen (id) VALUES (?)", (101,))
         self.conn.commit() # I am not sure whether this is needed
-    
+
     def get_schema(self) -> DBSchema:
         return self.schema
 
-      
 
 
-    
+
+
     def query_ids_for_a_type(self, tp: e.QualifiedName, filters: e.EdgeDatabaseSelectFilter) -> List[EdgeID]:
 
 
@@ -340,7 +337,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
         tp_name = self.get_tp_name(tp)
         filter_clause = "WHERE " + convert_select_filter_to_condition_text(filters)
-        
+
 
         sql_query = f"""SELECT id FROM "{tp_name}" {filter_clause} """
         self.do_execute_query(sql_query, (*query_args,))
@@ -380,7 +377,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         pview = self.schema_property_view[tp_name].columns[prop]
 
         fetch_from_lp_table = pview.has_lp_table()
-        
+
         if fetch_from_lp_table:
             lp_property_names = list(pview.link_props.keys())
             lp_table_name = f"{tp_name}.{prop}"
@@ -407,7 +404,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             return e.ResultMultiSetVal(result)
 
 
-    def reverse_project(self, subject_ids: Sequence[EdgeID], 
+    def reverse_project(self, subject_ids: Sequence[EdgeID],
                         prop: str) -> MultiSetVal:
         result : List[Val] = []
         for (tp_name, tdef) in self.schema_property_view.items():
@@ -431,11 +428,11 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                             lp_vals[lp_prop_name] = row[i+1]
                         converted_lp_vals = self.convert_sqlite_link_props_to_object_val(lp_vals, pview.link_props)
                         result.append(e.RefVal(refid=source_id, tpname=self.to_tp_name(tp_name), val=converted_lp_vals))
-                    
+
 
         return e.ResultMultiSetVal(result)
 
-    
+
     def insert(self, id: EdgeID, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> None:
         tp_name = self.get_tp_name(tp)
         tdef = self.schema_property_view[tp_name].columns
@@ -444,7 +441,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         single_prop_vals = [convert_val_to_sqlite_val(props[pname]) for pname in single_props]
         self.do_execute_query(f"INSERT INTO {tp_name} (id, {','.join(single_props)}) VALUES (?, {','.join(['?']*len(single_props))})",
                             (id, *single_prop_vals))
-        
+
         for (pname, pview) in tdef.items():
             if pview.has_lp_table():
                 lp_table_name = f"{tp_name}.{pname}"
@@ -458,11 +455,11 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                     else:
                         self.do_execute_query(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v]))))
-        
+
         self.do_execute_query(f"INSERT INTO objects (id, tp) VALUES (?, ?)", (id, self.to_type_for_an_id(tp)))
 
 
-    
+
     def delete(self, id: EdgeID, tp: e.QualifiedName) -> None:
         tp_name = self.get_tp_name(tp)
 
@@ -471,12 +468,12 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             if pview.has_lp_table():
                 lp_table_name = f"{tp_name}.{pname}"
                 self.do_execute_query(f"DELETE FROM '{lp_table_name}' WHERE source=?", (id,))
-        
+
         self.do_execute_query(f"DELETE FROM '{tp_name}' WHERE id=?", (id,))
         self.do_execute_query(f"DELETE FROM objects WHERE id=?", (id,))
 
 
-    
+
     def update(self, id: EdgeID, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> None:
         tp_name = self.get_tp_name(tp)
         tdef = self.schema_property_view[tp_name]
@@ -484,9 +481,9 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         single_props = [pname for (pname, pview) in tdef.columns.items() if pview.is_singular]
         single_prop_vals = [convert_val_to_sqlite_val(props[pname]) for pname in single_props if pname in props]
         if len(single_prop_vals) > 0:
-            self.do_execute_query(f"UPDATE '{tp_name}' SET {','.join([f'{pname}=?' for pname in props])} WHERE id=?", 
+            self.do_execute_query(f"UPDATE '{tp_name}' SET {','.join([f'{pname}=?' for pname in props])} WHERE id=?",
                                 (*single_prop_vals, id))
-        
+
         for (pname, pview) in tdef.columns.items():
             if pview.has_lp_table() and pname in props:
                 lp_table_name = f"{tp_name}.{pname}"
@@ -507,19 +504,19 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                         self.do_execute_query(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v]))))
 
-    # By default commit is called per query, doing a bunch of consecutive queries 
+    # By default commit is called per query, doing a bunch of consecutive queries
     # will cause significant delays. This function can be used to pause the commit.
     def pause_disk_commit(self) -> None:
         self.should_commit_to_disk = False
-    
+
     def resume_disk_commit(self) -> None:
         self.should_commit_to_disk = True
         self.commit()
-        
+
     def commit(self) -> None:
         if self.should_commit_to_disk:
             self.conn.commit()
-    
+
 def schema_and_db_from_sqlite(sdl_file_content : Optional[str], sqlite_file_name : str):
     # Connect to the SQLite database
     conn = sqlite3.connect(sqlite_file_name)

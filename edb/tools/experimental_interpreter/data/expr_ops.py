@@ -3,20 +3,16 @@
 from typing import Callable, Dict, Optional, Sequence, Tuple, cast
 import typing
 
-from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
-                       BoundVarExpr, DetachedExpr, Expr, FilterOrderExpr,
+from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoundVarExpr, DetachedExpr, Expr, FilterOrderExpr,
                        ForExpr, FreeVarExpr, FunAppExpr, InsertExpr,
-                       IntVal, LinkPropLabel, LinkPropProjExpr,
+                       LinkPropLabel, LinkPropProjExpr,
                        MultiSetExpr, MultiSetVal, NamedTupleExpr,
-                       ObjectProjExpr, ObjectTp, ObjectVal,
+                       ObjectProjExpr, ObjectVal,
                        OffsetLimitExpr, OptionalForExpr, RefVal,
-                       ShapedExprExpr, ShapeExpr, StrLabel, StrVal,
-                       SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
+                       ShapedExprExpr, ShapeExpr, StrLabel, SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
                        UnionExpr, UnnamedTupleExpr, UnnamedTupleVal,
-                       UpdateExpr, Val, VarExpr, Visible, WithExpr, next_id,
-                       next_name)
+                       UpdateExpr, Val, VarExpr, WithExpr, next_name)
 from . import data_ops as e
-from  . import expr_to_str as pp
 from ..interpreter_logging import print_warning
 
 from typing import List
@@ -57,13 +53,13 @@ def map_tp(
             case e.CompositeTp(kind=k, tps=tps, labels=labels):
                 return e.CompositeTp(kind=k, tps=[recur(v) for v in tps], labels=labels)
             case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
-                return e.NamedNominalLinkTp(name=name, 
+                return e.NamedNominalLinkTp(name=name,
                                     linkprop=recur(linkprop))
             # case e.UncheckedNamedNominalLinkTp(name=name, linkprop=linkprop):
-            #     return e.UncheckedNamedNominalLinkTp(name=name, 
+            #     return e.UncheckedNamedNominalLinkTp(name=name,
             #                         linkprop=recur(linkprop))
             case e.NominalLinkTp(name=name, subject=subject, linkprop=linkprop):
-                return e.NominalLinkTp(name=name, 
+                return e.NominalLinkTp(name=name,
                                     subject=recur(subject),
                                     linkprop=recur(linkprop))
             case e.UncheckedComputableTp(_):
@@ -81,7 +77,7 @@ def map_tp(
 
 
 def map_edge_select_filter(
-        f : Callable[[Expr], Optional[Expr]], 
+        f : Callable[[Expr], Optional[Expr]],
         expr: e.Expr | e.EdgeDatabaseSelectFilter
         ) -> e.Expr | e.EdgeDatabaseSelectFilter:
     tentative = f(expr) # type: ignore[arg-type]
@@ -131,7 +127,7 @@ def map_expr(
             return map_expr(f, expr)
 
         match expr:
-            case (FreeVarExpr(_) | BoundVarExpr(_) | e.ScalarVal(_) | RefVal(_) 
+            case (FreeVarExpr(_) | BoundVarExpr(_) | e.ScalarVal(_) | RefVal(_)
                     | ArrVal(_) | UnnamedTupleVal(_) |e.QualifiedName(_) | e.UnqualifiedName(_)
                     | e.QualifiedNameWithFilter(_, _)):
                 return expr
@@ -160,7 +156,7 @@ def map_expr(
             case FunAppExpr(fun=fname, args=args, overloading_index=idx, kwargs=kwargs):
                 return FunAppExpr(
                     fun=fname, args=[recur(arg) for arg in args],
-                    overloading_index=idx, 
+                    overloading_index=idx,
                     kwargs={k: recur(v) for (k,v) in kwargs.items()})
             case FilterOrderExpr(subject=subject, filter=filter, order=order):
                 return FilterOrderExpr(
@@ -375,7 +371,7 @@ def count_appearances_in_expr(search: Expr, subject: Expr):
             expr_is_var = vname
         case _:
             expr_is_var = None
-    
+
     appearances = 0
 
     def map_func(candidate: Expr) -> Optional[Expr]:
@@ -624,7 +620,7 @@ def val_eq(v1 : e.Val, v2: e.Val) -> bool:
             if t1 != t2:
                 print_warning(f"Warning: comparing different types {t1} and {t2}")
             return v1 == v2
-        case e.RefVal(id1, v1), e.RefVal(id2, v2):    
+        case e.RefVal(id1, v1), e.RefVal(id2, v2):
             return id1 == id2
         case e.UnnamedTupleVal(v1), e.UnnamedTupleVal(v2):
             if len(v1) != len(v2):

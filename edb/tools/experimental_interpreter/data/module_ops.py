@@ -1,7 +1,6 @@
 
 from . import data_ops as e
 from typing import Optional, List, Tuple
-from . import expr_to_str as pp
 
 default_open_scopes = [("std",)]
 
@@ -52,7 +51,7 @@ def resolve_type_def(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.Modu
             raise ValueError(f"{name} is not a type")
     else:
         raise ValueError(f"Type {name} not found")
-    
+
 
 def resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.ObjectTp | e.ScalarTp:
     resolved = try_resolve_type_name(ctx, name)
@@ -60,7 +59,7 @@ def resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.Obj
         raise ValueError(f"Type {name} not found")
     else:
         return resolved
-    
+
 
 def resolve_func_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> List[e.FuncDef]:
     me = try_resolve_module_entity(ctx, name)
@@ -90,7 +89,7 @@ def try_resolve_simple_name(ctx: e.TcCtx | e.DBSchema, unq_name: e.UnqualifiedNa
         schema = ctx.schema
     else:
         schema = ctx
-    
+
     for default_scope in default_open_scopes:
         std_module = resolve_module_in_schema(schema, default_scope)
         if name in std_module.defs:
@@ -126,7 +125,7 @@ def enumerate_all_object_type_defs(ctx: e.TcCtx) -> List[Tuple[e.QualifiedName, 
             if isinstance(me, e.ModuleEntityTypeDef) and isinstance(me.typedef, e.ObjectTp):
                 result.append((e.QualifiedName([*module_name, tp_name]), me.typedef))
 
-        
+
     return result
 
 def tp_name_is_abstract(name: e.QualifiedName, schema: e.DBSchema) -> bool:

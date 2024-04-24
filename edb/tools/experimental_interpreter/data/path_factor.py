@@ -1,7 +1,6 @@
 from typing import Callable, List, Optional
 
-from .data_ops import (BackLinkExpr, BindingExpr, BoolVal, DBSchema,
-                       DetachedExpr, Expr, FilterOrderExpr, FreeVarExpr,
+from .data_ops import (BackLinkExpr, BindingExpr, BoolVal, DetachedExpr, Expr, FilterOrderExpr, FreeVarExpr,
                        LinkPropProjExpr, ObjectProjExpr, TpIntersectExpr,
                        OptionalForExpr, next_name, StrLabel)
 from . import data_ops as e
@@ -10,8 +9,6 @@ from .expr_ops import (
     abstract_over_expr, appears_in_expr, instantiate_expr, is_path,
     iterative_subst_expr_for_expr, map_expr, operate_under_binding)
 from .query_ops import QueryLevel, map_query, map_sub_and_semisub_queries
-from . import path_optimize as popt
-from . import expr_to_str as pp
 
 
 def all_prefixes_of_a_path(expr: Expr) -> List[Expr]:
@@ -112,7 +109,7 @@ def get_all_proper_top_level_paths(
     # print("Querying", pp.show(e))
     # print("Definite paths are", definite_top_paths)
     # print("Semi sub paths are", semi_sub_paths)
-    # print("Sub paths are", sub_paths)   
+    # print("Sub paths are", sub_paths)
 
     selected_semi_sub_paths = []
     for (i, cluster) in enumerate(semi_sub_paths):
@@ -121,7 +118,7 @@ def get_all_proper_top_level_paths(
             to_check = (definite_top_paths + sub_paths +
                         [p for spl in
                          (semi_sub_paths[:i] + semi_sub_paths[i + 1:])
-                         for p in spl] + 
+                         for p in spl] +
                          [p for spl in (sub_sub_paths[:i] + sub_sub_paths[i + 1:]) for p in spl]
                           )
             # print("Checking", candidate, "prefixes", prefixes, "against", to_check)
@@ -207,11 +204,11 @@ def toppath_for_factoring(expr: Expr, dbschema: e.TcCtx) -> List[Expr]:
             case _:
                 pass
     all_factoring_paths = c_all + clpp_a + d
-    
+
     # remove from all_factoring_paths those paths that only occurred once
     excluding_paths = [p for p in top_level_paths if eops.count_appearances_in_expr(p, expr) == 1]
     all_factoring_paths = [p for p in all_factoring_paths if p not in excluding_paths]
-    
+
     return sorted(
         list(set(all_factoring_paths)),
         key=path_lexicographic_key)
@@ -287,7 +284,7 @@ def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
                     e.ShapedExprExpr(expr=e.FreeObjectExpr(),
                         shape=e.ShapeExpr(shape=
                         {StrLabel("__edgedb_reserved_subject__"): abstract_over_expr(FreeVarExpr(bindname)),
-                        **{StrLabel(l) : 
+                        **{StrLabel(l) :
                             abstract_over_expr(select_hoist(
                                 iterative_subst_expr_for_expr(
                                     fresh_vars, top_paths,

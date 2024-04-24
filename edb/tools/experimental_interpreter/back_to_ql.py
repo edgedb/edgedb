@@ -1,20 +1,18 @@
 
-from typing import Any, List, Optional, Sequence, cast, Dict
+from typing import Any, List, Optional, Sequence, Dict
 
 from edb.edgeql import ast as qlast
 from edb.schema.pointers import PointerDirection
 
 # from .basis.built_ins import all_builtin_ops
-from .data.data_ops import (ArrExpr, BackLinkExpr, BoolVal,
-                            DetachedExpr, Expr, FilterOrderExpr, ForExpr,
+from .data.data_ops import (ArrExpr, BackLinkExpr, DetachedExpr, Expr, FilterOrderExpr, ForExpr,
                             FreeVarExpr, FunAppExpr, InsertExpr,
-                            IntVal, Label, LinkPropLabel,
+                            Label, LinkPropLabel,
                             LinkPropProjExpr, MultiSetExpr, NamedTupleExpr,
                             ObjectProjExpr, ObjectVal,
                             OffsetLimitExpr, OptionalForExpr, OrderAscending,
                             OrderDescending, OrderLabelSep, RefVal,
-                            ShapedExprExpr, ShapeExpr, StrLabel,  StrVal,
-                            SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
+                            ShapedExprExpr, ShapeExpr, StrLabel,  SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
                             UnionExpr, UnnamedTupleExpr, UpdateExpr, Val,
                             WithExpr, )
 from .data import data_ops as e
@@ -204,8 +202,8 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case e.UnqualifiedName(name=name):
             return qlast.Path(steps=[reverse_elab_raw_name(ir_expr)])
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
-            # if (isinstance(fname, e.QualifiedName) 
-            #     and fname.names[0] == "std" 
+            # if (isinstance(fname, e.QualifiedName)
+            #     and fname.names[0] == "std"
             #     and fname.names[1] in all_builtin_ops.keys() and len(args) == 2):
             #     return qlast.BinOp(
             #         op=show_raw_name(fname), left=reverse_elab(args[0]),

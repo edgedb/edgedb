@@ -1,15 +1,9 @@
 
-from functools import reduce
-import operator
-from typing import Tuple, Dict, Sequence, Optional, List
+from typing import Tuple, Dict
 
 from ..data import data_ops as e
-from ..data import expr_ops as eops
-from ..data import type_ops as tops
-from edb.common import debug
 from ..data import path_factor as path_factor
 from .dml_checking import *
-from ..data import expr_to_str as pp
 from .function_checking import *
 from . import typechecking as tck
 from . import module_check_tools as mck
@@ -37,7 +31,7 @@ def object_tp_comp_name_resolve(
                         root_ctx=root_ctx,
                         tp_comp=t_comp_tp,
                         ), t_comp_card)
-            
+
             return e.NamedNominalLinkTp(
                     name=name_ck,
                     linkprop=e.ObjectTp(linkprop_ck))
@@ -93,7 +87,7 @@ def func_def_name_resolve(
         case e.DefinedFuncDef(tp=tp, impl=impl, defaults=defaults):
             return e.DefinedFuncDef(
                 tp=fun_arg_ret_type_name_resolve(root_ctx, tp),
-                impl=impl, 
+                impl=impl,
                 defaults=defaults)
         case e.BuiltinFuncDef(tp=tp, impl=impl, defaults=defaults):
             # do not check validity for builtin funcs
@@ -122,5 +116,5 @@ def checked_module_name_resolve(dbschema: e.DBSchema, module_name : Tuple[str, .
     assert module_name not in dbschema.modules
     dbschema.modules[module_name] = dbschema.unchecked_modules[module_name]
     del dbschema.unchecked_modules[module_name]
-    
+
 

@@ -6,14 +6,11 @@ from ..data import data_ops as e
 from ..data import expr_ops as eops
 
 from ..data.data_ops import (
-    AnyTp, BoolTp, BoolVal, BuiltinFuncDef, CardOne, FunArgRetType,
-    IntTp, IntVal, Val, ParamOptional, ParamSetOf,
-    ParamSingleton, RefVal, SomeTp, StrVal, CardAny, ArrVal, StrTp, ArrTp)
+    BoolVal, Val, RefVal, StrVal, ArrVal)
 from .errors import FunCallErr
 from .built_ins import *
 import fnmatch
 import operator
-from ..interpreter_logging import print_warning
 
 def add_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
@@ -40,7 +37,7 @@ def eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
         #     if t1 != t2:
         #         print_warning(f"Warning: comparing different types {t1} and {t2}")
         #     return [BoolVal(v1 == v2)]
-        # case [[e.RefVal(id1, v1)], [e.RefVal(id2, v2)]]:    
+        # case [[e.RefVal(id1, v1)], [e.RefVal(id2, v2)]]:
         #     return [BoolVal(id1 == id2)]
         case [[v1], [v2]]:
             return [BoolVal(eops.val_eq(v1, v2))]

@@ -4,7 +4,7 @@ from ..data import expr_ops as eops
 from ..data import type_ops as tops
 from ..data import path_factor as pops
 from ..data import module_ops as mops
-from typing import List, Tuple, Dict
+from typing import List, Dict
 from ..data import expr_to_str as pp
 
 
@@ -27,9 +27,9 @@ def get_key_dependency(tp : e.DefaultTp) -> List[str]:
                 case e.BackLinkExpr(_) | e.TpIntersectExpr(_):
                     continue # this is fine
     return deps
-                
+
 def type_elaborate_default_tp(ctx: e.TcCtx, default_expr: e.Expr) -> e.Expr:
-    from .typechecking import synthesize_type, check_type
+    from .typechecking import synthesize_type
     elabed =  synthesize_type(ctx, default_expr)[1]
     return elabed
 
@@ -72,11 +72,11 @@ def insert_link_prop_checking(ctx: e.TcCtx,
         else:
             raise ValueError("Missing link prop", k, "synthesized keys", synth_lp.keys(), "required keys", ck_lp.keys())
 
-                        
+
     if len(additional_lps.keys()) == 0:
         return expr_ck
     else:
-        return e.ShapedExprExpr(expr_ck, 
+        return e.ShapedExprExpr(expr_ck,
             e.ShapeExpr(
                 shape={
                     e.LinkPropLabel(k): eops.abstract_over_expr(v)
@@ -87,11 +87,11 @@ def insert_link_prop_checking(ctx: e.TcCtx,
 def insert_dynamic_cardinality_check(ctx: e.TcCtx, attr_expr : e.Expr, target_mode : e.CMMode) -> e.Expr:
     # TODO: after constraint system, this should be checked in the compile time
     if target_mode.upper == e.OneCardinal():
-        attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_single"]), None, 
+        attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_single"]), None,
                                     [attr_expr, e.StrVal("Single links turn our to be multiples")], {})
     # this is a hack that insertions on link targets ignores required at compile time
     if target_mode.lower == e.OneCardinal():
-        attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_exists"]), None, 
+        attr_expr = e.FunAppExpr(e.QualifiedName(["std", "assert_exists"]), None,
                                     [attr_expr, e.StrVal("Required links turn our to be empty")], {})
     return attr_expr
 
@@ -106,7 +106,7 @@ def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.Resu
         match target_tp:
             case e.CompositeTp(_):
                 return check_type(ctx, attr_expr, attr_tp, with_assignment_cast=True) # allow assignment cast for inserts
-            case e.DefaultTp(expr=_, tp=tp): 
+            case e.DefaultTp(expr=_, tp=tp):
                 # since we're inserting an actual value, default is overridden
                 return insert_proprerty_checking(ctx, attr_expr, e.ResultTp(tp, target_mode))
             case e.NamedNominalLinkTp(name=target_name, linkprop=lp):
@@ -127,7 +127,7 @@ def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.Resu
                         synth_lp = lp2.val
                     case _:
                         raise ValueError("Unrecognized synthesized type", synthesized_tp)
-                
+
                 return insert_link_prop_checking(ctx, expr_ck, synth_lp, ck_lp)
 
             case e.UnionTp(_, _):
@@ -167,14 +167,14 @@ def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.Resu
                     raise ValueError("TODO", pp.show(synthesized_tp.tp), pp.show(attr_expr))
             case _:
                 raise ValueError("Unrecognized Attribute Target Type", pp.show(target_tp))
-        
+
 
 
 def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
     # for breaking circular dependency
-    from .typechecking import synthesize_type, check_type
+    from .typechecking import synthesize_type
 
-    insert_tp_name, schema_tp = mops.resolve_raw_name_and_type_def(ctx, expr.name) 
+    insert_tp_name, schema_tp = mops.resolve_raw_name_and_type_def(ctx, expr.name)
     assert isinstance(schema_tp, e.ObjectTp), "Cannot insert into Scalar Types"
     new_v: Dict[str, e.Expr] = {}
     for (k, v) in expr.new.items():
@@ -206,7 +206,7 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
     if len(missing_keys) > 0:
         raise ValueError(f"Missing keys {missing_keys} in insert for {expr.name}")
 
-    
+
     dependent_keys : Dict[str, str] = {} # a list of keys that are dependent, need to extract them in this order, second element provides the binder name
     def add_deps_from_new_v(deps: List[str]) -> None:
         for k in deps:
@@ -227,7 +227,7 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
             if len(deps) == 0:
                 actual_v = eops.instantiate_expr(
                     e.FreeVarExpr("INSERT_SHOULD_NOT_OCCUR"),
-                    target_tp.tp.expr, 
+                    target_tp.tp.expr,
                     )
                 new_v = {**new_v, k: type_elaborate_default_tp(ctx, actual_v)}
             else:
@@ -264,12 +264,12 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
     # now abstract over the dependent keys in order
     result_expr : e.Expr = e.InsertExpr(
         name=insert_tp_name,
-        new={k: v  
+        new={k: v
              for (k, v) in new_v.items()
              if k not in dependent_keys})
     for (k, binder_name) in reversed(dependent_keys.items()):
         result_expr = e.WithExpr(
-            new_v[k], 
+            new_v[k],
             eops.abstract_over_expr(result_expr, binder_name)
         )
 
@@ -283,18 +283,17 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
 
 def update_checking(ctx: e.TcCtx, update_shape: e.ShapeExpr, subject_tp: e.Tp) -> e.ShapeExpr:
     # for breaking circular dependency
-    from . import typechecking as tc
     assert isinstance(subject_tp, e.NamedNominalLinkTp) or isinstance(subject_tp, e.NominalLinkTp), "Expecting link type"
     tp_name = subject_tp.name
     tp_name_ck, full_tp = mops.resolve_raw_name_and_type_def(ctx, tp_name)
     assert isinstance(full_tp, e.ObjectTp), "Cannot update scalar types"
     assert all(isinstance(k, e.StrLabel) for k in update_shape.shape.keys()), "Expecting string labels"
-    cut_tp = {k : v for (k,v) in full_tp.val.items() 
+    cut_tp = {k : v for (k,v) in full_tp.val.items()
               if e.StrLabel(k) in update_shape.shape.keys()}
     shape_ck : Dict[e.Label, e.BindingExpr] = {}
     for (k, v) in cut_tp.items():
         ctx_new, shape_body, bnd_var = eops.tcctx_add_binding(
-            ctx, update_shape.shape[e.StrLabel(k)], 
+            ctx, update_shape.shape[e.StrLabel(k)],
             e.ResultTp(subject_tp, e.CardOne))
         shape_body_ck = insert_proprerty_checking(ctx_new, shape_body, v)
         shape_ck[e.StrLabel(k)] = eops.abstract_over_expr(shape_body_ck, bnd_var)

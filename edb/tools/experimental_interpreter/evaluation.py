@@ -2,19 +2,17 @@
 import itertools
 from typing import *
 
-from .data.casts import type_cast
 from .data.data_ops import (
-    DB, ArrExpr, ArrVal, BackLinkExpr, BoolVal, DBEntry,
-    DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
-    FunAppExpr, InsertExpr, IntVal, Invisible, Label,
+    ArrExpr, ArrVal, BackLinkExpr, BoolVal, DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
+    FunAppExpr, InsertExpr, Invisible, Label,
     LinkPropLabel, LinkPropProjExpr, Marker, MultiSetExpr,
     MultiSetVal, NamedTupleExpr, NamedTupleVal, ObjectProjExpr,
     ObjectVal, OffsetLimitExpr, OptionalForExpr, OrderAscending,
     OrderDescending, OrderLabelSep, ParamOptional, ParamSetOf,
     ParamSingleton, RefVal, ShapedExprExpr, ShapeExpr, StrLabel, StrVal,
-    SubqueryExpr, TpIntersectExpr, TypeCastExpr, UnionExpr,
+    SubqueryExpr, TpIntersectExpr, UnionExpr,
     UnnamedTupleExpr, UnnamedTupleVal, UpdateExpr, Val, Visible,
-    WithExpr, next_id,  RTExpr, RTVal)
+    WithExpr, next_id)
 from .data import data_ops as e
 from .data import expr_ops as eops
 from .data import type_ops as tops
@@ -96,7 +94,7 @@ def apply_shape(ctx: EvalEnv, db : EdgeDatabase, shape: ShapeExpr, value: Val) -
     match value:
         case RefVal(refid=id, tpname=tpname, val=dictval):
             return RefVal(
-                refid=id, 
+                refid=id,
                 tpname=tpname,
                 val=apply_shape_to_prodval(shape, dictval))
         case _:
@@ -264,7 +262,7 @@ def eval_expr(ctx: EvalEnv,
                     arg_object, tops.get_storage_tp(type_def))
                 db.update(id, tname, {k : v  for k, v in new_object.items() })
                 return e.ResultMultiSetVal([
-                    RefVal(id, tname, 
+                    RefVal(id, tname,
                         # ObjectVal({StrLabel(k) : (e.Invisible(), v) for k,v in new_object.items()})
                         ObjectVal({k : (e.Invisible(), v) for k,(_, v) in arg_object.val.items()})
                         )])
@@ -277,7 +275,7 @@ def eval_expr(ctx: EvalEnv,
             conditions: Sequence[MultiSetVal] = [
                 eval_expr(
                         new_ctx,
-                        db, 
+                        db,
                         filter_body)
                 for select_i in selected.getRawVals()
                 for new_ctx, filter_body in [ctx_extend(ctx, filter, e.ResultMultiSetVal([select_i]))]]
@@ -285,7 +283,7 @@ def eval_expr(ctx: EvalEnv,
                 select_i
                 for (select_i, condition) in zip(selected.getRawVals(), conditions)
                 if BoolVal(True) in condition.getVals()]
-            orders: Sequence[Dict[str, Val]] =[] 
+            orders: Sequence[Dict[str, Val]] =[]
             for after_condition_i in after_condition:
                 current : Dict[str, Val] = {}
                 for (l, o) in order.items():
@@ -304,11 +302,11 @@ def eval_expr(ctx: EvalEnv,
         case FreeVarExpr(var=name):
             if name in ctx.keys():
                 # binder needs to be invisible when selected
-                return (ctx[name]) 
+                return (ctx[name])
             else:
                 raise ValueError("Variable not found", name)
         case e.QualifiedName(names=names):
-            
+
                 all_ids: Sequence[Val] = [
                     RefVal(id, e.QualifiedName(names=names), ObjectVal({}))
                     for id in db.storage.query_ids_for_a_type(expr, e.EdgeDatabaseTrueFilter())]
@@ -330,7 +328,7 @@ def eval_expr(ctx: EvalEnv,
                 RefVal(id, name, ObjectVal({}))
                 for id in db.storage.query_ids_for_a_type(name, filter_val)] # type: ignore
             return e.ResultMultiSetVal(all_ids)
-        
+
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):
             assert idx is not None, "overloading index must be set in type checking"
             argsv = eval_expr_list(ctx, db, args)
@@ -361,7 +359,7 @@ def eval_expr(ctx: EvalEnv,
                     case _:
                         raise ValueError()
 
-            after_fun_vals: Sequence[Val] 
+            after_fun_vals: Sequence[Val]
             if isinstance(looked_up_fun, e.BuiltinFuncDef):
                 after_fun_vals = [
                     v for arg in argv_final for v in looked_up_fun.impl(arg)]
@@ -392,7 +390,7 @@ def eval_expr(ctx: EvalEnv,
                            isinstance(v, RefVal) else
                            eval_error(v, "expecting references")
                            for v in subjectv.getVals()]
-            
+
             return db.storage.reverse_project(subject_ids, label)
         case e.IsTpExpr(subject=subject, tp=tp_name):
             if not isinstance(tp_name, e.QualifiedName):
@@ -501,7 +499,7 @@ def eval_expr(ctx: EvalEnv,
             offseted_result = offset_vals(subjectv.getVals(), offsetv)
             assert len(limitv_m.getVals()) <= 1
             if len(limitv_m.getVals()) == 1:
-                limitv = limitv_m.getVals()[0] 
+                limitv = limitv_m.getVals()[0]
                 result_list = list(limit_vals(offseted_result, limitv))
             else:
                 result_list = offseted_result

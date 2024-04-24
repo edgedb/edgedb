@@ -4,15 +4,12 @@ import json
 
 from ..data import data_ops as e
 from ..data.data_ops import (
-    AnyTp, ArrTp, ArrVal, BoolVal, BuiltinFuncDef, CardAny,
-    CardOne, FunArgRetType,  IntVal, Val,
-    ParamSetOf, ParamSingleton, SomeTp, 
-    StrVal, UnnamedTupleTp, Val, UnnamedTupleVal)
+    ArrVal, BoolVal, IntVal, Val, UnnamedTupleVal)
 from .errors import FunCallErr
 import random
 from .. import interpreter_logging
 
-from datetime import datetime, timezone
+from datetime import datetime
 import re
 
 def val_is_true(v: Val) -> bool:
@@ -26,7 +23,7 @@ def val_is_true(v: Val) -> bool:
 
 # std_all_tp = FunType(
 #     args_ret_types=[FunArgRetType(
-#         args_mod=[ParamSetOf()], 
+#         args_mod=[ParamSetOf()],
 #         args_tp=[BoolTp()],
 #         ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
@@ -40,7 +37,7 @@ def std_all_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 # std_any_tp = FunType(
 #     args_ret_types=[FunArgRetType(
-#         args_mod=[ParamSetOf()], 
+#         args_mod=[ParamSetOf()],
 #         args_tp=[BoolTp()],
 #         ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
@@ -83,7 +80,7 @@ def std_array_unpack_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 # std_count_tp = FunType(
 #     args_ret_types=[FunArgRetType(
-#         args_mod=[ParamSetOf()], 
+#         args_mod=[ParamSetOf()],
 #         args_tp=[AnyTp()],
 #         ret_tp=e.ResultTp(IntTp(), CardOne))])
 
@@ -117,11 +114,11 @@ def std_enumerate_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 #                      args_ret_types=[
 #     FunArgRetType(
 #         args_mod=[ParamSingleton()],
-#         args_tp=[StrTp()], 
+#         args_tp=[StrTp()],
 #         ret_tp=e.ResultTp(IntTp(), CardOne)),
 #     FunArgRetType(
 #         args_mod=[ParamSingleton()],
-#         args_tp=[ArrTp(AnyTp())], 
+#         args_tp=[ArrTp(AnyTp())],
 #         ret_tp=e.ResultTp(IntTp(), CardOne)),
 # ])
 
@@ -138,7 +135,7 @@ def std_len_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 # std_sum_tp = FunType(args_ret_types=[
 #     FunArgRetType(
 #         args_mod=[ParamSetOf()],
-#         args_tp=[IntTp()], 
+#         args_tp=[IntTp()],
 #         ret_tp=e.ResultTp(IntTp(), CardOne)),
 # ])
 
@@ -178,7 +175,7 @@ def std_assert_distinct(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
                     msg = errmsg
                 case []:
                     msg = "Expected distinct values, got duplicates."
-                
+
             if all(isinstance(v, e.RefVal) for v in vset):
                 ids = {v.refid : v for v in vset}.values() # type: ignore
                 if len(ids) != len(vset):
@@ -213,7 +210,7 @@ def std_datetime_current(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
         case []:
             current_datetime = datetime.now()
             val = current_datetime.strftime("%Y-%m-%dT%H:%M:%S%z")
-            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "datetime"])), 
+            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "datetime"])),
                                 val)]
     raise FunCallErr()
 
@@ -266,14 +263,14 @@ def math_mean_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 def std_contains_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), haystack)], 
+        case [[e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), haystack)],
              [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), needle)]]:
             return [e.BoolVal(needle in haystack)]
     raise FunCallErr()
 
 def std_re_test_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), pattern)], 
+        case [[e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), pattern)],
              [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), string)]]:
             return [e.BoolVal(bool(re.search(pattern, string)))]
     raise FunCallErr()

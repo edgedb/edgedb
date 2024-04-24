@@ -17,7 +17,7 @@ import os
 @click.option("--init-sdl-file", type=str, required=False,
               help="initialize schema to be this file, schema"
               "should not be place")
-@click.option("--library-ddl-files", '-l', multiple=True, type=str, 
+@click.option("--library-ddl-files", '-l', multiple=True, type=str,
               help="standard library files")
 @click.option("--trace-to-file", type=str, required=False)
 @click.option("--sqlite-file", type=str, required=False)
@@ -32,9 +32,9 @@ def interperter_entry(
         *, init_sdl_file=None, next_ql_file=None, init_ql_file=None, verbose=False,
         trace_to_file=None, sqlite_file=None,
         library_ddl_files=None,
-        test=None, no_setup=False, 
+        test=None, no_setup=False,
         skip_test_confirm=False) -> None:
-    
+
     if test:
         schemas_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'tests', 'schemas')
         print("Schemas are in ", schemas_dir)
@@ -64,17 +64,17 @@ def interperter_entry(
         ql_file = candidate_files[0].replace('.esdl', '_setup.edgeql')
         if init_ql_file is None:
             init_ql_file = ql_file
-        
+
         if next_ql_file is None and os.path.exists("temp_current_testing.edgeql"):
             next_ql_file = "temp_current_testing.edgeql"
 
         if no_setup:
             init_ql_file = None
             next_ql_file = None
-        
+
         if trace_to_file is None:
             trace_to_file = "temp_debug.html"
-        
+
         if verbose is False:
             verbose = True
 

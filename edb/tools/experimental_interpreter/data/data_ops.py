@@ -120,7 +120,7 @@ class CompositeTpKind(Enum):
     Enum = "enum"
     Range = "range"
     MultiRange = "multirange"
-    
+
 
 @dataclass(frozen=True)
 class CompositeTp:
@@ -177,7 +177,7 @@ class NamedNominalLinkTp:
     def __post_init__(self):
         if not isinstance(self.linkprop, ObjectTp):
             raise ValueError("linkprop must be an object type")
-    
+
 @dataclass(frozen=True)
 class UncheckedTypeName:
     name: RawName
@@ -243,7 +243,7 @@ class SomeTp:
 Tp = (ObjectTp | NamedNominalLinkTp  | NominalLinkTp | ScalarTp | UncheckedTypeName
       | CompositeTp | AnyTp | SomeTp | UnionTp | IntersectTp  | OverloadedTargetTp
     #   | UnifiableTp
-      | ComputableTp | DefaultTp | UncheckedComputableTp 
+      | ComputableTp | DefaultTp | UncheckedComputableTp
     #   | UncheckedNamedNominalLinkTp
       )
 
@@ -358,7 +358,7 @@ class CMMode:
         new_lower = self.lower + other.lower
         return CMMode(new_lower if new_lower != CardNumInf else CardNumOne,
                       self.upper + other.upper)
-                      
+
 
     def __mul__(self, other: CMMode):
         return CMMode(self.lower * other.lower,
@@ -642,7 +642,7 @@ class EdgeDatabaseEqFilter:
 class EdgeDatabaseConjunctiveFilter:
     conjuncts: Sequence[EdgeDatabaseSelectFilter]
 
-@dataclass 
+@dataclass
 class EdgeDatabaseDisjunctiveFilter:
     disjuncts: Sequence[EdgeDatabaseSelectFilter]
 
@@ -656,7 +656,7 @@ EdgeDatabaseSelectFilter = EdgeDatabaseEqFilter | EdgeDatabaseConjunctiveFilter 
 @dataclass(frozen=True)
 class QualifiedNameWithFilter:
     name: QualifiedName
-    filter: EdgeDatabaseSelectFilter 
+    filter: EdgeDatabaseSelectFilter
 
 @dataclass(frozen=True)
 class FilterOrderExpr:
@@ -803,7 +803,7 @@ class ArrVal:
 #     linkprop: ObjectVal
 
 
-# TODO: Check the eval_order_by code to make sure 
+# TODO: Check the eval_order_by code to make sure
 # emptyfirst/emptylast is handled correctly
 @dataclass(frozen=True, order=True)
 class ResultMultiSetVal:
@@ -830,14 +830,14 @@ class ResultMultiSetVal:
 #         if all(isinstance(v, RefVal) for v in self._vals):
 #             return eops.object_dedup(self._vals)
 #         return self._vals
-    
+
 #     def getRawVals(self) -> Sequence[Val]:
 #         return self._vals
 
-MultiSetVal = ResultMultiSetVal 
+MultiSetVal = ResultMultiSetVal
 
 
-Val = (ScalarVal | RefVal | UnnamedTupleVal | NamedTupleVal | ArrVal )  
+Val = (ScalarVal | RefVal | UnnamedTupleVal | NamedTupleVal | ArrVal )
 
 # MultiSetVal = Sequence[Val]
 
@@ -849,7 +849,7 @@ Expr = (
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr | QualifiedNameWithFilter |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
     FreeObjectExpr | ConditionalDedupExpr | TupleProjExpr |  IsTpExpr |
-    # ObjectExpr | 
+    # ObjectExpr |
     BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr | ParameterExpr |
     ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr
     #   | SingularExpr
@@ -872,7 +872,7 @@ class DB:
 class BuiltinFuncDef():
     tp: FunArgRetType
     impl: Callable[[Sequence[Sequence[Val]]], Sequence[Val]]
-    defaults : Dict[str, Expr] 
+    defaults : Dict[str, Expr]
 
 @dataclass(frozen=True)
 class DefinedFuncDef():
@@ -910,7 +910,7 @@ class ModuleEntityTypeDef:
 class ModuleEntityFuncDef:
     funcdefs: List[FuncDef]
 
-ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef 
+ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef
 
 @dataclass(frozen=True)
 class DBModule:
@@ -925,8 +925,8 @@ class DBSchema:
     unchecked_modules : Dict[Tuple[str, ...], DBModule] # modules that are currently under type checking
     subtyping_relations: Dict[QualifiedName, List[QualifiedName]] # subtyping: indexed by subtypes, subtype -> immediate super types mapping
     unchecked_subtyping_relations : Dict[QualifiedName, List[Tuple[Tuple[str, ...], RawName]]] # name -> current declared module and raw name
-    casts: Dict[Tuple[Tp, Tp], TpCast] 
-    
+    casts: Dict[Tuple[Tp, Tp], TpCast]
+
 
 
 
