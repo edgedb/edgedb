@@ -1,15 +1,21 @@
-
-from edb.common import assert_data_shape
 import os
 from edb.testbase import experimental_interpreter as tb
-class TestInterpreterDisambiguationSmokeTests(tb.ExperimentalInterpreterTestCase):
+
+
+class TestInterpreterDisambiguationSmokeTests(
+    tb.ExperimentalInterpreterTestCase
+):
     INTERPRETER_USE_SQLITE = False
 
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'interpreter_disambiguation.esdl')
+    SCHEMA = os.path.join(
+        os.path.dirname(__file__), 'schemas', 'interpreter_disambiguation.esdl'
+    )
 
-    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'interpreter_disambiguation_setup.edgeql')
+    SETUP = os.path.join(
+        os.path.dirname(__file__),
+        'schemas',
+        'interpreter_disambiguation_setup.edgeql',
+    )
 
     def test_example_test_01(self):
         self.assert_query_result(
@@ -33,5 +39,8 @@ class TestInterpreterDisambiguationSmokeTests(tb.ExperimentalInterpreterTestCase
             ['a1_b1_lp', 'a1_b1_lp'],
         )
 
-class TestInterpreterDisambiguationSmokeTestsSQLite(TestInterpreterDisambiguationSmokeTests):
+
+class TestInterpreterDisambiguationSmokeTestsSQLite(
+    TestInterpreterDisambiguationSmokeTests
+):
     INTERPRETER_USE_SQLITE = True

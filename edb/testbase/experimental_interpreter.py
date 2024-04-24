@@ -3,15 +3,6 @@ from __future__ import annotations
 from typing import (
     Any,
     Optional,
-    Tuple,
-    Type,
-    Union,
-    Iterable,
-    Sequence,
-    Dict,
-    List,
-    NamedTuple,
-    TYPE_CHECKING,
 )
 import unittest
 
@@ -20,6 +11,7 @@ from edb.common import assert_data_shape
 from edb.tools.experimental_interpreter.new_interpreter import EdgeQLInterpreter
 
 bag = assert_data_shape.bag
+
 
 class ExperimentalInterpreterTestCase(unittest.TestCase):
     SCHEMA: Optional[str] = None
@@ -51,23 +43,23 @@ class ExperimentalInterpreterTestCase(unittest.TestCase):
 
         cls.initial_state = cls.client.db.dump_state()
 
-
     def setUp(self):
         self.client.db.restore_state(self.initial_state)
 
     def execute(self, query: str, *, variables=None) -> Any:
-        return self.client.run_single_str_get_json_with_cache(query, variables=variables)
+        return self.client.run_single_str_get_json_with_cache(
+            query, variables=variables)
 
     def execute_single(self, query: str, *, variables=None) -> Any:
         return self.client.query_single_json(query, variables=variables)
-    
+
     def assert_query_result(self, query,
                                   exp_result_json,
                                   exp_result_binary=...,
                                   *,
                                   msg: Optional[str] = None,
                                   sort: Optional[bool] = None,
-                                  variables=None, 
+                                  variables=None,
                                   ):
         if (hasattr(self, "use_experimental_interpreter") and
                 self.use_experimental_interpreter):
@@ -89,4 +81,3 @@ class ExperimentalInterpreterTestCase(unittest.TestCase):
             #     raise AssertionError(
             #         str(e),
             #         "Expected", exp_result_json, "Actual", result)
-
