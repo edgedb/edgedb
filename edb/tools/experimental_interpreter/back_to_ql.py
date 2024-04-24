@@ -86,7 +86,7 @@ def reverse_elab_type_name(tp: Tp | e.RawName) -> qlast.TypeName:
                 return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.name))
             else:
                 raise ValueError("Unimplemented")
-        case e.CompositeTp(kind=kind, tps=tps, labels=labels):
+        case e.CompositeTp(kind=kind, tps=tps, labels=_):
             return qlast.TypeName(
                 maintype=qlast.ObjectRef(name=kind.name),
                 subtypes=[reverse_elab_type_name(tp) for tp in tps])
@@ -185,7 +185,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                 return qlast.Path(steps=[], partial=True)
             else:
                 return qlast.Path(steps=[qlast.ObjectRef(name=name)])
-        case e.QualifiedName(names=names):
+        case e.QualifiedName(names=_):
             return qlast.Path(steps=[reverse_elab_raw_name(ir_expr)])
         case e.UnqualifiedName(name=name):
             return qlast.Path(steps=[reverse_elab_raw_name(ir_expr)])
@@ -307,7 +307,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                 condition=reverse_elab(condition),
                 else_expr=reverse_elab(else_branch))
         case e.CheckedTypeCastExpr(
-            cast_tp=(source_tp, target_tp),
+            cast_tp=(_, target_tp),
             cast_spec=_,
             arg=arg):
             return qlast.TypeCast(

@@ -3,10 +3,9 @@ from typing import Tuple, Dict, Sequence, List
 
 from ..data import data_ops as e
 from ..data import expr_ops as eops
+from ..data import module_ops as mops
 from ..data import path_factor as path_factor
-from .dml_checking import *
 from ..data import expr_to_str as pp
-from .function_checking import *
 
 
 def merge_result_tp(ctx: e.TcCtx,

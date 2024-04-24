@@ -5,16 +5,15 @@ from ..data import expr_to_str as pp
 from ..data import module_ops as mops
 from ..interpreter_logging import print_warning
 from typing import List, Tuple, Dict, Optional, Sequence
-# from itertools import *
 from functools import reduce
 import operator
 
 
 def refine_candidate_tp(tp : e.Tp) -> e.Tp:
     match tp:
-        case e.NamedNominalLinkTp(name=name, linkprop=lp):
+        case e.NamedNominalLinkTp(name=name, linkprop=_):
             return e.NamedNominalLinkTp(name=name, linkprop=e.ObjectTp({}))
-        case e.NominalLinkTp(subject=subject, name=name, linkprop=lp):
+        case e.NominalLinkTp(subject=_, name=name, linkprop=_):
             # refine also drops subject which may contain additional properties
             return e.NamedNominalLinkTp(name=name, linkprop=e.ObjectTp({}))
         case e.UnionTp(l, r):
@@ -29,7 +28,7 @@ def try_match_and_get_arg_mods(expr: e.FunAppExpr, fun_def: e.FuncDef) -> Option
     Returns None if the expr does not match the fun_def.
     """
     match expr:
-        case e.FunAppExpr(fun=fname, args=args, overloading_index=idx, kwargs=kwargs):
+        case e.FunAppExpr(fun=_, args=args, overloading_index=_, kwargs=kwargs):
             # positional
             if len(args) == len(fun_def.tp.args_mod):
                 return fun_def.tp.args_mod
@@ -58,7 +57,7 @@ def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunA
     if len(args_ck_tps) != len(tps_syn):
         return None
 
-    for i, (syn_tp, ck_tp) in enumerate(zip(tps_syn, args_ck_tps)):
+    for _, (syn_tp, ck_tp) in enumerate(zip(tps_syn, args_ck_tps)):
         tops.collect_is_subtype_with_instantiation(ctx, syn_tp, ck_tp, some_tp_mapping_candidates)
 
     some_tp_mapping: Dict[int, e.Tp] = {}
@@ -84,7 +83,7 @@ def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunA
                     # cannot find a unique assignment for a candidate type
                     return None
 
-    for i, (syn_tp, ck_tp) in enumerate(zip(tps_syn, args_ck_tps)):
+    for _, (syn_tp, ck_tp) in enumerate(zip(tps_syn, args_ck_tps)):
         if tops.check_is_subtype_with_instantiation(ctx, syn_tp, ck_tp, some_tp_mapping):
             continue
         else:
@@ -162,7 +161,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                     ok_candidates = ok_candidates[0:1]
 
                 if len(ok_candidates) == 0:
-                    for i, fun_def in enumerate(fun_defs):
+                    for _, fun_def in enumerate(fun_defs):
                         result_tp = check_args_ret_type_match(ctx, tps, fun_def.tp)
                     raise ValueError("No overloading matches", pp.show_qname(qualified_fname),
                                      "args type", [pp.show_tp(tp) for tp in tps],

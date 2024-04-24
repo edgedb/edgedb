@@ -1,8 +1,9 @@
+from __future__ import annotations
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import Source, parser
+from typing import Any, List, Sequence
 import json
-from typing import *
 import uuid
 from edb.errors import EdgeQLSyntaxError
 import re

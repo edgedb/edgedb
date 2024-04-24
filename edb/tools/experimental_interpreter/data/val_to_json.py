@@ -74,7 +74,7 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
                 return v
             else:
                 raise ValueError("not implemented")
-        case RefVal(refid, tpname, object):
+        case RefVal(refid, _, object):
             if not isinstance(tp, e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp | e.UnionTp | e.IntersectTp):
                 raise ValueError("Expecing objecttp", tp)
             object_val_result =  typed_objectval_to_json_like(object, tp, dbschema)
@@ -85,7 +85,7 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
             match tp:
                 case e.CompositeTp(kind=e.CompositeTpKind.Array, tps=tps):
                     return [typed_val_to_json_like(v, tps[0], dbschema) for v in array]
-                case e.UnionTp(l, r):
+                case e.UnionTp(_, _):
                     tps = tops.collect_tp_union(tp)
                     if all(isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Array for tp in tps):
                         return [typed_val_to_json_like(v, tops.construct_tps_union([tp.tps[0] for tp in tps]), dbschema) for v in array] # type: ignore
@@ -96,11 +96,11 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
         case UnnamedTupleVal(val=array):
             if not isinstance(tp, e.CompositeTp) or tp.kind != e.CompositeTpKind.Tuple:
                 match tp:
-                    case e.IntersectTp(l, r):
+                    case e.IntersectTp(_, _):
                         all_i_tps = tops.collect_tp_intersection(tp)
                         if all(isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Tuple for tp in all_i_tps):
                             tps = all_i_tps[0].tps # type: ignore
-                    case e.UnionTp(l, r):
+                    case e.UnionTp(_, _):
                         all_u_tps = tops.collect_tp_union(tp)
                         if all(isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Tuple for tp in all_u_tps):
                             if all(len(all_u_tps[0].tps) == len(tp.tps) for tp in all_u_tps):# type: ignore

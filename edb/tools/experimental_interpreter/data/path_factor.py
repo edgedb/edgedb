@@ -37,7 +37,7 @@ def path_lexicographic_key(e: Expr) -> str:
             return path_lexicographic_key(subject) + "@" + linkprop
         case ObjectProjExpr(subject=subject, label=label):
             return path_lexicographic_key(subject) + "." + label
-        case TpIntersectExpr(subject=subject, tp=tp):
+        case TpIntersectExpr(subject=subject, tp=_):
             return path_lexicographic_key(subject) + "[is _]"
         case BackLinkExpr(subject=subject, label=label):
             return path_lexicographic_key(subject) + ".<" + label
@@ -180,13 +180,13 @@ def toppath_for_factoring(expr: Expr, dbschema: e.TcCtx) -> List[Expr]:
     d = []
     for p in [*clpp_a, *c_all]:
         match p:
-            case e.LinkPropProjExpr(subject=subject, linkprop=linkprop):
+            case e.LinkPropProjExpr(subject=subject, linkprop=_):
                 match subject:
-                    case e.ObjectProjExpr(subject=subject, label=label):
+                    case e.ObjectProjExpr(subject=subject, label=_):
                         d.append(subject)
-                    case e.TpIntersectExpr(subject=(e.BackLinkExpr(subject=subject, label=label)), tp=tp):
+                    case e.TpIntersectExpr(subject=(e.BackLinkExpr(subject=subject, label=_)), tp=_):
                         d.append(subject)
-                    case e.BackLinkExpr(subject=subject, label=label):
+                    case e.BackLinkExpr(subject=subject, label=_):
                         d.append(subject)
                     case _:
                         pass

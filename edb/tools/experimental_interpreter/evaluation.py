@@ -1,6 +1,9 @@
+from __future__ import annotations
+
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, cast
 
 import itertools
-from typing import *
+from edb import errors
 
 from .data.data_ops import (
     ArrExpr, ArrVal, BackLinkExpr, BoolVal, DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
@@ -16,13 +19,15 @@ from .data.data_ops import (
 from .data import data_ops as e
 from .data import expr_ops as eops
 from .data import type_ops as tops
+from .data import module_ops as mops
 from .data.expr_ops import (
      instantiate_expr,
     map_expand_multiset_val,
        val_is_ref_val)
 from .data.type_ops import is_nominal_subtype_in_schema
-from .db_interface import *
+from .db_interface import EdgeDatabase
 from .evaluation_tools.storage_coercion import coerce_to_storage
+from .interpreter_logging import print_warning
 
 def get_param_reserved_name(param: str | int) -> str:
     return f"__edgedb_reserved_param_name_{param}_"
@@ -68,13 +73,13 @@ def eval_order_by(
 
 
 EvalEnv = Dict[str, MultiSetVal]
-def ctx_extend(ctx: EvalEnv, bnd : BindingExpr, val: MultiSetVal) -> Tuple[EvalEnv, Expr]:
+def ctx_extend(ctx: EvalEnv, bnd : e.BindingExpr, val: MultiSetVal) -> Tuple[EvalEnv, Expr]:
     assert isinstance(val, MultiSetVal), "Expecting MultiSetVal"
-    bnd_no_capture = ensure_no_capture(list(ctx.keys()), bnd)
+    bnd_no_capture = eops.ensure_no_capture(list(ctx.keys()), bnd)
     return {**ctx, bnd_no_capture.var: val}, instantiate_expr(
                 e.FreeVarExpr(bnd_no_capture.var), bnd_no_capture)
 
-def apply_shape(ctx: EvalEnv, db : EdgeDatabase, shape: ShapeExpr, value: Val) -> Val:
+def apply_shape(ctx: EvalEnv, db : e.EdgeDatabase, shape: ShapeExpr, value: Val) -> Val:
     def apply_shape_to_prodval(
             shape: ShapeExpr, objectval: ObjectVal) -> ObjectVal:
         result: Dict[Label, Tuple[Marker, MultiSetVal]] = {}
@@ -160,7 +165,7 @@ def offset_vals(val: Sequence[Val], offset: Val):
     match offset:
         case e.ScalarVal(_, v):
             if v < 0:
-                raise edgedb.InvalidValueError("OFFSET must not be negative")
+                raise errors.InvalidValueError("OFFSET must not be negative")
             return val[v:]
         case _:
             raise ValueError("offset must be an int")
@@ -171,7 +176,7 @@ def limit_vals(val: Sequence[Val],
     match limit:
         case e.ScalarVal(_,v):
             if v < 0:
-                raise edgedb.InvalidValueError("LIMIT must not be negative")
+                raise errors.InvalidValueError("LIMIT must not be negative")
             return val[:v]
         case _:
             raise ValueError("offset must be an int")
@@ -225,7 +230,7 @@ eval_logs_wrapper = EvaluationLogsWrapper()
 
 def do_conditional_dedup(val: MultiSetVal) -> MultiSetVal:
     if all(val_is_ref_val(v) for v in val.getVals()):
-        return e.ResultMultiSetVal(object_dedup(val.getVals()))
+        return e.ResultMultiSetVal(eops.object_dedup(val.getVals()))
     return val
 
 # the database is a mutable reference that keeps track of a read snapshot inside
@@ -234,7 +239,7 @@ def eval_expr(ctx: EvalEnv,
                 db: EdgeDatabase,
                 expr: Expr) -> MultiSetVal:
     match expr:
-        case ScalarVal(_):
+        case e.ScalarVal(_):
             return e.ResultMultiSetVal([expr])
         case e.FreeObjectExpr():
             return e.ResultMultiSetVal([e.RefVal(next_id(), tpname=e.QualifiedName(["std", "FreeObject"]), val=e.ObjectVal(val={}))])
@@ -357,14 +362,14 @@ def eval_expr(ctx: EvalEnv,
                 after_fun_vals = []
                 for vset in argv_final:
                     body = looked_up_fun.impl
-                    for i, farg in enumerate(vset):
+                    for farg in vset:
                         assert isinstance(body, e.BindingExpr)
                         ctx, body = ctx_extend(ctx, body, e.ResultMultiSetVal(farg))
                     after_fun_vals = [*after_fun_vals, *eval_expr(ctx, db, body).getVals()]
             else:
                 raise ValueError("Not implemented yet", looked_up_fun)
             return e.ResultMultiSetVal(after_fun_vals)
-        case (TupleProjExpr(subject=subject, label=label) |
+        case (e.TupleProjExpr(subject=subject, label=label) |
                 ObjectProjExpr(subject=subject, label=label)):
             subjectv = eval_expr(ctx, db, subject)
             projected = [
@@ -389,7 +394,7 @@ def eval_expr(ctx: EvalEnv,
             is_result: List[Val] = []
             for v in subjectv.getVals():
                 match v:
-                    case RefVal(refid=vid, tpname=val_tp, val=_):
+                    case RefVal(refid=_, tpname=val_tp, val=_):
                         is_subtype = is_nominal_subtype_in_schema(db.get_schema(),
                                 val_tp, tp_name)
                     case e.ScalarVal(tp=e.ScalarTp(s_name), val=_):
@@ -406,17 +411,13 @@ def eval_expr(ctx: EvalEnv,
             after_intersect: List[Val] = []
             for v in subjectv.getVals():
                 match v:
-                    case RefVal(refid=vid, tpname=val_tp, val=_):
+                    case RefVal(refid=_, tpname=val_tp, val=_):
                         if is_nominal_subtype_in_schema(db.get_schema(),
                                 val_tp, tp_name):
                             after_intersect = [*after_intersect, v]
                     case _:
                         raise ValueError("Expecting References")
             return e.ResultMultiSetVal(after_intersect)
-        # case TypeCastExpr(tp=tp, arg=arg):
-        #     argv2 = eval_expr(ctx, db, arg)
-        #     casted = [type_cast(tp, v) for v in argv2.getVals()]
-        #     return  e.ResultMultiSetVal(casted)
         case e.CheckedTypeCastExpr(cast_tp=_, cast_spec=cast_spec, arg=arg):
             argv2 = eval_expr(ctx, db, arg)
             casted = [cast_spec.cast_fun(v) for v in argv2.getVals()]
@@ -466,7 +467,7 @@ def eval_expr(ctx: EvalEnv,
                     db.update(
                         u.refid,
                         u.tpname,
-                        coerce_to_storage(u.val, ObjectTp(cut_tp))
+                        coerce_to_storage(u.val, e.ObjectTp(cut_tp))
                     )
                 return e.ResultMultiSetVal(updated)
             else:

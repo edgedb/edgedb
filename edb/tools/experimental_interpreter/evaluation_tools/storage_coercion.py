@@ -1,6 +1,7 @@
 
+from typing import Dict
 from ..data import data_ops as e
-from ..data.data_ops import *
+from ..data.data_ops import (Val, Tp, ObjectTp, RefVal, ObjectVal, LinkPropLabel, Visible, MultiSetVal, StrLabel )
 from ..data import expr_ops as eops
 from ..data import type_ops as tops
 from ..data import expr_to_str as pp
@@ -36,7 +37,7 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
                     raise ValueError("TODO")
             else:
                 raise ValueError("TODO")
-        case e.CompositeTp(kind, tps, labels):
+        case e.CompositeTp(_, tps, _):
             if all(tops.tp_is_primitive(tp) for tp in tps):
                 return val
             else:

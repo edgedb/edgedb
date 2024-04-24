@@ -369,10 +369,10 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
     if fcall.window:
         return elab_not_implemented(fcall)
     fname : e.RawName
-    if type(fcall.func) is str:
+    if isinstance(fcall.func, str):
         fname = e.UnqualifiedName(fcall.func)
     else:
-        assert type(fcall.func) is tuple
+        assert isinstance(fcall.func, tuple)
         fname = e.QualifiedName(list(fcall.func))
     args = [elab(arg) for arg in fcall.args]
     kwargs = {k: elab(v) for (k,v) in fcall.kwargs.items()}
@@ -423,7 +423,10 @@ def elab_single_type_str(name: str, module_name: Optional[str]) -> Tp:
             return e.UncheckedTypeName(e.UnqualifiedName(name))
 
 
-def elab_CompositeTp(basetp: qlast.ObjectRef, sub_tps: List[Tp], labels=[]) -> Tp:
+def elab_CompositeTp(basetp: qlast.ObjectRef, sub_tps: List[Tp], labels: Optional[List[str]]=None) -> Tp:
+    if labels is None:
+        labels = []
+
     if basetp.name in {k.value for k in e.CompositeTpKind}:
         return e.CompositeTp(kind=e.CompositeTpKind(basetp.name), tps=sub_tps, labels=labels)
     else:

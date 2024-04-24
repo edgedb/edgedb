@@ -4,8 +4,6 @@ from typing import Tuple, Dict, Callable
 from ..data import data_ops as e
 from ..data import expr_ops as eops
 from ..data import path_factor as path_factor
-from .dml_checking import *
-from .function_checking import *
 
 
 def unchecked_module_map(dbschema: e.DBSchema, module_name : Tuple[str, ...],

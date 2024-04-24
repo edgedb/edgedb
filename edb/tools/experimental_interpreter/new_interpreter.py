@@ -1,21 +1,20 @@
+from __future__ import annotations
 
 
 import sys
 import traceback
 import os
-from typing import *
 from typing import Tuple
 import readline
 
 from edb.common import debug
 from edb.edgeql import ast as qlast
 
+from typing import Optional, Dict, Any, List, Sequence
 from .type_checking_tools import typechecking as tc
 from .back_to_ql import reverse_elab
-# from .basis.built_ins import all_builtin_funcs
 from .data import data_ops as e
-from .data.data_ops import DBSchema, MultiSetVal, ResultTp
-from .data.data_ops import *
+from .data.data_ops import DBSchema, MultiSetVal, ResultTp, Val, Expr
 from .data.expr_to_str import show_expr, show_result_tp
 from .data.path_factor import select_hoist
 from .post_processing_tools import post_processing
@@ -27,8 +26,8 @@ from .helper_funcs import parse_ql
 from .logs import write_logs_to_file
 from .sqlite import sqlite_adapter
 from .data import expr_to_str as pp
-from .db_interface import *
-from .schema.library_discovery import *
+from .db_interface import EdgeDatabase, InMemoryEdgeDatabaseStorageProvider
+from .schema.library_discovery import add_ddl_library
 from .type_checking_tools import schema_checking as sck
 from .type_checking_tools import name_resolution
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
@@ -186,7 +185,7 @@ def run_str(
 def run_single_str(
     dbschema_and_db: Tuple[DBSchema, EdgeDatabase],
     s: str,
-    variables: VariablesTp = {},
+    variables: VariablesTp = None,
     print_asts: bool = False
 ) -> Tuple[MultiSetVal, ResultTp]:
     q = parse_ql(s)
@@ -302,7 +301,7 @@ def repl(*, init_sdl_file=None,
             if s.startswith("\\"):
                 run_meta_cmd(db, dbschema, s)
             else:
-                res = run_str(db, dbschema, s, print_asts=debug_print,
+                run_str(db, dbschema, s, print_asts=debug_print,
                                     logs=logs)
         except Exception:
             traceback.print_exception(*sys.exc_info())

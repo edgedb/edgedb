@@ -1,4 +1,6 @@
-from typing import *
+from __future__ import annotations
+
+from typing import Sequence
 
 
 import random
@@ -80,7 +82,7 @@ def std_enumerate_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 def std_len_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[e.ScalarVal(t, v)]]:
+        case [[e.ScalarVal(_, v)]]:
             return [IntVal(len(v))]
         case [[ArrVal(arr)]]:
             return [IntVal(len(arr))]
@@ -200,7 +202,7 @@ def random_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[e.ScalarVal(_, s)], [e.ScalarVal(_, tz)]]:
+        case [[e.ScalarVal(_, s)], [e.ScalarVal(_, _)]]:
             interpreter_logging.print_warning("Warning: cal::to_local_datetime is implemented properly. It is a no-op.")
             return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["cal", "local_datetime"])), s)]
     raise FunCallErr()

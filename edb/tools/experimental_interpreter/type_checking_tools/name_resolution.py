@@ -2,9 +2,8 @@
 from typing import Tuple, Dict
 
 from ..data import data_ops as e
+from ..data import module_ops as mops
 from ..data import path_factor as path_factor
-from .dml_checking import *
-from .function_checking import *
 from . import typechecking as tck
 from . import module_check_tools as mck
 
@@ -35,7 +34,7 @@ def object_tp_comp_name_resolve(
             return e.NamedNominalLinkTp(
                     name=name_ck,
                     linkprop=e.ObjectTp(linkprop_ck))
-        case e.NominalLinkTp(subject=l_sub, name=name, linkprop=l_prop):
+        case e.NominalLinkTp(subject=_, name=name, linkprop=l_prop):
             raise ValueError("No nominal link tp should appear in name resolution", tp_comp)
         case e.UncheckedComputableTp(expr=c_expr):
             return tp_comp

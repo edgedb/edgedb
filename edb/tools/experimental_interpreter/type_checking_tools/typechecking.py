@@ -7,17 +7,18 @@ from edb import errors
 from ..data import data_ops as e
 from ..data import expr_ops as eops
 from ..data import type_ops as tops
+from ..data import module_ops as mops
 from ..data import path_factor as path_factor
 from .dml_checking import insert_checking, update_checking
 from ..data import expr_to_str as pp
-from .function_checking import *
+from .function_checking import func_call_checking
 from .cast_checking import check_castable
 from ..schema import subtyping_resolution as subtp_resol
 
 
 def synthesize_type_for_val(val: e.Val) -> e.Tp:
     match val:
-        case e.ScalarVal(tp, v):
+        case e.ScalarVal(tp, _):
             return tp
         case _:
             raise ValueError("Not implemented", val)
@@ -78,9 +79,9 @@ def check_filter_body_is_exclusive(ctx: e.TcCtx, filter_ck: e.Expr) -> bool:
                     case e.ObjectProjExpr(subject=e.FreeVarExpr(varname), label=label):
                         result_tp, _ = ctx.varctx[varname]
                         match result_tp:
-                            case e.NominalLinkTp(subject=tp, name=name, linkprop=linkprop):
+                            case e.NominalLinkTp(subject=_, name=name, linkprop=_):
                                 type_def = mops.resolve_type_def(ctx.schema, name)
-                            case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
+                            case e.NamedNominalLinkTp(name=name, linkprop=_):
                                 assert isinstance(name, e.QualifiedName), "should have been resolved"
                                 type_def = mops.resolve_type_def(ctx.schema, name)
                             case _:
@@ -170,7 +171,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_tp = tops.construct_tp_union(l_tp.tp, r_tp.tp)
             result_card = l_tp.mode + r_tp.mode
             result_expr = e.UnionExpr(l_ck, r_ck)
-        case e.FunAppExpr(fun=fname, args=args, overloading_index=idx):
+        case e.FunAppExpr(fun=_, args=_, overloading_index=_):
             (e_result_tp, e_ck) = func_call_checking(ctx, expr)
             result_tp = e_result_tp.tp
             result_card = e_result_tp.mode
@@ -549,7 +550,9 @@ def check_type_valid(ctx: e.TcCtx | e.DBSchema, tp : e.Tp) -> e.Tp:
         case e.AnyTp(_):
             return tp
         case e.CompositeTp(kind=kind, tps=tps, labels=labels):
-            return e.CompositeTp(kind=kind, tps=[check_type_valid(ctx, t) for t in tps], labels=labels)
+            return e.CompositeTp(kind=kind,
+                                 tps=[check_type_valid(ctx, t) for t in tps],
+                                 labels=labels)
         case e.QualifiedName(_):
             return tp
         case _:

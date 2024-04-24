@@ -1,5 +1,5 @@
 """
-This file inserts 
+This file inserts
 conditional deduplicaiton statements into the EdgeQL query language.
 
 A projection M.l is not deduplicated if there are eventually a link property projection M.l.....@l

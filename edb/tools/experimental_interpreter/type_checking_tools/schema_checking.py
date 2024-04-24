@@ -4,12 +4,11 @@ from typing import Tuple, Dict
 from ..data import data_ops as e
 from ..data import expr_ops as eops
 from ..data import type_ops as tops
+from ..data import module_ops as mops
 from ..data import path_factor as path_factor
-from .dml_checking import *
 from ..data import expr_to_str as pp
-from .function_checking import *
 from . import name_resolution as name_res
-from .typechecking import *
+from .typechecking import check_type_valid, synthesize_type, check_type
 from . import module_check_tools as mck
 from . import inheritance_populate as inheritance_populate
 
@@ -165,7 +164,7 @@ def check_fun_def_validity(ctx: e.TcCtx, fun_def: e.FuncDef) -> e.FuncDef:
 
 def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -> e.DBSchema:
     """
-    Checks the validity of an unchecked module in dbschema. 
+    Checks the validity of an unchecked module in dbschema.
     Modifies the db schema after checking
     """
     name_res.module_name_resolve(dbschema, module_name)
@@ -179,7 +178,7 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
 
 def re_populate_module_inheritance(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -> None:
     """
-    Checks the validity of an unchecked module in dbschema. 
+    Checks the validity of an unchecked module in dbschema.
     Modifies the db schema after checking
     """
     dbschema.unchecked_modules[module_name] = dbschema.modules[module_name]

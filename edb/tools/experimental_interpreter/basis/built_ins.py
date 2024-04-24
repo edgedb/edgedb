@@ -1,4 +1,4 @@
-from typing import *
+from typing import Callable, Any, Optional, Sequence
 from ..data import data_ops as e
 
 

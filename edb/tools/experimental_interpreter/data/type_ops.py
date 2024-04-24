@@ -100,7 +100,7 @@ def type_subtyping_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
         ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
         ) -> bool:
     """
-    Walks the type equality tree. 
+    Walks the type equality tree.
     Subtrees are checked for equality using the recurse function, to account for possible unifications.
     """
     if tp_is_primitive(tp1) and tp_is_primitive(tp2):
@@ -264,7 +264,7 @@ def get_runtime_tp(tp: e.Tp) -> e.Tp:
 
 def get_storage_tp(fmt : e.ObjectTp) -> e.ObjectTp:
     """
-    Returns the storage type of a given type. 
+    Returns the storage type of a given type.
     In particular, computable attributes should be removed.
 
     """
@@ -321,8 +321,8 @@ def tp_is_primitive(tp: e.Tp) -> bool:
               | e.AnyTp()
               ):
             return False
-        case (e.UnionTp(left=left_tp, right=right_tp)
-              | e.IntersectTp(left=left_tp, right=right_tp)
+        case (e.UnionTp(left=_, right=_)
+              | e.IntersectTp(left=_, right=_)
               ):
             return False  # this case is actually ambiguous
         case e.ComputableTp(tp=under_tp, expr=_):
@@ -355,7 +355,7 @@ def is_order_spec(tp: e.ResultTp) -> bool:
 
 def is_tp_projection_tuple_proj(tp: e.Tp) -> bool:
     match tp:
-        case e.CompositeTp(kind=e.CompositeTpKind.Tuple, tps=tp_tuple):
+        case e.CompositeTp(kind=e.CompositeTpKind.Tuple, tps=_):
             return True
         case _:
             return False
@@ -416,7 +416,7 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                 return e.ResultTp(construct_tps_union([r_tp.tp for r_tp in result_tps]), result.mode)
             else:
                 raise ValueError("Ambiguous union projection", result_tps)
-        case e.IntersectTp(l, r):
+        case e.IntersectTp(_, _):
             tps = collect_tp_intersection(tp.tp)
             # if all(isinstance(itp, e.NominalLinkTp | e.NamedNominalLinkTp) for itp in tps):
             projectable_tps = [itp for itp in tps if can_project_label_from_tp(ctx, itp, label)]

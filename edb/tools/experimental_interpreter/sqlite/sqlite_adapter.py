@@ -1,16 +1,16 @@
 
 from __future__ import annotations
 
+from typing import Any, Dict, Sequence, Optional, List
 import sqlite3
-from typing import List
 import json
-from ..db_interface import EdgeID, EdgeDatabaseStorageProviderInterface
+
+from dataclasses import dataclass
+from ..db_interface import  EdgeDatabaseStorageProviderInterface
 from .. import db_interface
 
-from ..data.data_ops import *
+from ..data.data_ops import EdgeID, ObjectVal, Val, MultiSetVal, DBSchema
 from ..data import data_ops as e
-from typing import *
-# from ..basis.built_ins import all_builtin_funcs
 from ..elab_schema import add_module_from_sdl_defs
 
 
@@ -70,7 +70,7 @@ def get_property_type_view(result_tp: e.ResultTp) -> PropertyTypeView:
             return PropertyTypeView(is_primitive=False, is_optional=is_optional, is_singular=is_singular, target_type_name=[name], link_props=lp_view)
         case e.ScalarTp(name=name):
             return PropertyTypeView(is_primitive=True, is_optional=is_optional, is_singular=is_singular, target_type_name=[name], link_props={})
-        case e.CompositeTp(kind=kind, tps=tps, labels=labels):
+        case e.CompositeTp(kind=_, tps=_, labels=_):
             # This is extremely TODO
             return PropertyTypeView(is_primitive=True, is_optional=is_optional, is_singular=is_singular, target_type_name=[], link_props={})
         case e.DefaultTp(expr=_, tp=inner):
@@ -167,7 +167,7 @@ def convert_val_to_sqlite_val(val: e.ResultMultiSetVal) -> Any:
                         return v
                     case _:
                         return str(v)
-            case e.RefVal(refid=refid, tpname=tpname, val=_):
+            case e.RefVal(refid=refid, tpname=_, val=_):
                 return refid
             case e.ArrVal(val=vals):
                 return json.dumps([sub_convert(v) for v in vals])

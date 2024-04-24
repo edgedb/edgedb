@@ -1,5 +1,6 @@
+from __future__ import annotations
+from typing import Sequence
 from ..data import data_ops as e
-from typing import *
 
 def find_all_subtypes_of_tp_in_schema(schema: e.DBSchema, tp: e.QualifiedName) -> Sequence[e.QualifiedName]:
     checked_tps = []

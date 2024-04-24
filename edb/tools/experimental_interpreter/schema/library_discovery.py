@@ -26,7 +26,7 @@ def add_ddl_library(
     Add a library to the schema.
 
     Given a list of library paths,
-    If library is a edgeql file, process the edgeql file as ddl. 
+    If library is a edgeql file, process the edgeql file as ddl.
     If library is a directory, process all edgeql files in the top level of the directory
     in a lexicographical order.
     """

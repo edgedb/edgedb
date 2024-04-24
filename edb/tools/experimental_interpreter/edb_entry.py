@@ -22,7 +22,7 @@ import os
 @click.option("--trace-to-file", type=str, required=False)
 @click.option("--sqlite-file", type=str, required=False)
 @click.option("--test", type=str, required=False, help="""specify a single name. Will search the test schema directory for esdl file containing the case insensitive specified esdl file.
-Will also load the corresponding ql file. Will turn on trace-to-file to a default html file. Will populate next ql file if it exists. 
+Will also load the corresponding ql file. Will turn on trace-to-file to a default html file. Will populate next ql file if it exists.
               """
               )
 @click.option("--no-setup", is_flag=True, default=False, required=False, help="""--test only, do not include a setup file. """)
@@ -41,7 +41,7 @@ def interperter_entry(
         # search root of test schemas for esdl file
         candidate_files = []
         failed_files = []
-        for root, dirs, files in os.walk(schemas_dir):
+        for root, _, files in os.walk(schemas_dir):
             for file in files:
                 if file.endswith('.esdl'):
                     if test.lower() in file.lower():

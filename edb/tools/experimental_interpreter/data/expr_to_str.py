@@ -1,8 +1,9 @@
+from __future__ import annotations
 
+from typing import Any, List, Tuple
 
 from . import data_ops as e
 from . import expr_ops as eops
-from typing import *
 
 def show_card(card: e.Cardinal) -> str:
     match card:
@@ -124,7 +125,7 @@ def show_expr(expr: e.Expr) -> str:
             return show_qname(expr)
         case e.UnqualifiedName(_):
             return show_raw_name(expr)
-        case e.ScalarVal(tp, v):
+        case e.ScalarVal(tp, _):
             return show_scalar_val(expr)
         case e.BindingExpr(var=var, body=_):
             return "λ" + var + ". " + show_expr(
