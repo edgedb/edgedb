@@ -66,9 +66,6 @@ class ExperimentalInterpreterTestCase(unittest.TestCase):
             result = self.client.run_single_str_get_json_with_cache(
                 query, variables=variables)
             res = result
-            # Uncomment this for debugging.
-            # Otherwise the error message is obscure.
-            # try:
             if sort is not None:
                 assert_data_shape.sort_results(res, sort)
             if exp_result_binary is not ...:
@@ -77,7 +74,3 @@ class ExperimentalInterpreterTestCase(unittest.TestCase):
             else:
                 assert_data_shape.assert_data_shape(
                     res, exp_result_json, self.fail, message=msg)
-            # except AssertionError as e:
-            #     raise AssertionError(
-            #         str(e),
-            #         "Expected", exp_result_json, "Actual", result)
