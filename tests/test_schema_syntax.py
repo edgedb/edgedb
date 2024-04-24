@@ -2146,3 +2146,32 @@ annotation test::foo;
             global foo -> str;
         };
         """
+
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError,
+        r"Missing '}'",
+        line=6,
+        col=26,
+    )
+    def test_eschema_syntax_missing_semicolon(self):
+        """
+        module default {
+            type Foo;
+            type Bar {
+                link l -> Foo {
+                a -> bool # missing semicolon
+                b -> bool;
+                c -> bool;
+                };
+            };
+        }
+        ;
+
+        using future nonrecursive_access_policies;
+
+% OK %
+
+        module test {
+            global foo -> str;
+        };
+        """
