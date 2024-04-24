@@ -20,7 +20,10 @@ class EdgeDatabaseStorageProviderInterface:
         raise NotImplementedError()
 
     def insert(
-        self, id: e.EdgeID, tp: e.QualifiedName, props: Dict[str, e.MultiSetVal]
+        self,
+        id: e.EdgeID,
+        tp: e.QualifiedName,
+        props: Dict[str, e.MultiSetVal],
     ) -> None:
         raise NotImplementedError()
 
@@ -28,7 +31,10 @@ class EdgeDatabaseStorageProviderInterface:
         raise NotImplementedError()
 
     def update(
-        self, id: e.EdgeID, tp: e.QualifiedName, props: Dict[str, e.MultiSetVal]
+        self,
+        id: e.EdgeID,
+        tp: e.QualifiedName,
+        props: Dict[str, e.MultiSetVal],
     ) -> None:
         raise NotImplementedError()
 
@@ -60,7 +66,9 @@ class EdgeDatabaseStorageProviderInterface:
         raise NotImplementedError()
 
 
-class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
+class InMemoryEdgeDatabaseStorageProvider(
+    EdgeDatabaseStorageProviderInterface
+):
 
     def __init__(self, schema) -> None:
         super().__init__()
@@ -176,7 +184,10 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         return id
 
     def insert(
-        self, id: e.EdgeID, tp: e.QualifiedName, props: Dict[str, e.MultiSetVal]
+        self,
+        id: e.EdgeID,
+        tp: e.QualifiedName,
+        props: Dict[str, e.MultiSetVal],
     ) -> None:
         self.db.dbdata[id] = e.DBEntry(tp, props)
 
@@ -184,7 +195,10 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         del self.db.dbdata[id]
 
     def update(
-        self, id: e.EdgeID, tp: e.QualifiedName, props: Dict[str, e.MultiSetVal]
+        self,
+        id: e.EdgeID,
+        tp: e.QualifiedName,
+        props: Dict[str, e.MultiSetVal],
     ) -> None:
         if id not in self.db.dbdata.keys():
             raise ValueError(f"ID {id} not found in database")
@@ -244,7 +258,10 @@ class EdgeDatabase:
         return id
 
     def update(
-        self, id: e.EdgeID, tp: e.QualifiedName, props: Dict[str, e.MultiSetVal]
+        self,
+        id: e.EdgeID,
+        tp: e.QualifiedName,
+        props: Dict[str, e.MultiSetVal],
     ) -> None:
         if id in self.to_insert.dbdata.keys():
             self.to_insert.dbdata[id] = e.DBEntry(

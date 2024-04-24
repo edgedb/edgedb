@@ -18,7 +18,9 @@ def refine_candidate_tp(tp: e.Tp) -> e.Tp:
         case e.UnionTp(l, r):
             return e.UnionTp(refine_candidate_tp(l), refine_candidate_tp(r))
         case e.IntersectTp(l, r):
-            return e.IntersectTp(refine_candidate_tp(l), refine_candidate_tp(r))
+            return e.IntersectTp(
+                refine_candidate_tp(l), refine_candidate_tp(r)
+            )
         case _:
             return tp
 
@@ -30,7 +32,9 @@ def try_match_and_get_arg_mods(
     Returns None if the expr does not match the fun_def.
     """
     match expr:
-        case e.FunAppExpr(fun=_, args=args, overloading_index=_, kwargs=kwargs):
+        case e.FunAppExpr(
+            fun=_, args=args, overloading_index=_, kwargs=kwargs
+        ):
             # positional
             if len(args) == len(fun_def.tp.args_mod):
                 return fun_def.tp.args_mod
@@ -59,7 +63,8 @@ def check_args_ret_type_match(
     ctx: e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunArgRetType
 ) -> Optional[e.Tp]:  # Returns the result Tp if matches
     """
-    If matches, return the result type. Need to return result type because we have parametric ploymorphism.
+    If matches, return the result type.
+    Need to return result type because we have parametric ploymorphism.
     """
 
     some_tp_mapping_candidates: Dict[int, List[e.Tp]] = {}

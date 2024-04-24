@@ -65,7 +65,9 @@ def process_ddl(schema: e.DBSchema, ddl: qlast.DDLOperation) -> None:
                         # choice: make anytype live in std
                         schema.subtyping_relations[
                             e.QualifiedName([module_name, type_name])
-                        ].append(e.QualifiedName(["std", "any" + (spec or "")]))
+                        ].append(
+                            e.QualifiedName(["std", "any" + (spec or "")])
+                        )
                     case e.CompositeTp(kind=e.CompositeTpKind.Enum, tps=_):
                         print_warning(
                             "WARNING: behavior of extending enum types undefined",
@@ -104,7 +106,10 @@ def process_ddl(schema: e.DBSchema, ddl: qlast.DDLOperation) -> None:
             to_tp = elab.elab_TypeName(to_type)
             from_tp_ck = tck.check_type_valid(schema, from_tp)
             to_tp_ck = tck.check_type_valid(schema, to_tp)
-            assert (from_tp_ck, to_tp_ck) not in schema.casts, "duplicate casts"
+            assert (
+                from_tp_ck,
+                to_tp_ck,
+            ) not in schema.casts, "duplicate casts"
             match cast_code:
                 case qlast.CastCode(from_expr=from_expr, from_cast=from_cast):
                     match from_expr, from_cast:

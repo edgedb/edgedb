@@ -219,7 +219,8 @@ def toppath_for_factoring(expr: Expr, dbschema: e.TcCtx) -> List[Expr]:
                     case e.ObjectProjExpr(subject=subject, label=_):
                         d.append(subject)
                     case e.TpIntersectExpr(
-                        subject=(e.BackLinkExpr(subject=subject, label=_)), tp=_
+                        subject=(e.BackLinkExpr(subject=subject, label=_)),
+                        tp=_,
                     ):
                         d.append(subject)
                     case e.BackLinkExpr(subject=subject, label=_):
@@ -363,7 +364,9 @@ def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
 
             post_process_transform = post_processing
         case _:
-            after_e = iterative_subst_expr_for_expr(fresh_vars, top_paths, expr)
+            after_e = iterative_subst_expr_for_expr(
+                fresh_vars, top_paths, expr
+            )
             inner_e = sub_select_hoist(after_e, dbschema)
 
             def id_transform(x):

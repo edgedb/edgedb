@@ -52,7 +52,8 @@ def do_write_logs(logs: List[Any], filename: str):
 
     def format_log(log, index):
         result = "<ul {} id='entry_{}'>\n".format(
-            "class='entry'" if len(index) > 0 else '', '_'.join(map(str, index))
+            "class='entry'" if len(index) > 0 else '',
+            '_'.join(map(str, index)),
         )
         for i, entry in enumerate(log):
             result += "<li>\n"
@@ -60,7 +61,8 @@ def do_write_logs(logs: List[Any], filename: str):
                 sub_index = index + (i,)
                 result += """<a href='#/' onclick='toggle("{}")'>
                              Log {}</a>\n""".format(
-                    '_'.join(map(str, sub_index)), '_'.join(map(str, sub_index))
+                    '_'.join(map(str, sub_index)),
+                    '_'.join(map(str, sub_index)),
                 )
                 result += format_log(entry, sub_index)
             else:

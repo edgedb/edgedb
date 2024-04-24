@@ -244,7 +244,8 @@ def elab_create_object_tp(
                     pname: ResultTp(
                         final_target_type,
                         elab_schema_cardinality(
-                            is_required=p_is_required, cardinality=p_cardinality
+                            is_required=p_is_required,
+                            cardinality=p_cardinality,
                         ),
                     ),
                 }
@@ -273,7 +274,8 @@ def elab_create_object_tp(
                         indexes.append([elab_single_proj(index_expr_elab)])
                     case e.UnnamedTupleExpr(exprs):
                         if all(
-                            isinstance(expr, e.ObjectProjExpr) for expr in exprs
+                            isinstance(expr, e.ObjectProjExpr)
+                            for expr in exprs
                         ):
                             indexes.append(
                                 [elab_single_proj(expr) for expr in exprs]
@@ -312,7 +314,8 @@ def add_bases_for_name(
                 raise ValueError("TODO", base_tp)
     if add_object_type:
         raise ValueError("TODO")
-        # you cannot do this for std Object becuase the way id projection is treated is differnt in the interpreter,
+        # you cannot do this for std Object becuase the way id projection
+        # is treated is differnt in the interpreter,
         # default id generation is not treated as properties in the interpter but rather a builtin concept
         # base_tps_ck.append((current_module_name, e.QualifiedName(["std", "Object"])))
     assert this_type_name not in schema.unchecked_subtyping_relations

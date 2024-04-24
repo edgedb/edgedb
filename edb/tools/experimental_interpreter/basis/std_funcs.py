@@ -233,7 +233,8 @@ def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [[e.ScalarVal(_, s)], [e.ScalarVal(_, _)]]:
             interpreter_logging.print_warning(
-                "Warning: cal::to_local_datetime is implemented properly. It is a no-op."
+                "Warning: cal::to_local_datetime is implemented"
+                " properly. It is a no-op."
             )
             return [
                 e.ScalarVal(
@@ -246,7 +247,12 @@ def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def math_mean_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [l]:
-            return [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "float64"])), sum(elem.val for elem in l) / len(l))]  # type: ignore
+            return [
+                e.ScalarVal(
+                    e.ScalarTp(e.QualifiedName(["std", "float64"])),
+                    sum(elem.val for elem in l) / len(l),
+                )
+            ]  # type: ignore
     raise FunCallErr()
 
 
@@ -267,7 +273,11 @@ def std_contains_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def std_re_test_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [
-            [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), pattern)],
+            [
+                e.ScalarVal(
+                    e.ScalarTp(e.QualifiedName(["std", "str"])), pattern
+                )
+            ],
             [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), string)],
         ]:
             return [e.BoolVal(bool(re.search(pattern, string)))]

@@ -178,7 +178,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     )
                     result_card = e.CardAny
                 case _:
-                    raise ValueError("Unsupported Module Entity", module_entity)
+                    raise ValueError(
+                        "Unsupported Module Entity", module_entity
+                    )
 
         case e.TypeCastExpr(tp=tp, arg=arg):
             tp_ck = check_type_valid(ctx, tp)
@@ -381,13 +383,19 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
 
             order_ck: Dict[str, e.BindingExpr] = {}
             for order_label, o in order.items():
-                order_ctx, order_body, order_bound_var = eops.tcctx_add_binding(
-                    ctx, o, e.ResultTp(subject_tp.tp, e.CardOne)
+                order_ctx, order_body, order_bound_var = (
+                    eops.tcctx_add_binding(
+                        ctx, o, e.ResultTp(subject_tp.tp, e.CardOne)
+                    )
                 )
-                (order_result_tp, o_ck) = synthesize_type(order_ctx, order_body)
+                (order_result_tp, o_ck) = synthesize_type(
+                    order_ctx, order_body
+                )
                 order_ck = {
                     **order_ck,
-                    order_label: eops.abstract_over_expr(o_ck, order_bound_var),
+                    order_label: eops.abstract_over_expr(
+                        o_ck, order_bound_var
+                    ),
                 }
 
             assert eops.is_effect_free(filter), "Expecting effect-free filter"
@@ -474,7 +482,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 e.max_cardinal(then_tp.mode.upper, else_tp.mode.upper),
             )
             result_expr = e.IfElseExpr(
-                then_branch=then_ck, condition=condition_ck, else_branch=else_ck
+                then_branch=then_ck,
+                condition=condition_ck,
+                else_branch=else_ck,
             )
         case e.ForExpr(bound=bound, next=next):
             (bound_tp, bound_ck) = synthesize_type(ctx, bound)
@@ -483,7 +493,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             )
             (next_tp, next_ck) = synthesize_type(new_ctx, next_body)
             result_expr = e.ForExpr(
-                bound=bound_ck, next=eops.abstract_over_expr(next_ck, bound_var)
+                bound=bound_ck,
+                next=eops.abstract_over_expr(next_ck, bound_var),
             )
             result_tp = next_tp.tp
             result_card = next_tp.mode * bound_tp.mode
@@ -500,7 +511,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             )
             (next_tp, next_ck) = synthesize_type(new_ctx, next_body)
             result_expr = e.OptionalForExpr(
-                bound=bound_ck, next=eops.abstract_over_expr(next_ck, bound_var)
+                bound=bound_ck,
+                next=eops.abstract_over_expr(next_ck, bound_var),
             )
             result_tp = next_tp.tp
             result_card = next_tp.mode * e.CMMode(

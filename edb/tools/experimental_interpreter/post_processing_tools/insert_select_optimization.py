@@ -159,7 +159,9 @@ def refine_subject_with_filter(
 def select_optimize(expr: e.Expr) -> e.Expr:
     def sub_f(sub: e.Expr) -> Optional[e.Expr]:
         match sub:
-            case e.FilterOrderExpr(subject=subject, filter=filter, order=order):
+            case e.FilterOrderExpr(
+                subject=subject, filter=filter, order=order
+            ):
                 if order:
                     return None
                 else:

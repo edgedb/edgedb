@@ -21,7 +21,9 @@ def object_tp_comp_name_resolve(
                 name_ck = name
             resolved_tp = mops.try_resolve_type_name(root_ctx, name_ck)
             if not isinstance(resolved_tp, e.ObjectTp):
-                raise ValueError("Scalar type cannot carry link props", tp_comp)
+                raise ValueError(
+                    "Scalar type cannot carry link props", tp_comp
+                )
 
             linkprop_ck: Dict[str, e.ResultTp] = {}
             for lbl, (t_comp_tp, t_comp_card) in l_prop.val.items():

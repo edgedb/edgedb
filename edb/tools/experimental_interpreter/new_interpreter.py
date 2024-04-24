@@ -68,7 +68,13 @@ def default_dbschema() -> DBSchema:
     print("Loading standard library at", std_path)
     add_ddl_library(
         initial_db,
-        [std_path, schema_path, cal_path, math_path, interpreter_internal_path],
+        [
+            std_path,
+            schema_path,
+            cal_path,
+            math_path,
+            interpreter_internal_path,
+        ],
     )
     name_resolution.checked_module_name_resolve(initial_db, ("schema",))
     name_resolution.checked_module_name_resolve(initial_db, ("std",))
@@ -415,7 +421,9 @@ class EdgeQLInterpreter:
 
     def query_str(self, s: str) -> Sequence[MultiSetVal]:
         q = parse_ql(s)
-        res = run_stmts(self.db, q, self.dbschema, debug_print=False, logs=None)
+        res = run_stmts(
+            self.db, q, self.dbschema, debug_print=False, logs=None
+        )
         return res
 
 

@@ -153,7 +153,10 @@ def map_query(
                         case ParamSingleton():
                             mapped_args = [*mapped_args, recur(args[i])]
                         case ParamOptional():
-                            mapped_args = [*mapped_args, semisub_recur(args[i])]
+                            mapped_args = [
+                                *mapped_args,
+                                semisub_recur(args[i]),
+                            ]
                         case ParamSetOf():
                             mapped_args = [*mapped_args, sub_recur(args[i])]
                         case _:

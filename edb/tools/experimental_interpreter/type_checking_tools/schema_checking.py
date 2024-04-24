@@ -25,7 +25,9 @@ def check_object_tp_comp_validity(
                 name_ck = name
             resolved_tp = mops.try_resolve_type_name(root_ctx, name_ck)
             if not isinstance(resolved_tp, e.ObjectTp):
-                raise ValueError("Scalar type cannot carry link props", tp_comp)
+                raise ValueError(
+                    "Scalar type cannot carry link props", tp_comp
+                )
             return e.NamedNominalLinkTp(
                 name=name_ck,
                 linkprop=check_object_tp_validity(
@@ -46,7 +48,9 @@ def check_object_tp_comp_validity(
             )
         case e.UncheckedComputableTp(expr=c_expr):
             if not isinstance(c_expr, e.BindingExpr):  # type: ignore
-                raise ValueError("Computable type must be a binding expression")
+                raise ValueError(
+                    "Computable type must be a binding expression"
+                )
             new_ctx, c_body, bnd_var = eops.tcctx_add_binding(
                 root_ctx,
                 c_expr,  # type: ignore
@@ -56,11 +60,14 @@ def check_object_tp_comp_validity(
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
             return e.ComputableTp(
-                expr=eops.abstract_over_expr(c_body_ck, bnd_var), tp=synth_tp.tp
+                expr=eops.abstract_over_expr(c_body_ck, bnd_var),
+                tp=synth_tp.tp,
             )
         case e.ComputableTp(expr=c_expr, tp=c_tp):
             if not isinstance(c_expr, e.BindingExpr):  # type: ignore
-                raise ValueError("Computable type must be a binding expression")
+                raise ValueError(
+                    "Computable type must be a binding expression"
+                )
             new_ctx, c_body, bnd_var = eops.tcctx_add_binding(
                 root_ctx,
                 c_expr,  # type: ignore
@@ -77,7 +84,9 @@ def check_object_tp_comp_validity(
         # TODO: Can we not copy?
         case e.DefaultTp(expr=c_expr, tp=c_tp):
             if not isinstance(c_expr, e.BindingExpr):  # type: ignore
-                raise ValueError("Computable type must be a binding expression")
+                raise ValueError(
+                    "Computable type must be a binding expression"
+                )
             c_tp_ck = c_tp
             new_ctx, c_body, bnd_var = eops.tcctx_add_binding(
                 root_ctx,
@@ -115,7 +124,8 @@ def check_object_tp_comp_validity(
             )
         case e.OverloadedTargetTp(_):
             raise ValueError(
-                "Overloaded target tp should not appear in type checking, check whether the inheritance processing is intact",
+                "Overloaded target tp should not appear in type checking, "
+                "check whether the inheritance processing is intact",
                 tp_comp,
             )
         case _:
@@ -157,7 +167,9 @@ def check_fun_def_validity(ctx: e.TcCtx, fun_def: e.FuncDef) -> e.FuncDef:
             binders = []
             for i, arg_tp in enumerate(tp.args_tp):
                 assert isinstance(impl, e.BindingExpr)
-                arg_mod = param_modifier_to_paramter_cardinality(tp.args_mod[i])
+                arg_mod = param_modifier_to_paramter_cardinality(
+                    tp.args_mod[i]
+                )
                 ctx, impl, binder_name = eops.tcctx_add_binding(
                     ctx, impl, e.ResultTp(arg_tp, arg_mod)
                 )

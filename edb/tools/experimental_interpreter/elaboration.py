@@ -187,7 +187,9 @@ def path_contains_splat(p: qlast.Path) -> bool:
 def elab_label(p: qlast.Path) -> Label:
     """Elaborates a single name e.g. in the left hand side of a shape"""
     steps = [*p.steps]
-    while steps[0] is not None and isinstance(steps[0], qlast.TypeIntersection):
+    while steps[0] is not None and isinstance(
+        steps[0], qlast.TypeIntersection
+    ):
         steps = steps[1:]
     match steps[0]:
         case qlast.Ptr(
@@ -212,7 +214,9 @@ def elab_ShapeElement(s: qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
         def process(e: BindingExpr) -> BindingExpr:
             return abstract_over_expr(
                 FilterOrderExpr(
-                    subject=instantiate_expr(FreeVarExpr(DEFAULT_HEAD_NAME), e),
+                    subject=instantiate_expr(
+                        FreeVarExpr(DEFAULT_HEAD_NAME), e
+                    ),
                     filter=elab_where(s.where),
                     order=elab_orderby(s.orderby),
                 ),
@@ -386,7 +390,8 @@ def elab_orderby(
         result = {**result, key: elabed_expr}
 
     return {
-        l: abstract_over_expr(v, DEFAULT_HEAD_NAME) for (l, v) in result.items()
+        l: abstract_over_expr(v, DEFAULT_HEAD_NAME)
+        for (l, v) in result.items()
     }
 
 

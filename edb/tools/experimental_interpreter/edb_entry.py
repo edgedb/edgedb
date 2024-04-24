@@ -40,8 +40,12 @@ import os
     "--test",
     type=str,
     required=False,
-    help="""specify a single name. Will search the test schema directory for esdl file containing the case insensitive specified esdl file.
-Will also load the corresponding ql file. Will turn on trace-to-file to a default html file. Will populate next ql file if it exists.
+    help="""specify a single name.
+Will search the test schema directory for esdl file containing the case
+insensitive specified esdl file.
+Will also load the corresponding ql file. 
+Will turn on trace-to-file to a default html file.
+Will populate next ql file if it exists.
               """,
 )
 @click.option(
@@ -119,11 +123,21 @@ def interperter_entry(
         # print all options
         print(f'Running test {test} with options:')
         print(
-            f'init_sdl_file: {init_sdl_file if not init_sdl_file.startswith(schemas_dir) else "<s_dir>" + init_sdl_file[len(schemas_dir):]}'
+            f'init_sdl_file: '
+            + (
+                init_sdl_file
+                if not init_sdl_file.startswith(schemas_dir)
+                else "<s_dir>" + init_sdl_file[len(schemas_dir) :]
+            )
         )
         if init_ql_file:
             print(
-                f'init_ql_file: {init_ql_file if not init_ql_file.startswith(schemas_dir) else "<s_dir>" + init_ql_file[len(schemas_dir):]}'
+                'init_ql_file: '
+                + (
+                    init_ql_file
+                    if not init_ql_file.startswith(schemas_dir)
+                    else "<s_dir>" + init_ql_file[len(schemas_dir) :]
+                )
             )
         else:
             print(f'init_ql_file: None')

@@ -80,11 +80,15 @@ def map_tp(f: Callable[[Tp], Optional[Tp]], tp: Tp) -> Tp:
                     kind=k, tps=[recur(v) for v in tps], labels=labels
                 )
             case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
-                return e.NamedNominalLinkTp(name=name, linkprop=recur(linkprop))
+                return e.NamedNominalLinkTp(
+                    name=name, linkprop=recur(linkprop)
+                )
             # case e.UncheckedNamedNominalLinkTp(name=name, linkprop=linkprop):
             #     return e.UncheckedNamedNominalLinkTp(name=name,
             #                         linkprop=recur(linkprop))
-            case e.NominalLinkTp(name=name, subject=subject, linkprop=linkprop):
+            case e.NominalLinkTp(
+                name=name, subject=subject, linkprop=linkprop
+            ):
                 return e.NominalLinkTp(
                     name=name, subject=recur(subject), linkprop=recur(linkprop)
                 )
@@ -308,7 +312,9 @@ def get_free_vars(e: Expr) -> Sequence[str]:
     return res
 
 
-def ensure_no_capture(avoid_list: Sequence[str], e: BindingExpr) -> BindingExpr:
+def ensure_no_capture(
+    avoid_list: Sequence[str], e: BindingExpr
+) -> BindingExpr:
     assert isinstance(e, BindingExpr)
     candidate_name = e.var
     while candidate_name in avoid_list:
@@ -499,7 +505,9 @@ def val_is_ref_val(rt: Val) -> bool:
 
 def remove_unless_link_props(dic: ObjectVal) -> ObjectVal:
     return ObjectVal(
-        val={k: v for (k, v) in dic.val.items() if isinstance(k, LinkPropLabel)}
+        val={
+            k: v for (k, v) in dic.val.items() if isinstance(k, LinkPropLabel)
+        }
     )
 
 

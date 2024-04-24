@@ -79,7 +79,9 @@ def typed_objectval_to_json_like(
     return result
 
 
-def typed_val_to_json_like(v: Val, tp: e.Tp, dbschema: e.DBSchema) -> json_like:
+def typed_val_to_json_like(
+    v: Val, tp: e.Tp, dbschema: e.DBSchema
+) -> json_like:
     match v:
         case e.ScalarVal(s_tp, v):
             if s_tp == e.ScalarTp(e.QualifiedName(["std", "json"])):
@@ -123,7 +125,16 @@ def typed_val_to_json_like(v: Val, tp: e.Tp, dbschema: e.DBSchema) -> json_like:
                         and tp.kind == e.CompositeTpKind.Array
                         for tp in tps
                     ):
-                        return [typed_val_to_json_like(v, tops.construct_tps_union([tp.tps[0] for tp in tps]), dbschema) for v in array]  # type: ignore
+                        return [
+                            typed_val_to_json_like(
+                                v,
+                                tops.construct_tps_union(
+                                    [tp.tps[0] for tp in tps]  # type: ignore
+                                ),
+                                dbschema,
+                            )
+                            for v in array
+                        ]
                     else:
                         raise ValueError("Expecing array tp", pp.show(tp))
                 case _:

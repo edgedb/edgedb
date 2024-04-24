@@ -565,9 +565,10 @@ class IfElseExpr:
 @dataclass
 class EdgeDatabaseEqFilter:
     propname: str
-    arg: (
-        Expr | MultiSetVal
-    )  # disjunction, both .propname = <arg> and .propanme IN <arg> are treated equivalently
+    # arg is a disjunction,
+    # both .propname = <arg> and .propanme IN <arg>
+    # are treated equivalently
+    arg: Expr | MultiSetVal
 
 
 @dataclass
@@ -719,7 +720,9 @@ class ResultMultiSetVal:
         return self._vals
 
     def __post_init__(self):
-        if not isinstance(self._vals, list) or not all(isinstance(v, Val) for v in self._vals):  # type: ignore
+        if not isinstance(self._vals, list) or not all(
+            isinstance(v, Val) for v in self._vals
+        ):  # type: ignore
             raise ValueError("vals must be a list")
 
 
@@ -820,9 +823,9 @@ class ModuleEntityTypeDef:
     typedef: ObjectTp | ScalarTp
     is_abstract: bool
     constraints: Sequence[Constraint]
-    indexes: Sequence[
-        Sequence[str]
-    ]  # a list of indexed properties (as a tuple), e.g. if a type has (.a), (.a, .b) as indexes, we have [[.a], [.a, .b]]
+    # Indexes are a list of indexed properties (as a tuple),
+    # e.g. if a type has (.a), (.a, .b) as indexes, we have [[.a], [.a, .b]]
+    indexes: Sequence[Sequence[str]]
 
 
 @dataclass(frozen=True)
@@ -844,12 +847,12 @@ ModuleName = Tuple[str, ...]
 @dataclass(frozen=True)
 class DBSchema:
     modules: Dict[Tuple[str, ...], DBModule]
-    unchecked_modules: Dict[
-        Tuple[str, ...], DBModule
-    ]  # modules that are currently under type checking
-    subtyping_relations: Dict[
-        QualifiedName, List[QualifiedName]
-    ]  # subtyping: indexed by subtypes, subtype -> immediate super types mapping
+
+    # modules that are currently under type checking
+    unchecked_modules: Dict[Tuple[str, ...], DBModule]
+
+    # subtyping_relations: indexed by subtypes, subtype -> immediate super types mapping
+    subtyping_relations: Dict[QualifiedName, List[QualifiedName]]
     unchecked_subtyping_relations: Dict[
         QualifiedName, List[Tuple[Tuple[str, ...], RawName]]
     ]  # name -> current declared module and raw name
@@ -869,7 +872,9 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: Tuple[str, ...]  # current module name, TODO: nested modules
+    current_module: Tuple[
+        str, ...
+    ]  # current module name, TODO: nested modules
     varctx: Dict[str, ResultTp]
 
 

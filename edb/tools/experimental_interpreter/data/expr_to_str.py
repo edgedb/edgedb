@@ -50,7 +50,15 @@ def show_tp(tp: e.Tp | e.RawName) -> str:
             return "unchecked_name(" + show_raw_name(name) + ")"
         case e.CompositeTp(kind=kind, tps=tps, labels=labels):
             if labels:
-                return f'{kind.value}<{",".join(label + ":" + show_tp(tp) for (label,tp) in zip(labels,tps, strict=True))}>'
+                return (
+                    kind.value
+                    + '<'
+                    + ",".join(
+                        label + ":" + show_tp(tp)
+                        for (label, tp) in zip(labels, tps, strict=True)
+                    )
+                    + '>'
+                )
             else:
                 return f'{kind.value}<{",".join(show_tp(tp) for tp in tps)}>'
         case e.SomeTp(index=index):
@@ -118,7 +126,9 @@ def show_scalar_val(val: e.ScalarVal) -> str:
             return show_qname(tp.name) + "(" + str(v) + ")"
 
 
-def show_edge_database_select_filter(filter: e.EdgeDatabaseSelectFilter) -> str:
+def show_edge_database_select_filter(
+    filter: e.EdgeDatabaseSelectFilter,
+) -> str:
     match filter:
         case e.EdgeDatabaseEqFilter(propname=propname, arg=arg):
             return f'({propname} = {show(arg)})'
@@ -243,7 +253,10 @@ def show_expr(expr: e.Expr) -> str:
             return "for " + show_expr(bound) + " union " + show_expr(next)
         case e.OptionalForExpr(bound=bound, next=next):
             return (
-                "for optional " + show_expr(bound) + " union " + show_expr(next)
+                "for optional "
+                + show_expr(bound)
+                + " union "
+                + show_expr(next)
             )
         case e.ShapedExprExpr(expr=subject, shape=shape):
             return show_expr(subject) + " " + show_expr(shape)
@@ -329,7 +342,10 @@ def show_constraint(constraint: e.Constraint) -> str:
     match constraint:
         case e.ExclusiveConstraint(name=name, delegated=delegated):
             return (
-                "exclusive(" + name + ")" + (", delegated" if delegated else "")
+                "exclusive("
+                + name
+                + ")"
+                + (", delegated" if delegated else "")
             )
         case _:
             raise ValueError('Unimplemented', constraint)

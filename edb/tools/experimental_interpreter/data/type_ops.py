@@ -81,7 +81,9 @@ def object_tp_is_essentially_optional(tp: e.ObjectTp) -> bool:
     return all(mode_is_optional(md_tp.mode) for md_tp in tp.val.values())
 
 
-def dereference_var_tp(dbschema: e.DBSchema, qn: e.QualifiedName) -> e.ObjectTp:
+def dereference_var_tp(
+    dbschema: e.DBSchema, qn: e.QualifiedName
+) -> e.ObjectTp:
     resolved = mops.resolve_type_name(dbschema, qn)
     assert isinstance(resolved, e.ObjectTp)
     return resolved
@@ -124,7 +126,8 @@ def type_subtyping_walk(
 ) -> bool:
     """
     Walks the type equality tree.
-    Subtrees are checked for equality using the recurse function, to account for possible unifications.
+    Subtrees are checked for equality using the recurse function,
+    to account for possible unifications.
     """
     if tp_is_primitive(tp1) and tp_is_primitive(tp2):
         if isinstance(tp1, e.ScalarTp) and isinstance(tp2, e.ScalarTp):
@@ -531,7 +534,9 @@ def tp_project(
             tps = collect_tp_intersection(tp.tp)
             # if all(isinstance(itp, e.NominalLinkTp | e.NamedNominalLinkTp) for itp in tps):
             projectable_tps = [
-                itp for itp in tps if can_project_label_from_tp(ctx, itp, label)
+                itp
+                for itp in tps
+                if can_project_label_from_tp(ctx, itp, label)
             ]
             if len(projectable_tps) == 0:
                 raise edgedb.InvalidReferenceError(
@@ -543,7 +548,8 @@ def tp_project(
                     for itp in projectable_tps
                 ]
                 if all(
-                    r_tp.mode == projected_tps[0].mode for r_tp in projected_tps
+                    r_tp.mode == projected_tps[0].mode
+                    for r_tp in projected_tps
                 ):
                     return e.ResultTp(
                         construct_tps_union(
@@ -671,7 +677,9 @@ def combine_tp_with_subject_tp(ctx: e.TcCtx, o1: e.Tp, o2: e.ObjectTp) -> e.Tp:
             )
 
 
-def combine_tp_with_linkprop_tp(ctx: e.TcCtx, o1: e.Tp, o2: e.ObjectTp) -> e.Tp:
+def combine_tp_with_linkprop_tp(
+    ctx: e.TcCtx, o1: e.Tp, o2: e.ObjectTp
+) -> e.Tp:
     match o1:
         case e.NominalLinkTp(
             name=name, subject=subject_tp, linkprop=linkprop_tp

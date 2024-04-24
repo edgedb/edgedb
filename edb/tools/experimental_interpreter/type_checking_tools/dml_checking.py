@@ -195,7 +195,9 @@ def insert_proprerty_checking(
                     for tp in all_target_tps
                 ):
                     raise ValueError("TODO")
-                all_target_names: Dict[e.QualifiedName, e.Tp] = {tp.name: tp for tp in all_target_tps}  # type: ignore
+                all_target_names: Dict[e.QualifiedName, e.Tp] = {
+                    tp.name: tp for tp in all_target_tps  # type: ignore
+                }
                 # synthesize once to get the type
                 (synthesized_tp, expr_ck) = synthesize_type(ctx, attr_expr)
                 if isinstance(
@@ -227,7 +229,13 @@ def insert_proprerty_checking(
 
                     all_synthesized_names = {tp.name: tp for tp in all_synthesized_tps}  # type: ignore
 
-                    if not all(any(tops.is_nominal_subtype_in_schema(ctx, synth_name, ck_name) for ck_name in all_target_names.keys()) for synth_name in all_synthesized_names.keys()):  # type: ignore
+                    if not all(
+                        any(
+                            tops.is_nominal_subtype_in_schema(ctx, synth_name, ck_name)  # type: ignore
+                            for ck_name in all_target_names.keys()
+                        )
+                        for synth_name in all_synthesized_names.keys()
+                    ):
                         raise ValueError(
                             "Synthesized names not in union types",
                             all_synthesized_names.keys(),
@@ -274,7 +282,8 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
         target_tp = schema_tp.val[k]
         if isinstance(target_tp, e.ComputableTp):
             raise ValueError(
-                f"Key {k} is computable in {expr.name}, modification of computable types prohibited"
+                f"Key {k} is computable in {expr.name},"
+                " modification of computable types prohibited"
             )
         vv = insert_proprerty_checking(ctx, v, schema_tp.val[k])
         new_v = {**new_v, k: vv}
@@ -303,9 +312,10 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
             f"Missing keys {missing_keys} in insert for {expr.name}"
         )
 
-    dependent_keys: Dict[str, str] = (
-        {}
-    )  # a list of keys that are dependent, need to extract them in this order, second element provides the binder name
+    # a list of keys that are dependent,
+    # need to extract them in this order,
+    # second element provides the binder name
+    dependent_keys: Dict[str, str] = {}
 
     def add_deps_from_new_v(deps: List[str]) -> None:
         for k in deps:
@@ -368,12 +378,13 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
                 new_v = {
                     **new_v,
                     k: actual_v,
-                }  # TODO THIS NEEDS ELABORATION, we need to get the type and add it in the context then perform elaboration
+                }
                 del pending_default[k]
                 break
         else:
             raise ValueError(
-                f"Cannot resolve default value for because of circular dependencies: {pending_default}"
+                f"Cannot resolve default value for"
+                f" because of circular dependencies: {pending_default}"
             )
 
     # now abstract over the dependent keys in order
@@ -388,7 +399,8 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
 
     # if we are recursing, second time there will not be any dependent keys
     if dependent_keys:
-        # This is a hack because we did not enforce the default expression's types. So we recheck everything at the end.
+        # This is a hack because we did not enforce the default expression's types.
+        # So we recheck everything at the end.
         # TODO: we should optimize checking
         result_expr = synthesize_type(ctx, result_expr)[1]
     return result_expr

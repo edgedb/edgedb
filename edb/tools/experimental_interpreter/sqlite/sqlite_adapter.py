@@ -111,7 +111,9 @@ def get_property_type_view(result_tp: e.ResultTp) -> PropertyTypeView:
         case e.UnionTp(left=l, right=r):
             l_view = get_property_type_view(e.ResultTp(l, result_tp.mode))
             r_view = get_property_type_view(e.ResultTp(r, result_tp.mode))
-            assert l_view.link_props == r_view.link_props, "Link props mismatch"
+            assert (
+                l_view.link_props == r_view.link_props
+            ), "Link props mismatch"
             assert (
                 l_view.is_primitive == r_view.is_primitive
             ), "Primitive mismatch"
@@ -345,8 +347,10 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 tp_name = result_tp.target_type_name[0]
             else:
                 tp_name = self.get_type_for_an_id(result_data)
-            converted_link_props = self.convert_sqlite_link_props_to_object_val(
-                link_props, result_tp.link_props
+            converted_link_props = (
+                self.convert_sqlite_link_props_to_object_val(
+                    link_props, result_tp.link_props
+                )
             )
             return e.RefVal(
                 refid=result_data, tpname=tp_name, val=converted_link_props
@@ -355,7 +359,9 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             if result_tp.is_primitive:
                 assert len(result_tp.target_type_name) == 1
                 tp_name = result_tp.target_type_name[0]
-                return e.ScalarVal(tp=e.ScalarTp(name=tp_name), val=result_data)
+                return e.ScalarVal(
+                    tp=e.ScalarTp(name=tp_name), val=result_data
+                )
             else:
                 if len(result_tp.target_type_name) == 1:
                     tp_name = result_tp.target_type_name[0]
@@ -378,7 +384,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             primary_key_spec = f"PRIMARY KEY ({','.join(tspec.primary_key)})"
 
             self.do_execute_query(
-                f"""CREATE TABLE IF NOT EXISTS "{tname}" ({column_spec}, {primary_key_spec}) STRICT, WITHOUT ROWID"""
+                f"CREATE TABLE IF NOT EXISTS '{tname}'"
+                + f" ({column_spec}, {primary_key_spec}) STRICT, WITHOUT ROWID"
             )
 
             for index in tspec.indexes:
@@ -446,7 +453,11 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                             if this_view.is_singular:
                                 return f"({propname} = ?)"
                             else:
-                                return f"(EXISTS (SELECT 1 FROM '{tp_name}.{propname}' WHERE source = id AND target = ?))"
+                                return (
+                                    f"(EXISTS (SELECT 1 FROM '"
+                                    + f"{tp_name}.{propname}"
+                                    + "' WHERE source = id AND target = ?))"
+                                )
                 case e.EdgeDatabaseConjunctiveFilter(conjuncts=filters):
                     if len(filters) == 0:
                         return "(1=1)"
@@ -532,7 +543,10 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             lp_property_names = list(pview.link_props.keys())
             lp_table_name = f"{tp_name}.{prop}"
             if len(lp_property_names) > 0:
-                query = f"SELECT target, {','.join(lp_property_names)} FROM '{lp_table_name}' WHERE source=?"
+                query = (
+                    f"SELECT target, {','.join(lp_property_names)}"
+                    + f" FROM '{lp_table_name}' WHERE source=?"
+                )
             else:
                 query = f"SELECT target FROM '{lp_table_name}' WHERE source=?"
             self.do_execute_query(query, (id,))
@@ -543,7 +557,9 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                 for i, lp_prop_name in enumerate(lp_property_names):
                     lp_vals[lp_prop_name] = row[i + 1]
                 result.append(
-                    self.convert_sqlite_result_to_val(target_id, pview, lp_vals)
+                    self.convert_sqlite_result_to_val(
+                        target_id, pview, lp_vals
+                    )
                 )
             return e.ResultMultiSetVal(result)
         else:
@@ -568,12 +584,26 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                         lp_property_names = list(pview.link_props.keys())
                         lp_table_name = f"{tp_name}.{prop}"
                         if len(lp_property_names) > 0:
-                            query = f"SELECT source, {','.join(lp_property_names)} FROM '{lp_table_name}' WHERE target IN ({','.join(['?']*len(subject_ids))})"
+                            query = (
+                                "SELECT source, "
+                                + ','.join(lp_property_names)
+                                + " FROM '"
+                                + lp_table_name
+                                + "' WHERE target IN ("
+                                + ','.join(['?'] * len(subject_ids))
+                                + ")"
+                            )
                         else:
-                            query = f"SELECT source FROM '{lp_table_name}' WHERE target IN ({','.join(['?']*len(subject_ids))})"
+                            query = (
+                                f"SELECT source FROM '{lp_table_name}' WHERE target IN "
+                                + f"({','.join(['?']*len(subject_ids))})"
+                            )
                     else:
                         lp_property_names = []
-                        query = f"SELECT id FROM '{tp_name}' WHERE {prop} IN ({','.join(['?']*len(subject_ids))})"
+                        query = (
+                            f"SELECT id FROM '{tp_name}' WHERE {prop} IN "
+                            + f"({','.join(['?']*len(subject_ids))})"
+                        )
                     self.do_execute_query(
                         query, [int(id) for id in subject_ids]
                     )
@@ -610,7 +640,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
             convert_val_to_sqlite_val(props[pname]) for pname in single_props
         ]
         self.do_execute_query(
-            f"INSERT INTO {tp_name} (id, {','.join(single_props)}) VALUES (?, {','.join(['?']*len(single_props))})",
+            f"INSERT INTO {tp_name} (id, {','.join(single_props)})"
+            + f" VALUES (?, {','.join(['?']*len(single_props))})",
             (id, *single_prop_vals),
         )
 
@@ -628,7 +659,13 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                             for lp_prop_name in lp_property_names
                         ]
                         self.do_execute_query(
-                            f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
+                            "INSERT INTO '"
+                            + lp_table_name
+                            + "' (source, target, "
+                            + ','.join(lp_property_names)
+                            + f") VALUES (?, ?, "
+                            + ','.join(['?'] * len(lp_property_names))
+                            + ")",
                             (
                                 id,
                                 convert_val_to_sqlite_val(
@@ -706,7 +743,13 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                             for lp_prop_name in lp_property_names
                         ]
                         self.do_execute_query(
-                            f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
+                            "INSERT INTO '"
+                            + lp_table_name
+                            + "' (source, target, "
+                            + ','.join(lp_property_names)
+                            + ") VALUES (?, ?, "
+                            + ','.join(['?'] * len(lp_property_names))
+                            + ")",
                             (
                                 id,
                                 convert_val_to_sqlite_val(

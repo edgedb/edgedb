@@ -105,7 +105,8 @@ def get_default_func_impl_for_function(
                     return default_impl
             case _:
                 raise ValueError(
-                    "Cannot get a default implementaiton for a non-std function",
+                    "Cannot get a default implementaiton"
+                    " for a non-std function",
                     name,
                 )
     else:

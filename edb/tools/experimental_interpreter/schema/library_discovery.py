@@ -32,7 +32,9 @@ def add_ddl_library(schema: e.DBSchema, libpaths: List[str]) -> None:
                 if filename.startswith("_"):
                     continue
                 if filename.endswith(".edgeql"):
-                    process_edgeql_file(schema, os.path.join(libpath, filename))
+                    process_edgeql_file(
+                        schema, os.path.join(libpath, filename)
+                    )
         elif libpath.endswith(".edgeql"):
             process_edgeql_file(schema, libpath)
         else:

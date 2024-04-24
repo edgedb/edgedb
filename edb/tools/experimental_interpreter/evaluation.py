@@ -119,7 +119,9 @@ def eval_order_by(
                 else (
                     True
                     if spec == OrderDescending
-                    else eval_error(cast(Sequence[Val], orders), "unknown spec")
+                    else eval_error(
+                        cast(Sequence[Val], orders), "unknown spec"
+                    )
                 )
             ),
         )
@@ -197,7 +199,9 @@ def singular_proj(
                 if label_str == "id":
                     return e.ResultMultiSetVal([e.UuidVal(id)])
                 elif label_str == "__type__":
-                    print_warning("Introspection is not properly supported yet")
+                    print_warning(
+                        "Introspection is not properly supported yet"
+                    )
                     return e.ResultMultiSetVal(
                         [
                             e.RefVal(
@@ -379,7 +383,6 @@ def eval_expr(ctx: EvalEnv, db: EdgeDatabase, expr: Expr) -> MultiSetVal:
                         RefVal(
                             id,
                             tname,
-                            # ObjectVal({StrLabel(k) : (e.Invisible(), v) for k,v in new_object.items()})
                             ObjectVal(
                                 {
                                     k: (e.Invisible(), v)
@@ -534,7 +537,9 @@ def eval_expr(ctx: EvalEnv, db: EdgeDatabase, expr: Expr) -> MultiSetVal:
             projected = [
                 p
                 for v in subjectv.getVals()
-                for p in singular_proj(ctx, db, v, StrLabel(label)).getRawVals()
+                for p in singular_proj(
+                    ctx, db, v, StrLabel(label)
+                ).getRawVals()
             ]
             return e.ResultMultiSetVal(projected)
         case BackLinkExpr(subject=subject, label=label):
@@ -636,7 +641,9 @@ def eval_expr(ctx: EvalEnv, db: EdgeDatabase, expr: Expr) -> MultiSetVal:
                     apply_shape(ctx, db, shape, v) for v in subjectv.getVals()
                 ]  # type: ignore[misc]
                 for u in cast(Sequence[RefVal], updated):
-                    full_tp = tops.dereference_var_tp(db.get_schema(), u.tpname)
+                    full_tp = tops.dereference_var_tp(
+                        db.get_schema(), u.tpname
+                    )
                     cut_tp = {
                         k: v
                         for (k, v) in full_tp.val.items()
