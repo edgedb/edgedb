@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, cast
 
 import itertools
-from edb import errors
 
 from .data.data_ops import (
     ArrExpr,

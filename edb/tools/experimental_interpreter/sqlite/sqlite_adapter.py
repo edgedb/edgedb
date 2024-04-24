@@ -525,7 +525,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         self.conn.executescript(drop_script + '\n' + dumped_state["dump"])
 
     def next_id(self) -> EdgeID:
-        ## XXX: This is not thread safe
+        # XXX: This is not thread safe
         self.do_execute_query("SELECT id FROM next_id_to_return_gen LIMIT 1")
         id_row = self.cursor.fetchone()
         if id_row is None:
@@ -600,13 +600,13 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                             query = (
                                 f"SELECT source FROM '{lp_table_name}'"
                                 + " WHERE target IN "
-                                + f"({','.join(['?']*len(subject_ids))})"
+                                + f"({','.join(['?'] * len(subject_ids))})"
                             )
                     else:
                         lp_property_names = []
                         query = (
                             f"SELECT id FROM '{tp_name}' WHERE {prop} IN "
-                            + f"({','.join(['?']*len(subject_ids))})"
+                            + f"({','.join(['?'] * len(subject_ids))})"
                         )
                     self.do_execute_query(
                         query, [int(id) for id in subject_ids]
@@ -645,7 +645,7 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
         ]
         self.do_execute_query(
             f"INSERT INTO {tp_name} (id, {','.join(single_props)})"
-            + f" VALUES (?, {','.join(['?']*len(single_props))})",
+            + f" VALUES (?, {','.join(['?'] * len(single_props))})",
             (id, *single_prop_vals),
         )
 

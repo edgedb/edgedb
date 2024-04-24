@@ -393,7 +393,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                         ctx, o, e.ResultTp(subject_tp.tp, e.CardOne)
                     )
                 )
-                (order_result_tp, o_ck) = synthesize_type(
+                (_, o_ck) = synthesize_type(
                     order_ctx, order_body
                 )
                 order_ck = {

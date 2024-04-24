@@ -428,7 +428,7 @@ def update_checking(
         subject_tp, e.NominalLinkTp
     ), "Expecting link type"
     tp_name = subject_tp.name
-    tp_name_ck, full_tp = mops.resolve_raw_name_and_type_def(ctx, tp_name)
+    _, full_tp = mops.resolve_raw_name_and_type_def(ctx, tp_name)
     assert isinstance(full_tp, e.ObjectTp), "Cannot update scalar types"
     assert all(
         isinstance(k, e.StrLabel) for k in update_shape.shape.keys()
