@@ -127,8 +127,8 @@ def map_edge_select_filter(
                 return e.EdgeDatabaseDisjunctiveFilter(new_filters)  # type: ignore[arg-type]
             case e.EdgeDatabaseEqFilter(label, arg):
                 return e.EdgeDatabaseEqFilter(
-                    label, map_edge_select_filter(f, arg)
-                )  # type: ignore[arg-type]
+                    label, map_edge_select_filter(f, arg)  # type: ignore[arg-type]
+                )
             case _:
                 assert not isinstance(expr, e.EdgeDatabaseSelectFilter)  # type: ignore[arg-type]
                 return expr

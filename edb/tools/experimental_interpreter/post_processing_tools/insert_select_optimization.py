@@ -131,8 +131,8 @@ def refine_subject_with_filter(
                 return None
             assert isinstance(after_filter, e.EdgeDatabaseSelectFilter)  # type: ignore
             return_expr: e.Expr = e.QualifiedNameWithFilter(
-                subject, after_filter
-            )  # type: ignore
+                subject, after_filter  # type: ignore
+            )
             for bnd_name, bnd_expr in bindings.items():
                 return_expr = e.WithExpr(
                     bnd_expr, eops.abstract_over_expr(return_expr, bnd_name)

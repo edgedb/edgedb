@@ -721,8 +721,8 @@ class ResultMultiSetVal:
 
     def __post_init__(self):
         if not isinstance(self._vals, list) or not all(
-            isinstance(v, Val) for v in self._vals
-        ):  # type: ignore
+            isinstance(v, Val) for v in self._vals  # type: ignore
+        ):
             raise ValueError("vals must be a list")
 
 

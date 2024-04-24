@@ -577,7 +577,9 @@ def elab_TypeName(qle: qlast.TypeName) -> Tp:
                     elab_single_type_expr(subtype) for subtype in qle.subtypes
                 ]
                 labels = [tp_name.name for tp_name in qle.subtypes]
-                return elab_CompositeTp(basetp, sub_tps, labels)
+                return elab_CompositeTp(
+                    basetp, sub_tps, labels  # type: ignore
+                )
             else:
                 sub_tps = [
                     elab_single_type_expr(subtype) for subtype in qle.subtypes

@@ -250,9 +250,9 @@ def math_mean_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             return [
                 e.ScalarVal(
                     e.ScalarTp(e.QualifiedName(["std", "float64"])),
-                    sum(elem.val for elem in l) / len(l),
+                    sum(elem.val for elem in l) / len(l),  # type: ignore
                 )
-            ]  # type: ignore
+            ]
     raise FunCallErr()
 
 

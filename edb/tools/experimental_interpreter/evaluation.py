@@ -142,7 +142,7 @@ def ctx_extend(
 
 
 def apply_shape(
-    ctx: EvalEnv, db: e.EdgeDatabase, shape: ShapeExpr, value: Val
+    ctx: EvalEnv, db: EdgeDatabase, shape: ShapeExpr, value: Val
 ) -> Val:
     def apply_shape_to_prodval(
         shape: ShapeExpr, objectval: ObjectVal
@@ -467,8 +467,10 @@ def eval_expr(ctx: EvalEnv, db: EdgeDatabase, expr: Expr) -> MultiSetVal:
             assert isinstance(filter_val, e.EdgeDatabaseSelectFilter)  # type: ignore
             all_ids = [
                 RefVal(id, name, ObjectVal({}))
-                for id in db.storage.query_ids_for_a_type(name, filter_val)
-            ]  # type: ignore
+                for id in db.storage.query_ids_for_a_type(
+                    name, filter_val  # type: ignore
+                )
+            ]
             return e.ResultMultiSetVal(all_ids)
 
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):

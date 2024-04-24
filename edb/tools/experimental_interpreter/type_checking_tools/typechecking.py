@@ -313,8 +313,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             else:
                 assert isinstance(intersect_tp, e.RawName)  # type: ignore
                 intersect_tp_name, _ = mops.resolve_raw_name_and_type_def(
-                    ctx, intersect_tp
-                )  # type: ignore
+                    ctx, intersect_tp  # type: ignore
+                )
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.IsTpExpr(subject_ck, intersect_tp_name)
             result_card = subject_tp.mode
@@ -324,8 +324,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 intersect_tp = intersect_tp.name
             assert isinstance(intersect_tp, e.RawName)  # type: ignore
             intersect_tp_name, _ = mops.resolve_raw_name_and_type_def(
-                ctx, intersect_tp
-            )  # type: ignore
+                ctx, intersect_tp  # type: ignore
+            )
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.TpIntersectExpr(subject_ck, intersect_tp_name)
             if all(
