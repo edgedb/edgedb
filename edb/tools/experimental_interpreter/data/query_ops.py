@@ -36,6 +36,7 @@ from .data_ops import (
 
 from . import module_ops as mops
 from . import expr_ops as eops
+from ..interpreter_logging import print_warning
 
 
 class QueryLevel(Enum):
@@ -145,9 +146,14 @@ def map_query(
                     # This is due to named only arguments,
                     # need some time to sort out
                     raise ValueError("Expecting fun_defs [TODO named args]")
-                assert all(
+
+                if not all(
                     [args_mods[0] == args_mod for args_mod in args_mods]
-                ), "Expecting all args_mods to be the same"
+                ):
+                    print_warning(
+                        "Function call with different argument mods",
+                        "Choosing the first one",
+                    )
                 params = resolved_fun_defs[0].tp.args_mod
                 for i in range(len(args)):
                     match params[i]:

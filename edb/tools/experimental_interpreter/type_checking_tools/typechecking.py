@@ -170,7 +170,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     result_expr = e.MultiSetExpr(
                         expr=[
                             name
-                            for name in subtp_resol.find_all_subtypes_of_tp_in_schema( # NoQA
+                            for name in subtp_resol.find_all_subtypes_of_tp_in_schema(  # NoQA
                                 ctx.schema, expr
                             )
                             if not mops.tp_name_is_abstract(name, ctx.schema)
@@ -393,9 +393,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                         ctx, o, e.ResultTp(subject_tp.tp, e.CardOne)
                     )
                 )
-                (_, o_ck) = synthesize_type(
-                    order_ctx, order_body
-                )
+                (_, o_ck) = synthesize_type(order_ctx, order_body)
                 order_ck = {
                     **order_ck,
                     order_label: eops.abstract_over_expr(

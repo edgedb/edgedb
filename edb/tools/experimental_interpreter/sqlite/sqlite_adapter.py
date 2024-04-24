@@ -13,8 +13,8 @@ from ..data import data_ops as e
 from ..elab_schema import add_module_from_sdl_defs
 
 
-# SQLITE_PRINT_QUERIES = True
-SQLITE_PRINT_QUERIES = False
+SQLITE_PRINT_QUERIES = True
+# SQLITE_PRINT_QUERIES = False
 
 
 @dataclass(frozen=True)
