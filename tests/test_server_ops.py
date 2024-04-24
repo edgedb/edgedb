@@ -26,6 +26,7 @@ import http.client
 import json
 import os.path
 import pathlib
+import platform
 import random
 import signal
 import subprocess
@@ -360,8 +361,14 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     await con.aclose()
 
         finally:
-            os.unlink(key_file)
-            os.unlink(cert_file)
+            try:
+                os.unlink(key_file)
+            except FileNotFoundError:
+                pass
+            try:
+                os.unlink(cert_file)
+            except FileNotFoundError:
+                pass
 
     async def test_server_ops_generates_cert_to_default_location(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -489,6 +496,11 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 await cluster.stop()
 
     async def test_server_ops_postgres_multitenant(self):
+        if platform.system() == "Darwin" and platform.machine() == 'x86_64':
+            raise unittest.SkipTest(
+                "Postgres is not getting getting enough shared memory on "
+                "macos-14 GitHub runner by default"
+            )
         async def test(pgdata_path, tenant):
             async with tb.start_edgedb_server(
                 tenant_id=tenant,
