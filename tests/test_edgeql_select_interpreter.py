@@ -785,7 +785,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.'},
                 {
-                    'body': 'We need to be able to render data in tabular format.'
+                    'body': 'We need to be able to render data in tabular format.'  # NoQA
                 },
             ],
         )
@@ -815,7 +815,8 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [
                 {'body': 'Fix regression introduced by lexer tweak.'},
                 {
-                    'body': 'We need to be able to render data in tabular format.'
+                    'body':
+                    'We need to be able to render data in tabular format.'
                 },
             ],
         )
@@ -834,7 +835,8 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
                 {'body': 'Fix regression introduced by lexer tweak.'},
                 {'body': 'Initial public release of EdgeDB.'},
                 {
-                    'body': 'We need to be able to render data in tabular format.'
+                    'body':
+                    'We need to be able to render data in tabular format.'
                 },
             ],
         )
@@ -852,7 +854,8 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
                 {'body': 'Fix regression introduced by lexer tweak.'},
                 {'body': 'Initial public release of EdgeDB.'},
                 {
-                    'body': 'We need to be able to render data in tabular format.'
+                    'body':
+                    'We need to be able to render data in tabular format.'
                 },
             ],
         )
@@ -869,7 +872,8 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.'},
                 {
-                    'body': 'We need to be able to render data in tabular format.'
+                    'body':
+                    'We need to be able to render data in tabular format.'
                 },
             ],
         )
@@ -1734,7 +1738,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
         self.assert_query_result(
             r"""
             WITH
-                L := LogEntry 
+                L := LogEntry
             SELECT
                 (Issue.time_spent_log UNION L, Issue).0 {
                     body
@@ -1783,8 +1787,8 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
         self.assert_query_result(
             r"""
             SELECT
-                (Issue.time_spent_log UNION LogEntry, Issue).0 
-                { 
+                (Issue.time_spent_log UNION LogEntry, Issue).0
+                {
                     body
                 };
             """,
@@ -2061,19 +2065,6 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
                 {'name': 'Elvis'},
             ],
         )
-
-    # THIS SHOULD BE WORKING BUT SOMEHOW ENABLING CARDINALITY CHECKING FAILS test_edgeql_select_interpreter_linkproperty_03
-    # def test_edgeql_select_interpreter_order_04(self):
-    #     with self.assertRaisesRegex(
-    #             edgedb.QueryError,
-    #             r'Order expression must have cardinality (<=1)'
-    #             ):
-
-    #         self.execute("""
-    #             SELECT
-    #                 User { name }
-    #             ORDER BY User.<owner[IS Issue].number;
-    #         """)
 
     def test_edgeql_select_interpreter_where_01(self):
         self.assert_query_result(
