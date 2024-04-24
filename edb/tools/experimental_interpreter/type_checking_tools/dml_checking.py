@@ -247,13 +247,19 @@ def insert_proprerty_checking(
                         e.NamedNominalLinkTp | e.NominalLinkTp,
                     )
                     synth_lp = all_synthesized_tps[0].linkprop.val
-                    assert all(synth_lp == tp.linkprop.val for tp in all_synthesized_tps)  # type: ignore
+                    assert all(
+                        synth_lp == tp.linkprop.val  # type: ignore
+                        for tp in all_synthesized_tps
+                    )
                     assert isinstance(
                         all_target_tps[0],
                         e.NamedNominalLinkTp | e.NominalLinkTp,
                     )
                     ck_lp = all_target_tps[0].linkprop.val
-                    assert all(ck_lp == tp.linkprop.val for tp in all_target_tps)  # type: ignore
+                    assert all(
+                        ck_lp == tp.linkprop.val  # type: ignore
+                        for tp in all_target_tps
+                    )
                     return insert_link_prop_checking(
                         ctx, expr_ck, synth_lp, ck_lp
                     )
@@ -399,7 +405,8 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
 
     # if we are recursing, second time there will not be any dependent keys
     if dependent_keys:
-        # This is a hack because we did not enforce the default expression's types.
+        # This is a hack because we did not
+        # enforce the default expression's types.
         # So we recheck everything at the end.
         # TODO: we should optimize checking
         result_expr = synthesize_type(ctx, result_expr)[1]

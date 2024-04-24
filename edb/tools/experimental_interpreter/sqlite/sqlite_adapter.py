@@ -676,7 +676,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                         )
                     else:
                         self.do_execute_query(
-                            f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
+                            f"INSERT INTO '{lp_table_name}'"
+                            + " (source, target) VALUES (?, ?)",
                             (
                                 id,
                                 convert_val_to_sqlite_val(

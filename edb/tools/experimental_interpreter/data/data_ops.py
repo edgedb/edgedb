@@ -851,7 +851,8 @@ class DBSchema:
     # modules that are currently under type checking
     unchecked_modules: Dict[Tuple[str, ...], DBModule]
 
-    # subtyping_relations: indexed by subtypes, subtype -> immediate super types mapping
+    # subtyping_relations: indexed by subtypes,
+    # subtype -> immediate super types mapping
     subtyping_relations: Dict[QualifiedName, List[QualifiedName]]
     unchecked_subtyping_relations: Dict[
         QualifiedName, List[Tuple[Tuple[str, ...], RawName]]

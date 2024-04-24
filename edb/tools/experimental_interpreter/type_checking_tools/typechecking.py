@@ -244,7 +244,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_tp, result_card = tops.tp_project(
                 ctx, subject_tp, e.StrLabel(label)
             )
-            """ If the projection is a computable expression, project from the subject"""
+            # If the projection is a computable expression, project from the subject
             if isinstance(result_tp, e.ComputableTp):
                 comp_expr = e.WithExpr(subject_ck, result_tp.expr)
                 result_expr = check_type(
@@ -311,7 +311,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 )
             else:
                 assert isinstance(intersect_tp, e.RawName)  # type: ignore
-                intersect_tp_name, _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp)  # type: ignore
+                intersect_tp_name, _ = mops.resolve_raw_name_and_type_def(
+                    ctx, intersect_tp
+                )  # type: ignore
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.IsTpExpr(subject_ck, intersect_tp_name)
             result_card = subject_tp.mode
@@ -320,7 +322,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             if isinstance(intersect_tp, e.UncheckedTypeName):
                 intersect_tp = intersect_tp.name
             assert isinstance(intersect_tp, e.RawName)  # type: ignore
-            intersect_tp_name, _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp)  # type: ignore
+            intersect_tp_name, _ = mops.resolve_raw_name_and_type_def(
+                ctx, intersect_tp
+            )  # type: ignore
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.TpIntersectExpr(subject_ck, intersect_tp_name)
             if all(

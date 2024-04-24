@@ -94,8 +94,10 @@ def check_args_ret_type_match(
                     some_tp_mapping[i] = candidate_tp
                     break
             else:
-                # the refined is used with the test case test_edgeql_select_subqueries_16
-                # where for std::IN, one argument has a link prop and the other do not
+                # the refined is used with the test case
+                # test_edgeql_select_subqueries_16
+                # where for std::IN, one argument has a link prop
+                # and the other do not
                 # I choose to remove the link prop uniformly in this case
                 refined_candidate_tps = [
                     refine_candidate_tp(tp) for tp in candidate_tps
