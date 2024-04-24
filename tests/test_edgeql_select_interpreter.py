@@ -1012,7 +1012,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
 
     def test_edgeql_select_interpreter_limit_10(self):
         with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
+                ValueError,
                 r'LIMIT must not be negative'):
 
             self.execute("""
@@ -1021,7 +1021,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
 
     def test_edgeql_select_interpreter_offset_01(self):
         with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
+                ValueError,
                 r'OFFSET must not be negative'):
 
             self.execute("""
