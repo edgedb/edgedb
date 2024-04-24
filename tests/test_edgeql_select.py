@@ -1474,7 +1474,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             },
         )
 
-    @test.not_implemented('type expressions are not implemented')
     async def test_edgeql_select_polymorphic_07(self):
         await self.assert_query_result(
             r'''

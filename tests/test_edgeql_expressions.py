@@ -9171,11 +9171,10 @@ aa \
             await self.con.query('SELECT <tuple<"">>1;')
 
     async def test_edgeql_typeop_01(self):
-        with self.assertRaisesRegex(
-                edgedb.UnsupportedFeatureError,
-                "type operator '&' is not implemented",
-        ):
-            await self.con.query('select <Named & Owned>{};')
+        await self.assert_query_result(
+            "select <Named & Owned>{};",
+            [],
+        )
 
     async def test_edgeql_typeop_02(self):
         with self.assertRaisesRegex(
