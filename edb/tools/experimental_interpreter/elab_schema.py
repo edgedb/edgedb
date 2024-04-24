@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast, List
 
 from edb.edgeql import ast as qlast
 
-# from .basis.built_ins import all_builtin_funcs
 from .data.data_ops import (CMMode, ObjectTp,
                             ResultTp, Tp)
 from .elaboration import elab_single_type_expr, elab_expr_with_default_head, elab, DEFAULT_HEAD_NAME
@@ -179,8 +178,7 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> Tuple[ObjectTp,
                                             set_field_value))
                                 case _:
                                     print_warning(
-                                        "WARNING: "
-                                        "not implemented "
+                                        "WARNING: not implemented "
                                         "set_field_name",
                                         set_field_name)
                         case _:
@@ -189,11 +187,6 @@ def elab_create_object_tp(commands: List[qlast.DDLOperation]) -> Tuple[ObjectTp,
                                 "implemented pcmd",
                                 pcmd)
                 final_target_type = construct_final_schema_target_tp(base_target_type, link_property_tps)
-                # (
-                #     LinkPropTp(base_target_type,
-                #                ObjectTp(link_property_tps))
-                #     if link_property_tps
-                #     else base_target_type)
                 if p_has_set_default is not None:
                     assert not isinstance(final_target_type,
                                             e.UncheckedComputableTp)
@@ -323,8 +316,6 @@ def elab_schema(existing: e.DBSchema, sdef: qlast.Schema) -> Tuple[str, ...]:
             case _:
                 raise ValueError("TODO", t_decl)
 
-    # module_defs : Dict[str, e.ModuleEntity]= {k: v for k, v in type_defs.items() if k in type_defs}
-    # return (("default",), e.DBModule(module_defs))
     return ("default",)
 
 

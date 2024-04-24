@@ -29,7 +29,6 @@ def check_object_tp_comp_validity(
             resolved_tp = mops.try_resolve_type_name(root_ctx, name_ck)
             if not isinstance(resolved_tp, e.ObjectTp):
                 raise ValueError("Scalar type cannot carry link props", tp_comp)
-            # name_ck = check_type_valid(root_ctx, name)
             return e.NamedNominalLinkTp(
                     name=name_ck,
                     linkprop=check_object_tp_validity(
@@ -53,12 +52,9 @@ def check_object_tp_comp_validity(
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
-            # try:
             c_body = path_factor.select_hoist(c_body, new_ctx)
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
-            # except Exception as exception:
-            #     raise ValueError("Error in type checking computable types", pp.show_tp(tp_comp), exception)
             return e.ComputableTp(
                 expr=eops.abstract_over_expr(c_body_ck, bnd_var),
                 tp=synth_tp.tp)
@@ -93,11 +89,6 @@ def check_object_tp_comp_validity(
             c_body = path_factor.select_hoist(c_body, new_ctx)
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
-            # match c_tp:
-                # case e.LinkPropTp(subject=c_tp_subject, linkprop=_):
-                #     tops.assert_real_subtype(new_ctx, synth_tp.tp,
-                #                              c_tp_subject)
-                # case _:
             tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp_ck)
             return e.DefaultTp(
                 expr=eops.abstract_over_expr(c_body_ck, bnd_var),
@@ -180,25 +171,7 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
     name_res.module_name_resolve(dbschema, module_name)
     inheritance_populate.module_subtyping_resolve(dbschema)
     inheritance_populate.module_inheritance_populate(dbschema, module_name)
-    # dbmodule = dbschema.unchecked_modules[module_name]
     mck.unchecked_module_map(dbschema, module_name, check_object_tp_comp_validity, check_fun_def_validity)
-    # for t_name, t_me in dbmodule.defs.items():
-    #     match t_me:
-    #         case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract):
-    #             if isinstance(typedef, e.ObjectTp):
-    #                 result_vals = {
-    #                     **result_vals,
-    #                     t_name: e.ModuleEntityTypeDef(typedef=
-    #                         check_object_tp_validity(
-    #                             dbschema,
-    #                             module_name,
-    #                             e.NamedNominalLinkTp(name=e.QualifiedName([*module_name,t_name]), linkprop=e.ObjectTp({})),
-    #                             typedef), is_abstract=is_abstract)}
-    #             else:
-    #                 assert isinstance(typedef, e.ScalarTp)
-    #                 result_vals = {**result_vals, t_name: t_me}
-    #         case _:
-    #             raise ValueError("Unimplemented", t_me)
     dbschema.modules[module_name] = dbschema.unchecked_modules[module_name]
     del dbschema.unchecked_modules[module_name]
     return dbschema

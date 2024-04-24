@@ -70,7 +70,6 @@ def default_dbschema() -> DBSchema:
     print("=== Standard library loaded ====")
     return initial_db
 
-    # return DBSchema({("std",): DBModule({k: e.ModuleEntityFuncDef(v) for (k,v) in all_builtin_funcs.items()})},{})
 
 
 def prepare_statement(
@@ -82,14 +81,12 @@ def prepare_statement(
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
         debug.dump_edgeql(stmt)
-        # debug.print("Schema: " + show_schema(dbschema))
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Elaborating")
 
     elaborated = elab(stmt)
 
     if should_print:
         debug.print(show_expr(elaborated))
-        # debug.dump(reverse_elab(elaborated))
         debug.dump_edgeql(reverse_elab(elaborated))
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Preprocessing")
 
@@ -131,8 +128,6 @@ def run_prepared_statement(db: EdgeDatabase,
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
         debug.print(pp.show_multiset_val(result))
-        # print(typed_multi_set_val_to_json_like(
-        #     tp, eops.assume_link_target(result), dbschema))
         print(typed_multi_set_val_to_json_like(tp, result, dbschema))
         print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
     return result
@@ -231,9 +226,6 @@ def repl(*, init_sdl_file=None,
          trace_to_file_path=None,
          sqlite_file=None,
          ) -> None:
-    # if init_sdl_file is not None and read_sqlite_file is not None:
-    #     raise ValueError("Init SDL file and Read SQLite file cannot"
-    #                      " be specified at the same time")
     interpreter_parser_init()
 
     dbschema: DBSchema
@@ -292,9 +284,7 @@ def repl(*, init_sdl_file=None,
             nonlocal s
             print("\nKeyboard Interrupt")
             s = ""
-        # signal.signal( signal.SIGINT, lambda s, f : reset_s())
         while ';' not in s and not s.startswith("\\"):
-            # s += sys.stdin.readline()
             if s:
                 try:
                     s += input("... ")
@@ -314,8 +304,6 @@ def repl(*, init_sdl_file=None,
             else:
                 res = run_str(db, dbschema, s, print_asts=debug_print,
                                     logs=logs)
-                # print("\n".join(json.dumps(multi_set_val_to_json_like(v))
-                #                 for v in res))
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
@@ -358,10 +346,8 @@ class EdgeQLInterpreter:
         disable_cache: bool = False,
     ) -> json_like:
         if not disable_cache and s in self.query_cache:
-            # print("Using cache")
             (query_expr, tp) = self.query_cache[s]
         else:
-            # print(s)
             q = parse_ql(s)
             if len(q) != 1:
                 raise ValueError("Not a single query")

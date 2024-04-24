@@ -96,13 +96,6 @@ def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunA
 
     final_ret_tp = tops.recursive_instantiate_tp(ret_tp, some_tp_mapping)
     return final_ret_tp
-    # if isinstance(ret_tp, e.SomeTp):
-    #     if ret_tp.index in some_tp_mapping:
-    #         return some_tp_mapping[ret_tp.index]
-    #     else:
-    #         raise ValueError("Function's return type has to be grounded by input types.")
-    # else:
-    #     return ret_tp
 
 
 def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp, e.FunAppExpr]:
@@ -112,7 +105,6 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
     match fun_call:
         case e.FunAppExpr(fun=fname, args=args, overloading_index=idx, kwargs=kwargs):
             qualified_fname, fun_defs = mops.resolve_raw_name_and_func_def(ctx, fname)
-            # assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
             if args:
                 [res_tps, args_cks_tuple] = zip(*[tc.synthesize_type(ctx, v) for v in args])
                 [tps_tuple, arg_cards_tuple] = zip(*res_tps)
@@ -236,8 +228,4 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
             raise ValueError("impossible", fun_call)
 
 
-    # result_tp = args_ret_type.ret_tp.tp
-    #         result_expr = e.FunAppExpr(fun=fname, args=arg_cks,
-    #                                     overloading_index=idx)
-    #         return result_tp, result_card, result_expr
 

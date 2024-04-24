@@ -44,27 +44,12 @@ def show_tp(tp: e.Tp | e.RawName) -> str:
                 return f'{kind.value}<{",".join(label + ":" + show_tp(tp) for (label,tp) in zip(labels,tps, strict=True))}>'
             else:
                 return f'{kind.value}<{",".join(show_tp(tp) for tp in tps)}>'
-        # case e.NamedTupleTp(val=tp_val):
-        #     return ('prod(' + ', '.join(
-        #         f'{lbl}: {show_tp(md_tp)}'
-        #         for lbl, md_tp in tp_val.items()) + ')')
-        # case e.UnnamedTupleTp(val=tp_val):
-        #     return ('prod(' + ', '.join(
-        #         f'{show_tp(md_tp)}'
-        #         for md_tp in tp_val) + ')')
         case e.SomeTp(index=index):
             return f'some_{{{index}}}'
         case e.AnyTp(name):
             return 'any' + (name or '')
-        # case e.VarTp(name=name):
-        #     return f'{name}'
-        # case e.UnifiableTp(id=id, resolution=resolution):
-        #     return (f'unifiable_{{{id}}}_as_' +
-        #             (show_tp(resolution) if resolution else 'None'))
         case e.NamedNominalLinkTp(name=name, linkprop=lp_tp):
             return f'{show_raw_name(name)}@{show_tp(lp_tp)}'
-        # case e.UncheckedNamedNominalLinkTp(name=name, linkprop=lp_tp):
-        #     return f'{name}@{show_tp(lp_tp)}'
         case e.NominalLinkTp(name=name, subject=s_tp, linkprop=lp_tp):
             return f'{show_tp(s_tp)}_{show_raw_name(name)}@{show_tp(lp_tp)}'
         case e.UnionTp(left=left, right=right):
@@ -319,10 +304,6 @@ def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
                                    for lbl, el in elems.items()) + ")"
         case e.ArrVal(val=arr):
             return "[" + ", ".join(show_val(el) for el in arr) + "]"
-        # case e.ResultMultiSetVal(_vals=arr):
-        #     return "(multiset val){" + ", ".join(show_val(el) for el in arr) + "}"
-        # case e.ConditionalDedupMultiSetVal(_vals=arr):
-        #     return "(dedup pending){" + ", ".join(show_val(el) for el in arr) + "}"
         case _:
             raise ValueError('Unimplemented', val)
 

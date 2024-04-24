@@ -14,10 +14,6 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
                 temp_obj = eops.link_prop_obj_to_obj(obj_link_prop)
                 after_obj = coerce_to_storage(temp_obj, tp_linkprop)
                 return RefVal(id, tpname, ObjectVal({LinkPropLabel(k):(Visible(), v) for (k,v) in after_obj.items()}))
-            # case LinkPropVal(refid=id,
-            #                  linkprop=linkprop):
-            #     after_obj = coerce_to_storage(linkprop, tp_linkprop)
-            #     return LinkPropVal(id, ObjectVal({StrLabel(k):(Visible(), v) for (k,v) in after_obj.items()}))
             case _:
                 raise ValueError("Cannot Coerce to LinkPropType", val)
     match tp:
@@ -25,8 +21,6 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
             return do_coerce_value_to_linkprop_tp(tp_linkprop=tp_linkprop)
         case e.NominalLinkTp(name=_, subject=_, linkprop=tp_linkprop):
             return do_coerce_value_to_linkprop_tp(tp_linkprop=tp_linkprop)
-        # case e.VarTp():
-        #     return do_coerce_value_to_linkprop_tp(tp_linkprop=ObjectTp({}))
         case e.ScalarTp(_):
             return val
         case e.DefaultTp(expr=_, tp=d_tp):
@@ -75,7 +69,6 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> Dict[str, MultiSetVal]:
                        if StrLabel(k) in val.val.keys()
                        else e.ResultMultiSetVal([]))
         for (k, tp) in fmt.val.items()
-        # if not isinstance(tp.tp, e.ComputableTp)
     }
 
 

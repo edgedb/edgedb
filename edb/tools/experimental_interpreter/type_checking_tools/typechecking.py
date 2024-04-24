@@ -59,60 +59,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
     return ret_tp, result_expr
 
 
-    # s_tp: e.ObjectTp
-    # l_tp: e.ObjectTp
-    # s_name: e.QualifiedName
-
-    # # populate result skeleton
-    # match tp:
-    #     case e.NominalLinkTp(name=name, subject=subject_tp, linkprop=linkprop_tp):
-    #         assert isinstance(name, e.QualifiedName), "should have been resolved"
-    #         l_tp = linkprop_tp
-    #         s_name = name
-    #         if isinstance(subject_tp, e.ObjectTp):
-    #             s_tp = subject_tp
-    #         # elif isinstance(subject_tp, e.VarTp):
-    #         #     s_tp = tops.dereference_var_tp(ctx.schema, subject_tp)
-    #         else:
-    #             raise ValueError("NI", subject_tp)
-    #     case e.NamedNominalLinkTp(name=name, linkprop=linkprop_tp):
-    #         assert isinstance(name, e.QualifiedName), "should have been resolved"
-    #         l_tp = linkprop_tp
-    #         s_name = name
-    #         s_tp = tops.dereference_var_tp(ctx.schema, name)
-    #     case e.ObjectTp(_):
-    #         s_tp = tp
-    #         l_tp = e.ObjectTp({})
-    #         raise ValueError("Cannot get s_name")
-    #     case _:
-    #         raise ValueError("NI", pp.show(tp))
-
-    # for t_lbl, s_comp_tp in s_tp.val.items():
-    #     if e.StrLabel(t_lbl) not in s.shape.keys():
-    #         result_s_tp = e.ObjectTp({**result_s_tp.val,
-    #                                   t_lbl: s_comp_tp})
-
-    # for t_lbl, l_comp_tp in l_tp.val.items():
-    #     if e.LinkPropLabel(t_lbl) not in s.shape.keys():
-    #         result_l_tp = e.ObjectTp({**result_l_tp.val,
-    #                                   t_lbl: l_comp_tp})
-
-    # return e.NominalLinkTp(subject=result_s_tp, name=s_name, linkprop=result_l_tp), result_expr
-
-
 def type_cast_tp(ctx: e.TcCtx, from_tp: e.ResultTp, to_tp: e.Tp) -> e.ResultTp:
-        # match from_tp.tp, from_tp.mode, to_tp:
-        # case e.UnifiableTp(id=_, resolution=None), card, _:
-        #     assert isinstance(from_tp.tp, e.UnifiableTp)  # for mypy
-        #     from_tp.tp.resolution = to_tp
-        #     return e.ResultTp(to_tp, card)
-
-        # case e.IntTp(), card, e.IntTp():
-        #     return e.ResultTp(e.IntTp(), card)
-        # case e.UuidTp(), card, e.StrTp():
-        #     return e.ResultTp(e.StrTp(), card)
-        # case e.IntTp(), card, e.StrTp():
-        #     return e.ResultTp(e.StrTp(), card)
         if (from_tp.tp, to_tp) in ctx.schema.casts:
             return e.ResultTp(to_tp, from_tp.mode)
         else:
@@ -197,7 +144,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 (arg_tp, arg_v) = synthesize_type(ctx, arg)
                 candidate_cast = check_castable(ctx, arg_tp.tp, tp_ck)
                 if candidate_cast is not None:
-                # (result_tp, result_card) = type_cast_tp(ctx, arg_tp, tp_ck)
                     (result_tp, result_card) = (tp_ck, arg_tp.mode)
                     result_expr = e.CheckedTypeCastExpr(
                         cast_tp=(arg_tp.tp, tp_ck),
@@ -221,7 +167,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.UnionExpr(left=l, right=r):
             (l_tp, l_ck) = synthesize_type(ctx, l)
             (r_tp, r_ck) = synthesize_type(ctx, r)
-            # assert l_tp.tp == r_tp.tp, "Union types must match"
             result_tp = tops.construct_tp_union(l_tp.tp, r_tp.tp)
             result_card = l_tp.mode + r_tp.mode
             result_expr = e.UnionExpr(l_ck, r_ck)
@@ -312,7 +257,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_card = subject_tp.mode
             result_tp = e.BoolTp()
         case e.TpIntersectExpr(subject=subject, tp=intersect_tp):
-            # intersect_tp = check_type_valid(ctx, intersect_tp)
             if isinstance(intersect_tp, e.UncheckedTypeName):
                 intersect_tp = intersect_tp.name
             assert isinstance(intersect_tp, e.RawName) # type: ignore
@@ -324,8 +268,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 candidates = []
                 for t in tops.collect_tp_union(subject_tp.tp):
                     assert isinstance(t, e.NamedNominalLinkTp)
-                    # TODO: use real subtp
-                    # if t.subject == e.VarTp(intersect_tp):
                     if t.name == intersect_tp_name:
                         candidates = [*candidates, t]
                 if len(candidates) == 0:
@@ -341,7 +283,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_card = e.CMMode(
                 e.CardNumZero,
                 subject_tp.mode.upper,
-                # subject_tp.mode.multiplicity
             )
         case e.SubqueryExpr(expr=sub_expr):
             (sub_expr_tp, sub_expr_ck) = synthesize_type(ctx, sub_expr)
@@ -371,8 +312,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 order_ctx, order_body, order_bound_var = eops.tcctx_add_binding(
                     ctx, o, e.ResultTp(subject_tp.tp, e.CardOne))
                 (order_result_tp, o_ck) = synthesize_type(order_ctx, order_body)
-                # if order_result_tp.mode.upper == e.CardNumInf:
-                #     raise errors.QueryError("Order expression must have cardinality (<=1) " + pp.show(o_ck))
                 order_ck = {**order_ck, order_label : eops.abstract_over_expr(o_ck, order_bound_var)}
 
             assert eops.is_effect_free(filter), "Expecting effect-free filter"
@@ -381,7 +320,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             (_, filter_ck) = check_type_no_card(
                 filter_ctx, filter_body, e.BoolTp())
 
-            # assert tops.is_order_spec(order_tp), "Expecting order spec"
 
             result_expr = e.FilterOrderExpr(
                 subject_ck,
@@ -397,7 +335,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 result_card = e.CMMode(
                     e.CardNumZero,
                     subject_tp.mode.upper
-                    # subject_tp.mode.multiplicity
                 )
         case e.OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
@@ -424,18 +361,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_card = e.CMMode(
                 e.CardNumZero,
                 upper_card_bound,
-                # subject_tp.mode.multiplicity
             )
 
-            # if isinstance(limit_ck, e.IntVal):
-            #     lim_num = limit_ck.val
-            #     result_card = e.CMMode(
-            #         e.CardNumZero,
-            #         e.min_cardinal(result_card.upper,
-            #                        e.CardNumInf if lim_num > 1 else
-            #                        (e.CardNumOne if lim_num == 0 else e.CardNumZero)),
-            #         # e.min_cardinal(result_card.multiplicity, e.Fin(lim_num))
-            #         )
         case e.InsertExpr(name=_, new=arg):
             result_expr = insert_checking(ctx, expr)
             assert isinstance(result_expr, e.InsertExpr) and isinstance(result_expr.name, e.QualifiedName)
@@ -459,13 +386,10 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 ctx, condition, e.ScalarTp(e.QualifiedName(["std","bool"])))
             then_tp, then_ck = synthesize_type(ctx, then_branch)
             else_tp, else_ck = synthesize_type(ctx, else_branch)
-            # TODO: should we check if they are the same?
             result_tp = tops.construct_tp_union(then_tp.tp, else_tp.tp)
             result_card = e.CMMode(
                 e.min_cardinal(then_tp.mode.lower, else_tp.mode.lower),
                 e.max_cardinal(then_tp.mode.upper, else_tp.mode.upper),
-                # e.max_cardinal(then_tp.mode.multiplicity,
-                #                else_tp.mode.multiplicity)
             )
             result_expr = e.IfElseExpr(
                     then_branch=then_ck,
@@ -530,9 +454,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_card = reduce(operator.mul, rest_card,
                                  first_tp.mode)  # type: ignore[arg-type]
         case e.MultiSetExpr(expr=arr):
-            # if len(arr) == 0:
-                # return (e.ResultTp(e.UnifiableTp(e.next_id()),
-                #                    e.CardAtMostOne), expr)  # this is a hack
             if len(arr) == 0:
                 raise ValueError("Empty multiset does not support type synthesis")
             (first_tp, first_ck) = synthesize_type(ctx, arr[0])
@@ -552,18 +473,10 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case _:
             raise ValueError("Not Implemented", expr)
 
-    # enforce singular
-    # result_expr = enforce_singular(result_expr)
-    # check integrity
     if isinstance(result_tp, e.ObjectTp):
         raise ValueError("Must return NominalLinkTp instead of object tp", expr, result_tp)
     if isinstance(result_tp, e.UncheckedTypeName):
         raise ValueError("Must not return UncheckedTypeName", expr, result_tp)
-
-
-    # Comment this safety check to improve type checking performance
-    # if eops.appears_in_expr_pred(lambda x: isinstance(x, e.UncheckedTypeName), result_tp):
-    #     raise ValueError("Unchecked type name in result", result_tp)
 
     return (e.ResultTp(result_tp, result_card), result_expr)
 
@@ -611,17 +524,10 @@ def check_type_no_card(ctx: e.TcCtx, expr: e.Expr,
 
 
 
-            # if tops.is_real_subtype(expr_tp.tp, tp):
-            #     return (expr_tp.mode, expr_ck)
-            # else:
-            # raise ValueError("Type mismatch, ", expr_tp, "is not a sub"
-            #                  "type of ", tp, "when checking", expr)
-
 
 def check_type(ctx: e.TcCtx, expr: e.Expr, tp: e.ResultTp, with_assignment_cast: bool = False) -> e.Expr:
     synth_mode, expr_ck = check_type_no_card(ctx, expr, tp.tp, with_assignment_cast)
     tops.assert_cardinal_subtype(synth_mode, tp.mode)
-    # ( "Expecting cardinality %s, got %s" % (tp.mode, synth_mode))
     return expr_ck
 
 

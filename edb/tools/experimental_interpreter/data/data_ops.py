@@ -5,13 +5,6 @@ from dataclasses import dataclass
 
 from enum import Enum
 
-# to use when we move to 3.11
-# and https://peps.python.org/pep-0681/ is implemented in mypy
-# https://github.com/python/mypy/issues/14293
-# @dataclass_transformer
-# def data(f):
-#     return dataclass(f, frozen=True)
-
 
 # LABELS
 
@@ -54,55 +47,6 @@ def UuidTp():
 
 
 
-# @dataclass(frozen=True)
-# class StrTp:
-#     pass
-
-
-# @dataclass(frozen=True)
-# class BoolTp:
-#     pass
-
-
-# @dataclass(frozen=True)
-# class IntTp:
-#     pass
-
-
-# @dataclass(frozen=True)
-# class IntInfTp:
-#     pass
-
-
-# @dataclass(frozen=True)
-# class DateTimeTp:
-#     pass
-
-
-# @dataclass(frozen=True)
-# class JsonTp:
-#     pass
-
-# @dataclass(frozen=True)
-# class UuidTp:
-#     pass
-
-
-# PrimTp = StrTp | IntTp | IntInfTp | BoolTp | DateTimeTp | JsonTp | UuidTp |
-# ScalarTp
-
-
-# @dataclass(frozen=True)
-# class VarTp:
-#     name: str
-
-
-
-
-
-# @dataclass(frozen=True)
-# class UnnamedTupleTp:
-#     val: Sequence[Tp]
 
 class TpCastKind(Enum):
     Implicit = "implicit" # implicit includes assignment
@@ -135,9 +79,6 @@ class CompositeTp:
         if not isinstance(self.labels, list):
             raise ValueError("labels must be a list")
 
-# @dataclass(frozen=True)
-# class TupleTp:
-#     tps: List[Tp]
 def ArrTp(tp: Tp):
     return CompositeTp(CompositeTpKind.Array, [tp], [])
 
@@ -182,10 +123,6 @@ class NamedNominalLinkTp:
 class UncheckedTypeName:
     name: RawName
 
-# @dataclass(frozen=True)
-# class UncheckedNamedNominalLinkTp:
-#     name: str
-#     linkprop: ObjectTp
 
 @dataclass(frozen=True)
 class NominalLinkTp:
@@ -233,18 +170,11 @@ class SomeTp:
     index: int
 
 
-# implementation trick for synthesizing the empty type
-# @dataclass
-# class UnifiableTp:
-#     id: int
-#     resolution: Optional[Tp] = None
 
 
 Tp = (ObjectTp | NamedNominalLinkTp  | NominalLinkTp | ScalarTp | UncheckedTypeName
       | CompositeTp | AnyTp | SomeTp | UnionTp | IntersectTp  | OverloadedTargetTp
-    #   | UnifiableTp
       | ComputableTp | DefaultTp | UncheckedComputableTp
-    #   | UncheckedNamedNominalLinkTp
       )
 
 
@@ -348,11 +278,6 @@ def min_cardinal(a: Cardinal, b: Cardinal):
 class CMMode:
     lower: LowerCardinal
     upper: UpperCardinal
-    # multiplicity: Cardinal = None  # type: ignore
-
-    # def __post_init__(self):
-    #     if self.multiplicity is None:
-    #         object.__setattr__(self, 'multiplicity', self.upper)
 
     def __add__(self, other: CMMode):
         new_lower = self.lower + other.lower
@@ -365,13 +290,11 @@ class CMMode:
                       self.upper * other.upper)
 
 
-# CardZero = CMMode(CardNumZero, CardNumZero)
 CardOne = CMMode(CardNumOne, CardNumOne)
 CardAtMostOne = CMMode(CardNumZero, CardNumOne)
 CardAtLeastOne = CMMode(CardNumOne, CardNumInf)
 CardAny = CMMode(CardNumZero, CardNumInf)
 
-# ResultTp = Tuple[Tp, CMMode]
 
 
 class ResultTp(NamedTuple):
@@ -407,38 +330,6 @@ class FunArgRetType:
     ret_tp: ResultTp
 
 
-# @dataclass(frozen=True)
-# class FunType:
-#     args_ret_types: List[FunArgRetType]
-    # effect_free: bool = False
-
-# DEFINE PRIM VALUES
-
-
-# @dataclass(frozen=True, order=True)
-# class StrVal:
-#     val: str
-
-
-# @dataclass(frozen=True, order=True)
-# class IntVal:
-#     val: int
-
-
-# @dataclass(frozen=True)
-# class DateTimeVal:
-#     val: str
-
-
-# @dataclass(frozen=True)
-# class JsonVal:
-#     val: str
-
-
-# @dataclass(frozen=True)
-# class FunVal:
-#     fname: str
-
 @dataclass(frozen=True, order=True)
 class ScalarVal:
     tp: ScalarTp
@@ -467,18 +358,6 @@ def UuidVal(val: EdgeID):
 
 
 
-# @dataclass(frozen=True)
-# class IntInfVal:
-#     """ the infinite integer, used as the default value for limit """
-#     pass
-
-
-# @dataclass(frozen=True)
-# class BoolVal:
-#     val: bool
-
-
-# PrimVal = (Scalar)
 
 # DEFINE EXPRESSIONS
 
@@ -519,9 +398,6 @@ class FunAppExpr:
     kwargs: Dict[str, Expr]
 
 
-# @dataclass(frozen=True)
-# class ObjectExpr:
-#     val: Dict[Label, Expr]
 
 @dataclass(frozen=True)
 class FreeObjectExpr:
@@ -598,10 +474,6 @@ class LinkPropProjExpr:
 class SubqueryExpr:  # select e in formalism
     expr: Expr
 
-
-# @dataclass(frozen=True)
-# class SingularExpr:  # select e in formalism
-#     expr: Expr
 
 
 @dataclass(frozen=True)
@@ -688,10 +560,6 @@ class UpdateExpr:
 class DeleteExpr:
     subject: Expr
 
-# @dataclass(frozen=True)
-# class RefIdExpr:
-#     refid : int
-
 
 @dataclass(frozen=True)
 class ShapedExprExpr:
@@ -727,16 +595,6 @@ class ArrExpr:
 
 # VALUES
 
-# @dataclass(frozen=True)
-# class BinProdVal:
-#     label : str
-#     marker : Marker
-#     this : Val
-#     next : DictVal
-
-# @dataclass(frozen=True)
-# class BinProdUnitVal:
-#     pass
 
 
 @dataclass(frozen=True)
@@ -753,10 +611,6 @@ class ObjectVal:
                 raise ValueError("label must be a Label")
 
 
-# @dataclass(frozen=True)
-# class FreeVal:
-#     val: ObjectVal
-
 
 @dataclass(frozen=True)
 class RefVal:
@@ -769,18 +623,6 @@ class RefVal:
             raise ValueError("val must be an ObjectVal")
         if not isinstance(self.tpname, QualifiedName):
             raise ValueError("tpname must be a QualifiedName")
-
-# @dataclass(frozen=True)
-# class RefLinkVal:
-#     from_id : int
-#     to_id : int
-#     val : ObjectVal
-
-
-# @dataclass(frozen=True)
-# class LinkWithPropertyVal:
-#     subject : Val
-#     link_properties : Val
 
 @dataclass(frozen=True, order=True)
 class UnnamedTupleVal:
@@ -797,14 +639,8 @@ class ArrVal:
     val: Sequence[Val]
 
 
-# @dataclass(frozen=True)
-# class LinkPropVal:
-#     refid: int
-#     linkprop: ObjectVal
 
 
-# TODO: Check the eval_order_by code to make sure
-# emptyfirst/emptylast is handled correctly
 @dataclass(frozen=True, order=True)
 class ResultMultiSetVal:
     _vals: Sequence[Val]
@@ -821,25 +657,12 @@ class ResultMultiSetVal:
             raise ValueError("vals must be a list")
 
 
-# @dataclass(frozen=True, order=True)
-# class ConditionalDedupMultiSetVal:
-#     _vals: Sequence[Val]
-
-#     def getVals(self) -> Sequence[Val]:
-#         from . import expr_ops as eops
-#         if all(isinstance(v, RefVal) for v in self._vals):
-#             return eops.object_dedup(self._vals)
-#         return self._vals
-
-#     def getRawVals(self) -> Sequence[Val]:
-#         return self._vals
 
 MultiSetVal = ResultMultiSetVal
 
 
 Val = (ScalarVal | RefVal | UnnamedTupleVal | NamedTupleVal | ArrVal )
 
-# MultiSetVal = Sequence[Val]
 
 VarExpr = (FreeVarExpr | BoundVarExpr)
 
@@ -849,10 +672,8 @@ Expr = (
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr | QualifiedNameWithFilter |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
     FreeObjectExpr | ConditionalDedupExpr | TupleProjExpr |  IsTpExpr |
-    # ObjectExpr |
     BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr | ParameterExpr |
     ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr
-    #   | SingularExpr
     | IfElseExpr | DeleteExpr| QualifiedName)
 
 
@@ -865,7 +686,6 @@ class DBEntry:
 @dataclass(frozen=True)
 class DB:
     dbdata: Dict[int, DBEntry]
-    # subtp : Sequence[Tuple[TypeExpr, TypeExpr]]
 
 
 @dataclass(frozen=True)
@@ -919,7 +739,6 @@ class DBModule:
 
 ModuleName = Tuple[str, ...]
 @dataclass(frozen=True)
-# @dataclass
 class DBSchema:
     modules : Dict[Tuple[str, ...], DBModule]
     unchecked_modules : Dict[Tuple[str, ...], DBModule] # modules that are currently under type checking
@@ -928,18 +747,6 @@ class DBSchema:
     casts: Dict[Tuple[Tp, Tp], TpCast]
 
 
-
-
-
-# RT Stands for Run Time
-
-
-# @dataclass(frozen=True)
-# class RTData:
-#     cur_db: DB
-#     read_snapshots: Sequence[DB]
-#     schema: DBSchema
-#     eval_only: bool  # a.k.a. no DML, no effect
 
 
 class RTExpr(NamedTuple):
@@ -958,15 +765,6 @@ class TcCtx:
     current_module: Tuple[str, ...] # current module name, TODO: nested modules
     varctx: Dict[str, ResultTp]
 
-
-
-class SubtypingMode(Enum):
-    # Regular subtyping do not allow missing keys or additional keys
-    Regular = 1
-    # insert subtyping allow missing keys in subtypes of an object type
-    Insert = 2
-    # shape subtyping allow additional keys in subtypes of an object type
-    Shape = 3
 
 
 starting_id = 0
@@ -997,4 +795,3 @@ IndirectionIndexOp = "_[_]"
 IndirectionSliceStartStopOp = "_[_:_]"
 IndirectionSliceStartOp = "_[_:]"
 IndirectionSliceStopOp = "_[:_]"
-# IfElseOp = "std::IF:_if_else_"

@@ -13,7 +13,6 @@ from edb.schema import pointers as s_pointers
 from edb.schema.pointers import PointerDirection
 from . import interpreter_logging as i_logging
 
-# from .basis.built_ins import all_builtin_funcs, all_std_funcs
 from .data import data_ops as e
 from .data.data_ops import (
     ArrExpr, BackLinkExpr, BindingExpr, BoolVal, BoundVarExpr,
@@ -29,7 +28,6 @@ from .data.data_ops import (
 from .data.expr_ops import (abstract_over_expr, instantiate_expr, is_path,
                             subst_expr_for_expr)
 from .data import expr_ops as eops
-# from .shape_ops import shape_to_expr
 
 DEFAULT_HEAD_NAME = "___nchsxx_"
 # used as the name for the leading dot notation!
@@ -86,8 +84,6 @@ def elab_IsTp(oper: qlast.IsOp) -> e.IsTpExpr:
         raise ValueError("Unknown Op Name for IsTp", oper.op)
     if isinstance(oper.right, qlast.TypeName):
         right = elab_TypeName(oper.right)
-        # if not isinstance(right, e.UncheckedTypeName):
-        #     raise ValueError("Expecting a type name here", right, oper.right)
     else:
         raise ValueError("Expecting a type name here")
     left = elab(oper.left)
@@ -239,10 +235,8 @@ def elab_ShapedExpr(shape: qlast.Shape) -> ShapedExprExpr:
 
 @elab.register(qlast.InsertQuery)
 def elab_InsertQuery(expr: qlast.InsertQuery) -> InsertExpr:
-    # debug.dump(expr)
     subject_type = expr.subject.name
     object_shape = elab_Shape(expr.shape)
-    # object_expr = shape_to_expr(object_shape)
     unshaped = {}
     for (k,v) in object_shape.shape.items():
         if not isinstance(k, StrLabel):
@@ -277,38 +271,6 @@ def elab_Constant(expr: qlast.Constant) -> e.ScalarVal:
             raise ValueError("Unknown Constant Kind", expr.kind)
 
 
-
-# @elab.register(qlast.StringConstant)
-# def elab_StringConstant(e: qlast.StringConstant) -> StrVal:
-#     return StrVal(val=e.value)
-
-
-# @elab.register(qlast.IntegerConstant)
-# def elab_IntegerConstant(e: qlast.IntegerConstant) -> IntVal:
-#     abs_val = int(e.value)
-#     if e.is_negative:
-#         abs_val = -abs_val
-#     return IntVal(val=abs_val)
-
-
-# @elab.register(qlast.FloatConstant)
-# def elab_FloatConstant(expr: qlast.FloatConstant) -> e.ScalarVal:
-#     abs_val = float(expr.value)
-#     if expr.is_negative:
-#         abs_val = -abs_val
-#     return e.ScalarVal(tp=e.ScalarTp(e.QualifiedName(["std", "float64"])), val=abs_val)
-
-# @elab.register(qlast.BooleanConstant)
-# def elab_BooleanConstant(e: qlast.BooleanConstant) -> BoolVal:
-#     match e.value:
-#         case "True" | "true":
-#             return BoolVal(val=True)
-#         case "False" | "false":
-#             return BoolVal(val=False)
-#         case _:
-#             raise ValueError("Unknown Bool Value", e)
-
-
 def elab_where(where: Optional[qlast.Expr]) -> BindingExpr:
     if where is None:
         return abstract_over_expr(BoolVal(True))
@@ -318,12 +280,9 @@ def elab_where(where: Optional[qlast.Expr]) -> BindingExpr:
 
 def elab_orderby(qle: Optional[Sequence[qlast.SortExpr]]) -> Dict[str, BindingExpr]:
     if qle is None:
-        # return abstract_over_expr(ObjectExpr({}))
         return {}
     result: Dict[str, Expr] = {}
     for (idx, sort_expr) in enumerate(qle):
-        # if sort_expr.nones_order is not None:
-        #     raise elab_not_implemented(sort_expr)
 
         empty_label = (e.OrderEmptyFirst if sort_expr.nones_order == qlast.NonesOrder.First or sort_expr.nones_order is None
                           else e.OrderEmptyLast if sort_expr.nones_order == qlast.NonesOrder.Last
@@ -359,8 +318,6 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
                     if qle.limit is not None else e.MultiSetExpr([]),)))
     else:
         subject_elab = elab(qle.result)
-        # if isinstance(subject_elab, FreeVarExpr):
-        #     subject_elab = e.ShapedExprExpr(expr=subject_elab, shape=ShapeExpr({})) # if selecting only a variable, we need to add an empty shape to shadow the
         filter_elab = elab_where(qle.where)
         order_elab = elab_orderby(qle.orderby)
         if qle.result_alias is not None:
@@ -372,10 +329,6 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
             order_elab = {l: abstract_over_expr(instantiate_expr(
                 alias_var, o), qle.result_alias) for (l,o) in order_elab.items()}
         else:
-            # abstract over if subject is a path
-            # and select does not have an alias
-            # Review the design here:
-            # https://edgedb.slack.com/archives/C04JG7CR04T/p1677711136147779
             def path_abstraction(subject: Expr) -> None:
                 nonlocal filter_elab, order_elab
                 match subject:
@@ -421,11 +374,6 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
     else:
         assert type(fcall.func) is tuple
         fname = e.QualifiedName(list(fcall.func))
-            # #     if fcall.func in all_builtin_funcs.keys()
-            #     e.QualifiedName(["std", fcall.func])
-            #     if ( fcall.func) in all_std_funcs.keys()
-            #     else elab_error("unknown function name: " +
-            #                     fcall.func, fcall.span))
     args = [elab(arg) for arg in fcall.args]
     kwargs = {k: elab(v) for (k,v) in fcall.kwargs.items()}
     return FunAppExpr(fname, None, args, kwargs)
@@ -433,12 +381,9 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
 
 @elab.register
 def elab_UnaryOp(uop: qlast.UnaryOp) -> FunAppExpr:
-    # if uop.op in all_builtin_funcs.keys():
     return FunAppExpr(
         fun=e.UnqualifiedName(uop.op), args=[elab(uop.operand)],
         overloading_index=None, kwargs={})
-    # else:
-    #     raise ValueError("Unknown Op Name", uop.op)
 
 
 @elab.register(qlast.BinOp)
@@ -450,12 +395,9 @@ def elab_BinOp(binop: qlast.BinOp) -> FunAppExpr | UnionExpr:
     if binop.op == "UNION":
         return UnionExpr(left_expr, right_expr)
     else:
-        # if binop.op in all_builtin_funcs.keys():
         return FunAppExpr(
             fun=e.UnqualifiedName(binop.op), args=[left_expr, right_expr],
             overloading_index=None, kwargs={})
-        # else:
-        #     raise ValueError("Unknown Op Name", binop.op)
 
 
 def elab_param_modifier(mod: qltypes.TypeModifier) -> e.ParamModifier:
@@ -471,24 +413,14 @@ def elab_param_modifier(mod: qltypes.TypeModifier) -> e.ParamModifier:
 
 
 def elab_single_type_str(name: str, module_name: Optional[str]) -> Tp:
-    match name:
-        # case "int64":
-        #     return IntTp()
-        # case "str":
-        #     return StrTp()
-        # case "datetime":
-        #     return DateTimeTp()
-        # case "json":
-        #     return JsonTp()
-        case _:
-            if name.startswith("any") and module_name is None:
-                return e.AnyTp(name[3:])
-            else:
-                if module_name:
-                    assert "::" not in module_name
-                    return e.UncheckedTypeName(e.QualifiedName([module_name, name]))
-                else:
-                    return e.UncheckedTypeName(e.UnqualifiedName(name))
+    if name.startswith("any") and module_name is None:
+        return e.AnyTp(name[3:])
+    else:
+        if module_name:
+            assert "::" not in module_name
+            return e.UncheckedTypeName(e.QualifiedName([module_name, name]))
+        else:
+            return e.UncheckedTypeName(e.UnqualifiedName(name))
 
 
 def elab_CompositeTp(basetp: qlast.ObjectRef, sub_tps: List[Tp], labels=[]) -> Tp:

@@ -4,7 +4,6 @@ from typing import Any, List, Optional, Sequence, Dict
 from edb.edgeql import ast as qlast
 from edb.schema.pointers import PointerDirection
 
-# from .basis.built_ins import all_builtin_ops
 from .data.data_ops import (ArrExpr, BackLinkExpr, DetachedExpr, Expr, FilterOrderExpr, ForExpr,
                             FreeVarExpr, FunAppExpr, InsertExpr,
                             Label, LinkPropLabel,
@@ -98,21 +97,18 @@ def reverse_elab_type_name(tp: Tp | e.RawName) -> qlast.TypeName:
 
 
 def reverse_elab_order(order: Dict[str, Expr]) -> Optional[List[qlast.SortExpr]]:
-    # if isinstance(order, ObjectExpr):
-        keys = sorted([(idx, spec, k) for k in order.keys()
-                      for [idx, spec, empty_spec] in [k.split(OrderLabelSep)]])
-        if len(keys) == 0:
-            return None
-        return [qlast.SortExpr(path=reverse_elab(order[k]),
-                               direction=(
-            qlast.SortOrder.Asc if spec == OrderAscending else
-            qlast.SortOrder.Desc if spec == OrderDescending else
-            reverse_elab_error("unknown direction " + spec, order[k])
-        ))
-            for (idx, spec, k) in keys
-        ]
-    # else:
-    #     return [qlast.SortExpr(path=reverse_elab(order))]
+    keys = sorted([(idx, spec, k) for k in order.keys()
+                    for [idx, spec, empty_spec] in [k.split(OrderLabelSep)]])
+    if len(keys) == 0:
+        return None
+    return [qlast.SortExpr(path=reverse_elab(order[k]),
+                            direction=(
+        qlast.SortOrder.Asc if spec == OrderAscending else
+        qlast.SortOrder.Desc if spec == OrderDescending else
+        reverse_elab_error("unknown direction " + spec, order[k])
+    ))
+        for (idx, spec, k) in keys
+    ]
 
 
 def reverse_elab_object_val(val: ObjectVal) -> qlast.Expr:
@@ -156,14 +152,6 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case RefVal(_):
             return qlast.Constant.string(
                 value=str("<REFVAL, TODO: UUID_CASTING>"))
-        # case LinkPropVal(_):
-        #     return qlast.StringConstant(value=str("<TODO: LINK_PROP_VAL>"))
-        # case FreeVal(val=val):
-        #     return reverse_elab_object_val(val)
-        # case ObjectExpr(val=_):
-        #     return qlast.Shape(expr=None,
-        #                        elements=reverse_elab_shape(
-        #                            object_to_shape(ir_expr)))
         case InsertExpr(name=tname, new=arg):
             return qlast.InsertQuery(subject=reverse_elab_raw_name(tname),
                                      shape=reverse_elab_shape(
@@ -202,13 +190,6 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case e.UnqualifiedName(name=name):
             return qlast.Path(steps=[reverse_elab_raw_name(ir_expr)])
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
-            # if (isinstance(fname, e.QualifiedName)
-            #     and fname.names[0] == "std"
-            #     and fname.names[1] in all_builtin_ops.keys() and len(args) == 2):
-            #     return qlast.BinOp(
-            #         op=show_raw_name(fname), left=reverse_elab(args[0]),
-            #         right=reverse_elab(args[1]))
-            # else:
             return qlast.FunctionCall(func=show_raw_name(fname),
                                         args=[reverse_elab(arg)
                                             for arg in args])

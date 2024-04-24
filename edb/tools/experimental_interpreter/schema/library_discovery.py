@@ -43,4 +43,3 @@ def add_ddl_library(
         else:
             raise ValueError(f"Invalid library path {libpath}")
 
-    # return schema

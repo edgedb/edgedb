@@ -100,6 +100,5 @@ def get_default_func_impl_for_cast(
         from_tp: e.Tp, to_tp: e.Tp) -> Callable[[e.Val], e.Val]:
     def default_impl(arg: e.Val) -> e.Val:
         return type_cast(to_tp, arg)
-        # raise ValueError("Not implemented: cast ", from_tp, to_tp)
     return default_impl
 

@@ -109,15 +109,6 @@ def process_ddl(
                  e.TpCastKind.Explicit),
                  cast_impl
                 ) # TODO implicit cast
-            # match from_tp, to_tp:
-            #     case e.UncheckedTypeName(name=from_name), e.UncheckedTypeName(name=to_name):
-            #         assert isinstance(from_name, e.QualifiedName)
-            #         assert isinstance(to_name, e.QualifiedName)
-            #         if from_name not in schema.casts:
-            #             schema.casts[from_name] = []
-            #         schema.casts[from_name].append(to_name)
-            #     case _:
-            #         raise ValueError("TODO", from_tp, to_tp)
         case qlast.CreateConstraint():
             print_warning("WARNING: not supported yet", ddl)
         case qlast.CreateProperty():

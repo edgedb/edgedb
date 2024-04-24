@@ -34,7 +34,6 @@ def construct_tps_union(tps: List[e.Tp]) -> e.Tp:
 
 
 def collect_tp_intersection(tp1: e.Tp) -> List[e.Tp]:
-    # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
     match tp1:
         case e.IntersectTp(left=tp1, right=tp2):
             return collect_tp_intersection(tp1) + collect_tp_intersection(tp2)
@@ -42,7 +41,6 @@ def collect_tp_intersection(tp1: e.Tp) -> List[e.Tp]:
             return [tp1]
 
 def collect_tp_union(tp1: e.Tp) -> List[e.Tp]:
-    # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
     match tp1:
         case e.UnionTp(left=tp1, right=tp2):
             return collect_tp_union(tp1) + collect_tp_union(tp2)
@@ -52,7 +50,6 @@ def collect_tp_union(tp1: e.Tp) -> List[e.Tp]:
 
 def is_nominal_subtype_in_schema(ctx: e.TcCtx | e.DBSchema,
         subtype: e.QualifiedName, supertype: e.QualifiedName):
-    # TODO: properly implement
     if subtype == supertype:
         return True
     else:
@@ -77,20 +74,6 @@ def dereference_var_tp(dbschema: e.DBSchema, qn: e.QualifiedName) -> e.ObjectTp:
     resolved = mops.resolve_type_name(dbschema, qn)
     assert isinstance(resolved, e.ObjectTp)
     return resolved
-    # if tp.name in dbschema.val:
-    #     res = get_runtime_tp(dbschema.val[tp.name])
-    #     assert isinstance(res, e.ObjectTp)
-    #     return res
-    # else:
-    #     raise ValueError("Type not found")
-
-
-# def assert_insert_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp) -> None:
-#     assert_real_subtype(ctx, tp1, tp2, subtyping_mode=e.SubtypingMode.Insert)
-
-
-# def assert_shape_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp) -> None:
-#     assert_real_subtype(ctx, tp1, tp2, subtyping_mode=e.SubtypingMode.Shape)
 
 
 def assert_real_subtype(
@@ -194,14 +177,7 @@ def type_subtyping_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
                 else:
                     return all(recurse(ctx, tp1, tp2) for tp1, tp2 in zip(tps1, tps2))
 
-            # For debugging Purposes
-            # case ((e.ArrTp(_), e.StrTp())
-            #       | (e.ArrTp(_), e.IntTp())
-            #       ):
-            #     raise ValueError("not subtype", tp1, tp2)
             case _:
-                # print("Not Implemented Subtyping Check:",
-                #       show_tp(tp1), show_tp(tp2))
                 return False
         raise ValueError("should not be reachable, check if returns are missing?", tp1, tp2)
 
@@ -340,18 +316,14 @@ def tp_is_primitive(tp: e.Tp) -> bool:
             return True
         case (e.ObjectTp(_)
               | e.SomeTp(_)
-            #   | e.UnifiableTp(_)
               | e.NamedNominalLinkTp(_)
               | e.NominalLinkTp(_)
-            #   | e.VarTp(_)
-            #   | e.UnnamedTupleTp(_)
               | e.AnyTp()
               ):
             return False
         case (e.UnionTp(left=left_tp, right=right_tp)
               | e.IntersectTp(left=left_tp, right=right_tp)
               ):
-            # return tp_is_primitive(left_tp) and tp_is_primitive(right_tp)
             return False  # this case is actually ambiguous
         case e.ComputableTp(tp=under_tp, expr=_):
             return tp_is_primitive(under_tp)
@@ -370,7 +342,6 @@ def match_param_modifier(p : e.ParamModifier, m : e.CMMode) -> e.CMMode:
         case e.ParamOptional():
             return e.CMMode(e.max_cardinal(e.CardNumOne, m.lower),
                             e.max_cardinal(e.CardNumOne, m.upper),
-                            # e.max_cardinal(e.Fin(1), m.multiplicity)
                             )
         case e.ParamSetOf():
             return e.CardOne
@@ -384,8 +355,6 @@ def is_order_spec(tp: e.ResultTp) -> bool:
 
 def is_tp_projection_tuple_proj(tp: e.Tp) -> bool:
     match tp:
-        # case e.NamedTupleTp(val=tp_tuple):
-        #     return True
         case e.CompositeTp(kind=e.CompositeTpKind.Tuple, tps=tp_tuple):
             return True
         case _:
@@ -453,15 +422,12 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
             projectable_tps = [itp for itp in tps if can_project_label_from_tp(ctx, itp, label)]
             if len(projectable_tps) == 0:
                 raise edgedb.InvalidReferenceError(f"property '{(label.label)}' does not exist.")
-                # raise ValueError("No projection possible", label, pp.show(tp))
             else:
                 projected_tps = [tp_project(ctx, e.ResultTp(itp, tp.mode), label) for itp in projectable_tps]
                 if all(r_tp.mode == projected_tps[0].mode for r_tp in projected_tps):
                     return e.ResultTp(construct_tps_union([r_tp.tp for r_tp in projected_tps]), projected_tps[0].mode)
                 else:
                     raise ValueError("Ambiguous intersection projection", projected_tps)
-            # else:
-            #     raise ValueError("Intersection projection not implemented", pp.show(tp))
         case _:
             pass
 
@@ -505,19 +471,6 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                                                            tp.mode)
                     else:
                         raise ValueError("Label not found", lbl, tp_obj.keys())
-                # case e.NamedTupleTp(val=tp_tuple):
-                #     if lbl in tp_tuple.keys():
-                #         result_base_tp = tp_tuple[lbl]
-                #         result_mode = tp.mode
-                #         return post_process_result_base_tp(
-                #             result_base_tp, result_mode)
-                #     elif lbl.isdigit():
-                #         result_base_tp = list(tp_tuple.values())[int(lbl)]
-                #         result_mode = tp.mode
-                #         return post_process_result_base_tp(
-                #             result_base_tp, result_mode)
-                #     else:
-                #         raise ValueError("Label not found")
                 case e.CompositeTp(kind=e.CompositeTpKind.Tuple, tps=tp_tuple, labels=lbls):
                     if lbl.isdigit():
                         result_base_tp = tp_tuple[int(lbl)]
@@ -534,55 +487,6 @@ def tp_project(ctx: e.TcCtx | e.DBSchema, tp: e.ResultTp, label: e.Label) -> e.R
                 case _:
                     raise ValueError("Cannot tp_project a label ", label,
                                      "from a non object type", pp.show(tp.tp))
-
-
-# def object_tp_default_initial(tp: e.ObjectTp,
-#                               ) -> e.ShapeExpr:
-#     result: Dict[e.Label, Tuple[e.Marker, e.MultiSetVal]] = {}
-#     for lbl, tp_comp in tp.val.items():
-#         match tp_comp.tp:
-#             case e.ComputableTp(_):
-#                 continue
-#             case _:
-#                 result[e.StrLabel(lbl)] = (e.Visible(), e.e.ResultMultiSetVal([]))
-#     return e.ShapeExpr(val=result)
-
-
-# def object_tp_default_step(tp: e.ObjectTp) -> e.ShapeExpr:
-#     result: Dict[e.Label, e.BindingExpr] = {}
-#     for lbl, tp_comp in tp.val.items():
-#         match tp_comp.tp:
-#             case e.ComputableTp(_):
-#                 continue
-#             case e.DefaultTp(tp=_,
-#                              expr=binding_expr):
-#                 result[e.StrLabel(lbl)] = binding_expr
-#             case _:
-#                 result[e.StrLabel(lbl)] = eops.abstract_over_expr(
-#                     e.MultiSetExpr([]))
-#     return e.ShapeExpr(result)
-
-
-# def object_tp_default_post_step(tp: e.ObjectTp,
-#                                 shape: e.ShapeExpr) -> e.ShapeExpr:
-#     result: Dict[e.Label, e.BindingExpr] = {}
-#     for lbl, tp_comp in tp.val.items():
-#         if e.StrLabel(lbl) in shape.shape.keys():
-#             continue
-#         match tp_comp.tp:
-#             case e.DefaultTp(tp=_,
-#                              expr=binding_expr):
-#                 result[e.StrLabel(lbl)] = binding_expr
-#             case _:
-#                 continue
-#     return e.ShapeExpr(result)
-
-# def collect_tp_union(tp: e.Tp) -> List[e.Tp]:
-#     match tp:
-#         case e.UnionTp(l,r):
-#             return collect_tp_union(l) + collect_tp_union(r)
-#         case _:
-#             return [tp]
 
 
 

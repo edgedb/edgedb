@@ -25,6 +25,5 @@ def check_castable(ctx: e.TcCtx,
                         return candidate
                 else:
                     return None
-                return None
             case _:
                 return None

@@ -95,9 +95,6 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 mapped_args: Sequence[Expr] = []
                 _, resolved_fun_defs = mops.resolve_raw_name_and_func_def(schema, fname)
 
-                # args_mods = [resolved_fun_defs[i].tp.args_mod
-                #              for i in range(len(resolved_fun_defs))
-                #              if len(resolved_fun_defs[i].tp.args_mod) == len(args)]
                 from ..type_checking_tools import function_checking as fun_ck
                 args_mods = [mods for mods in [fun_ck.try_match_and_get_arg_mods(expr, resolved_fun_defs[i])
                              for i in range(len(resolved_fun_defs))
@@ -181,10 +178,6 @@ def map_query(f: Callable[[Expr, QueryLevel],
             case InsertExpr(name=name, new=new):
                 return InsertExpr(name=name, new=
                     {k: sub_recur(e) for (k, e) in new.items()})
-            # case ObjectExpr(val=val):
-            #     return ObjectExpr(
-            #         val={label: sub_recur(item)
-            #              for (label, item) in val.items()})
             case DetachedExpr(expr=expr):
                 return DetachedExpr(expr=sub_recur(expr))
             case SubqueryExpr(expr=expr):

@@ -37,18 +37,12 @@ def val_to_json_like(v: Val) -> json_like:
             if len(object_val_result) == 0:
                 object_val_result['id'] = refid
             return object_val_result
-        # case FreeVal(object):
-        #     return objectval_to_json_like(object)
         case ArrVal(val=array):
             return [val_to_json_like(v) for v in array]
         case UnnamedTupleVal(val=array):
             return [val_to_json_like(v) for v in array]
         case NamedTupleVal(val=dic):
             return {k: val_to_json_like(v) for (k, v) in dic.items()}
-        # case LinkPropVal(refid=_, linkprop=linkprop):
-        #     linkprop_json = objectval_to_json_like(linkprop)
-        #     assert isinstance(linkprop_json, dict)
-        #     return linkprop_json
     raise ValueError("MATCH", v)
 
 
@@ -67,49 +61,11 @@ def typed_objectval_to_json_like(objv: ObjectVal,
             sub_tp = tops.tp_project(dbschema, e.ResultTp(tp=obj_tp, mode=e.CardOne), k)
             result[label_to_str(k)] = typed_multi_set_val_to_json_like(
                 sub_tp, v[1], dbschema)
-
-            # match k:
-            #     case StrLabel(s):
-            #         match obj_tp:
-            #             case e.ObjectTp(val=tp_vals):
-            #                 if s not in tp_vals.keys():
-            #                     raise ValueError("label not found", s)
-            #                 result[label_to_str(k)] = \
-            #                     typed_multi_set_val_to_json_like(
-            #                         tp_vals[s], v[1], dbschema)
-            #             case e.NamedNominalLinkTp(name=name, linkprop=_):
-            #                 assert isinstance(name, e.QualifiedName)
-            #                 subject = tops.dereference_var_tp(dbschema, name)
-            #                 result[label_to_str(k)] = \
-            #                     typed_multi_set_val_to_json_like(
-            #                         subject.val[s], v[1], dbschema)
-            #             case e.NominalLinkTp(name=_, subject=subject, linkprop=_):
-            #                 if not isinstance(subject, e.ObjectTp):
-            #                     raise ValueError("Expecting objecttp", subject)
-            #                 if s not in subject.val.keys():
-            #                     raise ValueError("label not found", s)
-            #                 result[label_to_str(k)] = \
-            #                     typed_multi_set_val_to_json_like(
-            #                         subject.val[s], v[1], dbschema)
-            #             case _:
-            #                 raise ValueError("Expecting objecttp", obj_tp)
-            #     case LinkPropLabel(s):
-            #         if (not isinstance(obj_tp, e.NominalLinkTp)
-            #             and not isinstance(obj_tp, e.NamedNominalLinkTp)):
-            #             raise ValueError("Expecting linkproptp", obj_tp)
-            #         if s not in obj_tp.linkprop.val.keys():
-            #             raise ValueError("label not found", s)
-            #         result[label_to_str(k)] = \
-            #             typed_multi_set_val_to_json_like(
-            #                 obj_tp.linkprop.val[s], v[1], dbschema)
     return result
 
 
 def typed_val_to_json_like(v: Val, tp: e.Tp,
                            dbschema: e.DBSchema) -> json_like:
-    # while isinstance(tp, e.UnifiableTp):
-    #     assert tp.resolution is not None
-    #     tp = tp.resolution
     match v:
         case e.ScalarVal(s_tp, v):
             if s_tp == e.ScalarTp(e.QualifiedName(["std", "json"])):
@@ -161,13 +117,6 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
             assert isinstance(tp, e.CompositeTp) and tp.kind == e.CompositeTpKind.Tuple
             return {k: typed_val_to_json_like(v, tp.tps[tp.labels.index(k)], dbschema)
                     for (k, v) in dic.items()}
-        # case LinkPropVal(refid=_, linkprop=linkprop):
-        #     assert isinstance(tp, e.LinkPropTp)
-        #     linkprop_json = typed_objectval_to_json_like(
-        #         eops.link_prop_obj_to_obj(linkprop),
-        #         tp.linkprop, dbschema)
-        #     assert isinstance(linkprop_json, dict)
-        #     return linkprop_json
     raise ValueError("MATCH", v)
 
 

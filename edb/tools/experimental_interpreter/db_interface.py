@@ -80,7 +80,6 @@ class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                     return True
                 case _:
                     raise ValueError("Unsupported filter type")
-        # assert len(filters) == 0, "Filters are not supported yet"
         return [id for id in self.db.dbdata.keys() if self.db.dbdata[id].tp == tp and check_filter_top(filters, id)]
 
     def dump_state(self) -> object:
@@ -183,29 +182,13 @@ class EdgeDatabase:
 
 
     def project(self, id: EdgeID, tp: e.QualifiedName, prop: str) -> MultiSetVal:
-        # TODO: check to insert first
         if id in self.to_insert.dbdata.keys():
             raise ValueError("Semantic Change: Insert should carry properties before storage coercion")
-            # entry = self.to_insert.dbdata[id]
-            # return entry.data[prop]
 
-        result =  self.storage.project(id, tp, prop)
+        result = self.storage.project(id, tp, prop)
         assert isinstance(result, MultiSetVal)
         return result
 
-        # updates are queried before insert as we are able to update an inserted object
-        # elif id in self.to_update.keys():
-        #     props = self.to_update[id] # with x := insert ... , _ := update x {p1 := v}, select x.p1;
-        #     # Problem : with x := update X {px := v'}, y := update y {p1 := x}, select y.p1.px; (expecting v' (edgedb), getting v)
-        # elif id in self.to_insert.dbdata.keys():
-        #     props = self.to_insert.dbdata[id].data
-        # # updates and deletes are all in db.dbdata
-        # else:
-        #     raise ValueError(f"ID {id} not found in database")
-        # if prop in props:
-        #     return props[prop]
-        # else:
-        #     raise ValueError(f"Property {prop} not found in object {id}")
 
     def delete(self, id: EdgeID, tp: e.QualifiedName) -> None:
         self.to_delete.append((tp, id))

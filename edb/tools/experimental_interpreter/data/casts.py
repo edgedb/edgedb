@@ -4,12 +4,6 @@ from . import val_to_json as v2j
 
 def type_cast(tp: e.Tp, arg: e.Val) -> e.Val:
     match (tp, arg):
-        # case (DateTimeTp(), StrVal(datestr)):
-        #     return DateTimeVal(datestr)
-        # case (JsonTp(), StrVal(datestr)):
-        #     return JsonVal(datestr)  # TODO!
-        # case (StrTp(), IntVal(i)):
-        #     return StrVal(str(i))  # TODO!
         case e.ScalarTp(qname), e.ScalarVal(_, v):
             match qname.names:
                 case ["std", "str"]:

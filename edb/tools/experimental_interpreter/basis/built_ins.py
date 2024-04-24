@@ -1,11 +1,7 @@
 from typing import *
-# from .std_funcs import all_std_funcs
-# from .builtin_bin_ops import all_builtin_ops
-# from .reserved_ops import all_reserved_ops
 from ..data import data_ops as e
 
 
-# all_builtin_funcs = {**all_builtin_ops, **all_reserved_ops, **all_std_funcs}
 
 def lift_binary_scalar_op(f: Callable[[Any, Any], Any],
                           override_ret_tp: Optional[e.ScalarTp] = None

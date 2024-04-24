@@ -19,8 +19,6 @@ def all_prefixes_of_a_path(expr: Expr) -> List[Expr]:
             return [*all_prefixes_of_a_path(subject), expr]
         case ObjectProjExpr(subject=subject, label=_):
             return [*all_prefixes_of_a_path(subject), expr]
-        # case e.TpIntersectExpr(subject=BackLinkExpr(subject=subject, label=_), tp=_):
-        #     return [*all_prefixes_of_a_path(subject), expr]
         case e.TpIntersectExpr(subject=subject, tp=_):
             return [*all_prefixes_of_a_path(subject), expr]
         case BackLinkExpr(subject=subject, label=_):
@@ -106,10 +104,6 @@ def get_all_proper_top_level_paths(
         else:
             return None
     map_query(populate, e, dbschema)
-    # print("Querying", pp.show(e))
-    # print("Definite paths are", definite_top_paths)
-    # print("Semi sub paths are", semi_sub_paths)
-    # print("Sub paths are", sub_paths)
 
     selected_semi_sub_paths = []
     for (i, cluster) in enumerate(semi_sub_paths):
@@ -121,7 +115,6 @@ def get_all_proper_top_level_paths(
                          for p in spl] +
                          [p for spl in (sub_sub_paths[:i] + sub_sub_paths[i + 1:]) for p in spl]
                           )
-            # print("Checking", candidate, "prefixes", prefixes, "against", to_check)
             if any([appears_in_expr(prefix, ck)
                     for prefix in prefixes
                     for ck in to_check]):
@@ -130,9 +123,6 @@ def get_all_proper_top_level_paths(
     # all top_paths will show up finally,
     # we need to filter out those paths in semi_sub
     # whose prefixes (including itself) appears solely in the same subquery
-    # print("Definite top paths are", definite_top_paths)
-    # print("Selected semi sub paths are", selected_semi_sub_paths)
-    # print("Candidate semi sub paths are", semi_sub_paths)
     return definite_top_paths + selected_semi_sub_paths
 
 
@@ -183,7 +173,6 @@ def separate_common_longest_path_prefix_in_set(
 def toppath_for_factoring(expr: Expr, dbschema: e.TcCtx) -> List[Expr]:
     all_paths = get_all_paths(expr)
     top_level_paths = get_all_proper_top_level_paths(expr, dbschema)
-    # print("All Proper Top Level Paths", top_level_paths)
     clpp_a = common_longest_path_prefix_in_set(top_level_paths)
     c_i = [separate_common_longest_path_prefix_in_set(
         top_level_paths, [b]) for b in all_paths]
@@ -244,14 +233,12 @@ def sub_select_hoist(top_e: Expr, dbschema: e.TcCtx) -> Expr:
     return map_sub_and_semisub_queries(
         sub_select_hoist_map_func, top_e, dbschema)
 
-# @trace_input_output
 
 
 def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
 
     top_paths = toppath_for_factoring(expr, dbschema)
     fresh_names: List[str] = [next_name() for p in top_paths]
-    # print("Paths and Names:", top_paths, fresh_names)
     fresh_vars: List[Expr] = [FreeVarExpr(n) for n in fresh_names]
     for_paths = [
         iterative_subst_expr_for_expr(
@@ -326,10 +313,8 @@ def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
 
     result = inner_e
     for i in reversed(list(range(len(for_paths)))):
-        # print ("abstracting over path = ", for_paths[i], "on result", result)
         result = OptionalForExpr(
             for_paths[i], abstract_over_expr(result, fresh_names[i]))
 
     result = post_process_transform(result)
-    # result = popt.path_optimize(result)
     return result

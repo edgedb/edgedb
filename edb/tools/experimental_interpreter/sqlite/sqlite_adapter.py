@@ -494,13 +494,9 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
                     assert isinstance(v, e.RefVal)
                     if len(lp_property_names) > 0:
                         lp_props = [convert_val_to_sqlite_val(v.val.val[e.LinkPropLabel(lp_prop_name)][1]) for lp_prop_name in lp_property_names]
-                        # insert
                         self.do_execute_query(f"INSERT INTO '{lp_table_name}' (source, target, {','.join(lp_property_names)}) VALUES (?, ?, {','.join(['?']*len(lp_property_names))})",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), *lp_props))
-                        # self.do_execute_query(f"UPDATE '{lp_table_name}' SET {','.join([f'{lp_prop_name}=?' for lp_prop_name in lp_property_names])}, target=? WHERE source=?",
-                        #                     (*lp_props, convert_val_to_sqlite_val(e.ResultMultiSetVal([v])), id))
                     else:
-                        # self.do_execute_query(f"UPDATE '{lp_table_name}' SET target=? WHERE source=?", (convert_val_to_sqlite_val(v), id))
                         self.do_execute_query(f"INSERT INTO '{lp_table_name}' (source, target) VALUES (?, ?)",
                                             (id, convert_val_to_sqlite_val(e.ResultMultiSetVal([v]))))
 
@@ -563,9 +559,6 @@ def schema_and_db_from_sqlite(sdl_file_content : Optional[str], sqlite_file_name
 
         dbschema = add_module_from_sdl_defs(dbschema, db_sdl)
 
-    # Unpickle the objects
-    # dbschema_val = pickle.loads(dbschema_bytes)
-    # dbschema = sqlite_dbschema(dbschema_val)
 
     storage = SQLiteEdgeDatabaseStorageProvider(conn, dbschema)
     db = db_interface.EdgeDatabase(storage)

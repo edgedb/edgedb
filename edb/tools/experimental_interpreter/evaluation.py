@@ -226,10 +226,6 @@ eval_logs_wrapper = EvaluationLogsWrapper()
 def do_conditional_dedup(val: MultiSetVal) -> MultiSetVal:
     if all(val_is_ref_val(v) for v in val.getVals()):
         return e.ResultMultiSetVal(object_dedup(val.getVals()))
-    # elif all(val_is_primitive(v) for v in val.getVals()):
-    #     return val
-    # else:
-    #     raise ValueError("Expecting all references or all primitives")
     return val
 
 # the database is a mutable reference that keeps track of a read snapshot inside
@@ -245,12 +241,6 @@ def eval_expr(ctx: EvalEnv,
         case e.ConditionalDedupExpr(expr=inner):
             inner_val = eval_expr(ctx, db, inner)
             return do_conditional_dedup(inner_val)
-            # if all(val_is_primitive(v) for v in inner_val.getVals()):
-            #     return inner_val
-            # elif all(val_is_ref_val(v) for v in inner_val.getVals()):
-            #     return e.ResultMultiSetVal(object_dedup(inner_val.getVals()))
-            # else:
-            #     raise ValueError("Expecting all references or all primitives")
         case InsertExpr(tname, arg):
             assert isinstance(tname, e.QualifiedName), "Should be updated during tcking"
             id = db.insert(tname, {})
@@ -574,7 +564,6 @@ def eval_ctx_from_variables(variables) -> EvalEnv:
             return e.ResultMultiSetVal([get_prim_param_value(v)])
         elif isinstance(v, list):
             return e.ResultMultiSetVal([get_prim_param_value(v)])
-            # return e.ResultMultiSetVal([get_prim_param_value(vv) for vv in v])
         else:
             raise ValueError("Unimplemented")
     if isinstance(variables, dict):
@@ -604,5 +593,5 @@ def eval_expr_toplevel(db: EdgeDatabase, expr: Expr,
     eval_logs_wrapper.reset_logs(None)
 
     # Do not dedup (see one of the test cases)
-    # return assume_link_target(final_v)
+    # i.e. should not return assume_link_target(final_v)
     return final_v

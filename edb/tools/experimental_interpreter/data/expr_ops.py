@@ -45,11 +45,6 @@ def map_tp(
             case e.ObjectTp(val=val):
                 return e.ObjectTp(val={k: e.ResultTp(recur(v), card)
                                        for k, (v, card) in val.items()})
-        #  case e.NamedTupleTp(val=val):
-        #         return e.NamedTupleTp(val={k: recur(v)
-        #                                    for k, v in val.items()})
-            # case e.UnnamedTupleTp(val=val):
-            #     return e.UnnamedTupleTp(val=[recur(v) for v in val])
             case e.CompositeTp(kind=k, tps=tps, labels=labels):
                 return e.CompositeTp(kind=k, tps=[recur(v) for v in tps], labels=labels)
             case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
@@ -481,10 +476,6 @@ def link_prop_obj_to_obj(dic: ObjectVal) -> ObjectVal:
 def combine_object_val(o1: ObjectVal, o2: ObjectVal) -> ObjectVal:
     return ObjectVal({**o1.val, **o2.val})
 
-
-# def object_to_shape(expr: ObjectExpr) -> ShapeExpr:
-#     return ShapeExpr(
-#         shape={lbl: abstract_over_expr(e) for (lbl, e) in expr.val.items()})
 
 def object_dedup(val: Sequence[Val]) -> Sequence[Val]:
     temp: Dict[int, RefVal] = {}
