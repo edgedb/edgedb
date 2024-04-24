@@ -1,13 +1,11 @@
-
 from ..data import data_ops as e
 from typing import List
 from ..helper_funcs import parse_ddl
 from .ddl_processing import process_ddls
 import os
 
-def process_edgeql_file(
-    schema: e.DBSchema,
-    path: str) -> None:
+
+def process_edgeql_file(schema: e.DBSchema, path: str) -> None:
     """
     Process an edgeql file as ddl.
     """
@@ -18,10 +16,7 @@ def process_edgeql_file(
         process_ddls(schema, ddls)
 
 
-
-def add_ddl_library(
-    schema: e.DBSchema,
-    libpaths: List[str]) -> None :
+def add_ddl_library(schema: e.DBSchema, libpaths: List[str]) -> None:
     """
     Add a library to the schema.
 
@@ -42,4 +37,3 @@ def add_ddl_library(
             process_edgeql_file(schema, libpath)
         else:
             raise ValueError(f"Invalid library path {libpath}")
-

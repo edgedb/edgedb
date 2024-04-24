@@ -18,9 +18,13 @@ def type_cast(tp: e.Tp, arg: e.Val) -> e.Val:
         case _:
             raise ValueError("cannot cast", tp, arg)
 
-def get_json_cast(source_tp : e.Tp, schema: e.DBSchema) -> e.TpCast:
+
+def get_json_cast(source_tp: e.Tp, schema: e.DBSchema) -> e.TpCast:
 
     def cast_to_json(arg: e.Val) -> e.Val:
-        return e.ScalarVal(tp=e.ScalarTp(e.QualifiedName(["std", "json"])), val=v2j.typed_val_to_json_like(arg, source_tp, schema))
+        return e.ScalarVal(
+            tp=e.ScalarTp(e.QualifiedName(["std", "json"])),
+            val=v2j.typed_val_to_json_like(arg, source_tp, schema),
+        )
 
     return e.TpCast(e.TpCastKind.Explicit, cast_to_json)

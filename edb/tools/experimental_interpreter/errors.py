@@ -1,3 +1,2 @@
-
 class ElaborationError(Exception):
     pass

@@ -5,6 +5,7 @@ from typing import Any, List, Tuple
 from . import data_ops as e
 from . import expr_ops as eops
 
+
 def show_card(card: e.Cardinal) -> str:
     match card:
         case e.ZeroCardinal():
@@ -20,8 +21,10 @@ def show_card(card: e.Cardinal) -> str:
 def show_cmmode(mode: e.CMMode) -> str:
     return "[" + show_card(mode.lower) + "," + show_card(mode.upper) + "]"
 
+
 def show_qname(name: e.QualifiedName) -> str:
     return "::".join(name.names)
+
 
 def show_raw_name(name: e.QualifiedName | e.UnqualifiedName) -> str:
     if isinstance(name, e.QualifiedName):
@@ -33,9 +36,14 @@ def show_raw_name(name: e.QualifiedName | e.UnqualifiedName) -> str:
 def show_tp(tp: e.Tp | e.RawName) -> str:
     match tp:
         case e.ObjectTp(val=tp_val):
-            return ('{' + ', '.join(lbl + ": " + show_tp(md_tp.tp)
-                                    + show_cmmode(md_tp.mode)
-                    for lbl, md_tp in tp_val.items()) + '}')
+            return (
+                '{'
+                + ', '.join(
+                    lbl + ": " + show_tp(md_tp.tp) + show_cmmode(md_tp.mode)
+                    for lbl, md_tp in tp_val.items()
+                )
+                + '}'
+            )
         case e.ScalarTp(name):
             return show_qname(name)
         case e.UncheckedTypeName(name):
@@ -73,9 +81,14 @@ def show_tp(tp: e.Tp | e.RawName) -> str:
         case _:
             raise ValueError('Unimplemented', tp)
 
+
 def show_func_tps(tp: e.FunArgRetType) -> str:
-    return (", ".join(show_tp(arg_tp) for arg_tp in tp.args_tp) +
-            " -> " + show_result_tp(tp.ret_tp))
+    return (
+        ", ".join(show_tp(arg_tp) for arg_tp in tp.args_tp)
+        + " -> "
+        + show_result_tp(tp.ret_tp)
+    )
+
 
 def show_result_tp(tp: e.ResultTp) -> str:
     return show_tp(tp.tp) + show_cmmode(tp.mode)
@@ -104,6 +117,7 @@ def show_scalar_val(val: e.ScalarVal) -> str:
         case _:
             return show_qname(tp.name) + "(" + str(v) + ")"
 
+
 def show_edge_database_select_filter(filter: e.EdgeDatabaseSelectFilter) -> str:
     match filter:
         case e.EdgeDatabaseEqFilter(propname=propname, arg=arg):
@@ -118,7 +132,6 @@ def show_edge_database_select_filter(filter: e.EdgeDatabaseSelectFilter) -> str:
             raise ValueError('Unimplemented', filter)
 
 
-
 def show_expr(expr: e.Expr) -> str:
     match expr:
         case e.QualifiedName(_):
@@ -128,25 +141,48 @@ def show_expr(expr: e.Expr) -> str:
         case e.ScalarVal(tp, _):
             return show_scalar_val(expr)
         case e.BindingExpr(var=var, body=_):
-            return "λ" + var + ". " + show_expr(
-                eops.instantiate_expr(e.FreeVarExpr(var), expr))
+            return (
+                "λ"
+                + var
+                + ". "
+                + show_expr(eops.instantiate_expr(e.FreeVarExpr(var), expr))
+            )
         case e.TypeCastExpr(tp=tp, arg=arg):
             return "<" + show_tp(tp) + ">" + show_expr(arg)
-        case e.CheckedTypeCastExpr(cast_tp=(tp_from, tp_to), arg=arg, cast_spec=_):
-            return "<" + show_tp(tp_from) + " -> " + show_tp(tp_to) + ">" + show_expr(arg)
+        case e.CheckedTypeCastExpr(
+            cast_tp=(tp_from, tp_to), arg=arg, cast_spec=_
+        ):
+            return (
+                "<"
+                + show_tp(tp_from)
+                + " -> "
+                + show_tp(tp_to)
+                + ">"
+                + show_expr(arg)
+            )
         case e.MultiSetExpr(expr=arr):
             return "{" + ", ".join(show_expr(el) for el in arr) + "}"
         # case e.ObjectExpr(val=elems):
         #     return "{" + ", ".join(f'{show_label(lbl)} := {show_expr(el)}'
         #                            for lbl, el in elems.items()) + "}"
         case e.ShapeExpr(shape=shape):
-            return "{" + ", ".join(show_label(lbl) + " := " + show_expr(el)
-                                   for lbl, el in shape.items()) + "}"
+            return (
+                "{"
+                + ", ".join(
+                    show_label(lbl) + " := " + show_expr(el)
+                    for lbl, el in shape.items()
+                )
+                + "}"
+            )
         case e.UnionExpr(left=left, right=right):
             return show_expr(left) + " `UNION` " + show_expr(right)
         case e.FunAppExpr(fun=fname, args=args, overloading_index=_):
-            return (show_raw_name(fname) + "(" + ", ".join(show_expr(el) for el in args) +
-                    ")")
+            return (
+                show_raw_name(fname)
+                + "("
+                + ", ".join(show_expr(el) for el in args)
+                + ")"
+            )
         case e.FreeVarExpr(var=var):
             return var
         case e.ObjectProjExpr(subject=subject, label=label):
@@ -168,38 +204,73 @@ def show_expr(expr: e.Expr) -> str:
         case e.SubqueryExpr(expr=subject):
             return "select " + show_expr(subject)
         case e.FilterOrderExpr(subject=subject, filter=filter, order=order):
-            return ("(" + show_expr(subject) + " filter " + show_expr(filter) +
-                    " order by {" +  ", ".join([l + " => " + show_expr(o) for (l,o) in order.items()]) + "})")
+            return (
+                "("
+                + show_expr(subject)
+                + " filter "
+                + show_expr(filter)
+                + " order by {"
+                + ", ".join(
+                    [l + " => " + show_expr(o) for (l, o) in order.items()]
+                )
+                + "})"
+            )
         case e.OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
-            return ("(" + show_expr(subject) + " offset " + show_expr(offset) +
-                    " limit " + show_expr(limit) + ")")
+            return (
+                "("
+                + show_expr(subject)
+                + " offset "
+                + show_expr(offset)
+                + " limit "
+                + show_expr(limit)
+                + ")"
+            )
         case e.InsertExpr(name=name, new=new):
-            return ("insert " + show_raw_name(name) + " {" +
-                    ", ".join([k + " := " + show_expr(n) for (k,n) in new.items()]) + "}")
+            return (
+                "insert "
+                + show_raw_name(name)
+                + " {"
+                + ", ".join(
+                    [k + " := " + show_expr(n) for (k, n) in new.items()]
+                )
+                + "}"
+            )
         case e.UpdateExpr(subject=subject, shape=shape):
-            return ("update " + show_expr(subject) + " " + show_expr(shape))
+            return "update " + show_expr(subject) + " " + show_expr(shape)
         case e.DeleteExpr(subject=subject):
-            return ("delete " + show_expr(subject))
+            return "delete " + show_expr(subject)
         case e.ForExpr(bound=bound, next=next):
-            return ("for " + show_expr(bound) + " union " + show_expr(next))
+            return "for " + show_expr(bound) + " union " + show_expr(next)
         case e.OptionalForExpr(bound=bound, next=next):
-            return ("for optional " + show_expr(bound)
-                    + " union " + show_expr(next))
+            return (
+                "for optional " + show_expr(bound) + " union " + show_expr(next)
+            )
         case e.ShapedExprExpr(expr=subject, shape=shape):
             return show_expr(subject) + " " + show_expr(shape)
         case e.UnnamedTupleExpr(val=elems):
             return "(" + ", ".join(show_expr(el) for el in elems) + ")"
         case e.NamedTupleExpr(val=elems):
-            return "(" + ", ".join(f'{lbl} := {show_expr(el)}'
-                                   for lbl, el in elems.items()) + ")"
+            return (
+                "("
+                + ", ".join(
+                    f'{lbl} := {show_expr(el)}' for lbl, el in elems.items()
+                )
+                + ")"
+            )
         case e.ArrExpr(elems=arr):
             return "[" + ", ".join(show_expr(el) for el in arr) + "]"
         case e.IfElseExpr(
-                then_branch=then_branch,
-                condition=condition,
-                else_branch=else_branch):
-            return (show_expr(then_branch) + " if " + show_expr(condition) +
-                    " else " + show_expr(else_branch))
+            then_branch=then_branch,
+            condition=condition,
+            else_branch=else_branch,
+        ):
+            return (
+                show_expr(then_branch)
+                + " if "
+                + show_expr(condition)
+                + " else "
+                + show_expr(else_branch)
+            )
         case e.ConditionalDedupExpr(expr=inner):
             return "cond_dedup(" + show_expr(inner) + ")"
         case e.FreeObjectExpr():
@@ -207,9 +278,16 @@ def show_expr(expr: e.Expr) -> str:
         case e.ParameterExpr(name=name):
             return f"${name}"
         case e.QualifiedNameWithFilter(name=name, filter=filter):
-            return "with_filter(" + show_qname(name) + ", " + show_edge_database_select_filter(filter) +")"
+            return (
+                "with_filter("
+                + show_qname(name)
+                + ", "
+                + show_edge_database_select_filter(filter)
+                + ")"
+            )
         case _:
             raise ValueError('Unimplemented', expr)
+
 
 def show_arg_mod(mod: e.ParamModifier) -> str:
     match mod:
@@ -222,12 +300,21 @@ def show_arg_mod(mod: e.ParamModifier) -> str:
         case _:
             raise ValueError('Unimplemented', mod)
 
+
 def show_arg_ret_type(tp: e.FunArgRetType) -> str:
-    return ("[" +
-            (", ".join(show_tp(arg_tp) + "^" + show_arg_mod(mod)
-                       for arg_tp, mod in
-                       zip(tp.args_tp, tp.args_mod)))
-            + "]" + " -> " + show_result_tp(tp.ret_tp))
+    return (
+        "["
+        + (
+            ", ".join(
+                show_tp(arg_tp) + "^" + show_arg_mod(mod)
+                for arg_tp, mod in zip(tp.args_tp, tp.args_mod)
+            )
+        )
+        + "]"
+        + " -> "
+        + show_result_tp(tp.ret_tp)
+    )
+
 
 def show_func_defs(funcdefs: List[e.FuncDef]) -> str:
     if len(funcdefs) == 1:
@@ -238,21 +325,30 @@ def show_func_defs(funcdefs: List[e.FuncDef]) -> str:
         raise ValueError('Unimplemented', funcdefs)
 
 
-
-
 def show_constraint(constraint: e.Constraint) -> str:
     match constraint:
         case e.ExclusiveConstraint(name=name, delegated=delegated):
-            return "exclusive(" + name + ")" + (", delegated" if delegated else "")
+            return (
+                "exclusive(" + name + ")" + (", delegated" if delegated else "")
+            )
         case _:
             raise ValueError('Unimplemented', constraint)
 
+
 def show_me(me: e.ModuleEntity) -> str:
     match me:
-        case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract, constraints=constraints):
+        case e.ModuleEntityTypeDef(
+            typedef=typedef, is_abstract=is_abstract, constraints=constraints
+        ):
             auxiliary = ""
-            auxiliary += "abstract, " if  is_abstract else ""
-            auxiliary += "constraints = [" + ", ".join(show_constraint(c) for c in constraints) + "], " if constraints else ""
+            auxiliary += "abstract, " if is_abstract else ""
+            auxiliary += (
+                "constraints = ["
+                + ", ".join(show_constraint(c) for c in constraints)
+                + "], "
+                if constraints
+                else ""
+            )
             auxiliary = "\n    " + auxiliary if auxiliary else ""
             base = show_tp(typedef)
             return base + auxiliary
@@ -261,24 +357,44 @@ def show_me(me: e.ModuleEntity) -> str:
         case _:
             raise ValueError('Unimplemented', me)
 
+
 def show_module(dbschema: e.DBModule) -> str:
-    return ("\n".join(name + " := " + show_me(me) for name, me in
-                      dbschema.defs.items()))
+    return "\n".join(
+        name + " := " + show_me(me) for name, me in dbschema.defs.items()
+    )
+
 
 def show_module_name(name: Tuple[str, ...]) -> str:
     return "::".join(name)
 
+
 def show_schema(dbschema: e.DBSchema) -> str:
-    return ("Checked Modules:" + "\n".join(show_module_name(name) + " := { " + show_module(module) + " } "
-                      for name, module in dbschema.modules.items() ) + "\nUnchecked Modules:\n"
-            + "\n".join(show_module_name(name) + " := { " + show_module(module) + " } "
-                        for name, module in dbschema.unchecked_modules.items()))
+    return (
+        "Checked Modules:"
+        + "\n".join(
+            show_module_name(name) + " := { " + show_module(module) + " } "
+            for name, module in dbschema.modules.items()
+        )
+        + "\nUnchecked Modules:\n"
+        + "\n".join(
+            show_module_name(name) + " := { " + show_module(module) + " } "
+            for name, module in dbschema.unchecked_modules.items()
+        )
+    )
 
 
 def show_tcctx(tcctx: e.TcCtx) -> str:
-    return (show_schema(tcctx.schema) + "\n" +
-            ("\n".join(name + " := " + show_result_tp(r_tp)
-                       for name, r_tp in tcctx.varctx.items())))
+    return (
+        show_schema(tcctx.schema)
+        + "\n"
+        + (
+            "\n".join(
+                name + " := " + show_result_tp(r_tp)
+                for name, r_tp in tcctx.varctx.items()
+            )
+        )
+    )
+
 
 def show_visibility_marker(maker: e.Marker) -> str:
     match maker:
@@ -289,51 +405,77 @@ def show_visibility_marker(maker: e.Marker) -> str:
         case _:
             raise ValueError('Unimplemented', maker)
 
+
 def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
     match val:
         case e.ScalarVal(_, _):
             return show_scalar_val(val)
         case e.ObjectVal(val=elems):
-            return "{" + ", ".join(f'{show_label(lbl)} ({show_visibility_marker(m)}): {show_multiset_val(el)}'
-                                   for (lbl, (m, el)) in elems.items()) + "}"
+            return (
+                "{"
+                + ", ".join(
+                    f'{show_label(lbl)} ({show_visibility_marker(m)}): {show_multiset_val(el)}'
+                    for (lbl, (m, el)) in elems.items()
+                )
+                + "}"
+            )
         case e.RefVal(refid=id, val=v):
             return f"ref({id})" + show_val(v)
         case e.UnnamedTupleVal(val=elems):
             return "(" + ", ".join(show_val(el) for el in elems) + ")"
         case e.NamedTupleVal(val=elems):
-            return "(" + ", ".join(f'{lbl} := {show_val(el)}'
-                                   for lbl, el in elems.items()) + ")"
+            return (
+                "("
+                + ", ".join(
+                    f'{lbl} := {show_val(el)}' for lbl, el in elems.items()
+                )
+                + ")"
+            )
         case e.ArrVal(val=arr):
             return "[" + ", ".join(show_val(el) for el in arr) + "]"
         case _:
             raise ValueError('Unimplemented', val)
 
+
 def show_multiset_val(val: e.MultiSetVal) -> str:
     match val:
         case e.ResultMultiSetVal(_vals=arr):
-            return "(multiset val){" + ", ".join(show_val(el) for el in arr) + "}"
+            return (
+                "(multiset val){" + ", ".join(show_val(el) for el in arr) + "}"
+            )
         # case e.ConditionalDedupMultiSetVal(_vals=arr):
         #     return "(dedup pending){" + ", ".join(show_val(el) for el in arr) + "}"
         case _:
             raise ValueError('Unimplemented', val)
 
+
 def show_ctx(ctx: e.TcCtx) -> str:
     return (
-        "Schema:" + "\n" +
-        show_schema(ctx.schema) + "\n" +
-        "Current Module: " + show_module_name(ctx.current_module) + "\n" +
-        "VarCtx:" + "\n" +
-        ("\n".join(name + " : " + show_result_tp(r_tp)
-                   for name, r_tp in ctx.varctx.items())) + "\n"
+        "Schema:"
+        + "\n"
+        + show_schema(ctx.schema)
+        + "\n"
+        + "Current Module: "
+        + show_module_name(ctx.current_module)
+        + "\n"
+        + "VarCtx:"
+        + "\n"
+        + (
+            "\n".join(
+                name + " : " + show_result_tp(r_tp)
+                for name, r_tp in ctx.varctx.items()
+            )
+        )
+        + "\n"
     )
 
 
-def show(expr : Any) -> str:
-    if isinstance(expr, e.Tp): # type: ignore
+def show(expr: Any) -> str:
+    if isinstance(expr, e.Tp):  # type: ignore
         return show_tp(expr)
-    elif isinstance(expr, e.Expr): # type: ignore
+    elif isinstance(expr, e.Expr):  # type: ignore
         return show_expr(expr)
-    elif isinstance(expr, e.Val): # type: ignore
+    elif isinstance(expr, e.Val):  # type: ignore
         return show_val(expr)
     elif isinstance(expr, e.TcCtx):
         return show_ctx(expr)
@@ -349,5 +491,5 @@ def show(expr : Any) -> str:
         raise ValueError('Unimplemented', expr)
 
 
-def p(expr : Any) -> None:
+def p(expr: Any) -> None:
     print(show(expr))

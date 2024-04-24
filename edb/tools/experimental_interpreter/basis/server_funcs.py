@@ -1,15 +1,21 @@
-
 from __future__ import annotations
 from typing import Dict, Callable, Sequence
 
 from ..data import data_ops as e
-from . import std_funcs  as stdf
+from . import std_funcs as stdf
 from . import builtin_bin_ops as bbo
-from .reserved_ops import indirection_index_impl, indirection_slice_start_stop_impl, indirection_slice_start_impl, indirection_slice_stop_impl
+from .reserved_ops import (
+    indirection_index_impl,
+    indirection_slice_start_stop_impl,
+    indirection_slice_start_impl,
+    indirection_slice_stop_impl,
+)
 from ..data.casts import type_cast
 
 
-all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]] = {
+all_server_std_funcs: Dict[
+    str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]
+] = {
     "+": bbo.add_impl,
     "-": bbo.subtract_impl,
     "*": bbo.multiply_impl,
@@ -61,17 +67,23 @@ all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e
     e.IndirectionSliceStartOp: indirection_slice_start_impl,
     e.IndirectionSliceStopOp: indirection_slice_stop_impl,
 }
-all_server_cal_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]] = {
+all_server_cal_funcs: Dict[
+    str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]
+] = {
     "to_local_datetime": stdf.cal_to_local_datetime_impl,
 }
-all_server_math_funcs : Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]] = {
-    "mean" : stdf.math_mean_impl,
+all_server_math_funcs: Dict[
+    str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]
+] = {
+    "mean": stdf.math_mean_impl,
 }
 
 
 def get_default_func_impl_for_function(
-        name: e.QualifiedName) -> Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]:
+    name: e.QualifiedName,
+) -> Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]:
     if len(name.names) == 2:
+
         def default_impl(arg: Sequence[Sequence[e.Val]]) -> Sequence[e.Val]:
             raise ValueError("Not implemented: ", name)
 
@@ -92,14 +104,20 @@ def get_default_func_impl_for_function(
                 else:
                     return default_impl
             case _:
-                raise ValueError("Cannot get a default implementaiton for a non-std function", name)
+                raise ValueError(
+                    "Cannot get a default implementaiton for a non-std function",
+                    name,
+                )
     else:
-        raise ValueError("Cannot get a default implementaiton for a non-std function", name)
+        raise ValueError(
+            "Cannot get a default implementaiton for a non-std function", name
+        )
 
 
 def get_default_func_impl_for_cast(
-        from_tp: e.Tp, to_tp: e.Tp) -> Callable[[e.Val], e.Val]:
+    from_tp: e.Tp, to_tp: e.Tp
+) -> Callable[[e.Val], e.Val]:
     def default_impl(arg: e.Val) -> e.Val:
         return type_cast(to_tp, arg)
-    return default_impl
 
+    return default_impl

@@ -1,5 +1,3 @@
-
-
 import json
 from typing import List, Any
 from edb.edgeql import codegen
@@ -11,46 +9,59 @@ from .data import expr_to_str as pp
 def to_html_str(s: str) -> str:
     return s.replace("λ", "&lambda;")
 
+
 def do_write_logs(logs: List[Any], filename: str):
 
     def format_entry(entry, index):
         entry_id = '_'.join(map(str, index))
         result = """<a href='#/' onclick='toggle("{}")'>
                     Input/Output {}</a>\n""".format(
-            entry_id, entry_id)
+            entry_id, entry_id
+        )
         result += """<button onclick='foldEntry(\"{}\")'>Fold</button>
                    <button onclick='unfoldEntry(\"{}\")'>
-                   Unfold</button>""".format(entry_id, entry_id)
+                   Unfold</button>""".format(
+            entry_id, entry_id
+        )
         result += "<div class='entry' id='entry_{}'>".format(entry_id)
         result += """<div class='input'><span style='color:blue;'>Input:
-                    </span> {}</div>""".format(to_html_str(pp.show(entry[0])))
+                    </span> {}</div>""".format(
+            to_html_str(pp.show(entry[0]))
+        )
         result += """<div class='input'><span style='color:green;'>
                      Human-friendly Input:</span> {}</div>""".format(
-            codegen.generate_source(reverse_elab(entry[0])))
+            codegen.generate_source(reverse_elab(entry[0]))
+        )
         if len(entry) > 1:
             result += """<div class='output'><span style='color:red;'>
-                         Output:</span> {}</div>""".format(to_html_str(pp.show(entry[1])))
+                         Output:</span> {}</div>""".format(
+                to_html_str(pp.show(entry[1]))
+            )
             try:
-                json_text = json.dumps(multi_set_val_to_json_like(entry[1]), indent=4)
+                json_text = json.dumps(
+                    multi_set_val_to_json_like(entry[1]), indent=4
+                )
             except Exception as e:
                 json_text = "EXCEPTION OCCURRED" + str(e)
             result += """<div class='output'><span style='color:green;'>
-                        Human-friendly Output:</span> {}</div>""".format(json_text)
+                        Human-friendly Output:</span> {}</div>""".format(
+                json_text
+            )
         result += "</div>\n"
         return result
 
     def format_log(log, index):
         result = "<ul {} id='entry_{}'>\n".format(
-            "class='entry'" if len(index) > 0 else '', '_'.join(
-                map(str, index)))
+            "class='entry'" if len(index) > 0 else '', '_'.join(map(str, index))
+        )
         for i, entry in enumerate(log):
             result += "<li>\n"
             if isinstance(entry, list):
                 sub_index = index + (i,)
                 result += """<a href='#/' onclick='toggle("{}")'>
                              Log {}</a>\n""".format(
-                    '_'.join(map(str, sub_index)),
-                    '_'.join(map(str, sub_index)))
+                    '_'.join(map(str, sub_index)), '_'.join(map(str, sub_index))
+                )
                 result += format_log(entry, sub_index)
             else:
                 sub_index = index + (i,)
@@ -78,7 +89,9 @@ def do_write_logs(logs: List[Any], filename: str):
         f.write("  var entry = document.getElementById('entry_' + index);\n")
         f.write(
             "  entry.style.display = entry.style.display === 'none' ?"
-            " 'block' : 'none';\n""")
+            " 'block' : 'none';\n"
+            ""
+        )
         f.write("return False;}\n")
         f.write("function foldAll() {\n")
         f.write("  var entries = document.getElementsByClassName('entry');\n")
@@ -92,7 +105,8 @@ def do_write_logs(logs: List[Any], filename: str):
         f.write("    entries[i].style.display = 'block';\n")
         f.write("  }\n")
         f.write("}\n")
-        f.write("""
+        f.write(
+            """
             function foldEntry(id) {
                 var entry = document.getElementById('entry_' + id);
                 entry.style.display = 'none';
@@ -110,7 +124,8 @@ def do_write_logs(logs: List[Any], filename: str):
                     entries[i].style.display = 'block';
                 }
             }
-        """)
+        """
+        )
         f.write("</script>\n")
         f.write("</body>\n")
         f.write("</html>\n")
