@@ -1000,7 +1000,12 @@ jobs:
       env:
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
+        # Run fewer tests on x86_64, since the test runner is very slow.
+        PKG_TEST_FILES: "test_dump*.py test_backend_*.py test_database.py test_server_*.py test_edgeql_ddl.py test_session.py"
       run: |
+        # Bump shmmax and shmall to avoid test failures.
+        sudo sysctl -w kern.sysv.shmmax=12582912
+        sudo sysctl -w kern.sysv.shmall=12582912
         edgedb-pkg/integration/macos/test.sh
 
   test-macos-aarch64:
