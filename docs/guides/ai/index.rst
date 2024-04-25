@@ -106,7 +106,7 @@ to start running queries!
     (``text-embedding-3-small``) is an OpenAI model, so it will require an
     OpenAI provider to be configured as described above.
 
-    You may use any of these embedding generation models:
+    You may use any of these pre-configured embedding generation models:
 
     **OpenAI**
 
