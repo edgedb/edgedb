@@ -531,6 +531,10 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             # after all the client has already disconnected.
             self._cancelled = True
 
+            # Make sure nothing is blocked on flow control.
+            # (Currently only dump uses this.)
+            self.resume_writing()
+
             if not self.authed:
                 # We must be still authenticating. We can abort that.
                 self._main_task.cancel()
