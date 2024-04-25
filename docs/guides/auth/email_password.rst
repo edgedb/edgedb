@@ -114,6 +114,11 @@ base64url encode the resulting string. This new string is called the
 
 .. lint-on
 
+.. note::
+
+    If you are using older server version than 5.0, value for EDGEDB_AUTH_BASE_URL
+    in the above snippet should have the form `${protocol}://${host}:${port}/db/${database}/ext/auth/.
+
 
 Sign-in and sign-up
 -------------------

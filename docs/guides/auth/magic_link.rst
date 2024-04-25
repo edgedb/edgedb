@@ -82,7 +82,7 @@ base64url encode the resulting string. This new string is called the
    /**
     * You can get this value by running `edgedb instance credentials`.
     * Value should be:
-    * `${protocol}://${host}:${port}/db/${database}/ext/auth/
+    * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */
    const EDGEDB_AUTH_BASE_URL = process.env.EDGEDB_AUTH_BASE_URL;
    const SERVER_PORT = 3000;
@@ -106,6 +106,11 @@ base64url encode the resulting string. This new string is called the
    };
 
 .. lint-on
+
+.. note::
+
+    If you are using older server version than 5.0, value for EDGEDB_AUTH_BASE_URL
+    in the above snippet should have the form `${protocol}://${host}:${port}/db/${database}/ext/auth/.
 
 
 Routing
