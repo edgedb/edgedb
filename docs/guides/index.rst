@@ -21,6 +21,7 @@ guide!
     deployment/index
     datamigrations/index
     tutorials/index
+    ai/index
     auth/index
     migrations/index
     contributing/index
