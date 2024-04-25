@@ -176,6 +176,11 @@ detail each route handler in the following sections.
          break;
        }
 
+       case "/auth/webauthn/verify": {
+         await handleVerify(req, res);
+         break;
+       }
+
        default: {
          res.writeHead(404);
          res.end("Not found");
@@ -430,6 +435,101 @@ for verification.
       }
     });
   };
+
+.. lint-on
+
+Handle email verification
+-------------------------
+
+When a new user signs up, by default we require them to verify their email
+address before allowing the application to get an authentication token. To
+handle the verification flow, we implement an endpoint:
+
+.. note::
+
+   💡 If you would like to allow users to still log in, but offer limited access
+   to your application, you can check the associated
+   ``ext::auth::WebAuthnFactor`` for the ``ext::auth::Identity`` to see if the
+   ``verified_at`` property is some time in the past. You'll need to set the
+   ``require_verification`` setting in the provider configuration to ``false``.
+
+.. lint-off
+
+.. code-block:: javascript
+
+   /**
+    * Handles the link in the email verification flow.
+    *
+    * @param {Request} req
+    * @param {Response} res
+    */
+   const handleVerify = async (req, res) => {
+     const requestUrl = getRequestUrl(req);
+     const verification_token = requestUrl.searchParams.get("verification_token");
+     if (!verification_token) {
+       res.status = 400;
+       res.end(
+         `Verify request is missing 'verification_token' search param. The verification email is malformed.`,
+       );
+       return;
+     }
+
+     const cookies = req.headers.cookie?.split("; ");
+     const verifier = cookies
+       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+       ?.split("=")[1];
+     if (!verifier) {
+       res.status = 400;
+       res.end(
+         `Could not find 'verifier' in the cookie store. Is this the same user agent/browser that started the authorization flow?`,
+       );
+       return;
+     }
+
+     const verifyUrl = new URL("verify", EDGEDB_AUTH_BASE_URL);
+     const verifyResponse = await fetch(verifyUrl.href, {
+       method: "post",
+       headers: {
+         "Content-Type": "application/json",
+       },
+       body: JSON.stringify({
+         verification_token,
+         verifier,
+         provider: "builtin::webauthn",
+       }),
+     });
+
+     if (!verifyResponse.ok) {
+       const text = await verifyResponse.text();
+       res.status = 400;
+       res.end(`Error from the auth server: ${text}`);
+       return;
+     }
+
+     const { code } = await verifyResponse.json();
+
+     const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+     tokenUrl.searchParams.set("code", code);
+     tokenUrl.searchParams.set("verifier", verifier);
+     const tokenResponse = await fetch(tokenUrl.href, {
+       method: "get",
+     });
+
+     if (!tokenResponse.ok) {
+       const text = await tokenResponse.text();
+       res.status = 400;
+       res.end(`Error from the auth server: ${text}`);
+       return;
+     }
+
+     const { auth_token } = await tokenResponse.json();
+     res.writeHead(204, {
+       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+     });
+     res.end();
+   };
+
+.. lint-on
 
 Client-side script
 ------------------
