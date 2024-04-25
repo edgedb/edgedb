@@ -25,10 +25,10 @@ to your app’s schema:
 Extension configuration
 =======================
 
-The best and easiest way to configure the extension for your database is
-to use the built-in UI. To access it, run ``edgedb ui``. If you have the
-extension enabled in your schema as shown above and have migrated that
-schema change, you will see the "Auth Admin" icon in the left-hand toolbar.
+The AI extension may be configured via our UI or via EdgeQL. To use the
+built-in UI, access it by running ``edgedb ui``. If you have the extension
+enabled in your schema as shown above and have migrated that schema change, you
+will see the "AI Admin" icon in the left-hand toolbar.
 
 .. image:: images/ui-ai.png
     :alt: The EdgeDB local development server UI highlighting the AI admin
@@ -56,8 +56,9 @@ chosen provider, which you may do from their respective sites:
 * `Mistral API keys <https://console.mistral.ai/api-keys/>`__
 * `Anthropic API keys <https://console.anthropic.com/settings/keys>`__
 
-With your API key, you may now click the "Add Provider" button, select the
-appropriate API, and paste your key in the "Secret" field.
+With your API key, you may now configure in the UI by clickin the "Add
+Provider" button, selecting the appropriate API, and pasting your key in the
+"Secret" field.
 
 .. image:: images/ui-ai-add-provider.png
     :alt: The "Add Provider" form of the EdgeDB local development server UI.
@@ -71,6 +72,25 @@ appropriate API, and paste your key in the "Secret" field.
           right, the form has a gray button to cancel and a purple Add Provider
           button.
     :width: 100%
+
+You may alternatively configure a provider via EdgeQL:
+
+.. code-block:: edgeql
+
+    configure current database
+    insert ext::ai::OpenAIProviderConfig {
+      secret := 'sk-....',
+    };
+
+This object has other properties as well, including ``client_id`` and
+``api_url``, which can be set as strings to override the defaults for the
+chosen provider.
+
+We have provider config types for each of the three supported APIs:
+
+* ``OpenAIProviderConfig``
+* ``MistralProviderConfig``
+* ``AnthropicProviderConfig``
 
 
 Usage
