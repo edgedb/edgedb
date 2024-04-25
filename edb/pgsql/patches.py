@@ -132,4 +132,27 @@ ALTER TYPE cfg::AbstractConfig {
     # === 5.0
     ('edgeql+user_ext+fix-ai-indexes|ai', ''),
     ('edgeql+schema', ''),  # for SQL introspection schema updates
+    # === 5.3
+    ('edgeql', '''
+ALTER FUNCTION 
+std::range_get_upper(r: range<anypoint>)
+{
+    SET force_return_cast := true;
+};
+ALTER FUNCTION 
+std::range_get_lower(r: range<anypoint>)
+{
+    SET force_return_cast := true;
+};
+ALTER FUNCTION 
+std::range_get_upper(r: multirange<anypoint>)
+{
+    SET force_return_cast := true;
+};
+ALTER FUNCTION 
+std::range_get_lower(r: multirange<anypoint>)
+{
+    SET force_return_cast := true;
+};
+'''),
 ])
