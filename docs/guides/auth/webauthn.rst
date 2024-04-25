@@ -437,9 +437,65 @@ Client-side script
 On the client-side, you will need to write a script that retrieves the options
 from the EdgeDB Auth extension, calls the Web Authentication API, and sends the
 resulting credential or assertion to the server. Writing out the low-level
-handling of serialization and deserialization of the WebAuthn data is beyond
-the scope of this guide, but we publish a WebAuthn client library that you can
-use to simlify this process. The library is available on npm as part of our
-``@edgedb/auth-core`` library.
+handling of serialization and deserialization of the WebAuthn data is beyond the
+scope of this guide, but we publish a WebAuthn client library that you can use
+to simlify this process. The library is available on npm as part of our
+``@edgedb/auth-core`` library. Here is an example of how you might set up a form
+with appropriate click handlers to perform the WebAuthn sign in and sign up
+ceremonies.
+
+.. lint-off
 
 .. code-block:: javascript
+
+  import { WebAuthnClient } from "@edgedb/auth-core/webauthn";
+
+  const webAuthnClient = new WebAuthnClient({
+    signupOptionsUrl: "http://localhost:3000/auth/webauthn/register/options",
+    signupUrl: "http://localhost:3000/auth/webauthn/register",
+    signinOptionsUrl: "http://localhost:3000/auth/webauthn/authenticate/options",
+    signinUrl: "http://localhost:3000/auth/webauthn/authenticate",
+    verifyUrl: "http://localhost:3000/auth/webauthn/verify",
+  });
+
+  document.addEventListener("DOMContentReady", () => {
+    const signUpButton = document.querySelector("button#sign-up");
+    const signInButton = document.querySelector("button#sign-in");
+    const emailInput = document.querySelector("input#email");
+
+    if (signUpButton) {
+      signUpButton.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const email = emailInput.value.trim();
+        if (!email) {
+          throw new Error("No email provided");
+        }
+        try {
+          await webAuthnClient.signUp(email);
+          window.location = "http://localhost:3000/signup-success";
+        } catch (err) {
+          console.error(err);
+          window.location = "http://localhost:3000/signup-error";
+        }
+      });
+    }
+
+    if (signInButton) {
+      signInButton.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const email = emailInput.value.trim();
+        if (!email) {
+          throw new Error("No email provided");
+        }
+        try {
+          await webAuthnClient.signIn(email);
+          window.location = "http://localhost:3000";
+        } catch (err) {
+          console.error(err);
+          window.location = "http://localhost:3000/signup-error";
+        }
+      })
+    }
+  });
+
+.. lint-on
