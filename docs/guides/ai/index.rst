@@ -131,7 +131,7 @@ super simple:
 
 .. code-block:: edgeql
 
-    select ext::ai::search(Astronomy, <query-embeddings>)
+    select ext::ai::search(Astronomy, query)
 
 Simple, but you'll still need to generate embeddings from your query or pass in
 existing embeddings. If your ultimate goal is retrieval-augmented generation
