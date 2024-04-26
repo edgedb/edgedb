@@ -538,7 +538,7 @@ Bug fixes
   This allows the link constraints to be better tuned based on additional
   conditions, for example:
 
-  .. code-block:: sdl
+  .. code-block:: edgeql
 
     create abstract constraint always_fail extending constraint {
       using (false)
