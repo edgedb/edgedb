@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import typing
 import enum
+from dataclasses import dataclass, field
 
 from edb.common import enum as s_enum
 from edb.common import ast, span
@@ -85,6 +86,11 @@ class DescribeGlobal(s_enum.StrEnum):
         return self.value
 
 
+def ast_dataclass(cls):
+    return dataclass(cls, kw_only=True, repr=False, eq=False, slots=True)
+
+
+@ast_dataclass
 class Base(ast.AST):
     __abstract_node__ = True
     __ast_hidden__ = {'span', 'system_comment'}
@@ -101,20 +107,23 @@ class Base(ast.AST):
         dump_edgeql(self)
 
 
+@ast_dataclass
 class OptionValue(Base):
     """An option value resulting from a syntax."""
 
     name: str
 
 
+@ast_dataclass
 class OptionFlag(OptionValue):
 
     val: bool
 
 
+@ast_dataclass
 class Options(Base):
 
-    options: typing.Dict[str, OptionValue] = ast.field(factory=dict)
+    options: typing.Dict[str, OptionValue] = field(default_factory=dict)
 
     def get_flag(self, k: str) -> OptionFlag:
         try:
@@ -135,49 +144,58 @@ class Options(Base):
         return len(self.options)
 
 
+@ast_dataclass
 class Expr(Base):
     """Abstract parent for all query expressions."""
 
     __abstract_node__ = True
 
 
+@ast_dataclass
 class Placeholder(Expr):
     """An interpolation placeholder used in expression templates."""
 
     name: str
 
 
+@ast_dataclass
 class SortExpr(Base):
     path: Expr
     direction: typing.Optional[SortOrder] = None
     nones_order: typing.Optional[NonesOrder] = None
 
 
+@ast_dataclass
 class AliasedExpr(Base):
     alias: str
     expr: Expr
 
 
+@ast_dataclass
 class ModuleAliasDecl(Base):
     module: str
     alias: typing.Optional[str]
 
 
+@ast_dataclass
 class BaseObjectRef(Base):
     __abstract_node__ = True
 
 
+@ast_dataclass
 class ObjectRef(BaseObjectRef):
     name: str
     module: typing.Optional[str] = None
     itemclass: typing.Optional[qltypes.SchemaObjectClass] = None
 
 
+@ast_dataclass
 class PseudoObjectRef(BaseObjectRef):
     '''anytype, anytuple or anyobject'''
     name: str
 
 
+@ast_dataclass
 class Anchor(Expr):
     '''Identifier that resolves to some pre-compiled expression.
        For example in shapes, the anchor __subject__ refers to object that the
@@ -187,37 +205,45 @@ class Anchor(Expr):
     name: str
 
 
+@ast_dataclass
 class IRAnchor(Anchor):
     has_dml: bool = False
 
 
+@ast_dataclass
 class SpecialAnchor(Anchor):
     pass
 
 
+@ast_dataclass
 class DetachedExpr(Expr):  # DETACHED Expr
     expr: Expr
     preserve_path_prefix: bool = False
 
 
+@ast_dataclass
 class GlobalExpr(Expr):  # GLOBAL Name
     name: ObjectRef
 
 
+@ast_dataclass
 class Index(Base):
     index: Expr
 
 
+@ast_dataclass
 class Slice(Base):
     start: typing.Optional[Expr]
     stop: typing.Optional[Expr]
 
 
+@ast_dataclass
 class Indirection(Expr):
     arg: Expr
     indirection: typing.List[typing.Union[Index, Slice]]
 
 
+@ast_dataclass
 class BinOp(Expr):
     left: Expr
     op: str
@@ -227,23 +253,27 @@ class BinOp(Expr):
     set_constructor: bool = False
 
 
+@ast_dataclass
 class WindowSpec(Base):
     orderby: typing.List[SortExpr]
     partition: typing.List[Expr]
 
 
+@ast_dataclass
 class FunctionCall(Expr):
     func: typing.Union[typing.Tuple[str, str], str]
-    args: typing.List[Expr] = ast.field(factory=list)
-    kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
+    args: typing.List[Expr] = field(default_factory=list)
+    kwargs: typing.Dict[str, Expr] = field(default_factory=dict)
     window: typing.Optional[WindowSpec] = None
 
 
+@ast_dataclass
 class BaseConstant(Expr):
     """Constant (a literal value)."""
     __abstract_node__ = True
 
 
+@ast_dataclass
 class Constant(BaseConstant):
     """Constant whose value we can store in a string."""
     kind: ConstantKind
@@ -271,6 +301,7 @@ class ConstantKind(enum.IntEnum):
     DECIMAL = 5
 
 
+@ast_dataclass
 class BytesConstant(BaseConstant):
     value: bytes
 
@@ -279,36 +310,43 @@ class BytesConstant(BaseConstant):
         return BytesConstant(value=s)
 
 
+@ast_dataclass
 class Parameter(Expr):
     name: str
 
 
+@ast_dataclass
 class UnaryOp(Expr):
     op: str
     operand: Expr
 
 
+@ast_dataclass
 class TypeExpr(Base):
     __abstract_node__ = True
 
     name: typing.Optional[str] = None  # name is used for types in named tuples
 
 
+@ast_dataclass
 class TypeOf(TypeExpr):
     expr: Expr
 
 
+@ast_dataclass
 class TypeExprLiteral(TypeExpr):
     # Literal type exprs are used in enum declarations.
     val: Constant
 
 
+@ast_dataclass
 class TypeName(TypeExpr):
     maintype: BaseObjectRef
     subtypes: typing.Optional[typing.List[TypeExpr]] = None
     dimensions: typing.Optional[typing.List[int]] = None
 
 
+@ast_dataclass
 class TypeOp(TypeExpr):
     __rust_box__ = {'left', 'right'}
 
@@ -317,6 +355,7 @@ class TypeOp(TypeExpr):
     right: TypeExpr
 
 
+@ast_dataclass
 class FuncParam(Base):
     name: str
     type: TypeExpr
@@ -325,22 +364,26 @@ class FuncParam(Base):
     default: typing.Optional[Expr] = None
 
 
+@ast_dataclass
 class IsOp(Expr):
     left: Expr
     op: str
     right: TypeExpr
 
 
+@ast_dataclass
 class TypeIntersection(Base):
     type: TypeExpr
 
 
+@ast_dataclass
 class Ptr(Base):
     name: str
     direction: typing.Optional[str] = None
     type: typing.Optional[str] = None
 
 
+@ast_dataclass
 class Splat(Base):
     """Represents a splat operation (expansion to all props/links) in shapes"""
 
@@ -356,21 +399,25 @@ class Splat(Base):
 PathElement = typing.Union[Expr, Ptr, TypeIntersection, ObjectRef, Splat]
 
 
+@ast_dataclass
 class Path(Expr):
     steps: typing.List[PathElement]
     partial: bool = False
 
 
+@ast_dataclass
 class TypeCast(Expr):
     expr: Expr
     type: TypeExpr
     cardinality_mod: typing.Optional[CardinalityModifier] = None
 
 
+@ast_dataclass
 class Introspect(Expr):
     type: TypeExpr
 
 
+@ast_dataclass
 class IfElse(Expr):
     condition: Expr
     if_expr: Expr
@@ -379,6 +426,7 @@ class IfElse(Expr):
     python_style: bool = False
 
 
+@ast_dataclass
 class TupleElement(Base):
     # This stores the name in another node instead of as a str just so
     # that the name can have a separate source context.
@@ -386,18 +434,22 @@ class TupleElement(Base):
     val: Expr
 
 
+@ast_dataclass
 class NamedTuple(Expr):
     elements: typing.List[TupleElement]
 
 
+@ast_dataclass
 class Tuple(Expr):
     elements: typing.List[Expr]
 
 
+@ast_dataclass
 class Array(Expr):
     elements: typing.List[Expr]
 
 
+@ast_dataclass
 class Set(Expr):
     elements: typing.List[Expr]
 
@@ -406,6 +458,7 @@ class Set(Expr):
 #
 
 
+@ast_dataclass
 class Command(Base):
     """
     A top-level node that is evaluated by our server and
@@ -418,18 +471,22 @@ class Command(Base):
     ] = None
 
 
+@ast_dataclass
 class SessionSetAliasDecl(Command):
     decl: ModuleAliasDecl
 
 
+@ast_dataclass
 class SessionResetAliasDecl(Command):
     alias: str
 
 
+@ast_dataclass
 class SessionResetModule(Command):
     pass
 
 
+@ast_dataclass
 class SessionResetAllAliases(Command):
     pass
 
@@ -456,6 +513,7 @@ class ShapeOp(s_enum.StrEnum):
 
 
 # Need indirection over ShapeOp to preserve the source context.
+@ast_dataclass
 class ShapeOperation(Base):
     op: ShapeOp
 
@@ -467,6 +525,7 @@ class ShapeOrigin(s_enum.StrEnum):
     MATERIALIZATION = 'MATERIALIZATION'
 
 
+@ast_dataclass
 class ShapeElement(Expr):
     expr: Path
     elements: typing.Optional[typing.List[ShapeElement]] = None
@@ -484,11 +543,13 @@ class ShapeElement(Expr):
     limit: typing.Optional[Expr] = None
 
 
+@ast_dataclass
 class Shape(Expr):
     expr: typing.Optional[Expr]
     elements: typing.List[ShapeElement]
 
 
+@ast_dataclass
 class Query(Expr):
     __abstract_node__ = True
 
@@ -501,6 +562,7 @@ class Query(Expr):
 Statement = Query | Command
 
 
+@ast_dataclass
 class SelectQuery(Query):
     result_alias: typing.Optional[str] = None
     result: Expr
@@ -520,6 +582,7 @@ class SelectQuery(Query):
     implicit: bool = False
 
 
+@ast_dataclass
 class GroupingIdentList(Base):
     elements: typing.Tuple[GroupingAtom, ...]
 
@@ -527,23 +590,28 @@ class GroupingIdentList(Base):
 GroupingAtom = typing.Union[ObjectRef, Path, GroupingIdentList]
 
 
+@ast_dataclass
 class GroupingElement(Base):
     __abstract_node__ = True
 
 
+@ast_dataclass
 class GroupingSimple(GroupingElement):
     element: GroupingAtom
 
 
+@ast_dataclass
 class GroupingSets(GroupingElement):
     sets: typing.List[GroupingElement]
 
 
+@ast_dataclass
 class GroupingOperation(GroupingElement):
     oper: str
     elements: typing.List[GroupingAtom]
 
 
+@ast_dataclass
 class GroupQuery(Query):
     subject_alias: typing.Optional[str] = None
     using: typing.Optional[typing.List[AliasedExpr]]
@@ -552,6 +620,7 @@ class GroupQuery(Query):
     subject: Expr
 
 
+@ast_dataclass
 class InternalGroupQuery(GroupQuery):
     group_alias: str
     grouping_alias: typing.Optional[str]
@@ -565,6 +634,7 @@ class InternalGroupQuery(GroupQuery):
     orderby: typing.Optional[typing.List[SortExpr]] = None
 
 
+@ast_dataclass
 class InsertQuery(Query):
     subject: ObjectRef
     shape: typing.List[ShapeElement]
@@ -573,6 +643,7 @@ class InsertQuery(Query):
     ] = None
 
 
+@ast_dataclass
 class UpdateQuery(Query):
     shape: typing.List[ShapeElement]
 
@@ -581,6 +652,7 @@ class UpdateQuery(Query):
     where: typing.Optional[Expr] = None
 
 
+@ast_dataclass
 class DeleteQuery(Query):
     subject: Expr
 
@@ -592,6 +664,7 @@ class DeleteQuery(Query):
     limit: typing.Optional[Expr] = None
 
 
+@ast_dataclass
 class ForQuery(Query):
     from_desugaring: bool = False
     has_union: bool = True  # whether UNION was used in the syntax
@@ -663,7 +736,7 @@ class DDLOperation(DDL):
     '''A change to schema'''
 
     __abstract_node__ = True
-    commands: typing.List[DDLOperation] = ast.field(factory=list)
+    commands: typing.List[DDLOperation] = field(default_factory=list)
 
 
 class DDLCommand(Command, DDLOperation):
@@ -1195,7 +1268,7 @@ class CreateConstraint(
 ):
     subjectexpr: typing.Optional[Expr]
     abstract: bool = True
-    params: typing.List[FuncParam] = ast.field(factory=list)
+    params: typing.List[FuncParam] = field(default_factory=list)
 
 
 class AlterConstraint(AlterObject, ConstraintCommand):
@@ -1229,8 +1302,8 @@ class DropConcreteConstraint(ConcreteConstraintOp, DropObject):
 
 class IndexType(DDL):
     name: ObjectRef
-    args: typing.List[Expr] = ast.field(factory=list)
-    kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
+    args: typing.List[Expr] = field(default_factory=list)
+    kwargs: typing.Dict[str, Expr] = field(default_factory=dict)
 
 
 class IndexCommand(ObjectDDL):
@@ -1249,10 +1322,10 @@ class CreateIndex(
     CreateExtendingObject,
     IndexCommand,
 ):
-    kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
+    kwargs: typing.Dict[str, Expr] = field(default_factory=dict)
     index_types: typing.List[IndexType]
     code: typing.Optional[IndexCode] = None
-    params: typing.List[FuncParam] = ast.field(factory=list)
+    params: typing.List[FuncParam] = field(default_factory=list)
 
 
 class AlterIndex(AlterObject, IndexCommand):
@@ -1267,7 +1340,7 @@ class ConcreteIndexCommand(IndexCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
-    kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
+    kwargs: typing.Dict[str, Expr] = field(default_factory=dict)
     expr: Expr
     except_expr: typing.Optional[Expr] = None
     deferred: typing.Optional[bool] = None
@@ -1397,7 +1470,7 @@ class FunctionCommand(DDLCommand):
     __abstract_node__ = True
     __rust_ignore__ = True
     object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.FUNCTION
-    params: typing.List[FuncParam] = ast.field(factory=list)
+    params: typing.List[FuncParam] = field(default_factory=list)
 
 
 class CreateFunction(CreateObject, FunctionCommand):
@@ -1432,7 +1505,7 @@ class OperatorCommand(DDLCommand):
     __rust_ignore__ = True
     object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.OPERATOR
     kind: qltypes.OperatorKind
-    params: typing.List[FuncParam] = ast.field(factory=list)
+    params: typing.List[FuncParam] = field(default_factory=list)
 
 
 class CreateOperator(CreateObject, OperatorCommand):
