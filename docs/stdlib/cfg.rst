@@ -106,6 +106,32 @@ Query planning
   PostgreSQL configuration parameter of the same name.
 
 
+
+Query cache
+-----------
+
+.. versionadded:: 5.0
+
+:eql:synopsis:`auto_rebuild_query_cache -> bool`
+  Determines whether to recompile the existing query cache to SQL any time DDL
+  is executed.
+
+:eql:synopsis:`query_cache_mode -> cfg::QueryCacheMode`
+  Allows the developer to set where the query cache is stored. Possible values:
+
+  * ``cfg::QueryCacheMode.InMemory``- All query cache is lost on server restart.
+    This mirrors pre-5.0 EdgeDB's behavior.
+  * ``cfg::QueryCacheMode.RegInline``- The in-memory query cache is also stored in
+    the database as-is so it can be restored on restart.
+  * ``cfg::QueryCacheMode.Default``- Allow the server to select the best caching
+    option. Currently, it will select ``InMemory`` for arm64 Linux and
+    ``RegInline`` for everything else.
+
+.. TODO: toggle on once the PgFunc mode is available
+   * ``cfg::QueryCacheMode.PgFunc``- this is experimental and not quite ready as of
+     now. It wraps SQLs into stored functions in Postgres and reduces backend
+     request size and preparation time.
+
 Query behavior
 --------------
 
