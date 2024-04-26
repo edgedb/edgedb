@@ -1272,8 +1272,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         compiler_pool = server.get_compiler_pool()
 
         dbname = _dbview.dbname
-        tenant = self.tenant
-        pgcon = await tenant.acquire_pgcon(dbname)
+        pgcon = await self.get_pgcon()
         self._in_dump_restore = True
         try:
             # To avoid having races, we want to:
@@ -1411,7 +1410,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         finally:
             self._in_dump_restore = False
-            tenant.release_pgcon(dbname, pgcon)
+            self.maybe_release_pgcon(pgcon)
 
         msg_buf = WriteBuffer.new_message(b'C')
         msg_buf.write_int16(0)  # no headers
@@ -1526,8 +1525,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.buffer.finish_message()
         dbname = _dbview.dbname
-        tenant = self.tenant
-        pgcon = await tenant.acquire_pgcon(dbname)
+        pgcon = await self.get_pgcon()
 
         self._in_dump_restore = True
         try:
@@ -1672,10 +1670,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         finally:
             self._transport.resume_reading()
             self._in_dump_restore = False
-            tenant.release_pgcon(dbname, pgcon)
+            self.maybe_release_pgcon(pgcon)
 
         execute.signal_side_effects(_dbview, dbview.SideEffects.SchemaChanges)
-        await tenant.introspect_db(dbname)
+        await self.tenant.introspect_db(dbname)
 
         if _dbview.is_state_desc_changed():
             self.write(self.make_state_data_description_msg())
