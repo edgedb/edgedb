@@ -168,10 +168,11 @@ many of the commands:
 :cli:synopsis:`\\ds, \\d schema, \\describe schema`
   Describe the entire schema.
 
-:cli:synopsis:`\\l, \\list databases`
-  List databases.
+:cli:synopsis:`\\l`
+  List branches on EdgeDB server 5+ or databases on prior versions.
 
-.. TODO: toggle on once backslash commands are added
+:cli:synopsis:`\\list databases`
+  List databases.
 
   .. note::
 
@@ -179,17 +180,15 @@ many of the commands:
       databases. If you are running 5.0 or later, you will instead use the
       ``\list branches`` command below.
 
-.. TODO: toggle on once backslash commands are added
+:cli:synopsis:`\\list branches`
+  List branches.
 
-    :cli:synopsis:`\\l, \\list branches`
-      List branches.
+  .. note::
 
-      .. note::
-
-          EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
-          databases. This command requires CLI version 4.3.0 or later and EdgeDB
-          version 5.0 or later. If you are running an earlier version of EdgeDB,
-          you will instead use the ``\list databases`` command above.
+      EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+      databases. This command requires CLI version 4.3.0 or later and EdgeDB
+      version 5.0 or later. If you are running an earlier version of EdgeDB,
+      you will instead use the ``\list databases`` command above.
 
 :cli:synopsis:`\\ls [-sc] [PATTERN], \\list scalars [-sc] [PATTERN]`
   List scalar types.
@@ -215,35 +214,32 @@ many of the commands:
 Database
 --------
 
-.. TODO: Once the branch backslash commands are done and documented below, this can toggle on.
+.. note::
 
-  .. note::
-
-      EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
-      databases. If you are running 5.0 or later, you will instead use the
-      commands in the "Branches" section below.
+    EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+    databases. If you are running 5.0 or later, you will instead use the
+    commands in the "Branch" section below.
 
 :cli:synopsis:`\\database create NAME`
   Create a new database.
 
-.. TODO: will need to hold these until they are finalized
+Branch
+------
 
-  Branch
-  ------
+.. note::
 
-    .. note::
+    EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+    databases. These commands require CLI version 4.3.0 or later and EdgeDB
+    version 5.0 or later. If you are running an earlier version of EdgeDB,
+    you will instead use the database commands above.
 
-        EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
-        databases. These commands require CLI version 4.3.0 or later and EdgeDB
-        version 5.0 or later. If you are running an earlier version of EdgeDB,
-        you will instead use the database commands above.
+:cli:synopsis:`\\branch create NAME`
+  Create a new branch. The backslash command mirrors the options of the CLI's
+  :ref:`ref_cli_edgedb_branch_create`.
 
-  :cli:synopsis:`\\branch create NAME`
-    Create a new branch.
-
-
-  :cli:synopsis:`\\branch switch NAME`
-    Switch to a different branch.
+:cli:synopsis:`\\branch switch NAME`
+  Switch to a different branch. The backslash command mirrors the options of
+  the CLI's :ref:`ref_cli_edgedb_branch_switch`.
 
 Query Analysis
 --------------
@@ -300,8 +296,6 @@ Connection
 
 :cli:synopsis:`\\c, \\connect [DBNAME]`
   Connect to database *DBNAME*.
-
-.. TODO: toggle on once backslash commands are added
 
   .. note::
 
