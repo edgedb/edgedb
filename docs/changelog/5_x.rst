@@ -506,3 +506,31 @@ Bug fixes
 
 * Include ``fts`` and ``ai`` shadow index columns in dumps
   (:eql:gh:`#7235`)
+
+5.1
+===
+
+* Make ai::search have integrated sort and hit indexes
+  (:eql:gh:`#7242`)
+
+* Fix upgrading from rc1 that had been updated itself from a beta
+  (:eql:gh:`#7245`)
+
+5.2
+===
+
+* Allow multiple authentication methods per transport in
+  ``--default-auth-method``.
+  (:eql:gh:`#7224`)
+
+  We now allow multiple authentication methods to be tried in sequence
+  (according to the specified order in ``--default-auth-method``).
+
+* Drop ad-hoc TLS requirement from ``JWT`` and ``Password`` auth
+  (:eql:gh:`#7231`)
+
+* Reject ``ai`` indexes that have different parameters than in parent types
+  (:eql:gh:`#7229`)
+
+* Allow except in link constraints.
+  (:eql:gh:`#7250`)
