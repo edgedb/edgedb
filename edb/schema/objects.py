@@ -3025,7 +3025,7 @@ class SubclassableObject(Object):
     )
 
     def _issubclass(
-        self, schema: s_schema.Schema, parent: SubclassableObject
+        self, schema: s_schema.Schema, parent: SubclassableObject, **kwargs: Any
     ) -> bool:
         return parent == self
 
@@ -3033,10 +3033,11 @@ class SubclassableObject(Object):
         self,
         schema: s_schema.Schema,
         parent: Union[SubclassableObject, Tuple[SubclassableObject, ...]],
+        **kwargs: Any,
     ) -> bool:
         from . import types as s_types
         if isinstance(parent, tuple):
-            return any(self.issubclass(schema, p) for p in parent)
+            return any(self.issubclass(schema, p, **kwargs) for p in parent)
         if (
             isinstance(parent, s_types.Type)
             and parent.is_anyobject(schema)
@@ -3047,7 +3048,7 @@ class SubclassableObject(Object):
         if isinstance(parent, s_types.Type) and parent.is_any(schema):
             return True
 
-        return self._issubclass(schema, parent)
+        return self._issubclass(schema, parent, **kwargs)
 
 
 InheritingObjectT = TypeVar('InheritingObjectT', bound='InheritingObject')
@@ -3147,6 +3148,7 @@ class InheritingObject(SubclassableObject):
         self,
         schema: s_schema.Schema,
         parent: SubclassableObject,
+        **kwargs: Any,
     ) -> bool:
         if parent == self:
             return True

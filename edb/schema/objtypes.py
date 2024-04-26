@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, Type, Iterable, List, Set, cast
+from typing import Any, Optional, Tuple, Type, Iterable, List, Set, cast
 
 import collections
 
@@ -271,53 +271,80 @@ class ObjectType(
         return sn.QualName(module='std', name='Object')
 
     def _issubclass(
-        self, schema: s_schema.Schema, parent: so.SubclassableObject
+        self,
+        schema: s_schema.Schema,
+        parent: so.SubclassableObject,
+        **kwargs: Any,
     ) -> bool:
         if self == parent:
             return True
 
-        my_union = self.get_union_of(schema)
-        if my_union and not self.get_is_opaque_union(schema):
+        check_opaque_unions: bool = kwargs.get('check_opaque_unions', False)
+        check_views: bool = kwargs.get('check_views', False)
+
+        if (
+            (my_union := self.get_union_of(schema))
+            and (
+                not self.get_is_opaque_union(schema)
+                or check_opaque_unions
+            )
+        ):
             # A union is considered a subclass of a type, if
             # ALL its components are subclasses of that type.
             return all(
-                t._issubclass(schema, parent)
+                t._issubclass(schema, parent, **kwargs)
                 for t in my_union.objects(schema)
             )
 
-        my_intersection = self.get_intersection_of(schema)
-        if my_intersection:
+        if my_intersection := self.get_intersection_of(schema):
             # An intersection is considered a subclass of a type, if
             # ANY of its components are subclasses of that type.
             return any(
-                t._issubclass(schema, parent)
+                t._issubclass(schema, parent, **kwargs)
                 for t in my_intersection.objects(schema)
             )
+
+        if check_views and self.is_view(schema):
+            return self.peel_view(schema)._issubclass(schema, parent, **kwargs)
 
         lineage = self.get_ancestors(schema).objects(schema)
         if parent in lineage:
             return True
 
         elif isinstance(parent, ObjectType):
-            parent_union = parent.get_union_of(schema)
-            if parent_union:
+            if (
+                (parent_union := parent.get_union_of(schema))
+                and (
+                    not parent.get_is_opaque_union(schema)
+                    or check_opaque_unions
+                )
+            ):
                 # A type is considered a subclass of a union type,
                 # if it is a subclass of ANY of the union components.
                 return (
-                    parent.get_is_opaque_union(schema)
+                    (
+                        parent.get_is_opaque_union(schema)
+                        and not check_opaque_unions
+                    )
                     or any(
-                        self._issubclass(schema, t)
+                        self._issubclass(schema, t, **kwargs)
                         for t in parent_union.objects(schema)
                     )
                 )
 
-            parent_intersection = parent.get_intersection_of(schema)
-            if parent_intersection:
+            if parent_intersection := parent.get_intersection_of(schema):
                 # A type is considered a subclass of an intersection type,
                 # if it is a subclass of ALL of the intersection components.
                 return all(
-                    self._issubclass(schema, t)
+                    self._issubclass(schema, t, **kwargs)
                     for t in parent_intersection.objects(schema)
+                )
+
+            if check_views and parent.is_view(schema):
+                return self._issubclass(
+                    schema,
+                    parent.peel_view(schema),
+                    **kwargs,
                 )
 
         return False
