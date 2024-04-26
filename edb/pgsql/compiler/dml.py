@@ -808,7 +808,6 @@ def process_insert_body(
             contents_cte, contents_rvar = process_insert_rewrites(
                 ir_stmt,
                 contents_cte=contents_cte,
-                contents_rvar=contents_rvar,
                 iterator=iterator,
                 inner_iterator=inner_iterator,
                 rewrites=rewrites,
@@ -897,7 +896,6 @@ def process_insert_rewrites(
     ir_stmt: irast.InsertStmt,
     *,
     contents_cte: pgast.CommonTableExpr,
-    contents_rvar: pgast.PathRangeVar,
     iterator: Optional[pgast.IteratorCTE],
     inner_iterator: Optional[pgast.IteratorCTE],
     rewrites: irast.RewritesOfType,
@@ -907,31 +905,20 @@ def process_insert_rewrites(
 ) -> tuple[pgast.CommonTableExpr, pgast.PathRangeVar]:
     typeref = ir_stmt.subject.typeref.real_material_type
 
-    object_path_id = ir_stmt.subject.path_id
-    subject_path_id = (
-        ir_stmt.rewrites.subject_path_id
-        if ir_stmt.rewrites
-        else object_path_id
-    )
-
+    subject_path_id = ir_stmt.subject.path_id
     rew_stmt = ctx.rel
 
     # Use the original contents as the iterator.
-    # FIXME: Having both subject_path_id and object_path_id is messy
     inner_iterator = pgast.IteratorCTE(
         path_id=subject_path_id,
         cte=contents_cte,
         parent=inner_iterator,
         other_paths=(
-            (object_path_id, 'identity'),
-            (object_path_id, 'value'),
-            (object_path_id, 'source'),
+            (subject_path_id, 'identity'),
+            (subject_path_id, 'value'),
+            (subject_path_id, 'source'),
         ),
     )
-
-    assert isinstance(contents_rvar.query, pgast.Query)
-    pathctx.put_path_id_map(
-        contents_rvar.query, subject_path_id, object_path_id)
 
     # compile rewrite shape
     rewrite_elements = list(rewrites.values())
@@ -953,8 +940,8 @@ def process_insert_rewrites(
     fallback_rvar = pgast.DynamicRangeVar(
         dynamic_get_path=_mk_dynamic_get_path(nptr_map, typeref, iterator_rvar)
     )
-    pathctx.put_path_source_rvar(rew_stmt, object_path_id, fallback_rvar)
-    pathctx.put_path_value_rvar(rew_stmt, object_path_id, fallback_rvar)
+    pathctx.put_path_source_rvar(rew_stmt, subject_path_id, fallback_rvar)
+    pathctx.put_path_value_rvar(rew_stmt, subject_path_id, fallback_rvar)
 
     # If there are any single links that were compiled externally,
     # populate the field from the link overlays.
