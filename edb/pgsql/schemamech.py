@@ -528,6 +528,7 @@ class SchemaTableConstraint:
             except_data=pg_c.except_data,
             scope=pg_c.scope,
             type=pg_c.type,
+            table_type=pg_c.table_type,
             schema=constr.schema,
         )
 
