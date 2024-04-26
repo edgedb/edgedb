@@ -787,15 +787,15 @@ def compile_inheritance_conflict_checks(
         for typ in typs:
             for subject_stype in subject_stypes:
                 # If the earlier DML has a shared ancestor that isn't
-                # BaseObject and isn't (if it's an insert) the same type,
-                # then we need to see if we need a conflict select
-                if (
-                    subject_stype == typ
-                    and not isinstance(ir, irast.UpdateStmt)
-                    and not isinstance(stmt, irast.UpdateStmt)
-                ):
-                    continue
-                if subject_stype == typ and ir == stmt:
+                # BaseObject and isn't the same type, then we need to
+                # see if we need a conflict select.
+                #
+                # Note that two DMLs on the same type *can* require a
+                # conflict select if at least one of them is an UPDATE
+                # and there are children, but that is accounted for by
+                # the above loops over all descendants when ir is an
+                # UPDATE.
+                if subject_stype == typ:
                     continue
 
                 ancs = s_utils.get_class_nearest_common_ancestors(
