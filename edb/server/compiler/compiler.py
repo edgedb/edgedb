@@ -1917,7 +1917,8 @@ def _compile_ql_query(
     sql_text = pg_codegen.generate_source(sql_ast)
     # If requested, embed the EdgeQL text in the SQL.
     if debug.flags.edgeql_text_in_sql and source:
-        sql_text += '\n-- ' + repr(source.text())
+        sql_debug_obj = dict(edgeql=source.text())
+        sql_text = '-- ' + json.dumps(sql_debug_obj) + '\n' + sql_text
     sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
     globals = None
