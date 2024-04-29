@@ -528,7 +528,7 @@ class AlterAnnotationValueStmt(Nonterm):
         )
         self.val.commands = [qlast.SetField(
             name='owned',
-            value=qlast.BooleanConstant(value='false'),
+            value=qlast.Constant.boolean(False),
             special_syntax=True,
         )]
 
@@ -572,21 +572,21 @@ class AlterAbstract(Nonterm):
         # TODO: Raise a DeprecationWarning once we have facility for that.
         self.val = qlast.SetField(
             name='abstract',
-            value=qlast.BooleanConstant.from_python(False),
+            value=qlast.Constant.boolean(False),
             special_syntax=True,
         )
 
     def reduce_SET_NOT_ABSTRACT(self, *kids):
         self.val = qlast.SetField(
             name='abstract',
-            value=qlast.BooleanConstant.from_python(False),
+            value=qlast.Constant.boolean(False),
             special_syntax=True,
         )
 
     def reduce_SET_ABSTRACT(self, *kids):
         self.val = qlast.SetField(
             name='abstract',
-            value=qlast.BooleanConstant.from_python(True),
+            value=qlast.Constant.boolean(True),
             special_syntax=True,
         )
 
@@ -648,14 +648,14 @@ class AlterOwnedStmt(Nonterm):
     def reduce_DROP_OWNED(self, *kids):
         self.val = qlast.SetField(
             name='owned',
-            value=qlast.BooleanConstant(value='false'),
+            value=qlast.Constant.boolean(False),
             special_syntax=True,
         )
 
     def reduce_SET_OWNED(self, *kids):
         self.val = qlast.SetField(
             name='owned',
-            value=qlast.BooleanConstant(value='true'),
+            value=qlast.Constant.boolean(True),
             special_syntax=True,
         )
 
@@ -1231,14 +1231,14 @@ class SetDelegatedStmt(Nonterm):
     def reduce_SET_DELEGATED(self, *kids):
         self.val = qlast.SetField(
             name='delegated',
-            value=qlast.BooleanConstant.from_python(True),
+            value=qlast.Constant.boolean(True),
             special_syntax=True,
         )
 
     def reduce_SET_NOT_DELEGATED(self, *kids):
         self.val = qlast.SetField(
             name='delegated',
-            value=qlast.BooleanConstant.from_python(False),
+            value=qlast.Constant.boolean(False),
             special_syntax=True,
         )
 
@@ -1583,14 +1583,14 @@ class AlterDeferredStmt(Nonterm):
     def reduce_DROP_DEFERRED(self, *kids):
         self.val = qlast.SetField(
             name='deferred',
-            value=qlast.BooleanConstant(value='false'),
+            value=qlast.Constant.boolean(False),
             special_syntax=True,
         )
 
     def reduce_SET_DEFERRED(self, *kids):
         self.val = qlast.SetField(
             name='deferred',
-            value=qlast.BooleanConstant(value='true'),
+            value=qlast.Constant.boolean(True),
             special_syntax=True,
         )
 
@@ -1808,7 +1808,7 @@ class SetRequiredInCreateStmt(Nonterm):
     def reduce_SET_REQUIRED_OptAlterUsingClause(self, *kids):
         self.val = qlast.SetPointerOptionality(
             name='required',
-            value=qlast.BooleanConstant.from_python(True),
+            value=qlast.Constant.boolean(True),
             special_syntax=True,
             fill_expr=kids[2].val,
         )
@@ -1924,7 +1924,7 @@ class SetCardinalityStmt(Nonterm):
     def reduce_SET_SINGLE_OptAlterUsingClause(self, *kids):
         self.val = qlast.SetPointerCardinality(
             name='cardinality',
-            value=qlast.StringConstant.from_python(
+            value=qlast.Constant.string(
                 qltypes.SchemaCardinality.One),
             special_syntax=True,
             conv_expr=kids[2].val,
@@ -1933,7 +1933,7 @@ class SetCardinalityStmt(Nonterm):
     def reduce_SET_MULTI(self, *kids):
         self.val = qlast.SetPointerCardinality(
             name='cardinality',
-            value=qlast.StringConstant.from_python(
+            value=qlast.Constant.string(
                 qltypes.SchemaCardinality.Many),
             special_syntax=True,
         )
@@ -1952,7 +1952,7 @@ class SetRequiredStmt(Nonterm):
     def reduce_SET_REQUIRED_OptAlterUsingClause(self, *kids):
         self.val = qlast.SetPointerOptionality(
             name='required',
-            value=qlast.BooleanConstant.from_python(True),
+            value=qlast.Constant.boolean(True),
             special_syntax=True,
             fill_expr=kids[2].val,
         )
@@ -1960,7 +1960,7 @@ class SetRequiredStmt(Nonterm):
     def reduce_SET_OPTIONAL(self, *kids):
         self.val = qlast.SetPointerOptionality(
             name='required',
-            value=qlast.BooleanConstant.from_python(False),
+            value=qlast.Constant.boolean(False),
             special_syntax=True,
         )
 
@@ -1968,7 +1968,7 @@ class SetRequiredStmt(Nonterm):
         # TODO: Raise a DeprecationWarning once we have facility for that.
         self.val = qlast.SetPointerOptionality(
             name='required',
-            value=qlast.BooleanConstant.from_python(False),
+            value=qlast.Constant.boolean(False),
             special_syntax=True,
         )
 

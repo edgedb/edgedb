@@ -679,6 +679,54 @@ class TestProtocol(ProtocolTestCase):
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
 
+    async def test_proto_state_change_in_tx(self):
+        await self.con.connect()
+
+        # Fixture
+        await self._execute('CREATE MODULE TestStateChangeInTx')
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        await self._execute('CREATE TYPE TestStateChangeInTx::StateChangeInTx')
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='CREATE TYPE'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Collect states
+        await self._execute('''
+            SET MODULE TestStateChangeInTx
+        ''')
+        cc = await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        await self._execute('''
+            CONFIGURE SESSION SET allow_user_specified_id := true
+        ''', cc=cc)
+        cc_true = await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        await self._execute('''
+            CONFIGURE SESSION SET allow_user_specified_id := false
+        ''')
+        cc_false = await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Start a transaction that doesn't allow_user_specified_id
+        await self._execute('START TRANSACTION', cc=cc_false)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # But insert with session that does allow_user_specified_id
+        await self._execute('''
+            INSERT StateChangeInTx {
+                id := <uuid>'a768e9d5-d908-4072-b370-865b450216ff'
+            };
+        ''', cc=cc_true)
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='INSERT'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
 
 class TestServerCancellation(tb.TestCase):
     @contextlib.asynccontextmanager

@@ -74,7 +74,7 @@ class Index(tables.InheritableTableObject):
                 raise NotImplementedError()
             self._columns.add(col)
 
-    def creation_code(self, block: base.PLBlock) -> str:
+    def creation_code(self) -> str:
         if self.exprs:
             exprs = self.exprs
         else:
@@ -201,7 +201,7 @@ class CreateIndex(ddl.CreateObject):
             )
 
     def code(self, block: base.PLBlock) -> str:
-        return self.index.creation_code(block)
+        return self.index.creation_code()
 
 
 class DropIndex(ddl.DropObject):

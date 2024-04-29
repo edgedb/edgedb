@@ -1,7 +1,7 @@
 [project]
 name = "edgedb-server"
 description = "EdgeDB Server"
-requires-python = '>=3.11.0'
+requires-python = '>=3.12.0'
 dynamic = ["version"]
 dependencies = [
     'edgedb==1.9.0',
@@ -19,6 +19,7 @@ dependencies = [
     'setproctitle~=1.2',
 
     'httpx~=0.24.1',
+    'httpx-sse~=0.4.0',
     'hishel==0.0.24',
     'webauthn~=2.0.0',
     'argon2-cffi~=23.1.0',
@@ -34,7 +35,7 @@ edgedb = "edb.cli:rustcli"
 test = [
     'black~=24.2.0',
     'coverage~=7.4',
-    'ruff~=0.3.4',
+    'ruff==0.3.7',
     'asyncpg~=0.29.0',
 
     # Needed for testing asyncutil
@@ -118,7 +119,7 @@ skip-string-normalization = true
 # ========================
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 plugins = "edb/tools/mypy/plugin.py"
 follow_imports = "normal"
 ignore_missing_imports = true

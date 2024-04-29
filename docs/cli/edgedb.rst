@@ -81,9 +81,22 @@ Options
     if not set, to the login name of the current OS user.
 
 :cli:synopsis:`-d <dbname>, --database=<dbname>`
-    Specifies the name of the database to connect to.  Default to the value
+    Specifies the name of the database to connect to. Default to the value
     of the ``EDGEDB_DATABASE`` environment variable, or, if not set, to
     the calculated value of :cli:synopsis:`<username>`.
+
+:cli:synopsis:`-b <branch-name>, --branch=<branch-name>`
+    Specifies the name of the branch to connect to. Default to the value
+    of the ``EDGEDB_BRANCH`` environment variable, or, if not set, to
+    the calculated value of :cli:synopsis:`<username>`.
+
+    .. note::
+
+        EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to
+        replace databases. This option requires CLI version 4.3.0 or later and
+        EdgeDB version 5.0 or later. If you are running an earlier version of
+        EdgeDB, you will instead use the ``-d <dbname>, --database=<dbname>``
+        option above.
 
 :cli:synopsis:`--password | --no-password`
     If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
@@ -139,7 +152,8 @@ Options
 Backslash Commands
 ==================
 
-.. rubric:: Introspection
+Introspection
+-------------
 
 The introspection commands share a few common options that are available to
 many of the commands:
@@ -154,8 +168,27 @@ many of the commands:
 :cli:synopsis:`\\ds, \\d schema, \\describe schema`
   Describe the entire schema.
 
-:cli:synopsis:`\\l, \\list databases`
+:cli:synopsis:`\\l`
+  List branches on EdgeDB server 5+ or databases on prior versions.
+
+:cli:synopsis:`\\list databases`
   List databases.
+
+  .. note::
+
+      EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+      databases. If you are running 5.0 or later, you will instead use the
+      ``\list branches`` command below.
+
+:cli:synopsis:`\\list branches`
+  List branches.
+
+  .. note::
+
+      EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+      databases. This command requires CLI version 4.3.0 or later and EdgeDB
+      version 5.0 or later. If you are running an earlier version of EdgeDB,
+      you will instead use the ``\list databases`` command above.
 
 :cli:synopsis:`\\ls [-sc] [PATTERN], \\list scalars [-sc] [PATTERN]`
   List scalar types.
@@ -178,13 +211,38 @@ many of the commands:
 :cli:synopsis:`\\li [-vsc] [PATTERN], \\list indexes [-vsc] [PATTERN]`
   List indexes.
 
-.. rubric:: Database
+Database
+--------
 
-:cli:synopsis:`\\database create [NAME]`
+.. note::
+
+    EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+    databases. If you are running 5.0 or later, you will instead use the
+    commands in the "Branch" section below.
+
+:cli:synopsis:`\\database create NAME`
   Create a new database.
 
-.. rubric:: Query Analysis
+Branch
+------
 
+.. note::
+
+    EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+    databases. These commands require CLI version 4.3.0 or later and EdgeDB
+    version 5.0 or later. If you are running an earlier version of EdgeDB,
+    you will instead use the database commands above.
+
+:cli:synopsis:`\\branch create NAME`
+  Create a new branch. The backslash command mirrors the options of the CLI's
+  :ref:`ref_cli_edgedb_branch_create`.
+
+:cli:synopsis:`\\branch switch NAME`
+  Switch to a different branch. The backslash command mirrors the options of
+  the CLI's :ref:`ref_cli_edgedb_branch_switch`.
+
+Query Analysis
+--------------
 
 :cli:synopsis:`\\analyze QUERY`
   .. note::
@@ -201,16 +259,18 @@ many of the commands:
 
   Print expanded output of last ``analyze`` operation.
 
-.. rubric:: Data Operations
+Data Operations
+---------------
 
 :cli:synopsis:`\\dump FILENAME`
-  Dump current database to a file at *FILENAME*.
+  Dump current database branch to a file at *FILENAME*.
 
 :cli:synopsis:`\\restore FILENAME`
-  Restore the database dump at *FILENAME* into the currently connected
-  database.
+  Restore the database dump at *FILENAME* into the current branch (or currently
+  connected database for pre-v5).
 
-.. rubric:: Editing
+Editing
+-------
 
 :cli:synopsis:`\\s, \\history`
   Show a history of commands executed in the shell.
@@ -223,27 +283,36 @@ many of the commands:
 
   The output of this will then be used as input into the shell.
 
-.. rubric:: Settings
+Settings
+--------
 
 :cli:synopsis:`\\set [OPTION [VALUE]]`
   If *VALUE* is omitted, the command will show the current value of *OPTION*.
   With *VALUE*, the option named by *OPTION* will be set to the provided value.
   Use ``\set`` with no arguments for a listing of all available options.
 
-.. rubric:: Connection
+Connection
+----------
 
 :cli:synopsis:`\\c, \\connect [DBNAME]`
   Connect to database *DBNAME*.
 
-.. rubric:: Migrations
+  .. note::
+
+      EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+      databases. If you are running 5.0 or later, you will instead use the
+      ``\branch switch NAME`` command to switch to a different branch.
+
+Migrations
+----------
 
 These migration commands are also accessible directly from the command line
 without first entering the EdgeDB shell. Their counterpart commands are noted
 and linked in their descriptions if you want more detail.
 
 :cli:synopsis:`\\migration create`
-  Create a migration script based on differences between the current database
-  and the schema file, just like running
+  Create a migration script based on differences between the current branch (or
+  database for pre-v5) and the schema file, just like running
   :ref:`ref_cli_edgedb_migration_create`.
 
 :cli:synopsis:`\\migrate, \\migration apply`
@@ -263,7 +332,8 @@ and linked in their descriptions if you want more detail.
   migration stored in the schema directory, just like
   :ref:`ref_cli_edgedb_migration_status`.
 
-.. rubric:: Help
+Help
+----
 
 :cli:synopsis:`\\?, \\h, \\help`
   Show help on backslash commands.

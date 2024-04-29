@@ -25,6 +25,7 @@ from edb.schema import types as s_types
 from edb.schema import expr as s_expr
 from edb.schema import schema as s_schema
 from edb.schema import delta as sd
+from edb.schema import name as sn
 
 from edb.ir import ast as irast
 
@@ -55,8 +56,8 @@ def create_fts_index(
     subject = index.get_subject(schema)
     assert isinstance(subject, s_indexes.IndexableSubject)
 
-    effective, has_overridden = s_indexes.get_effective_fts_index(
-        subject, schema
+    effective, has_overridden = s_indexes.get_effective_object_index(
+        schema, subject, sn.QualName("fts", "index")
     )
 
     if index != effective:
@@ -89,7 +90,9 @@ def delete_fts_index(
     subject = index.get_subject(orig_schema)
     assert isinstance(subject, s_indexes.IndexableSubject)
 
-    effective, _ = s_indexes.get_effective_fts_index(subject, schema)
+    effective, _ = s_indexes.get_effective_object_index(
+        schema, subject, sn.QualName("fts", "index")
+    )
 
     if not effective:
         return _delete_fts_document(index, drop_index, orig_schema, context)
@@ -155,7 +158,7 @@ def _delete_fts_document(
     schema: s_schema.Schema,
     context: sd.CommandContext,
 ) -> dbops.Command:
-    table_name = _index_table_name(index, schema)
+    table_name = common.get_index_table_backend_name(index, schema)
 
     ops = dbops.CommandGroup()
     ops.add_command(drop_index)
@@ -192,7 +195,7 @@ def update_fts_document(
     options: qlcompiler.CompilerOptions,
     schema: s_schema.Schema,
 ) -> dbops.Query:
-    table_name = _index_table_name(index, schema)
+    table_name = common.get_index_table_backend_name(index, schema)
 
     # compile the expression
     index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
@@ -222,7 +225,7 @@ def _refresh_fts_document(
     schema: s_schema.Schema,
     context: sd.CommandContext,
 ) -> dbops.Command:
-    table_name = _index_table_name(index, schema)
+    table_name = common.get_index_table_backend_name(index, schema)
 
     # compile the expression
     index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
@@ -263,14 +266,6 @@ def _raise_unsupported_language_error(
     raise errors.UnsupportedFeatureError(msg)
 
 
-def _index_table_name(
-    index: s_indexes.Index, schema: s_schema.Schema
-) -> Tuple[str, str]:
-    subject = index.get_subject(schema)
-    assert isinstance(subject, s_types.Type)
-    return common.get_backend_name(schema, subject, catenate=False)
-
-
 # --- pg fts ---
 
 
@@ -284,7 +279,7 @@ def _pg_create_fts_document(
     ops = dbops.CommandGroup()
 
     # create column __fts_document__
-    table_name = _index_table_name(index, schema)
+    table_name = common.get_index_table_backend_name(index, schema)
 
     module_name = index.get_name(schema).module
     index_name = common.get_index_backend_name(
@@ -440,7 +435,7 @@ def _zombo_create_fts_document(
 ) -> dbops.Command:
     ops = dbops.CommandGroup()
 
-    table_name = _index_table_name(index, schema)
+    table_name = common.get_index_table_backend_name(index, schema)
 
     module_name = index.get_name(schema).module
     index_name = common.get_index_backend_name(

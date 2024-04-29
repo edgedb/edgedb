@@ -242,6 +242,10 @@ class RowDescription(ResponseMessage):
             offset = pos + 19
 
 
+class EmptyQueryResponse(ResponseMessage):
+    msg_type = b"I"
+
+
 class DataRow(ResponseMessage):
     msg_type = b"D"
 
@@ -711,6 +715,11 @@ class TestSQLProtocol(tb.DatabaseTestCase):
     async def test_sql_proto_simple_query_06(self):
         self.conn.write(Query("SELECT 42; SELT 42"))
         await self.assert_error_response("42601", "syntax error")
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_simple_query_07(self):
+        self.conn.write(Query(";"))
+        await self.conn.read(EmptyQueryResponse)
         await self.assert_ready_for_query()
 
     async def test_sql_proto_extended_query_01(self):

@@ -127,7 +127,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                 let mut skip = parser;
                 let error = Error::new(format!("{UNEXPECTED} {token}")).with_span(token.span);
                 skip.push_error(error, ERROR_COST_SKIP);
-                if token.kind == Kind::EOF {
+                if token.kind == Kind::EOF || token.kind == Kind::Semicolon {
                     // extra penalty
                     skip.error_cost += ERROR_COST_INJECT_MAX;
                     skip.can_recover = false;
@@ -571,7 +571,7 @@ fn injection_cost(kind: &Kind) -> u16 {
         CloseBrace | CloseBracket | CloseParen => 1,
 
         Namespace => 10,
-        Semicolon | Comma | Colon => 2,
+        Comma | Colon | Semicolon => 2,
         Eq => 5,
 
         At => 6,

@@ -5425,6 +5425,48 @@ aa \
             [],
         )
 
+        # check that return type of sql is correct
+        # https://github.com/edgedb/edgedb/issues/6786
+        await self.assert_query_result(
+            f'''select <str>(range_get_upper(
+                    range(
+                        <cal::local_datetime>'2024-01-11T00:00:00',
+                        <cal::local_datetime>'2025-01-11T00:00:00'
+                    )
+                ) - <cal::date_duration>"1 day");''',
+            ['2025-01-10T00:00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>(range_get_lower(
+                    range(
+                        <cal::local_datetime>'2024-01-11T00:00:00',
+                        <cal::local_datetime>'2025-01-11T00:00:00'
+                    )
+                ) - <cal::date_duration>"1 day");''',
+            ['2024-01-10T00:00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>(range_get_upper(
+                    multirange([range(
+                        <cal::local_datetime>'2024-01-11T00:00:00',
+                        <cal::local_datetime>'2025-01-11T00:00:00'
+                    )])
+                ) - <cal::date_duration>"1 day");''',
+            ['2025-01-10T00:00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>(range_get_lower(
+                    multirange([range(
+                        <cal::local_datetime>'2024-01-11T00:00:00',
+                        <cal::local_datetime>'2025-01-11T00:00:00'
+                    )])
+                ) - <cal::date_duration>"1 day");''',
+            ['2024-01-10T00:00:00'],
+        )
+
     async def test_edgeql_expr_range_18(self):
         # Test bound for datetime ranges and multiranges.
         await self.assert_query_result(
@@ -5885,6 +5927,48 @@ aa \
                     range(<cal::local_date>{{}},
                           <cal::local_date>'2022-06-15')]));''',
             [],
+        )
+
+        # check that return type of sql is correct
+        # https://github.com/edgedb/edgedb/issues/6786
+        await self.assert_query_result(
+            f'''select <str>(range_get_upper(
+                    range(
+                        <cal::local_date>'2024-01-11',
+                        <cal::local_date>'2025-01-11'
+                    )
+                ) - <cal::date_duration>"1 day");''',
+            ['2025-01-10'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>(range_get_lower(
+                    range(
+                        <cal::local_date>'2024-01-11',
+                        <cal::local_date>'2025-01-11'
+                    )
+                ) - <cal::date_duration>"1 day");''',
+            ['2024-01-10'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>(range_get_upper(
+                    multirange([range(
+                        <cal::local_date>'2024-01-11',
+                        <cal::local_date>'2025-01-11'
+                    )])
+                ) - <cal::date_duration>"1 day");''',
+            ['2025-01-10'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>(range_get_lower(
+                    multirange([range(
+                        <cal::local_date>'2024-01-11',
+                        <cal::local_date>'2025-01-11'
+                    )])
+                ) - <cal::date_duration>"1 day");''',
+            ['2024-01-10'],
         )
 
     async def test_edgeql_expr_range_25(self):

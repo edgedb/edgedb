@@ -155,6 +155,7 @@ pub const CURRENT_RESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "__new__",
     "__old__",
     "__specified__",
+    "__default__",
     "administer",
     "alter",
     "analyze",

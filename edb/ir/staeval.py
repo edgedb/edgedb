@@ -27,7 +27,6 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
-    Union,
     Dict,
     List,
     FrozenSet,
@@ -73,7 +72,7 @@ class UnsupportedExpressionError(errors.QueryError):
     pass
 
 
-EvaluationResult = Union[irast.TypeCast, irast.ConstExpr, irast.Array]
+EvaluationResult = irast.TypeCast | irast.ConstExpr | irast.Array | irast.Tuple
 
 
 def evaluate_to_python_val(
@@ -167,6 +166,23 @@ def evaluate_Array(
     )
 
 
+@evaluate.register(irast.Tuple)
+def evaluate_Tuple(
+    ir: irast.Tuple, schema: s_schema.Schema
+) -> EvaluationResult:
+    return irast.Tuple(
+        named=ir.named,
+        elements=[
+            x.replace(
+                val=x.val.replace(
+                    expr=evaluate(x.val, schema)
+                ),
+            ) for x in ir.elements
+        ],
+        typeref=ir.typeref,
+    )
+
+
 def _process_op_result(
     value: object,
     typeref: irast.TypeRef,
@@ -176,9 +192,9 @@ def _process_op_result(
 ) -> irast.ConstExpr:
     qlconst: qlast.BaseConstant
     if isinstance(value, str):
-        qlconst = qlast.StringConstant.from_python(value)
+        qlconst = qlast.Constant.string(value)
     elif isinstance(value, bool):
-        qlconst = qlast.BooleanConstant.from_python(value)
+        qlconst = qlast.Constant.boolean(value)
     else:
         raise UnsupportedExpressionError(
             f"unsupported result type: {type(value)}", span=span
@@ -219,8 +235,8 @@ def evaluate_OperatorCall(
             f'unsupported operator: {opcall.func_shortname}',
             span=opcall.span)
 
-    args = []
-    for arg in opcall.args:
+    args: Dict[int, irast.CallArg] = {}
+    for key, arg in opcall.args.items():
         arg_val = evaluate_to_python_val(arg.expr, schema=schema)
         if isinstance(arg_val, tuple):
             raise UnsupportedExpressionError(
@@ -230,10 +246,23 @@ def evaluate_OperatorCall(
             raise UnsupportedExpressionError(
                 f'empty operations are not supported',
                 span=opcall.span)
+        if isinstance(key, str):
+            raise UnsupportedExpressionError(
+                f'named arguments are not allowed for operators',
+                span=opcall.span)
 
-        args.append(arg_val)
+        args[key] = arg_val
 
-    value = eval_func(*args)
+    args_list: List[irast.CallArg] = []
+    for key in range(len(args)):
+        if key not in args:
+            raise UnsupportedExpressionError(
+                f'missing positional argument {key}',
+                span=opcall.span)
+
+        args_list.append(args[key])
+
+    value = eval_func(*args_list)
     return _process_op_result(
         value, opcall.typeref, schema, span=opcall.span)
 
@@ -273,7 +302,7 @@ def _evaluate_union(
 ) -> irast.ConstExpr:
 
     elements: List[irast.BaseConstant] = []
-    for arg in opcall.args:
+    for arg in opcall.args.values():
         val = evaluate(arg.expr, schema=schema)
         if isinstance(val, irast.TypeCast):
             val = evaluate(val.expr, schema=schema)
@@ -328,6 +357,18 @@ def const_set_to_python(
 @const_to_python.register(irast.Array)
 def array_const_to_python(ir: irast.Array, schema: s_schema.Schema) -> Any:
     return [const_to_python(x.expr, schema) for x in ir.elements]
+
+
+@const_to_python.register(irast.Tuple)
+def tuple_const_to_python(ir: irast.Tuple, schema: s_schema.Schema) -> Any:
+    if ir.named:
+        return {
+            x.name: const_to_python(x.val.expr, schema) for x in ir.elements
+        }
+    else:
+        return tuple(
+            const_to_python(x.val.expr, schema) for x in ir.elements
+        )
 
 
 @const_to_python.register(irast.IntegerConstant)

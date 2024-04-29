@@ -24,19 +24,19 @@ region for the instance.
 
 Once the instance has been created, you'll see the instance dashboard which
 allows you to monitor your instance, navigate to the management page for its
-databases, and create secret keys.
+branches, and create secret keys.
 
 You'll also see instructions in the bottom-right for linking your EdgeDB CLI to
 your EdgeDB Cloud account. You do this by running the CLI command ``edgedb
 cloud login``. This will make all of your EdgeDB Cloud instances accessible via
 the CLI. You can manage them just as you would other remote EdgeDB instances.
 
-If you want to manage a database inside your instance, click through on
-its name from the top right of the instance dashboard. If you just created
-a database, the database management view will be mostly empty except for a
-button offering to create a sample database. Once you have a schema created
-and some data in a database, this view will offer you similar tools to those
-in our local UI.
+If you want to manage a branch of your database, click through on the
+instance's name from the top right of the instance dashboard. If you just
+created a database, the branch management view will be mostly empty except
+for a button offering to create a sample branch. Once you have a schema
+created and some data in a database, this view will offer you similar tools to
+those in our local UI.
 
 You'll be able to access a REPL, edit complex queries or build them
 graphically, inspect your schema, and browse your data.

@@ -21,4 +21,4 @@ introspection tools.
     * - :ref:`ref_cli_edgedb_describe_object`
       - Describe a named schema object
     * - :ref:`ref_cli_edgedb_describe_schema`
-      - Describe schema of the current database
+      - Describe schema of the current database branch (or database pre-v5)

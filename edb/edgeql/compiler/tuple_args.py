@@ -218,7 +218,7 @@ def _plus_const(expr: qlast.Expr, val: int) -> qlast.Expr:
     return qlast.BinOp(
         left=expr,
         op='+',
-        right=qlast.IntegerConstant(value=str(val)),
+        right=qlast.Constant.integer(val),
     )
 
 
@@ -279,7 +279,7 @@ def make_decoder(
             lo: qlast.Expr
             hi: qlast.Expr
             if idx is None:
-                lo = qlast.IntegerConstant(value='0')
+                lo = qlast.Constant.integer(0)
                 hi = qlast.FunctionCall(
                     func=('__std__', 'len'), args=[params[typ.idx]])
                 # If the leftmost element inside a toplevel array is

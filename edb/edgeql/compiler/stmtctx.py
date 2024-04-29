@@ -49,6 +49,7 @@ from edb.schema import rewrites as s_rewrites
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 
@@ -770,9 +771,9 @@ def _declare_view_from_schema(
     with ctx.detached() as subctx:
         subctx.current_schema_views += (viewcls,)
         subctx.expr_exposed = context.Exposure.UNEXPOSED
-        view_expr = viewcls.get_expr(ctx.env.schema)
+        view_expr: s_expr.Expression | None = viewcls.get_expr(ctx.env.schema)
         assert view_expr is not None
-        view_ql = view_expr.qlast
+        view_ql = view_expr.parse()
         viewcls_name = viewcls.get_name(ctx.env.schema)
         assert isinstance(view_ql, qlast.Expr), 'expected qlast.Expr'
         view_set = declare_view(view_ql, alias=viewcls_name,

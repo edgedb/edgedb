@@ -60,9 +60,11 @@ from edb.schema import objects as s_objects
 from edb.schema import pointers as s_pointers
 from edb.schema import properties as s_props
 from edb.schema import types as s_types
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+from edb.edgeql import utils as qlutils
 
 from . import astutils
 from . import context
@@ -405,6 +407,91 @@ def _process_view(
 
     for shape_el_desc in shape_desc:
         with ctx.new() as scopectx:
+            # when doing insert or update with a compexpr, generate the
+            # the anchor for __default__
+            if (
+                (s_ctx.exprtype.is_insert() or s_ctx.exprtype.is_update())
+                and shape_el_desc.ql.compexpr is not None
+                and shape_el_desc.ptr_name not in (
+                    ctx.special_computables_in_mutation_shape
+                )
+            ):
+                # mutating statement, ptrcls guaranteed to exist
+                ptrcls = setgen.resolve_ptr(
+                    shape_el_desc.source,
+                    shape_el_desc.ptr_name,
+                    track_ref=shape_el_desc.ptr_ql,
+                    ctx=scopectx
+                )
+
+                compexpr_uses_default = False
+                compexpr_default_span: Optional[parsing.Span] = None
+                for path_node in ast.find_children(
+                    shape_el_desc.ql.compexpr, qlast.Path
+                ):
+                    for step in path_node.steps:
+                        if not isinstance(step, qlast.SpecialAnchor):
+                            continue
+                        if step.name != '__default__':
+                            continue
+
+                        compexpr_uses_default = True
+                        compexpr_default_span = step.span
+                        break
+
+                    if compexpr_uses_default:
+                        break
+
+                if compexpr_uses_default and compexpr_default_span is not None:
+                    def make_error(
+                            span: parsing.Span, hint: str
+                        ) -> errors.InvalidReferenceError:
+                        return errors.InvalidReferenceError(
+                            f'__default__ cannot be used in this expression',
+                            span=span,
+                            hint=hint,
+                        )
+
+                    default_expr: Optional[s_expr.Expression] = (
+                        ptrcls.get_default(scopectx.env.schema)
+                    )
+                    if default_expr is None:
+                        raise make_error(
+                            compexpr_default_span,
+                            'No default expression exists',
+                        )
+
+                    default_ast_expr = default_expr.parse()
+
+                    if any(
+                        any(
+                            (
+                                isinstance(step, qlast.SpecialAnchor)
+                                and step.name == '__source__'
+                            )
+                            for step in path_node.steps
+                        )
+                        for path_node in ast.find_children(
+                            default_ast_expr, qlast.Path
+                        )
+                    ):
+                        raise make_error(
+                            compexpr_default_span,
+                            'Default expression uses __source__',
+                        )
+
+                    if qlutils.contains_dml(default_ast_expr):
+                        raise make_error(
+                            compexpr_default_span,
+                            'Default expression uses DML',
+                        )
+
+                    default_set = dispatch.compile(
+                        default_ast_expr, ctx=scopectx
+                    )
+
+                    scopectx.anchors['__default__'] = default_set
+
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set,
                 shape_el_desc,
@@ -767,7 +854,9 @@ def _gen_pointers_from_defaults(
         ):
             continue
 
-        default_expr = ptrcls.get_default(ctx.env.schema)
+        default_expr: Optional[s_expr.Expression] = (
+            ptrcls.get_default(ctx.env.schema)
+        )
         if not default_expr:
             continue
 
@@ -777,7 +866,7 @@ def _gen_pointers_from_defaults(
                 steps=[qlast.Ptr(name=ptrcls_sn.name)],
             ),
             compexpr=qlast.DetachedExpr(
-                expr=default_expr.qlast,
+                expr=default_expr.parse(),
                 preserve_path_prefix=True,
             ),
             origin=qlast.ShapeOrigin.DEFAULT,
@@ -1105,7 +1194,9 @@ def _compile_rewrites_for_stype(
 
         anchors = get_anchors(stype)
 
-        rewrite_expr = rewrite.get_expr(ctx.env.schema)
+        rewrite_expr: Optional[s_expr.Expression] = (
+            rewrite.get_expr(ctx.env.schema)
+        )
         assert rewrite_expr
 
         with ctx.newscope(fenced=True) as scopectx:
@@ -1142,7 +1233,7 @@ def _compile_rewrites_for_stype(
                     steps=[qlast.Ptr(name=ptrcls_sn.name)],
                 ),
                 compexpr=qlast.DetachedExpr(
-                    expr=rewrite_expr.qlast,
+                    expr=rewrite_expr.parse(),
                     preserve_path_prefix=True,
                 ),
             )
@@ -1452,9 +1543,7 @@ def _normalize_view_ptr_expr(
                 and not base_is_singleton
             ):
                 qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
-                qlexpr.limit = qlast.IntegerConstant(
-                    value=str(ctx.implicit_limit),
-                )
+                qlexpr.limit = qlast.Constant.integer(ctx.implicit_limit)
 
         if target_typexpr is not None:
             assert isinstance(target_typexpr, qlast.TypeName)
@@ -1574,11 +1663,13 @@ def _normalize_view_ptr_expr(
         if (
             (ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
             and ctx.implicit_limit
-            and isinstance(qlexpr, (qlast.PipelinedQuery, qlast.ShapeElement))
+            and isinstance(qlexpr, (
+                qlast.SelectQuery, qlast.DeleteQuery, qlast.ShapeElement
+            ))
             and not qlexpr.limit
         ):
             qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
-            qlexpr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
+            qlexpr.limit = qlast.Constant.integer(ctx.implicit_limit)
 
         irexpr, sub_view_rptr = _compile_qlexpr(
             ir_source,
@@ -2142,7 +2233,7 @@ def _inline_type_computable(
             ),
             compexpr=qlast.Path(
                 steps=[
-                    qlast.Source(),
+                    qlast.SpecialAnchor(name='__source__'),
                     qlast.Ptr(
                         name='__type__',
                         direction=s_pointers.PointerDirection.Outbound,
@@ -2167,7 +2258,7 @@ def _inline_type_computable(
             base_ir_set = setgen.ensure_set(
                 ir_set, type_override=base_stype, ctx=scopectx)
 
-            scopectx.anchors[qlast.Source().name] = base_ir_set
+            scopectx.anchors['__source__'] = base_ir_set
             ptr, ptr_set = _normalize_view_ptr_expr(
                 base_ir_set,
                 ql_desc,
@@ -2511,7 +2602,7 @@ def _late_compile_view_shapes_in_call(
 ) -> None:
 
     if expr.func_polymorphic:
-        for call_arg in expr.args:
+        for call_arg in expr.args.values():
             arg = call_arg.expr
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:

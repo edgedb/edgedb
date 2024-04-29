@@ -284,8 +284,12 @@ def get_objtype_backend_name(
 ):
     if aspect is None:
         aspect = 'table'
-    if aspect not in {'table', 'inhview', 'dummy'} and not re.match(
-            r'(source|target)-del-(def|imm)-(inl|otl)-(f|t)', aspect):
+    if (
+        aspect not in {'table', 'inhview', 'dummy'}
+        and not re.match(
+            r'(source|target)-del-(def|imm)-(inl|otl)-(f|t)', aspect)
+        and not aspect.startswith("ext")
+    ):
         raise ValueError(
             f'unexpected aspect for object type backend name: {aspect!r}')
 
@@ -401,6 +405,17 @@ def get_index_backend_name(id, module_name, catenate=True, *, aspect=None):
         aspect = 'index'
     name = s_name.QualName(module=module_name, name=str(id))
     return convert_name(name, aspect, catenate)
+
+
+def get_index_table_backend_name(
+    index: s_indexes.Index,
+    schema: s_schema.Schema,
+    *,
+    aspect: Optional[str] = None,
+) -> Tuple[str, str]:
+    subject = index.get_subject(schema)
+    assert isinstance(subject, s_types.Type)
+    return get_backend_name(schema, subject, aspect=aspect, catenate=False)
 
 
 def get_tuple_backend_name(

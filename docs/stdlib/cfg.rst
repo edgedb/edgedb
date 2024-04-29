@@ -22,8 +22,11 @@ EdgeDB.
       the overall configuration setting from instance level all the way to
       session level.
   * - :eql:type:`cfg::DatabaseConfig`
-    - The database branch configuration object. It reflects all the
-      applicable configuration at EdgeDB branch level.
+    - The database configuration object. It reflects all the applicable
+      configuration at the EdgeDB database level.
+  * - :eql:type:`cfg::BranchConfig`
+    - The database branch configuration object. It reflects all the applicable
+      configuration at the EdgeDB branch level.
   * - :eql:type:`cfg::InstanceConfig`
     - The instance configuration object.
   * - :eql:type:`cfg::ExtensionConfig`
@@ -102,6 +105,32 @@ Query planning
   cache that is available to a single query. Corresponds to the
   PostgreSQL configuration parameter of the same name.
 
+
+
+Query cache
+-----------
+
+.. versionadded:: 5.0
+
+:eql:synopsis:`auto_rebuild_query_cache -> bool`
+  Determines whether to recompile the existing query cache to SQL any time DDL
+  is executed.
+
+:eql:synopsis:`query_cache_mode -> cfg::QueryCacheMode`
+  Allows the developer to set where the query cache is stored. Possible values:
+
+  * ``cfg::QueryCacheMode.InMemory``- All query cache is lost on server restart.
+    This mirrors pre-5.0 EdgeDB's behavior.
+  * ``cfg::QueryCacheMode.RegInline``- The in-memory query cache is also stored in
+    the database as-is so it can be restored on restart.
+  * ``cfg::QueryCacheMode.Default``- Allow the server to select the best caching
+    option. Currently, it will select ``InMemory`` for arm64 Linux and
+    ``RegInline`` for everything else.
+
+.. TODO: toggle on once the PgFunc mode is available
+   * ``cfg::QueryCacheMode.PgFunc``- this is experimental and not quite ready as of
+     now. It wraps SQLs into stored functions in Postgres and reduces backend
+     request size and preparation time.
 
 Query behavior
 --------------
@@ -256,13 +285,35 @@ Client connections
 
 .. eql:type:: cfg::DatabaseConfig
 
-  The database branch-level configuration object type.
+  The :versionreplace:`database;5.0:branch`-level configuration object type.
 
   This type will have only one object instance. The ``cfg::DatabaseConfig``
-  object represents the state of branch and instance-level EdgeDB
-  configuration.
+  object represents the state of :versionreplace:`database;5.0:branch` and
+  instance-level EdgeDB configuration.
 
-  For overall configuraiton state please refer to the :eql:type:`cfg::Config`
+  For overall configuration state please refer to the :eql:type:`cfg::Config`
+  instead.
+
+  .. versionadded:: 5.0
+
+      As of EdgeDB 5.0, this config object represents database *branch*
+      and instance-level configuration.
+
+
+----------
+
+
+.. eql:type:: cfg::BranchConfig
+
+  .. versionadded:: 5.0
+
+  The :versionreplace:`database;5.0:branch`-level configuration object type.
+
+  This type will have only one object instance. The ``cfg::BranchConfig``
+  object represents the state of :versionreplace:`database;5.0:branch` and
+  instance-level EdgeDB configuration.
+
+  For overall configuration state please refer to the :eql:type:`cfg::Config`
   instead.
 
 

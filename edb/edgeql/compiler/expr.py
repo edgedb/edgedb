@@ -44,6 +44,7 @@ from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import utils
@@ -114,7 +115,6 @@ REBALANCED_OPS = {'UNION'}
 REBALANCE_THRESHOLD = 10
 
 
-@dispatch.compile.register(qlast.SetConstructorOp)
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
     # Rebalance some associative operations to avoid deeply nested ASTs
@@ -134,10 +134,9 @@ def compile_BinOp(expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
     if expr.op == '??' and utils.contains_dml(expr.right):
         return _compile_dml_coalesce(expr, ctx=ctx)
 
-    op_node = func.compile_operator(
-        expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
-
-    return op_node
+    return func.compile_operator(
+        expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx
+    )
 
 
 @dispatch.compile.register(qlast.IsOp)
@@ -183,8 +182,10 @@ def compile_Set(expr: qlast.Set, *, ctx: context.ContextLevel) -> irast.Set:
             # TODO: Introduce an N-ary operation that handles the whole thing?
             bigunion = _balance(
                 elements,
-                lambda l, r, c: qlast.SetConstructorOp(
-                    left=l, right=r, rebalanced=True, span=c),
+                lambda l, r, s: qlast.BinOp(
+                    left=l, op='UNION', right=r,
+                    rebalanced=True, set_constructor=True, span=s
+                ),
                 expr.span
             )
             res = dispatch.compile(bigunion, ctx=ctx)
@@ -199,60 +200,61 @@ def compile_Set(expr: qlast.Set, *, ctx: context.ContextLevel) -> irast.Set:
         )
 
 
-@dispatch.compile.register(qlast.BaseConstant)
-def compile_BaseConstant(
-    expr: qlast.BaseConstant, *, ctx: context.ContextLevel
+@dispatch.compile.register(qlast.Constant)
+def compile_Constant(
+    expr: qlast.Constant, *, ctx: context.ContextLevel
 ) -> irast.Set:
     value = expr.value
 
     node_cls: Type[irast.BaseConstant]
 
-    if isinstance(expr, qlast.StringConstant):
+    if expr.kind == qlast.ConstantKind.STRING:
         std_type = sn.QualName('std', 'str')
         node_cls = irast.StringConstant
-    elif isinstance(expr, qlast.IntegerConstant):
+    elif expr.kind == qlast.ConstantKind.INTEGER:
         value = value.replace("_", "")
-        int_value = int(value)
-        if expr.is_negative:
-            int_value = -int_value
-            value = f'-{value}'
-        # If integer value is out of int64 bounds, use decimal
         std_type = sn.QualName('std', 'int64')
         node_cls = irast.IntegerConstant
-    elif isinstance(expr, qlast.FloatConstant):
+    elif expr.kind == qlast.ConstantKind.FLOAT:
         value = value.replace("_", "")
-        if expr.is_negative:
-            value = f'-{value}'
         std_type = sn.QualName('std', 'float64')
         node_cls = irast.FloatConstant
-    elif isinstance(expr, qlast.DecimalConstant):
+    elif expr.kind == qlast.ConstantKind.DECIMAL:
         assert value[-1] == 'n'
         value = value[:-1].replace("_", "")
-        if expr.is_negative:
-            value = f'-{value}'
         std_type = sn.QualName('std', 'decimal')
         node_cls = irast.DecimalConstant
-    elif isinstance(expr, qlast.BigintConstant):
+    elif expr.kind == qlast.ConstantKind.BIGINT:
         assert value[-1] == 'n'
         value = value[:-1].replace("_", "")
-        if expr.is_negative:
-            value = f'-{value}'
         std_type = sn.QualName('std', 'bigint')
         node_cls = irast.BigintConstant
-    elif isinstance(expr, qlast.BooleanConstant):
+    elif expr.kind == qlast.ConstantKind.BOOLEAN:
         std_type = sn.QualName('std', 'bool')
         node_cls = irast.BooleanConstant
-    elif isinstance(expr, qlast.BytesConstant):
-        std_type = sn.QualName('std', 'bytes')
-        node_cls = irast.BytesConstant
     else:
-        raise RuntimeError(f'unexpected constant type: {type(expr)}')
+        raise RuntimeError(f'unexpected constant type: {expr.kind}')
 
     ct = typegen.type_to_typeref(
         ctx.env.get_schema_type_and_track(std_type),
         env=ctx.env,
     )
     return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
+
+
+@dispatch.compile.register(qlast.BytesConstant)
+def compile_BytesConstant(
+    expr: qlast.BytesConstant, *, ctx: context.ContextLevel
+) -> irast.Set:
+    std_type = sn.QualName('std', 'bytes')
+
+    ct = typegen.type_to_typeref(
+        ctx.env.get_schema_type_and_track(std_type),
+        env=ctx.env,
+    )
+    return setgen.ensure_set(
+        irast.BytesConstant(value=expr.value, typeref=ct), ctx=ctx
+    )
 
 
 @dispatch.compile.register(qlast.NamedTuple)
@@ -370,10 +372,10 @@ def _compile_dml_coalesce(
         # Note that lhs_ir will be unfenced while rhs_ir
         # will have been compiled under fences.
         match ir.expr:
-            case irast.OperatorCall(args=[
-                irast.CallArg(expr=lhs_ir),
-                irast.CallArg(expr=rhs_ir),
-            ]):
+            case irast.OperatorCall(args={
+                0: irast.CallArg(expr=lhs_ir),
+                1: irast.CallArg(expr=rhs_ir),
+            }):
                 pass
             case _:
                 raise AssertionError('malformed DML ??')
@@ -449,11 +451,11 @@ def _compile_dml_ifelse(
         # Note that cond_ir will be unfenced while if_ir and else_ir
         # will have been compiled under fences.
         match ir.expr:
-            case irast.OperatorCall(args=[
-                irast.CallArg(expr=if_ir),
-                irast.CallArg(expr=cond_ir),
-                irast.CallArg(expr=else_ir),
-            ]):
+            case irast.OperatorCall(args={
+                0: irast.CallArg(expr=if_ir),
+                1: irast.CallArg(expr=cond_ir),
+                2: irast.CallArg(expr=else_ir),
+            }):
                 pass
             case _:
                 raise AssertionError('malformed DML IF/ELSE')
@@ -585,13 +587,13 @@ def compile_GlobalExpr(
 
         return target
 
-    default = glob.get_default(ctx.env.schema)
+    default: Optional[s_expr.Expression] = glob.get_default(ctx.env.schema)
 
     # If we are compiling with globals suppressed but still allowed, always
     # treat it as being empty.
     if ctx.env.options.make_globals_empty:
         if default:
-            return dispatch.compile(default.qlast, ctx=ctx)
+            return dispatch.compile(default.parse(), ctx=ctx)
         else:
             return setgen.new_empty_set(
                 stype=glob.get_target(ctx.env.schema), ctx=ctx)
@@ -623,7 +625,7 @@ def compile_GlobalExpr(
             main_param = subctx.maybe_create_anchor(param_set, 'glob')
             param_set = func.compile_operator(
                 expr, op_name='std::??',
-                qlargs=[main_param, default.qlast], ctx=subctx)
+                qlargs=[main_param, default.parse()], ctx=subctx)
     elif default and present_set:
         # ... but if {} is a valid value for the global, we need to
         # stick in an extra parameter to indicate whether to use
@@ -636,7 +638,7 @@ def compile_GlobalExpr(
 
             param_set = func.compile_operator(
                 expr, op_name='std::IF',
-                qlargs=[main_param, present_param, default.qlast], ctx=subctx)
+                qlargs=[main_param, present_param, default.parse()], ctx=subctx)
     elif not isinstance(param_set, irast.Set):
         param_set = dispatch.compile(param_set, ctx=ctx)
 

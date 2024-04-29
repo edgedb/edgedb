@@ -44,6 +44,7 @@ class Capability(enum.IntFlag):
 
     ALL               = 0xFFFF_FFFF_FFFF_FFFF  # noqa
     WRITE             = (MODIFICATIONS | DDL | PERSISTENT_CONFIG)  # noqa
+    NONE              = 0  # noqa
 
     def make_error(
         self,

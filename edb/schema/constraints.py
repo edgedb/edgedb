@@ -29,6 +29,7 @@ from typing import (
     List,
     Set,
     cast,
+    Iterable,
     TYPE_CHECKING,
 )
 import re
@@ -277,13 +278,13 @@ class Constraint(
     ) -> str:
         text = self.get_errmessage(schema)
         assert text
-        args = self.get_args(schema)
+        args: Optional[s_expr.ExpressionList] = self.get_args(schema)
         if args:
             args_ql: List[qlast.Base] = [
                 qlast.Path(steps=[qlast.ObjectRef(name=subject_name)]),
             ]
 
-            args_ql.extend(arg.qlast for arg in args)
+            args_ql.extend(arg.parse() for arg in args)
 
             constr_base: Constraint = schema.get(
                 self.get_name(schema), type=type(self))
@@ -519,9 +520,9 @@ class ConstraintCommand(
         else:
             subj_expr_ql = edgeql.parse_fragment(subj_expr.text)
 
-        except_expr = parent.get_except_expr(schema)
+        except_expr: s_expr.Expression | None = parent.get_except_expr(schema)
         if except_expr:
-            except_expr_ql = except_expr.qlast
+            except_expr_ql = except_expr.parse()
         else:
             except_expr_ql = None
 
@@ -572,8 +573,8 @@ class ConstraintCommand(
                     schema=schema,
                     options=qlcompiler.CompilerOptions(
                         modaliases=context.modaliases,
-                        anchors={qlast.Subject().name: base},
-                        path_prefix_anchor=qlast.Subject().name,
+                        anchors={'__subject__': base},
+                        path_prefix_anchor='__subject__',
                         singletons=frozenset([base]),
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
@@ -630,7 +631,7 @@ class ConstraintCommand(
         field: so.Field[Any],
         value: Any,
     ) -> Optional[s_expr.Expression]:
-        if field.name in {'expr', 'subjectexpr', 'finalexpr'}:
+        if field.name in {'expr', 'subjectexpr', 'finalexpr', 'except_expr'}:
             return s_expr.Expression(text='SELECT false')
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
@@ -737,7 +738,7 @@ class ConstraintCommand(
         subjectexpr: Optional[s_expr.Expression] = None,
         subjectexpr_inherited: bool = False,
         sourcectx: Optional[c_parsing.Span] = None,
-        args: Any = None,
+        args: Optional[Iterable[s_expr.Expression]] = None,
         **kwargs: Any
     ) -> None:
         from edb.ir import ast as irast
@@ -790,7 +791,7 @@ class ConstraintCommand(
             )
 
         if subjectexpr is not None:
-            subject_ql = subjectexpr.qlast
+            subject_ql = subjectexpr.parse()
             subject = subject_ql
         else:
             subject = subject_obj
@@ -800,7 +801,7 @@ class ConstraintCommand(
             raise errors.InvalidConstraintDefinitionError(
                 f'missing constraint expression in {name}')
 
-        # Re-parse instead of using expr.qlast, because we mutate
+        # Re-parse instead of using expr.parse, because we mutate
         # the AST below.
         expr_ql = qlparser.parse_query(expr.text)
 
@@ -822,14 +823,14 @@ class ConstraintCommand(
             # subject has been redefined
             assert isinstance(subject, qlast.Base)
             qlutils.inline_anchors(
-                expr_ql, anchors={qlast.Subject().name: subject})
+                expr_ql, anchors={'__subject__': subject})
             subject = orig_subject
 
         if args:
             args_ql: List[qlast.Base] = [
-                qlast.Path(steps=[qlast.Subject()]),
+                qlast.Path(steps=[qlast.SpecialAnchor(name='__subject__')]),
             ]
-            args_ql.extend(arg.qlast for arg in args)
+            args_ql.extend(arg.parse() for arg in args)
             args_map = qlutils.index_parameters(
                 args_ql,
                 parameters=constr_base.get_params(schema),
@@ -849,8 +850,8 @@ class ConstraintCommand(
         final_expr = s_expr.Expression.from_ast(expr_ql, schema, {}).compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
-                anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=qlast.Subject().name,
+                anchors={'__subject__': subject},
+                path_prefix_anchor='__subject__',
                 singletons=singletons,
                 apply_query_rewrites=False,
                 schema_object_context=self.get_schema_metaclass(),
@@ -870,17 +871,11 @@ class ConstraintCommand(
             )
 
         except_expr: s_expr.Expression | None = attrs.get('except_expr')
-        if except_expr:
-            if isinstance(subject, s_pointers.Pointer):
-                raise errors.InvalidConstraintDefinitionError(
-                    "only object constraints may use EXCEPT",
-                    span=sourcectx
-                )
 
         if subjectexpr is not None:
             options = qlcompiler.CompilerOptions(
-                anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=qlast.Subject().name,
+                anchors={'__subject__': subject},
+                path_prefix_anchor='__subject__',
                 singletons=singletons,
                 apply_query_rewrites=False,
                 schema_object_context=self.get_schema_metaclass(),
@@ -1339,7 +1334,7 @@ class CreateConstraint(
             assert isinstance(op.new_value, s_expr.ExpressionList)
             args = []
             for arg in op.new_value:
-                exprast = arg.qlast
+                exprast = arg.parse()
                 assert isinstance(exprast, qlast.Expr), "expected qlast.Expr"
                 args.append(exprast)
             node.args = args
@@ -1552,6 +1547,8 @@ class AlterConstraint(
             and (subjectexpr :=
                  self.get_attribute_value('subjectexpr')) is not None
         ):
+            assert isinstance(subjectexpr, s_expr.Expression)
+
             # To compute the new name, we construct an AST of the
             # constraint, since that is the infrastructure we have for
             # computing the classname.
@@ -1559,7 +1556,7 @@ class AlterConstraint(
             assert isinstance(name, sn.QualName), "expected qualified name"
             ast = qlast.CreateConcreteConstraint(
                 name=qlast.ObjectRef(name=name.name, module=name.module),
-                subjectexpr=subjectexpr.qlast,
+                subjectexpr=subjectexpr.parse(),
                 args=[],
             )
             quals = sn.quals_from_fullname(self.classname)
@@ -1600,7 +1597,7 @@ class DeleteConstraint(
         if op.property == 'args':
             assert isinstance(op.old_value, s_expr.ExpressionList)
             assert isinstance(node, qlast.DropConcreteConstraint)
-            node.args = [arg.qlast for arg in op.old_value]
+            node.args = [arg.parse() for arg in op.old_value]
             return
 
         super()._apply_field_ast(schema, context, node, op)

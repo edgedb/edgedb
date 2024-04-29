@@ -265,6 +265,7 @@ CREATE FUNCTION std::range_get_upper(r: range<anypoint>) -> optional anypoint
 {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'upper';
+    SET force_return_cast := true;
 };
 
 
@@ -272,6 +273,7 @@ CREATE FUNCTION std::range_get_lower(r: range<anypoint>) -> optional anypoint
 {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'lower';
+    SET force_return_cast := true;
 };
 
 
@@ -295,6 +297,7 @@ CREATE FUNCTION std::range_get_upper(
 {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'upper';
+    SET force_return_cast := true;
 };
 
 
@@ -304,6 +307,7 @@ CREATE FUNCTION std::range_get_lower(
 {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'lower';
+    SET force_return_cast := true;
 };
 
 

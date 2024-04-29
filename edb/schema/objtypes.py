@@ -640,7 +640,7 @@ class AlterObjectType(
                 # them in the schema to produce the correct as_alter_delta.
                 nschema = _delete_to_delist(delete, schema)
 
-                nschema, nunion = utils.get_union_type(
+                nschema, nunion, _ = utils.ensure_union_type(
                     nschema,
                     types=union.get_union_of(schema).objects(schema),
                     opaque=union.get_is_opaque_union(schema),

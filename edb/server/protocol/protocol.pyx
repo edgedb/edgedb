@@ -1,4 +1,4 @@
-#
+
 # This source file is part of the EdgeDB open source project.
 #
 # Copyright 2021-present MagicStack Inc. and the EdgeDB authors.
@@ -58,6 +58,7 @@ from . import notebook_ext
 from . import system_api
 from . import ui_ext
 from . import auth_ext
+from . import ai_ext
 
 
 HTTPStatus = http.HTTPStatus
@@ -89,6 +90,7 @@ cdef class HttpResponse:
         self.custom_headers = {}
         self.body = b''
         self.close_connection = False
+        self.sent = False
 
 
 cdef class HttpProtocol:
@@ -295,7 +297,7 @@ cdef class HttpProtocol:
                 b'The server is closing.',
             )
 
-    cdef close(self):
+    cpdef close(self):
         if self.transport is not None:
             self.transport.close()
             self.transport = None
@@ -339,8 +341,11 @@ cdef class HttpProtocol:
         data = [
             b'HTTP/', req_version, b' ', resp_status, b'\r\n',
             b'Content-Type: ', content_type, b'\r\n',
-            b'Content-Length: ', f'{len(body)}'.encode(), b'\r\n',
         ]
+        if content_type != b"text/event-stream":
+            data.extend(
+                (b'Content-Length: ', f'{len(body)}'.encode(), b'\r\n'),
+            )
 
         for key, value in custom_headers.items():
             data.append(f'{key}: {value}\r\n'.encode())
@@ -352,7 +357,7 @@ cdef class HttpProtocol:
             data.append(body)
         self.transport.write(b''.join(data))
 
-    cdef write(self, HttpRequest request, HttpResponse response):
+    cpdef write(self, HttpRequest request, HttpResponse response):
         assert type(response.status) is HTTPStatus
         self._write(
             request.version,
@@ -361,6 +366,10 @@ cdef class HttpProtocol:
             response.custom_headers,
             response.body,
             response.close_connection or not request.should_keep_alive)
+        response.sent = True
+
+    def write_raw(self, bytes data):
+        self.transport.write(data)
 
     def _switch_to_binary_protocol(self, data=None):
         binproto = binary.new_edge_connection(
@@ -484,7 +493,8 @@ cdef class HttpProtocol:
             self.unhandled_exception(b"500 Internal Server Error", ex)
             return
 
-        self.write(request, response)
+        if not response.sent:
+            self.write(request, response)
         self.in_response = False
 
         if response.close_connection or not request.should_keep_alive:
@@ -647,6 +657,10 @@ cdef class HttpProtocol:
                     await edgeql_ext.handle_request(
                         request, response, db, args, self.tenant
                     )
+                elif extname == 'ai':
+                    await ai_ext.handle_request(
+                        self, request, response, db, args, self.tenant
+                    )
                 elif extname == 'auth':
                     netloc = (
                         f"{request_url.host.decode()}:{request_url.port}"
@@ -671,6 +685,8 @@ cdef class HttpProtocol:
                             srv_metrics.auth_api_calls.inc(
                                 1.0, self.get_tenant_label()
                             )
+                else:
+                    return self._not_found(request, response)
 
         elif route == 'auth':
             if await self._handle_cors(
@@ -849,43 +865,57 @@ cdef class HttpProtocol:
             username, opt_password = auth_helpers.extract_http_user(
                 scheme, auth_payload, request.params)
 
-            # Fetch the configured auth method
-            authmethod = await self.tenant.get_auth_method(
+            # Fetch the configured auth methods
+            authmethods = await self.tenant.get_auth_methods(
                 username, srvargs.ServerConnTransport.SIMPLE_HTTP)
-            authmethod_name = authmethod._tspec.name.split('::')[1]
 
-            # If the auth method and the provided auth information match,
-            # try to resolve the authentication.
-            if authmethod_name == 'JWT' and scheme == 'bearer':
-                if not self.is_tls:
+            auth_errors = {}
+
+            for authmethod in authmethods:
+                authmethod_name = authmethod._tspec.name.split('::')[1]
+                try:
+                    # If the auth method and the provided auth information
+                    # match, try to resolve the authentication.
+                    if authmethod_name == 'JWT' and scheme == 'bearer':
+                        auth_helpers.auth_jwt(
+                            self.tenant, auth_payload, username, dbname)
+                    elif authmethod_name == 'Password' and scheme == 'basic':
+                        auth_helpers.auth_basic(
+                            self.tenant, username, opt_password)
+                    elif authmethod_name == 'Trust':
+                        pass
+                    elif authmethod_name == 'SCRAM':
+                        raise errors.AuthenticationError(
+                            'authentication failed: '
+                            'SCRAM authentication required but not '
+                            'supported for HTTP'
+                        )
+                    elif authmethod_name == 'mTLS':
+                        if (
+                            self.http_endpoint_security
+                            is srvargs.ServerEndpointSecurityMode.Tls
+                            or self.is_tls
+                        ):
+                            auth_helpers.auth_mtls_with_user(
+                                self.transport, username)
+                    else:
+                        raise errors.AuthenticationError(
+                            'authentication failed: wrong method used')
+
+                except errors.AuthenticationError as e:
+                    auth_errors[authmethod_name] = e
+
+                else:
+                    break
+
+            if len(auth_errors) == len(authmethods):
+                if len(auth_errors) > 1:
+                    desc = "; ".join(
+                        f"{k}: {e.args[0]}" for k, e in auth_errors.items())
                     raise errors.AuthenticationError(
-                        'JWT HTTP auth must use HTTPS')
-
-                auth_helpers.auth_jwt(
-                    self.tenant, auth_payload, username, dbname)
-            elif authmethod_name == 'Password' and scheme == 'basic':
-                if not self.is_tls:
-                    raise errors.AuthenticationError(
-                        'Basic HTTP auth must use HTTPS')
-
-                auth_helpers.auth_basic(self.tenant, username, opt_password)
-            elif authmethod_name == 'Trust':
-                pass
-            elif authmethod_name == 'SCRAM':
-                raise errors.AuthenticationError(
-                    'authentication failed: '
-                    'SCRAM authentication required but not supported for HTTP'
-                )
-            elif authmethod_name == 'mTLS':
-                if (
-                    self.http_endpoint_security
-                    is srvargs.ServerEndpointSecurityMode.Tls
-                    or self.is_tls
-                ):
-                    auth_helpers.auth_mtls_with_user(self.transport, username)
-            else:
-                raise errors.AuthenticationError(
-                    'authentication failed: wrong method used')
+                        f"all authentication methods failed: {desc}")
+                else:
+                    raise next(iter(auth_errors.values()))
 
         except Exception as ex:
             if debug.flags.server:
@@ -910,22 +940,39 @@ cdef class HttpProtocol:
         transport: srvargs.ServerConnTransport,
     ):
         try:
-            auth_method = self.server.get_default_auth_method(transport)
+            auth_methods = self.server.get_default_auth_methods(transport)
+            auth_errors = {}
 
-            # If the auth method and the provided auth information match,
-            # try to resolve the authentication.
-            if auth_method is srvargs.ServerAuthMethod.Trust:
-                pass
-            elif auth_method is srvargs.ServerAuthMethod.mTLS:
-                if (
-                    self.http_endpoint_security
-                    is srvargs.ServerEndpointSecurityMode.Tls
-                    or self.is_tls
-                ):
-                    auth_helpers.auth_mtls(self.transport)
-            else:
-                raise errors.AuthenticationError(
-                    'authentication failed: wrong method used')
+            for auth_method in auth_methods:
+                authmethod_name = auth_method._tspec.name.split('::')[1]
+                try:
+                    # If the auth method and the provided auth information
+                    # match, try to resolve the authentication.
+                    if authmethod_name == 'Trust':
+                        pass
+                    elif authmethod_name == 'mTLS':
+                        if (
+                            self.http_endpoint_security
+                            is srvargs.ServerEndpointSecurityMode.Tls
+                            or self.is_tls
+                        ):
+                            auth_helpers.auth_mtls(self.transport)
+                    else:
+                        raise errors.AuthenticationError(
+                            'authentication failed: wrong method used')
+                except errors.AuthenticationError as e:
+                    auth_errors[authmethod_name] = e
+                else:
+                    break
+
+            if len(auth_errors) == len(auth_methods):
+                if len(auth_errors) > 1:
+                    desc = "; ".join(
+                        f"{k}: {e.args[0]}" for k, e in auth_errors.items())
+                    raise errors.AuthenticationError(
+                        f"all authentication methods failed: {desc}")
+                else:
+                    raise next(iter(auth_errors.values()))
 
         except Exception as ex:
             if debug.flags.server:

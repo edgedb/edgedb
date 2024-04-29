@@ -6,26 +6,46 @@ HTTP API
 Using HTTP, you may check the health of your EdgeDB instance, check metrics on
 your instance, and make queries.
 
-Your instance's URL takes the form of ``http://<hostname>:<port>/``. For
-queries, you will append ``db/<database-name>/edgeql``.
+
+.. versionchanged:: _default
+
+    Your instance's URL takes the form of ``http://<hostname>:<port>/``. For
+    queries, you will append ``db/<database-name>/edgeql``.
+
+.. versionchanged:: 5.0
+
+    Your instance's URL takes the form of ``http://<hostname>:<port>/``. For
+    queries, you will append ``branch/<branch-name>/edgeql``.
 
 .. note::
 
     Here's how to determine your local EdgeDB instance's HTTP server URL:
 
+.. versionchanged:: _default
+
     - The ``hostname`` will be ``localhost``
     - Find the ``port`` by running ``edgedb instance list``. This will print a
       table of all EdgeDB instances on your machine, including their associated
       port number.
-    - In most cases, ``database_name`` will be ``edgedb``. An EdgeDB *instance*
+    - In most cases, ``database-name`` will be ``edgedb``. An EdgeDB *instance*
       can contain multiple databases. On initialization, a default database
       called ``edgedb`` is created; all queries are executed against this
       database unless otherwise specified.
 
+.. versionchanged:: 5.0
+
+    - The ``hostname`` will be ``localhost``
+    - Find the ``port`` by running ``edgedb instance list``. This will print a
+      table of all EdgeDB instances on your machine, including their associated
+      port number.
+    - The default branch in your EdgeDB database is ``main``. Use this for
+      ``<branch-name>`` unless you want to query a different branch.
+
     To determine the URL of a remote instance you have linked with the CLI, you
     can get both the hostname and port of the instance from the "Port" column
     of the ``edgedb instance list`` table (formatted as ``<hostname>:<port>``).
-    The same guidance on local database names applies here.
+    The same guidance on local :versionreplace:`database;5.0:branch` names
+    applies to remote instances.
 
 .. _ref_reference_health_checks:
 
@@ -217,9 +237,17 @@ Making a query request
 
 Make a query to your EdgeDB database using this URL:
 
-.. code-block::
+.. versionchanged:: _default
 
-    http://<hostname>:<port>/db/<database-name>/edgeql
+    .. code-block::
+
+        http://<hostname>:<port>/db/<database-name>/edgeql
+
+.. versionchanged:: 5.0
+
+    .. code-block::
+
+        http://<hostname>:<port>/branch/<branch-name>/edgeql
 
 You may make queries via either the POST or GET HTTP method. Query requests can
 take the following fields:
@@ -246,16 +274,23 @@ database, as executed from the EdgeDB REPL:
 The query inserts a ``Person`` object. The object's ``name`` value is
 parameterized in the query as ``$name``.
 
-This GET request would run the same query (assuming the instance is local and
-the database is named ``edgedb``):
+.. versionchanged:: _default
 
-.. lint-off
+    This GET request would run the same query (assuming the instance is local
+    and the database is named ``edgedb``):
 
-.. code-block::
+    .. code-block::
 
-    GET http://localhost:<port>/db/edgedb/edgeql?query=insert%20Person%20%7B%20name%20%3A%3D%20%3Cstr%3E$name%20%7D%3B&variables=%7B%22name%22%3A%20%22Pat%22%7D
+        GET http://localhost:<port>/db/edgedb/edgeql?query=insert%20Person%20%7B%20name%20%3A%3D%20%3Cstr%3E$name%20%7D%3B&variables=%7B%22name%22%3A%20%22Pat%22%7D
 
-.. lint-on
+.. versionchanged:: 5.0
+
+    This GET request would run the same query (assuming the instance is local
+    and you want to query the ``main`` branch):
+
+    .. code-block::
+
+        GET http://localhost:<port>/branch/main/edgeql?query=insert%20Person%20%7B%20name%20%3A%3D%20%3Cstr%3E$name%20%7D%3B&variables=%7B%22name%22%3A%20%22Pat%22%7D
 
 As you can see with even this simple query, URL encoding can quickly become
 onerous with queries over GET.

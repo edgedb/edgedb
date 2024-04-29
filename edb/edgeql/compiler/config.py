@@ -42,6 +42,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 
@@ -102,7 +103,7 @@ def compile_ConfigSet(
     else:
         if isinstance(val, statypes.ScalarType) and info.backend_setting:
             backend_expr = dispatch.compile(
-                qlast.StringConstant.from_python(val.to_backend_str()),
+                qlast.Constant.string(val.to_backend_str()),
                 ctx=ctx,
             )
         else:
@@ -327,11 +328,13 @@ def _enforce_pointer_constraints(
         with ctx.detached() as sctx:
             sctx.partial_path_prefix = expr
             sctx.anchors = ctx.anchors.copy()
-            sctx.anchors[qlast.Subject().name] = expr
+            sctx.anchors['__subject__'] = expr
 
-            final_expr = constraint.get_finalexpr(ctx.env.schema)
-            assert final_expr is not None and final_expr.qlast is not None
-            ir = dispatch.compile(final_expr.qlast, ctx=sctx)
+            final_expr: Optional[s_expr.Expression] = (
+                constraint.get_finalexpr(ctx.env.schema)
+            )
+            assert final_expr is not None and final_expr.parse() is not None
+            ir = dispatch.compile(final_expr.parse(), ctx=sctx)
 
         result = ireval.evaluate(ir, schema=ctx.env.schema)
         assert isinstance(result, irast.BooleanConstant)

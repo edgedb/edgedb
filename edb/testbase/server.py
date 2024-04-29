@@ -1127,9 +1127,9 @@ class ConnectedTestCase(ClusterTestCase):
 
 class DatabaseTestCase(ConnectedTestCase):
 
-    SETUP: Optional[Union[str, List[str]]] = None
+    SETUP: Optional[str | pathlib.Path | list[str] | list[pathlib.Path]] = None
     TEARDOWN: Optional[str] = None
-    SCHEMA: Optional[Union[str, pathlib.Path]] = None
+    SCHEMA: Optional[str | pathlib.Path] = None
     DEFAULT_MODULE: str = 'default'
     EXTENSIONS: List[str] = []
 
@@ -1300,13 +1300,19 @@ class DatabaseTestCase(ConnectedTestCase):
             for scr in scripts:
                 has_nontrivial_script = True
 
-                if '\n' not in scr and os.path.exists(scr):
-                    with open(scr, 'rt') as f:
-                        setup = f.read()
-                else:
-                    setup = scr
+                is_path = (
+                    isinstance(scr, pathlib.Path)
+                    or '\n' not in scr and os.path.exists(scr)
+                )
 
-                script += '\n' + setup
+                if is_path:
+                    with open(scr, 'rt') as f:
+                        setup_text = f.read()
+                else:
+                    assert isinstance(scr, str)
+                    setup_text = scr
+
+                script += '\n' + setup_text
 
             # If the SETUP script did a SET MODULE, make sure it is cleared
             # (since in some modes we keep using the same connection)

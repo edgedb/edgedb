@@ -37,7 +37,37 @@ try:
         POPULATE MIGRATION;
         COMMIT MIGRATION;
     ''')
+
+    # Put something in the query cache
+    db2.query(r'''
+        SELECT User {
+            name,
+            id
+        }
+        ORDER BY User.name;
+    ''')
+
     db2.close()
+
+    # Compile a query from the CLI.
+    # (At one point, having a cached query with proto version 1 caused
+    # trouble...)
+    cli_base = [
+        'edgedb',
+        'query',
+        '-H',
+        'localhost',
+        '-P',
+        '10000',
+        '-b',
+        'json',
+        '--tls-security',
+        'insecure',
+    ]
+    subprocess.run(
+        [*cli_base, 'select 1+1'],
+        check=True,
+    )
 
     # For the httpextauth database, create the proper extensions, so
     # that patching of the auth extension in place can get tested.

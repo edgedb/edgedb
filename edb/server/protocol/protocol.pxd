@@ -46,6 +46,7 @@ cdef class HttpResponse:
         public bytes content_type
         public dict custom_headers
         public bytes body
+        public bint sent
 
 
 cdef class HttpProtocol:
@@ -82,10 +83,10 @@ cdef class HttpProtocol:
                 bytes content_type, dict custom_headers, bytes body,
                 bint close_connection)
 
-    cdef write(self, HttpRequest request, HttpResponse response)
+    cpdef write(self, HttpRequest request, HttpResponse response)
 
     cdef unhandled_exception(self, bytes status, ex)
     cdef resume(self)
-    cdef close(self)
+    cpdef close(self)
     cdef inline _schedule_handle_request(self, request)
     cdef inline _close_with_error(self, bytes status, bytes message)

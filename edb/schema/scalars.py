@@ -589,7 +589,8 @@ class CreateScalarType(
                     for x in (base.extra_args or ()):
                         if (
                             not isinstance(x, qlast.TypeExprLiteral)
-                            or not isinstance(x.val, qlast.IntegerConstant)
+                            or not isinstance(x.val, qlast.Constant)
+                            or x.val.kind != qlast.ConstantKind.INTEGER
                         ):
                             raise errors.SchemaDefinitionError(
                                 'invalid scalar type argument',
@@ -655,11 +656,11 @@ class CreateScalarType(
                 super()._apply_field_ast(schema, context, node, op)
                 if arg_values := self.get_local_attribute_value('arg_values'):
                     frags = [
-                        s_expr.Expression(text=x).qlast for x in arg_values]
+                        s_expr.Expression(text=x).parse() for x in arg_values]
                     assert isinstance(node, qlast.BasedOnTuple)
                     node.bases[0].subtypes = [
                         qlast.TypeExprLiteral(
-                            val=downcast(qlast.BaseConstant, frag)
+                            val=downcast(qlast.Constant, frag)
                         )
                         for frag in frags
                     ]

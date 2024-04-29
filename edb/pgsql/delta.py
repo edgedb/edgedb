@@ -91,10 +91,12 @@ from edb.pgsql import common
 from edb.pgsql import dbops
 from edb.pgsql import params
 from edb.pgsql import deltafts
+from edb.pgsql import delta_ext_ai
 
 from edb.server import defines as edbdef
 from edb.server import config
 from edb.server.config import ops as config_ops
+from edb.server.compiler import sertypes
 
 from . import ast as pgast
 from .common import qname as q
@@ -1229,7 +1231,7 @@ class FunctionCommand(MetaCommand):
             qlexpr = qlcompiler.astutils.ensure_ql_query(
                 ql_ast.TypeCast(
                     type=s_utils.typeref_to_ast(schema, return_type),
-                    expr=nativecode.qlast,
+                    expr=nativecode.parse(),
                 )
             )
             nativecode = self._compile_edgeql_function(
@@ -3230,6 +3232,12 @@ class CompositeMetaCommand(MetaCommand):
                 elif ptrname == sn.UnqualName('__fts_document__'):
                     # an addon column
                     cols.append((ptrname.name, alias, True))
+                elif (
+                    ptrname.name.startswith('__ext_ai_')
+                    and ptrname.name.endswith('__')
+                ):
+                    # an addon column
+                    cols.append((ptrname.name, alias, True))
                 else:
                     return None
 
@@ -3307,8 +3315,8 @@ class CompositeMetaCommand(MetaCommand):
                         ptr_stor_info.column_type,
                     )
 
-            for name, type in obj.get_addon_columns(schema):
-                ptrs[sn.UnqualName(name)] = (name, type)
+            for name, alias, type in obj.get_addon_columns(schema):
+                ptrs[sn.UnqualName(name)] = (alias, type)
 
         else:
             # MULTI PROPERTY
@@ -3568,28 +3576,35 @@ def get_index_compile_options(
     subject = index.get_subject(schema)
     assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
 
-    singletons = [subject]
-    path_prefix_anchor = ql_ast.Subject().name
-
     return qlcompiler.CompilerOptions(
         modaliases=modaliases,
         schema_object_context=schema_object_context,
-        anchors={ql_ast.Subject().name: subject},
-        path_prefix_anchor=path_prefix_anchor,
-        singletons=singletons,
+        anchors={'__subject__': subject},
+        path_prefix_anchor='__subject__',
+        singletons=[subject],
         apply_query_rewrites=False,
     )
 
 
 def get_reindex_sql(
     obj: s_objtypes.ObjectType,
+    restore_desc: sertypes.ShapeDesc,
     schema: s_schema.Schema,
 ) -> Optional[str]:
-    "Generate SQL statement that repopulates the index after a restore."
-    "Currently this only applies to FTS indexes."
+    """Generate SQL statement that repopulates the index after a restore.
 
-    (fts_index, _) = s_indexes.get_effective_fts_index(obj, schema)
-    if fts_index:
+    Currently this only applies to FTS indexes, and it only fires if
+    __fts_document__ is not in the dump (which it wasn't prior to 5.0).
+
+    AI index columns might also be missing if they were made with a
+    5.0rc1 dump, but the indexer will pick them up without our
+    intervention.
+    """
+
+    (fts_index, _) = s_indexes.get_effective_object_index(
+        schema, obj, sn.QualName("fts", "index")
+    )
+    if fts_index and '__fts_document__' not in restore_desc.fields:
         options = get_index_compile_options(fts_index, schema, {}, None)
         cmd = deltafts.update_fts_document(fts_index, options, schema)
         return cmd.code(None)
@@ -3647,25 +3662,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             root_code = root.get_code(schema)
 
             kwargs = index.get_concrete_kwargs(schema)
-            # Get all the concrete kwargs compiled (they are expected to be
-            # constants)
-            # These are expected to be constants, so we don't have anchors,
-            # path prefixes, etc.
-            kw_options = qlcompiler.CompilerOptions(
-                modaliases=context.modaliases,
-                schema_object_context=cls.get_schema_metaclass(),
-                apply_query_rewrites=False,
-            )
             for name, expr in kwargs.items():
-                # XXX: origin messes up compilation, but by this point we
-                # shouldn't care about the expression's origin.
-                expr.origin = None
-                kw_expr = expr.ensure_compiled(
-                    schema=schema,
-                    options=kw_options,
-                    as_fragment=True,
-                )
-                kw_ir = kw_expr.irast
+                kw_ir = expr.assert_compiled().irast
                 kw_sql_res = compiler.compile_ir_to_sql_tree(
                     kw_ir.expr, singleton_mode=True)
                 kw_sql_tree = kw_sql_res.ast
@@ -3678,9 +3676,6 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 sql = codegen.generate_source(kw_sql_tree)
                 sql_kwarg_exprs[name] = sql
 
-        if root_code is None:
-            raise AssertionError(f'index {root_name} is missing the code')
-
         # FTS
         if root_name == sn.QualName('fts', 'index'):
             return deltafts.create_fts_index(
@@ -3692,6 +3687,18 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 schema,
                 context,
             )
+        elif root_name == sn.QualName('ext::ai', 'index'):
+            return delta_ext_ai.create_ext_ai_index(
+                index,
+                predicate_src,
+                sql_kwarg_exprs,
+                options,
+                schema,
+                context,
+            )
+
+        if root_code is None:
+            raise AssertionError(f'index {root_name} is missing the code')
 
         sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
         exprs = astutils.maybe_unpack_row(sql_res.ast)
@@ -3725,12 +3732,12 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         )
         return dbops.CreateIndex(pg_index)
 
-    def _create_begin(
+    def _create_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        schema = super()._create_begin(schema, context)
+        schema = super()._create_innards(schema, context)
         index = self.scls
 
         if index.get_abstract(schema):
@@ -3740,10 +3747,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         with errors.ensure_span(self.span):
             self.pgops.add(self.create_index(index, schema, context))
 
-        # FTS
-        if index.has_base_with_name(schema, sn.QualName('fts', 'index')):
+        if s_indexes.is_object_scope_index(schema, index):
             # update inhviews
-
             subject = index.get_subject(schema)
             assert isinstance(subject, s_objtypes.ObjectType)
             self.schedule_inhview_update(
@@ -3820,8 +3825,7 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
             drop_index = dbops.NoOpCommand()
 
         # FTS
-        if index.has_base_with_name(orig_schema, sn.QualName('fts', 'index')):
-
+        if s_indexes.is_fts_index(orig_schema, index):
             # compile commands for index drop
             options = get_index_compile_options(
                 index,
@@ -3852,6 +3856,40 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
                 # schedule the index to be dropped after
                 self.schedule_post_inhview_update_command(
                     schema, context, drop_s_ops, s_sources.SourceCommandContext
+                )
+        # ext::ai::index
+        elif s_indexes.is_ext_ai_index(orig_schema, index):
+            # compile commands for index drop
+            options = get_index_compile_options(
+                index,
+                orig_schema,
+                context.modaliases,
+                self.get_schema_metaclass()
+            )
+            drop_support_ops, drop_col_ops = delta_ext_ai.delete_ext_ai_index(
+                index, drop_index, options, schema, orig_schema, context
+            )
+
+            # Even though the object type table is getting dropped, we have
+            # to drop the trigger and its function
+            self.pgops.add(drop_support_ops)
+            if not isinstance(drop_index, dbops.NoOpCommand):
+                # The object is not getting dropped, so we need to update the
+                # inh view *before* the __ext_ai_* cols are dropped.
+
+                # schedule inh view update
+                subject = index.get_subject(orig_schema)
+                assert isinstance(subject, s_objtypes.ObjectType)
+                self.schedule_inhview_update(
+                    schema, context, subject, s_sources.SourceCommandContext
+                )
+
+                # schedule the index to be dropped after
+                self.schedule_post_inhview_update_command(
+                    schema,
+                    context,
+                    cast(sd.Command, drop_col_ops),
+                    s_sources.SourceCommandContext,
                 )
         else:
             self.pgops.add(drop_index)
@@ -4839,7 +4877,7 @@ class PointerMetaCommand(
                 context,
                 s_expr.Expression.from_ast(
                     ql_ast.TypeCast(
-                        expr=conv_expr.qlast,
+                        expr=conv_expr.parse(),
                         type=s_utils.typeref_to_ast(schema, new_target),
                     ),
                     schema=orig_schema,
@@ -7501,6 +7539,22 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
 
         return schema
 
+    def _create_innards(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._create_innards(schema, context)
+
+        if str(self.classname) == "ai":
+            self.pgops.add(
+                delta_ext_ai.pg_rebuild_all_pending_embeddings_views(
+                    schema, context
+                ),
+            )
+
+        return schema
+
 
 class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
     def apply(
@@ -7510,6 +7564,11 @@ class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
     ) -> s_schema.Schema:
         extension = schema.get_global(s_exts.Extension, self.classname)
         package = extension.get_package(schema)
+
+        if str(self.classname) == "ai":
+            self.pgops.add(
+                delta_ext_ai.pg_drop_all_pending_embeddings_views(schema),
+            )
 
         schema = super().apply(schema, context)
 

@@ -80,7 +80,7 @@ class DumpTestCaseMixin:
 
 
 class TestDumpV5(tb.StableDumpTestCase, DumpTestCaseMixin):
-    EXTENSIONS = ["pgvector"]
+    EXTENSIONS = ["pgvector", "ai"]
     BACKEND_SUPERUSER = True
 
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',

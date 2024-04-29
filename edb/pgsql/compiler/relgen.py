@@ -47,6 +47,8 @@ from edb.edgeql import qltypes
 from edb.schema import objects as s_obj
 from edb.schema import name as sn
 
+from edb.edgeql import ast as qlast
+
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
@@ -1513,7 +1515,7 @@ def process_set_as_membership_expr(
     assert isinstance(expr, irast.OperatorCall)
 
     with ctx.new() as newctx:
-        left_arg, right_arg = (a.expr for a in expr.args)
+        left_arg, right_arg = (a.expr for a in expr.args.values())
 
         newctx.expr_exposed = False
         left_out = dispatch.compile(left_arg, ctx=newctx)
@@ -1614,7 +1616,7 @@ def process_set_as_setop(
     with ctx.new() as newctx:
         newctx.expr_exposed = False
 
-        left, right = (a.expr for a in expr.args)
+        left, right = (a.expr for a in expr.args.values())
 
         with newctx.subrel() as _, _.newscope() as scopectx:
             larg = scopectx.rel
@@ -1694,8 +1696,10 @@ def process_set_as_ifelse(
     expr = ir_set.expr
     stmt = ctx.rel
 
-    if_expr, condition, else_expr = (a.expr for a in expr.args)
-    if_expr_card, _, else_expr_card = (a.cardinality for a in expr.args)
+    if_expr, condition, else_expr = (a.expr for a in expr.args.values())
+    if_expr_card, _, else_expr_card = (
+        a.cardinality for a in expr.args.values()
+    )
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
@@ -1803,8 +1807,8 @@ def process_set_as_coalesce(
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
-        left_ir, right_ir = (a.expr for a in expr.args)
-        _left_card, right_card = (a.cardinality for a in expr.args)
+        left_ir, right_ir = (a.expr for a in expr.args.values())
+        _left_card, right_card = (a.cardinality for a in expr.args.values())
         is_object = (
             ir_set.path_id.is_objtype_path()
             or ir_set.path_id.is_tuple_path()
@@ -2209,8 +2213,8 @@ def process_set_as_singleton_assertion(
     expr = ir_set.expr
     stmt = ctx.rel
 
-    msg_arg = expr.args[0]
-    ir_arg = expr.args[1]
+    msg_arg = expr.args['message']
+    ir_arg = expr.args[0]
     ir_arg_set = ir_arg.expr
 
     if (
@@ -2228,7 +2232,7 @@ def process_set_as_singleton_assertion(
         arg_ref = dispatch.compile(ir_arg_set, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
 
-        msg = dispatch.compile(expr.args[0].expr, ctx=newctx)
+        msg = dispatch.compile(msg_arg.expr, ctx=newctx)
 
         # Generate a singleton set assertion as the following SQL:
         #
@@ -2318,8 +2322,8 @@ def process_set_as_existence_assertion(
     expr = ir_set.expr
     stmt = ctx.rel
 
-    msg_arg = expr.args[0]
-    ir_arg = expr.args[1]
+    msg_arg = expr.args['message']
+    ir_arg = expr.args[0]
     ir_arg_set = ir_arg.expr
 
     if (
@@ -2404,8 +2408,8 @@ def process_set_as_multiplicity_assertion(
 ) -> SetRVars:
     """Implementation of std::assert_distinct"""
     expr = ir_set.expr
-    msg_arg = expr.args[0]
-    ir_arg = expr.args[1]
+    msg_arg = expr.args['message']
+    ir_arg = expr.args[0]
     ir_arg_set = ir_arg.expr
 
     if (
@@ -2768,12 +2772,11 @@ def process_set_as_std_range(
     #     )
     #   end
 
-    # N.B: kwargs go first and are sorted by name
-    empty = dispatch.compile(expr.args[0].expr, ctx=ctx)
-    inc_lower = dispatch.compile(expr.args[1].expr, ctx=ctx)
-    inc_upper = dispatch.compile(expr.args[2].expr, ctx=ctx)
-    lower = dispatch.compile(expr.args[3].expr, ctx=ctx)
-    upper = dispatch.compile(expr.args[4].expr, ctx=ctx)
+    empty = dispatch.compile(expr.args['empty'].expr, ctx=ctx)
+    inc_lower = dispatch.compile(expr.args['inc_lower'].expr, ctx=ctx)
+    inc_upper = dispatch.compile(expr.args['inc_upper'].expr, ctx=ctx)
+    lower = dispatch.compile(expr.args[0].expr, ctx=ctx)
+    upper = dispatch.compile(expr.args[1].expr, ctx=ctx)
 
     lb = pgast.Index(
         idx=astutils.new_binop(
@@ -2922,8 +2925,8 @@ def process_set_as_call(
         return process_set_as_oper_expr(ir_set, ctx=ctx)
 
     if any(
-        pm is qltypes.TypeModifier.SetOfType
-        for pm in ir_set.expr.params_typemods
+        arg.param_typemod is qltypes.TypeModifier.SetOfType
+        for key, arg in ir_set.expr.args.items()
     ):
         # Call to an aggregate function.
         assert irutils.is_set_instance(ir_set, irast.FunctionCall)
@@ -3220,6 +3223,7 @@ def _compile_call_args(
     ir_set: irast.Set,
     *,
     skip: Collection[int] = (),
+    no_subquery_args: bool = False,
     ctx: context.CompilerContextLevel,
 ) -> List[pgast.BaseExpr]:
     """
@@ -3236,22 +3240,26 @@ def _compile_call_args(
             arg_ref = dispatch.compile(glob_arg, ctx=ctx)
             args.append(output.output_as_value(arg_ref, env=ctx.env))
 
-    for i, (ir_arg, typemod) in enumerate(zip(expr.args, expr.params_typemods)):
-        if i in skip:
+    for ir_key, ir_arg in expr.args.items():
+        if ir_key in skip:
             continue
         assert ir_arg.multiplicity != qltypes.Multiplicity.UNKNOWN
+
+        typemod = ir_arg.param_typemod
 
         # Support a mode where we try to compile arguments as pure
         # subqueries. This is occasionally valuable as it lets us
         # "push down" the subqueries from the top level, which is
         # important for things like hitting pgvector indexes in an
         # ORDER BY.
+        arg_typeref = ir_arg.expr.typeref
         make_subquery = (
             expr.prefer_subquery_args
             and typemod != qltypes.TypeModifier.SetOfType
             and ir_arg.cardinality.is_single()
-            and ir_arg.expr.typeref.is_scalar
+            and (arg_typeref.is_scalar or arg_typeref.collection)
             and not _needs_arg_null_check(expr, ir_arg, typemod, ctx=ctx)
+            and not no_subquery_args
         )
 
         if make_subquery:
@@ -3351,13 +3359,17 @@ def process_set_as_func_expr(
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
         args = _compile_call_args(ir_set, ctx=newctx)
-        name = get_func_call_backend_name(expr, ctx=newctx)
 
-        if expr.typemod is qltypes.TypeModifier.SetOfType:
-            set_expr = _process_set_func(
-                ir_set, func_name=name, args=args, ctx=newctx)
+        if expr.body is not None:
+            set_expr = dispatch.compile(expr.body, ctx=newctx)
         else:
-            set_expr = pgast.FuncCall(name=name, args=args)
+            name = get_func_call_backend_name(expr, ctx=newctx)
+
+            if expr.typemod is qltypes.TypeModifier.SetOfType:
+                set_expr = _process_set_func(
+                    ir_set, func_name=name, args=args, ctx=newctx)
+            else:
+                set_expr = pgast.FuncCall(name=name, args=args)
 
         if expr.error_on_null_result:
             set_expr = pgast.FuncCall(
@@ -3427,8 +3439,7 @@ def process_set_as_agg_expr_inner(
 
             args = []
 
-            for i, (ir_call_arg, typemod) in enumerate(
-                    zip(expr.args, expr.params_typemods)):
+            for ir_call_key, ir_call_arg in expr.args.items():
                 ir_arg = ir_call_arg.expr
 
                 arg_ref: pgast.BaseExpr
@@ -3456,7 +3467,12 @@ def process_set_as_agg_expr_inner(
                             arg_ref, env=argctx.env)
 
                 _compile_arg_null_check(
-                    expr, ir_call_arg, arg_ref, typemod, ctx=argctx)
+                    expr,
+                    ir_call_arg,
+                    arg_ref,
+                    ir_call_arg.param_typemod,
+                    ctx=argctx
+                )
 
                 path_scope = relctx.get_scope(ir_arg, ctx=argctx)
                 if path_scope is not None and path_scope.parent is not None:
@@ -3485,7 +3501,7 @@ def process_set_as_agg_expr_inner(
                     )
                     arg_ref = astutils.get_column(wrapper_rvar, colname)
 
-                if i == 0 and irutils.is_subquery_set(ir_arg):
+                if ir_call_key == 0 and irutils.is_subquery_set(ir_arg):
                     # If the first argument of the aggregate
                     # is a SELECT or GROUP with an ORDER BY clause,
                     # we move the ordering conditions to the aggregate
@@ -3865,44 +3881,181 @@ def process_encoded_param(
     return sctx.rel
 
 
+_ObjectSearchInnerCallback = Callable[
+    [
+        irast.Call,
+        irast.PathId,
+        list[pgast.BaseExpr],
+        context.CompilerContextLevel,
+        context.CompilerContextLevel,
+        context.CompilerContextLevel,
+    ],
+    tuple[pgast.BaseExpr, Optional[pgast.BaseExpr]],
+]
+
+
 @_special_case('fts::search')
 def process_set_as_fts_search(
     ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
+    from edb.common import debug
+
+    cb: _ObjectSearchInnerCallback
+    if debug.flags.zombodb:
+        cb = _fts_search_inner_zombo
+    else:
+        cb = _fts_search_inner_pg
+
+    return _process_set_as_object_search(
+        ir_set, inner_cb=cb, ctx=ctx)
+
+
+@_special_case('ext::ai::search')
+def process_set_as_ext_ai_search(
+    ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    cb = _ext_ai_search_inner_pgvector
+    return _process_set_as_object_search(
+        ir_set, inner_cb=cb, ctx=ctx)
+
+
+def _ext_ai_search_inner_pgvector(
+    call: irast.Call,
+    obj_id: irast.PathId,
+    args_pg: list[pgast.BaseExpr],
+    _ctx: context.CompilerContextLevel,
+    newctx: context.CompilerContextLevel,
+    _inner_ctx: context.CompilerContextLevel,
+) -> Tuple[pgast.BaseExpr, Optional[pgast.BaseExpr]]:
+    assert isinstance(call, irast.FunctionCall)
+    if call.extras is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+    index_metadata = call.extras.get("index_metadata")
+    if index_metadata is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+    tgt = obj_id.target
+    if tgt.material_type is not None:
+        tgt = tgt.material_type
+    target_index_metadata = index_metadata.get(tgt)
+    if target_index_metadata is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+    index_id = target_index_metadata.get("id")
+    if index_id is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+    dimensions = target_index_metadata.get("dimensions")
+    if dimensions is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+    df = target_index_metadata.get("distance_function")
+    if index_id is None:
+        raise AssertionError(
+            "missing expected index metadata in FunctionCall.extras")
+
+    query, = args_pg
+    el_name = sn.QualName(
+        '__object__',
+        f'__ext_ai_{index_id}_embedding__',
+    )
+    embedding_ptrref = irast.SpecialPointerRef(
+        name=el_name,
+        shortname=el_name,
+        out_source=obj_id.target,
+        out_target=pg_types.pg_tsvector_typeref,
+        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+    )
+    embedding_id = obj_id.extend(ptrref=embedding_ptrref)
+    embedding = relctx.get_path_var(
+        newctx.rel,
+        embedding_id,
+        aspect='value',
+        ctx=newctx,
+    )
+
+    similarity = pgast.FuncCall(
+        name=common.get_function_backend_name(*df),
+        args=[
+            embedding,
+            pgast.TypeCast(
+                arg=query,
+                type_name=pgast.TypeName(
+                    name=('edgedb', f'vector({dimensions})'),
+                ),
+            ),
+        ],
+    )
+
+    # Install the filter directly in newctx.rel. We could return it
+    # and have it put in inner_ctx.rel, and that does seem to work,
+    # but seems weirder.
+    valid = pgast.NullTest(arg=embedding, negated=True)
+    newctx.rel.where_clause = astutils.extend_binop(
+        newctx.rel.where_clause, valid
+    )
+
+    # Do an integrated sort. This ensures we can hit the index, and is
+    # more ergonomic anyway. Having the ORDER BY operate directly on
+    # the function call is not the *only* way to have it work, but it
+    # is the most reliable.
+    sort_by = pgast.SortBy(
+        node=similarity,
+        dir=qlast.SortOrder.Asc,
+        nulls=qlast.NonesOrder.Last,
+    )
+    if newctx.rel.sort_clause is None:
+        newctx.rel.sort_clause = []
+    newctx.rel.sort_clause.append(sort_by)
+
+    return similarity, None
+
+
+def _process_set_as_object_search(
+    ir_set: irast.SetE[irast.Call],
+    *,
+    inner_cb: _ObjectSearchInnerCallback,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
     func_call = ir_set.expr
+
+    # We skip the object, as it has to be compiled as rvar source.
+    #
+    # Also, disable subquery args. ai::search needs it for its
+    # scoping effects, but we don't need to use it here, since
+    # it can cause the ai search to duplicate arguments.
+    args_pg = _compile_call_args(
+        ir_set, skip={0}, no_subquery_args=True, ctx=ctx)
+
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
-        obj_ir = func_call.args[2].expr
+        obj_ir = func_call.args[0].expr
         obj_id = obj_ir.path_id
         obj_rvar = ensure_source_rvar(obj_ir, newctx.rel, ctx=newctx)
-
-        # we skip the object, as it has to be compiled as rvar source
-        args_pg = _compile_call_args(ir_set, skip={2}, ctx=newctx)
-        lang, weights, query = args_pg
 
         out_obj_id, out_score_id = func_call.tuple_path_ids
 
         with newctx.subrel() as inner_ctx:
             # inner_ctx generates the `SELECT score WHERE test` relation
-
-            from edb.common import debug
-
-            if debug.flags.zombodb:
-                score_pg, where_clause = _fts_search_inner_zombo(
-                    obj_id, query, lang, ctx, newctx, inner_ctx
-                )
-            else:
-                score_pg, where_clause = _fts_search_inner_pg(
-                    obj_id, query, lang, weights, ctx, newctx, inner_ctx
-                )
+            score_pg, where_clause = inner_cb(
+                func_call,
+                obj_id,
+                args_pg,
+                ctx,
+                newctx,
+                inner_ctx,
+            )
 
             pathctx.put_path_var(
                 inner_ctx.rel, out_score_id, score_pg, aspect='value'
             )
-            inner_ctx.rel.where_clause = astutils.extend_binop(
-                inner_ctx.rel.where_clause, where_clause
-            )
+
+            if where_clause is not None:
+                inner_ctx.rel.where_clause = astutils.extend_binop(
+                    inner_ctx.rel.where_clause, where_clause
+                )
 
             in_rvar = relctx.new_rel_rvar(ir_set, inner_ctx.rel, ctx=newctx)
             relctx.include_rvar(
@@ -3950,25 +4103,27 @@ def process_set_as_fts_search(
 
     pathctx.put_path_id_map(newctx.rel, out_obj_id, obj_id)
 
-    aspects = {'value'}
+    aspects = {'value', 'source'}
 
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(
         ctx.rel, func_rvar, ir_set.path_id, aspects=aspects, ctx=ctx
     )
 
+    pathctx.put_path_rvar(ctx.rel, out_obj_id, func_rvar, aspect='source')
+
     return new_stmt_set_rvar(ir_set, ctx.rel, aspects=aspects, ctx=ctx)
 
 
 def _fts_search_inner_pg(
+    _call: irast.Call,
     obj_id: irast.PathId,
-    query: pgast.BaseExpr,
-    lang: pgast.BaseExpr,
-    weights: pgast.BaseExpr,
+    args_pg: list[pgast.BaseExpr],
     ctx: context.CompilerContextLevel,
     newctx: context.CompilerContextLevel,
     inner_ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.BaseExpr, pgast.BaseExpr]:
+    lang, weights, query = args_pg
     el_name = sn.QualName('__object__', '__fts_document__')
     fts_document_ptrref = irast.SpecialPointerRef(
         name=el_name,
@@ -4060,13 +4215,14 @@ def _fts_prepare_weights(
 
 
 def _fts_search_inner_zombo(
+    _call: irast.Call,
     obj_id: irast.PathId,
-    query_pg: pgast.BaseExpr,
-    _lang_pg: pgast.BaseExpr,
+    args_pg: list[pgast.BaseExpr],
     _ctx: context.CompilerContextLevel,
     newctx: context.CompilerContextLevel,
     _inner_ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.BaseExpr, pgast.BaseExpr]:
+    _, _, query = args_pg
     el_name = sn.QualName('__object__', 'ctid')
     ctid_ptrref = irast.SpecialPointerRef(
         name=el_name,
@@ -4087,7 +4243,7 @@ def _fts_search_inner_zombo(
     where_clause = pgast.Expr(
         lexpr=ctid,
         name='==>',
-        rexpr=query_pg,
+        rexpr=query,
     )
     return score_pg, where_clause
 

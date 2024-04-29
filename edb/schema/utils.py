@@ -1020,83 +1020,48 @@ def enrich_schema_lookup_error(
 
 def ensure_union_type(
     schema: s_schema.Schema,
-    types: Iterable[s_types.Type],
+    types: Sequence[s_types.Type],
     *,
     opaque: bool = False,
     module: Optional[str] = None,
-    preserve_derived: bool = False,
     transient: bool = False,
 ) -> Tuple[s_schema.Schema, s_types.Type, bool]:
 
     from edb.schema import objtypes as s_objtypes
-    from edb.schema import types as s_types
 
-    type_set: Set[s_types.Type] = set()
-    for t in types:
-        union_of = t.get_union_of(schema)
-        if union_of:
-            type_set.update(union_of.objects(schema))
-        else:
-            type_set.add(t)
-    # IF we need to preserve derived types, that means that we don't
-    # want to minimize them and instead keep them as is to be
-    # considered in the type union.
-    derived: Set[s_types.Type] = set()
-    components: Set[s_types.Type] = set()
-    for t in type_set:
-        if (
-            preserve_derived and
-            isinstance(t, s_types.InheritingType) and
-            t.get_is_derived(schema)
-        ):
-            derived.add(t)
-        else:
-            components.add(t)
-
-    components_list: List[s_types.Type]
-
-    if all(isinstance(c, s_types.InheritingType) for c in components):
-        components_list = list(minimize_class_set_by_most_generic(
-            schema,
-            cast(Set[s_types.InheritingType], components),
-        ))
-    else:
-        components_list = list(components)
-    components_list.extend(list(derived))
-
-    if len(components_list) == 1 and not opaque:
-        return schema, next(iter(components_list)), False
+    if len(types) == 1 and not opaque:
+        return schema, next(iter(types)), False
 
     seen_scalars = False
     seen_objtypes = False
     created = False
 
-    for component in components_list:
-        if isinstance(component, s_objtypes.ObjectType):
+    for t in types:
+        if isinstance(t, s_objtypes.ObjectType):
             if seen_scalars:
-                raise _union_error(schema, components_list)
+                raise _union_error(schema, types)
             seen_objtypes = True
         else:
             if seen_objtypes:
-                raise _union_error(schema, components_list)
+                raise _union_error(schema, types)
             seen_scalars = True
 
     if seen_scalars:
-        uniontype: s_types.Type = components_list[0]
-        for t1 in components_list[1:]:
+        uniontype: s_types.Type = types[0]
+        for t1 in types[1:]:
 
             schema, common_type = (
                 uniontype.find_common_implicitly_castable_type(t1, schema)
             )
 
             if common_type is None:
-                raise _union_error(schema, components_list)
+                raise _union_error(schema, types)
             else:
                 uniontype = common_type
     else:
         objtypes = cast(
             Sequence[s_objtypes.ObjectType],
-            components_list,
+            types,
         )
         schema, uniontype, created = s_objtypes.get_or_create_union_type(
             schema,
@@ -1109,18 +1074,78 @@ def ensure_union_type(
     return schema, uniontype, created
 
 
-def get_union_type(
+def simplify_union_types(
     schema: s_schema.Schema,
-    types: Iterable[s_types.Type],
-    *,
-    opaque: bool = False,
-    module: Optional[str] = None,
-) -> Tuple[s_schema.Schema, s_types.Type]:
+    types: Sequence[s_types.Type],
+) -> Sequence[s_types.Type]:
+    """Minimize the types used to create a union of types.
 
-    schema, union, _ = ensure_union_type(
-        schema, types, opaque=opaque, module=module)
+    Any unions types are unwrapped. Then, any unnecessary subclasses are
+    removed.
+    """
 
-    return schema, union
+    from edb.schema import types as s_types
+
+    components: Set[s_types.Type] = set()
+    for t in types:
+        union_of = t.get_union_of(schema)
+        if union_of:
+            components.update(union_of.objects(schema))
+        else:
+            components.add(t)
+
+    if all(isinstance(c, s_types.InheritingType) for c in components):
+        return list(minimize_class_set_by_most_generic(
+            schema,
+            cast(Set[s_types.InheritingType], components),
+        ))
+    else:
+        return list(components)
+
+
+def simplify_union_types_preserve_derived(
+    schema: s_schema.Schema,
+    types: Sequence[s_types.Type],
+) -> Sequence[s_types.Type]:
+    """Minimize the types used to create a union of types.
+
+    Any unions types are unwrapped. Then, any unnecessary subclasses are
+    removed.
+
+    Derived types are always preserved for 'std::UNION', 'std::IF', and
+    'std::??'.
+    """
+
+    from edb.schema import types as s_types
+
+    components: Set[s_types.Type] = set()
+    for t in types:
+        union_of = t.get_union_of(schema)
+        if union_of:
+            components.update(union_of.objects(schema))
+        else:
+            components.add(t)
+
+    derived = set(
+        t
+        for t in components
+        if (
+            isinstance(t, s_types.InheritingType)
+            and t.get_is_derived(schema)
+        )
+    )
+
+    nonderived: Sequence[s_types.Type] = [
+        t
+        for t in components
+        if t not in derived
+    ]
+    nonderived = minimize_class_set_by_most_generic(
+        schema,
+        cast(Set[s_types.InheritingType], nonderived),
+    )
+
+    return list(nonderived) + list(derived)
 
 
 def get_non_overlapping_union(
@@ -1151,13 +1176,52 @@ def _union_error(
 
 def ensure_intersection_type(
     schema: s_schema.Schema,
-    types: Iterable[s_types.Type],
+    types: Sequence[s_types.Type],
     *,
     transient: bool = False,
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, s_types.Type, bool]:
 
     from edb.schema import objtypes as s_objtypes
+
+    if len(types) == 1:
+        return schema, next(iter(types)), False
+
+    seen_scalars = False
+    seen_objtypes = False
+
+    for t in types:
+        if t.is_object_type():
+            if seen_scalars:
+                raise _intersection_error(schema, types)
+            seen_objtypes = True
+        else:
+            if seen_objtypes:
+                raise _intersection_error(schema, types)
+            seen_scalars = True
+
+    if seen_scalars:
+        # Non-related scalars and collections cannot for intersection types.
+        raise _intersection_error(schema, types)
+    else:
+        return s_objtypes.get_or_create_intersection_type(
+            schema,
+            components=cast(Iterable[s_objtypes.ObjectType], types),
+            module=module,
+            transient=transient,
+        )
+
+
+def simplify_intersection_types(
+    schema: s_schema.Schema,
+    types: Sequence[s_types.Type],
+) -> Sequence[s_types.Type]:
+    """Minimize the types used to create an intersection of types.
+
+    Any intersection types are unwrapped. Then, any unnecessary superclasses are
+    removed.
+    """
+
     from edb.schema import types as s_types
 
     components: Set[s_types.Type] = set()
@@ -1168,55 +1232,13 @@ def ensure_intersection_type(
         else:
             components.add(t)
 
-    components_list: Sequence[s_types.Type]
-
     if all(isinstance(c, s_types.InheritingType) for c in components):
-        components_list = minimize_class_set_by_least_generic(
+        return minimize_class_set_by_least_generic(
             schema,
             cast(Set[s_types.InheritingType], components),
         )
     else:
-        components_list = list(components)
-
-    if len(components_list) == 1:
-        return schema, next(iter(components_list)), False
-
-    seen_scalars = False
-    seen_objtypes = False
-
-    for component in components_list:
-        if component.is_object_type():
-            if seen_scalars:
-                raise _intersection_error(schema, components_list)
-            seen_objtypes = True
-        else:
-            if seen_objtypes:
-                raise _intersection_error(schema, components_list)
-            seen_scalars = True
-
-    if seen_scalars:
-        # Non-related scalars and collections cannot for intersection types.
-        raise _intersection_error(schema, components_list)
-    else:
-        return s_objtypes.get_or_create_intersection_type(
-            schema,
-            components=cast(Iterable[s_objtypes.ObjectType], components_list),
-            module=module,
-            transient=transient,
-        )
-
-
-def get_intersection_type(
-    schema: s_schema.Schema,
-    types: Iterable[s_types.Type],
-    *,
-    module: Optional[str] = None,
-) -> Tuple[s_schema.Schema, s_types.Type]:
-
-    schema, intersection, _ = ensure_intersection_type(
-        schema, types, module=module)
-
-    return schema, intersection
+        return list(components)
 
 
 def _intersection_error(
@@ -1232,26 +1254,26 @@ MIN_INT64 = -2 ** 63
 
 def const_ast_from_python(val: Any) -> qlast.Expr:
     if isinstance(val, str):
-        return qlast.StringConstant.from_python(val)
+        return qlast.Constant.string(val)
     elif isinstance(val, bool):
-        return qlast.BooleanConstant(value='true' if val else 'false')
+        return qlast.Constant.boolean(val)
     elif isinstance(val, int):
         if MIN_INT64 <= val <= MAX_INT64:
-            return qlast.IntegerConstant(value=str(val))
+            return qlast.Constant.integer(val)
         else:
             raise ValueError(f'int64 value out of range: {val}')
     elif isinstance(val, decimal.Decimal):
-        return qlast.DecimalConstant(value=f'{val}n')
+        return qlast.Constant(value=f'{val}n', kind=qlast.ConstantKind.DECIMAL)
     elif isinstance(val, float):
-        return qlast.FloatConstant(value=str(val))
+        return qlast.Constant(value=str(val), kind=qlast.ConstantKind.FLOAT)
     elif isinstance(val, bytes):
-        return qlast.BytesConstant.from_python(val)
+        return qlast.BytesConstant(value=val)
     elif isinstance(val, statypes.Duration):
         return qlast.TypeCast(
             type=qlast.TypeName(
                 maintype=qlast.ObjectRef(module='__std__', name='duration'),
             ),
-            expr=qlast.StringConstant(value=val.to_iso8601()),
+            expr=qlast.Constant.string(value=val.to_iso8601()),
         )
     elif isinstance(val, statypes.CompositeType):
         return qlast.InsertQuery(

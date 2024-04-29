@@ -3795,3 +3795,116 @@ class TestUpdate(tb.QueryTestCase):
                 {"name": "update-test2", "comment": "second"},
             ]
         )
+
+    async def test_edgeql_update_dunder_default_01(self):
+        await self.con.execute(r"""
+            INSERT DunderDefaultTest01 { a := 1, b := 2, c := 3 };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"__default__ cannot be used in this expression",
+            _hint='No default expression exists',
+        ):
+            await self.con.execute(r'''
+                UPDATE DunderDefaultTest01 set { a := __default__ };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"__default__ cannot be used in this expression",
+            _hint='Default expression uses __source__',
+        ):
+            await self.con.execute(r'''
+                UPDATE DunderDefaultTest01 set { b := __default__ };
+            ''')
+
+        await self.con.execute(r"""
+            UPDATE DunderDefaultTest01 set { c := __default__ };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT DunderDefaultTest01 { a, b, c };
+            ''',
+            [
+                {'a': 1, 'b': 2, 'c': 1},
+            ]
+        )
+
+    async def test_edgeql_update_dunder_default_02(self):
+        await self.con.execute(r'''
+            INSERT DunderDefaultTest02_A { a := 1 };
+            INSERT DunderDefaultTest02_A { a := 2 };
+            INSERT DunderDefaultTest02_A { a := 3 };
+            INSERT DunderDefaultTest02_A { a := 4 };
+            INSERT DunderDefaultTest02_A { a := 5 };
+            INSERT DunderDefaultTest02_B {
+                default_with_insert := (
+                    select DunderDefaultTest02_A
+                    filter DunderDefaultTest02_A.a = 1
+                ),
+                default_with_update := (
+                    select DunderDefaultTest02_A
+                    filter DunderDefaultTest02_A.a = 2
+                ),
+                default_with_delete := (
+                    select DunderDefaultTest02_A
+                    filter DunderDefaultTest02_A.a = 3
+                ),
+                default_with_select := (
+                    select DunderDefaultTest02_A
+                    filter DunderDefaultTest02_A.a = 5
+                ),
+            };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"__default__ cannot be used in this expression",
+            _hint='Default expression uses DML',
+        ):
+            await self.con.execute(r'''
+                UPDATE DunderDefaultTest02_B set {
+                    default_with_insert := __default__
+                };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"__default__ cannot be used in this expression",
+            _hint='Default expression uses DML',
+        ):
+            await self.con.execute(r'''
+                UPDATE DunderDefaultTest02_B set {
+                    default_with_update := __default__
+                };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"__default__ cannot be used in this expression",
+            _hint='Default expression uses DML',
+        ):
+            await self.con.execute(r'''
+                UPDATE DunderDefaultTest02_B set {
+                    default_with_delete := __default__
+                };
+            ''')
+
+        await self.con.execute(r'''
+            UPDATE DunderDefaultTest02_B set {
+                default_with_select := __default__
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT DunderDefaultTest02_B {
+                    a := .default_with_select.a
+                };
+            ''',
+            [
+                {'a': [4]},
+            ]
+        )

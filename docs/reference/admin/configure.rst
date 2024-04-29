@@ -8,14 +8,27 @@ Configure
 
 ``configure`` -- change a server configuration parameter
 
-.. eql:synopsis::
+.. versionchanged:: _default
 
-    configure {session | current database | instance}
-        set <parameter> := <value> ;
-    configure instance insert <parameter-class> <insert-shape> ;
-    configure {session | current database | instance} reset <parameter> ;
-    configure {current database | instance}
-        reset <parameter-class> [ filter <filter-expr> ] ;
+    .. eql:synopsis::
+
+        configure {session | current database | instance}
+            set <parameter> := <value> ;
+        configure instance insert <parameter-class> <insert-shape> ;
+        configure {session | current database | instance} reset <parameter> ;
+        configure {current database | instance}
+            reset <parameter-class> [ filter <filter-expr> ] ;
+
+.. versionchanged:: 5.0
+
+    .. eql:synopsis::
+
+        configure {session | current branch | instance}
+            set <parameter> := <value> ;
+        configure instance insert <parameter-class> <insert-shape> ;
+        configure {session | current branch | instance} reset <parameter> ;
+        configure {current branch | instance}
+            reset <parameter-class> [ filter <filter-expr> ] ;
 
 
 Description
@@ -28,9 +41,17 @@ current session. Some configuration parameters cannot be modified by
 :eql:synopsis:`configure session` and can only be set by
 :eql:synopsis:`configure instance`.
 
-:eql:synopsis:`configure current database` is used to configure an
-individual EdgeDB database within a server instance with the
-changes persisted across server restarts.
+.. versionchanged:: _default
+
+    :eql:synopsis:`configure current database` is used to configure an
+    individual EdgeDB database within a server instance with the
+    changes persisted across server restarts.
+
+.. versionchanged:: 5.0
+
+    :eql:synopsis:`configure current branch` is used to configure an
+    individual EdgeDB branch within a server instance with the
+    changes persisted across server restarts.
 
 :eql:synopsis:`configure instance` is used to configure the entire EdgeDB
 instance with the changes persisted across server restarts.  This variant

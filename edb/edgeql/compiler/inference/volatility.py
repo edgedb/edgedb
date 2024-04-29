@@ -220,9 +220,18 @@ def __infer_func_call(
     ir: irast.FunctionCall,
     env: context.Environment,
 ) -> InferredVolatility:
+    if ir.body is not None:
+        body_volatility = infer_volatility(ir.body, env=env)
+        if body_volatility > ir.volatility:
+            raise errors.QueryError(
+                f'inline function body expression is {body_volatility} '
+                f'while the function is declared as {ir.volatility}',
+                span=ir.span,
+            )
+
     if ir.args:
         return _max_volatility([
-            _common_volatility((arg.expr for arg in ir.args), env),
+            _common_volatility((arg.expr for arg in ir.args.values()), env),
             ir.volatility
         ])
     else:
@@ -236,7 +245,7 @@ def __infer_oper_call(
 ) -> InferredVolatility:
     if ir.args:
         return _max_volatility([
-            _common_volatility((arg.expr for arg in ir.args), env),
+            _common_volatility((arg.expr for arg in ir.args.values()), env),
             ir.volatility
         ])
     else:

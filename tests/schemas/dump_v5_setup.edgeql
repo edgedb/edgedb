@@ -26,3 +26,10 @@ insert L2 {vec := [x % 10, math::ln(x), x / 7 % 13]};
 # set the ef_search extension config value
 configure current database set
 ext::pgvector::Config::ef_search := 5;
+
+insert Astronomy {
+    content := 'Skies on Mars are red'
+};
+insert Astronomy {
+    content := 'Skies on Earth are blue'
+};

@@ -45,6 +45,8 @@ from edb.server.protocol import execute
 from edb.pgsql import dbops
 from edb.server.compiler_pool import state as compiler_state_mod
 
+from edb.server.protocol import ai_ext
+
 cimport cython
 
 from edb.server.compiler cimport rpc
@@ -171,6 +173,8 @@ cdef class Database:
         if self._cache_notify_task:
             self._cache_notify_task.cancel()
             self._cache_notify_task = None
+        self.extensions = set()
+        self.start_stop_extensions()
 
     async def monitor(self, worker, name):
         while True:
@@ -253,6 +257,7 @@ cdef class Database:
         reflection_cache=None,
         backend_ids=None,
         db_config=None,
+        start_stop_extensions=True,
     ):
         if new_schema_pickle is None:
             raise AssertionError('new_schema is not supposed to be None')
@@ -272,6 +277,14 @@ cdef class Database:
             self.db_config = db_config
             self._observe_auth_ext_config()
         self._invalidate_caches()
+        if start_stop_extensions:
+            self.start_stop_extensions()
+
+    cpdef start_stop_extensions(self):
+        if "ai" in self.extensions:
+            ai_ext.start_extension(self.tenant, self.name)
+        else:
+            ai_ext.stop_extension(self.tenant, self.name)
 
     cdef _observe_auth_ext_config(self):
         key = "ext::auth::AuthConfig::providers"
@@ -1453,6 +1466,7 @@ cdef class DatabaseIndex:
         backend_ids,
         extensions,
         ext_config_settings,
+        early=False,
     ):
         cdef Database db
         db = self._dbs.get(dbname)
@@ -1465,6 +1479,7 @@ cdef class DatabaseIndex:
                 reflection_cache,
                 backend_ids,
                 db_config,
+                not early,
             )
         else:
             db = Database(
@@ -1479,6 +1494,8 @@ cdef class DatabaseIndex:
                 ext_config_settings=ext_config_settings,
             )
             self._dbs[dbname] = db
+            if not early:
+                db.start_stop_extensions()
         self.set_current_branches()
         return db
 

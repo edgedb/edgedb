@@ -485,7 +485,7 @@ class Parameter(
             type=utils.typeref_to_ast(schema, self.get_type(schema)),
             typemod=self.get_typemod(schema),
             kind=kind,
-            default=default.qlast if default else None,
+            default=default.parse() if default else None,
         )
 
 
@@ -827,7 +827,7 @@ class CallableObject(
         self: CallableObjectT,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.ObjectCommand[CallableObjectT]:
+    ) -> sd.CreateObject[CallableObjectT]:
         delta = super().as_create_delta(schema, context)
 
         new_params = self.get_params(schema).objects(schema)
@@ -1171,13 +1171,13 @@ class CreateCallableObject(
                 continue
 
             num: int = props['num']
-            default = props.get('default')
+            default: Optional[s_expr.Expression] = props.get('default')
             param = make_func_param(
                 name=Parameter.paramname_from_fullname(props['name']),
                 type=utils.typeref_to_ast(schema, props['type']),
                 typemod=props['typemod'],
                 kind=props['kind'],
-                default=default.qlast if default is not None else None,
+                default=default.parse() if default is not None else None,
             )
             params.append((num, param))
 
@@ -1681,7 +1681,7 @@ class FunctionCommand(
                     f'{str(spec_volatility).lower()}',
                     details=f'Actual volatility is '
                             f'{str(ir.volatility).lower()}',
-                    span=body.qlast.span,
+                    span=body.parse().span,
                 )
 
         globs = {schema.get(glob.global_name, type=s_globals.Global)
@@ -2366,13 +2366,13 @@ def get_params_symtable(
                     func=('std', 'bytes_get_bit'),
                     args=[
                         defaults_mask,
-                        qlast.IntegerConstant(value=str(pi)),
+                        qlast.Constant.integer(pi),
                     ]),
                 op='=',
-                right=qlast.IntegerConstant(value='0'),
+                right=qlast.Constant.integer(0),
             ),
             if_expr=anchors[p_shortname],
-            else_expr=qlast._Optional(expr=p_default.qlast),
+            else_expr=qlast._Optional(expr=p_default.parse()),
         )
 
     return anchors
@@ -2421,7 +2421,7 @@ def compile_function(
             f'{return_type.get_verbosename(schema)}',
             details=f'Actual return type is '
                     f'{ir.stype.get_verbosename(schema)}',
-            span=body.qlast.span,
+            span=body.parse().span,
         )
 
     if (return_typemod is not ft.TypeModifier.SetOfType
@@ -2432,7 +2432,7 @@ def compile_function(
             details=(
                 f'Function may return a set with more than one element.'
             ),
-            span=body.qlast.span,
+            span=body.parse().span,
         )
     elif (return_typemod is ft.TypeModifier.SingletonType
             and ir.cardinality.can_be_zero()):
@@ -2442,7 +2442,7 @@ def compile_function(
             details=(
                 f'Function may return an empty set.'
             ),
-            span=body.qlast.span,
+            span=body.parse().span,
         )
 
     return compiled

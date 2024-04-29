@@ -13,8 +13,8 @@ migration script. This is done by invoking the following command:
     edgedb migration create [<options>]
 
 This will start an interactive tool that will provide the user with
-suggestions based on the differences between the current database and
-the schema file. The prompts will look something like this:
+suggestions based on the differences between the current branch (or database
+for pre-v5) and the schema file. The prompts will look something like this:
 
 .. code-block::
 

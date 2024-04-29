@@ -18,6 +18,7 @@ Using the migration tools is the recommended way to make schema changes.
     edgedb_migration_apply
     edgedb_migration_create
     edgedb_migration_edit
+    edgedb_migration_extract
     edgedb_migration_log
     edgedb_migration_status
     edgedb_migration_upgrade_check
@@ -39,11 +40,13 @@ single SDL document.
     :class: funcoptable
 
     * - :ref:`ref_cli_edgedb_migration_apply`
-      - Bring current database to the latest or a specified revision
+      - Bring current branch (or database pre-v5) to the latest or a specified revision
     * - :ref:`ref_cli_edgedb_migration_create`
       - Create a migration script
     * - :ref:`ref_cli_edgedb_migration_edit`
       - Edit migration file
+    * - :ref:`ref_cli_edgedb_migration_extract`
+      - Extract migration history and write it to ``/migrations``.
     * - :ref:`ref_cli_edgedb_migration_log`
       - Show all migration versions
     * - :ref:`ref_cli_edgedb_migration_status`

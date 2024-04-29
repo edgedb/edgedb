@@ -206,6 +206,21 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    @tb.must_fail(errors.SchemaError,
+                  "cannot redefine property 'name' of object type "
+                  "'test::UniqueName_2' as scalar type 'std::bytes'",
+                  position=196)
+    def test_schema_overloaded_prop_11(self):
+        """
+            type UniqueName {
+                property name -> str;
+            };
+
+            type UniqueName_2 extending UniqueName {
+                overloaded property name -> bytes;
+            };
+        """
+
     @tb.must_fail(errors.SchemaDefinitionError,
                   "it is illegal for the computed link 'foo' "
                   "of object type 'test::UniqueName_2' to overload "
@@ -660,7 +675,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         errors.InvalidDefinitionError,
         "index 'fts::index' of object type 'test::Foo' " "was already declared",
     )
-    def test_schema_bad_type_17(self):
+    def test_schema_bad_type_17a(self):
         """
         type Foo {
             property val -> str;
@@ -672,6 +687,23 @@ class TestSchema(tb.BaseSchemaLoadTest):
             );
             index fts::index on (
                 fts::with_options(.val, language := fts::Language.eng)
+            );
+        };
+        """
+
+    @tb.must_fail(
+        errors.InvalidDefinitionError,
+        "multiple fts::index indexes defined for test::Foo",
+    )
+    def test_schema_bad_type_17b(self):
+        """
+        type Foo {
+            property val -> str;
+            index fts::index on (
+                fts::with_options(.val, language := fts::Language.eng)
+            );
+            index fts::index on (
+                fts::with_options(.val, language := fts::Language.ita)
             );
         };
         """
@@ -2001,7 +2033,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
         obj = schema.get('test::Foo')
         asdf = obj.getptr(schema, s_name.UnqualName('asdf'))
-        expr_ast = asdf.get_expr(schema).qlast
+        expr_ast = asdf.get_expr(schema).parse()
         self.assertEqual(
             expr_ast.span.name,
             f'<{asdf.id} expr>'
@@ -2013,7 +2045,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """)
         x = obj.getptr(schema, s_name.UnqualName('x'))
-        default_ast = x.get_default(schema).qlast
+        default_ast = x.get_default(schema).parse()
         self.assertEqual(
             default_ast.span.name,
             f'<{x.id} default>'
@@ -8826,6 +8858,40 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias Z := Y;
             """,
         ])
+
+    def test_schema_migrations_union_ptrs_01(self):
+        self._assert_migration_equivalence([
+            r"""
+            type A;
+            type A_ extending A;
+            type B;
+            type C {
+                # link of type and base type
+                link foo -> A | A_;
+            };
+            """,
+            r"""
+            type A;
+            type A_ extending A;
+            type B;
+            type C {
+                # link of type, base type, and other type
+                link foo -> A | A_ | B;
+            };
+            """,
+            r"""
+            type A;
+            type A_ extending A;
+            type B;
+            type C {
+                # remove link
+            };
+            """,
+        ])
+        schema = r'''
+        '''
+
+        self._assert_migration_consistency(schema)
 
 
 class TestDescribe(tb.BaseSchemaLoadTest):

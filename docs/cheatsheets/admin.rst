@@ -3,12 +3,34 @@
 Administering an instance
 =========================
 
-Create a database:
+Create a schema branch:
 
 .. code-block:: edgeql-repl
 
-    db> create database my_new_project;
-    OK: CREATE DATABASE
+    db> create schema branch my_new_feature from main;
+    OK: CREATE BRANCH
+
+
+----------
+
+
+Create a data branch:
+
+.. code-block:: edgeql-repl
+
+    db> create data branch my_new_feature from main;
+    OK: CREATE BRANCH
+
+
+----------
+
+
+Create an empty branch:
+
+.. code-block:: edgeql-repl
+
+    db> create empty branch my_new_feature;
+    OK: CREATE BRANCH
 
 
 ----------

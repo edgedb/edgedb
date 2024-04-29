@@ -1404,7 +1404,10 @@ def administer_vacuum(
                 f'unrecognized keyword argument {name!r} for vacuum()',
                 span=val.span,
             )
-        elif not isinstance(val, qlast.BooleanConstant):
+        elif (
+            not isinstance(val, qlast.Constant)
+            or val.kind != qlast.ConstantKind.BOOLEAN
+        ):
             raise errors.QueryError(
                 f'argument {name!r} for vacuum() must be a boolean literal',
                 span=val.span,

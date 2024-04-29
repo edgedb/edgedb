@@ -64,5 +64,5 @@ CLI/Admin
 * :ref:`CLI Usage <ref_cheatsheet_cli>` -- Getting your database started.
 * :ref:`Interactive Shell <ref_cheatsheet_repl>` -- Shortcuts for
   frequently used commands in the EdgeDB Interactive Shell.
-* :ref:`Administration <ref_cheatsheet_admin>` -- Database and role creation,
+* :ref:`Administration <ref_cheatsheet_admin>` -- Branch and role creation,
   passwords, port configuration, etc.

@@ -42,6 +42,7 @@ from edb.schema import types as s_types
 from edb.schema import constraints as s_constraints
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
+from edb.schema import expr as s_expr
 
 from edb.common import ast
 from edb.common import parsing
@@ -63,18 +64,7 @@ def _get_exclusive_refs(tree: irast.Statement) -> Sequence[irast.Base] | None:
     assert isinstance(tree.expr.expr, irast.SelectStmt)
     expr = tree.expr.expr.result
 
-    astexpr = irastexpr.DistinctConjunctionExpr()  # type: ignore
-    refs = astexpr.match(expr)
-
-    if refs is None:
-        return refs
-    else:
-        all_refs = []
-        for ref in refs:
-            # Unnest sequences in refs
-            all_refs.append(ref)
-
-        return all_refs
+    return irastexpr.get_constraint_references(expr)
 
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
@@ -243,8 +233,8 @@ def compile_constraint(
         {(subject, is_optional)}
     )
     options = qlcompiler.CompilerOptions(
-        anchors={qlast.Subject().name: subject},
-        path_prefix_anchor=qlast.Subject().name,
+        anchors={'__subject__': subject},
+        path_prefix_anchor='__subject__',
         apply_query_rewrites=False,
         singletons=singletons,
         schema_object_context=type(constraint),
@@ -257,20 +247,22 @@ def compile_constraint(
         type_remaps={first_subject: subject},
     )
 
-    final_expr = constraint.get_finalexpr(schema)
-    assert final_expr is not None and final_expr.qlast is not None
+    final_expr: Optional[s_expr.Expression] = constraint.get_finalexpr(schema)
+    assert final_expr is not None and final_expr.parse() is not None
     ir = qlcompiler.compile_ast_to_ir(
-        final_expr.qlast,
+        final_expr.parse(),
         schema,
         options=options,
     )
     assert isinstance(ir, irast.Statement)
     assert isinstance(ir.expr.expr, irast.SelectStmt)
 
+    except_ir: Optional[irast.Statement] = None
     except_data = None
     if except_expr := constraint.get_except_expr(schema):
+        assert isinstance(except_expr, s_expr.Expression)
         except_ir = qlcompiler.compile_ast_to_ir(
-            except_expr.qlast,
+            except_expr.parse(),
             schema,
             options=options,
         )
@@ -279,7 +271,13 @@ def compile_constraint(
         )
         except_data = _edgeql_tree_to_expr_data(except_sql.ast)
 
-    terminal_refs = ir_utils.get_longest_paths(ir.expr.expr.result)
+    terminal_refs: set[irast.Set] = (
+        ir_utils.get_longest_paths(ir.expr.expr.result)
+    )
+    if except_ir is not None:
+        terminal_refs.update(
+            ir_utils.get_longest_paths(except_ir.expr)
+        )
     ref_tables = get_ref_storage_info(ir.schema, terminal_refs)
 
     if len(ref_tables) > 1:
@@ -326,11 +324,11 @@ def compile_constraint(
         assert isinstance(sub, (s_types.Type, s_pointers.Pointer))
         origin_subject: s_types.Type | s_pointers.Pointer = sub
 
-        origin_path_prefix_anchor = qlast.Subject().name
+        origin_path_prefix_anchor = '__subject__'
         singletons = frozenset({(origin_subject, is_optional)})
 
         origin_options = qlcompiler.CompilerOptions(
-            anchors={qlast.Subject().name: origin_subject},
+            anchors={'__subject__': origin_subject},
             path_prefix_anchor=origin_path_prefix_anchor,
             apply_query_rewrites=False,
             singletons=singletons,
@@ -338,9 +336,9 @@ def compile_constraint(
         )
 
         final_expr = constraint_origin.get_finalexpr(schema)
-        assert final_expr is not None and final_expr.qlast is not None
+        assert final_expr is not None and final_expr.parse() is not None
         origin_ir = qlcompiler.compile_ast_to_ir(
-            final_expr.qlast,
+            final_expr.parse(),
             schema,
             options=origin_options,
         )
@@ -364,8 +362,9 @@ def compile_constraint(
 
         origin_except_data = None
         if except_expr := constraint_origin.get_except_expr(schema):
+            assert isinstance(except_expr, s_expr.Expression)
             except_ir = qlcompiler.compile_ast_to_ir(
-                except_expr.qlast,
+                except_expr.parse(),
                 schema,
                 options=origin_options,
             )
@@ -730,11 +729,11 @@ def get_ref_storage_info(
                 src = src.get_bases(schema).first(schema)
         elif ptr.is_tuple_indirection():
             assert rptr
-            refs.append(rptr.source)
+            refs.append(rptr.source)  # noqa: B909
             continue
         elif ptr.is_type_intersection():
             assert rptr
-            refs.append(rptr.source)
+            refs.append(rptr.source)  # noqa: B909
             continue
         else:
             schema, src = irtyputils.ir_typeref_to_type(schema, source_typeref)

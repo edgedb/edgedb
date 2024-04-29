@@ -29,7 +29,7 @@ Then create a new migration and apply it using
 :ref:`ref_cli_edgedb_migrate`, respectively.
 
 Your instance can now receive EdgeQL queries over HTTP at
-``https://<hostname>:<port>/db/<database-name>/edgeql``.
+``https://<hostname>:<port>/branch/<branch-name>/edgeql``.
 
 .. note::
 
@@ -39,10 +39,10 @@ Your instance can now receive EdgeQL queries over HTTP at
     - Find the ``port`` by running ``edgedb instance list``. This will print a
       table of all EdgeDB instances on your machine, including their associated
       port number.
-    - In most cases, ``database_name`` will be ``edgedb``. An EdgeDB *instance*
-      can contain multiple databases. On initialization, a default database
-      called ``edgedb`` is created; all queries are executed against this
-      database unless otherwise specified.
+    - The default ``branch-name`` will be ``main``, and after initializing
+      your database, all queries are executed against it by default. If you
+      want to query another branch instead, simply use that branch name
+      in the URL.
 
     To determine the URL of an EdgeDB Cloud instance, find the host by running
     ``edgedb instance credentials -I <org-name>/<instance-name>``. Use the
@@ -53,7 +53,7 @@ Your instance can now receive EdgeQL queries over HTTP at
     To determine the URL of a self-hosted remote instance you have linked with
     the CLI, you can get both the hostname and port of the instance from the
     "Port" column of the ``edgedb instance list`` table (formatted as
-    ``<hostname>:<port>``). The same guidance on local database names applies
+    ``<hostname>:<port>``). The same guidance on local branch names applies
     here.
 
 
@@ -105,7 +105,7 @@ example showing how you might send the query ``select Person {*};`` using cURL:
 
 .. code-block:: bash
 
-    $ curl -G https://<cloud-instance-host>:<cloud-instance-port>/db/edgedb/edgeql \
+    $ curl -G https://<cloud-instance-host>:<cloud-instance-port>/branch/main/edgeql \
        -H "Authorization: Bearer <secret-key> \
        --data-urlencode "query=select Person {*};"
 

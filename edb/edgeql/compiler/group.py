@@ -155,7 +155,8 @@ class FindAggregatingUses(ast_visitor.NodeVisitor):
             isinstance(node, irast.FunctionCall)
             and node.func_sql_function
         )
-        for arg, typemod in zip(node.args, node.params_typemods):
+        for arg in node.args.values():
+            typemod = arg.param_typemod
             old = self.aggregate
             # If this *returns* a set, it is going to mess things up since
             # the operation can't actually run on multiple things...

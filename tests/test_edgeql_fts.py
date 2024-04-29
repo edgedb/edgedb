@@ -415,7 +415,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
     async def test_edgeql_fts_inheritance_07(self):
         async with self.assertRaisesRegexTx(
             edgedb.InvalidReferenceError,
-            r'fts::search requires an fts::index index',
+            r'fts::search\(\) requires an fts::index index',
         ):
             await self.con.execute(
                 '''

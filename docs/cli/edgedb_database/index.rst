@@ -8,6 +8,14 @@ edgedb database
 The ``edgedb database`` group of commands contains various database
 manipulation tools.
 
+.. note::
+
+    EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to
+    replace databases. These commands work on instances running versions
+    prior to EdgeDB 5.0. If you are running a newer version of
+    EdgeDB, you will instead use the :ref:`ref_cli_edgedb_branch` suite of
+    commands.
+
 .. toctree::
     :maxdepth: 3
     :hidden:

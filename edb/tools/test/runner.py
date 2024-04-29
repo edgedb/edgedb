@@ -773,11 +773,13 @@ class ParallelTextTestResult(unittest.result.TestResult):
             reason = method.__et_xfail_reason__
             not_impl = getattr(method, '__et_xfail_not_implemented__', False)
             allow_fail = getattr(method, '__et_xfail_allow_failure__', False)
+            allow_error = getattr(method, '__et_xfail_allow_error__', False)
         except AttributeError:
             # Maybe the whole test case class is decorated?
             reason = getattr(test, '__et_xfail_reason__', None)
             not_impl = getattr(test, '__et_xfail_not_implemented__', False)
             allow_fail = getattr(test, '__et_xfail_allow_failure__', False)
+            allow_error = getattr(test, '__et_xfail_allow_error__', False)
 
         marker = Markers.not_implemented if not_impl else Markers.xfailed
         if not_impl:
@@ -785,7 +787,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
                 (test, self._exc_info_to_string(err, test)))
         else:
             is_fail = _is_assert_failure(err)
-            if allow_fail == is_fail:
+            if (allow_fail and is_fail) or (allow_error and not is_fail):
                 super().addExpectedFailure(test, err)
             else:
                 if is_fail:

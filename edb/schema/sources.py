@@ -31,6 +31,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
+
 from . import delta as sd
 from . import indexes
 from . import name as sn
@@ -166,24 +167,23 @@ class Source(
 
     def get_addon_columns(
         self, schema: s_schema.Schema
-    ) -> Sequence[Tuple[str, Tuple[str, str]]]:
+    ) -> Sequence[Tuple[str, str, Tuple[str, str]]]:
         """
         Returns a list of columns that are present in the backing table of
         this source, apart from the columns for pointers.
         """
-        # Beware: when adding columns here, make sure to update SQL
-        # introspection views. If you do not, these new addon columns will
-        # appear in pg_attribute and information_schema.column, but will not
-        # be queryable.
         res = []
         from edb.common import debug
 
         if not debug.flags.zombodb:
-            (fts_index, _) = indexes.get_effective_fts_index(self, schema)
+            fts_index, _ = indexes.get_effective_object_index(
+                schema, self, sn.QualName("fts", "index")
+            )
 
             if fts_index:
                 res.append(
                     (
+                        '__fts_document__',
                         '__fts_document__',
                         (
                             'pg_catalog',
@@ -191,6 +191,29 @@ class Source(
                         ),
                     )
                 )
+
+        ext_ai_index, _ = indexes.get_effective_object_index(
+            schema, self, sn.QualName("ext::ai", "index")
+        )
+        if ext_ai_index:
+            idx_id = indexes.get_ai_index_id(schema, ext_ai_index)
+            dimensions = ext_ai_index.must_get_json_annotation(
+                schema,
+                sn.QualName(
+                    "ext::ai", "embedding_dimensions"),
+                int,
+            )
+            res.append(
+                (
+                    f'__ext_ai_{idx_id}_embedding__',
+                    f'__ext_ai_{idx_id}_embedding__',
+                    (
+                        'edgedb',
+                        f'vector({dimensions})',
+                    ),
+                )
+            )
+
         return res
 
 

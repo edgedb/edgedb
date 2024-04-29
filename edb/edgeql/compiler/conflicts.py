@@ -34,6 +34,7 @@ from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import utils as s_utils
+from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import utils as qlutils
@@ -57,11 +58,14 @@ def _get_needed_ptrs(
 ) -> Tuple[Set[str], Dict[str, qlast.Expr]]:
     needed_ptrs = set(initial_ptrs)
     for constr in obj_constrs:
-        subjexpr = constr.get_subjectexpr(ctx.env.schema)
+        subjexpr: Optional[s_expr.Expression] = (
+            constr.get_subjectexpr(ctx.env.schema)
+        )
         assert subjexpr
-        needed_ptrs |= qlutils.find_subject_ptrs(subjexpr.qlast)
+        needed_ptrs |= qlutils.find_subject_ptrs(subjexpr.parse())
         if except_expr := constr.get_except_expr(ctx.env.schema):
-            needed_ptrs |= qlutils.find_subject_ptrs(except_expr.qlast)
+            assert isinstance(except_expr, s_expr.Expression)
+            needed_ptrs |= qlutils.find_subject_ptrs(except_expr.parse())
 
     wl = list(needed_ptrs)
     ptr_anchors = {}
@@ -69,9 +73,9 @@ def _get_needed_ptrs(
         p = wl.pop()
         ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
         if expr := ptr.get_expr(ctx.env.schema):
-            assert isinstance(expr.qlast, qlast.Expr)
-            ptr_anchors[p] = expr.qlast
-            for ref in qlutils.find_subject_ptrs(expr.qlast):
+            assert isinstance(expr.parse(), qlast.Expr)
+            ptr_anchors[p] = expr.parse()
+            for ref in qlutils.find_subject_ptrs(expr.parse()):
                 if ref not in needed_ptrs:
                     wl.append(ref)
                     needed_ptrs.add(ref)
@@ -208,9 +212,10 @@ def _compile_conflict_select_for_obj_type(
             # If there is a subjectexpr, substitute our lhs and rhs in
             # for __subject__ in the subjectexpr and compare *that*
             if (subjectexpr := cnstr.get_subjectexpr(ctx.env.schema)):
-                assert isinstance(subjectexpr.qlast, qlast.Expr)
-                lhs = qlutils.subject_substitute(subjectexpr.qlast, lhs)
-                rhs = qlutils.subject_substitute(subjectexpr.qlast, rhs)
+                assert isinstance(subjectexpr, s_expr.Expression)
+                assert isinstance(subjectexpr.parse(), qlast.Expr)
+                lhs = qlutils.subject_substitute(subjectexpr.parse(), lhs)
+                rhs = qlutils.subject_substitute(subjectexpr.parse(), rhs)
 
             conds.append(qlast.BinOp(
                 op='=' if ptr_card.is_single() else 'IN',
@@ -233,20 +238,28 @@ def _compile_conflict_select_for_obj_type(
     ))
 
     for constr in obj_constrs:
-        subjectexpr = constr.get_subjectexpr(ctx.env.schema)
-        assert subjectexpr and isinstance(subjectexpr.qlast, qlast.Expr)
-        lhs = qlutils.subject_paths_substitute(subjectexpr.qlast, ptr_anchors)
-        rhs = qlutils.subject_substitute(subjectexpr.qlast, insert_subject)
+        subject_expr: Optional[s_expr.Expression] = (
+            constr.get_subjectexpr(ctx.env.schema)
+        )
+        assert subject_expr and isinstance(subject_expr.parse(), qlast.Expr)
+        lhs = qlutils.subject_paths_substitute(
+            subject_expr.parse(), ptr_anchors
+        )
+        rhs = qlutils.subject_substitute(
+            subject_expr.parse(), insert_subject
+        )
         op = qlast.BinOp(op='=', left=lhs, right=rhs)
 
         # If there is an except expr, we need to add in those checks also
         if except_expr := constr.get_except_expr(ctx.env.schema):
-            e_lhs = qlutils.subject_paths_substitute(
-                except_expr.qlast, ptr_anchors)
-            e_rhs = qlutils.subject_substitute(
-                except_expr.qlast, insert_subject)
+            assert isinstance(except_expr, s_expr.Expression)
 
-            true_ast = qlast.BooleanConstant(value='true')
+            e_lhs = qlutils.subject_paths_substitute(
+                except_expr.parse(), ptr_anchors)
+            e_rhs = qlutils.subject_substitute(
+                except_expr.parse(), insert_subject)
+
+            true_ast = qlast.Constant.boolean(True)
             on = qlast.BinOp(
                 op='AND',
                 left=qlast.BinOp(op='?!=', left=e_lhs, right=true_ast),
@@ -774,15 +787,15 @@ def compile_inheritance_conflict_checks(
         for typ in typs:
             for subject_stype in subject_stypes:
                 # If the earlier DML has a shared ancestor that isn't
-                # BaseObject and isn't (if it's an insert) the same type,
-                # then we need to see if we need a conflict select
-                if (
-                    subject_stype == typ
-                    and not isinstance(ir, irast.UpdateStmt)
-                    and not isinstance(stmt, irast.UpdateStmt)
-                ):
-                    continue
-                if subject_stype == typ and ir == stmt:
+                # BaseObject and isn't the same type, then we need to
+                # see if we need a conflict select.
+                #
+                # Note that two DMLs on the same type *can* require a
+                # conflict select if at least one of them is an UPDATE
+                # and there are children, but that is accounted for by
+                # the above loops over all descendants when ir is an
+                # UPDATE.
+                if subject_stype == typ:
                     continue
 
                 ancs = s_utils.get_class_nearest_common_ancestors(

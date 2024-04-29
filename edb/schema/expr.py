@@ -112,8 +112,9 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             and self.origin == rhs.origin
         )
 
-    @property
-    def qlast(self) -> qlast_.Expr:
+    def parse(self) -> qlast_.Expr:
+        """Parse the expression text into an AST. Cached."""
+
         if self._qlast is None:
             self._qlast = qlparser.parse_fragment(
                 self.text, filename=f'<{self.origin}>' if self.origin else "")
@@ -216,12 +217,12 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
         if as_fragment:
             ir: irast_.Command = qlcompiler.compile_ast_fragment_to_ir(
-                self.qlast,
+                self.parse(),
                 schema=schema,
                 options=options,
             )
         else:
-            ql_expr = self.qlast
+            ql_expr = self.parse()
             if detached:
                 ql_expr = qlast.DetachedExpr(
                     expr=ql_expr,
@@ -242,7 +243,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         return CompiledExpression(
             text=self.text,
             refs=so.ObjectSet.create(schema, srefs),
-            _qlast=self.qlast,
+            _qlast=self.parse(),
             _irast=ir,
             origin=self.origin,
         )
@@ -260,6 +261,13 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             return self.compiled(
                 schema, options=options, as_fragment=as_fragment)
 
+    def assert_compiled(self) -> CompiledExpression:
+        if self._irast:
+            return self  # type: ignore
+        else:
+            raise AssertionError(
+                f"uncompiled expression {self.text!r} (origin: {self.origin})")
+
     @classmethod
     def from_ir(
         cls: Type[Expression],
@@ -270,7 +278,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         return CompiledExpression(
             text=expr.text,
             refs=so.ObjectSet.create(schema, ir.schema_refs),
-            _qlast=expr.qlast,
+            _qlast=expr.parse(),
             _irast=ir,
             origin=expr.origin,
         )
@@ -366,6 +374,12 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
 
 class CompiledExpression(Expression):
+    refs = struct.Field(
+        so.ObjectSet,  # type: ignore
+        coerce=True,
+        frozen=True,
+    )
+
     def __init__(
         self,
         *args: Any,
@@ -379,6 +393,9 @@ class CompiledExpression(Expression):
     def irast(self) -> irast_.Statement:
         assert self._irast
         return self._irast
+
+    def as_python_value(self) -> Any:
+        return qlcompiler.evaluate_ir_statement_to_python_val(self.irast)
 
 
 class ExpressionShell(so.Shell):
@@ -408,8 +425,7 @@ class ExpressionShell(so.Shell):
             _irast=self._irast,  # type: ignore[arg-type]
         )
 
-    @property
-    def qlast(self) -> qlast_.Expr:
+    def parse(self) -> qlast_.Expr:
         if self._qlast is None:
             self._qlast = qlparser.parse_fragment(self.text)
         return self._qlast

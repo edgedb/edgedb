@@ -943,7 +943,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         self,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.ObjectCommand[Pointer]:
+    ) -> sd.CreateObject[Pointer]:
         delta = super().as_create_delta(schema, context)
 
         # When we are creating a new required property on an existing type,
@@ -1194,10 +1194,11 @@ class PointerCommandOrFragment(
             schema, inf_target_ref = self._parse_computable(
                 target_ref.expr, schema, context)
         elif (expr := self.get_local_attribute_value('expr')) is not None:
+            assert isinstance(expr, s_expr.Expression)
             schema = s_types.materialize_type_in_attribute(
                 schema, context, self, 'target')
             schema, inf_target_ref = self._parse_computable(
-                expr.qlast, schema, context)
+                expr.parse(), schema, context)
         else:
             inf_target_ref = None
 
@@ -1495,13 +1496,13 @@ class PointerCommandOrFragment(
             else:
                 singletons.append(self.scls)
 
-        with errors.ensure_span(span or expr.qlast.span):
+        with errors.ensure_span(span or expr.parse().span):
             options = qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
                 schema_object_context=self.get_schema_metaclass(),
-                anchors={qlast.Source().name: source},
+                anchors={'__source__': source},
                 path_prefix_anchor=(
-                    qlast.Source().name
+                    '__source__'
                     if should_set_path_prefix_anchor
                     else None),
                 singletons=singletons,
@@ -1946,7 +1947,7 @@ class PointerCommand(
                 assert handler is not None
                 set_field = qlast.SetField(
                     name='cardinality',
-                    value=qlast.StringConstant.from_python(
+                    value=qlast.Constant.string(
                         str(astnode.cardinality),
                     ),
                     special_syntax=True,
@@ -2224,8 +2225,8 @@ class AlterPointer(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
-                anchors={qlast.Source().name: source},
-                path_prefix_anchor=qlast.Source().name,
+                anchors={'__source__': source},
+                path_prefix_anchor='__source__',
                 singletons=frozenset([source]),
                 apply_query_rewrites=not context.stdmode,
             ),
@@ -2596,7 +2597,7 @@ class SetPointerType(
             return qlast.SetPointerType(
                 value=set_field.value,
                 cast_expr=(
-                    self.cast_expr.qlast
+                    self.cast_expr.parse()
                     if self.cast_expr is not None else None
                 )
             )
@@ -2860,7 +2861,7 @@ class AlterPointerUpperCardinality(
             return qlast.SetPointerCardinality(
                 value=set_field.value,
                 conv_expr=(
-                    self.conv_expr.qlast
+                    self.conv_expr.parse()
                     if self.conv_expr is not None else None
                 )
             )
@@ -3085,7 +3086,7 @@ class AlterPointerLowerCardinality(
             return qlast.SetPointerOptionality(
                 value=value,
                 fill_expr=(
-                    self.fill_expr.qlast
+                    self.fill_expr.parse()
                     if self.fill_expr is not None else None
                 )
             )
@@ -3136,10 +3137,15 @@ def get_or_create_union_pointer(
     if len(components) == 1 and direction is PointerDirection.Outbound:
         return schema, components[0]
 
-    far_endpoints = [p.get_far_endpoint(schema, direction)
-                     for p in components]
-    targets: List[s_types.Type] = [p for p in far_endpoints
-                                   if isinstance(p, s_types.Type)]
+    far_endpoints = [
+        p.get_far_endpoint(schema, direction)
+        for p in components
+    ]
+    targets: Sequence[s_types.Type] = [
+        p for p in far_endpoints
+        if isinstance(p, s_types.Type)
+    ]
+    targets = utils.simplify_union_types(schema, targets)
 
     target: s_types.Type
 
@@ -3218,8 +3224,10 @@ def get_or_create_intersection_pointer(
     if len(components) == 1:
         return schema, components[0]
 
+    targets: Sequence[s_types.Type]
     targets = list(filter(None, [p.get_target(schema) for p in components]))
-    schema, target = utils.get_intersection_type(
+    targets = utils.simplify_intersection_types(schema, targets)
+    schema, target, _ = utils.ensure_intersection_type(
         schema, targets, module=modname)
 
     cardinality = qltypes.SchemaCardinality.One

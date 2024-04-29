@@ -686,7 +686,8 @@ def _standard_call_cardinality(
     non_aggregate_args = []
     non_aggregate_arg_cards = []
 
-    for arg, card, typemod in zip(ir.args, cards, ir.params_typemods):
+    for arg, card in zip(ir.args.values(), cards):
+        typemod = arg.param_typemod
         if typemod is qltypes.TypeModifier.SingletonType:
             non_aggregate_args.append(arg.expr)
             non_aggregate_arg_cards.append(card)
@@ -715,7 +716,7 @@ def __infer_func_call(
         infer_cardinality(glob_arg, scope_tree=scope_tree, ctx=ctx)
 
     cards = []
-    for arg in ir.args:
+    for arg in ir.args.values():
         card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
         cards.append(card)
         if ctx.make_updates:
@@ -733,7 +734,8 @@ def __infer_func_call(
         arg_cards = []
         force_multi = False
 
-        for card, typemod in zip(cards, ir.params_typemods):
+        for arg, card in zip(ir.args.values(), cards):
+            typemod = arg.param_typemod
             if typemod is not qltypes.TypeModifier.OptionalType:
                 arg_cards.append(card)
             else:
@@ -749,10 +751,31 @@ def __infer_func_call(
         upper = (CB_MANY if force_multi
                  else max(arg_upper) if ir.preserves_upper_cardinality
                  else ret_upper_bound)
-        return _bounds_to_card(lower, upper)
+        call_card = _bounds_to_card(lower, upper)
 
     else:
-        return _standard_call_cardinality(ir, cards, ctx=ctx)
+        call_card = _standard_call_cardinality(ir, cards, ctx=ctx)
+
+    if ir.body is not None:
+        body_card = infer_cardinality(ir.body, scope_tree=scope_tree, ctx=ctx)
+        # Check that inline body cardinality does not disagree with
+        # declared function cardinality.
+        if body_card.can_be_zero() and not call_card.can_be_zero():
+            raise errors.QueryError(
+                'inline function body expression returns a possibly empty '
+                'result while the function is not declared as returning '
+                'OPTIONAL',
+                span=ir.span,
+            )
+        if body_card.is_multi() and not call_card.is_multi():
+            raise errors.QueryError(
+                'inline function body expression possibly returns more '
+                'than one element, while the function is not declared as '
+                'returning SET OF',
+                span=ir.span,
+            )
+
+    return call_card
 
 
 @_infer_cardinality.register
@@ -763,7 +786,7 @@ def __infer_oper_call(
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
     cards = []
-    for arg in ir.args:
+    for arg in ir.args.values():
         card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
         cards.append(card)
         if ctx.make_updates:
@@ -895,7 +918,7 @@ def extract_filters(
     expr = filter_set.expr
     if isinstance(expr, irast.OperatorCall):
         if str(expr.func_shortname) == 'std::=':
-            left, right = [a.expr for a in expr.args]
+            left, right = [a.expr for a in expr.args.values()]
             op_card = _common_cardinality(
                 [left, right], scope_tree=scope_tree, ctx=ctx
             )
@@ -937,7 +960,10 @@ def extract_filters(
                     return [(pointers, right)]
 
         elif str(expr.func_shortname) == 'std::AND':
-            left, right = (irutils.unwrap_set(a.expr) for a in expr.args)
+            left, right = (
+                irutils.unwrap_set(a.expr)
+                for a in expr.args.values()
+            )
 
             left_filters = extract_filters(
                 result_set, left, scope_tree, ctx

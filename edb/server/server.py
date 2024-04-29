@@ -128,7 +128,7 @@ class BaseServer:
     _stmt_cache_size: int | None = None
 
     _compiler_pool: compiler_pool.AbstractPool | None
-    compilation_config_serializer: sertypes.InputShapeSerializer
+    compilation_config_serializer: sertypes.CompilationConfigSerializer
     _http_request_logger: asyncio.Task | None
     _auth_gc: asyncio.Task | None
 
@@ -234,7 +234,9 @@ class BaseServer:
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
 
-        self._default_auth_method = default_auth_method
+        self._default_auth_method_spec = default_auth_method
+        self._default_auth_methods = self._get_auth_method_types(
+            default_auth_method)
         self._binary_endpoint_security = binary_endpoint_security
         self._http_endpoint_security = http_endpoint_security
 
@@ -247,6 +249,22 @@ class BaseServer:
 
         self._disable_dynamic_system_config = disable_dynamic_system_config
         self._report_config_typedesc = {}
+
+    def _get_auth_method_types(
+        self,
+        auth_methods_spec: srvargs.ServerAuthMethods,
+    ) -> dict[srvargs.ServerConnTransport, list[config.CompositeConfigType]]:
+        mapping = {}
+        for transport, methods in auth_methods_spec.items():
+            result = []
+            for method in methods:
+                auth_type = self.config_settings.get_type_by_name(
+                    f'cfg::{method.value}'
+                )
+                result.append(auth_type())
+            mapping[transport] = result
+
+        return mapping
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -530,10 +548,9 @@ class BaseServer:
     ) -> bytes:
         return await conn.sql_fetch_val(self._global_intro_query)
 
-    async def introspect_global_schema(
-        self, conn: pgcon.PGConnection
+    def _parse_global_schema(
+        self, json_data: Any
     ) -> s_schema.Schema:
-        json_data = await self.introspect_global_schema_json(conn)
         return s_refl.parse_into(
             base_schema=self._std_schema,
             schema=s_schema.EMPTY_SCHEMA,
@@ -541,19 +558,23 @@ class BaseServer:
             schema_class_layout=self._schema_class_layout,
         )
 
+    async def introspect_global_schema(
+        self, conn: pgcon.PGConnection
+    ) -> s_schema.Schema:
+        json_data = await self.introspect_global_schema_json(conn)
+        return self._parse_global_schema(json_data)
+
     async def introspect_user_schema_json(
         self,
         conn: pgcon.PGConnection,
     ) -> bytes:
         return await conn.sql_fetch_val(self._local_intro_query)
 
-    async def _introspect_user_schema(
+    def _parse_user_schema(
         self,
-        conn: pgcon.PGConnection,
+        json_data: Any,
         global_schema: s_schema.Schema,
     ) -> s_schema.Schema:
-        json_data = await self.introspect_user_schema_json(conn)
-
         base_schema = s_schema.ChainedSchema(
             self._std_schema,
             s_schema.EMPTY_SCHEMA,
@@ -566,6 +587,14 @@ class BaseServer:
             data=json_data,
             schema_class_layout=self._schema_class_layout,
         )
+
+    async def _introspect_user_schema(
+        self,
+        conn: pgcon.PGConnection,
+        global_schema: s_schema.Schema,
+    ) -> s_schema.Schema:
+        json_data = await self.introspect_user_schema_json(conn)
+        return self._parse_user_schema(json_data, global_schema)
 
     async def introspect_db_config(self, conn: pgcon.PGConnection) -> bytes:
         return await conn.sql_fetch_val(self.get_sys_query("dbconfig"))
@@ -1052,7 +1081,7 @@ class BaseServer:
             params=dict(
                 dev_mode=self._devmode,
                 test_mode=self._testmode,
-                default_auth_method=str(self._default_auth_method),
+                default_auth_methods=str(self._default_auth_method_spec),
                 listen_hosts=self._listen_hosts,
                 listen_port=self._listen_port,
             ),
@@ -1070,10 +1099,10 @@ class BaseServer:
     ) -> dict[defines.ProtocolVersion, bytes]:
         return self._report_config_typedesc
 
-    def get_default_auth_method(
+    def get_default_auth_methods(
         self, transport: srvargs.ServerConnTransport
-    ) -> srvargs.ServerAuthMethod:
-        return self._default_auth_method.get(transport)
+    ) -> list[config.CompositeConfigType]:
+        return self._default_auth_methods.get(transport, [])
 
     def get_std_schema(self) -> s_schema.Schema:
         return self._std_schema
@@ -1265,17 +1294,34 @@ class Server(BaseServer):
                 # actually run that against each user database.
                 if keys.get('is_user_ext_update'):
                     from . import bootstrap
-                    global_schema = await self.introspect_global_schema(conn)
-                    user_schema = await self._introspect_user_schema(
-                        conn, global_schema)
 
                     kind, patch = pg_patches.PATCHES[num]
                     patch_info = await bootstrap.gather_patch_info(
                         num, kind, patch, conn
                     )
+
+                    # Reload the compiler state from this database in
+                    # particular, so we can compiler from exactly the
+                    # right state. (Since self._std_schema and the like might
+                    # be further advanced.)
+                    state = (await edbcompiler.new_compiler_from_pg(conn)).state
+
+                    assert state.global_intro_query and state.local_intro_query
+                    global_schema = self._parse_global_schema(
+                        await conn.sql_fetch_val(
+                            state.global_intro_query.encode('utf-8')),
+                    )
+                    user_schema = self._parse_user_schema(
+                        await conn.sql_fetch_val(
+                            state.local_intro_query.encode('utf-8')),
+                        global_schema,
+                    )
+
                     entry = bootstrap.prepare_patch(
-                        num, kind, patch, self._std_schema, self._refl_schema,
-                        self._schema_class_layout,
+                        num, kind, patch,
+                        state.std_schema,
+                        state.refl_schema,
+                        state.schema_class_layout,
                         self._tenant.get_backend_runtime_params(),
                         patch_info=patch_info,
                         user_schema=user_schema,

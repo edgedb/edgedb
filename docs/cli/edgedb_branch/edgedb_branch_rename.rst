@@ -5,18 +5,22 @@
 edgedb branch rename
 ====================
 
-.. note::
-
-    This CLI command requires CLI version 4.3.0 or later and EdgeDB version 5.0
-    or later. If you are running an earlier version of EdgeDB, you will instead
-    use the :ref:`ref_cli_edgedb_database` command suite to manage databases,
-    which branches replaced in EdgeDB 5.0.
-
 Rename a :ref:`branch <ref_datamodel_branches>`
 
 .. cli:synopsis::
 
     edgedb branch rename [<options>] <old-name> <new-name>
+
+.. note::
+
+    This CLI command requires CLI version 4.0 or later and EdgeDB version 5.0
+    or later. Earlier versions did not feature branches and instead featured
+    databases. Databases offered no analog to the ``rename`` command. To
+    rename a database, you could :ref:`dump <ref_cli_edgedb_dump>` your
+    database, :ref:`create <ref_cli_edgedb_database_create>` a new database
+    with the desired name, and :ref:`restore <ref_cli_edgedb_restore>` the dump
+    to that new database. See the :ref:`ref_cli_edgedb_database` command suite
+    for other database management commands.
 
 
 Options

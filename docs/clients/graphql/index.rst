@@ -48,12 +48,11 @@ Connection
 Once you've activated the extension, your instance will listen for incoming
 GraphQL queries via HTTP at the following URL.
 
-``http://<instance-hostname><instance-port>/db/<database-name>/graphql``
+``http://<instance-hostname><instance-port>/branch/<branch-name>/graphql``
 
-The value of ``<database-name>`` is probably ``edgedb``, which is the name of
-the default database that is created when an instance is first created. (If
-you've manually created additional databases, use the name of the database
-you'd like to query instead.)
+The default ``branch-name`` will be ``main``, and after initializing your
+database, all queries are executed against it by default. If you want to query
+another branch instead, simply use that branch name in the URL.
 
 To find the port number associated with a local instance, run ``edgedb
 instance list``.
@@ -69,9 +68,9 @@ instance list``.
   │ local  │ inst3        │ 10703    │ 2.x           │ running     │
   └────────┴──────────────┴──────────┴───────────────┴─────────────┘
 
-To execute a GraphQL query against the database ``edgedb`` on the instance
+To execute a GraphQL query against the branch ``main`` on the instance
 named ``inst2``, we would send an HTTP request to
-``http://localhost:10702/db/edgedb/graphql``.
+``http://localhost:10702/branch/edgedb/main``.
 
 To determine the URL of an EdgeDB Cloud instance, find the host by running
 ``edgedb instance credentials -I <org-name>/<instance-name>``. Use the
@@ -85,7 +84,7 @@ secured with TLS.
   schema and write queries. Take the GraphQL query endpoint, append
   ``/explore``, and visit that URL in the browser. Under the above example,
   the GraphiQL endpoint is available at
-  ``http://localhost:10702/db/edgedb/graphql/explore``.
+  ``http://localhost:10702/branch/main/graphql/explore``.
 
 Authentication
 --------------
@@ -134,7 +133,7 @@ submit the following JSON-encoded form with the necessary fields.
 
   $ curl \
       -H "Content-Type: application/json" \
-      -X POST http://localhost:10787/db/edgedb/graphql \
+      -X POST http://localhost:10787/branch/main/graphql \
       -d '{ "query": "query getMovie($title: String!) { Movie(filter: {title:{eq: $title}}) { id title }}", "variables": { "title": "The Batman" }, "globals": {"default::current_user": "04e52807-6835-4eaa-999b-952804ab40a5"}}'
   {"data": {...}}
 
@@ -154,7 +153,7 @@ URL.
 
   $ curl \
       -H application/x-www-form-urlencoded \
-      -X GET http://localhost:10787/db/edgedb/graphql \
+      -X GET http://localhost:10787/branch/main/graphql \
       -G \
       --data-urlencode 'query=query getMovie($title: String!) { Movie(filter: {title:{eq: $title}}) { id title }}' \
       --data-urlencode 'variables={ "title": "The Batman" }'

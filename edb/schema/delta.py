@@ -2079,7 +2079,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
         # say as_fragment=True as a hack to avoid renormalizing it
         out = s_expr.Expression.from_ast(
-            compiled.qlast, schema, modaliases={}, as_fragment=True)
+            compiled.parse(), schema, modaliases={}, as_fragment=True)
         return out
 
     def _propagate_if_expr_refs(
@@ -2181,23 +2181,24 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 # mess up "associated" attributes.
                 cmd_drop.canonical = True
 
-                try:
-                    # Compute a dummy value
-                    dummy = cmd_create.get_dummy_expr_field_value(
-                        schema,
-                        context,
-                        field=type(ref).get_field(fn),
-                        value=ref.get_field_value(schema, fn)
-                    )
-                except NotImplementedError:
-                    ref_desc.extend(this_ref_desc)
-                else:
-                    for fn in fns:
+                for fn, cur_ref_desc in zip(fns, this_ref_desc):
+                    value: s_expr.Expression | None = (
+                        ref.get_explicit_field_value(schema, fn, None))
+                    if value is None:
+                        continue
+
+                    try:
+                        # Compute a dummy value
+                        dummy = cmd_create.get_dummy_expr_field_value(
+                            schema,
+                            context,
+                            field=type(ref).get_field(fn),
+                            value=ref.get_field_value(schema, fn)
+                        )
+                    except NotImplementedError:
+                        ref_desc.append(cur_ref_desc)
+                    else:
                         # Do the switcheroos
-                        value = ref.get_explicit_field_value(schema, fn, None)
-                        if value is None:
-                            continue
-                        assert isinstance(value, s_expr.Expression)
                         # Strip the "compiled" out of the expression
                         value = s_expr.Expression.not_compiled(value)
                         # We don't run the fixer on inherited fields because
@@ -2217,11 +2218,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                             computed=ref.field_is_computed(schema, fn),
                         )
 
-                    context.affected_finalization[self].append(
-                        (delta_create, cmd_create, this_ref_desc)
-                    )
-
-                    schema = delta_drop.apply(schema, context)
+                context.affected_finalization[self].append(
+                    (delta_create, cmd_create, this_ref_desc)
+                )
+                schema = delta_drop.apply(schema, context)
 
             if ref_desc:
                 expr_s = (
@@ -2435,13 +2435,19 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     )
                 ):
                     ddl_id = self.get_ddl_identity(field.name)
+                    attr_val: Any
                     if issubclass(field.type, s_expr.Expression):
-                        attr_val = ddl_id.qlast
+                        assert isinstance(ddl_id, s_expr.Expression)
+                        attr_val = ddl_id.parse()
                     elif issubclass(field.type, s_expr.ExpressionList):
-                        attr_val = [e.qlast for e in ddl_id]
+                        assert isinstance(ddl_id, s_expr.ExpressionList)
+                        attr_val = [e.parse() for e in ddl_id]
                     elif issubclass(field.type, s_expr.ExpressionDict):
-                        attr_val = {name: e.qlast
-                                    for name, e in ddl_id.items()}
+                        assert isinstance(ddl_id, s_expr.ExpressionDict)
+                        attr_val = {
+                            name: e.parse()
+                            for name, e in ddl_id.items()
+                        }
                     else:
                         raise AssertionError(
                             f'unexpected type of ddl_identity'
@@ -2704,6 +2710,16 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
             if id := self.get_attribute_value('id'):
                 value.set_origin(id, attr_name)
+        elif isinstance(value, s_expr.ExpressionDict):
+            compiled = {}
+            obj_id = self.get_attribute_value('id')
+            for k, v in value.items():
+                if not v.is_compiled():
+                    v = self.compile_expr_field(schema, context, field, v)
+                    if obj_id:
+                        v.set_origin(obj_id, attr_name)
+                compiled[k] = v
+            value = compiled
 
         return value
 
@@ -4346,7 +4362,7 @@ class AlterObjectProperty(Command):
             ])
         elif isinstance(value, uuid.UUID):
             value = qlast.TypeCast(
-                expr=qlast.StringConstant.from_python(str(value)),
+                expr=qlast.Constant.string(str(value)),
                 type=qlast.TypeName(
                     maintype=qlast.ObjectRef(
                         name='uuid',

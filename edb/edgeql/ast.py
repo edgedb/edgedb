@@ -23,6 +23,7 @@ from __future__ import annotations
 # AST classes that name-clash with classes from the typing module.
 
 import typing
+import enum
 
 from edb.common import enum as s_enum
 from edb.common import ast, span
@@ -173,11 +174,15 @@ class ObjectRef(BaseObjectRef):
 
 
 class PseudoObjectRef(BaseObjectRef):
-    # anytype, anytuple or anyobject
+    '''anytype, anytuple or anyobject'''
     name: str
 
 
 class Anchor(Expr):
+    '''Identifier that resolves to some pre-compiled expression.
+       For example in shapes, the anchor __subject__ refers to object that the
+       shape is defined on.
+    '''
     __abstract_node__ = True
     name: str
 
@@ -188,14 +193,6 @@ class IRAnchor(Anchor):
 
 class SpecialAnchor(Anchor):
     pass
-
-
-class Source(SpecialAnchor):  # __source__
-    name: str = '__source__'
-
-
-class Subject(SpecialAnchor):  # __subject__
-    name: str = '__subject__'
 
 
 class DetachedExpr(Expr):  # DETACHED Expr
@@ -225,11 +222,9 @@ class BinOp(Expr):
     left: Expr
     op: str
     right: Expr
+
     rebalanced: bool = False
-
-
-class SetConstructorOp(BinOp):
-    op: str = 'UNION'
+    set_constructor: bool = False
 
 
 class WindowSpec(Base):
@@ -245,54 +240,43 @@ class FunctionCall(Expr):
 
 
 class BaseConstant(Expr):
+    """Constant (a literal value)."""
     __abstract_node__ = True
+
+
+class Constant(BaseConstant):
+    """Constant whose value we can store in a string."""
+    kind: ConstantKind
     value: str
 
     @classmethod
-    def from_python(cls, val: typing.Any) -> BaseConstant:
-        raise NotImplementedError
+    def string(cls, value: str) -> Constant:
+        return Constant(kind=ConstantKind.STRING, value=value)
 
-
-class StringConstant(BaseConstant):
     @classmethod
-    def from_python(cls, s: str) -> StringConstant:
-        return cls(value=s)
+    def boolean(cls, b: bool) -> Constant:
+        return Constant(kind=ConstantKind.BOOLEAN, value=str(b).lower())
 
-
-class BaseRealConstant(BaseConstant):
-    __abstract_node__ = True
-    is_negative: bool = False
-
-
-class IntegerConstant(BaseRealConstant):
-    pass
-
-
-class FloatConstant(BaseRealConstant):
-    pass
-
-
-class BigintConstant(BaseRealConstant):
-    pass
-
-
-class DecimalConstant(BaseRealConstant):
-    pass
-
-
-class BooleanConstant(BaseConstant):
     @classmethod
-    def from_python(cls, b: bool) -> BooleanConstant:
-        return cls(value=str(b).lower())
+    def integer(cls, i: int) -> Constant:
+        return Constant(kind=ConstantKind.INTEGER, value=str(i))
+
+
+class ConstantKind(enum.IntEnum):
+    STRING = 0
+    BOOLEAN = 1
+    INTEGER = 2
+    FLOAT = 3
+    BIGINT = 4
+    DECIMAL = 5
 
 
 class BytesConstant(BaseConstant):
-    # This should really just be str to match, though
-    value: bytes  # type: ignore[assignment]
+    value: bytes
 
     @classmethod
     def from_python(cls, s: bytes) -> BytesConstant:
-        return cls(value=s)
+        return BytesConstant(value=s)
 
 
 class Parameter(Expr):
@@ -305,6 +289,8 @@ class UnaryOp(Expr):
 
 
 class TypeExpr(Base):
+    __abstract_node__ = True
+
     name: typing.Optional[str] = None  # name is used for types in named tuples
 
 
@@ -314,7 +300,7 @@ class TypeOf(TypeExpr):
 
 class TypeExprLiteral(TypeExpr):
     # Literal type exprs are used in enum declarations.
-    val: BaseConstant
+    val: Constant
 
 
 class TypeName(TypeExpr):
@@ -515,9 +501,9 @@ class Query(Expr):
 Statement = Query | Command
 
 
-class PipelinedQuery(Query):
-    __abstract_node__ = True
-    implicit: bool = False
+class SelectQuery(Query):
+    result_alias: typing.Optional[str] = None
+    result: Expr
 
     where: typing.Optional[Expr] = None
 
@@ -531,11 +517,7 @@ class PipelinedQuery(Query):
     # not interfere with linkprops.
     rptr_passthrough: bool = False
 
-
-class SelectQuery(PipelinedQuery):
-
-    result_alias: typing.Optional[str] = None
-    result: Expr
+    implicit: bool = False
 
 
 class GroupingIdentList(Base):
@@ -599,8 +581,15 @@ class UpdateQuery(Query):
     where: typing.Optional[Expr] = None
 
 
-class DeleteQuery(PipelinedQuery):
+class DeleteQuery(Query):
     subject: Expr
+
+    where: typing.Optional[Expr] = None
+
+    orderby: typing.Optional[typing.List[SortExpr]] = None
+
+    offset: typing.Optional[Expr] = None
+    limit: typing.Optional[Expr] = None
 
 
 class ForQuery(Query):
@@ -899,7 +888,7 @@ class ExtensionPackageCommand(GlobalObjectCommand):
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.EXTENSION_PACKAGE
     )
-    version: StringConstant
+    version: Constant
 
 
 class CreateExtensionPackage(CreateObject, ExtensionPackageCommand):
@@ -918,7 +907,7 @@ class ExtensionCommand(UnqualifiedObjectCommand):
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.EXTENSION
     )
-    version: typing.Optional[StringConstant] = None
+    version: typing.Optional[Constant] = None
 
 
 class CreateExtension(CreateObject, ExtensionCommand):
@@ -1623,13 +1612,15 @@ def has_ddl_subcommand(
 ReturningQuery = SelectQuery | ForQuery | InternalGroupQuery
 
 
-FilteringQuery = PipelinedQuery | ShapeElement | UpdateQuery | ConfigReset
+FilteringQuery = (
+    SelectQuery | DeleteQuery | ShapeElement | UpdateQuery | ConfigReset
+)
 
 
 SubjectQuery = DeleteQuery | UpdateQuery | GroupQuery
 
 
-OffsetLimitQuery = PipelinedQuery | ShapeElement
+OffsetLimitQuery = SelectQuery | DeleteQuery | ShapeElement
 
 
 BasedOn = (

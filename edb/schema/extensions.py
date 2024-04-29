@@ -277,7 +277,7 @@ class CreateExtensionPackage(
                     qlparser.parse_block(op.new_value)),
             )
         elif op.property == 'version':
-            node.version = qlast.StringConstant(
+            node.version = qlast.Constant.string(
                 value=str(op.new_value),
             )
         else:
@@ -449,7 +449,7 @@ class CreateExtension(
         # restoring the dump. We also have no mechanism of installing a specific
         # extension version, yet.
         if context.include_ext_version:
-            node.version = qlast.StringConstant(
+            node.version = qlast.Constant.string(
                 value=str(pkg.get_version(schema))
             )
         return node

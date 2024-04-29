@@ -929,6 +929,7 @@ class CallArg(ImmutableBase):
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
     multiplicity: qltypes.Multiplicity = qltypes.Multiplicity.UNKNOWN
     is_default: bool = False
+    param_typemod: qltypes.TypeModifier
 
 
 class Call(ImmutableExpr):
@@ -950,13 +951,9 @@ class Call(ImmutableExpr):
     force_return_cast: bool
 
     # Bound arguments.
-    # Named arguments will come first, sorted by name,
-    # followed by positional arguments, in order of declaration.
-    args: typing.List[CallArg]
-
-    # Typemods of parameters.  This list corresponds to ".args"
-    # (so `zip(args, params_typemods)` is valid.)
-    params_typemods: typing.List[qltypes.TypeModifier]
+    # Named arguments are indexed by argument name.
+    # Positional arguments are indexed by argument position.
+    args: typing.Dict[typing.Union[int, str], CallArg]
 
     # Return type and typemod.  In bodies of polymorphic functions
     # the return type can be polymorphic; in queries the return
@@ -983,6 +980,8 @@ class Call(ImmutableExpr):
 
 
 class FunctionCall(Call):
+
+    __ast_mutable_fields__ = frozenset(('extras', 'body'))
 
     # If the bound callable is a "USING SQL" callable, this
     # attribute will be set to the name of the SQL function.
@@ -1019,6 +1018,12 @@ class FunctionCall(Call):
 
     # Additional arguments representing global variables
     global_args: typing.Optional[typing.List[Set]] = None
+
+    # Any extra information useful for compilation of special-case callables.
+    extras: typing.Optional[dict[str, typing.Any]] = None
+
+    # Inline body of the callable.
+    body: typing.Optional[Set] = None
 
 
 class OperatorCall(Call):

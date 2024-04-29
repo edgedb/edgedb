@@ -122,6 +122,9 @@ class flags(metaclass=FlagsMeta):
     graphql_compile = Flag(
         doc="Debug GraphQL compiler.")
 
+    sdl_loading = Flag(
+        doc="Print applied DDL when loading SDL.")
+
     delta_plan = Flag(
         doc="Print expanded delta command tree prior to processing.")
 
