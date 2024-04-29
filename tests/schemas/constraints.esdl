@@ -279,6 +279,7 @@ type PropertyContainer {
         constraint exclusive
     }
 }
+type PropertyContainerChild extending PropertyContainer;
 
 type Pair {
     required property x -> str;
