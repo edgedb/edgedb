@@ -401,6 +401,7 @@ def get_union_type(
     opaque: bool = False,
     preserve_derived: bool = False,
     ctx: context.ContextLevel,
+    span: Optional[parsing.Span] = None,
 ) -> s_types.TypeT:
 
     targets: Sequence[s_types.Type]
@@ -418,7 +419,7 @@ def get_union_type(
         opaque=opaque, transient=True)
 
     if isinstance(union_type_result, s_utils.IncompatibleUnionTypes):
-        union_type_result.raise_error(ctx.env.schema)
+        union_type_result.raise_error(ctx.env.schema, span=span)
     else:
         ctx.env.schema, union, created = union_type_result
 
