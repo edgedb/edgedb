@@ -22,17 +22,53 @@ Before the major version, we publish "testing releases":
 On release branches, `edgedb-ui` should be pinned to the associated branch.
 This can be done is `setup.py` with variable `EDGEDBGUI_COMMIT`.
 For example, on branch `release/4.x`, it is pinned to `edgedb-ui`'s branch `4.x`.
-This means any release off `release/4.x` will contain latest commits from 
+This means any release off `release/4.x` will contain latest commits from
 `edgedb-ui`'s branch `4.x`.
 
 ## Preparing commits for a release
 
-We have GitHub labels (i.e. "backport-4.x") associated with each major release
-that indicate PRs that should be backported to the release branch.
+For each major release `N`, we have two labels: `to-backport-N.x` and
+`backported-N.x`. PRs that need to be backported should be tagged with
+`to-backport-N.x` for each of the target versions.
 
-It should be sufficient to go over that list and cherry-pick PR commits to the
-release branch.
+Once a PR is backported, `to-backport-N.x` should be removed and
+`backported-N.x` added.
 
+Tracking both states makes it easy to tell what needs to be backported
+and what has been backported.
+
+(Historical note: previously we had simply a `backport-N.x` label.
+This made it easy to ensure that everything that got tagged with
+`backport` actually got backported, but there was not an at-a-glance
+way to see if something *had* been backported. Even looking at the
+issue didn't always tell you, since sometimes we tagged things as
+`backport` and then thought better of it.)
+
+### Technical helpers
+
+The `gh` command line makes a bunch of these operations simple.
+
+To enumerate all pending backports for a branch:
+```bash
+gh pr list --state all -l to-backport-5.x
+```
+
+To adjust labels to mark a PR as backported:
+```bash
+gh pr edit --remove-label to-backport-N.x --add-label backported-N.x <PR NUMBER>
+```
+
+A helper shell script to cherry-pick a commit using its PR number:
+
+```bash
+# this won't work if a PR is not squashed into a single commit
+function cp-pr {
+    git cherry-pick $(gh pr view $1 --json mergeCommit --jq .mergeCommit.oid)
+}
+```
+
+
+### What to backport?
 Sometimes, people will forget to tag the PR to be back-ported, so a good
 practice is to list all commits since the last release:
 
@@ -63,17 +99,8 @@ A few pointers:
     This is needed, because minor releases don't require a "dump and restore",
     so we must apply these changes to existing user databases.
 
-  Patches can be tested using this GHA workflow:
+  Patches must be tested using this GHA workflow:
   https://github.com/edgedb/edgedb/actions/workflows/tests-patches.yml
-
-A helper shell script to cherry-pick a commit using it's PR number:
-
-```bash
-# this won't work if a PR is not squashed into a single commit
-function cp-pr {
-    git cherry-pick $(gh pr view $1 --json mergeCommit --jq .mergeCommit.oid)
-}
-```
 
 ## Release pipeline
 
