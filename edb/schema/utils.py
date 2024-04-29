@@ -33,6 +33,7 @@ from typing import (
     List,
     Set,
     FrozenSet,
+    NamedTuple,
     cast,
     TYPE_CHECKING,
 )
@@ -451,12 +452,14 @@ def type_op_ast_to_type_shell(
                 components=left.components + right.components,
                 module=module,
                 schemaclass=metaclass,
+                sourcectx=node.span,
             )
         else:
             return s_types.UnionTypeShell(
                 components=left.components + (right,),
                 module=module,
                 schemaclass=metaclass,
+                sourcectx=node.span,
             )
     else:
         if isinstance(right, s_types.UnionTypeShell):
@@ -464,12 +467,14 @@ def type_op_ast_to_type_shell(
                 components=(left,) + right.components,
                 schemaclass=metaclass,
                 module=module,
+                sourcectx=node.span,
             )
         else:
             return s_types.UnionTypeShell(
                 components=(left, right),
                 module=module,
                 schemaclass=metaclass,
+                sourcectx=node.span,
             )
 
 
@@ -1018,6 +1023,36 @@ def enrich_schema_lookup_error(
         error.set_span(span)
 
 
+class IncompatibleUnionTypes(NamedTuple):
+    types: Sequence[s_types.Type]
+    pointer_names: list[sn.Name] = []
+
+    def add_pointer_name(self, name: sn.Name) -> IncompatibleUnionTypes:
+        return IncompatibleUnionTypes(
+            self.types,
+            [name] + self.pointer_names
+        )
+
+    def raise_error(
+        self,
+        schema: s_schema.Schema,
+        *,
+        span: Optional[parsing.Span] = None,
+    ) -> None:
+        type_names = (
+            ', '.join(sorted(t.get_displayname(schema) for t in self.types))
+        )
+        if self.pointer_names:
+            property_name = '.'.join(p.name for p in self.pointer_names)
+            message = (
+                f'cannot create a union with property {property_name} of '
+                f'incompatible types {type_names}'
+            )
+        else:
+            message = f'cannot create a union of {type_names}'
+        raise errors.SchemaError(message, span=span)
+
+
 def ensure_union_type(
     schema: s_schema.Schema,
     types: Sequence[s_types.Type],
@@ -1025,7 +1060,7 @@ def ensure_union_type(
     opaque: bool = False,
     module: Optional[str] = None,
     transient: bool = False,
-) -> Tuple[s_schema.Schema, s_types.Type, bool]:
+) -> Tuple[s_schema.Schema, s_types.Type, bool] | IncompatibleUnionTypes:
 
     from edb.schema import objtypes as s_objtypes
 
@@ -1039,11 +1074,11 @@ def ensure_union_type(
     for t in types:
         if isinstance(t, s_objtypes.ObjectType):
             if seen_scalars:
-                raise _union_error(schema, types)
+                return IncompatibleUnionTypes(types)
             seen_objtypes = True
         else:
             if seen_objtypes:
-                raise _union_error(schema, types)
+                return IncompatibleUnionTypes(types)
             seen_scalars = True
 
     if seen_scalars:
@@ -1055,7 +1090,7 @@ def ensure_union_type(
             )
 
             if common_type is None:
-                raise _union_error(schema, types)
+                return IncompatibleUnionTypes(types)
             else:
                 uniontype = common_type
     else:
@@ -1063,13 +1098,18 @@ def ensure_union_type(
             Sequence[s_objtypes.ObjectType],
             types,
         )
-        schema, uniontype, created = s_objtypes.get_or_create_union_type(
+        union_type_result = s_objtypes.get_or_create_union_type(
             schema,
             components=objtypes,
             opaque=opaque,
             module=module,
             transient=transient,
         )
+
+        if isinstance(union_type_result, IncompatibleUnionTypes):
+            return union_type_result
+        else:
+            schema, uniontype, created = union_type_result
 
     return schema, uniontype, created
 
@@ -1165,13 +1205,6 @@ def get_non_overlapping_union(
         return frozenset(objects), False
     else:
         return frozenset(all_objects), True
-
-
-def _union_error(
-    schema: s_schema.Schema, components: Iterable[s_types.Type]
-) -> errors.SchemaError:
-    names = ', '.join(sorted(c.get_displayname(schema) for c in components))
-    return errors.SchemaError(f'cannot create a union of {names}')
 
 
 def ensure_intersection_type(

@@ -372,7 +372,7 @@ def get_or_create_union_type(
     transient: bool = False,
     opaque: bool = False,
     module: Optional[str] = None,
-) -> Tuple[s_schema.Schema, ObjectType, bool]:
+) -> Tuple[s_schema.Schema, ObjectType, bool] | utils.IncompatibleUnionTypes:
 
     name = s_types.get_union_type_name(
         (c.get_name(schema) for c in components),
@@ -400,12 +400,16 @@ def get_or_create_union_type(
 
         if not opaque:
 
-            schema = sources.populate_pointer_set_for_source_union(
+            populate_result = sources.populate_pointer_set_for_source_union(
                 schema,
                 cast(List[sources.Source], components),
                 objtype,
                 modname=module,
             )
+            if isinstance(populate_result, utils.IncompatibleUnionTypes):
+                return populate_result
+            else:
+                schema = populate_result
 
     return schema, objtype, created
 
@@ -640,12 +644,17 @@ class AlterObjectType(
                 # them in the schema to produce the correct as_alter_delta.
                 nschema = _delete_to_delist(delete, schema)
 
-                nschema, nunion, _ = utils.ensure_union_type(
+                union_type_result = utils.ensure_union_type(
                     nschema,
                     types=union.get_union_of(schema).objects(schema),
                     opaque=union.get_is_opaque_union(schema),
                     module=union.get_name(schema).module,
                 )
+
+                if isinstance(union_type_result, utils.IncompatibleUnionTypes):
+                    union_type_result.raise_error(schema)
+                else:
+                    nschema, nunion, _ = union_type_result
                 assert isinstance(nunion, ObjectType)
 
                 diff = union.as_alter_delta(

@@ -37,6 +37,7 @@ from . import indexes
 from . import name as sn
 from . import objects as so
 from . import pointers as s_pointers
+from . import utils as s_utils
 
 if TYPE_CHECKING:
     from . import links
@@ -223,7 +224,7 @@ def populate_pointer_set_for_source_union(
     union: Source,
     *,
     modname: Optional[str] = None,
-) -> s_schema.Schema:
+) -> s_schema.Schema | s_utils.IncompatibleUnionTypes:
     if modname is None:
         modname = '__derived__'
 
@@ -243,7 +244,7 @@ def populate_pointer_set_for_source_union(
             if len(ptrs) == 1:
                 ptr = ptrs[0]
             else:
-                schema, ptr = s_pointers.get_or_create_union_pointer(
+                union_ptr_result = s_pointers.get_or_create_union_pointer(
                     schema,
                     ptrname=pn,
                     source=union,
@@ -251,6 +252,11 @@ def populate_pointer_set_for_source_union(
                     components=set(ptrs),
                     modname=modname,
                 )
+
+                if isinstance(union_ptr_result, s_utils.IncompatibleUnionTypes):
+                    return union_ptr_result.add_pointer_name(pn)
+                else:
+                    schema, ptr = union_ptr_result
 
             union_pointers[pn] = ptr
 

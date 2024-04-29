@@ -413,9 +413,14 @@ def get_union_type(
             ctx.env.schema, types
         )
 
-    ctx.env.schema, union, created = s_utils.ensure_union_type(
+    union_type_result = s_utils.ensure_union_type(
         ctx.env.schema, targets,
         opaque=opaque, transient=True)
+
+    if isinstance(union_type_result, s_utils.IncompatibleUnionTypes):
+        union_type_result.raise_error(ctx.env.schema)
+    else:
+        ctx.env.schema, union, created = union_type_result
 
     if created:
         ctx.env.created_schema_objects.add(union)
@@ -622,7 +627,7 @@ def get_union_pointer(
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
 
-    ctx.env.schema, ptr = s_pointers.get_or_create_union_pointer(
+    union_ptr_result = s_pointers.get_or_create_union_pointer(
         ctx.env.schema,
         ptrname,
         source,
@@ -632,6 +637,10 @@ def get_union_pointer(
         modname=modname,
         transient=True,
     )
+    if isinstance(union_ptr_result, s_utils.IncompatibleUnionTypes):
+        union_ptr_result.raise_error(ctx.env.schema)
+    else:
+        ctx.env.schema, ptr = union_ptr_result
 
     ctx.env.created_schema_objects.add(ptr)
 
