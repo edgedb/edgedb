@@ -408,6 +408,13 @@ class TestConstraintsSchema(tb.QueryTestCase):
             };
         """)
 
+        # Update to same values should be fine
+        await self.con.execute("""
+            UPDATE PropertyContainer SET {
+                tags := {"one", "two"}
+            };
+        """)
+
         async with self.assertRaisesRegexTx(
             edgedb.ConstraintViolationError,
             "tags violates exclusivity constraint",
@@ -427,6 +434,12 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     tags := {"four", "four"}
                 };
             """)
+
+        await self.con.execute("""
+            UPDATE PropertyContainer SET {
+                tags := "one"
+            };
+        """)
 
     async def test_constraints_objects(self):
         async with self._run_and_rollback():

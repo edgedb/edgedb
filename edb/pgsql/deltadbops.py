@@ -109,6 +109,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         origin_exprdata: List[schemamech.ExprData],
         scope,
         type,
+        table_type,
         except_data,
         schema,
     ):
@@ -118,6 +119,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         self._origin_exprdata = origin_exprdata
         self._scope = scope
         self._type = type
+        self._table_type = table_type
         self._except_data = except_data
 
     def constraint_code(self, block: dbops.PLBlock) -> str | List[str]:
@@ -213,6 +215,20 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
             else:
                 except_part = ''
 
+            # Link tables get updated by deleting and then reinserting
+            # rows, and so the trigger might fire even on rows that
+            # did not *really* change. Check `source` also to prevent
+            # spurious errors in those cases. (Anything with the same
+            # source must have the same type, so any genuine constraint
+            # errors this filters away will get caught by the *actual*
+            # constraint.)
+            # We *could* do a check for id on object tables, but it
+            # isn't needed and would take at least some time.
+            src_check = (
+                ' AND source != NEW.source'
+                if self._table_type == 'link' else ''
+            )
+
             schemaname, tablename = origin_expr.origin_subject_db_name
             text = '''
                 PERFORM
@@ -220,7 +236,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                   FROM
                     {table}
                   WHERE
-                    {plain_expr} = {new_expr}{except_part};
+                    {plain_expr} = {new_expr}{except_part}{src_check};
                 IF FOUND THEN
                   RAISE unique_violation
                       USING
@@ -243,6 +259,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                 schemaname=schemaname,
                 tablename=tablename,
                 constr=raw_constr_name,
+                src_check=src_check,
                 errmsg=errmsg,
             )
 
