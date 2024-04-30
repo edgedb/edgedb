@@ -664,6 +664,8 @@ def ptr_default_to_col_default(schema, ptr, expr):
 
     if not ir_utils.is_const(ir):
         return None
+    if ast.find_children(ir, irast.TupleIndirectionPointer):
+        return None
 
     try:
         sql_res = compiler.compile_ir_to_sql_tree(ir, singleton_mode=True)
