@@ -1831,13 +1831,12 @@ def process_update_rewrites(
     list[tuple[pgast.ResTarget, irast.PathId]],
 ]:
     # assert ir_stmt.rewrites
-    object_path_id = ir_stmt.subject.path_id
+    subject_path_id = ir_stmt.subject.path_id
     if ir_stmt.rewrites:
-        subject_path_id = ir_stmt.rewrites.subject_path_id
         old_path_id = ir_stmt.rewrites.old_path_id
     else:
         # Need values for the single external link case
-        subject_path_id = old_path_id = object_path_id
+        old_path_id = subject_path_id
     assert old_path_id
 
     table_rel = table_relation.relation
@@ -1868,26 +1867,18 @@ def process_update_rewrites(
         )
         rewrites_stmt.where_clause = astutils.new_binop(
             lexpr=pathctx.get_rvar_path_identity_var(
-                contents_rvar, object_path_id, env=ctx.env
+                contents_rvar, subject_path_id, env=ctx.env
             ),
             op="=",
             rexpr=pathctx.get_rvar_path_identity_var(
-                range_relation, object_path_id, env=ctx.env
+                range_relation, subject_path_id, env=ctx.env
             ),
         )
-
-        # add entries in path_var_map for __subject__
-        contents_select.path_rvar_map[
-            (subject_path_id, "source")
-        ] = contents_select.path_rvar_map[(object_path_id, "source")]
-        contents_select.path_rvar_map[
-            (subject_path_id, "value")
-        ] = contents_select.path_rvar_map[(object_path_id, "value")]
 
         # pull in table_relation for __old__
         table_rel.path_outputs[
             (old_path_id, "value")
-        ] = table_rel.path_outputs[(object_path_id, "value")]
+        ] = table_rel.path_outputs[(subject_path_id, "value")]
         relctx.include_rvar(
             rewrites_stmt, table_relation, old_path_id, ctx=ctx
         )
@@ -1899,7 +1890,7 @@ def process_update_rewrites(
                 ),
                 op="=",
                 rexpr=pathctx.get_rvar_path_identity_var(
-                    range_relation, object_path_id, env=ctx.env
+                    range_relation, subject_path_id, env=ctx.env
                 ),
             ),
         )
@@ -1907,9 +1898,6 @@ def process_update_rewrites(
         relctx.pull_path_namespace(
             target=rewrites_stmt, source=table_relation, ctx=ctx
         )
-        table_rel.path_outputs[
-            (subject_path_id, "value")
-        ] = table_rel.path_outputs[(object_path_id, "value")]
 
         rewrite_elements = [
             (el, ptrref, qlast.ShapeOp.ASSIGN)
@@ -1967,8 +1955,8 @@ def process_update_rewrites(
             dynamic_get_path=_mk_dynamic_get_path(
                 nptr_map, typeref, contents_rvar),
         )
-        pathctx.put_path_source_rvar(rctx.rel, object_path_id, fallback_rvar)
-        pathctx.put_path_value_rvar(rctx.rel, object_path_id, fallback_rvar)
+        pathctx.put_path_source_rvar(rctx.rel, subject_path_id, fallback_rvar)
+        pathctx.put_path_value_rvar(rctx.rel, subject_path_id, fallback_rvar)
 
         rewrites_cte = pgast.CommonTableExpr(
             query=rctx.rel, name=ctx.env.aliases.get("upd_rewrites")

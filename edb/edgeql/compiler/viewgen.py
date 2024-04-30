@@ -1087,7 +1087,6 @@ def _compile_rewrites(
         return None
 
     return irast.Rewrites(
-        subject_path_id=anc.subject_set.path_id,
         old_path_id=anc.old_set.path_id if anc.old_set else None,
         by_type=by_type,
     )
