@@ -2285,6 +2285,9 @@ class AlterConstraint(
             return schema
 
         if subject is not None:
+            if pcontext := context.get(s_pointers.PointerCommandContext):
+                orig_schema = pcontext.original_schema
+
             bconstr = schemamech.compile_constraint(
                 subject, constraint, schema, self.span
             )
@@ -2343,14 +2346,15 @@ class AlterConstraint(
                 and not context.is_creating(subject)
                 and not context.is_deleting(subject)
             ):
-                op = self.enforce_constraint(
-                    constraint, schema, self.span
-                )
                 self.schedule_post_inhview_update_command(
                     schema,
                     context,
                     (lambda nschema, ncontext:
-                     op if nschema.has_object(subject.id) else None),
+                     self.enforce_constraint(
+                         constraint, nschema, self.span
+                     )
+                     if nschema.has_object(constraint.id)
+                     else None),
                     s_sources.SourceCommandContext)
 
             self.pgops.add(self.fixup_base_constraint_triggers(
@@ -4277,6 +4281,18 @@ class PointerMetaCommand(
         if isinstance(source_op, sd.CreateObject):
             return
 
+        # If the pointer has any constraints, drop them now. We'll
+        # create them again at the end.
+        # N.B: Since the pointer is either starting or ending as multi,
+        # it can't have any object constraints referencing it.
+        # TODO?: Maybe we should handle the constraint by generating
+        # an alter in the front-end and running _alter_innards in the
+        # middle of this function. (After creations, before deletions.)
+        for constr in ptr.get_constraints(schema).objects(schema):
+            self.pgops.add(ConstraintCommand.delete_constraint(
+                constr, orig_schema
+            ))
+
         assert ptr_stor_info.table_name
         tab = q(*ptr_stor_info.table_name)
         target_col = ptr_stor_info.column_name
@@ -4414,6 +4430,11 @@ class PointerMetaCommand(
             )
             alter_table.add_operation(dbops.AlterTableDropColumn(col))
             self.pgops.add(alter_table)
+
+        for constr in ptr.get_constraints(schema).objects(schema):
+            self.pgops.add(ConstraintCommand.create_constraint(
+                constr, schema
+            ))
 
     def _alter_pointer_optionality(
         self,
