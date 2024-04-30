@@ -876,8 +876,17 @@ class GQLCoreSchema:
                     continue
 
                 if isinstance(target, GraphQLList):
-                    inobjtype = self._gql_inobjtypes.get(
-                        f'Insert{target.of_type.of_type.name}')
+                    # Check whether the edb_target is an array of enums,
+                    # because enums need slightly different handling.
+                    assert isinstance(edb_target, s_types.Array)
+                    el = edb_target.get_element_type(self.edb_schema)
+                    if el.is_enum(self.edb_schema):
+                        tname = el.get_name(self.edb_schema)
+                        assert isinstance(tname, s_name.QualName)
+                    else:
+                        tname = target.of_type.of_type.name
+
+                    inobjtype = self._gql_inobjtypes.get(f'Insert{tname}')
                     assert inobjtype is not None
                     intype = GraphQLList(GraphQLNonNull(inobjtype))
 
