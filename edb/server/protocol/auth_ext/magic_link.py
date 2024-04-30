@@ -103,14 +103,16 @@ select identity { * };""",
         challenge: str,
         redirect_on_failure: str,
     ):
-        signing_key = self._get_signing_key()
+        initial_key_material = self._get_signing_key()
         identity_id = await self.get_identity_id_by_email(
-            email, factor_type='MagicLinkFactor')
+            email, factor_type='MagicLinkFactor'
+        )
 
         if identity_id is None:
             await auth_emails.send_fake_email(self.tenant)
             return
 
+        signing_key = util.derive_key(initial_key_material, "magic_link")
         token = util.make_token(
             signing_key=signing_key,
             issuer=self.issuer,
