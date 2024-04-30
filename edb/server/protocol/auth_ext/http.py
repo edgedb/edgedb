@@ -1694,8 +1694,8 @@ class Router:
         ) = None,
         expires_in: datetime.timedelta | None = None,
     ) -> str:
-        initial_key_material = self._get_auth_signing_key()
-        signing_key = util.derive_key(initial_key_material, derive_for_info)
+        input_key_material = self._get_auth_signing_key()
+        signing_key = util.derive_key(input_key_material, derive_for_info)
         expires_in = (
             datetime.timedelta(minutes=10) if expires_in is None else expires_in
         )
@@ -1713,8 +1713,8 @@ class Router:
     def _verify_and_extract_claims(
         self, jwtStr: str, key_info: str
     ) -> dict[str, str | int | float | bool]:
-        initial_key_material = self._get_auth_signing_key()
-        signing_key = util.derive_key(initial_key_material, key_info)
+        input_key_material = self._get_auth_signing_key()
+        signing_key = util.derive_key(input_key_material, key_info)
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
 

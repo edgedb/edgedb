@@ -170,7 +170,7 @@ def derive_key(key: jwk.JWK, info: str) -> jwk.JWK:
 
     # n.b. the key is returned as a base64url-encoded string
     raw_key_base64url = cast(str, key.get_op_key())
-    raw_key = base64.urlsafe_b64decode(raw_key_base64url)
+    input_key_material = base64.urlsafe_b64decode(raw_key_base64url)
 
     backend = default_backend()
     hkdf = HKDF(
@@ -180,7 +180,7 @@ def derive_key(key: jwk.JWK, info: str) -> jwk.JWK:
         info=info.encode("utf-8"),
         backend=backend
     )
-    new_key_bytes = hkdf.derive(raw_key)
+    new_key_bytes = hkdf.derive(input_key_material)
     return jwk.JWK(
         kty="oct",
         k=new_key_bytes.hex(),
