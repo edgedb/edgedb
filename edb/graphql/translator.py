@@ -1683,12 +1683,14 @@ class GraphQLTranslator:
             optional = False
 
         if self.is_list_type(vartype):
-            if target.is_array:
-                raise errors.QueryError(err_msg)
-            elif target.is_multirange:
+            if target.is_multirange:
                 subtype = target.edb_base.get_subtypes(target.edb_schema)[0]
                 st_name = subtype.get_name(target.edb_schema)
                 castname = qlast.ObjectRef(name=str(st_name))
+            else:
+                # So far the only list allowed is a multirange
+                # representation.
+                raise errors.QueryError(err_msg)
 
         elif vartype.name.value in gt.GQL_TO_EDB_SCALARS_MAP:
             castname = qlast.ObjectRef(
