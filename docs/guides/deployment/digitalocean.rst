@@ -93,7 +93,7 @@ instance link``.
        --trust-tls-cert \
        --non-interactive \
        my_instance
-   Authenticating to edgedb://edgedb@1.2.3.4:5656/edgedb
+   Authenticating to edgedb://edgedb@1.2.3.4:5656/main
    Trusting unknown server certificate:
    SHA1:1880da9527be464e2cad3bdb20dfc430a6af5727
    Successfully linked to remote instance. To connect run:
@@ -210,7 +210,7 @@ Set the security policy to strict.
 
    .. code-block:: bash
 
-      $ apt-get update && apt-get install --only-upgrade edgedb-server-4
+      $ apt-get update && apt-get install --only-upgrade edgedb-server-5
       $ systemctl restart edgedb
 
 That's it! Refer to the :ref:`Construct the DSN
