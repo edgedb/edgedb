@@ -1711,10 +1711,13 @@ class Router:
         )
 
     def _verify_and_extract_claims(
-        self, jwtStr: str, key_info: str
+        self, jwtStr: str, key_info: str | None = None
     ) -> dict[str, str | int | float | bool]:
         input_key_material = self._get_auth_signing_key()
-        signing_key = util.derive_key(input_key_material, key_info)
+        if key_info is None:
+            signing_key = input_key_material
+        else:
+            signing_key = util.derive_key(input_key_material, key_info)
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
 
