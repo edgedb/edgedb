@@ -413,10 +413,9 @@ class Tenant(ha_base.ClusterProtocol):
 
         self.populate_sys_auth()
         self.reload_readiness_state()
-        self._start_watching_files()
         self._initing = False
 
-    def _start_watching_files(self):
+    def start_watching_files(self):
         if self._readiness_state_file is not None:
 
             def reload_state_file(_file_modified, _event):
@@ -1296,7 +1295,7 @@ class Tenant(ha_base.ClusterProtocol):
         self.reload_readiness_state()
         self.load_jwcrypto()
 
-        self._start_watching_files()
+        self.start_watching_files()
 
     async def on_before_drop_db(
         self,

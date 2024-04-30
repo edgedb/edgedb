@@ -936,6 +936,10 @@ class BaseServer:
         if client_ca_file is not None:
             self.monitor_fs(client_ca_file, reload_tls)
 
+    def start_watching_files(self):
+        # TODO(fantix): include the monitor_fs() lines above
+        pass
+
     def load_jwcrypto(self, jws_key_file: pathlib.Path) -> None:
         try:
             self._jws_key = secretkey.load_secret_key(jws_key_file)
@@ -1726,6 +1730,10 @@ class Server(BaseServer):
         rv = super()._get_compiler_args()
         rv.update(self._tenant.get_compiler_args())
         return rv
+
+    def start_watching_files(self):
+        super().start_watching_files()
+        self._tenant.start_watching_files()
 
 
 def _cleanup_wildcard_addrs(

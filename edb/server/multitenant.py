@@ -251,6 +251,7 @@ class MultiTenantServer(server.BaseServer):
         try:
             await tenant.init_sys_pgcon()
             await tenant.init()
+            tenant.start_watching_files()
             await tenant.start_accepting_new_tasks()
             tenant.start_running()
 
@@ -455,6 +456,7 @@ async def run_server(
             args.tls_client_ca_file,
         )
         ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
+        ss.start_watching_files()
 
         def load_configuration(_signum):
             if args.reload_config_files not in [
