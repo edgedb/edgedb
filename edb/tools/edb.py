@@ -77,3 +77,4 @@ from . import gen_rust_ast  # noqa
 from . import ast_inheritance_graph  # noqa
 from . import parser_demo  # noqa
 from .profiling import cli as prof_cli  # noqa
+from .experimental_interpreter import edb_entry # noqa
