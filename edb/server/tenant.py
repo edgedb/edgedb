@@ -196,16 +196,28 @@ class Tenant(ha_base.ClusterProtocol):
         readiness_state_file: str | pathlib.Path | None = None,
         jwt_sub_allowlist_file: str | pathlib.Path | None = None,
         jwt_revocation_list_file: str | pathlib.Path | None = None,
-    ) -> None:
+    ) -> bool:
+        rv = False
+
         if isinstance(readiness_state_file, str):
             readiness_state_file = pathlib.Path(readiness_state_file)
-        self._readiness_state_file = readiness_state_file
+        if self._readiness_state_file != readiness_state_file:
+            self._readiness_state_file = readiness_state_file
+            rv = True
+
         if isinstance(jwt_sub_allowlist_file, str):
             jwt_sub_allowlist_file = pathlib.Path(jwt_sub_allowlist_file)
-        self._jwt_sub_allowlist_file = jwt_sub_allowlist_file
+        if self._jwt_sub_allowlist_file != jwt_sub_allowlist_file:
+            self._jwt_sub_allowlist_file = jwt_sub_allowlist_file
+            rv = True
+
         if isinstance(jwt_revocation_list_file, str):
             jwt_revocation_list_file = pathlib.Path(jwt_revocation_list_file)
-        self._jwt_revocation_list_file = jwt_revocation_list_file
+        if self._jwt_revocation_list_file != jwt_revocation_list_file:
+            self._jwt_revocation_list_file = jwt_revocation_list_file
+            rv = True
+
+        return rv
 
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
@@ -401,10 +413,9 @@ class Tenant(ha_base.ClusterProtocol):
 
         self.populate_sys_auth()
         self.reload_readiness_state()
-        self._start_watching_files()
         self._initing = False
 
-    def _start_watching_files(self):
+    def start_watching_files(self):
         if self._readiness_state_file is not None:
 
             def reload_state_file(_file_modified, _event):
@@ -413,6 +424,29 @@ class Tenant(ha_base.ClusterProtocol):
             self._file_watch_finalizers.append(
                 self._server.monitor_fs(
                     self._readiness_state_file, reload_state_file
+                )
+            )
+
+        if self._jwt_sub_allowlist_file is not None:
+
+            def reload_jwt_sub_allowlist_file(_file_modified, _event):
+                self.load_jwt_sub_allowlist()
+
+            self._file_watch_finalizers.append(
+                self._server.monitor_fs(
+                    self._jwt_sub_allowlist_file, reload_jwt_sub_allowlist_file
+                )
+            )
+
+        if self._jwt_revocation_list_file is not None:
+
+            def reload_jwt_revocation_list_file(_file_modified, _event):
+                self.load_jwt_revocation_list()
+
+            self._file_watch_finalizers.append(
+                self._server.monitor_fs(
+                    self._jwt_revocation_list_file,
+                    reload_jwt_revocation_list_file,
                 )
             )
 
@@ -1138,6 +1172,10 @@ class Tenant(ha_base.ClusterProtocol):
             self.create_task(self._load_reported_config(), interruptable=True)
 
     def load_jwcrypto(self) -> None:
+        self.load_jwt_sub_allowlist()
+        self.load_jwt_revocation_list()
+
+    def load_jwt_sub_allowlist(self) -> None:
         if self._jwt_sub_allowlist_file is not None:
             logger.info(
                 "(re-)loading JWT subject allowlist from "
@@ -1154,6 +1192,7 @@ class Tenant(ha_base.ClusterProtocol):
                     f"cannot load JWT sub allowlist: {e}"
                 ) from e
 
+    def load_jwt_revocation_list(self) -> None:
         if self._jwt_revocation_list_file is not None:
             logger.info(
                 "(re-)loading JWT revocation list from "
@@ -1256,7 +1295,7 @@ class Tenant(ha_base.ClusterProtocol):
         self.reload_readiness_state()
         self.load_jwcrypto()
 
-        self._start_watching_files()
+        self.start_watching_files()
 
     async def on_before_drop_db(
         self,
