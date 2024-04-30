@@ -1277,10 +1277,8 @@ class InsertStmt(MutatingStmt):
 RewritesOfType = typing.Dict[str, typing.Tuple[SetE[Pointer], BasePointerRef]]
 
 
-@dataclasses.dataclass(kw_only=True, frozen=True)
+@dataclasses.dataclass(kw_only=True, frozen=True, slots=True)
 class Rewrites:
-    subject_path_id: PathId
-
     old_path_id: typing.Optional[PathId]
 
     by_type: typing.Dict[TypeRef, RewritesOfType]
