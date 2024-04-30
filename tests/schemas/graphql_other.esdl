@@ -27,6 +27,8 @@ type Foo {
     property `select` -> str;
     property after -> str;
     required property color -> ColorEnum;
+    multi property multi_color -> ColorEnum;
+    property color_array -> array<ColorEnum>;
 
     # Testing linking to the same type
     multi link foos -> Foo {
