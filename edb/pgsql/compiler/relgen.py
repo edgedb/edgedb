@@ -796,6 +796,8 @@ def process_external_rel(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
     rel, aspects = ctx.external_rels[ir_set.path_id]
+    for a in aspects:
+        assert isinstance(a, str)
 
     rvar = relctx.rvar_for_rel(rel, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar, aspects)
