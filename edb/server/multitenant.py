@@ -138,7 +138,7 @@ class MultiTenantServer(server.BaseServer):
         await self._task_group.__aenter__()
         fs = self.reload_tenants()
 
-        def reload_config_file(_file_modified, _event):
+        def reload_config_file():
             logger.info("Reloading multi-tenant config file.")
             self.reload_tenants()
 
