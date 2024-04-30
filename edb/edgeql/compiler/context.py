@@ -556,6 +556,9 @@ class ContextLevel(compiler.ContextLevel):
     active_computeds: ordered.OrderedSet[s_pointers.Pointer]
     """A ordered set of currently compiling computeds"""
 
+    allow_endpoint_linkprops: bool
+    """Whether to allow references to endpoint linkpoints (@source, @target)."""
+
     disallow_dml: Optional[str]
     """Whether we are currently in a place where no dml is allowed,
         if not None, then it is of the form `in a FILTER clause`  """
@@ -623,6 +626,7 @@ class ContextLevel(compiler.ContextLevel):
             self.active_rewrites = frozenset()
             self.active_defaults = frozenset()
 
+            self.allow_endpoint_linkprops = False
             self.disallow_dml = None
 
         else:
@@ -666,6 +670,7 @@ class ContextLevel(compiler.ContextLevel):
             self.active_rewrites = prevlevel.active_rewrites
             self.active_defaults = prevlevel.active_defaults
 
+            self.allow_endpoint_linkprops = prevlevel.allow_endpoint_linkprops
             self.disallow_dml = prevlevel.disallow_dml
 
             if mode == ContextSwitchMode.SUBQUERY:

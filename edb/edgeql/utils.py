@@ -197,6 +197,8 @@ def subject_substitute(
     for path in find_paths(ast):
         if is_anchor(path.steps[0], '__subject__'):
             path.steps[0] = new_subject
+        elif path.partial:
+            path.steps[0:0] = [new_subject]
     return ast
 
 

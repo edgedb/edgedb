@@ -429,8 +429,11 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 # anyway, so disallow them.
                 if (
                     ptr_expr.name in ('source', 'target')
-                    and ctx.env.options.schema_object_context
-                    not in (s_constr.Constraint, s_indexes.Index)
+                    and not ctx.allow_endpoint_linkprops
+                    and (
+                        ctx.env.options.schema_object_context
+                        not in (s_constr.Constraint, s_indexes.Index)
+                    )
                 ):
                     raise errors.QueryError(
                         f'@{ptr_expr.name} may only be used in index and '

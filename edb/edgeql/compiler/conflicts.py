@@ -432,6 +432,7 @@ def _compile_conflict_select(
     select_ast = qlast.Set(elements=frags)
     with ctx.new() as ectx:
         ectx.implicit_limit = 0
+        ectx.allow_endpoint_linkprops = True
         select_ir = dispatch.compile(select_ast, ctx=ectx)
         select_ir = setgen.scoped_set(
             select_ir, force_reassign=True, ctx=ectx)
