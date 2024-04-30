@@ -177,11 +177,10 @@ def derive_key(key: jwk.JWK, info: str) -> jwk.JWK:
         algorithm=hashes.SHA256(),
         length=32,
         info=info.encode("utf-8"),
-        backend=backend
+        backend=backend,
     )
     new_key_bytes = hkdf.derive(input_key_material)
     return jwk.JWK(
         kty="oct",
         k=new_key_bytes.hex(),
     )
-
