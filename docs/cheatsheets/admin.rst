@@ -3,37 +3,42 @@
 Administering an instance
 =========================
 
-Create a schema branch:
+.. versionchanged:: _default
 
-.. code-block:: edgeql-repl
+    Create a database:
 
-    db> create schema branch my_new_feature from main;
-    OK: CREATE BRANCH
+    .. code-block:: edgeql-repl
 
+        db> create database my_new_project;
+        OK: CREATE DATABASE
 
-----------
+.. versionchanged:: 5.0
 
+    Create a schema branch:
 
-Create a data branch:
+    .. code-block:: edgeql-repl
 
-.. code-block:: edgeql-repl
-
-    db> create data branch my_new_feature from main;
-    OK: CREATE BRANCH
-
-
-----------
+        db> create schema branch my_new_feature from main;
+        OK: CREATE BRANCH
 
 
-Create an empty branch:
 
-.. code-block:: edgeql-repl
+    Create a data branch:
 
-    db> create empty branch my_new_feature;
-    OK: CREATE BRANCH
+    .. code-block:: edgeql-repl
+
+        db> create data branch my_new_feature from main;
+        OK: CREATE BRANCH
 
 
-----------
+
+    Create an empty branch:
+
+    .. code-block:: edgeql-repl
+
+        db> create empty branch my_new_feature;
+        OK: CREATE BRANCH
+
 
 
 Create a role:
@@ -43,8 +48,6 @@ Create a role:
     db> create superuser role project;
     OK: CREATE ROLE
 
-
-----------
 
 
 Configure passwordless access (such as to a local development database):
@@ -62,8 +65,6 @@ Configure passwordless access (such as to a local development database):
     OK: CONFIGURE INSTANCE
 
 
-----------
-
 
 Set a password for a role:
 
@@ -73,8 +74,6 @@ Set a password for a role:
     ...     set password := 'super-password';
     OK: ALTER ROLE
 
-
-----------
 
 
 Configure access that checks password (with a higher priority):
@@ -89,8 +88,6 @@ Configure access that checks password (with a higher priority):
     OK: CONFIGURE INSTANCE
 
 
-----------
-
 
 Remove a specific authentication method:
 
@@ -100,8 +97,6 @@ Remove a specific authentication method:
     ... filter .comment = 'password is required';
     OK: CONFIGURE INSTANCE
 
-
-----------
 
 
 Run a script from command line:
