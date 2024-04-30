@@ -10774,6 +10774,9 @@ type default::Foo {
                 };
             """)
 
+    @test.xerror('''
+        We should reject this but I don't want to do it in a point release
+    ''')
     async def test_edgeql_ddl_constraint_32(self):
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError, ''

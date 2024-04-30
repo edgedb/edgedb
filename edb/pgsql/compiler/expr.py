@@ -839,10 +839,6 @@ def compile_TupleIndirectionPointer(
     rptr: irast.TupleIndirectionPointer, *, ctx: context.CompilerContextLevel
 ) -> pgast.BaseExpr:
     tuple_val = dispatch.compile(rptr.source, ctx=ctx)
-    if not isinstance(tuple_val, pgast.ColumnRef):
-        raise errors.UnsupportedFeatureError(
-            'dereference of complex tuple expression in simple expression')
-
     set_expr = astutils.tuple_getattr(
         tuple_val,
         rptr.source.typeref,
