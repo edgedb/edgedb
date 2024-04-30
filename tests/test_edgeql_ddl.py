@@ -2033,6 +2033,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+    async def test_edgeql_ddl_default_15(self):
+        await self.con.execute(r"""
+            create type T;
+            insert T;
+            alter type T {
+                create required property tup: tuple<int32, int32> {
+                    set default := ((0, 0));
+                };
+            };
+            insert T;
+        """)
+
     async def test_edgeql_ddl_default_circular(self):
         await self.con.execute(r"""
             CREATE TYPE TestDefaultCircular {
@@ -10759,6 +10771,27 @@ type default::Foo {
             await self.con.execute(r"""
                 CREATE ABSTRACT CONSTRAINT default::bad_constraint {
                     USING ((DISTINCT __subject__ = __subject__));
+                };
+            """)
+
+    @test.xerror('''
+        We should reject this but I don't want to do it in a point release
+    ''')
+    async def test_edgeql_ddl_constraint_32(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError, ''
+        ):
+            await self.con.execute(r"""
+                create type S {
+                    create constraint expression on (((0, 0)).0 = 0);
+                };
+            """)
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError, ''
+        ):
+            await self.con.execute(r"""
+                create type S {
+                    create constraint expression on (((true, 0)).0);
                 };
             """)
 
