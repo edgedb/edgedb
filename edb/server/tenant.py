@@ -418,7 +418,7 @@ class Tenant(ha_base.ClusterProtocol):
     def start_watching_files(self):
         if self._readiness_state_file is not None:
 
-            def reload_state_file(_file_modified, _event):
+            def reload_state_file():
                 self.reload_readiness_state()
 
             self._file_watch_finalizers.append(
@@ -429,7 +429,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         if self._jwt_sub_allowlist_file is not None:
 
-            def reload_jwt_sub_allowlist_file(_file_modified, _event):
+            def reload_jwt_sub_allowlist_file():
                 self.load_jwt_sub_allowlist()
 
             self._file_watch_finalizers.append(
@@ -440,7 +440,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         if self._jwt_revocation_list_file is not None:
 
-            def reload_jwt_revocation_list_file(_file_modified, _event):
+            def reload_jwt_revocation_list_file():
                 self.load_jwt_revocation_list()
 
             self._file_watch_finalizers.append(
