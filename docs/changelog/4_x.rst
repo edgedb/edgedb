@@ -100,6 +100,12 @@ dump-and-restore process.
 
    This process will involve some downtime, specifically during steps 2 and 3.
 
+.. note::
+
+    If your Postgres cluster is also backing other versions of EdgeDB, make
+    sure you start your new instance with the ``--ignore-other-tenants``
+    option when bootstrapping your new instance.
+
 
 New features
 ============
