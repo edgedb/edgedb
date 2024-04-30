@@ -25,7 +25,7 @@ from edb.testbase import experimental_interpreter as tb
 
 
 # This test is created by partially copying `test_edgeql_select.py` and adapt
-# them to work with the experimental interpreter. 
+# them to work with the experimental interpreter.
 class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'issues.esdl')
     SETUP = os.path.join(
