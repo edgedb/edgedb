@@ -21,8 +21,6 @@ from __future__ import annotations
 
 from typing import Optional, Sequence, List
 
-from edb.pgsql import ast as pgast
-
 from .. import common
 from . import base
 
@@ -30,10 +28,10 @@ from . import base
 class Constraint(base.DBObject):
     def __init__(
         self,
-        subject_name: Sequence[str | pgast.Star],
+        subject_name: Sequence[str],
         constraint_name: Optional[str] = None,
     ):
-        self._subject_name = subject_name
+        self._subject_name = tuple(subject_name)
         self._constraint_name = constraint_name
 
     def get_type(self):
