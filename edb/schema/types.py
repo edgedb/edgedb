@@ -885,20 +885,26 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
                 for c in self.get_attribute_value('components')
             ]
 
-            union_type_result = utils.ensure_union_type(
-                schema,
-                components,
-                opaque=self.get_attribute_value('is_opaque_union') or False,
-                module=self.classname.module,
-            )
-
-            if isinstance(union_type_result, utils.IncompatibleUnionTypes):
-                union_type_result.raise_error(
+            try:
+                new_schema, union_type, created = utils.ensure_union_type(
                     schema,
-                    span=self.get_attribute_value('span')
+                    components,
+                    opaque=self.get_attribute_value('is_opaque_union') or False,
+                    module=self.classname.module,
                 )
-            else:
-                new_schema, union_type, created = union_type_result
+            except errors.SchemaError as e:
+                union_name = (
+                    '(' + ' | '.join(sorted(
+                    c.get_displayname(schema)
+                    for c in components
+                    )) + ')'
+                )
+                e.args = (
+                    (f'cannot create union {union_name} {e.args[0]}',)
+                    + e.args[1:]
+                )
+                e.set_span(self.get_attribute_value('span'))
+                raise e
 
             if created:
                 delta = union_type.as_create_delta(

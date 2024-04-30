@@ -7084,8 +7084,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r"cannot create a union with property foo of incompatible "
-                r"types std::int64, std::str"):
+                r"cannot create union \(default::Dummy1 \| default::Dummy2\) "
+                r"with property 'foo' using incompatible types std::int64, "
+                r"std::str"):
             await self.con.query(
                 r'''
                     SELECT Object is Dummy1 | Dummy2;
@@ -7564,8 +7565,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r"cannot create a union with property foo of incompatible "
-                r"types std::int64, std::str"):
+                r"cannot create union \(default::Dummy1 \| default::Dummy2\) "
+                r"with property 'foo' using incompatible types std::int64, "
+                r"std::str"):
             await self.con.query(
                 r'''
                     SELECT Dummy1 union Dummy2;
@@ -7585,8 +7587,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r"cannot create a union with property foo of incompatible "
-                r"types default::Bar, std::int64"):
+                r"cannot create union \(default::Dummy1 \| default::Dummy2\) "
+                r"with link 'foo' using incompatible types default::Bar, "
+                r"std::int64"):
             await self.con.query(
                 r'''
                     SELECT Dummy1 union Dummy2;
@@ -7610,8 +7613,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r"cannot create a union with property foo.baz of incompatible "
-                r"types std::int64, std::str"):
+                r"cannot create union \(default::Dummy1 \| default::Dummy2\) "
+                r"with link 'foo' with property 'baz' using incompatible types "
+                r"std::int64, std::str"):
             await self.con.query(
                 r'''
                     SELECT Dummy1 union Dummy2;

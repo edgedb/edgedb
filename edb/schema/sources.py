@@ -32,12 +32,13 @@ from typing import (
 )
 
 
+from edb import errors
+
 from . import delta as sd
 from . import indexes
 from . import name as sn
 from . import objects as so
 from . import pointers as s_pointers
-from . import utils as s_utils
 
 if TYPE_CHECKING:
     from . import links
@@ -224,7 +225,7 @@ def populate_pointer_set_for_source_union(
     union: Source,
     *,
     modname: Optional[str] = None,
-) -> s_schema.Schema | s_utils.IncompatibleUnionTypes:
+) -> s_schema.Schema:
     if modname is None:
         modname = '__derived__'
 
@@ -244,19 +245,24 @@ def populate_pointer_set_for_source_union(
             if len(ptrs) == 1:
                 ptr = ptrs[0]
             else:
-                union_ptr_result = s_pointers.get_or_create_union_pointer(
-                    schema,
-                    ptrname=pn,
-                    source=union,
-                    direction=s_pointers.PointerDirection.Outbound,
-                    components=set(ptrs),
-                    modname=modname,
-                )
-
-                if isinstance(union_ptr_result, s_utils.IncompatibleUnionTypes):
-                    return union_ptr_result.add_pointer_name(pn)
-                else:
-                    schema, ptr = union_ptr_result
+                try:
+                    schema, ptr = s_pointers.get_or_create_union_pointer(
+                        schema,
+                        ptrname=pn,
+                        source=union,
+                        direction=s_pointers.PointerDirection.Outbound,
+                        components=set(ptrs),
+                        modname=modname,
+                    )
+                except errors.SchemaError as e:
+                    # ptrs may have different verbose names
+                    # ensure the same one is always chosen
+                    vn = sorted(p.get_verbosename(schema) for p in ptrs)[0]
+                    e.args = (
+                        (f'with {vn} {e.args[0]}',)
+                        + e.args[1:]
+                    )
+                    raise e
 
             union_pointers[pn] = ptr
 

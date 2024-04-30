@@ -2621,8 +2621,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.SchemaError,
-        'cannot create a union with property a of incompatible types '
-        'std::int64, std::str',
+        "cannot create union \\(test::X | test::Y\\) with property 'a' using "
+        "incompatible types std::int64, std::str",
     )
     def test_schema_incompatible_union_01(self):
         """
@@ -2639,8 +2639,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.SchemaError,
-        'cannot create a union with property a of incompatible types '
-        'std::int64, test::A',
+        "cannot create union \\(test::X | test::Y\\) with link 'a' using "
+        "incompatible types std::int64, test::A",
     )
     def test_schema_incompatible_union_02(self):
         """
@@ -2658,8 +2658,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.SchemaError,
-        'cannot create a union with property a.b of incompatible types '
-        'std::int64, std::str',
+        "cannot create union \\(test::X | test::Y\\) with link 'a' with "
+        "property 'b' using incompatible types std::int64, std::str",
     )
     def test_schema_incompatible_union_03(self):
         """

@@ -414,14 +414,23 @@ def get_union_type(
             ctx.env.schema, types
         )
 
-    union_type_result = s_utils.ensure_union_type(
-        ctx.env.schema, targets,
-        opaque=opaque, transient=True)
-
-    if isinstance(union_type_result, s_utils.IncompatibleUnionTypes):
-        union_type_result.raise_error(ctx.env.schema, span=span)
-    else:
-        ctx.env.schema, union, created = union_type_result
+    try:
+        ctx.env.schema, union, created = s_utils.ensure_union_type(
+            ctx.env.schema, targets,
+            opaque=opaque, transient=True)
+    except errors.SchemaError as e:
+        union_name = (
+            '(' + ' | '.join(sorted(
+            t.get_displayname(ctx.env.schema)
+            for t in types
+            )) + ')'
+        )
+        e.args = (
+            (f'cannot create union {union_name} {e.args[0]}',)
+            + e.args[1:]
+        )
+        e.set_span(span)
+        raise e
 
     if created:
         ctx.env.created_schema_objects.add(union)
@@ -628,7 +637,7 @@ def get_union_pointer(
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
 
-    union_ptr_result = s_pointers.get_or_create_union_pointer(
+    ctx.env.schema, ptr = s_pointers.get_or_create_union_pointer(
         ctx.env.schema,
         ptrname,
         source,
@@ -638,10 +647,6 @@ def get_union_pointer(
         modname=modname,
         transient=True,
     )
-    if isinstance(union_ptr_result, s_utils.IncompatibleUnionTypes):
-        union_ptr_result.raise_error(ctx.env.schema)
-    else:
-        ctx.env.schema, ptr = union_ptr_result
 
     ctx.env.created_schema_objects.add(ptr)
 

@@ -3102,7 +3102,7 @@ def get_or_create_union_pointer(
     transient: bool = False,
     opaque: bool = False,
     modname: Optional[str] = None,
-) -> Tuple[s_schema.Schema, Pointer] | utils.IncompatibleUnionTypes:
+) -> Tuple[s_schema.Schema, Pointer]:
     from . import sources as s_sources
 
     components = list(components)
@@ -3149,13 +3149,8 @@ def get_or_create_union_pointer(
 
     target: s_types.Type
 
-    union_type_result = utils.ensure_union_type(
+    schema, target, _ = utils.ensure_union_type(
         schema, targets, opaque=opaque, module=modname, transient=transient)
-
-    if isinstance(union_type_result, utils.IncompatibleUnionTypes):
-        return union_type_result
-    else:
-        schema, target, _ = union_type_result
 
     cardinality = qltypes.SchemaCardinality.One
     for component in components:
@@ -3191,16 +3186,12 @@ def get_or_create_union_pointer(
     if isinstance(result, s_sources.Source) and not opaque:
         # cast below, because in this case the list of Pointer
         # is also a list of Source (links.Link)
-        populate_result = s_sources.populate_pointer_set_for_source_union(
+        schema = s_sources.populate_pointer_set_for_source_union(
             schema,
             cast(List[s_sources.Source], components),
             result,
             modname=modname,
         )
-        if isinstance(populate_result, utils.IncompatibleUnionTypes):
-            return populate_result
-        else:
-            schema = populate_result
 
     return schema, result
 

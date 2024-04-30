@@ -33,7 +33,6 @@ from typing import (
     List,
     Set,
     FrozenSet,
-    NamedTuple,
     cast,
     TYPE_CHECKING,
 )
@@ -1023,36 +1022,6 @@ def enrich_schema_lookup_error(
         error.set_span(span)
 
 
-class IncompatibleUnionTypes(NamedTuple):
-    types: Sequence[s_types.Type]
-    pointer_names: list[sn.Name] = []
-
-    def add_pointer_name(self, name: sn.Name) -> IncompatibleUnionTypes:
-        return IncompatibleUnionTypes(
-            self.types,
-            [name] + self.pointer_names
-        )
-
-    def raise_error(
-        self,
-        schema: s_schema.Schema,
-        *,
-        span: Optional[parsing.Span] = None,
-    ) -> None:
-        type_names = (
-            ', '.join(sorted(t.get_displayname(schema) for t in self.types))
-        )
-        if self.pointer_names:
-            property_name = '.'.join(p.name for p in self.pointer_names)
-            message = (
-                f'cannot create a union with property {property_name} of '
-                f'incompatible types {type_names}'
-            )
-        else:
-            message = f'cannot create a union of {type_names}'
-        raise errors.SchemaError(message, span=span)
-
-
 def ensure_union_type(
     schema: s_schema.Schema,
     types: Sequence[s_types.Type],
@@ -1060,7 +1029,7 @@ def ensure_union_type(
     opaque: bool = False,
     module: Optional[str] = None,
     transient: bool = False,
-) -> Tuple[s_schema.Schema, s_types.Type, bool] | IncompatibleUnionTypes:
+) -> Tuple[s_schema.Schema, s_types.Type, bool]:
 
     from edb.schema import objtypes as s_objtypes
 
@@ -1074,11 +1043,11 @@ def ensure_union_type(
     for t in types:
         if isinstance(t, s_objtypes.ObjectType):
             if seen_scalars:
-                return IncompatibleUnionTypes(types)
+                raise _union_error(schema, types)
             seen_objtypes = True
         else:
             if seen_objtypes:
-                return IncompatibleUnionTypes(types)
+                raise _union_error(schema, types)
             seen_scalars = True
 
     if seen_scalars:
@@ -1090,7 +1059,7 @@ def ensure_union_type(
             )
 
             if common_type is None:
-                return IncompatibleUnionTypes(types)
+                raise _union_error(schema, types)
             else:
                 uniontype = common_type
     else:
@@ -1098,18 +1067,13 @@ def ensure_union_type(
             Sequence[s_objtypes.ObjectType],
             types,
         )
-        union_type_result = s_objtypes.get_or_create_union_type(
+        schema, uniontype, created = s_objtypes.get_or_create_union_type(
             schema,
             components=objtypes,
             opaque=opaque,
             module=module,
             transient=transient,
         )
-
-        if isinstance(union_type_result, IncompatibleUnionTypes):
-            return union_type_result
-        else:
-            schema, uniontype, created = union_type_result
 
     return schema, uniontype, created
 
@@ -1205,6 +1169,13 @@ def get_non_overlapping_union(
         return frozenset(objects), False
     else:
         return frozenset(all_objects), True
+
+
+def _union_error(
+    schema: s_schema.Schema, components: Iterable[s_types.Type]
+) -> errors.SchemaError:
+    names = ', '.join(sorted(c.get_displayname(schema) for c in components))
+    return errors.SchemaError(f'using incompatible types {names}')
 
 
 def ensure_intersection_type(
