@@ -45,6 +45,7 @@ import uuid
 
 import immutables
 
+from edb import buildmeta
 from edb import errors
 
 from edb.common.typeutils import not_none
@@ -1302,6 +1303,8 @@ class Compiler:
         # The state serializer generated below is somehow inappropriate,
         # so it's simply ignored here and the I/O process will do it on its own
         units = compile(ctx=ctx, source=ddl_source).units
+
+        _check_force_database_error(ctx, scope='restore')
 
         schema = ctx.state.current_tx().get_schema(
             ctx.compiler_state.std_schema)
@@ -3260,20 +3263,24 @@ def _add_fake_property(
     )
 
 
-def _check_force_database_error(
-    ctx: CompileContext,
-    ql: qlast.Base,
+def maybe_force_database_error(
+    val: Optional[str],
+    *,
+    scope: str,
 ) -> None:
-    if isinstance(ql, qlast.ConfigOp):
+    # Check the string directly for false to skip a deserialization
+    if val is None or val == 'false':
         return
-
     try:
-        val = _get_config_val(ctx, 'force_database_error')
-        # Check the string directly for false to skip a deserialization
-        if val is None or val == 'false':
-            return
         err = json.loads(val)
         if not err:
+            return
+
+        scopes = err.get('_scopes', ['query'])
+        if scope not in scopes:
+            return
+        versions = err.get('_versions')
+        if versions and buildmeta.get_version_string() not in versions:
             return
 
         errcls = errors.EdgeDBError.get_error_class_from_name(err['type'])
@@ -3298,6 +3305,19 @@ def _check_force_database_error(
             "invalid 'force_database_error' value'")
 
     raise errval
+
+
+def _check_force_database_error(
+    ctx: CompileContext,
+    ql: Optional[qlast.Base]=None,
+    *,
+    scope: str='query',
+) -> None:
+    if isinstance(ql, qlast.ConfigOp):
+        return
+
+    val = _get_config_val(ctx, 'force_database_error')
+    maybe_force_database_error(val, scope=scope)
 
 
 def _get_config_val(

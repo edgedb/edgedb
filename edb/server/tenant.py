@@ -58,6 +58,8 @@ from . import dbview
 from . import defines
 from . import metrics
 from . import pgcon
+from . import compiler as edbcompiler
+
 from .ha import adaptive as adaptive_ha
 from .ha import base as ha_base
 from .pgcon import errors as pgcon_errors
@@ -392,6 +394,12 @@ class Tenant(ha_base.ClusterProtocol):
         sys_config = await self._load_sys_config()
         default_sysconfig = await self._load_sys_config("sysconfig_default")
         await self._load_reported_config()
+
+        # To make in-place upgrade failures more testable, check
+        # 'force_database_error' with a 'startup' scope.
+        force_error = self._server.config_lookup(
+            'force_database_error', sys_config)
+        edbcompiler.maybe_force_database_error(force_error, scope='startup')
 
         self._dbindex = dbview.DatabaseIndex(
             self,
