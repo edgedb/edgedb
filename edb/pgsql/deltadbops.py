@@ -543,13 +543,14 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
 
     def drop_constraint(self, constraint: SchemaConstraintTableConstraint):
         if constraint.requires_triggers():
-            self.add_commands(self.drop_constr_trigger(self.name, constraint))
+            self.add_commands(self.drop_constr_trigger(
+                constraint._subject_name, constraint))
             proc_name = constraint.get_trigger_procname()
             self.add_commands(self.drop_constr_trigger_function(proc_name))
 
         # Drop the constraint normally from our table
         #
-        my_alter = dbops.AlterTable(self.name)
+        my_alter = dbops.AlterTable(constraint._subject_name)
 
         drop_constr = AlterTableDropMultiConstraint(constraint=constraint)
         my_alter.add_command(drop_constr)
