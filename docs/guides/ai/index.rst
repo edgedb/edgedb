@@ -142,6 +142,20 @@ to start running queries!
 
     `Learn more about the Mistral embedding model <https://docs.mistral.ai/capabilities/embeddings/#mistral-embeddings-api>`__
 
+You may want to include multiple properties in your AI index. Fortunately, you
+can define an AI index on an expression:
+
+.. code-block:: sdl
+
+      module default {
+        type Astronomy {
+          climate: str;
+          atmosphere: str;
+          deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
+            on (.climate ++ ' ' ++ .atmosphere);
+        }
+      };
+
 
 Run a semantic similarity query
 -------------------------------
