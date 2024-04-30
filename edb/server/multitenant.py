@@ -74,6 +74,7 @@ class MultiTenantServer(server.BaseServer):
 
     _tenants_by_sslobj: MutableMapping
     _tenants_conf: dict[str, dict[str, str]]
+    _last_tenants_conf: dict[str, dict[str, str]]
     _tenants_lock: MutableMapping[str, asyncio.Lock]
     _tenants_serial: dict[str, int]
     _tenants: dict[str, edbtenant.Tenant]
@@ -101,6 +102,7 @@ class MultiTenantServer(server.BaseServer):
 
         self._tenants_by_sslobj = weakref.WeakKeyDictionary()
         self._tenants_conf = {}
+        self._last_tenants_conf = {}
         self._tenants_lock = collections.defaultdict(asyncio.Lock)
         self._tenants_serial = {}
         self._tenants = {}
@@ -135,6 +137,13 @@ class MultiTenantServer(server.BaseServer):
         assert self._task_group is not None
         await self._task_group.__aenter__()
         fs = self.reload_tenants()
+
+        def reload_config_file(_file_modified, _event):
+            logger.info("Reloading multi-tenant config file.")
+            self.reload_tenants()
+
+        self.monitor_fs(self._config_file, reload_config_file)
+
         if fs:
             await asyncio.wait(fs)
 
@@ -167,6 +176,7 @@ class MultiTenantServer(server.BaseServer):
     def reload_tenants(self) -> Sequence[asyncio.Future]:
         with self._config_file.open() as cf:
             conf = json.load(cf)
+        self._last_tenants_conf = self._tenants_conf
         rv = []
         for sni, tenant_conf in conf.items():
             if sni not in self._tenants_conf:
@@ -241,6 +251,7 @@ class MultiTenantServer(server.BaseServer):
         try:
             await tenant.init_sys_pgcon()
             await tenant.init()
+            tenant.start_watching_files()
             await tenant.start_accepting_new_tasks()
             tenant.start_running()
 
@@ -328,17 +339,35 @@ class MultiTenantServer(server.BaseServer):
                 if serial > self._tenants_serial.get(sni, 0):
                     if tenant := self._tenants.get(sni):
                         current_tenant.set(tenant.get_instance_name())
-                        tenant.set_reloadable_files(
+
+                        orig = self._last_tenants_conf.get(sni, {})
+                        diff = set(orig.keys()) - set(conf)
+                        for k, v in conf.items():
+                            if orig.get(k) != v:
+                                diff.add(k)
+                        diff -= {
+                            "readiness-state-file",
+                            "jwt-sub-allowlist-file",
+                            "jwt-revocation-list-file",
+                        }
+                        if diff:
+                            logger.warning(
+                                "The following config of tenant %s changed, "
+                                "but reloading them is not yet supported: %s",
+                                sni,
+                                ", ".join(diff),
+                            )
+
+                        if not tenant.set_reloadable_files(
                             readiness_state_file=conf.get(
                                 "readiness-state-file"),
                             jwt_sub_allowlist_file=conf.get(
                                 "jwt-sub-allowlist-file"),
                             jwt_revocation_list_file=conf.get(
                                 "jwt-revocation-list-file"),
-                        )
-                        # XXX: Changing other config values like `backend-dsn`
-                        # is NOT supported currently. Ideally we should raise
-                        # warnings here if unsupported changes are detected.
+                        ):
+                            # none of the reloadable values was modified
+                            return
 
                         tenant.reload()
                         logger.info("Reloaded Tenant %s", sni)
@@ -427,6 +456,7 @@ async def run_server(
             args.tls_client_ca_file,
         )
         ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
+        ss.start_watching_files()
 
         def load_configuration(_signum):
             if args.reload_config_files not in [

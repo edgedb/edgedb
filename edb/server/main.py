@@ -280,6 +280,7 @@ async def _run_server(
         )
 
         ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
+        ss.start_watching_files()
 
         def load_configuration(_signum):
             if args.reload_config_files not in [
