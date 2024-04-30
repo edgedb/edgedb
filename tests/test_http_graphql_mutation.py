@@ -547,6 +547,124 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "other__Foo": []
         })
 
+    def test_graphql_mutation_insert_enum_03(self):
+        # This tests enum values in insertion.
+        data = {
+            'select': 'New EnumTest05',
+            'color': 'GREEN',
+            'color_array': ['RED', 'GREEN', 'RED'],
+        }
+
+        validation_query = r"""
+            query {
+                other__Foo(filter: {select: {eq: "New EnumTest05"}}) {
+                    select
+                    color
+                    color_array
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo {
+                insert_other__Foo(
+                    data: [{
+                        select: "New EnumTest05",
+                        color: GREEN,
+                        color_array: [RED, GREEN, RED],
+                    }]
+                ) {
+                    select
+                    color
+                    color_array
+                }
+            }
+        """, {
+            "insert_other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                delete_other__Foo(
+                    filter: {select: {eq: "New EnumTest05"}}
+                ) {
+                    select
+                    color
+                    color_array
+                }
+            }
+        """, {
+            "delete_other__Foo": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "other__Foo": []
+        })
+
+    def test_graphql_mutation_insert_enum_04(self):
+        # This tests enum values in insertion.
+        data = {
+            'select': 'New EnumTest03',
+            'color': 'GREEN',
+            'multi_color': {'RED', 'GREEN'},
+        }
+
+        validation_query = r"""
+            query {
+                other__Foo(filter: {select: {eq: "New EnumTest03"}}) {
+                    select
+                    color
+                    multi_color
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo {
+                insert_other__Foo(
+                    data: [{
+                        select: "New EnumTest03",
+                        color: GREEN,
+                        multi_color: [RED, GREEN],
+                    }]
+                ) {
+                    select
+                    color
+                    multi_color
+                }
+            }
+        """, {
+            "insert_other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                delete_other__Foo(
+                    filter: {select: {eq: "New EnumTest03"}}
+                ) {
+                    select
+                    color
+                    multi_color
+                }
+            }
+        """, {
+            "delete_other__Foo": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "other__Foo": []
+        })
+
     def test_graphql_mutation_insert_range_01(self):
         # This tests range and multirange values in insertion.
         data = {
@@ -3210,6 +3328,128 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "delete_other__Foo": [{
                 'select': 'Update EnumTest02',
                 'color': 'RED',
+            }]
+        })
+
+    def test_graphql_mutation_update_enum_03(self):
+        # This tests enum values in updates.
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo {
+                insert_other__Foo(
+                    data: [{
+                        select: "Update EnumTest03",
+                        color: BLUE,
+                        color_array: [RED, BLUE, BLUE]
+                    }]
+                ) {
+                    select
+                    color
+                    color_array
+                }
+            }
+        """, {
+            "insert_other__Foo": [{
+                'select': 'Update EnumTest03',
+                'color': 'BLUE',
+                'color_array': ['RED', 'BLUE', 'BLUE'],
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_other__Foo {
+                update_other__Foo(
+                    filter: {select: {eq: "Update EnumTest03"}}
+                    data: {
+                        color_array: {append: [GREEN]}
+                    }
+                ) {
+                    select
+                    color_array
+                }
+            }
+        """, {
+            "update_other__Foo": [{
+                'select': 'Update EnumTest03',
+                'color_array': ['RED', 'BLUE', 'BLUE', 'GREEN'],
+            }]
+        })
+
+        # clean up
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                delete_other__Foo(
+                    filter: {select: {eq: "Update EnumTest03"}}
+                ) {
+                    select
+                    color_array
+                }
+            }
+        """, {
+            "delete_other__Foo": [{
+                'select': 'Update EnumTest03',
+                'color_array': ['RED', 'BLUE', 'BLUE', 'GREEN'],
+            }]
+        })
+
+    def test_graphql_mutation_update_enum_04(self):
+        # This tests enum values in updates.
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo {
+                insert_other__Foo(
+                    data: [{
+                        select: "Update EnumTest04",
+                        color: BLUE,
+                        multi_color: [RED, BLUE]
+                    }]
+                ) {
+                    select
+                    color
+                    multi_color
+                }
+            }
+        """, {
+            "insert_other__Foo": [{
+                'select': 'Update EnumTest04',
+                'color': 'BLUE',
+                'multi_color': ['RED', 'BLUE'],
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_other__Foo {
+                update_other__Foo(
+                    filter: {select: {eq: "Update EnumTest04"}}
+                    data: {
+                        multi_color: {add: GREEN}
+                    }
+                ) {
+                    select
+                    multi_color
+                }
+            }
+        """, {
+            "update_other__Foo": [{
+                'select': 'Update EnumTest04',
+                'multi_color': {'RED', 'BLUE', 'GREEN'},
+            }]
+        })
+
+        # clean up
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                delete_other__Foo(
+                    filter: {select: {eq: "Update EnumTest04"}}
+                ) {
+                    select
+                    multi_color
+                }
+            }
+        """, {
+            "delete_other__Foo": [{
+                'select': 'Update EnumTest04',
+                'multi_color': {'RED', 'BLUE', 'GREEN'},
             }]
         })
 
