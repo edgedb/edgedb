@@ -21,7 +21,7 @@ import base64
 import urllib.parse
 import datetime
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
 from cryptography.hazmat.backends import default_backend
 
 from jwcrypto import jwt, jwk
@@ -173,10 +173,9 @@ def derive_key(key: jwk.JWK, info: str) -> jwk.JWK:
     input_key_material = base64.urlsafe_b64decode(raw_key_base64url)
 
     backend = default_backend()
-    hkdf = HKDF(
+    hkdf = HKDFExpand(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=None,
         info=info.encode("utf-8"),
         backend=backend
     )
