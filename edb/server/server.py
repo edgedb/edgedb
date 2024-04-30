@@ -396,7 +396,7 @@ class BaseServer:
             nonlocal handle
             if event == 2:  # CHANGE
                 cb()
-            else:  # RENAME, RENAME_CHANGE
+            elif event == 1 or event == 3:  # RENAME, RENAME_CHANGE
                 # File is likely renamed or deleted, stop watching
                 finalizer()
                 try:
@@ -408,6 +408,9 @@ class BaseServer:
                     handle = self.__loop._monitor_fs(  # type: ignore
                         str(parent_dir), watch_dir)
                 self._file_watch_handles.append(handle)
+            else:
+                # Unknown events are ignored
+                pass
 
         # ... we depend on an event loop internal _monitor_fs
         handle = self.__loop._monitor_fs(str(path), callback)  # type: ignore
