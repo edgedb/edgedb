@@ -35,6 +35,7 @@ from jwcrypto import jwt, jwk
 from edgedb import QueryAssertionError
 from edb.testbase import http as tb
 from edb.common import assert_data_shape
+from edb.server.protocol.auth_ext import util as auth_util
 
 ph = argon2.PasswordHasher()
 
@@ -412,8 +413,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         state_token.make_signed_token(auth_signing_key)
         return state_token.serialize()
 
-    async def extract_jwt_claims(self, raw_jwt: str):
-        signing_key = await self.get_signing_key()
+    async def extract_jwt_claims(self, raw_jwt: str, info: str | None = None):
+        input_key_material = await self.get_signing_key()
+        if info is not None:
+            signing_key = auth_util.derive_key(input_key_material, info)
+        else:
+            signing_key = input_key_material
+
         jwt_token = jwt.JWT(key=signing_key, jwt=raw_jwt)
         claims = json.loads(jwt_token.claims)
         return claims
@@ -3091,7 +3097,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 reset_url.startswith(form_data['reset_url'] + '?reset_token=')
             )
             claims = await self.extract_jwt_claims(
-                reset_url.split('=', maxsplit=1)[1]
+                reset_url.split('=', maxsplit=1)[1], "reset"
             )
             self.assertEqual(claims.get("sub"), str(identity[0].id))
             self.assertEqual(claims.get("iss"), str(self.http_addr))

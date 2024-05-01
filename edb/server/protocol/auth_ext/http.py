@@ -725,7 +725,10 @@ class Router:
                 ) = await email_password_client.get_identity_and_secret(data)
 
                 new_reset_token = self._make_secret_token(
-                    identity.id, secret, {"challenge": data["challenge"]}
+                    identity.id,
+                    secret,
+                    "reset",
+                    {"challenge": data["challenge"]},
                 )
 
                 reset_token_params = {"reset_token": new_reset_token}
@@ -1685,12 +1688,14 @@ class Router:
         self,
         identity_id: str,
         secret: str,
+        derive_for_info: str,
         additional_claims: (
             dict[str, str | int | float | bool | None] | None
         ) = None,
         expires_in: datetime.timedelta | None = None,
     ) -> str:
-        signing_key = self._get_auth_signing_key()
+        input_key_material = self._get_auth_signing_key()
+        signing_key = util.derive_key(input_key_material, derive_for_info)
         expires_in = (
             datetime.timedelta(minutes=10) if expires_in is None else expires_in
         )
@@ -1706,15 +1711,19 @@ class Router:
         )
 
     def _verify_and_extract_claims(
-        self, jwtStr: str
+        self, jwtStr: str, key_info: str | None = None
     ) -> dict[str, str | int | float | bool]:
-        signing_key = self._get_auth_signing_key()
+        input_key_material = self._get_auth_signing_key()
+        if key_info is None:
+            signing_key = input_key_material
+        else:
+            signing_key = util.derive_key(input_key_material, key_info)
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
 
     def _get_data_from_magic_link_token(self, token: str):
         try:
-            claims = self._verify_and_extract_claims(token)
+            claims = self._verify_and_extract_claims(token, "magic_link")
         except Exception:
             raise errors.InvalidData("Invalid 'magic_link_token'")
 
@@ -1728,7 +1737,7 @@ class Router:
 
     def _get_data_from_reset_token(self, token: str) -> Tuple[str, str, str]:
         try:
-            claims = self._verify_and_extract_claims(token)
+            claims = self._verify_and_extract_claims(token, "reset")
         except Exception:
             raise errors.InvalidData("Invalid 'reset_token'")
 
@@ -1745,7 +1754,7 @@ class Router:
         self, token: str
     ) -> Tuple[str, float, str, Optional[str], Optional[str]]:
         try:
-            claims = self._verify_and_extract_claims(token)
+            claims = self._verify_and_extract_claims(token, "verify")
         except Exception:
             raise errors.InvalidData("Invalid 'verification_token'")
 
@@ -1894,6 +1903,7 @@ class Router:
         verification_token = self._make_secret_token(
             identity_id=identity_id,
             secret=str(uuid.uuid4()),
+            derive_for_info="verify",
             additional_claims={
                 "iat": issued_at,
                 "challenge": maybe_challenge,
