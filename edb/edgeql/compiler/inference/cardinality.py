@@ -945,9 +945,11 @@ def extract_filters(
                         ptr = left_stype.getptr(schema, sn.UnqualName('id'))
                         pointers.append(ptr)
                     else:
-                        left = irutils.unwrap_set(left)
-
                         while left.path_id != result_set.path_id:
+                            if irutils.is_implicit_wrapper(left.expr):
+                                left = left.expr.result
+                                continue
+
                             assert isinstance(left.expr, irast.Pointer)
                             ptr = env.schema.get(
                                 left.expr.ptrref.name,
