@@ -1300,6 +1300,11 @@ class TestServerConfig(tb.QueryTestCase):
     async def test_server_proto_configure_error(self):
         con1 = self.con
         con2 = await self.connect(database=con1.dbname)
+
+        version_str = await con1.query_single('''
+            select sys::get_version_as_str();
+        ''')
+
         try:
             await con2.execute('''
                 select 1;
@@ -1328,6 +1333,49 @@ class TestServerConfig(tb.QueryTestCase):
                         async for tx in con2.retrying_transaction():
                             async with tx:
                                 await tx.query('select schema::Object')
+
+            # If we change the '_version' to something else we
+            # should be good
+            err = {
+                'type': 'SchemaError',
+                'message': 'danger',
+                'context': {'start': 42},
+                '_versions': [version_str + '1'],
+            }
+            await con1.execute(f'''
+                configure current database set force_database_error :=
+                  {qlquote.quote_literal(json.dumps(err))};
+            ''')
+            await con1.query('select schema::Object')
+
+            # It should also be fine if we set a '_scopes' other than 'query'
+            err = {
+                'type': 'SchemaError',
+                'message': 'danger',
+                'context': {'start': 42},
+                '_scopes': ['restore'],
+            }
+            await con1.execute(f'''
+                configure current database set force_database_error :=
+                  {qlquote.quote_literal(json.dumps(err))};
+            ''')
+            await con1.query('select schema::Object')
+
+            # But if we make it the current version it should still fail
+            err = {
+                'type': 'SchemaError',
+                'message': 'danger',
+                'context': {'start': 42},
+                '_versions': [version_str],
+            }
+            await con1.execute(f'''
+                configure current database set force_database_error :=
+                  {qlquote.quote_literal(json.dumps(err))};
+            ''')
+            with self.assertRaisesRegex(edgedb.SchemaError, 'danger'):
+                async for tx in con1.retrying_transaction():
+                    async with tx:
+                        await tx.query('select schema::Object')
 
             await con2.execute(f'''
                 configure session set force_database_error := "false";
