@@ -183,6 +183,26 @@ Generic
         db> select (1, 'hello') < (1, 'world');
         {true}
 
+    .. warning::
+
+        When either operand in a comparison is an empty set, the result will
+        not be a ``bool`` but instead an empty set.
+
+        .. code-block:: edgeql-repl
+
+            db> select 1 < <int16>{};
+            {}
+
+        If one of the operands in a comparison could be an empty set, you may
+        want to coalesce the result of the comparison with ``false`` to ensure
+        your result is boolean.
+
+        .. code-block:: edgeql-repl
+
+            db> select (1 < <int16>{}) ?? false;
+            {false}
+
+
 ----------
 
 
@@ -203,6 +223,25 @@ Generic
         {false}
         db> select (1, 'hello') > (1, 'world');
         {false}
+
+    .. warning::
+
+        When either operand in a comparison is an empty set, the result will
+        not be a ``bool`` but instead an empty set.
+
+        .. code-block:: edgeql-repl
+
+            db> select 1 > <int16>{};
+            {}
+
+        If one of the operands in a comparison could be an empty set, you may
+        want to coalesce the result of the comparison with ``false`` to ensure
+        your result is boolean.
+
+        .. code-block:: edgeql-repl
+
+            db> select (1 > <int16>{}) ?? false;
+            {false}
 
 
 ----------
@@ -228,6 +267,25 @@ Generic
         db> select (1, 'hello') <= (1, 'world');
         {true}
 
+    .. warning::
+
+        When either operand in a comparison is an empty set, the result will
+        not be a ``bool`` but instead an empty set.
+
+        .. code-block:: edgeql-repl
+
+            db> select 1 <= <int16>{};
+            {}
+
+        If one of the operands in a comparison could be an empty set, you may
+        want to coalesce the result of the comparison with ``false`` to ensure
+        your result is boolean.
+
+        .. code-block:: edgeql-repl
+
+            db> select (1 <= <int16>{}) ?? false;
+            {false}
+
 
 ----------
 
@@ -251,6 +309,25 @@ Generic
         {false}
         db> select (1, 'hello') >= (1, 'world');
         {false}
+
+    .. warning::
+
+        When either operand in a comparison is an empty set, the result will
+        not be a ``bool`` but instead an empty set.
+
+        .. code-block:: edgeql-repl
+
+            db> select 1 >= <int16>{};
+            {}
+
+        If one of the operands in a comparison could be an empty set, you may
+        want to coalesce the result of the comparison with ``false`` to ensure
+        your result is boolean.
+
+        .. code-block:: edgeql-repl
+
+            db> select (1 >= <int16>{}) ?? false;
+            {false}
 
 
 ----------
