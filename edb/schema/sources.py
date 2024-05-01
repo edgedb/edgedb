@@ -32,6 +32,8 @@ from typing import (
 )
 
 
+from edb import errors
+
 from . import delta as sd
 from . import indexes
 from . import name as sn
@@ -243,14 +245,24 @@ def populate_pointer_set_for_source_union(
             if len(ptrs) == 1:
                 ptr = ptrs[0]
             else:
-                schema, ptr = s_pointers.get_or_create_union_pointer(
-                    schema,
-                    ptrname=pn,
-                    source=union,
-                    direction=s_pointers.PointerDirection.Outbound,
-                    components=set(ptrs),
-                    modname=modname,
-                )
+                try:
+                    schema, ptr = s_pointers.get_or_create_union_pointer(
+                        schema,
+                        ptrname=pn,
+                        source=union,
+                        direction=s_pointers.PointerDirection.Outbound,
+                        components=set(ptrs),
+                        modname=modname,
+                    )
+                except errors.SchemaError as e:
+                    # ptrs may have different verbose names
+                    # ensure the same one is always chosen
+                    vn = sorted(p.get_verbosename(schema) for p in ptrs)[0]
+                    e.args = (
+                        (f'with {vn} {e.args[0]}',)
+                        + e.args[1:]
+                    )
+                    raise e
 
             union_pointers[pn] = ptr
 
