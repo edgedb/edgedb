@@ -17,8 +17,12 @@
 #
 
 
+import base64
 import urllib.parse
 import datetime
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
+from cryptography.hazmat.backends import default_backend
 
 from jwcrypto import jwt, jwk
 from typing import TypeVar, Type, overload, Any, cast, Optional
@@ -159,3 +163,24 @@ def make_token(
     token.make_signed_token(signing_key)
 
     return token.serialize()
+
+
+def derive_key(key: jwk.JWK, info: str) -> jwk.JWK:
+    """Derive a new key from the given symmetric key using HKDF."""
+
+    # n.b. the key is returned as a base64url-encoded string
+    raw_key_base64url = cast(str, key.get_op_key())
+    input_key_material = base64.urlsafe_b64decode(raw_key_base64url)
+
+    backend = default_backend()
+    hkdf = HKDFExpand(
+        algorithm=hashes.SHA256(),
+        length=32,
+        info=info.encode("utf-8"),
+        backend=backend,
+    )
+    new_key_bytes = hkdf.derive(input_key_material)
+    return jwk.JWK(
+        kty="oct",
+        k=new_key_bytes.hex(),
+    )
