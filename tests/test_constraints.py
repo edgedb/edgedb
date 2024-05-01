@@ -500,12 +500,17 @@ class TestConstraintsSchema(tb.QueryTestCase):
         """)
 
     async def test_constraints_endpoint_constraint_02(self):
-        # testing (@source, @lang) on a single link
-        # This constraint is pointless and can never fail
+        # testing (@source, @lang) on a multi link
         await self.con.execute("""
             insert UniqueName {
                 translated_labels := ((insert Label { text := "x" }) {
                  @lang := 'x' })
+            };
+        """)
+
+        await self.con.execute("""
+            update UniqueName set {
+                translated_labels := Label {@lang := 'x' }
             };
         """)
 
@@ -562,7 +567,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
         # Same @target different @lang
         await self.con.execute("""
-            insert UniqueName {
+            insert UniqueNameInherited {
                 translated_label_tgt := (
                   select Label { @lang := 'y' } filter .text = 'x' limit 1)
             };
@@ -590,6 +595,26 @@ class TestConstraintsSchema(tb.QueryTestCase):
                 };
             """)
 
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'violates exclusivity constraint'
+        ):
+            await self.con.execute("""
+                update UniqueName
+                filter .translated_label_tgt.text = 'x'
+                set { translated_label_tgt :=
+                    .translated_label_tgt { @lang := '!' }
+                }
+            """)
+
+        await self.con.execute("""
+            update UniqueName
+            filter .translated_label_tgt.text = 'x'
+            set { translated_label_tgt :=
+                .translated_label_tgt { @lang := @lang }
+            }
+        """)
+
     async def test_constraints_endpoint_constraint_04(self):
         # testing (@target, @lang) on a multi link
         await self.con.execute("""
@@ -616,10 +641,10 @@ class TestConstraintsSchema(tb.QueryTestCase):
         """)
 
         await self.con.execute("""
-                insert UniqueNameInherited {
-                    translated_labels_tgt := (
-                      select Label { @lang := 'x!' })
-                };
+            insert UniqueNameInherited {
+                translated_labels_tgt := (
+                  select Label { @lang := 'x!' })
+            };
         """)
 
         async with self.assertRaisesRegexTx(
@@ -655,6 +680,26 @@ class TestConstraintsSchema(tb.QueryTestCase):
                       filter .text = 'x')
                 };
             """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'violates exclusivity constraint'
+        ):
+            await self.con.execute("""
+                update UniqueName
+                filter .translated_labels_tgt.text = 'x'
+                set { translated_labels_tgt :=
+                    .translated_labels_tgt { @lang := '!' }
+                }
+            """)
+
+        await self.con.execute("""
+            update UniqueName
+            filter .translated_labels_tgt.text = 'x'
+            set { translated_labels_tgt :=
+                .translated_labels_tgt { @lang := @lang }
+            }
+        """)
 
 
 class TestConstraintsSchemaMigration(tb.QueryTestCase):
