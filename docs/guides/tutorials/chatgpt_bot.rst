@@ -404,7 +404,7 @@ message we send to OpenAI later.)
     Its input token limit is 8,191 tokens. Later, when answering a user's
     questions we will use the `chat completions
     <https://platform.openai.com/docs/guides/gpt/chat-completions-api>`_ model
-    ``pt-3.5-turbo``. Its token limit is 4,096 tokens. This limit covers not
+    ``gpt-3.5-turbo``. Its token limit is 4,096 tokens. This limit covers not
     only our input, but also the API's response.
 
     Later, when we send the user's question, we will also send related sections
