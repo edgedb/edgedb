@@ -766,7 +766,7 @@ generate the embeddings. Let's walk through it one piece at a time.
         contents.push(contentTrimmed);
         sections.push({
           content,
-          tokens: encode(content).length
+          tokens: encode(content).length,
           embedding: [],
         });
       }
@@ -879,7 +879,7 @@ Here's the entire function assembled:
         contents.push(contentTrimmed);
         sections.push({
           content,
-          tokens: encode(content).length
+          tokens: encode(content).length,
           embedding: [],
         });
       }
