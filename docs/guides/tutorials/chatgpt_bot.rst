@@ -951,9 +951,9 @@ Next, we'll store this data.
       const query = e.params({ sections: e.json }, ({ sections }) => {
         return e.for(e.json_array_unpack(sections), (section) => {
           return e.insert(e.Section, {
-            content: e.cast(e.str, section.content),
-            tokens: e.cast(e.int16, section.tokens),
-            embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+            content: e.cast(e.str, section.content!),
+            tokens: e.cast(e.int16, section.tokens!),
+            embedding: e.cast(e.OpenAIEmbedding, section.embedding!),
           });
         });
       });
@@ -991,9 +991,9 @@ Here's what the whole function looks like:
       const query = e.params({ sections: e.json }, ({ sections }) => {
         return e.for(e.json_array_unpack(sections), (section) => {
           return e.insert(e.Section, {
-            content: e.cast(e.str, section.content),
-            tokens: e.cast(e.int16, section.tokens),
-            embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+            content: e.cast(e.str, section.content!),
+            tokens: e.cast(e.int16, section.tokens!),
+            embedding: e.cast(e.OpenAIEmbedding, section.embedding!),
           });
         });
       });
@@ -1094,9 +1094,9 @@ into your ``generate-embeddings.ts`` file.
       const query = e.params({ sections: e.json }, ({ sections }) => {
         return e.for(e.json_array_unpack(sections), (section) => {
           return e.insert(e.Section, {
-            content: e.cast(e.str, section.content),
-            tokens: e.cast(e.int16, section.tokens),
-            embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+            content: e.cast(e.str, section.content!),
+            tokens: e.cast(e.int16, section.tokens!),
+            embedding: e.cast(e.OpenAIEmbedding, section.embedding!),
           });
         });
       });
