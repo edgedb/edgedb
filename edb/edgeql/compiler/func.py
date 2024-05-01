@@ -624,7 +624,11 @@ def compile_operator(
         left_type = setgen.get_set_type(larg, ctx=ctx)
         right_type = setgen.get_set_type(rarg, ctx=ctx)
         rtype = schemactx.get_union_type(
-            [left_type, right_type], preserve_derived=True, ctx=ctx)
+            [left_type, right_type],
+            preserve_derived=True,
+            ctx=ctx,
+            span=qlexpr.span
+        )
 
     from_op = oper.get_from_operator(env.schema)
     sql_operator = None

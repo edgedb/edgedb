@@ -697,6 +697,7 @@ class UnionTypeShell(TypeExprShell[TypeT_co]):
         cmd.set_attribute_value('name', self.name)
         cmd.set_attribute_value('components', tuple(self.components))
         cmd.set_attribute_value('is_opaque_union', self.opaque)
+        cmd.set_attribute_value('span', self.sourcectx)
         return cmd
 
     def __repr__(self) -> str:
@@ -884,12 +885,26 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
                 for c in self.get_attribute_value('components')
             ]
 
-            new_schema, union_type, created = utils.ensure_union_type(
-                schema,
-                components,
-                opaque=self.get_attribute_value('is_opaque_union') or False,
-                module=self.classname.module,
-            )
+            try:
+                new_schema, union_type, created = utils.ensure_union_type(
+                    schema,
+                    components,
+                    opaque=self.get_attribute_value('is_opaque_union') or False,
+                    module=self.classname.module,
+                )
+            except errors.SchemaError as e:
+                union_name = (
+                    '(' + ' | '.join(sorted(
+                    c.get_displayname(schema)
+                    for c in components
+                    )) + ')'
+                )
+                e.args = (
+                    (f'cannot create union {union_name} {e.args[0]}',)
+                    + e.args[1:]
+                )
+                e.set_span(self.get_attribute_value('span'))
+                raise e
 
             if created:
                 delta = union_type.as_create_delta(

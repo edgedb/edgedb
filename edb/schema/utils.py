@@ -451,12 +451,14 @@ def type_op_ast_to_type_shell(
                 components=left.components + right.components,
                 module=module,
                 schemaclass=metaclass,
+                sourcectx=node.span,
             )
         else:
             return s_types.UnionTypeShell(
                 components=left.components + (right,),
                 module=module,
                 schemaclass=metaclass,
+                sourcectx=node.span,
             )
     else:
         if isinstance(right, s_types.UnionTypeShell):
@@ -464,12 +466,14 @@ def type_op_ast_to_type_shell(
                 components=(left,) + right.components,
                 schemaclass=metaclass,
                 module=module,
+                sourcectx=node.span,
             )
         else:
             return s_types.UnionTypeShell(
                 components=(left, right),
                 module=module,
                 schemaclass=metaclass,
+                sourcectx=node.span,
             )
 
 
@@ -1171,7 +1175,7 @@ def _union_error(
     schema: s_schema.Schema, components: Iterable[s_types.Type]
 ) -> errors.SchemaError:
     names = ', '.join(sorted(c.get_displayname(schema) for c in components))
-    return errors.SchemaError(f'cannot create a union of {names}')
+    return errors.SchemaError(f'using incompatible types {names}')
 
 
 def ensure_intersection_type(

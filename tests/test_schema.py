@@ -2619,6 +2619,66 @@ class TestSchema(tb.BaseSchemaLoadTest):
         }
         """
 
+    @tb.must_fail(
+        errors.SchemaError,
+        "cannot create union \\(test::X | test::Y\\) with property 'a' using "
+        "incompatible types std::int64, std::str",
+    )
+    def test_schema_incompatible_union_01(self):
+        """
+        type X {
+            property a -> int64;
+        }
+        type Y {
+            property a -> str;
+        }
+        type Z {
+            link xy -> X | Y;
+        }
+        """
+
+    @tb.must_fail(
+        errors.SchemaError,
+        "cannot create union \\(test::X | test::Y\\) with link 'a' using "
+        "incompatible types std::int64, test::A",
+    )
+    def test_schema_incompatible_union_02(self):
+        """
+        type A;
+        type X {
+            property a -> int64;
+        }
+        type Y {
+            link a -> A;
+        }
+        type Z {
+            link xy -> X | Y;
+        }
+        """
+
+    @tb.must_fail(
+        errors.SchemaError,
+        "cannot create union \\(test::X | test::Y\\) with link 'a' with "
+        "property 'b' using incompatible types std::int64, std::str",
+    )
+    def test_schema_incompatible_union_03(self):
+        """
+        type A;
+        type X {
+            link a -> A {
+                b -> int64
+            };
+        }
+        type Y {
+            link a -> A {
+                b -> str
+            }
+        }
+        type Z {
+            link xy -> X | Y;
+        }
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.
