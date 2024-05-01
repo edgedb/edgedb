@@ -40,9 +40,9 @@ The CLI will first check to see if your schema will migrate cleanly to EdgeDB
 To upgrade a remote (hosted) instance, we recommend the following
 dump-and-restore process.
 
-1. EdgeDB v5.0 only supports PostgreSQL 16 (or above). So check the version of
+1. EdgeDB v5.0 supports PostgreSQL 14 (or above). So check the version of
    PostgreSQL you are using before upgrading EdgeDB. If you're using Postgres
-   15 or below, you should upgrade Postgres first.
+   13 or below, you should upgrade Postgres first.
 
 2. Spin up an empty 5.0 instance. You can use one of our :ref:`deployment
    guides <ref_guide_deployment>`.
