@@ -165,7 +165,7 @@ def ql_typeexpr_to_type(
 
     types = _ql_typeexpr_to_type(ql_t, ctx=ctx)
     if len(types) > 1:
-        return schemactx.get_union_type(types, ctx=ctx)
+        return schemactx.get_union_type(types, ctx=ctx, span=ql_t.span)
     else:
         return types[0]
 

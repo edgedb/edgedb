@@ -7072,6 +7072,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
+    async def test_edgeql_select_is_incompatible_union_01(self):
+        await self.con.execute('''
+            CREATE TYPE Dummy1 {
+                CREATE PROPERTY foo -> int64;
+            };
+            CREATE TYPE Dummy2 {
+                CREATE PROPERTY foo -> str;
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"cannot create union \(default::Dummy1 \| default::Dummy2\) "
+                r"with property 'foo' using incompatible types std::int64, "
+                r"std::str"):
+            await self.con.query(
+                r'''
+                    SELECT Object is Dummy1 | Dummy2;
+                ''',
+            )
+
     async def test_edgeql_select_duplicate_definition_01(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -7529,6 +7550,75 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             await self.con.query(
                 r'''
                     SELECT User.<whatever
+                ''',
+            )
+
+    async def test_edgeql_select_incompatible_union_01(self):
+        await self.con.execute('''
+            CREATE TYPE Dummy1 {
+                CREATE PROPERTY foo -> int64;
+            };
+            CREATE TYPE Dummy2 {
+                CREATE PROPERTY foo -> str;
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"cannot create union \(default::Dummy1 \| default::Dummy2\) "
+                r"with property 'foo' using incompatible types std::int64, "
+                r"std::str"):
+            await self.con.query(
+                r'''
+                    SELECT Dummy1 union Dummy2;
+                ''',
+            )
+
+    async def test_edgeql_select_incompatible_union_02(self):
+        await self.con.execute('''
+            CREATE TYPE Bar;
+            CREATE TYPE Dummy1 {
+                CREATE PROPERTY foo -> int64;
+            };
+            CREATE TYPE Dummy2 {
+                CREATE LINK foo -> Bar;
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"cannot create union \(default::Dummy1 \| default::Dummy2\) "
+                r"with link 'foo' using incompatible types default::Bar, "
+                r"std::int64"):
+            await self.con.query(
+                r'''
+                    SELECT Dummy1 union Dummy2;
+                ''',
+            )
+
+    async def test_edgeql_select_incompatible_union_03(self):
+        await self.con.execute('''
+            CREATE TYPE Bar;
+            CREATE TYPE Dummy1 {
+                CREATE LINK foo -> Bar {
+                    CREATE PROPERTY baz -> int64
+                }
+            };
+            CREATE TYPE Dummy2 {
+                CREATE LINK foo -> Bar {
+                    CREATE PROPERTY baz -> str
+                }
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"cannot create union \(default::Dummy1 \| default::Dummy2\) "
+                r"with link 'foo' with property 'baz' using incompatible types "
+                r"std::int64, std::str"):
+            await self.con.query(
+                r'''
+                    SELECT Dummy1 union Dummy2;
                 ''',
             )
 
