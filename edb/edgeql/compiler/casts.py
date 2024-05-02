@@ -452,6 +452,7 @@ def _cast_to_ir(
         sql_function=cast.get_from_function(ctx.env.schema),
         sql_cast=cast.get_from_cast(ctx.env.schema),
         sql_expr=bool(cast.get_code(ctx.env.schema)),
+        error_message_context=cast_message_context(ctx),
     )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -477,6 +478,7 @@ def _inheritance_cast_to_ir(
         sql_function=None,
         sql_cast=True,
         sql_expr=False,
+        error_message_context=cast_message_context(ctx),
     )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -658,7 +660,7 @@ def _cast_json_to_tuple(
             json_object_args.append(detail)
         json_objects = qlast.FunctionCall(
             func=('__std__', '__tuple_validate_json'),
-            args=[source_path]
+            args=json_object_args
         )
         json_object_ir = dispatch.compile(json_objects, ctx=subctx)
         source_path = subctx.create_anchor(json_object_ir, 'a')
@@ -980,9 +982,18 @@ def _cast_json_to_range(
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
         source_path = subctx.create_anchor(ir_set, 'a')
+
+        check_args: list[qlast.Expr] = [source_path]
+        if error_message_context := cast_message_context(subctx):
+            detail = qlast.Constant.string(
+                '{"error_message_context": "' + error_message_context + '"}'
+            )
+            check_args.append(detail)
         check = qlast.FunctionCall(
-            func=('__std__', '__range_validate_json'), args=[source_path]
+            func=('__std__', '__range_validate_json'),
+            args=check_args
         )
+
         check_ir = dispatch.compile(check, ctx=subctx)
         source_path = subctx.create_anchor(check_ir, 'b')
 
@@ -1287,6 +1298,7 @@ def _cast_array_literal(
             sql_cast=True,
             sql_expr=False,
             span=span,
+            error_message_context=cast_message_context(ctx),
         )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -1329,6 +1341,7 @@ def _cast_enum_str_immutable(
         sql_function=None,
         sql_cast=False,
         sql_expr=True,
+        error_message_context=cast_message_context(ctx),
     )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)

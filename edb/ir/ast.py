@@ -1073,6 +1073,7 @@ class TypeCast(ImmutableExpr):
     sql_function: typing.Optional[str] = None
     sql_cast: bool
     sql_expr: bool
+    error_message_context: typing.Optional[str] = None
 
     @property
     def typeref(self) -> TypeRef:

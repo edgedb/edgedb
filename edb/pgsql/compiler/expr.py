@@ -220,9 +220,19 @@ def compile_TypeCast(
         func_name = common.get_cast_backend_name(
             expr.cast_name, aspect="function"
         )
+        args = [pg_expr]
+        if expr.error_message_context is not None:
+            detail = pgast.StringConstant(
+                val=(
+                    '{"error_message_context": "'
+                    + expr.error_message_context
+                    + '"}'
+                )
+            )
+            args.append(detail)
         res = pgast.FuncCall(
             name=func_name,
-            args=[pg_expr],
+            args=args,
         )
 
     elif expr.sql_function:
