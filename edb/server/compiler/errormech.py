@@ -453,9 +453,15 @@ def _static_interpret_invalid_param_value(
     err_details: ErrorDetails,
     from_graphql: bool = False,
 ):
+    error_message_context = ''
+    if err_details.detail_json:
+        error_message_context = (
+            err_details.detail_json.get('error_message_context', '')
+        )
+
     return errors.InvalidValueError(
-        err_details.message,
-        details=err_details.detail if err_details.detail else None
+        error_message_context + err_details.message,
+        details=err_details.detail if err_details.detail else None,
     )
 
 
@@ -469,11 +475,15 @@ def _static_interpret_wrong_object_type(
         return SchemaRequired
 
     hint = None
+    error_message_context = ''
     if err_details.detail_json:
         hint = err_details.detail_json.get('hint')
+        error_message_context = (
+            err_details.detail_json.get('error_message_context', '')
+        )
 
     return errors.InvalidValueError(
-        err_details.message,
+        error_message_context + err_details.message,
         details=err_details.detail if err_details.detail else None,
         hint=hint,
     )

@@ -348,7 +348,7 @@ CREATE CAST FROM std::json TO cfg::memory {
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT edgedb.str_to_cfg_memory(
-            edgedb.jsonb_extract_scalar(val, 'string')
+            edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
         )
     $$;
 };

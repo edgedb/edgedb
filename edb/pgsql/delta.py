@@ -1932,10 +1932,13 @@ class CastCommand(MetaCommand):
         name = common.get_backend_name(
             schema, cast, catenate=False, aspect='function')
 
-        args = [(
-            'val',
-            types.pg_type_from_object(schema, cast.get_from_type(schema))
-        )]
+        args: Sequence[dbops.FunctionArg] = [
+            (
+                'val',
+                types.pg_type_from_object(schema, cast.get_from_type(schema))
+            ),
+            ('detail', ('text',), "''"),
+        ]
 
         returns = types.pg_type_from_object(schema, cast.get_to_type(schema))
 

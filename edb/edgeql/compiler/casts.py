@@ -649,6 +649,20 @@ def _cast_json_to_tuple(
         subctx.anchors = subctx.anchors.copy()
         source_path = subctx.create_anchor(ir_set, 'a')
 
+        # Only json arrays or objects can be cast to tuple
+        json_object_args: list[qlast.Expr] = [source_path]
+        if error_message_context := cast_message_context(subctx):
+            detail = qlast.Constant.string(
+                '{"error_message_context": "' + error_message_context + '"}'
+            )
+            json_object_args.append(detail)
+        json_objects = qlast.FunctionCall(
+            func=('__std__', '__tuple_validate_json'),
+            args=[source_path]
+        )
+        json_object_ir = dispatch.compile(json_objects, ctx=subctx)
+        source_path = subctx.create_anchor(json_object_ir, 'a')
+
         # Top-level json->tuple casts should produce an empty set on
         # null inputs, but error on missing fields or null
         # subelements, so filter out json nulls directly here to
