@@ -569,6 +569,19 @@ class ContextLevel(compiler.ContextLevel):
     active_defaults: FrozenSet[s_objtypes.ObjectType]
     """For detecting cycles in defaults"""
 
+    collection_cast_path: Optional[list[Tuple[str, Optional[str]]]]
+    """For generating errors messages when casting to collections.
+        List of collection type and possibly an element name.
+        eg. ('tuple', 'a') or ('array', None)"""
+
+    collection_cast_from_type: Optional[s_types.Type]
+    """For generating errors messages when casting to collections.
+        Only ever set in outermost cast."""
+
+    collection_cast_to_type: Optional[s_types.Type]
+    """For generating errors messages when casting to collections.
+        Only ever set in outermost cast."""
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -629,6 +642,10 @@ class ContextLevel(compiler.ContextLevel):
             self.allow_endpoint_linkprops = False
             self.disallow_dml = None
 
+            self.collection_cast_path = None
+            self.collection_cast_from_type = None
+            self.collection_cast_to_type = None
+
         else:
             self.env = prevlevel.env
             self.derived_target_module = prevlevel.derived_target_module
@@ -672,6 +689,10 @@ class ContextLevel(compiler.ContextLevel):
 
             self.allow_endpoint_linkprops = prevlevel.allow_endpoint_linkprops
             self.disallow_dml = prevlevel.disallow_dml
+
+            self.collection_cast_path = prevlevel.collection_cast_path
+            self.collection_cast_from_type = prevlevel.collection_cast_from_type
+            self.collection_cast_to_type = prevlevel.collection_cast_to_type
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()

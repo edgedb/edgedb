@@ -773,14 +773,42 @@ def compile_TypeCast(
             subctx.implicit_tname_in_shapes = False
 
         ir_expr = dispatch.compile(expr.expr, ctx=subctx)
+        orig_stype = setgen.get_set_type(ir_expr, ctx=ctx)
 
-        res = casts.compile_cast(
-            ir_expr,
-            target_stype,
-            cardinality_mod=expr.cardinality_mod,
-            ctx=subctx,
-            span=expr.span,
-        )
+        use_message_context = False
+        if target_stype.is_collection() and subctx.collection_cast_path is None:
+            subctx.collection_cast_path = []
+
+            subctx.collection_cast_to_type = target_stype
+            subctx.collection_cast_from_type = orig_stype
+
+            use_message_context = (
+                orig_stype.is_array() and target_stype.is_array()
+                or (
+                    orig_stype.is_tuple(ctx.env.schema)
+                    and target_stype.is_tuple(ctx.env.schema)
+                )
+            )
+
+        try:
+            res = casts.compile_cast(
+                ir_expr,
+                target_stype,
+                cardinality_mod=expr.cardinality_mod,
+                ctx=subctx,
+                span=expr.span,
+            )
+
+        except errors.QueryError as e:
+            if (
+                (message_context := casts.cast_message_context(subctx))
+                and use_message_context
+            ):
+                e.args = (
+                    (message_context + e.args[0],)
+                    + e.args[1:]
+                )
+            raise e
 
     return stmt.maybe_add_view(res, ctx=ctx)
 
