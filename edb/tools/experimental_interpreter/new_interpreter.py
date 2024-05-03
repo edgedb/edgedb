@@ -5,7 +5,10 @@ import sys
 import traceback
 import os
 from typing import Tuple
-import readline
+try:
+    import readline
+except ImportError:
+    readline = None  # type: ignore[assignment]
 
 from edb.common import debug
 from edb.edgeql import ast as qlast
@@ -310,7 +313,8 @@ def repl(
 
     history_file = ".edgeql_interpreter_history.temp.txt"
     try:
-        readline.read_history_file(history_file)
+        if readline:
+            readline.read_history_file(history_file)
     except FileNotFoundError:
         pass
 
@@ -338,7 +342,8 @@ def repl(
                     reset_s()
                     continue
         try:
-            readline.write_history_file(history_file)
+            if readline:
+                readline.write_history_file(history_file)
             if s.startswith("\\"):
                 run_meta_cmd(db, dbschema, s)
             else:
