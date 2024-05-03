@@ -20,7 +20,7 @@ Before the major version, we publish "testing releases":
 ## edgedb-ui
 
 On release branches, `edgedb-ui` should be pinned to the associated branch.
-This can be done is `setup.py` with variable `EDGEDBGUI_COMMIT`.
+This can be done using `setup.py` with variable `EDGEDBGUI_COMMIT`.
 For example, on branch `release/4.x`, it is pinned to `edgedb-ui`'s branch `4.x`.
 This means any release off `release/4.x` will contain latest commits from
 `edgedb-ui`'s branch `4.x`.
@@ -78,7 +78,7 @@ git log master # find the hash of that commit on master
 git log hash_of_that_commit..master > ../to-backport.txt
 ```
 
-Now, one can go trough the list and see if the commits are worth back-porting.
+Now, one can go through the list and see if the commits are worth back-porting.
 A few pointers:
 
 - Don't backport new features, unless it is high-priority for some reason.
@@ -140,7 +140,7 @@ branch, so best course of action if to open a PR to master after kicking off
 the release pipeline. After that PR is merged, the website needs to be
 deployed, for changelog to land on the website (ping dev rel team).
 
-A helper script to generate changelog:
+A helper function to generate changelog is:
 
 ```python
 # I keep this in ../compose-changelog.py
