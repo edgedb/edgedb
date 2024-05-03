@@ -1,8 +1,16 @@
-.. _ref_guide_ai:
+.. _ref_ai_overview:
 
 ==
 AI
 ==
+
+.. toctree::
+    :hidden:
+    :maxdepth: 3
+
+    javascript
+    python
+    reference
 
 :edb-alt-title: Using EdgeDB AI
 
@@ -171,6 +179,7 @@ Simple, but you'll still need to generate embeddings from your query or pass in
 existing embeddings. If your ultimate goal is retrieval-augmented generation
 (i.e., RAG), we've got you covered.
 
+.. _ref_ai_overview_rag:
 
 Use RAG via HTTP
 ----------------
