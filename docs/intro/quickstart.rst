@@ -82,6 +82,8 @@ up your first EdgeDB instance. You should see something like this:
   Checking EdgeDB versions...
   Specify the version of EdgeDB to use with this project [default: 5.x]:
   > 5.x
+  Specify branch name: [default: main]:
+  > main
   ┌─────────────────────┬───────────────────────────────────────────────┐
   │ Project directory   │ ~/path/to/quickstart                          │
   │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
