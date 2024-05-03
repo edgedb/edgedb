@@ -392,9 +392,14 @@ class BaseServer:
                     handle = new_handle
                     self._file_watch_handles.append(handle)
 
-        def callback(_file_modified, event):
+        def callback(file_modified, event):
             nonlocal handle
             if event == 2:  # CHANGE
+                cb()
+            elif (
+                event == 1 and  # RENAME - macOS issues this event for CHANGE
+                parent_dir / os.fsdecode(file_modified) == pathlib.Path(path)
+            ):
                 cb()
             elif event == 1 or event == 3:  # RENAME, RENAME_CHANGE
                 # File is likely renamed or deleted, stop watching
