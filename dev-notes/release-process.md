@@ -20,7 +20,7 @@ Before the major version, we publish "testing releases":
 ## edgedb-ui
 
 On release branches, `edgedb-ui` should be pinned to the associated branch.
-This can be done using `setup.py` with variable `EDGEDBGUI_COMMIT`.
+This can be done using `setup.py` with the variable `EDGEDBGUI_COMMIT`.
 For example, on branch `release/4.x`, it is pinned to `edgedb-ui`'s branch `4.x`.
 This means any release off `release/4.x` will contain latest commits from
 `edgedb-ui`'s branch `4.x`.
