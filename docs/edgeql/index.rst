@@ -23,6 +23,7 @@ EdgeQL
     for
     group
     with
+    analyze
     path_resolution
     transactions
 
