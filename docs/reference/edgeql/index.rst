@@ -69,6 +69,12 @@ Introspection command:
 
 * :eql:stmt:`describe`.
 
+.. versionadded:: 3.0
+
+    Performance analysis statement:
+
+    * :eql:stmt:`analyze`.
+
 
 .. toctree::
     :maxdepth: 3
@@ -90,6 +96,7 @@ Introspection command:
     for
     group
     with
+    analyze
 
     tx_start
     tx_commit
