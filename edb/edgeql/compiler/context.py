@@ -571,8 +571,17 @@ class ContextLevel(compiler.ContextLevel):
 
     collection_cast_path: Optional[list[Tuple[str, Optional[str]]]]
     """For generating errors messages when casting to collections.
-        List of collection type and possibly an element name.
-        eg. ('tuple', 'a') or ('array', None)"""
+        Only ever set in outermost cast.
+
+    The cast path element is a tuple of the collection type and an optional
+    element name. eg. ('tuple', 'a') or ('array', None)
+
+    The list is shared between the outermost context and all its sub contexts.
+    When casting a collection, each element's path should be pushed before
+    entering the "sub-cast" and popped immediately after.
+
+    In the event of a cast error, the list is preserved at the outermost cast.
+    """
 
     collection_cast_from_type: Optional[s_types.Type]
     """For generating errors messages when casting to collections.

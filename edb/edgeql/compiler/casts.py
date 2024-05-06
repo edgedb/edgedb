@@ -157,24 +157,17 @@ def compile_cast(
             or new_stype.issubclass(ctx.env.schema, json_t)
         )
     ):
-        with ctx.new() as elemctx:
-            cast_element = ('array', None)
-            if elemctx.collection_cast_path is not None:
-                elemctx.collection_cast_path.append(cast_element)
+        cast_element = ('array', None)
+        if ctx.collection_cast_path is not None:
+            ctx.collection_cast_path.append(cast_element)
 
-            try:
-                return _cast_array_literal(
-                    ir_set, orig_stype, new_stype, span=span, ctx=elemctx)
+        result = _cast_array_literal(
+            ir_set, orig_stype, new_stype, span=span, ctx=ctx)
 
-            except errors.EdgeDBError as e:
-                context_msg = (
-                    _collection_element_message_context(cast_element)
-                )
-                e.args = (
-                    (context_msg + e.args[0],)
-                    + e.args[1:]
-                )
-                raise e
+        if ctx.collection_cast_path is not None:
+            ctx.collection_cast_path.pop()
+
+        return result
 
     if orig_stype.is_tuple(ctx.env.schema):
         return _cast_tuple(
@@ -198,25 +191,17 @@ def compile_cast(
                 ir_set, el_type, orig_stype, ctx=ctx)
 
         if isinstance(new_stype, s_types.Array):
-            with ctx.new() as elemctx:
-                cast_element = ('array', None)
-                if elemctx.collection_cast_path is not None:
-                    elemctx.collection_cast_path.append(cast_element)
+            cast_element = ('array', None)
+            if ctx.collection_cast_path is not None:
+                ctx.collection_cast_path.append(cast_element)
 
-                try:
-                    return _cast_array(
-                        ir_set, orig_stype, new_stype, span=span, ctx=elemctx)
+            result = _cast_array(
+                ir_set, orig_stype, new_stype, span=span, ctx=ctx)
 
-                except errors.EdgeDBError as e:
-                    if cast_element is not None:
-                        context_msg = (
-                            _collection_element_message_context(cast_element)
-                        )
-                        e.args = (
-                            (context_msg + e.args[0],)
-                            + e.args[1:]
-                        )
-                    raise e
+            if ctx.collection_cast_path is not None:
+                ctx.collection_cast_path.pop()
+
+            return result
 
         else:
             return _cast_array(
@@ -699,26 +684,17 @@ def _cast_json_to_tuple(
 
             val = dispatch.compile(val_e, ctx=subctx)
 
-            with subctx.new() as elemctx:
-                cast_element = ('tuple', new_el_name)
-                if elemctx.collection_cast_path is not None:
-                    elemctx.collection_cast_path.append(cast_element)
+            cast_element = ('tuple', new_el_name)
+            if subctx.collection_cast_path is not None:
+                subctx.collection_cast_path.append(cast_element)
 
-                try:
-                    val = compile_cast(
-                        val, new_st,
-                        cardinality_mod=qlast.CardinalityModifier.Required,
-                        ctx=elemctx, span=span)
+            val = compile_cast(
+                val, new_st,
+                cardinality_mod=qlast.CardinalityModifier.Required,
+                ctx=subctx, span=span)
 
-                except errors.EdgeDBError as e:
-                    context_msg = (
-                        _collection_element_message_context(cast_element)
-                    )
-                    e.args = (
-                        (context_msg + e.args[0], )
-                        + e.args[1:]
-                    )
-                    raise e
+            if subctx.collection_cast_path is not None:
+                subctx.collection_cast_path.pop()
 
             elements.append(irast.TupleElement(name=new_el_name, val=val))
 
@@ -763,23 +739,14 @@ def _cast_tuple(
             )
             val_type = setgen.get_set_type(val, ctx=ctx)
             # Element cast
-            with ctx.new() as elemctx:
-                cast_element = ('tuple', n)
-                if elemctx.collection_cast_path is not None:
-                    elemctx.collection_cast_path.append(cast_element)
+            cast_element = ('tuple', n)
+            if ctx.collection_cast_path is not None:
+                ctx.collection_cast_path.append(cast_element)
 
-                try:
-                    val = compile_cast(val, new_stype, ctx=elemctx, span=span)
+            val = compile_cast(val, new_stype, ctx=ctx, span=span)
 
-                except errors.EdgeDBError as e:
-                    context_msg = (
-                        _collection_element_message_context(cast_element)
-                    )
-                    e.args = (
-                        (context_msg + e.args[0],)
-                        + e.args[1:]
-                    )
-                    raise e
+            if ctx.collection_cast_path is not None:
+                ctx.collection_cast_path.pop()
 
             elements.append(irast.TupleElement(name=n, val=val))
 
@@ -821,23 +788,14 @@ def _cast_tuple(
         new_el_name, new_st = new_subtypes[i]
         if val_type != new_st:
             # Element cast
-            with ctx.new() as elemctx:
-                cast_element = ('tuple', new_el_name)
-                if elemctx.collection_cast_path is not None:
-                    elemctx.collection_cast_path.append(cast_element)
+            cast_element = ('tuple', new_el_name)
+            if ctx.collection_cast_path is not None:
+                ctx.collection_cast_path.append(cast_element)
 
-                try:
-                    val = compile_cast(val, new_st, ctx=elemctx, span=span)
+            val = compile_cast(val, new_st, ctx=ctx, span=span)
 
-                except errors.EdgeDBError as e:
-                    context_msg = (
-                        _collection_element_message_context(cast_element)
-                    )
-                    e.args = (
-                        (context_msg + e.args[0],)
-                        + e.args[1:]
-                    )
-                    raise e
+            if ctx.collection_cast_path is not None:
+                ctx.collection_cast_path.pop()
 
         elements.append(irast.TupleElement(name=new_el_name, val=val))
 
@@ -1422,13 +1380,21 @@ def _find_object_by_id(
 
 
 def cast_message_context(ctx: context.ContextLevel) -> Optional[str]:
-    if ctx.collection_cast_from_type and ctx.collection_cast_to_type:
+    if (
+        ctx.collection_cast_path is not None
+        and ctx.collection_cast_from_type is not None
+        and ctx.collection_cast_to_type is not None
+    ):
         from_name = (
             ctx.collection_cast_from_type.get_displayname(ctx.env.schema)
         )
         to_name = ctx.collection_cast_to_type.get_displayname(ctx.env.schema)
+        path_msg = ''.join(
+            _collection_element_message_context(cast_element)
+            for cast_element in ctx.collection_cast_path
+        )
         return (
-            f"while casting '{from_name}' to '{to_name}', "
+            f"while casting '{from_name}' to '{to_name}', {path_msg}"
         )
     else:
         return None

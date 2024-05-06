@@ -1572,6 +1572,18 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 SELECT <array<tuple<array<int64>>>>[([(1,)],)];
             """)
 
+    async def test_edgeql_casts_collection_errors_12(self):
+        # tuple with multiple elements, error in later element
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"while casting 'tuple<std::int64, std::int64, std::int64>' "
+                r"to 'tuple<std::int64, std::int64, array<std::int64>>', "
+                r"at tuple element '2', "
+                r"cannot cast 'std::int64' to 'array<std::int64>"):
+            await self.con.execute("""
+                SELECT <tuple<int64, int64, array<int64>>>(1, 2, 3);
+            """)
+
     # casting into an abstract scalar should be illegal
     async def test_edgeql_casts_illegal_01(self):
         async with self.assertRaisesRegexTx(
