@@ -17,6 +17,19 @@ Before the major version, we publish "testing releases":
 - "beta" (i.e. `v4.0b1`, `v4.0b2`),
 - "release candidates" (`v4.0rc1`) that we might promote into the final release.
 
+## Internal Communication
+
+Announce on team slack when you are beginning to prepare a release,
+when a release build has been kicked off, and when the release has
+succeeded. Update the thread with any problems and attempted
+resolutions.
+
+Communicate in the other direction as well: make sure the release
+manager knows of any pending work that you want in a release.
+
+"b1", "rc1", and ".0" releases are big deals. Make sure to get signoff
+before releasing.
+
 ## edgedb-ui
 
 On release branches, `edgedb-ui` should be pinned to the associated branch.
@@ -24,6 +37,7 @@ This can be done in `setup.py` with the variable `EDGEDBGUI_COMMIT`.
 For example, on branch `release/4.x`, it is pinned to `edgedb-ui`'s branch `4.x`.
 This means any release off `release/4.x` will contain latest commits from
 `edgedb-ui`'s branch `4.x`.
+
 
 ## Preparing commits for a release
 
