@@ -776,11 +776,12 @@ def compile_TypeCast(
         orig_stype = setgen.get_set_type(ir_expr, ctx=ctx)
 
         use_message_context = False
-        if target_stype.is_collection() and subctx.collection_cast_path is None:
-            subctx.collection_cast_path = []
-
-            subctx.collection_cast_to_type = target_stype
-            subctx.collection_cast_from_type = orig_stype
+        if target_stype.is_collection() and subctx.collection_cast_info is None:
+            subctx.collection_cast_info = context.CollectionCastInfo(
+                from_type=orig_stype,
+                to_type=target_stype,
+                path_elements=[]
+            )
 
             use_message_context = (
                 orig_stype.is_array() and target_stype.is_array()

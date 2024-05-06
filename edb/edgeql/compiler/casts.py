@@ -158,14 +158,14 @@ def compile_cast(
         )
     ):
         cast_element = ('array', None)
-        if ctx.collection_cast_path is not None:
-            ctx.collection_cast_path.append(cast_element)
+        if ctx.collection_cast_info is not None:
+            ctx.collection_cast_info.path_elements.append(cast_element)
 
         result = _cast_array_literal(
             ir_set, orig_stype, new_stype, span=span, ctx=ctx)
 
-        if ctx.collection_cast_path is not None:
-            ctx.collection_cast_path.pop()
+        if ctx.collection_cast_info is not None:
+            ctx.collection_cast_info.path_elements.pop()
 
         return result
 
@@ -192,14 +192,14 @@ def compile_cast(
 
         if isinstance(new_stype, s_types.Array):
             cast_element = ('array', None)
-            if ctx.collection_cast_path is not None:
-                ctx.collection_cast_path.append(cast_element)
+            if ctx.collection_cast_info is not None:
+                ctx.collection_cast_info.path_elements.append(cast_element)
 
             result = _cast_array(
                 ir_set, orig_stype, new_stype, span=span, ctx=ctx)
 
-            if ctx.collection_cast_path is not None:
-                ctx.collection_cast_path.pop()
+            if ctx.collection_cast_info is not None:
+                ctx.collection_cast_info.path_elements.pop()
 
             return result
 
@@ -685,16 +685,16 @@ def _cast_json_to_tuple(
             val = dispatch.compile(val_e, ctx=subctx)
 
             cast_element = ('tuple', new_el_name)
-            if subctx.collection_cast_path is not None:
-                subctx.collection_cast_path.append(cast_element)
+            if subctx.collection_cast_info is not None:
+                subctx.collection_cast_info.path_elements.append(cast_element)
 
             val = compile_cast(
                 val, new_st,
                 cardinality_mod=qlast.CardinalityModifier.Required,
                 ctx=subctx, span=span)
 
-            if subctx.collection_cast_path is not None:
-                subctx.collection_cast_path.pop()
+            if subctx.collection_cast_info is not None:
+                subctx.collection_cast_info.path_elements.pop()
 
             elements.append(irast.TupleElement(name=new_el_name, val=val))
 
@@ -740,13 +740,13 @@ def _cast_tuple(
             val_type = setgen.get_set_type(val, ctx=ctx)
             # Element cast
             cast_element = ('tuple', n)
-            if ctx.collection_cast_path is not None:
-                ctx.collection_cast_path.append(cast_element)
+            if ctx.collection_cast_info is not None:
+                ctx.collection_cast_info.path_elements.append(cast_element)
 
             val = compile_cast(val, new_stype, ctx=ctx, span=span)
 
-            if ctx.collection_cast_path is not None:
-                ctx.collection_cast_path.pop()
+            if ctx.collection_cast_info is not None:
+                ctx.collection_cast_info.path_elements.pop()
 
             elements.append(irast.TupleElement(name=n, val=val))
 
@@ -789,13 +789,13 @@ def _cast_tuple(
         if val_type != new_st:
             # Element cast
             cast_element = ('tuple', new_el_name)
-            if ctx.collection_cast_path is not None:
-                ctx.collection_cast_path.append(cast_element)
+            if ctx.collection_cast_info is not None:
+                ctx.collection_cast_info.path_elements.append(cast_element)
 
             val = compile_cast(val, new_st, ctx=ctx, span=span)
 
-            if ctx.collection_cast_path is not None:
-                ctx.collection_cast_path.pop()
+            if ctx.collection_cast_info is not None:
+                ctx.collection_cast_info.path_elements.pop()
 
         elements.append(irast.TupleElement(name=new_el_name, val=val))
 
@@ -1380,18 +1380,16 @@ def _find_object_by_id(
 
 
 def cast_message_context(ctx: context.ContextLevel) -> Optional[str]:
-    if (
-        ctx.collection_cast_path is not None
-        and ctx.collection_cast_from_type is not None
-        and ctx.collection_cast_to_type is not None
-    ):
+    if ctx.collection_cast_info is not None:
         from_name = (
-            ctx.collection_cast_from_type.get_displayname(ctx.env.schema)
+            ctx.collection_cast_info.from_type.get_displayname(ctx.env.schema)
         )
-        to_name = ctx.collection_cast_to_type.get_displayname(ctx.env.schema)
+        to_name = (
+            ctx.collection_cast_info.to_type.get_displayname(ctx.env.schema)
+        )
         path_msg = ''.join(
-            _collection_element_message_context(cast_element)
-            for cast_element in ctx.collection_cast_path
+            _collection_element_message_context(path_element)
+            for path_element in ctx.collection_cast_info.path_elements
         )
         return (
             f"while casting '{from_name}' to '{to_name}', {path_msg}"
@@ -1401,11 +1399,11 @@ def cast_message_context(ctx: context.ContextLevel) -> Optional[str]:
 
 
 def _collection_element_message_context(
-    cast_element: Tuple[str, Optional[str]]
+    path_element: Tuple[str, Optional[str]]
 ) -> str:
-    if cast_element[0] == 'tuple':
-        return f"at tuple element '{cast_element[1]}', "
-    elif cast_element[0] == 'array':
+    if path_element[0] == 'tuple':
+        return f"at tuple element '{path_element[1]}', "
+    elif path_element[0] == 'array':
         return f'in array elements, '
     else:
         raise NotImplementedError
