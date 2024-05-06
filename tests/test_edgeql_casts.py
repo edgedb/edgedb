@@ -1453,6 +1453,137 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [[['1'], ['2'], ['3']]],
         )
 
+    # check that casting to collections produces the correct error messages
+    async def test_edgeql_casts_collection_errors_01(self):
+        # scalar to array
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"cannot cast 'std::int64' to 'array<std::int64>'"):
+            await self.con.execute("""
+                SELECT <array<int64>>1;
+            """)
+
+    async def test_edgeql_casts_collection_errors_02(self):
+        # tuple to array
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"cannot cast 'tuple<std::int64>' to 'array<std::int64>'"):
+            await self.con.execute("""
+                SELECT <array<int64>>(1,);
+            """)
+
+    async def test_edgeql_casts_collection_errors_03(self):
+        # object to array
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"cannot cast 'std::FreeObject' to 'array<std::int64>'"):
+            await self.con.execute("""
+                SELECT <array<int64>>{a := 1};
+            """)
+
+    async def test_edgeql_casts_collection_errors_04(self):
+        # array to array, mismatched element types
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"while casting 'array<tuple<std::int64>>' "
+                r"to 'array<std::int64>', "
+                r"in array elements, "
+                r"cannot cast 'tuple<std::int64>' to 'std::int64'"):
+            await self.con.execute("""
+                SELECT <array<int64>>[(1,)];
+            """)
+
+    async def test_edgeql_casts_collection_errors_05(self):
+        # scalar to tuple
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"cannot cast 'std::int64' to 'tuple<std::int64>'"):
+            await self.con.execute("""
+                SELECT <tuple<int64>>1;
+            """)
+
+    async def test_edgeql_casts_collection_errors_06(self):
+        # array to tuple
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"cannot cast 'array<std::int64>' to 'tuple<std::int64>'"):
+            await self.con.execute("""
+                SELECT <tuple<int64>>[1];
+            """)
+
+    async def test_edgeql_casts_collection_errors_07(self):
+        # object to array
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"cannot cast 'std::FreeObject' to 'tuple<std::int64>'"):
+            await self.con.execute("""
+                SELECT <tuple<int64>>{a := 1};
+            """)
+
+    async def test_edgeql_casts_collection_errors_08(self):
+        # tuple to tuple, mismatched element types
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"while casting 'tuple<array<std::int64>>' "
+                r"to 'tuple<std::int64>', "
+                r"at tuple element '0', "
+                r"cannot cast 'array<std::int64>' to 'std::int64'"):
+            await self.con.execute("""
+                SELECT <tuple<int64>>([1],);
+            """)
+
+    async def test_edgeql_casts_collection_errors_09(self):
+        # named tuple to named tuple, use new element name
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"while casting 'tuple<b: array<std::int64>>' "
+                r"to 'tuple<a: std::int64>', "
+                r"at tuple element 'a', "
+                r"cannot cast 'array<std::int64>' to 'std::int64'"):
+            await self.con.execute("""
+                SELECT <tuple<a: int64>>(b := [1]);
+            """)
+
+    async def test_edgeql_casts_collection_errors_10(self):
+        # nested tuple to nested tuple
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"while casting 'tuple<tuple<array<std::int64>>>' "
+                r"to 'tuple<a: tuple<b: std::int64>>', "
+                r"at tuple element 'a', "
+                r"at tuple element 'b', "
+                r"cannot cast 'array<std::int64>' to 'std::int64'"):
+            await self.con.execute("""
+                SELECT <tuple<a: tuple<b: int64>>>(([1],),);
+            """)
+
+    async def test_edgeql_casts_collection_errors_11(self):
+        # nested array to nested array
+        # note: arrays can't be directly nested
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"while casting 'array<tuple<array<tuple<std::int64>>>>' "
+                r"to 'array<tuple<array<std::int64>>>', "
+                r"in array elements, "
+                r"at tuple element '0', "
+                r"in array elements, "
+                r"cannot cast 'tuple<std::int64>' to 'std::int64'"):
+            await self.con.execute("""
+                SELECT <array<tuple<array<int64>>>>[([(1,)],)];
+            """)
+
+    async def test_edgeql_casts_collection_errors_12(self):
+        # tuple with multiple elements, error in later element
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"while casting 'tuple<std::int64, std::int64, std::int64>' "
+                r"to 'tuple<std::int64, std::int64, array<std::int64>>', "
+                r"at tuple element '2', "
+                r"cannot cast 'std::int64' to 'array<std::int64>"):
+            await self.con.execute("""
+                SELECT <tuple<int64, int64, array<int64>>>(1, 2, 3);
+            """)
+
     # casting into an abstract scalar should be illegal
     async def test_edgeql_casts_illegal_01(self):
         async with self.assertRaisesRegexTx(
