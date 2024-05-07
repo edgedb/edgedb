@@ -11336,33 +11336,6 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.migrate(schema)
         await self.migrate(schema)
 
-    async def test_edgeql_migration_dml_rewrites_01(self):
-        await self.migrate(r"""
-            type Post {
-              required title: str;
-              modified: datetime {
-                rewrite insert, update using (datetime_of_statement())
-              }
-            }
-        """)
-        await self.migrate(r"""
-            type BlogPost {
-              required title: str;
-              modified: datetime {
-                rewrite insert, update using (datetime_of_statement())
-              }
-            }
-        """)
-        await self.migrate(r"""
-            type BlogPost {
-              required title: str;
-              modified: datetime {
-                rewrite insert, update using (datetime_of_transaction())
-              }
-            }
-        """)
-        await self.migrate('')
-
     async def test_edgeql_migration_globals_02(self):
         await self.migrate(r"""
             global current_user_id -> uuid;
@@ -11397,6 +11370,56 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         # Make sure it doesn't get into a wedged state
         await self.migrate(schema)
         await self.migrate(schema)
+
+    async def test_edgeql_migration_globals_03(self):
+        # Test modifying a computed global that is used in an access
+        # policy on the type it refers to.
+        await self.migrate(r"""
+            global cur -> uuid;
+            global scopes := ((select Foo filter .id = global cur).scopes);
+
+            type Foo {
+              multi scopes: str;
+              access policy s allow select using ('f' in global scopes);
+            };
+        """)
+        await self.migrate(r"""
+            global cur -> uuid;
+            global scopes := (
+                select (select Foo filter .id = global cur).scopes);
+
+            type Foo {
+              multi scopes: str;
+              access policy s allow select using ('f' in global scopes);
+            };
+        """)
+
+    async def test_edgeql_migration_dml_rewrites_01(self):
+        await self.migrate(r"""
+            type Post {
+              required title: str;
+              modified: datetime {
+                rewrite insert, update using (datetime_of_statement())
+              }
+            }
+        """)
+        await self.migrate(r"""
+            type BlogPost {
+              required title: str;
+              modified: datetime {
+                rewrite insert, update using (datetime_of_statement())
+              }
+            }
+        """)
+        await self.migrate(r"""
+            type BlogPost {
+              required title: str;
+              modified: datetime {
+                rewrite insert, update using (datetime_of_transaction())
+              }
+            }
+        """)
+        await self.migrate('')
 
     async def test_edgeql_migration_policies_and_collections(self):
         # An infinite recursion bug with this this was found by accident
