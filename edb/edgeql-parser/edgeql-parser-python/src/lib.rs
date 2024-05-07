@@ -32,6 +32,7 @@ fn _edgeql_parser(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parser::save_spec, m)?)?;
     m.add_class::<parser::CSTNode>()?;
     m.add_class::<parser::Production>()?;
+    m.add_class::<parser::Terminal>()?;
 
     m.add_function(wrap_pyfunction!(position::offset_of_line, m)?)?;
     m.add("SourcePoint", py.get_type::<position::SourcePoint>())?;

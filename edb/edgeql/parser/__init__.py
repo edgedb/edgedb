@@ -31,13 +31,6 @@ from .. import ast as qlast
 from .. import tokenizer as qltokenizer
 
 
-ParserError = Tuple[
-    str,
-    Tuple[int, Optional[int]],
-    Optional[str],
-    Optional[str]
-]
-
 SPEC_LOADED = False
 
 
@@ -143,7 +136,7 @@ def parse(
         # - first encountered,
         # - Unexpected before Missing,
         # - original order.
-        errs: List[ParserError] = result.errors
+        errs = result.errors
         unexpected = [e for e in errs if e[0].startswith('Unexpected')]
         if (
             len(unexpected) == 1
@@ -172,6 +165,7 @@ def parse(
             span=parsing_span
         )
 
+    assert isinstance(result.out, rust_parser.CSTNode)
     return _cst_to_ast(
         result.out,
         productions,
@@ -182,7 +176,7 @@ def parse(
 
 def _cst_to_ast(
     cst: rust_parser.CSTNode,
-    productions: list[Callable],
+    productions: List[Tuple[Type, Callable]],
     source: qltokenizer.Source,
     filename: Optional[str],
 ) -> Any:
@@ -240,9 +234,7 @@ def _cst_to_ast(
 
             # find correct method to call
             production_id = node.id
-            production = productions[production_id]
-
-            non_term_type, method = production
+            non_term_type, method = productions[production_id]
             sym = non_term_type()
             method(sym, *args)
 
