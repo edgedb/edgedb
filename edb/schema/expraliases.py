@@ -379,6 +379,12 @@ class AlterAliasLike(
             # currently too broken to accept expr propagations.
             and not self.from_expr_propagation
         ):
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=self.get_friendly_description(schema=schema),
+            )
+
             expr = self.get_attribute_value('expr')
             is_computable = self._is_computable(self.scls, schema)
             if expr:
@@ -419,12 +425,6 @@ class AlterAliasLike(
                             self.scls, schema, context, unset_type=False
                         )
                     )
-
-            schema = self._propagate_if_expr_refs(
-                schema,
-                context,
-                action=self.get_friendly_description(schema=schema),
-            )
 
         return super()._alter_begin(schema, context)
 
