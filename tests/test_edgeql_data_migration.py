@@ -11394,6 +11394,30 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             };
         """)
 
+    async def test_edgeql_migration_globals_04(self):
+        await self.migrate(r"""
+            global cur := true;
+
+            type Foo {
+              access policy s allow select using (global cur);
+            };
+            type Bar {
+              access policy s allow select using (global cur);
+            };
+        """)
+
+        await self.migrate(r"""
+            global ok := (exists Foo);
+            global cur := global ok;
+
+            type Foo {
+              access policy s allow select using (global cur);
+            };
+            type Bar {
+              access policy s allow select using (global cur);
+            };
+        """)
+
     async def test_edgeql_migration_dml_rewrites_01(self):
         await self.migrate(r"""
             type Post {

@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple, Type, Iterable, List, Set, cast
+from typing import Optional, Tuple, Type, Iterable, List, Set, cast
 
 import collections
 
@@ -32,7 +32,6 @@ from . import abc as s_abc
 from . import annos as s_anno
 from . import constraints
 from . import delta as sd
-from . import expr as s_expr
 from . import inheriting
 from . import links
 from . import properties
@@ -512,18 +511,6 @@ class ObjectTypeCommand(
                         f"cannot extend system type '{name}'",
                         span=self.span,
                     )
-
-    def get_dummy_expr_field_value(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        field: so.Field[Any],
-        value: Any,
-    ) -> Optional[s_expr.Expression]:
-        if field.name == 'expr':
-            return s_expr.Expression(text=f'SELECT std::Object LIMIT 1')
-        else:
-            raise NotImplementedError(f'unhandled field {field.name!r}')
 
 
 class CreateObjectType(
