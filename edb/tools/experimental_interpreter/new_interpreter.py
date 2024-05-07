@@ -68,7 +68,6 @@ def default_dbschema() -> DBSchema:
     interpreter_internal_path = os.path.join(
         os.path.dirname(__file__), relative_path_to_interpreter_internal
     )
-    print("Loading standard library at", std_path)
     add_ddl_library(
         initial_db,
         [
@@ -83,7 +82,6 @@ def default_dbschema() -> DBSchema:
     name_resolution.checked_module_name_resolve(initial_db, ("std",))
     sck.re_populate_module_inheritance(initial_db, ("std",))
     sck.re_populate_module_inheritance(initial_db, ("schema",))
-    print("=== Standard library loaded ====")
     return initial_db
 
 

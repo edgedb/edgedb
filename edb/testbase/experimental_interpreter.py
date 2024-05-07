@@ -16,14 +16,13 @@ bag = assert_data_shape.bag
 class ExperimentalInterpreterTestCase(unittest.TestCase):
     SCHEMA: Optional[str] = None
     SETUP: Optional[str] = None
-    INTERPRETER_USE_SQLITE = True
+    INTERPRETER_USE_SQLITE = False
 
     client: EdgeQLInterpreter
     initial_state: object
 
     @classmethod
     def setUpClass(cls):
-        # print("Setting up")
         if cls.SCHEMA is not None:
             with open(cls.SCHEMA) as f:
                 schema_content = f.read()
@@ -33,6 +32,14 @@ class ExperimentalInterpreterTestCase(unittest.TestCase):
         sqlite_filename = None
         if cls.INTERPRETER_USE_SQLITE:
             sqlite_filename = ":memory:"
+
+            try:
+                import sqlite3
+            except ModuleNotFoundError:
+                raise unittest.SkipTest("sqlite is not installed")
+
+            if sqlite3.sqlite_version_info < (3, 37):
+                raise unittest.SkipTest("sqlite version is too old (need 3.37)")
 
         cls.client = EdgeQLInterpreter(schema_content, sqlite_filename)
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Sequence, Optional, List
-import sqlite3
+from typing import Any, Dict, Sequence, Optional, List, TYPE_CHECKING
 import json
 
 from dataclasses import dataclass
@@ -11,6 +10,9 @@ from .. import db_interface
 from ..data.data_ops import EdgeID, ObjectVal, Val, MultiSetVal, DBSchema
 from ..data import data_ops as e
 from ..elab_schema import add_module_from_sdl_defs
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 # SQLITE_PRINT_QUERIES = True
@@ -795,6 +797,8 @@ class SQLiteEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 def schema_and_db_from_sqlite(
     sdl_file_content: Optional[str], sqlite_file_name: str
 ):
+    import sqlite3
+
     # Connect to the SQLite database
     conn = sqlite3.connect(sqlite_file_name)
     c = conn.cursor()
