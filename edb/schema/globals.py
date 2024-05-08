@@ -117,6 +117,7 @@ class GlobalCommand(
     context_class=GlobalCommandContext,
 ):
     TYPE_FIELD_NAME = 'target'
+    ALIAS_LIKE_EXPR_FIELDS = ('expr', 'default')
 
     @classmethod
     def _get_alias_name(cls, type_name: sn.QualName) -> sn.QualName:
@@ -276,22 +277,6 @@ class GlobalCommand(
                     f'default expression, which is not allowed',
                     span=span,
                 )
-
-    def get_dummy_expr_field_value(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        field: so.Field[Any],
-        value: Any,
-    ) -> Optional[s_expr.Expression]:
-        if field.name in ('expr', 'default'):
-            rt = self.scls.get_target(schema)
-            if isinstance(rt, so.DerivableInheritingObject):
-                rt = rt.get_nearest_non_derived_parent(schema)
-            text = f'SELECT assert_exists(<{rt.get_displayname(schema)}>{{}})'
-            return s_expr.Expression(text=text)
-        else:
-            raise NotImplementedError(f'unhandled field {field.name!r}')
 
     def compile_expr_field(
         self,

@@ -233,9 +233,8 @@ class RewriteCommand(
         value: Any,
     ) -> Optional[s_expr.Expression]:
         if field.name == 'expr':
-            pt = self.scls.get_ptr_target(schema)
-            text = f'<{pt.get_displayname(schema)}>{{}}'
-            return s_expr.Expression(text=text)
+            return s_types.type_dummy_expr(
+                self.scls.get_ptr_target(schema), schema)
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 
