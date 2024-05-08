@@ -241,7 +241,7 @@ Functions
 
 .. eql:function:: ext::ai::search( \
                     object: anyobject, \
-                    query: <array>float32 \
+                    query: array<float32> \
                   ) -> optional tuple<object: anyobject, distance: float64>
 
     Search an object using its :ref:`ai::index <ref_guide_ai_reference_index>`
