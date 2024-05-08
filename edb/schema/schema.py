@@ -959,7 +959,10 @@ class FlatSchema(Schema):
         if name in self._name_to_id:
             other_obj = self.get_by_id(
                 self._name_to_id[name], type=so.Object)
-            vn = other_obj.get_verbosename(self, with_parent=True)
+            try:
+                vn = other_obj.get_verbosename(self, with_parent=True)
+            except errors.SchemaError:
+                vn = str(other_obj.get_name(self))
             raise errors.SchemaError(f'{vn} already exists')
 
         if id in self._id_to_data:

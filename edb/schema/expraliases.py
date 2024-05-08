@@ -149,7 +149,10 @@ class AliasLikeCommand(
         alter_alias.set_attribute_value('created_types', set())
 
         for dep_type in created:
-            if_unused = isinstance(dep_type, s_types.Collection)
+            if_unused = (
+                isinstance(dep_type, s_types.Collection)
+                and not isinstance(dep_type, s_types.CollectionExprAlias)
+            )
 
             drop_dep = dep_type.init_delta_command(
                 schema, sd.DeleteObject, if_exists=True, if_unused=if_unused
