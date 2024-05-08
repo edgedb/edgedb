@@ -85,6 +85,25 @@ std::json_get(
     $$;
 };
 
+
+CREATE FUNCTION
+std::__json_get_not_null(
+    json: std::json,
+    VARIADIC path: std::str,
+    NAMED ONLY detail: std::str='') -> OPTIONAL std::json
+{
+    SET volatility := 'Immutable';
+    SET internal := true;
+    USING SQL $$
+    SELECT edgedb.raise_on_null(
+        jsonb_extract_path("json", VARIADIC "path"),
+        'invalid_parameter_value',
+        'missing value in JSON object',
+        detail => detail
+    )
+    $$;
+};
+
 CREATE FUNCTION
 std::json_set(
     target: std::json,
@@ -322,94 +341,103 @@ CREATE CAST FROM std::json TO array<anytype> {
 
 
 CREATE FUNCTION
-std::__range_validate_json(v: std::json, detail: std::str='') -> OPTIONAL std::json
+std::__range_validate_json(val: std::json, detail: std::str='') -> OPTIONAL std::json
 {
     SET volatility := 'Immutable';
     SET internal := true;
     USING SQL $$
-    SELECT
-        CASE
-        WHEN v = 'null'::jsonb THEN
-            NULL
-        WHEN
-            empty
-            AND (lower IS DISTINCT FROM upper
-                 OR lower IS NOT NULL AND inc_upper AND inc_lower)
-        THEN
-            edgedb.raise(
-                NULL::jsonb,
-                'invalid_parameter_value',
-                msg => 'conflicting arguments in range constructor:'
-                        || ' "empty" is `true` while the specified'
-                        || ' bounds suggest otherwise',
-                detail => detail
-            )
+    SELECT (
+        SELECT
+            CASE
+            WHEN v = 'null'::jsonb THEN
+                NULL
+            WHEN
+                empty
+                AND (lower IS DISTINCT FROM upper
+                    OR lower IS NOT NULL AND inc_upper AND inc_lower)
+            THEN
+                edgedb.raise(
+                    NULL::jsonb,
+                    'invalid_parameter_value',
+                    msg => 'conflicting arguments in range constructor:'
+                            || ' ''empty'' is `true` while the specified'
+                            || ' bounds suggest otherwise',
+                    detail => detail
+                )
 
-        WHEN
-            NOT empty
-            AND inc_lower IS NULL
-        THEN
-            edgedb.raise(
-                NULL::jsonb,
-                'invalid_parameter_value',
-                msg => 'JSON object representing a range must include an'
-                        || ' "inc_lower" boolean property',
-                detail => detail
-            )
+            WHEN
+                NOT empty
+                AND inc_lower IS NULL
+            THEN
+                edgedb.raise(
+                    NULL::jsonb,
+                    'invalid_parameter_value',
+                    msg => 'JSON object representing a range must include an'
+                            || ' ''inc_lower'' boolean property',
+                    detail => detail
+                )
 
-        WHEN
-            NOT empty
-            AND inc_upper IS NULL
-        THEN
-            edgedb.raise(
-                NULL::jsonb,
-                'invalid_parameter_value',
-                msg => 'JSON object representing a range must include an'
-                        || ' "inc_upper" boolean property',
-                detail => detail
-            )
+            WHEN
+                NOT empty
+                AND inc_upper IS NULL
+            THEN
+                edgedb.raise(
+                    NULL::jsonb,
+                    'invalid_parameter_value',
+                    msg => 'JSON object representing a range must include an'
+                            || ' ''inc_upper'' boolean property',
+                    detail => detail
+                )
 
-        WHEN
-            EXISTS (
-                SELECT jsonb_object_keys(v)
-                EXCEPT
-                VALUES
-                    ('lower'),
-                    ('upper'),
-                    ('inc_lower'),
-                    ('inc_upper'),
-                    ('empty')
-            )
-        THEN
-            (SELECT edgedb.raise(
-                NULL::jsonb,
-                'invalid_parameter_value',
-                msg => 'JSON object representing a range contains unexpected'
-                        || ' keys: ' || string_agg(k.k, ', ' ORDER BY k.k),
-                detail => detail
-            )
-            FROM
-                (SELECT jsonb_object_keys(v)
-                EXCEPT
-                VALUES
-                    ('lower'),
-                    ('upper'),
-                    ('inc_lower'),
-                    ('inc_upper'),
-                    ('empty')
-                ) AS k(k)
-            )
-        ELSE
-            v
-        END
-    FROM
-        (SELECT
-            (v ->> 'lower') AS lower,
-            (v ->> 'upper') AS upper,
-            (v ->> 'inc_lower')::bool AS inc_lower,
-            (v ->> 'inc_upper')::bool AS inc_upper,
-            coalesce((v ->> 'empty')::bool, false) AS empty
-        ) j
+            WHEN
+                EXISTS (
+                    SELECT jsonb_object_keys(v)
+                    EXCEPT
+                    VALUES
+                        ('lower'),
+                        ('upper'),
+                        ('inc_lower'),
+                        ('inc_upper'),
+                        ('empty')
+                )
+            THEN
+                (SELECT edgedb.raise(
+                    NULL::jsonb,
+                    'invalid_parameter_value',
+                    msg => 'JSON object representing a range contains unexpected'
+                            || ' keys: ' || string_agg(k.k, ', ' ORDER BY k.k),
+                    detail => detail
+                )
+                FROM
+                    (SELECT jsonb_object_keys(v)
+                    EXCEPT
+                    VALUES
+                        ('lower'),
+                        ('upper'),
+                        ('inc_lower'),
+                        ('inc_upper'),
+                        ('empty')
+                    ) AS k(k)
+                )
+            ELSE
+                v
+            END
+        FROM
+            (SELECT
+                (v ->> 'lower') AS lower,
+                (v ->> 'upper') AS upper,
+                (v ->> 'inc_lower')::bool AS inc_lower,
+                (v ->> 'inc_upper')::bool AS inc_upper,
+                coalesce((v ->> 'empty')::bool, false) AS empty
+            ) j
+    )
+    FROM (
+        SELECT edgedb.jsonb_assert_type(
+            val,
+            ARRAY['object', 'null'],
+            detail => detail
+        ) AS v
+    )
     $$;
 };
 
