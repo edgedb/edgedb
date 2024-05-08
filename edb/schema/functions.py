@@ -1331,16 +1331,6 @@ class Function(
     ) -> str:
         return f"function '{self.get_signature_as_str(schema)}'"
 
-    def get_dummy_body(self, schema: s_schema.Schema) -> s_expr.Expression:
-        """Return a minimal function body that satisfies its return type."""
-        rt = self.get_return_type(schema)
-
-        text = f'''
-            SELECT assert_exists(<{rt.get_displayname(schema)}>{{}}) LIMIT 1
-        '''
-
-        return s_expr.Expression(text=text)
-
     def find_object_param_overloads(
         self,
         schema: s_schema.Schema,
@@ -1565,7 +1555,8 @@ class FunctionCommand(
     ) -> Optional[s_expr.Expression]:
         if field.name == 'nativecode':
             func = schema.get(self.classname, type=Function)
-            return func.get_dummy_body(schema)
+            rt = func.get_return_type(schema)
+            return s_types.type_dummy_expr(rt, schema)
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 
