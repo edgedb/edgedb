@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple, Type, Iterable, Sequence, cast
+from typing import Optional, Tuple, Type, Iterable, Sequence, cast
 
 from edb import errors
 
@@ -466,18 +466,6 @@ class ScalarTypeCommand(
                 ancestors.extend(base.get_ancestors(schema).objects(schema))
 
             self.validate_scalar_ancestors(ancestors, schema, context)
-
-    def get_dummy_expr_field_value(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        field: so.Field[Any],
-        value: Any,
-    ) -> Optional[s_expr.Expression]:
-        if field.name == 'expr':
-            return s_expr.Expression(text=f'0')
-        else:
-            raise NotImplementedError(f'unhandled field {field.name!r}')
 
 
 class CreateScalarType(
