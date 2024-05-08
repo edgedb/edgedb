@@ -51,6 +51,15 @@ Connection settings
 :eql:synopsis:`listen_port -> int16`
   The TCP port the server listens on; defaults to ``5656``.
 
+.. versionadded:: 5.0
+
+    :eql:synopsis:`cors_allow_origins -> multi str`
+      Origins that will be calling the server that need Cross-Origin Resource
+      Sharing (CORS) support. Can use ``*`` to allow any origin. When HTTP
+      clients make a preflight request to the server, the origins allowed here
+      will be added to the ``Access-Control-Allow-Origin`` header in the
+      response.
+
 Resource usage
 --------------
 
