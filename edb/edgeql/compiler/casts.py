@@ -648,11 +648,20 @@ def _cast_json_to_tuple(
 ) -> irast.Set:
 
     with ctx.new() as subctx:
+        pathctx.register_set_in_scope(ir_set, ctx=subctx)
         subctx.anchors = subctx.anchors.copy()
         source_path = subctx.create_anchor(ir_set, 'a')
 
-        # Only json arrays or objects can be cast to tuple
-        json_object_args: list[qlast.Expr] = [source_path]
+        # Top-level json->tuple casts should produce an empty set on
+        # null inputs, but error on missing fields or null subelements
+        allow_null = cardinality_mod != qlast.CardinalityModifier.Required
+
+        # Only json arrays or objects can be cast to tuple.
+        # If not in the top level cast, raise an exception here
+        json_object_args: list[qlast.Expr] = [
+            source_path,
+            qlast.Constant.boolean(allow_null),
+        ]
         if error_message_context := cast_message_context(subctx):
             detail = qlast.Constant.string(
                 '{"error_message_context": "' + error_message_context + '"}'
@@ -662,29 +671,21 @@ def _cast_json_to_tuple(
             func=('__std__', '__tuple_validate_json'),
             args=json_object_args
         )
-        json_object_ir = dispatch.compile(json_objects, ctx=subctx)
-        source_path = subctx.create_anchor(json_object_ir, 'a')
 
-        # Top-level json->tuple casts should produce an empty set on
-        # null inputs, but error on missing fields or null
-        # subelements, so filter out json nulls directly here to
-        # distinguish those cases.
-        if cardinality_mod != qlast.CardinalityModifier.Required:
-            pathctx.register_set_in_scope(ir_set, ctx=subctx)
-
-            check = qlast.FunctionCall(
-                func=('__std__', 'json_typeof'), args=[source_path]
-            )
-            filtered = qlast.SelectQuery(
-                result=source_path,
-                where=qlast.BinOp(
-                    left=check,
-                    op='!=',
-                    right=qlast.Constant.string('null'),
-                )
-            )
-            filtered_ir = dispatch.compile(filtered, ctx=subctx)
-            source_path = subctx.create_anchor(filtered_ir, 'a')
+        # Filter out json nulls.
+        # Nulls at the top level cast can be ignored.
+        filtered = qlast.SelectQuery(
+            result=json_objects,
+            where=qlast.BinOp(
+                left=qlast.FunctionCall(
+                    func=('__std__', 'json_typeof'), args=[source_path]
+                ),
+                op='!=',
+                right=qlast.Constant.string('null'),
+            ),
+        )
+        filtered_ir = dispatch.compile(filtered, ctx=subctx)
+        source_path = subctx.create_anchor(filtered_ir, 'a')
 
         # TODO: try using jsonb_to_record instead of a bunch of
         # json_get calls and see if that is faster.

@@ -95,12 +95,18 @@ std::__json_get_not_null(
     SET volatility := 'Immutable';
     SET internal := true;
     USING SQL $$
-    SELECT edgedb.raise_on_null(
-        jsonb_extract_path("json", VARIADIC "path"),
-        'invalid_parameter_value',
-        'missing value in JSON object',
-        detail => detail
-    )
+    SELECT 
+        CASE
+        WHEN "json" = 'null'::jsonb THEN
+            NULL
+        ELSE
+            edgedb.raise_on_null(
+                jsonb_extract_path("json", VARIADIC "path"),
+                'invalid_parameter_value',
+                'missing value in JSON object',
+                detail => detail
+            )
+        END
     $$;
 };
 
@@ -304,16 +310,31 @@ CREATE CAST FROM std::json TO anytuple {
 
 
 CREATE FUNCTION
-std::__tuple_validate_json(v: std::json, detail: std::str='') -> OPTIONAL std::json
+std::__tuple_validate_json(
+    v: std::json,
+    allow_null: std::bool,
+    detail: std::str=''
+    ) -> OPTIONAL std::json
 {
     SET volatility := 'Immutable';
     SET internal := true;
     USING SQL $$
-    SELECT edgedb.jsonb_assert_type(
-        v,
-        ARRAY['array','object','null'],
-        detail => detail
-    );
+    SELECT
+        CASE
+        WHEN v = 'null'::jsonb AND NOT allow_null THEN
+            edgedb.raise(
+                NULL::jsonb,
+                'wrong_object_type',
+                msg => 'invalid null value in cast',
+                detail => detail
+            )
+        ELSE
+            edgedb.jsonb_assert_type(
+                v,
+                ARRAY['array','object','null'],
+                detail => detail
+            )
+        END;
     $$;
 };
 
