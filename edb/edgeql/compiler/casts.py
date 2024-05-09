@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import (
     Optional,
     Tuple,
@@ -663,10 +664,11 @@ def _cast_json_to_tuple(
             qlast.Constant.boolean(allow_null),
         ]
         if error_message_context := cast_message_context(subctx):
-            detail = qlast.Constant.string(
-                '{"error_message_context": "' + error_message_context + '"}'
-            )
-            json_object_args.append(detail)
+            json_object_args.append(qlast.Constant.string(
+                json.dumps({
+                    "error_message_context": error_message_context
+                })
+            ))
         json_objects = qlast.FunctionCall(
             func=('__std__', '__tuple_validate_json'),
             args=json_object_args
@@ -697,10 +699,11 @@ def _cast_json_to_tuple(
 
             json_get_kwargs: dict[str, qlast.Expr] = {}
             if error_message_context := cast_message_context(subctx):
-                detail = qlast.Constant.string(
-                    '{"error_message_context": "' + error_message_context + '"}'
+                json_get_kwargs['detail'] = qlast.Constant.string(
+                    json.dumps({
+                        "error_message_context": error_message_context
+                    })
                 )
-                json_get_kwargs['detail'] = detail
             val_e = qlast.FunctionCall(
                 func=('__std__', '__json_get_not_null'),
                 args=[
@@ -993,10 +996,11 @@ def _cast_json_to_range(
 
         check_args: list[qlast.Expr] = [source_path]
         if error_message_context := cast_message_context(subctx):
-            detail = qlast.Constant.string(
-                '{"error_message_context": "' + error_message_context + '"}'
-            )
-            check_args.append(detail)
+            check_args.append(qlast.Constant.string(
+                json.dumps({
+                    "error_message_context": error_message_context
+                })
+            ))
         check = qlast.FunctionCall(
             func=('__std__', '__range_validate_json'),
             args=check_args
