@@ -160,6 +160,8 @@ def _unwrap_boolean(n: Node) -> Node:
     n = _unwrap(n, 'str')
     n = _unwrap(n, 'boolval')
     n = _unwrap(n, 'boolval')
+    if isinstance(n, dict) and len(n) == 0:
+        n = False
     return n
 
 
@@ -168,6 +170,8 @@ def _unwrap_int(n: Node) -> Node:
     n = _unwrap(n, 'str')
     n = _unwrap(n, 'ival')
     n = _unwrap(n, 'ival')
+    if isinstance(n, dict) and len(n) == 0:
+        n = 0
     return n
 
 
@@ -843,7 +847,7 @@ def _build_const(n: Node, c: Context) -> pgast.BaseConstant:
     n = _unwrap(n, "val")
     span = _build_span(n, c)
 
-    if "Null" in n:
+    if "Null" in n or "isnull" in n:
         return pgast.NullConstant(span=span)
 
     if "Boolean" in n or "boolval" in n:
