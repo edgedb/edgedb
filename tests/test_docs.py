@@ -267,6 +267,7 @@ class TestDocSnippets(unittest.TestCase):
     def run_block_test(self, block):
         try:
             lang = block.lang
+            expect_invalid = False
 
             if lang.endswith('-repl'):
                 lang = lang.rpartition('-')[0]
@@ -298,72 +299,88 @@ class TestDocSnippets(unittest.TestCase):
             else:
                 code = [block.code]
 
-            for snippet in code:
-                if lang == 'edgeql':
-                    ql_parser.parse_block(snippet)
-                elif lang == 'sdl':
-                    # Strip all the "using extension ..." and comment
-                    # lines as they interfere with our module
-                    # detection.
-                    sdl = re.sub(
-                        r'(using\s+extension\s+\w+;)|(#.*?\n)',
-                        '',
-                        snippet
-                    ).strip()
+            if lang.endswith('-invalid'):
+                lang = lang[:-8]
+                expect_invalid = True
 
-                    # the snippet itself may either contain a module
-                    # block or have a fully-qualified top-level name
-                    if not sdl or re.match(
-                            r'''(?xm)
-                                (\bmodule\s+\w+\s*{) |
-                                (^.*
-                                    (type|annotation|link|property|constraint)
-                                    \s+(\w+::\w+)\s+
-                                    ({|extending)
-                                )
-                            ''',
-                            sdl):
-                        ql_parser.parse_sdl(snippet)
+            try:
+                for snippet in code:
+                    if lang == 'edgeql':
+                        ql_parser.parse_block(snippet)
+                    elif lang == 'sdl':
+                        # Strip all the "using extension ..." and comment
+                        # lines as they interfere with our module
+                        # detection.
+                        sdl = re.sub(
+                            r'(using\s+extension\s+\w+;)|(#.*?\n)',
+                            '',
+                            snippet
+                        ).strip()
+
+                        # the snippet itself may either contain a module
+                        # block or have a fully-qualified top-level name
+                        if not sdl or re.match(
+                                r'''(?xm)
+                                    (\bmodule\s+\w+\s*{) |
+                                    (^.*
+                                        (type|annotation|link|property|constraint)
+                                        \s+(\w+::\w+)\s+
+                                        ({|extending)
+                                    )
+                                ''',
+                                sdl):
+                            ql_parser.parse_sdl(snippet)
+                        else:
+                            ql_parser.parse_sdl(
+                                f'module default {{ {snippet} }}'
+                            )
+                    elif lang == 'edgeql-result':
+                        # REPL results
+                        pass
+                    elif lang == 'pseudo-eql':
+                        # Skip "pseudo-eql" language as we don't have a
+                        # parser for it.
+                        pass
+                    elif lang == 'graphql':
+                        graphql_parser.parse(snippet)
+                    elif lang == 'graphql-schema':
+                        # The graphql-schema can be highlighted using graphql
+                        # lexer, but it does not have a dedicated parser.
+                        pass
+                    elif lang == 'json':
+                        json.loads(snippet)
+                    elif lang in {
+                        'bash',
+                        'powershell',
+                        'shell',
+                        'c',
+                        'javascript',
+                        'python',
+                        'typescript',
+                        'go',
+                        'yaml',
+                        'jsx',
+                        'rust',
+                        'tsx',
+                        'elixir',
+                        'toml',
+                        'sql',
+                        'dockerfile'
+                    }:
+                        pass
+                    elif lang[-5:] == '-diff':
+                        pass
                     else:
-                        ql_parser.parse_sdl(f'module default {{ {snippet} }}')
-                elif lang == 'edgeql-result':
-                    # REPL results
-                    pass
-                elif lang == 'pseudo-eql':
-                    # Skip "pseudo-eql" language as we don't have a
-                    # parser for it.
-                    pass
-                elif lang == 'graphql':
-                    graphql_parser.parse(snippet)
-                elif lang == 'graphql-schema':
-                    # The graphql-schema can be highlighted using graphql
-                    # lexer, but it does not have a dedicated parser.
-                    pass
-                elif lang == 'json':
-                    json.loads(snippet)
-                elif lang in {
-                    'bash',
-                    'powershell',
-                    'shell',
-                    'c',
-                    'javascript',
-                    'python',
-                    'typescript',
-                    'go',
-                    'yaml',
-                    'jsx',
-                    'rust',
-                    'tsx',
-                    'elixir',
-                    'toml',
-                    'sql',
-                    'dockerfile'
-                }:
-                    pass
-                elif lang[-5:] == '-diff':
-                    pass
-                else:
-                    raise LookupError(f'unknown code-lang {lang}')
+                        raise LookupError(f'unknown code-lang {lang}')
+            except LookupError as ex:
+                raise ex
+            except Exception as ex:
+                if not expect_invalid:
+                    raise ex
+            else:
+                if expect_invalid:
+                    raise AssertionError("code block is marked with '-invalid'"
+                                         " lang, but did not fail validation")
         except Exception as ex:
             raise AssertionError(
                 f'unable to parse {block.lang} code block in '
