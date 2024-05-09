@@ -5266,7 +5266,7 @@ aa';
             SET volatility := 'Stable';
             USING SQL $$
             SELECT edgedb.str_to_bigint(
-                edgedb.jsonb_extract_scalar(val, 'number')
+                edgedb.jsonb_extract_scalar(val, 'number', detail => detail)
             );
             $$;
         };

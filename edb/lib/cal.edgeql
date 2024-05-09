@@ -1344,7 +1344,8 @@ CREATE CAST FROM std::json TO cal::local_datetime {
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.local_datetime_in(
-        edgedb.jsonb_extract_scalar(val, 'string'));
+        edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+    );
     $$;
 };
 
@@ -1352,7 +1353,9 @@ CREATE CAST FROM std::json TO cal::local_datetime {
 CREATE CAST FROM std::json TO cal::local_date {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.local_date_in(edgedb.jsonb_extract_scalar(val, 'string'));
+    SELECT edgedb.local_date_in(
+        edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+    );
     $$;
 };
 
@@ -1360,7 +1363,9 @@ CREATE CAST FROM std::json TO cal::local_date {
 CREATE CAST FROM std::json TO cal::local_time {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.local_time_in(edgedb.jsonb_extract_scalar(val, 'string'));
+    SELECT edgedb.local_time_in(
+        edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+    );
     $$;
 };
 
@@ -1368,7 +1373,9 @@ CREATE CAST FROM std::json TO cal::local_time {
 CREATE CAST FROM std::json TO cal::relative_duration {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'string')::interval::edgedb.relative_duration_t;
+    SELECT edgedb.jsonb_extract_scalar(
+        val, 'string', detail => detail
+    )::interval::edgedb.relative_duration_t;
     $$;
 };
 
@@ -1376,7 +1383,9 @@ CREATE CAST FROM std::json TO cal::relative_duration {
 CREATE CAST FROM std::json TO cal::date_duration {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.date_duration_in(edgedb.jsonb_extract_scalar(val, 'string'));
+    SELECT edgedb.date_duration_in(
+        edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+    );
     $$;
 };
 

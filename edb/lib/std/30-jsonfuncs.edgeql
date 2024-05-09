@@ -85,6 +85,31 @@ std::json_get(
     $$;
 };
 
+
+CREATE FUNCTION
+std::__json_get_not_null(
+    json: std::json,
+    VARIADIC path: std::str,
+    NAMED ONLY detail: std::str='') -> OPTIONAL std::json
+{
+    SET volatility := 'Immutable';
+    SET internal := true;
+    USING SQL $$
+    SELECT 
+        CASE
+        WHEN "json" = 'null'::jsonb THEN
+            NULL
+        ELSE
+            edgedb.raise_on_null(
+                jsonb_extract_path("json", VARIADIC "path"),
+                'invalid_parameter_value',
+                'missing value in JSON object',
+                detail => detail
+            )
+        END
+    $$;
+};
+
 CREATE FUNCTION
 std::json_set(
     target: std::json,
@@ -284,6 +309,36 @@ CREATE CAST FROM std::json TO anytuple {
 };
 
 
+CREATE FUNCTION
+std::__tuple_validate_json(
+    v: std::json,
+    allow_null: std::bool,
+    detail: std::str=''
+    ) -> OPTIONAL std::json
+{
+    SET volatility := 'Immutable';
+    SET internal := true;
+    USING SQL $$
+    SELECT
+        CASE
+        WHEN v = 'null'::jsonb AND NOT allow_null THEN
+            edgedb.raise(
+                NULL::jsonb,
+                'wrong_object_type',
+                msg => 'invalid null value in cast',
+                detail => detail
+            )
+        ELSE
+            edgedb.jsonb_assert_type(
+                v,
+                ARRAY['array','object','null'],
+                detail => detail
+            )
+        END;
+    $$;
+};
+
+
 CREATE CAST FROM std::json TO array<json> {
     SET volatility := 'Immutable';
     USING SQL $$
@@ -291,7 +346,9 @@ CREATE CAST FROM std::json TO array<json> {
         CASE WHEN nullif(val, 'null'::jsonb) IS NULL THEN NULL
         ELSE
             (SELECT COALESCE(array_agg(j), ARRAY[]::jsonb[])
-            FROM jsonb_array_elements(val) as j)
+            FROM jsonb_array_elements(
+                edgedb.jsonb_assert_type(val, ARRAY['array'], detail => detail)
+            ) as j)
         END
     )
     $$;
@@ -305,90 +362,103 @@ CREATE CAST FROM std::json TO array<anytype> {
 
 
 CREATE FUNCTION
-std::__range_validate_json(v: std::json) -> OPTIONAL std::json
+std::__range_validate_json(val: std::json, detail: std::str='') -> OPTIONAL std::json
 {
     SET volatility := 'Immutable';
     SET internal := true;
     USING SQL $$
-    SELECT
-        CASE
-        WHEN v = 'null'::jsonb THEN
-            NULL
-        WHEN
-            empty
-            AND (lower IS DISTINCT FROM upper
-                 OR lower IS NOT NULL AND inc_upper AND inc_lower)
-        THEN
-            edgedb.raise(
-                NULL::jsonb,
-                'invalid_parameter_value',
-                msg => 'conflicting arguments in range constructor:'
-                        || ' "empty" is `true` while the specified'
-                        || ' bounds suggest otherwise'
-            )
+    SELECT (
+        SELECT
+            CASE
+            WHEN v = 'null'::jsonb THEN
+                NULL
+            WHEN
+                empty
+                AND (lower IS DISTINCT FROM upper
+                    OR lower IS NOT NULL AND inc_upper AND inc_lower)
+            THEN
+                edgedb.raise(
+                    NULL::jsonb,
+                    'invalid_parameter_value',
+                    msg => 'conflicting arguments in range constructor:'
+                            || ' ''empty'' is `true` while the specified'
+                            || ' bounds suggest otherwise',
+                    detail => detail
+                )
 
-        WHEN
-            NOT empty
-            AND inc_lower IS NULL
-        THEN
-            edgedb.raise(
-                NULL::jsonb,
-                'invalid_parameter_value',
-                msg => 'JSON object representing a range must include an'
-                        || ' "inc_lower" boolean property'
-            )
+            WHEN
+                NOT empty
+                AND inc_lower IS NULL
+            THEN
+                edgedb.raise(
+                    NULL::jsonb,
+                    'invalid_parameter_value',
+                    msg => 'JSON object representing a range must include an'
+                            || ' ''inc_lower'' boolean property',
+                    detail => detail
+                )
 
-        WHEN
-            NOT empty
-            AND inc_upper IS NULL
-        THEN
-            edgedb.raise(
-                NULL::jsonb,
-                'invalid_parameter_value',
-                msg => 'JSON object representing a range must include an'
-                        || ' "inc_upper" boolean property'
-            )
+            WHEN
+                NOT empty
+                AND inc_upper IS NULL
+            THEN
+                edgedb.raise(
+                    NULL::jsonb,
+                    'invalid_parameter_value',
+                    msg => 'JSON object representing a range must include an'
+                            || ' ''inc_upper'' boolean property',
+                    detail => detail
+                )
 
-        WHEN
-            EXISTS (
-                SELECT jsonb_object_keys(v)
-                EXCEPT
-                VALUES
-                    ('lower'),
-                    ('upper'),
-                    ('inc_lower'),
-                    ('inc_upper'),
-                    ('empty')
-            )
-        THEN
-            (SELECT edgedb.raise(
-                NULL::jsonb,
-                'invalid_parameter_value',
-                msg => 'JSON object representing a range contains unexpected'
-                        || ' keys: ' || string_agg(k.k, ', ' ORDER BY k.k)
-            )
-            FROM
-                (SELECT jsonb_object_keys(v)
-                EXCEPT
-                VALUES
-                    ('lower'),
-                    ('upper'),
-                    ('inc_lower'),
-                    ('inc_upper'),
-                    ('empty')
-                ) AS k(k)
-            )
-        ELSE
-            v
-        END
-    FROM
-        (SELECT
-            (v ->> 'lower') AS lower,
-            (v ->> 'upper') AS upper,
-            (v ->> 'inc_lower')::bool AS inc_lower,
-            (v ->> 'inc_upper')::bool AS inc_upper,
-            coalesce((v ->> 'empty')::bool, false) AS empty
-        ) j
+            WHEN
+                EXISTS (
+                    SELECT jsonb_object_keys(v)
+                    EXCEPT
+                    VALUES
+                        ('lower'),
+                        ('upper'),
+                        ('inc_lower'),
+                        ('inc_upper'),
+                        ('empty')
+                )
+            THEN
+                (SELECT edgedb.raise(
+                    NULL::jsonb,
+                    'invalid_parameter_value',
+                    msg => 'JSON object representing a range contains unexpected'
+                            || ' keys: ' || string_agg(k.k, ', ' ORDER BY k.k),
+                    detail => detail
+                )
+                FROM
+                    (SELECT jsonb_object_keys(v)
+                    EXCEPT
+                    VALUES
+                        ('lower'),
+                        ('upper'),
+                        ('inc_lower'),
+                        ('inc_upper'),
+                        ('empty')
+                    ) AS k(k)
+                )
+            ELSE
+                v
+            END
+        FROM
+            (SELECT
+                (v ->> 'lower') AS lower,
+                (v ->> 'upper') AS upper,
+                (v ->> 'inc_lower')::bool AS inc_lower,
+                (v ->> 'inc_upper')::bool AS inc_upper,
+                coalesce((v ->> 'empty')::bool, false) AS empty
+            ) j
+    )
+    FROM (
+        SELECT edgedb.jsonb_assert_type(
+            val,
+            ARRAY['object', 'null'],
+            detail => detail
+        ) AS v
+    )
     $$;
 };
 
@@ -496,7 +566,7 @@ CREATE CAST FROM std::decimal TO std::json {
 CREATE CAST FROM std::json TO std::bool  {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'boolean')::bool;
+    SELECT edgedb.jsonb_extract_scalar(val, 'boolean', detail => detail)::bool;
     $$;
 };
 
@@ -504,7 +574,7 @@ CREATE CAST FROM std::json TO std::bool  {
 CREATE CAST FROM std::json TO std::uuid {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'string')::uuid;
+    SELECT edgedb.jsonb_extract_scalar(val, 'string', detail => detail)::uuid;
     $$;
 };
 
@@ -512,7 +582,10 @@ CREATE CAST FROM std::json TO std::uuid {
 CREATE CAST FROM std::json TO std::bytes {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT decode(edgedb.jsonb_extract_scalar(val, 'string'), 'base64')::bytea;
+    SELECT decode(
+        edgedb.jsonb_extract_scalar(val, 'string', detail => detail),
+        'base64'
+    )::bytea;
     $$;
 };
 
@@ -520,7 +593,7 @@ CREATE CAST FROM std::json TO std::bytes {
 CREATE CAST FROM std::json TO std::str {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'string');
+    SELECT edgedb.jsonb_extract_scalar(val, 'string', detail => detail);
     $$;
 };
 
@@ -532,7 +605,9 @@ CREATE CAST FROM std::json TO std::datetime {
     # of the input string.
     SET volatility := 'Stable';
     USING SQL $$
-    SELECT edgedb.datetime_in(edgedb.jsonb_extract_scalar(val, 'string'));
+    SELECT edgedb.datetime_in(
+        edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+    );
     $$;
 };
 
@@ -540,7 +615,9 @@ CREATE CAST FROM std::json TO std::datetime {
 CREATE CAST FROM std::json TO std::duration {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.duration_in(edgedb.jsonb_extract_scalar(val, 'string'));
+    SELECT edgedb.duration_in(
+        edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+    );
     $$;
 };
 
@@ -548,7 +625,7 @@ CREATE CAST FROM std::json TO std::duration {
 CREATE CAST FROM std::json TO std::int16 {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'number')::int2;
+    SELECT edgedb.jsonb_extract_scalar(val, 'number', detail => detail)::int2;
     $$;
 };
 
@@ -556,7 +633,7 @@ CREATE CAST FROM std::json TO std::int16 {
 CREATE CAST FROM std::json TO std::int32 {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'number')::int4;
+    SELECT edgedb.jsonb_extract_scalar(val, 'number', detail => detail)::int4;
     $$;
 };
 
@@ -564,7 +641,7 @@ CREATE CAST FROM std::json TO std::int32 {
 CREATE CAST FROM std::json TO std::int64 {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'number')::int8;
+    SELECT edgedb.jsonb_extract_scalar(val, 'number', detail => detail)::int8;
     $$;
 };
 
@@ -572,7 +649,7 @@ CREATE CAST FROM std::json TO std::int64 {
 CREATE CAST FROM std::json TO std::float32 {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'number')::float4;
+    SELECT edgedb.jsonb_extract_scalar(val, 'number', detail => detail)::float4;
     $$;
 };
 
@@ -580,7 +657,7 @@ CREATE CAST FROM std::json TO std::float32 {
 CREATE CAST FROM std::json TO std::float64 {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'number')::float8;
+    SELECT edgedb.jsonb_extract_scalar(val, 'number', detail => detail)::float8;
     $$;
 };
 
@@ -589,7 +666,7 @@ CREATE CAST FROM std::json TO std::decimal {
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.str_to_decimal(
-        edgedb.jsonb_extract_scalar(val, 'number')
+        edgedb.jsonb_extract_scalar(val, 'number', detail => detail)
     );
     $$;
 };
@@ -599,7 +676,7 @@ CREATE CAST FROM std::json TO std::bigint {
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.str_to_bigint(
-        edgedb.jsonb_extract_scalar(val, 'number')
+        edgedb.jsonb_extract_scalar(val, 'number', detail => detail)
     );
     $$;
 };

@@ -202,6 +202,16 @@ def compile_TypeCast(
 
     pg_expr = dispatch.compile(expr.expr, ctx=ctx)
 
+    detail: Optional[pgast.StringConstant] = None
+    if expr.error_message_context is not None:
+        detail = pgast.StringConstant(
+            val=(
+                '{"error_message_context": "'
+                + expr.error_message_context
+                + '"}'
+            )
+        )
+
     if expr.sql_cast:
         # Use explicit SQL cast.
 
@@ -220,9 +230,13 @@ def compile_TypeCast(
         func_name = common.get_cast_backend_name(
             expr.cast_name, aspect="function"
         )
+
+        args = [pg_expr]
+        if detail is not None:
+            args.append(detail)
         res = pgast.FuncCall(
             name=func_name,
-            args=[pg_expr],
+            args=args,
         )
 
     elif expr.sql_function:
@@ -235,17 +249,20 @@ def compile_TypeCast(
         raise errors.UnsupportedFeatureError('cast not supported')
 
     if expr.cardinality_mod is qlast.CardinalityModifier.Required:
+        args = [
+            res,
+            pgast.StringConstant(
+                val='invalid_parameter_value',
+            ),
+            pgast.StringConstant(
+                val='invalid null value in cast',
+            ),
+        ]
+        if detail is not None:
+            args.append(detail)
         res = pgast.FuncCall(
             name=('edgedb', 'raise_on_null'),
-            args=[
-                res,
-                pgast.StringConstant(
-                    val='invalid_parameter_value',
-                ),
-                pgast.StringConstant(
-                    val='invalid null value in cast',
-                ),
-            ]
+            args=args
         )
 
     return res

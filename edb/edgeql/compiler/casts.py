@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import (
     Optional,
     Tuple,
@@ -452,6 +453,7 @@ def _cast_to_ir(
         sql_function=cast.get_from_function(ctx.env.schema),
         sql_cast=cast.get_from_cast(ctx.env.schema),
         sql_expr=bool(cast.get_code(ctx.env.schema)),
+        error_message_context=cast_message_context(ctx),
     )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -477,6 +479,7 @@ def _inheritance_cast_to_ir(
         sql_function=None,
         sql_cast=True,
         sql_expr=False,
+        error_message_context=cast_message_context(ctx),
     )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -646,47 +649,71 @@ def _cast_json_to_tuple(
 ) -> irast.Set:
 
     with ctx.new() as subctx:
+        pathctx.register_set_in_scope(ir_set, ctx=subctx)
         subctx.anchors = subctx.anchors.copy()
         source_path = subctx.create_anchor(ir_set, 'a')
 
         # Top-level json->tuple casts should produce an empty set on
-        # null inputs, but error on missing fields or null
-        # subelements, so filter out json nulls directly here to
-        # distinguish those cases.
-        if cardinality_mod != qlast.CardinalityModifier.Required:
-            pathctx.register_set_in_scope(ir_set, ctx=subctx)
+        # null inputs, but error on missing fields or null subelements
+        allow_null = cardinality_mod != qlast.CardinalityModifier.Required
 
-            check = qlast.FunctionCall(
-                func=('__std__', 'json_typeof'), args=[source_path]
-            )
-            filtered = qlast.SelectQuery(
-                result=source_path,
-                where=qlast.BinOp(
-                    left=check,
-                    op='!=',
-                    right=qlast.Constant.string('null'),
-                )
-            )
-            filtered_ir = dispatch.compile(filtered, ctx=subctx)
-            source_path = subctx.create_anchor(filtered_ir, 'a')
+        # Only json arrays or objects can be cast to tuple.
+        # If not in the top level cast, raise an exception here
+        json_object_args: list[qlast.Expr] = [
+            source_path,
+            qlast.Constant.boolean(allow_null),
+        ]
+        if error_message_context := cast_message_context(subctx):
+            json_object_args.append(qlast.Constant.string(
+                json.dumps({
+                    "error_message_context": error_message_context
+                })
+            ))
+        json_objects = qlast.FunctionCall(
+            func=('__std__', '__tuple_validate_json'),
+            args=json_object_args
+        )
+
+        # Filter out json nulls.
+        # Nulls at the top level cast can be ignored.
+        filtered = qlast.SelectQuery(
+            result=json_objects,
+            where=qlast.BinOp(
+                left=qlast.FunctionCall(
+                    func=('__std__', 'json_typeof'), args=[source_path]
+                ),
+                op='!=',
+                right=qlast.Constant.string('null'),
+            ),
+        )
+        filtered_ir = dispatch.compile(filtered, ctx=subctx)
+        source_path = subctx.create_anchor(filtered_ir, 'a')
 
         # TODO: try using jsonb_to_record instead of a bunch of
         # json_get calls and see if that is faster.
         elements = []
         for new_el_name, new_st in new_stype.iter_subtypes(ctx.env.schema):
+            cast_element = ('tuple', new_el_name)
+            if subctx.collection_cast_info is not None:
+                subctx.collection_cast_info.path_elements.append(cast_element)
+
+            json_get_kwargs: dict[str, qlast.Expr] = {}
+            if error_message_context := cast_message_context(subctx):
+                json_get_kwargs['detail'] = qlast.Constant.string(
+                    json.dumps({
+                        "error_message_context": error_message_context
+                    })
+                )
             val_e = qlast.FunctionCall(
-                func=('__std__', 'json_get'),
+                func=('__std__', '__json_get_not_null'),
                 args=[
                     source_path,
                     qlast.Constant.string(new_el_name),
                 ],
+                kwargs=json_get_kwargs
             )
 
             val = dispatch.compile(val_e, ctx=subctx)
-
-            cast_element = ('tuple', new_el_name)
-            if subctx.collection_cast_info is not None:
-                subctx.collection_cast_info.path_elements.append(cast_element)
 
             val = compile_cast(
                 val, new_st,
@@ -966,9 +993,19 @@ def _cast_json_to_range(
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
         source_path = subctx.create_anchor(ir_set, 'a')
+
+        check_args: list[qlast.Expr] = [source_path]
+        if error_message_context := cast_message_context(subctx):
+            check_args.append(qlast.Constant.string(
+                json.dumps({
+                    "error_message_context": error_message_context
+                })
+            ))
         check = qlast.FunctionCall(
-            func=('__std__', '__range_validate_json'), args=[source_path]
+            func=('__std__', '__range_validate_json'),
+            args=check_args
         )
+
         check_ir = dispatch.compile(check, ctx=subctx)
         source_path = subctx.create_anchor(check_ir, 'b')
 
@@ -977,30 +1014,107 @@ def _cast_json_to_range(
         bool_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'bool'))
         ql_bool_t = typegen.type_to_ql_typeref(bool_t, ctx=subctx)
 
+        def compile_with_range_element(
+            expr: qlast.Expr,
+            element_name: str,
+        ) -> irast.Set:
+            cast_element = ('range', element_name)
+            if subctx.collection_cast_info is not None:
+                subctx.collection_cast_info.path_elements.append(cast_element)
+
+            expr_ir = dispatch.compile(expr, ctx=subctx)
+
+            if subctx.collection_cast_info is not None:
+                subctx.collection_cast_info.path_elements.pop()
+
+            return expr_ir
+
+        lower: qlast.Expr = qlast.TypeCast(
+            expr=qlast.FunctionCall(
+                func=('__std__', 'json_get'),
+                args=[
+                    source_path,
+                    qlast.Constant.string('lower'),
+                ],
+            ),
+            type=ql_range_el_t,
+        )
+        lower_ir = compile_with_range_element(lower, 'lower')
+        lower = subctx.create_anchor(lower_ir, 'lower')
+
+        upper: qlast.Expr = qlast.TypeCast(
+            expr=qlast.FunctionCall(
+                func=('__std__', 'json_get'),
+                args=[
+                    source_path,
+                    qlast.Constant.string('upper'),
+                ],
+            ),
+            type=ql_range_el_t,
+        )
+        upper_ir = compile_with_range_element(upper, 'upper')
+        upper = subctx.create_anchor(upper_ir, 'upper')
+
+        inc_lower: qlast.Expr = qlast.TypeCast(
+            expr=qlast.FunctionCall(
+                func=('__std__', 'json_get'),
+                args=[
+                    source_path,
+                    qlast.Constant.string('inc_lower'),
+                ],
+                kwargs={
+                    'default': qlast.FunctionCall(
+                        func=('__std__', 'to_json'),
+                        args=[qlast.Constant.string("true")],
+                    ),
+                },
+            ),
+            type=ql_bool_t,
+        )
+        inc_lower_ir = compile_with_range_element(inc_lower, 'inc_lower')
+        inc_lower = subctx.create_anchor(inc_lower_ir, 'inc_lower')
+
+        inc_upper: qlast.Expr = qlast.TypeCast(
+            expr=qlast.FunctionCall(
+                func=('__std__', 'json_get'),
+                args=[
+                    source_path,
+                    qlast.Constant.string('inc_upper'),
+                ],
+                kwargs={
+                    'default': qlast.FunctionCall(
+                        func=('__std__', 'to_json'),
+                        args=[qlast.Constant.string("false")],
+                    ),
+                },
+            ),
+            type=ql_bool_t,
+        )
+        inc_upper_ir = compile_with_range_element(inc_upper, 'inc_upper')
+        inc_upper = subctx.create_anchor(inc_upper_ir, 'inc_upper')
+
+        empty: qlast.Expr = qlast.TypeCast(
+            expr=qlast.FunctionCall(
+                func=('__std__', 'json_get'),
+                args=[
+                    source_path,
+                    qlast.Constant.string('empty'),
+                ],
+                kwargs={
+                    'default': qlast.FunctionCall(
+                        func=('__std__', 'to_json'),
+                        args=[qlast.Constant.string("false")],
+                    ),
+                },
+            ),
+            type=ql_bool_t,
+        )
+        empty_ir = compile_with_range_element(empty, 'empty')
+        empty = subctx.create_anchor(empty_ir, 'empty')
+
         cast = qlast.FunctionCall(
             func=('__std__', 'range'),
-            args=[
-                qlast.TypeCast(
-                    expr=qlast.FunctionCall(
-                        func=('__std__', 'json_get'),
-                        args=[
-                            source_path,
-                            qlast.Constant.string('lower'),
-                        ],
-                    ),
-                    type=ql_range_el_t,
-                ),
-                qlast.TypeCast(
-                    expr=qlast.FunctionCall(
-                        func=('__std__', 'json_get'),
-                        args=[
-                            source_path,
-                            qlast.Constant.string('upper'),
-                        ],
-                    ),
-                    type=ql_range_el_t,
-                ),
-            ],
+            args=[lower, upper],
             # inc_lower and inc_upper are required to be present for
             # non-empty casts from json, and this is checked in
             # __range_validate_json. We still need to provide default
@@ -1008,54 +1122,9 @@ def _cast_json_to_range(
             # arguments to range are {} it will cause {"empty": true}
             # to evaluate to {}.
             kwargs={
-                "inc_lower": qlast.TypeCast(
-                    expr=qlast.FunctionCall(
-                        func=('__std__', 'json_get'),
-                        args=[
-                            source_path,
-                            qlast.Constant.string('inc_lower'),
-                        ],
-                        kwargs={
-                            'default': qlast.FunctionCall(
-                                func=('__std__', 'to_json'),
-                                args=[qlast.Constant.string("true")],
-                            ),
-                        },
-                    ),
-                    type=ql_bool_t
-                ),
-                "inc_upper": qlast.TypeCast(
-                    expr=qlast.FunctionCall(
-                        func=('__std__', 'json_get'),
-                        args=[
-                            source_path,
-                            qlast.Constant.string('inc_upper'),
-                        ],
-                        kwargs={
-                            'default': qlast.FunctionCall(
-                                func=('__std__', 'to_json'),
-                                args=[qlast.Constant.string("false")],
-                            ),
-                        },
-                    ),
-                    type=ql_bool_t
-                ),
-                "empty": qlast.TypeCast(
-                    expr=qlast.FunctionCall(
-                        func=('__std__', 'json_get'),
-                        args=[
-                            source_path,
-                            qlast.Constant.string('empty'),
-                        ],
-                        kwargs={
-                            'default': qlast.FunctionCall(
-                                func=('__std__', 'to_json'),
-                                args=[qlast.Constant.string("false")],
-                            ),
-                        },
-                    ),
-                    type=ql_bool_t
-                ),
+                "inc_lower": inc_lower,
+                "inc_upper": inc_upper,
+                "empty": empty,
             }
         )
 
@@ -1273,6 +1342,7 @@ def _cast_array_literal(
             sql_cast=True,
             sql_expr=False,
             span=span,
+            error_message_context=cast_message_context(ctx),
         )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -1315,6 +1385,7 @@ def _cast_enum_str_immutable(
         sql_function=None,
         sql_cast=False,
         sql_expr=True,
+        error_message_context=cast_message_context(ctx),
     )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -1380,7 +1451,10 @@ def _find_object_by_id(
 
 
 def cast_message_context(ctx: context.ContextLevel) -> Optional[str]:
-    if ctx.collection_cast_info is not None:
+    if (
+        ctx.collection_cast_info is not None
+        and ctx.collection_cast_info.path_elements
+    ):
         from_name = (
             ctx.collection_cast_info.from_type.get_displayname(ctx.env.schema)
         )
@@ -1405,5 +1479,7 @@ def _collection_element_message_context(
         return f"at tuple element '{path_element[1]}', "
     elif path_element[0] == 'array':
         return f'in array elements, '
+    elif path_element[0] == 'range':
+        return f"in range parameter '{path_element[1]}', "
     else:
         raise NotImplementedError
