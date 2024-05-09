@@ -100,7 +100,7 @@ To use an async client instead, do this:
     asyncio.run(main())
 
 
-API Reference
+API reference
 =============
 
 .. py:function:: create_ai(client, **kwargs) -> EdgeDBAI
