@@ -11394,6 +11394,9 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             };
         """)
 
+    @test.skip('''
+        This fails ~half the time depending on how it orders thing
+    ''')
     async def test_edgeql_migration_globals_04(self):
         await self.migrate(r"""
             global cur := true;
