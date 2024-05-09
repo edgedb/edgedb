@@ -496,7 +496,7 @@ Response
         {
           "object": "embedding",
           "index": 0,
-          "embedding": [-0.009434271, ..., 0.009137661]
+          "embedding": [-0.009434271, 0.009137661]
         }
       ],
       "model": "text-embedding-3-small",
@@ -505,6 +505,11 @@ Response
         "total_tokens": 8
       }
     }
+
+.. note::
+
+    The ``embedding`` property is shown here with only two values for brevity,
+    but an actual response would contain many more values.
 
 **Example error response**
 
