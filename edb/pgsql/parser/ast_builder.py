@@ -138,6 +138,7 @@ def _build_any(node: Node, _: Context) -> Any:
 def _build_str(node: Node, _: Context) -> str:
     node = _unwrap(node, "String")
     node = _unwrap(node, "str")
+    node = _unwrap(node, "sval")
     return str(node)
 
 
