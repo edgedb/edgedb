@@ -520,6 +520,6 @@ Response
   .. code-block:: json
 
       {
-        "message": "missing or empty required \"model\" value  in request,
+        "message": "missing or empty required \"model\" value  in request",
         "type": "BadRequestError"
       }
