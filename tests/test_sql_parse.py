@@ -459,6 +459,11 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT TRUE; SELECT FALSE
         """
 
+    def test_sql_parse_select_60(self):
+        """
+        SELECT -1; SELECT 0; SELECT 1
+        """
+
     def test_sql_parse_insert_00(self):
         """
         INSERT INTO my_table (id, name) VALUES (1, 'some')
