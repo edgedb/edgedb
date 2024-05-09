@@ -118,7 +118,9 @@ API Reference
        configure AI-specific options. These options are:
 
        * ``model``: The name of the model to be used. (required)
-       * ``prompt``: An optional prompt to guide the model's behavior. (default: None)
+       * ``prompt``: An optional prompt to guide the model's behavior.
+         ``None`` will result in the client using the default prompt.
+         (default: ``None``)
 
 .. py:function:: create_async_ai(client, **kwargs) -> AsyncEdgeDBAI
 
