@@ -458,6 +458,46 @@ Each event is sent as a separate SSE message, formatted as shown above. The
 connection is closed after all events are sent, signaling the end of the
 stream.
 
+**Example SSE response**
+
+.. code-block::
+
+    event: message_start
+    data: {"type": "message_start", "message": {"id": "chatcmpl-9MzuQiF0SxUjFLRjIdT3mTVaMWwiv", "role": "assistant", "model": "gpt-4-0125-preview"}}
+
+    event: content_block_start
+    data: {"type": "content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+    event: content_block_delta
+    data: {"type": "content_block_delta","index":0,"delta":{"type": "text_delta", "text": "The"}}
+
+    event: content_block_delta
+    data: {"type": "content_block_delta","index":0,"delta":{"type": "text_delta", "text": " skies"}}
+
+    event: content_block_delta
+    data: {"type": "content_block_delta","index":0,"delta":{"type": "text_delta", "text": " on"}}
+
+    event: content_block_delta
+    data: {"type": "content_block_delta","index":0,"delta":{"type": "text_delta", "text": " Mars"}}
+
+    event: content_block_delta
+    data: {"type": "content_block_delta","index":0,"delta":{"type": "text_delta", "text": " are"}}
+
+    event: content_block_delta
+    data: {"type": "content_block_delta","index":0,"delta":{"type": "text_delta", "text": " red"}}
+
+    event: content_block_delta
+    data: {"type": "content_block_delta","index":0,"delta":{"type": "text_delta", "text": "."}}
+
+    event: content_block_stop
+    data: {"type": "content_block_stop","index":0}
+
+    event: message_delta
+    data: {"type": "message_delta", "delta": {"stop_reason": "stop"}}
+
+    event: message_stop
+    data: {"type": "message_stop"}
+
 
 Embeddings
 ----------
