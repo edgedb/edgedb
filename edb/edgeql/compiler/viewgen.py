@@ -699,12 +699,7 @@ def _shape_el_ql_to_shape_el_desc(
         source_intersection = [steps[0]]
         lexpr = steps[1]
         ptype = steps[0].type
-        if not isinstance(ptype, qlast.TypeName):
-            raise errors.QueryError(
-                'complex type expressions are not supported here',
-                span=ptype.span,
-            )
-        source_spec = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
+        source_spec = typegen.ql_typeexpr_to_type(ptype, ctx=ctx)
         if not isinstance(source_spec, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f"expected object type, got "
