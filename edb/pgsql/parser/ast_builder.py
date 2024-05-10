@@ -136,8 +136,7 @@ def _build_any(node: Node, _: Context) -> Any:
 
 
 def _build_str(node: Node, _: Context) -> str:
-    node = _unwrap(node, "String")
-    node = _unwrap(node, "str")
+    node = _unwrap_string(node)
     return str(node)
 
 
@@ -154,6 +153,42 @@ def _unwrap(node: Node, name: str) -> Node:
     if isinstance(node, dict) and name in node:
         return node[name]
     return node
+
+
+def _unwrap_boolean(n: Node) -> Node:
+    n = _unwrap(n, 'Boolean')
+    n = _unwrap(n, 'str')
+    n = _unwrap(n, 'boolval')
+    n = _unwrap(n, 'boolval')
+    if isinstance(n, dict) and len(n) == 0:
+        n = False
+    return n
+
+
+def _unwrap_int(n: Node) -> Node:
+    n = _unwrap(n, 'Integer')
+    n = _unwrap(n, 'str')
+    n = _unwrap(n, 'ival')
+    n = _unwrap(n, 'ival')
+    if isinstance(n, dict) and len(n) == 0:
+        n = 0
+    return n
+
+
+def _unwrap_float(n: Node) -> Node:
+    n = _unwrap(n, 'Float')
+    n = _unwrap(n, 'str')
+    n = _unwrap(n, 'fval')
+    n = _unwrap(n, 'fval')
+    return n
+
+
+def _unwrap_string(n: Node) -> Node:
+    n = _unwrap(n, 'String')
+    n = _unwrap(n, 'str')
+    n = _unwrap(n, 'sval')
+    n = _unwrap(n, 'sval')
+    return n
 
 
 def _probe(n: Node, keys: List[str | int]) -> bool:
@@ -739,20 +774,20 @@ def _build_type_cast(n: Node, c: Context) -> pgast.TypeCast:
 def _build_type_name(n: Node, c: Context) -> pgast.TypeName:
     n = _unwrap(n, "TypeName")
 
-    def unwrap_int(n: Node, _c: Context):
-        return _unwrap(_unwrap(n, 'Integer'), 'ival')
-
     name: Tuple[str, ...] = tuple(_list(n, c, "names", _build_str))
 
     # we don't escape char properly, so let's just resolve it during parsing
     if name == ("char",):
         name = ("pg_catalog", "char")
 
+    def unwrap_int_builder(n: Node, _c: Context) -> Node:
+        return _unwrap_int(n)
+
     return pgast.TypeName(
         name=name,
         setof=_bool_or_false(n, "setof"),
         typmods=None,
-        array_bounds=_maybe_list(n, c, "arrayBounds", unwrap_int),
+        array_bounds=_maybe_list(n, c, "arrayBounds", unwrap_int_builder),
         span=_build_span(n, c),
     )
 
@@ -809,22 +844,25 @@ def _build_base_range_var(n: Node, c: Context) -> pgast.BaseRangeVar:
 
 
 def _build_const(n: Node, c: Context) -> pgast.BaseConstant:
-    val = n["val"]
+    n = _unwrap(n, "val")
     span = _build_span(n, c)
 
-    if "Integer" in val:
-        return pgast.NumericConstant(
-            val=str(val["Integer"]["ival"]), span=span
-        )
-
-    if "Float" in val:
-        return pgast.NumericConstant(val=val["Float"]["str"], span=span)
-
-    if "Null" in val:
+    if "Null" in n or "isnull" in n:
         return pgast.NullConstant(span=span)
 
-    if "String" in val:
-        return pgast.StringConstant(val=_build_str(val, c), span=span)
+    if "Boolean" in n or "boolval" in n:
+        return pgast.BooleanConstant(val=_unwrap_boolean(n), span=span)
+
+    if "Integer" in n or "ival" in n:
+        return pgast.NumericConstant(val=str(_unwrap_int(n)), span=span)
+
+    if "Float" in n or "fval" in n:
+        return pgast.NumericConstant(val=_unwrap_float(n), span=span)
+
+    if "String" in n or "sval" in n:
+        return pgast.StringConstant(
+            val=_build_str(_unwrap_string(n), c), span=span
+        )
 
     raise PSqlUnsupportedError(n)
 

@@ -449,6 +449,21 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT * FROM t_20210301_x
         """
 
+    def test_sql_parse_select_58(self):
+        """
+        SELECT (1.2 * 3.4)
+        """
+
+    def test_sql_parse_select_59(self):
+        """
+        SELECT TRUE; SELECT FALSE
+        """
+
+    def test_sql_parse_select_60(self):
+        """
+        SELECT -1; SELECT 0; SELECT 1
+        """
+
     def test_sql_parse_insert_00(self):
         """
         INSERT INTO my_table (id, name) VALUES (1, 'some')
