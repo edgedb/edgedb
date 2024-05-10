@@ -1879,18 +1879,27 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type D;
             abstract type F {
                 property f -> int64;
-                link d -> D {
-                    property f_d_prop -> str;
+                link df -> D {
+                    property df_prop -> str;
                 }
             }
-            type T1 {
-                property n -> str;
-                link d -> D {
-                    property t1_d_prop -> str;
-                }
+            type T1 extending F {
+                property a_ -> str;
+                property a1 -> str;
+                link d_ -> D {
+                    property d_prop_ -> str;
+                    property d_prop1 -> str;
+                };
+                link d1 -> D;
             };
             type T2 extending F {
-                property n -> str;
+                property a_ -> str;
+                property a2 -> str;
+                link d_ -> D {
+                    property d_prop_ -> str;
+                    property d_prop2 -> str;
+                };
+                link d2 -> D;
             };
             type T3;
 
@@ -1902,45 +1911,80 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """)
 
         A = schema.get('test::A')
+        T1 = schema.get('test::T1')
         T2 = schema.get('test::T2')
         F = schema.get('test::F')
-        A_t = A.getptr(schema, s_name.UnqualName('t'))
-        A_t2 = A.getptr(schema, s_name.UnqualName('t2'))
+
+        # Checking (T1 | T2)
+        A_t_link = A.getptr(schema, s_name.UnqualName('t'))
+        A_t = A_t_link.get_target(schema)
+        # Checking type
+        self.assertTrue(T1.issubclass(schema, A_t))
+        self.assertTrue(T2.issubclass(schema, A_t))
+        self.assertTrue(A_t.issubclass(schema, F))
+        # Checking properties
+        A_t.getptr(schema, s_name.UnqualName('a_'))
+        A_t.getptr(schema, s_name.UnqualName('f'))
+        self.assertIsNone(A_t.maybe_get_ptr(schema, s_name.UnqualName('a1')))
+        self.assertIsNone(A_t.maybe_get_ptr(schema, s_name.UnqualName('a2')))
+        # Checking links
+        A_t_d = A_t.getptr(schema, s_name.UnqualName('d_'))
+        A_t_df = A_t.getptr(schema, s_name.UnqualName('df'))
+        self.assertIsNone(A_t.maybe_get_ptr(schema, s_name.UnqualName('d1')))
+        self.assertIsNone(A_t.maybe_get_ptr(schema, s_name.UnqualName('d2')))
+        # Checking link properties
+        A_t_d.getptr(schema, s_name.UnqualName('d_prop_'))
+        self.assertIsNone(A_t_d.maybe_get_ptr(schema, 'd_prop1'))
+        self.assertIsNone(A_t_d.maybe_get_ptr(schema, 'd_prop2'))
+        A_t_df.getptr(schema, s_name.UnqualName('df_prop'))
+
+        # Checking ((T1 | T2) & T2)
+        A_t2_link = A.getptr(schema, s_name.UnqualName('t2'))
+        A_t2 = A_t2_link.get_target(schema)
+        # Checking type
+        self.assertTrue(A_t2.issubclass(schema, T2))
+        self.assertTrue(T2.issubclass(schema, A_t2))
+        self.assertTrue(A_t2.issubclass(schema, F))
+        self.assertTrue(A_t2.issubclass(schema, A_t))
+        # Checking properties
+        A_t2.getptr(schema, s_name.UnqualName('a_'))
+        A_t2.getptr(schema, s_name.UnqualName('f'))
+        self.assertIsNone(A_t2.maybe_get_ptr(schema, s_name.UnqualName('a1')))
+        A_t2.getptr(schema, s_name.UnqualName('a2'))
+        # Checking links
+        A_t2_d = A_t2.getptr(schema, s_name.UnqualName('d_'))
+        A_t2_df = A_t2.getptr(schema, s_name.UnqualName('df'))
+        self.assertIsNone(A_t2.maybe_get_ptr(schema, s_name.UnqualName('d1')))
+        A_t2.getptr(schema, s_name.UnqualName('d2'))
+        # Checking link properties
+        A_t2_d.getptr(schema, s_name.UnqualName('d_prop_'))
+        self.assertIsNone(A_t2_d.maybe_get_ptr(schema, 'd_prop1'))
+        self.assertIsNone(A_t2_d.maybe_get_ptr(schema, 'd_prop2'))
+        A_t2_df.getptr(schema, s_name.UnqualName('df_prop'))
+
+        # Checking ((T1 | T2) & F)
         A_tf_link = A.getptr(schema, s_name.UnqualName('tf'))
         A_tf = A_tf_link.get_target(schema)
-
-        # Check that ((T1 | T2) & F) has properties from both parts
-        # of the intersection.
-        A_tf.getptr(schema, s_name.UnqualName('n'))
+        # Checking type
+        self.assertTrue(T1.issubclass(schema, A_tf))
+        self.assertTrue(T2.issubclass(schema, A_tf))
+        self.assertTrue(A_tf.issubclass(schema, F))
+        self.assertTrue(A_tf.issubclass(schema, A_t))
+        # Checking properties
+        A_tf.getptr(schema, s_name.UnqualName('a_'))
         A_tf.getptr(schema, s_name.UnqualName('f'))
-
-        # Ditto for link properties defined on a common link.
-        tfd = A_tf.getptr(schema, s_name.UnqualName('d'))
-        tfd.getptr(schema, s_name.UnqualName('f_d_prop'))
-
-        # t1_d_prop is only present in T1, and so wouldn't be in T1 | T2
-        self.assertIsNone(tfd.maybe_get_ptr(schema, 't1_d_prop'))
-
-        self.assertTrue(
-            A_t2.get_target(schema).issubclass(
-                schema,
-                A_t.get_target(schema)
-            )
-        )
-
-        self.assertTrue(
-            A_tf.issubclass(
-                schema,
-                T2,
-            )
-        )
-
-        self.assertTrue(
-            A_tf.issubclass(
-                schema,
-                F,
-            )
-        )
+        self.assertIsNone(A_tf.maybe_get_ptr(schema, s_name.UnqualName('a1')))
+        self.assertIsNone(A_tf.maybe_get_ptr(schema, s_name.UnqualName('a2')))
+        # Checking links
+        A_tf_d = A_tf.getptr(schema, s_name.UnqualName('d_'))
+        A_tf_df = A_tf.getptr(schema, s_name.UnqualName('df'))
+        self.assertIsNone(A_tf.maybe_get_ptr(schema, s_name.UnqualName('d1')))
+        self.assertIsNone(A_tf.maybe_get_ptr(schema, s_name.UnqualName('d2')))
+        # Checking link properties
+        A_tf_d.getptr(schema, s_name.UnqualName('d_prop_'))
+        self.assertIsNone(A_tf_d.maybe_get_ptr(schema, 'd_prop1'))
+        self.assertIsNone(A_tf_d.maybe_get_ptr(schema, 'd_prop2'))
+        A_tf_df.getptr(schema, s_name.UnqualName('df_prop'))
 
     def test_schema_ancestor_propagation_on_sdl_migration(self):
         schema = self.load_schema("""
