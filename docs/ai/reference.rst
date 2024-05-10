@@ -333,15 +333,24 @@ The request body should be JSON.
   * ``custom`` (array of objects, optional): Custom prompt messages, each
     containing a ``role`` and ``content``.
 
+**Example request**
+
+.. code-block:: bash
+
+    curl --user <username> --json '{
+    "query": "What color is the sky on Mars?",
+    "model": "gpt-4-turbo-preview",
+    "context": {"query":"Knowledge"}
+  }' http://<edgedb-host>:<port>/branch/main/ai/rag
 
 Response
 ^^^^^^^^
 
 **Example successful response**
 
-- **HTTP status**: 200 OK
-- **Content-Type**: application/json
-- **Body**:
+* **HTTP status**: 200 OK
+* **Content-Type**: application/json
+* **Body**:
 
   .. code-block:: json
 
@@ -349,9 +358,9 @@ Response
 
 **Example error response**
 
-- **HTTP status**: 400 Bad Request
-- **Content-Type**: application/json
-- **Body**:
+* **HTTP status**: 400 Bad Request
+* **Content-Type**: application/json
+* **Body**:
 
   .. code-block:: json
 
@@ -523,9 +532,9 @@ Response
 
 **Example successful response**
 
-- **HTTP status**: 200 OK
-- **Content-Type**: application/json
-- **Body**:
+* **HTTP status**: 200 OK
+* **Content-Type**: application/json
+* **Body**:
 
 
 .. code-block:: json
@@ -553,9 +562,9 @@ Response
 
 **Example error response**
 
-- **HTTP status**: 400 Bad Request
-- **Content-Type**: application/json
-- **Body**:
+* **HTTP status**: 400 Bad Request
+* **Content-Type**: application/json
+* **Body**:
 
   .. code-block:: json
 
