@@ -329,21 +329,21 @@ these properties:
 * ``stream`` (boolean, optional): Specifies whether the response should be
   streamed. Defaults to false.
 
-* ``prompt`` (object, optional): Settings that define a prompt, overriding the
+* ``prompt`` (object, optional): Settings that define a prompt. Omit to use the
   default prompt.
 
-  You may specify an existing prompt by its ``name`` or ``id``, or you may
-  define a custom prompt inline by sending an array of objects, each containing
-  a ``role`` and ``content``. Choose to specify any one of these properties, or
-  omit the ``prompt`` property to use the default prompt:
+  You may specify an existing prompt by its ``name`` or ``id``, you may define
+  a custom prompt inline by sending an array of objects, or you may do both to
+  augment an existing prompt with additional custom messages.
 
-  * ``name`` (string, optional): The ``name`` of an existing custom prompt to
-    use.
-
-  * ``id`` (string, optional): The ``id`` of an existing custom prompt to use.
+  * ``name`` (string, optional) or ``id`` (string, optional): The ``name`` or
+    ``id`` of an existing custom prompt to use. Provide only one of these if
+    you want to use or start from an existing prompt.
 
   * ``custom`` (array of objects, optional): Custom prompt messages, each
-    containing a ``role`` and ``content``.
+    containing a ``role`` and ``content``. If no ``name`` or ``id`` was
+    provided, the custom messages provided here become the prompt. If one of
+    those was provided, these messages will be added to that existing prompt.
 
 **Example request**
 
@@ -354,6 +354,7 @@ these properties:
       "model": "gpt-4-turbo-preview",
       "context": {"query":"Knowledge"}
     }' http://<edgedb-host>:<port>/branch/main/ai/rag
+
 
 Response
 ^^^^^^^^
