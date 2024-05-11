@@ -1726,29 +1726,6 @@ def range_for_typeref(
             ctx=ctx,
         )
 
-    elif typeref.intersection:
-        wrapper = pgast.SelectStmt()
-        component_rvars = []
-        for component in typeref.intersection:
-            component_rvar = range_for_typeref(
-                component,
-                lateral=True,
-                path_id=path_id,
-                for_mutation=for_mutation,
-                dml_source=dml_source,
-                ctx=ctx,
-            )
-            pathctx.put_rvar_path_bond(component_rvar, path_id)
-            component_rvars.append(component_rvar)
-            include_rvar(wrapper, component_rvar, path_id, ctx=ctx)
-
-        int_rvar = pgast.IntersectionRangeVar(component_rvars=component_rvars)
-        for aspect in ('source', 'value'):
-            pathctx.put_path_rvar(wrapper, path_id, int_rvar, aspect=aspect)
-
-        pathctx.put_path_bond(wrapper, path_id)
-        rvar = rvar_for_rel(wrapper, lateral=lateral, typeref=typeref, ctx=ctx)
-
     else:
         rvar = range_for_material_objtype(
             typeref,
@@ -1860,6 +1837,7 @@ def range_from_queryset(
         # Just one class table, so return it directly
         from_rvar = set_ops[0][1].from_clause[0]
         assert isinstance(from_rvar, pgast.PathRangeVar)
+        from_rvar = from_rvar.replace(typeref=typeref)
         rvar = from_rvar
 
     return rvar

@@ -28,7 +28,6 @@ from typing import (
     Dict,
     Set,
     FrozenSet,
-    cast,
     overload,
     TYPE_CHECKING,
 )
@@ -173,10 +172,6 @@ def contains_predicate(
     if pred(typeref):
         return True
 
-    elif typeref.intersection:
-        return any(
-            contains_predicate(sub, pred) for sub in typeref.intersection
-        )
     elif typeref.union:
         return any(
             contains_predicate(sub, pred) for sub in typeref.union
@@ -305,39 +300,34 @@ def _type_to_typeref(
         )
     elif not isinstance(t, s_types.Collection):
         assert isinstance(t, s_types.InheritingType)
-        union_of = t.get_union_of(schema)
-        union: Optional[FrozenSet[irast.TypeRef]]
-        if union_of:
-            assert isinstance(t, s_objtypes.ObjectType)
-            union_types = {
-                cast(s_objtypes.ObjectType, c).get_nearest_non_derived_parent(
-                    schema)
-                for c in union_of.objects(schema)
-            }
-            non_overlapping, union_is_exhaustive = (
-                s_utils.get_non_overlapping_union(schema, union_types)
+
+        union: Optional[FrozenSet[irast.TypeRef]] = None
+        union_is_exhaustive: bool = False
+        expr_intersection: Optional[FrozenSet[irast.TypeRef]] = None
+        expr_union: Optional[FrozenSet[irast.TypeRef]] = None
+        if t.is_union_type(schema) or t.is_intersection_type(schema):
+            union_types, union_is_exhaustive = (
+                s_utils.get_type_expr_non_overlapping_union(t, schema)
             )
-            if union_is_exhaustive:
-                non_overlapping = frozenset({
-                    t for t in non_overlapping
-                    if t.is_material_object_type(schema)
-                })
 
             union = frozenset(
-                _typeref(c) for c in non_overlapping
+                _typeref(c) for c in union_types
             )
-        else:
-            union_is_exhaustive = False
-            union = None
 
-        intersection_of = t.get_intersection_of(schema)
-        intersection: Optional[FrozenSet[irast.TypeRef]]
-        if intersection_of:
-            intersection = frozenset(
-                _typeref(c) for c in intersection_of.objects(schema)
-            )
-        else:
-            intersection = None
+            # Keep track of type expression structure.
+            # This is necessary to determine the correct rvar when doing
+            # type intersections or polymorphic queries.
+            if expr_intersection_types := t.get_intersection_of(schema):
+                expr_intersection = frozenset(
+                    _typeref(c)
+                    for c in expr_intersection_types.objects(schema)
+                )
+
+            if expr_union_types := t.get_union_of(schema):
+                expr_union = frozenset(
+                    _typeref(c)
+                    for c in expr_union_types.objects(schema)
+                )
 
         schema, material_type = t.material_type(schema)
 
@@ -358,26 +348,29 @@ def _type_to_typeref(
         else:
             base_typeref = None
 
-        children: Optional[FrozenSet[irast.TypeRef]]
-
-        if material_typeref is None and include_children:
+        children: Optional[FrozenSet[irast.TypeRef]] = None
+        if (
+            material_typeref is None
+            and include_children
+            and children is None
+        ):
             children = frozenset(
                 _typeref(child, include_children=True)
                 for child in t.children(schema)
                 if not child.get_is_derived(schema)
                 and not child.is_compound_type(schema)
             )
-        else:
-            children = None
 
-        ancestors: Optional[FrozenSet[irast.TypeRef]]
-        if material_typeref is None and include_ancestors:
+        ancestors: Optional[FrozenSet[irast.TypeRef]] = None
+        if (
+            material_typeref is None
+            and include_ancestors
+            and ancestors is None
+        ):
             ancestors = frozenset(
                 _typeref(ancestor, include_ancestors=False)
                 for ancestor in t.get_ancestors(schema).objects(schema)
             )
-        else:
-            ancestors = None
 
         sql_type = None
         needs_custom_json_cast = False
@@ -401,7 +394,8 @@ def _type_to_typeref(
             ancestors=ancestors,
             union=union,
             union_is_exhaustive=union_is_exhaustive,
-            intersection=intersection,
+            expr_intersection=expr_intersection,
+            expr_union=expr_union,
             element_name=_name,
             is_scalar=t.is_scalar(),
             is_abstract=t.get_abstract(schema),
@@ -912,36 +906,36 @@ def type_contains(
     if typeref == parent:
         return True
 
-    elif typeref.union:
+    elif typeref.expr_union:
         # A union is considered a subtype of a type, if
         # ALL its components are subtypes of that type.
         return all(
             type_contains(parent, component)
-            for component in typeref.union
+            for component in typeref.expr_union
         )
 
-    elif typeref.intersection:
+    elif typeref.expr_intersection:
         # An intersection is considered a subtype of a type, if
         # ANY of its components are subtypes of that type.
         return any(
             type_contains(parent, component)
-            for component in typeref.intersection
+            for component in typeref.expr_intersection
         )
 
-    elif parent.union:
+    elif parent.expr_union:
         # A type is considered a subtype of a union type,
         # if it is a subtype of ANY of the union components.
         return any(
             type_contains(component, typeref)
-            for component in parent.union
+            for component in parent.expr_union
         )
 
-    elif parent.intersection:
+    elif parent.expr_intersection:
         # A type is considered a subtype of an intersection type,
         # if it is a subtype of ALL of the intersection components.
         return any(
             type_contains(component, typeref)
-            for component in parent.intersection
+            for component in parent.expr_intersection
         )
 
     else:

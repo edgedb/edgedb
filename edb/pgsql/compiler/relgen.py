@@ -926,7 +926,20 @@ def process_set_as_path_type_intersection(
 
     assert not rptr.expr, 'type intersection pointer with expr??'
 
-    if (not source_is_visible
+    if ir_set.typeref.union is not None and len(ir_set.typeref.union) == 0:
+        # If the typeref was a type expression which resolves to no actual
+        # types, just return an empty set.
+        empty_ir = irast.Set(
+            path_id=ir_set.path_id,
+            typeref=ir_set.typeref,
+            expr=irast.EmptySet(typeref=ir_set.typeref),
+        )
+        source_rvar = relctx.new_empty_rvar(
+            cast('irast.SetE[irast.EmptySet]', empty_ir),
+            ctx=ctx)
+        relctx.include_rvar(stmt, source_rvar, ir_set.path_id, ctx=ctx)
+
+    elif (not source_is_visible
             and isinstance(ir_source.expr, irast.Pointer)
             and not ir_source.path_id.is_type_intersection_path()
             and not ir_source.expr.expr
@@ -950,27 +963,9 @@ def process_set_as_path_type_intersection(
 
     else:
         source_rvar = get_set_rvar(ir_source, ctx=ctx)
-        intersection = ir_set.typeref.intersection
-        if intersection:
-            if ir_source.typeref.intersection:
-                current_intersection = {
-                    t.id for t in ir_source.typeref.intersection
-                }
-            else:
-                current_intersection = {
-                    ir_source.typeref.id
-                }
-
-            intersectors = {t for t in intersection
-                            if t.id not in current_intersection}
-
-            assert len(intersectors) == 1
-            target_typeref = next(iter(intersectors))
-        else:
-            target_typeref = rptr.ptrref.out_target
 
         poly_rvar = relctx.range_for_typeref(
-            target_typeref,
+            rptr.ptrref.out_target,
             path_id=ir_set.path_id,
             dml_source=irutils.get_dml_sources(ir_set),
             lateral=True,
