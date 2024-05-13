@@ -308,6 +308,33 @@ these properties:
 
 * ``model`` (string, required): The name of the text generation model to use.
 
+  .. _ref_ai_reference_text_generation_models:
+
+  You may use any of these text generation models:
+
+  **OpenAI**
+
+  * ``gpt-3.5-turbo``
+  * ``gpt-4-turbo-preview``
+
+  `Learn more about the OpenAI text generation models <https://platform.openai.com/docs/guides/text-generation>`__
+
+  **Mistral**
+
+  * ``mistral-small-latest``
+  * ``mistral-medium-latest``
+  * ``mistral-large-latest``
+
+  `Learn more about the Mistral text generation models <https://docs.mistral.ai/getting-started/models/>`__
+
+  **Anthropic**
+
+  * ``claude-3-haiku-20240307``
+  * ``claude-3-sonnet-20240229``
+  * ``claude-3-opus-20240229``
+
+  `Learn more about the Athropic text generation models <https://docs.anthropic.com/claude/docs/models-overview>`__
+
 * ``query`` (string, required): The query string use as the basis for text
   generation.
 
