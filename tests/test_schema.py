@@ -2980,6 +2980,71 @@ class TestSchema(tb.BaseSchemaLoadTest):
         global foo := <int64>$0
         """
 
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "type 'test::C' does not exist",
+    )
+    def test_schema_unknown_typename_01(self):
+        """
+        type A;
+        type B {
+            link a -> A;
+            property x := <C>.a;
+        }
+        """
+
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "type 'test::C' does not exist",
+    )
+    def test_schema_unknown_typename_02(self):
+        """
+        type A;
+        type B {
+            link a -> A;
+            property x := .a is C;
+        }
+        """
+
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "type 'test::null' does not exist",
+        hint='Did you mean to use `exists`?'
+    )
+    def test_schema_unknown_typename_03(self):
+        """
+        type A;
+        type B {
+            link a -> A;
+            property x := .a is null;
+        }
+        """
+
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "type 'test::NONE' does not exist",
+        hint='Did you mean to use `exists`?'
+    )
+    def test_schema_unknown_typename_04(self):
+        """
+        type A;
+        type B {
+            link a -> A;
+            property x := .a is NONE;
+        }
+        """
+
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "type 'test::C' does not exist",
+    )
+    def test_schema_unknown_typename_05(self):
+        """
+        type B {
+            property x := (introspect C).name;
+        }
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.
