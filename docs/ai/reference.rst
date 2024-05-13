@@ -140,6 +140,8 @@ It can accept several named arguments:
 * ``embedding_model``- The name of the model to use for embedding generation as
   a string.
 
+  .. _ref_ai_reference_embedding_models:
+
   You may use any of these pre-configured embedding generation models:
 
   **OpenAI**
@@ -565,7 +567,9 @@ these properties:
 * ``input`` (array of strings or a single string, required): The text to use as
   the basis for embeddings generation.
 
-* ``model`` (string, required): The name of the embedding model to use.
+* ``model`` (string, required): The name of the embedding model to use. You may
+  use any of the supported :ref:`embedding models
+  <ref_ai_reference_embedding_models>`.
 
 **Example request**
 

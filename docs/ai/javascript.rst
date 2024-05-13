@@ -40,7 +40,8 @@ model):
       model: "gpt-4-turbo-preview",
     });
 
-Add your query as context:
+You may use any of the supported :ref:`text generation models
+<ref_ai_reference_text_generation_models>`. Add your query as context:
 
 .. code-block:: typescript
 
