@@ -2460,6 +2460,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r"while casting 'std::json' "
                 r"to 'array<std::int64>', "
                 r"in array elements, "
+                r"at index 0, "
                 r"expected JSON number or null; got JSON string"):
             await self.con.query_single(
                 r"SELECT <array<int64>><json>['asdf']")
@@ -2469,6 +2470,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r"while casting 'std::json' "
                 r"to 'array<std::int64>', "
                 r"in array elements, "
+                r"at index 2, "
                 r"expected JSON number or null; got JSON string"):
             await self.con.query_single(
                 r"SELECT <array<int64>>to_json('[1, 2, \"asdf\"]')")
@@ -2478,6 +2480,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r"while casting 'std::json' "
                 r"to 'array<std::int64>', "
                 r"in array elements, "
+                r"at index 0, "
                 r"expected JSON number or null; got JSON string"):
             await self.con.execute("""
                 SELECT <array<int64>>to_json('["a"]');
@@ -2497,6 +2500,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r"array<std::int64>', "
                 r"in array elements, "
+                r"at index 2, "
                 r"invalid null value in cast"):
             await self.con.query_single(
                 r"SELECT <array<int64>>to_json('[1, 2, null]')")
@@ -2506,6 +2510,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r"while casting 'array<std::json>' "
                 r"to 'array<std::int64>', "
                 r"in array elements, "
+                r"at index 2, "
                 r"invalid null value in cast"):
             await self.con.query_single(
                 r"SELECT <array<int64>><array<json>>to_json('[1, 2, null]')")
@@ -2525,6 +2530,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r"to 'tuple<array<std::str>>', "
                 r"at tuple element '0', "
                 r"in array elements, "
+                r"at index 0, "
                 r"invalid null value in cast"):
             await self.con.query_single(
                 r"select <tuple<array<str>>>to_json('[[null]]')")
@@ -2543,6 +2549,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r"while casting 'std::json' "
                 r"to 'array<std::int64>', "
                 r"in array elements, "
+                r"at index 0, "
                 r"expected JSON number or null; got JSON object"):
             await self.con.execute("""
                 SELECT <array<int64>>to_json('[{"a": 1}]');
@@ -2554,8 +2561,10 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r"while casting 'std::json' "
                 r"to 'array<tuple<array<std::str>>>', "
                 r"in array elements, "
+                r"at index 0, "
                 r"at tuple element '0', "
                 r"in array elements, "
+                r"at index 0, "
                 r"expected JSON string or null; got JSON number"):
             await self.con.execute("""
                 SELECT <array<tuple<array<str>>>>to_json('[[[1]]]');

@@ -814,11 +814,15 @@ class CollectionCastInfo(NamedTuple):
     from_type: s_types.Type
     to_type: s_types.Type
 
-    path_elements: list[Tuple[str, Optional[str]]]
+    path_elements: list[Tuple[str, Optional[str | qlast.Expr]]]
     """Represents a path to the current collection element being cast.
 
     A path element is a tuple of the collection type and an optional
     element name. eg. ('tuple', 'a') or ('array', None)
+
+    When casting a json array, the path element has the form
+    ('array_index', expr) where expr is a string representation of the index
+    in the current json array.
 
     The list is shared between the outermost context and all its sub contexts.
     When casting a collection, each element's path should be pushed before

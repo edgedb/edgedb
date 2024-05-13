@@ -202,15 +202,9 @@ def compile_TypeCast(
 
     pg_expr = dispatch.compile(expr.expr, ctx=ctx)
 
-    detail: Optional[pgast.StringConstant] = None
+    detail: Optional[pgast.BaseExpr] = None
     if expr.error_message_context is not None:
-        detail = pgast.StringConstant(
-            val=(
-                '{"error_message_context": "'
-                + expr.error_message_context
-                + '"}'
-            )
-        )
+        detail = dispatch.compile(expr.error_message_context, ctx=ctx)
 
     if expr.sql_cast:
         # Use explicit SQL cast.

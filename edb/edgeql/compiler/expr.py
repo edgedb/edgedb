@@ -802,7 +802,7 @@ def compile_TypeCast(
 
         except errors.QueryError as e:
             if (
-                (message_context := casts.cast_message_context(subctx))
+                (message_context := casts.get_error_message_context(subctx))
                 and use_message_context
             ):
                 e.args = (

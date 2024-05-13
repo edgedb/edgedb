@@ -453,7 +453,7 @@ def _cast_to_ir(
         sql_function=cast.get_from_function(ctx.env.schema),
         sql_cast=cast.get_from_cast(ctx.env.schema),
         sql_expr=bool(cast.get_code(ctx.env.schema)),
-        error_message_context=cast_message_context(ctx),
+        error_message_context=get_error_message_context_ir(ctx),
     )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -479,7 +479,7 @@ def _inheritance_cast_to_ir(
         sql_function=None,
         sql_cast=True,
         sql_expr=False,
-        error_message_context=cast_message_context(ctx),
+        error_message_context=get_error_message_context_ir(ctx),
     )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -663,12 +663,8 @@ def _cast_json_to_tuple(
             source_path,
             qlast.Constant.boolean(allow_null),
         ]
-        if error_message_context := cast_message_context(subctx):
-            json_object_args.append(qlast.Constant.string(
-                json.dumps({
-                    "error_message_context": error_message_context
-                })
-            ))
+        if error_message_context_ql := get_error_message_context_ql(subctx):
+            json_object_args.append(error_message_context_ql)
         json_objects = qlast.FunctionCall(
             func=('__std__', '__tuple_validate_json'),
             args=json_object_args
@@ -698,12 +694,8 @@ def _cast_json_to_tuple(
                 subctx.collection_cast_info.path_elements.append(cast_element)
 
             json_get_kwargs: dict[str, qlast.Expr] = {}
-            if error_message_context := cast_message_context(subctx):
-                json_get_kwargs['detail'] = qlast.Constant.string(
-                    json.dumps({
-                        "error_message_context": error_message_context
-                    })
-                )
+            if error_message_context_ql := get_error_message_context_ql(subctx):
+                json_get_kwargs['detail'] = error_message_context_ql
             val_e = qlast.FunctionCall(
                 func=('__std__', '__json_get_not_null'),
                 args=[
@@ -995,12 +987,8 @@ def _cast_json_to_range(
         source_path = subctx.create_anchor(ir_set, 'a')
 
         check_args: list[qlast.Expr] = [source_path]
-        if error_message_context := cast_message_context(subctx):
-            check_args.append(qlast.Constant.string(
-                json.dumps({
-                    "error_message_context": error_message_context
-                })
-            ))
+        if error_message_context_ql := get_error_message_context_ql(subctx):
+            check_args.append(error_message_context_ql)
         check = qlast.FunctionCall(
             func=('__std__', '__range_validate_json'),
             args=check_args
@@ -1274,8 +1262,24 @@ def _cast_array(
             if el_type.contains_json(subctx.env.schema):
                 subctx.inhibit_implicit_limit = True
 
+            if subctx.collection_cast_info is not None:
+                subctx.collection_cast_info.path_elements.append(
+                    (
+                        'array_index',
+                        qlast.FunctionCall(
+                            func=('__std__', 'to_str'),
+                            args=[
+                                astutils.extend_path(enumerated_ref, '0')
+                            ],
+                        ),
+                    )
+                )
+
             array_ir = dispatch.compile(correlated_query, ctx=subctx)
             assert isinstance(array_ir, irast.Set)
+
+            if subctx.collection_cast_info is not None:
+                subctx.collection_cast_info.path_elements.pop()
 
             if direct_cast is not None:
                 ctx.env.schema, array_stype = s_types.Array.from_subtypes(
@@ -1342,7 +1346,7 @@ def _cast_array_literal(
             sql_cast=True,
             sql_expr=False,
             span=span,
-            error_message_context=cast_message_context(ctx),
+            error_message_context=get_error_message_context_ir(ctx),
         )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -1385,7 +1389,7 @@ def _cast_enum_str_immutable(
         sql_function=None,
         sql_cast=False,
         sql_expr=True,
-        error_message_context=cast_message_context(ctx),
+        error_message_context=get_error_message_context_ir(ctx),
     )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
@@ -1450,7 +1454,7 @@ def _find_object_by_id(
         return dispatch.compile(for_query, ctx=subctx)
 
 
-def cast_message_context(ctx: context.ContextLevel) -> Optional[str]:
+def get_error_message_context(ctx: context.ContextLevel) -> Optional[str]:
     if (
         ctx.collection_cast_info is not None
         and ctx.collection_cast_info.path_elements
@@ -1462,8 +1466,13 @@ def cast_message_context(ctx: context.ContextLevel) -> Optional[str]:
             ctx.collection_cast_info.to_type.get_displayname(ctx.env.schema)
         )
         path_msg = ''.join(
-            _collection_element_message_context(path_element)
-            for path_element in ctx.collection_cast_info.path_elements
+            element_message_context
+            for element_message_context in [
+                _element_message_context(path_element)
+                for path_element
+                in ctx.collection_cast_info.path_elements
+            ]
+            if element_message_context is not None
         )
         return (
             f"while casting '{from_name}' to '{to_name}', {path_msg}"
@@ -1472,14 +1481,101 @@ def cast_message_context(ctx: context.ContextLevel) -> Optional[str]:
         return None
 
 
-def _collection_element_message_context(
-    path_element: Tuple[str, Optional[str]]
-) -> str:
+def get_error_message_context_ql(
+    ctx: context.ContextLevel
+) -> Optional[qlast.Expr]:
+    if (
+        ctx.collection_cast_info is not None
+        and ctx.collection_cast_info.path_elements
+        and any(
+            e[0] == 'array_index'
+            for e in ctx.collection_cast_info.path_elements
+        )
+    ):
+        from_name = (
+            ctx.collection_cast_info.from_type.get_displayname(ctx.env.schema)
+        )
+        to_name = (
+            ctx.collection_cast_info.to_type.get_displayname(ctx.env.schema)
+        )
+
+        path_element_messages: list[qlast.Expr] = [
+            _element_message_context_ql(path_element)
+            for path_element in ctx.collection_cast_info.path_elements
+        ]
+
+        return qlast.FunctionCall(
+            func=('__std__', 'array_join'),
+            args=[
+                qlast.Array(
+                    elements=(
+                        [qlast.Constant.string(
+                            '{"error_message_context": "'
+                        )]
+                        + [qlast.Constant.string(
+                            f"while casting '{from_name}' to '{to_name}', "
+                        )]
+                        + path_element_messages
+                        + [qlast.Constant.string('"}')]
+                    ),
+                ),
+                qlast.Constant.string(""),
+            ],
+        )
+
+    elif error_message_context := get_error_message_context(ctx):
+        return qlast.Constant.string(
+            json.dumps({
+                "error_message_context": error_message_context
+            })
+        )
+
+    return None
+
+
+def get_error_message_context_ir(
+    ctx: context.ContextLevel
+) -> Optional[irast.Set]:
+    if error_message_context_ql := get_error_message_context_ql(ctx):
+        return dispatch.compile(error_message_context_ql, ctx=ctx)
+
+    return None
+
+
+def _element_message_context(
+    path_element: Tuple[str, Optional[str | qlast.Expr]]
+) -> Optional[str]:
     if path_element[0] == 'tuple':
+        assert isinstance(path_element[1], str)
         return f"at tuple element '{path_element[1]}', "
     elif path_element[0] == 'array':
         return f'in array elements, '
+    elif path_element[0] == 'array_index':
+        return None
     elif path_element[0] == 'range':
+        assert isinstance(path_element[1], str)
         return f"in range parameter '{path_element[1]}', "
+    else:
+        raise NotImplementedError
+
+
+def _element_message_context_ql(
+    path_element: Tuple[str, Optional[str | qlast.Expr]]
+) -> qlast.Expr:
+    if path_element[0] == 'array_index':
+        assert isinstance(path_element[1], qlast.Expr)
+        return qlast.BinOp(
+            op='++',
+            left=qlast.Constant.string("at index "),
+            right=qlast.BinOp(
+                op='++',
+                left=path_element[1],
+                right=qlast.Constant.string(", "),
+            )
+        )
+
+    elif element_message_context := _element_message_context(path_element):
+        return qlast.Constant.string(element_message_context)
+
     else:
         raise NotImplementedError
