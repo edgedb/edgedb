@@ -13,7 +13,8 @@ npm or via your package manager of choice:
 
     $ npm install @edgedb/ai # or
     $ yarn add @edgedb/ai # or
-    $ pnpm add @edgedb/ai
+    $ pnpm add @edgedb/ai # or
+    $ bun add @edgedb/ai
 
 
 Usage
