@@ -561,6 +561,10 @@ def apply_intersection(
         left.get_is_opaque_union(ctx.env.schema)
         and (left_union := left.get_union_of(ctx.env.schema))
     ):
+        # Expose any opaque union types before continuing with the intersection.
+        # The schema does not yet fully implement type intersections since there
+        # is no `IntersectionTypeShell`. As a result, some intersections
+        # produced while compiling the standard library cannot be resolved.
         left = get_union_type(left_union.objects(ctx.env.schema), ctx=ctx)
 
     int_type: s_types.Type = get_intersection_type([left, right], ctx=ctx)

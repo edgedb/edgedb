@@ -534,6 +534,36 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_advtypes_complex_intersection_15(self):
+        await self.con.execute("""
+            INSERT A { name := 'a1' };
+            INSERT A { name := 'a2' };
+            INSERT A { name := 'a3' };
+            INSERT S { name := 'sss', s := 's', l_a := (select A) };
+            INSERT T { name := 'ttt', t := 't', l_a := (select A) };
+            INSERT V {
+                name := 'vvv',
+                s := 'u',
+                t := 'u',
+                u := 'u',
+                l_a := (select A)
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT A.<l_a[is S | T] { name } ORDER BY .name;
+            """,
+            [{'name': 'sss'}, {'name': 'ttt'}, {'name': 'vvv'}],
+        )
+
+        await self.assert_query_result(
+            r"""
+            SELECT A.<l_a[is S & T] { name } ORDER BY .name;
+            """,
+            [{'name': 'vvv'}],
+        )
+
     async def test_edgeql_advtypes_complex_polymorphism_01(self):
         await self._setup_basic_data()
         await self.assert_query_result(
