@@ -139,6 +139,16 @@ Now, whenever we run a query, we get a log entry as well:
 
 .. note::
 
+    All queries within triggers, along with the initial triggering query, are
+    compiled into a single combined query. Keep this in mind when
+    designing triggers that modify existing records. If multiple ``update``
+    queries within your triggers target the same object, only one of these
+    queries will ultimately be executed. To ensure all desired updates on an
+    object are applied, consolidate them into a single ``update`` query within
+    one trigger, instead of distributing them across multiple updates.
+
+.. note::
+
     In some cases, a trigger can cause another trigger to fire. When this
     happens, EdgeDB completes all the triggers fired by the initial query
     before kicking off a new "stage" of triggers. In the second stage, any
