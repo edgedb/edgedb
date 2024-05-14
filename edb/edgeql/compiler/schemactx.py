@@ -536,10 +536,6 @@ def apply_intersection(
 ) -> TypeIntersectionResult:
     """Compute an intersection of two types: *left* and *right*.
 
-    In theory, this should handle all combinations of unions and intersections
-    recursively, but currently this handles only the common case of
-    intersecting a regular type or a union type with a regular type.
-
     Returns:
         A :class:`~TypeIntersectionResult` named tuple containing the
         result intersection type, whether the type system considers
@@ -552,40 +548,34 @@ def apply_intersection(
         # of the argument, then this is, effectively, a NOP.
         return TypeIntersectionResult(stype=left)
 
-    is_subtype = False
-    empty_intersection = False
-    union = left.get_union_of(ctx.env.schema)
-    if union:
-        # If the argument type is a union type, then we
-        # narrow it by the intersection type.
-        narrowed_union = []
-        for component_type in union.objects(ctx.env.schema):
-            if component_type.issubclass(ctx.env.schema, right):
-                narrowed_union.append(component_type)
-            elif right.issubclass(ctx.env.schema, component_type):
-                narrowed_union.append(right)
+    if right.issubclass(ctx.env.schema, left):
+        # The intersection type is a proper *subclass* and can be directly
+        # narrowed.
+        return TypeIntersectionResult(
+            stype=right,
+            is_empty=False,
+            is_subtype=True,
+        )
 
-        if len(narrowed_union) == 0:
-            int_type = get_intersection_type((left, right), ctx=ctx)
-            is_subtype = int_type.issubclass(ctx.env.schema, left)
-            assert isinstance(right, s_obj.InheritingObject)
-            empty_intersection = not any(
-                c.issubclass(ctx.env.schema, left)
-                for c in right.descendants(ctx.env.schema)
-            )
-        elif len(narrowed_union) == 1:
-            int_type = narrowed_union[0]
-            is_subtype = int_type.issubclass(ctx.env.schema, left)
-        else:
-            int_type = get_union_type(narrowed_union, ctx=ctx)
-    else:
-        is_subtype = right.issubclass(ctx.env.schema, left)
-        empty_intersection = not is_subtype
-        int_type = get_intersection_type((left, right), ctx=ctx)
+    if (
+        left.get_is_opaque_union(ctx.env.schema)
+        and (left_union := left.get_union_of(ctx.env.schema))
+    ):
+        # Expose any opaque union types before continuing with the intersection.
+        # The schema does not yet fully implement type intersections since there
+        # is no `IntersectionTypeShell`. As a result, some intersections
+        # produced while compiling the standard library cannot be resolved.
+        left = get_union_type(left_union.objects(ctx.env.schema), ctx=ctx)
+
+    int_type: s_types.Type = get_intersection_type([left, right], ctx=ctx)
+    is_empty: bool = (
+        not s_utils.expand_type_expr_descendants(int_type, ctx.env.schema)
+    )
+    is_subtype: bool = int_type.issubclass(ctx.env.schema, left)
 
     return TypeIntersectionResult(
         stype=int_type,
-        is_empty=empty_intersection,
+        is_empty=is_empty,
         is_subtype=is_subtype,
     )
 

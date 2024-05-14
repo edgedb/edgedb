@@ -163,16 +163,29 @@ def ql_typeexpr_to_type(
     ql_t: qlast.TypeExpr, *, ctx: context.ContextLevel
 ) -> s_types.Type:
 
-    types = _ql_typeexpr_to_type(ql_t, ctx=ctx)
-    if len(types) > 1:
-        return schemactx.get_union_type(types, ctx=ctx, span=ql_t.span)
-    else:
+    (op, _, types) = (
+        _ql_typeexpr_get_types(ql_t, ctx=ctx)
+    )
+    return _ql_typeexpr_combine_types(op, types, ctx=ctx)
+
+
+def _ql_typeexpr_combine_types(
+        op: Optional[str], types: List[s_types.Type], *,
+        ctx: context.ContextLevel
+) -> s_types.Type:
+    if len(types) == 1:
         return types[0]
+    elif op == '|':
+        return schemactx.get_union_type(types, ctx=ctx)
+    elif op == '&':
+        return schemactx.get_intersection_type(types, ctx=ctx)
+    else:
+        raise errors.InternalServerError('This should never happen')
 
 
-def _ql_typeexpr_to_type(
+def _ql_typeexpr_get_types(
     ql_t: qlast.TypeExpr, *, ctx: context.ContextLevel
-) -> List[s_types.Type]:
+) -> Tuple[Optional[str], bool, List[s_types.Type]]:
 
     if isinstance(ql_t, qlast.TypeOf):
         with ctx.new() as subctx:
@@ -184,38 +197,58 @@ def _ql_typeexpr_to_type(
             stype = setgen.get_set_type(ir_set, ctx=subctx)
             ctx.env.type_rewrites = orig_rewrites
 
-        return [stype]
+        return (None, True, [stype])
 
     elif isinstance(ql_t, qlast.TypeOp):
-        if ql_t.op == '|':
+        if ql_t.op in ['|', '&']:
+            (left_op, left_leaf, left_types) = (
+                _ql_typeexpr_get_types(ql_t.left, ctx=ctx)
+            )
+            (right_op, right_leaf, right_types) = (
+                _ql_typeexpr_get_types(ql_t.right, ctx=ctx)
+            )
+
             # We need to validate that type ops are applied only to
             # object types. So we check the base case here, when the
             # left or right operand is a single type, because if it's
             # a longer list, then we know that it was already composed
             # of "|" or "&", or it is the result of inference by
             # "typeof" and is a list of object types anyway.
-            left = _ql_typeexpr_to_type(ql_t.left, ctx=ctx)
-            right = _ql_typeexpr_to_type(ql_t.right, ctx=ctx)
-
-            if len(left) == 1 and not left[0].is_object_type():
+            if left_leaf and not left_types[0].is_object_type():
                 raise errors.UnsupportedFeatureError(
                     f'cannot use type operator {ql_t.op!r} with non-object '
-                    f'type {left[0].get_displayname(ctx.env.schema)}',
+                    f'type {left_types[0].get_displayname(ctx.env.schema)}',
                     span=ql_t.left.span)
-            if len(right) == 1 and not right[0].is_object_type():
+            if right_leaf and not right_types[0].is_object_type():
                 raise errors.UnsupportedFeatureError(
                     f'cannot use type operator {ql_t.op!r} with non-object '
-                    f'type {right[0].get_displayname(ctx.env.schema)}',
+                    f'type {right_types[0].get_displayname(ctx.env.schema)}',
                     span=ql_t.right.span)
 
-            return left + right
+            # if an operand is either a single type or uses the same operator,
+            # flatten it into the result types list.
+            # if an operand has a different operator is used, its types should
+            # be combined into a new type before appending to the result types.
+            types: List[s_types.Type] = []
+            types += (
+                left_types
+                if left_op is None or left_op == ql_t.op else
+                [_ql_typeexpr_combine_types(left_op, left_types, ctx=ctx)]
+            )
+            types += (
+                right_types
+                if right_op is None or right_op == ql_t.op else
+                [_ql_typeexpr_combine_types(right_op, right_types, ctx=ctx)]
+            )
+
+            return (ql_t.op, False, types)
 
         raise errors.UnsupportedFeatureError(
             f'type operator {ql_t.op!r} is not implemented',
             span=ql_t.span)
 
     elif isinstance(ql_t, qlast.TypeName):
-        return [_ql_typename_to_type(ql_t, ctx=ctx)]
+        return (None, True, [_ql_typename_to_type(ql_t, ctx=ctx)])
 
     else:
         raise errors.EdgeQLSyntaxError("Unexpected type expression",

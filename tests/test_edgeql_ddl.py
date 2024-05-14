@@ -2956,7 +2956,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             edgedb.SchemaError,
             r"result of USING clause for the alteration of"
             r" link 'l' of object type 'default::Foo' cannot be cast"
-            r" automatically from object type 'default::Bar & default::Egg'"
+            r" automatically from object type '\(default::Bar & default::Egg\)'"
             r" to object type 'default::Spam'"
         ):
             await self.con.execute("""

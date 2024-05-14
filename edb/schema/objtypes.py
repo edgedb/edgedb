@@ -163,7 +163,7 @@ class ObjectType(
                 comp_dns = sorted(
                     (c.get_displayname(schema)
                      for c in union_of.objects(schema)))
-                return ' | '.join(comp_dns)
+                return '(' + ' | '.join(comp_dns) + ')'
         else:
             intersection_of = mtype.get_intersection_of(schema)
             if intersection_of:
@@ -172,9 +172,9 @@ class ObjectType(
                      for c in intersection_of.objects(schema)))
                 # Elide BaseObject from display, because `& BaseObject`
                 # is a nop.
-                return ' & '.join(
+                return '(' + ' & '.join(
                     dn for dn in comp_dns if dn != 'std::BaseObject'
-                )
+                ) + ')'
             elif mtype == self:
                 return super().get_displayname(schema)
             else:
@@ -276,8 +276,10 @@ class ObjectType(
         if self == parent:
             return True
 
-        my_union = self.get_union_of(schema)
-        if my_union and not self.get_is_opaque_union(schema):
+        if (
+            (my_union := self.get_union_of(schema))
+            and not self.get_is_opaque_union(schema)
+        ):
             # A union is considered a subclass of a type, if
             # ALL its components are subclasses of that type.
             return all(
@@ -285,8 +287,7 @@ class ObjectType(
                 for t in my_union.objects(schema)
             )
 
-        my_intersection = self.get_intersection_of(schema)
-        if my_intersection:
+        if my_intersection := self.get_intersection_of(schema):
             # An intersection is considered a subclass of a type, if
             # ANY of its components are subclasses of that type.
             return any(
@@ -299,8 +300,10 @@ class ObjectType(
             return True
 
         elif isinstance(parent, ObjectType):
-            parent_union = parent.get_union_of(schema)
-            if parent_union:
+            if (
+                (parent_union := parent.get_union_of(schema))
+                and not parent.get_is_opaque_union(schema)
+            ):
                 # A type is considered a subclass of a union type,
                 # if it is a subclass of ANY of the union components.
                 return (
@@ -311,8 +314,7 @@ class ObjectType(
                     )
                 )
 
-            parent_intersection = parent.get_intersection_of(schema)
-            if parent_intersection:
+            if parent_intersection := parent.get_intersection_of(schema):
                 # A type is considered a subclass of an intersection type,
                 # if it is a subclass of ALL of the intersection components.
                 return all(

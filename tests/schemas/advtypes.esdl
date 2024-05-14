@@ -84,3 +84,17 @@ type CBaBc extending Ba, Bc;
 type CBbBc extending Bb, Bc;
 
 type CBaBbBc extending Ba, Bb, Bc;
+
+# 3 types which resemble the base types
+
+type XBa {
+    required property ba -> str;
+}
+
+type XBb {
+    required property bb -> int64;
+}
+
+type XBc {
+    required property bc -> float64;
+}

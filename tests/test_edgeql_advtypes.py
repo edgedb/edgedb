@@ -88,6 +88,12 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
             INSERT CBbBc {bb := 7, bc := 7.5};
             INSERT CBaBbBc {ba := 'cba8', bb := 8, bc := 8.5};
             INSERT CBaBbBc {ba := 'cba9', bb := 9, bc := 9.5};
+            INSERT XBa {ba := 'xba0'};
+            INSERT XBa {ba := 'xba1'};
+            INSERT XBb {bb := 90};
+            INSERT XBb {bb := 91};
+            INSERT XBc {bc := 90.5};
+            INSERT XBc {bc := 90.5};
         """)
 
     async def test_edgeql_advtypes_basic_union_01(self):
@@ -197,6 +203,531 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
             [
                 {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
                 {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_01(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Ba[IS Bb | Bc] {
+                tn := .__type__.name,
+                ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY .ba;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_02(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Ba[IS Bb & Bc] {
+                tn := .__type__.name,
+                ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY .ba;
+            """,
+            [
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_03(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Ba[IS CBa | Bb & Bc] {
+                tn := .__type__.name,
+                ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY .ba;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_04(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT {CBa, Ba[IS Bb & Bc]} {
+                tn := .__type__.name,
+                ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY .ba;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_05(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Ba[IS CBaBc | Bb][is Bc] {
+                tn := .__type__.name,
+                ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY .ba;
+            """,
+            [
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_06(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Ba[IS (CBaBc | Bb) & Bc] {
+                tn := .__type__.name,
+                ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY .ba;
+            """,
+            [
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_07(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Object[IS (Ba | Bb)][IS (Ba | Bc)] {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY
+                .ba EMPTY LAST THEN
+                .bb EMPTY LAST THEN
+                .bc EMPTY LAST;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_08(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Object[IS (Ba | Bb) & (Ba | Bc)] {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY
+                .ba EMPTY LAST THEN
+                .bb EMPTY LAST THEN
+                .bc EMPTY LAST;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_09(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Object[IS (Ba | Bb) | (Ba | Bc)] {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY
+                .ba EMPTY LAST THEN
+                .bb EMPTY LAST THEN
+                .bc EMPTY LAST;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_10(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Object[IS (Ba & Bb) | (Ba & Bc)] {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY
+                .ba EMPTY LAST THEN
+                .bb EMPTY LAST THEN
+                .bc EMPTY LAST;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_11(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT {Object[IS Ba & Bb], Object[IS Ba & Bc]} {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            ORDER BY
+                .ba EMPTY LAST THEN
+                .bb EMPTY LAST THEN
+                .bc EMPTY LAST;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_12(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT {Ba, XBa}[is Bb | XBa] {
+                tn := .__type__.name,
+                ba,
+            }
+            ORDER BY .ba;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2'},
+                {'tn': 'default::CBaBb', 'ba': 'cba3'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9'},
+                {'tn': 'default::XBa', 'ba': 'xba0'},
+                {'tn': 'default::XBa', 'ba': 'xba1'},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_13(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT {Ba[is Bb], XBa} {
+                tn := .__type__.name,
+                ba,
+            }
+            ORDER BY .ba;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2'},
+                {'tn': 'default::CBaBb', 'ba': 'cba3'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9'},
+                {'tn': 'default::XBa', 'ba': 'xba0'},
+                {'tn': 'default::XBa', 'ba': 'xba1'},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_14(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Object[is (Ba & Bb) | XBa | XBb] {
+                tn := .__type__.name,
+                [is Ba | XBa].ba,
+                [is Bb | XBb].bb,
+            }
+            ORDER BY
+                .ba EMPTY LAST THEN
+                .bb EMPTY LAST;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9},
+                {'tn': 'default::XBa', 'ba': 'xba0', 'bb': None},
+                {'tn': 'default::XBa', 'ba': 'xba1', 'bb': None},
+                {'tn': 'default::XBb', 'ba': None, 'bb': 90},
+                {'tn': 'default::XBb', 'ba': None, 'bb': 91},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_intersection_15(self):
+        await self.con.execute("""
+            INSERT A { name := 'a1' };
+            INSERT A { name := 'a2' };
+            INSERT A { name := 'a3' };
+            INSERT S { name := 'sss', s := 's', l_a := (select A) };
+            INSERT T { name := 'ttt', t := 't', l_a := (select A) };
+            INSERT V {
+                name := 'vvv',
+                s := 'u',
+                t := 'u',
+                u := 'u',
+                l_a := (select A)
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT A.<l_a[is S | T] { name } ORDER BY .name;
+            """,
+            [{'name': 'sss'}, {'name': 'ttt'}, {'name': 'vvv'}],
+        )
+
+        await self.assert_query_result(
+            r"""
+            SELECT A.<l_a[is S & T] { name } ORDER BY .name;
+            """,
+            [{'name': 'vvv'}],
+        )
+
+    async def test_edgeql_advtypes_complex_polymorphism_01(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Ba {
+                tn := .__type__.name,
+                ba,
+                [is Bb & Bc].bb,
+                [is (CBaBc | Bb) & Bc].bc,
+            }
+            ORDER BY .ba;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_polymorphism_02(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Bb {
+                tn := .__type__.name,
+                bb,
+                ua := [IS Ba | Bc].bb,
+                ia := [IS Ba & Bc].bb,
+            }
+            ORDER BY .bb;
+            """,
+            [
+                {'tn': 'default::CBb', 'bb': 0, 'ua': None, 'ia': None},
+                {'tn': 'default::CBb', 'bb': 1, 'ua': None, 'ia': None},
+                {'tn': 'default::CBaBb', 'bb': 2, 'ua': 2, 'ia': None},
+                {'tn': 'default::CBaBb', 'bb': 3, 'ua': 3, 'ia': None},
+                {'tn': 'default::CBbBc', 'bb': 6, 'ua': 6, 'ia': None},
+                {'tn': 'default::CBbBc', 'bb': 7, 'ua': 7, 'ia': None},
+                {'tn': 'default::CBaBbBc', 'bb': 8, 'ua': 8, 'ia': 8},
+                {'tn': 'default::CBaBbBc', 'bb': 9, 'ua': 9, 'ia': 9},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_type_checking_01(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Object[IS Ba | Bb | Bc] {
+                tn := .__type__.name,
+                a := Object IS Ba,
+                b := Object IS Bb,
+                c := Object IS Bc,
+            }
+            ORDER BY .tn;
+            """,
+            [
+                {'tn': 'default::CBa', 'a': True, 'b': False, 'c': False},
+                {'tn': 'default::CBa', 'a': True, 'b': False, 'c': False},
+                {'tn': 'default::CBaBb', 'a': True, 'b': True, 'c': False},
+                {'tn': 'default::CBaBb', 'a': True, 'b': True, 'c': False},
+                {'tn': 'default::CBaBbBc', 'a': True, 'b': True, 'c': True},
+                {'tn': 'default::CBaBbBc', 'a': True, 'b': True, 'c': True},
+                {'tn': 'default::CBaBc', 'a': True, 'b': False, 'c': True},
+                {'tn': 'default::CBaBc', 'a': True, 'b': False, 'c': True},
+                {'tn': 'default::CBb', 'a': False, 'b': True, 'c': False},
+                {'tn': 'default::CBb', 'a': False, 'b': True, 'c': False},
+                {'tn': 'default::CBbBc', 'a': False, 'b': True, 'c': True},
+                {'tn': 'default::CBbBc', 'a': False, 'b': True, 'c': True},
+                {'tn': 'default::CBc', 'a': False, 'b': False, 'c': True},
+                {'tn': 'default::CBc', 'a': False, 'b': False, 'c': True},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_type_checking_02(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Object[IS Ba | Bb | Bc] {
+                tn := .__type__.name,
+                ab := Object IS (Ba | Bb),
+                ac := Object IS (Ba | Bc),
+                bc := Object IS (Bb | Bc),
+            }
+            ORDER BY .tn;
+            """,
+            [
+                {'tn': 'default::CBa', 'ab': True, 'ac': True, 'bc': False},
+                {'tn': 'default::CBa', 'ab': True, 'ac': True, 'bc': False},
+                {'tn': 'default::CBaBb', 'ab': True, 'ac': True, 'bc': True},
+                {'tn': 'default::CBaBb', 'ab': True, 'ac': True, 'bc': True},
+                {'tn': 'default::CBaBbBc', 'ab': True, 'ac': True, 'bc': True},
+                {'tn': 'default::CBaBbBc', 'ab': True, 'ac': True, 'bc': True},
+                {'tn': 'default::CBaBc', 'ab': True, 'ac': True, 'bc': True},
+                {'tn': 'default::CBaBc', 'ab': True, 'ac': True, 'bc': True},
+                {'tn': 'default::CBb', 'ab': True, 'ac': False, 'bc': True},
+                {'tn': 'default::CBb', 'ab': True, 'ac': False, 'bc': True},
+                {'tn': 'default::CBbBc', 'ab': True, 'ac': True, 'bc': True},
+                {'tn': 'default::CBbBc', 'ab': True, 'ac': True, 'bc': True},
+                {'tn': 'default::CBc', 'ab': False, 'ac': True, 'bc': True},
+                {'tn': 'default::CBc', 'ab': False, 'ac': True, 'bc': True},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_type_checking_03(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Object[IS Ba | Bb | Bc] {
+                tn := .__type__.name,
+                ab := Object IS (Ba & Bb),
+                ac := Object IS (Ba & Bc),
+                bc := Object IS (Bb & Bc),
+            }
+            ORDER BY .tn;
+            """,
+            [
+                {'tn': 'default::CBa', 'ab': False, 'ac': False, 'bc': False},
+                {'tn': 'default::CBa', 'ab': False, 'ac': False, 'bc': False},
+                {'tn': 'default::CBaBb', 'ab': True, 'ac': False, 'bc': False},
+                {'tn': 'default::CBaBb', 'ab': True, 'ac': False, 'bc': False},
+                {'tn': 'default::CBaBbBc', 'ab': True, 'ac': True, 'bc': True},
+                {'tn': 'default::CBaBbBc', 'ab': True, 'ac': True, 'bc': True},
+                {'tn': 'default::CBaBc', 'ab': False, 'ac': True, 'bc': False},
+                {'tn': 'default::CBaBc', 'ab': False, 'ac': True, 'bc': False},
+                {'tn': 'default::CBb', 'ab': False, 'ac': False, 'bc': False},
+                {'tn': 'default::CBb', 'ab': False, 'ac': False, 'bc': False},
+                {'tn': 'default::CBbBc', 'ab': False, 'ac': False, 'bc': True},
+                {'tn': 'default::CBbBc', 'ab': False, 'ac': False, 'bc': True},
+                {'tn': 'default::CBc', 'ab': False, 'ac': False, 'bc': False},
+                {'tn': 'default::CBc', 'ab': False, 'ac': False, 'bc': False},
+            ],
+        )
+
+    async def test_edgeql_advtypes_complex_type_checking_04(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT Object[IS Ba | Bb | Bc] {
+                tn := .__type__.name,
+                u := Object IS (Ba | Bb | Bc),
+                i := Object IS (Ba & Bb & Bc),
+            }
+            ORDER BY .tn;
+            """,
+            [
+                {'tn': 'default::CBa', 'u': True, 'i': False},
+                {'tn': 'default::CBa', 'u': True, 'i': False},
+                {'tn': 'default::CBaBb', 'u': True, 'i': False},
+                {'tn': 'default::CBaBb', 'u': True, 'i': False},
+                {'tn': 'default::CBaBbBc', 'u': True, 'i': True},
+                {'tn': 'default::CBaBbBc', 'u': True, 'i': True},
+                {'tn': 'default::CBaBc', 'u': True, 'i': False},
+                {'tn': 'default::CBaBc', 'u': True, 'i': False},
+                {'tn': 'default::CBb', 'u': True, 'i': False},
+                {'tn': 'default::CBb', 'u': True, 'i': False},
+                {'tn': 'default::CBbBc', 'u': True, 'i': False},
+                {'tn': 'default::CBbBc', 'u': True, 'i': False},
+                {'tn': 'default::CBc', 'u': True, 'i': False},
+                {'tn': 'default::CBc', 'u': True, 'i': False},
             ],
         )
 
