@@ -534,3 +534,38 @@ Bug fixes
 
 * Allow except in link constraints.
   (:eql:gh:`#7250`)
+
+5.3
+===
+
+* Force return cast on range get upper and lower functions.
+  (:eql:gh:`#7251`)
+
+* Prevent dump hangups from leaving stray Postgres queries.
+  (:eql:gh:`#7262`)
+
+* Switch ``EDGEDB_DEBUG_EDGEQL_TEXT_IN_SQL`` to encode string as
+  :eql:type:`json`
+  (:eql:gh:`#7267`)
+
+* Don't inject exclusive conflict checks for updates without children.
+  (:eql:gh:`#7271`)
+
+* Fix doing a no-op ``update`` to an exclusive multi pointer with children.
+  (:eql:gh:`#7272`)
+
+* Fix constraint handling when pointer has cardinality or computedness
+  changed.
+  (:eql:gh:`#7279`)
+
+* Fix regression in using some :eql:type:`tuple` literals as a default.
+  (:eql:gh:`#7281`)
+
+* Make link properties (including @source/@target) work in conflict selects.
+  (:eql:gh:`#7284`)
+
+* Create key derivation function for signing each different kind of JWTs.
+  (:eql:gh:`#7285`)
+
+  This avoids accidentally being able to use other (short-lived) JWT tokens
+  as the ``auth_token`` JWT directly.
