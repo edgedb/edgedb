@@ -1171,6 +1171,84 @@ def get_non_overlapping_union(
         return frozenset(all_objects), True
 
 
+def get_type_expr_non_overlapping_union(
+    type: s_types.Type,
+    schema: s_schema.Schema,
+) -> Tuple[FrozenSet[s_types.Type], bool]:
+    """Get a non-overlapping set of the type's descendants"""
+
+    from edb.schema import types as s_types
+
+    expanded_types = expand_type_expr_descendants(type, schema)
+
+    # filter out subclasses
+    expanded_types = {
+        type
+        for type in expanded_types
+        if not any(
+            type is not other and type.issubclass(schema, other)
+            for other in expanded_types
+        )
+    }
+
+    non_overlapping, union_is_exhaustive = get_non_overlapping_union(
+        schema, cast(set[so.InheritingObject], expanded_types)
+    )
+
+    return cast(FrozenSet[s_types.Type], non_overlapping), union_is_exhaustive
+
+
+def expand_type_expr_descendants(
+    type: s_types.Type,
+    schema: s_schema.Schema,
+    *,
+    expand_opaque_union: bool = True,
+) -> set[s_types.Type]:
+    """Expand types and type expressions to get descendants"""
+
+    from edb.schema import types as s_types
+
+    if sub_union := type.get_union_of(schema):
+        # Expanding a union
+        # Get the union of the component descendants
+        return set.union(*(
+            expand_type_expr_descendants(
+                component, schema,
+            )
+            for component in sub_union.objects(schema)
+        ))
+
+    elif sub_intersection := type.get_intersection_of(schema):
+        # Expanding an intersection
+        # Get the intersection of component descendants
+        return set.intersection(*(
+            expand_type_expr_descendants(
+                component, schema
+            )
+            for component in sub_intersection.objects(schema)
+        ))
+
+    elif type.is_view(schema):
+        # When expanding a view, simply unpeel the view.
+        return expand_type_expr_descendants(
+            type.peel_view(schema), schema
+        )
+
+    # Return simple type and all its descendants.
+    # Some types (eg. BaseObject) have non-simple descendants, filter them out.
+    return {type} | {
+        c for c in cast(
+            set[s_types.Type],
+            set(cast(so.InheritingObject, type).descendants(schema))
+        )
+        if (
+            not c.is_union_type(schema)
+            and not c.is_intersection_type(schema)
+            and not c.is_view(schema)
+        )
+    }
+
+
 def _union_error(
     schema: s_schema.Schema, components: Iterable[s_types.Type]
 ) -> errors.SchemaError:
