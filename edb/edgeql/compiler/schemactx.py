@@ -548,9 +548,7 @@ def apply_intersection(
         # of the argument, then this is, effectively, a NOP.
         return TypeIntersectionResult(stype=left)
 
-    if right.issubclass(
-        ctx.env.schema, left, check_opaque_unions=True, check_views=True
-    ):
+    if right.issubclass(ctx.env.schema, left):
         # The intersection type is a proper *subclass* and can be directly
         # narrowed.
         return TypeIntersectionResult(
@@ -569,9 +567,7 @@ def apply_intersection(
     is_empty: bool = (
         not s_utils.expand_type_expr_descendants(int_type, ctx.env.schema)
     )
-    is_subtype: bool = int_type.issubclass(
-        ctx.env.schema, left, check_opaque_unions=True, check_views=True,
-    )
+    is_subtype: bool = int_type.issubclass(ctx.env.schema, left)
 
     return TypeIntersectionResult(
         stype=int_type,

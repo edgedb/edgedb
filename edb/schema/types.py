@@ -1063,10 +1063,7 @@ class Collection(Type, s_abc.Collection):
         return type_dist
 
     def _issubclass(
-        self,
-        schema: s_schema.Schema,
-        parent: so.SubclassableObject,
-        **kwargs: Any,
+        self, schema: s_schema.Schema, parent: so.SubclassableObject
     ) -> bool:
         if isinstance(parent, Type) and parent.is_any(schema):
             return True
@@ -1083,10 +1080,7 @@ class Collection(Type, s_abc.Collection):
         my_types = self.get_subtypes(schema)
 
         for pt, my in zip(parent_types, my_types):
-            if (
-                not pt.is_any(schema)
-                and not my.issubclass(schema, pt, **kwargs)
-            ):
+            if not pt.is_any(schema) and not my.issubclass(schema, pt):
                 return False
 
         return True
@@ -1098,15 +1092,14 @@ class Collection(Type, s_abc.Collection):
             so.SubclassableObject,
             typing.Tuple[so.SubclassableObject, ...],
         ],
-        **kwargs: Any,
     ) -> bool:
         if isinstance(parent, tuple):
-            return any(self.issubclass(schema, p, **kwargs) for p in parent)
+            return any(self.issubclass(schema, p) for p in parent)
 
         if isinstance(parent, Type) and parent.is_any(schema):
             return True
 
-        return self._issubclass(schema, parent, **kwargs)
+        return self._issubclass(schema, parent)
 
     def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
         raise NotImplementedError
