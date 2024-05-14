@@ -30,5 +30,15 @@ offers tools to manage your instances running on our EdgeDB Cloud.
     * - :ref:`ref_cli_edgedb_cloud_secretkey`
       - Manage your secret keys
 
+.. warning:: CI users and scripters
+
+    The ``edgedb cloud login`` and ``edgedb cloud logout`` commands are not
+    intended for use in scripting and CI. Instead, you should generate a secret
+    key in the EdgeDB Cloud UI or by running
+    :ref:`ref_cli_edgedb_cloud_secretkey_create` and set the
+    ``EDGEDB_SECRET_KEY`` environment variable to your secret key. Once this
+    variable is set to your secret key, logging in and out are no longer
+    required.
+
 Follow :ref:`our EdgeDB Cloud guide <ref_guide_cloud>` for information on how
 to use EdgeDB Cloud.

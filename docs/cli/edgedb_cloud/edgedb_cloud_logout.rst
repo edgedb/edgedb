@@ -15,6 +15,15 @@ Forget the stored access token
 
     edgedb cloud logout [<options>]
 
+.. warning:: CI users and scripters
+
+    This command is not intended for use in scripting and CI. Instead, to
+    authenticate to your EdgeDB Cloud account, you should generate a secret key
+    in the EdgeDB Cloud UI or by running
+    :ref:`ref_cli_edgedb_cloud_secretkey_create` and set the
+    ``EDGEDB_SECRET_KEY`` environment variable to your secret key. Logging out
+    is not necessary.
+
 Options
 =======
 
