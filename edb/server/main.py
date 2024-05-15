@@ -867,7 +867,7 @@ def initialize_static_cfg(
         choices = setting.enum_values
         if setting.type is bool:
             choices = ['true', 'false']
-        env_value = env_value.lower()
+            env_value = env_value.lower()
         if choices is not None and env_value not in choices:
             raise server.StartupError(
                 f"Environment variable {env_name!r} can only be one of: " +
