@@ -49,7 +49,7 @@ jobs:
             multi-tenant-mode: 'multi-tenant'
     services:
       postgres:
-        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
+        image: pgvector/pgvector:0.6.2-pg${{ matrix.postgres-version }}
         env:
           POSTGRES_PASSWORD: postgres
         options: >-
