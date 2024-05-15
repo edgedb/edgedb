@@ -277,7 +277,9 @@ Given this ``User`` type:
    }
 
 You can update the callback function like this to create a new ``User`` object
-when the callback succeeds and the ``isSignUp`` query parameter is set:
+when the callback succeeds. Recall that in our ``handleAuthorize`` route
+handler, we added a separate callback route for when the extension adds a new
+Identity which sets a search parameter on the URL to ``isSignUp=true``:
 
 .. code-block:: javascript-diff
 
