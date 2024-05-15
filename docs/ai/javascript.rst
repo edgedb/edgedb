@@ -49,6 +49,12 @@ You may use any of the supported :ref:`text generation models
       query: "Astronomy"
     });
 
+This "query" property doesn't have to be a proper query at all. It can be any
+expression that produces a set of objects, like ``Astronomy`` in the example
+above which will return all objects of that type. On the other hand, if you
+want to narrow the field more, you can give it a query like ``select Astronomy
+filter .topic = "Mars"``.
+
 The default text generation prompt will ask your selected provider to limit
 answer to information provided in the context and will pass the queried
 objects' AI index as context along with that prompt.
@@ -133,8 +139,10 @@ Public methods
     Returns a new ``EdgeDBAI`` instance with an updated query context.
 
     :param string context.query:
-        Required. Specifies the query to determine the relevant objects and
-        index to serve as context for text generation.
+        Required. Specifies an expression to determine the relevant objects and
+        index to serve as context for text generation. You may set this to any
+        expression that produces a set of objects, even if it is not a
+        standalone query.
     :param string context.variables:
         Optional. Variable settings required for the context query.
     :param string context.globals:
@@ -153,8 +161,10 @@ Public methods
     :param string message:
         Required. The message to be sent to the text generation provider's API.
     :param string context.query:
-        Required. Specifies the query to determine the relevant objects and
-        index to serve as context for text generation.
+        Required. Specifies an expression to determine the relevant objects and
+        index to serve as context for text generation. You may set this to any
+        expression that produces a set of objects, even if it is not a
+        standalone query.
     :param string context.variables:
         Optional. Variable settings required for the context query.
     :param string context.globals:

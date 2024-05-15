@@ -343,8 +343,10 @@ these properties:
 * ``context`` (object, required): Settings that define the context of the
   query.
 
-  * ``query`` (string, required): Specifies the query to determine the relevant
-    objects and index to serve as context for text generation.
+  * ``query`` (string, required): Specifies an expression to determine the
+    relevant objects and index to serve as context for text generation. You may
+    set this to any expression that produces a set of objects, even if it is
+    not a standalone query.
 
   * ``variables`` (object, optional): A dictionary of variables for use in the
     context query.
