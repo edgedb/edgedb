@@ -313,7 +313,7 @@ protected resource, in this case being able to insert a ``Post``.
    module default {
      global current_user := (
        assert_single((
-         select User { id, name }
+         select User
          filter .identity = global ext::auth::ClientTokenIdentity
        ))
      );
