@@ -47,6 +47,7 @@ type User extending Named {
         text: str;
         property tag := .name ++ (("-" ++ @text) ?? "");
     }
+    constraint exclusive on (.avatar);
 }
 
 type Bot extending User;
