@@ -251,17 +251,19 @@ pieces of data for an ``auth_token``.
 Creating a User object
 ----------------------
 
-Some applications may want to create a custom ``User`` type in their default
-module to attach application-specific information. You can tie this to an
-``ext::auth::Identity`` by using the ``auth_token`` in our
+For some applications, you may want to create a custom ``User`` type in the
+default module to attach application-specific information. You can tie this to
+an ``ext::auth::Identity`` by using the ``auth_token`` in our
 ``ext::auth::client_token`` global and inserting your ``User`` object with a
 link to the ``Identity``.
 
-For this example, we'll assume you have a 1-to-1 relationship between ``User``
-objects and ``ext::auth::Identity`` objects, but in your own application, you
-may decide to have a 1-to-many relationship.
+.. note::
 
-So, given this ``User`` type:
+    For this example, we'll assume you have a one-to-one relationship between
+    ``User`` objects and ``ext::auth::Identity`` objects. In your own
+    application, you may instead decide to have a one-to-many relationship.
+
+Given this ``User`` type:
 
 .. code-block:: sdl
 
@@ -276,8 +278,6 @@ So, given this ``User`` type:
 
 You can update the callback function like this to create a new ``User`` object
 when the callback succeeds and the ``isSignUp`` query parameter is set:
-
-.. lint-off
 
 .. code-block:: javascript-diff
 
@@ -298,8 +298,6 @@ when the callback succeeds and the ``isSignUp`` query parameter is set:
      res.writeHead(204, {
        "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
      });
-
-.. lint-on
 
 
 Making authenticated requests to the OAuth resource server
