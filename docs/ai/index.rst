@@ -1,8 +1,16 @@
-.. _ref_guide_ai:
+.. _ref_ai_overview:
 
 ==
 AI
 ==
+
+.. toctree::
+    :hidden:
+    :maxdepth: 3
+
+    javascript
+    python
+    reference
 
 :edb-alt-title: Using EdgeDB AI
 
@@ -126,21 +134,8 @@ to start running queries!
     (``text-embedding-3-small``) is an OpenAI model, so it will require an
     OpenAI provider to be configured as described above.
 
-    You may use any of these pre-configured embedding generation models:
-
-    **OpenAI**
-
-    * ``text-embedding-3-small``
-    * ``text-embedding-3-large``
-    * ``text-embedding-ada-002``
-
-    `Learn more about the OpenAI embedding models <https://platform.openai.com/docs/guides/embeddings/embedding-models>`__
-
-    **Mistral**
-
-    * ``mistral-embed``
-
-    `Learn more about the Mistral embedding model <https://docs.mistral.ai/capabilities/embeddings/#mistral-embeddings-api>`__
+    You may use any of :ref:`our pre-configured embedding generation models
+    <ref_ai_reference_embedding_models>`.
 
 You may want to include multiple properties in your AI index. Fortunately, you
 can define an AI index on an expression:
@@ -171,6 +166,7 @@ Simple, but you'll still need to generate embeddings from your query or pass in
 existing embeddings. If your ultimate goal is retrieval-augmented generation
 (i.e., RAG), we've got you covered.
 
+.. _ref_ai_overview_rag:
 
 Use RAG via HTTP
 ----------------
@@ -203,30 +199,8 @@ add ``"stream": true`` to your request JSON.
     (``gpt-4-turbo-preview``) is an OpenAI model, so it will require an OpenAI
     provider to be configured as described above.
 
-    You may use any of these text generation models:
-
-    **OpenAI**
-
-    * ``gpt-3.5-turbo``
-    * ``gpt-4-turbo-preview``
-
-    `Learn more about the OpenAI text generation models <https://platform.openai.com/docs/guides/text-generation>`__
-
-    **Mistral**
-
-    * ``mistral-small-latest``
-    * ``mistral-medium-latest``
-    * ``mistral-large-latest``
-
-    `Learn more about the Mistral text generation models <https://docs.mistral.ai/getting-started/models/>`__
-
-    **Anthropic**
-
-    * ``claude-3-haiku-20240307``
-    * ``claude-3-sonnet-20240229``
-    * ``claude-3-opus-20240229``
-
-    `Learn more about the Athropic text generation models <https://docs.anthropic.com/claude/docs/models-overview>`__
+    You may use any of our supported :ref:`text generation models
+    <ref_ai_reference_text_generation_models>`.
 
 
 Use RAG via JavaScript

@@ -15,6 +15,7 @@ Welcome to the EdgeDB |version| documentation.
 
     intro/index
     datamodel/index
+    ai/index
     edgeql/index
     guides/index
     stdlib/index
