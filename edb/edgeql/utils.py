@@ -163,6 +163,10 @@ def find_subject_ptrs(ast: qlast.Base) -> Set[str]:
     return ptrs
 
 
+def is_anchor(expr: qlast.PathElement, name: str) -> bool:
+    return isinstance(expr, qlast.Anchor) and expr.name == name
+
+
 def subject_paths_substitute(
     ast: qlast.Base_T,
     subject_ptrs: Dict[str, qlast.Expr],
@@ -190,11 +194,25 @@ def subject_substitute(
     ast: qlast.Base_T, new_subject: qlast.Expr
 ) -> qlast.Base_T:
     ast = copy.deepcopy(ast)
+    # If the subject is a path (usually will be), graft the path
+    # elements directly to avoid an extra SelectStmt/Set in the IR,
+    # which can result in worse codegen (unnecessary semijoins, for
+    # example).
+    # TODO: Unify other substitution functions.
+    if isinstance(new_subject, qlast.Path):
+        new_partial = new_subject.partial
+        new_head = new_subject.steps
+    else:
+        new_partial = False
+        new_head = [new_subject]
+
     for path in find_paths(ast):
-        if isinstance(path.steps[0], qlast.Subject):
-            path.steps[0] = new_subject
+        if is_anchor(path.steps[0], '__subject__'):
+            path.steps[0:1] = new_head
+            path.partial = new_partial
         elif path.partial:
-            path.steps[0:0] = [new_subject]
+            path.steps[0:0] = new_head
+            path.partial = new_partial
     return ast
 
 

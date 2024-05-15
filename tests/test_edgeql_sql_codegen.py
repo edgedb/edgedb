@@ -290,6 +290,21 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             "unexpected semi-join",
         )
 
+    def test_codegen_unless_conflict_link_no_semijoin(self):
+        sql = self._compile('''
+          with module cards
+          insert User {
+              name := "x",
+              avatar := (select Card filter .name = 'Dragon')
+          }
+          unless conflict on (.avatar) else (User)
+       ''')
+
+        self.assertNotIn(
+            " IN ", sql,
+            "unexpected semi-join",
+        )
+
     def test_codegen_order_by_param_compare(self):
         sql = self._compile('''
             select Issue { name }
