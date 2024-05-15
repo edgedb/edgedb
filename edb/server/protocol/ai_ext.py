@@ -848,6 +848,7 @@ async def handle_request(
             ex = InternalError(str(ex))
 
         response.status = ex.get_http_status()
+        response.content_type = b'application/json'
         response.body = json.dumps(ex.json()).encode("utf-8")
         response.close_connection = True
         return
