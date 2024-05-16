@@ -29,10 +29,11 @@ Prerequisites
 =============
 
 Before we start, make sure you've :ref:`installed <ref_admin_install>` the
-``edgedb`` command line tool. For this tutorial, we'll need Python 3.4 or 
-newer to take advantage of the asynchronous I/O paradigm to communicate with 
-the database more efficiently. If you want to skip ahead, the completed 
-source code for this API can be found `in our examples repo
+``edgedb`` command line tool. For this tutorial, we'll use Python 3.10 to 
+take advantage of the asynchronous I/O paradigm to communicate with the 
+database more efficiently. You can use newer versions of Python if you prefer, 
+but you may need to adjust the code accordingly. If you want to skip ahead, 
+the completed source code for this API can be found `in our examples repo
 <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_.
 
 
