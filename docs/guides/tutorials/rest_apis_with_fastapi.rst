@@ -29,10 +29,11 @@ Prerequisites
 =============
 
 Before we start, make sure you've :ref:`installed <ref_admin_install>` the
-``edgedb`` command line tool. In this tutorial, we'll use Python 3.10 and take
-advantage of the asynchronous I/O paradigm to communicate with the database
-more efficiently. If you want to skip ahead, the completed source code for this
-API can be found `in our examples repo
+``edgedb`` command line tool. For this tutorial, we'll use Python 3.10 to 
+take advantage of the asynchronous I/O paradigm to communicate with the 
+database more efficiently. You can use newer versions of Python if you prefer, 
+but you may need to adjust the code accordingly. If you want to skip ahead, 
+the completed source code for this API can be found `in our examples repo
 <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_.
 
 
@@ -50,7 +51,7 @@ To get started, create a directory for your project and change into it.
 Install the dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Create a Python 3.10 virtual environment, activate it, and
+Create a Python virtual environment, activate it, and
 install the dependencies with this command (in Linux/macOS; see the following
 note for help with Windows):
 
@@ -139,32 +140,31 @@ project init``, but you'll need to fill it with your schema. This is what our
 datatypes look like:
 
 .. code-block:: sdl
-
-    # dbschema/default.esdl
+    :caption: dbschema/default.esdl
 
     module default {
       abstract type Auditable {
-        required property created_at -> datetime {
+        required created_at: datetime {
           readonly := true;
           default := datetime_current();
         }
       }
 
       type User extending Auditable {
-        required property name -> str {
+        required name: str {
           constraint exclusive;
           constraint max_len_value(50);
         };
       }
 
       type Event extending Auditable {
-        required property name -> str {
+        required name: str {
           constraint exclusive;
           constraint max_len_value(50);
         }
-        property address -> str;
-        property schedule -> datetime;
-        link host -> User;
+        address: str;
+        schedule: datetime;
+        link host: User;
       }
     }
 
@@ -221,22 +221,22 @@ should output very close to the schema we added in the ``default.esdl`` file:
 
     module default {
         abstract type Auditable {
-            property created_at -> std::datetime {
+            required property created_at: std::datetime {
                 default := (std::datetime_current());
                 readonly := true;
             };
         };
         type Event extending default::Auditable {
-            link host -> default::User;
-            property address -> std::str;
-            required property name -> std::str {
+            link host: default::User;
+            property address: std::str;
+            required property name: std::str {
                 constraint std::exclusive;
                 constraint std::max_len_value(50);
             };
-            property schedule -> std::datetime;
+            property schedule: std::datetime;
         };
         type User extending default::Auditable {
-            required property name -> std::str {
+            required property name: std::str {
                 constraint std::exclusive;
                 constraint std::max_len_value(50);
             };
@@ -290,6 +290,7 @@ file. It's the same one we would have written inline in our Python code as
 shown in the code block above:
 
 .. code-block:: edgeql
+    :caption: app/queries/get_users.edgeql
 
     select User {name, created_at};
 
@@ -324,8 +325,8 @@ the following code:
 .. lint-off
 
 .. code-block:: python
+    :caption: app/users.py
 
-    # app/users.py
     from __future__ import annotations
 
     import datetime
@@ -387,8 +388,8 @@ will send the 404 (not found) response to the user.
 .. lint-off
 
 .. code-block:: python
+    :caption: app/users.py
 
-    # app/users.py
     ...
     if not name:
         users = await get_users_qry.get_users(client)
@@ -415,8 +416,8 @@ that in the ``main.py`` module. Create ``app/main.py`` and open it in your
 editor. Here's the content of the module:
 
 .. code-block:: python
+    :caption: app/main.py
 
-    # app/main.py
     from __future__ import annotations
 
     from fastapi import FastAPI
@@ -488,6 +489,7 @@ and create the new query we'll need.
 Create and open ``app/queries/create_user.edgeql`` and fill it with this query:
 
 .. code-block:: edgeql
+    :caption: app/queries/create_user.edgeql
 
     select (insert User {
         name := <str>$name
@@ -507,8 +509,8 @@ we're ready to open ``app/users.py`` again and add the POST endpoint. First,
 import the generated function for the new query:
 
 .. code-block:: python
+    :caption: app/users.py
 
-    # app/users.py
     ...
     from .queries import create_user_async_edgeql as create_user_qry
     from .queries import get_user_by_name_async_edgeql as get_user_by_name_qry
@@ -520,8 +522,8 @@ Then write the endpoint to call that function:
 .. lint-off
 
 .. code-block:: python
+    :caption: app/users.py
 
-    # app/users.py
     ...
     @router.post("/users", status_code=HTTPStatus.CREATED)
     async def post_user(user: RequestData) -> create_user_qry.CreateUserResult:
@@ -590,6 +592,7 @@ We'll start again with the query. Create a new file in ``app/queries`` named
 ``update_user.edgeql``. Open it in your editor and enter this query:
 
 .. code-block:: edgeql
+    :caption: app/queries/update_user.edgeql
 
     select (
         update User filter .name = <str>$current_name
@@ -602,8 +605,8 @@ and add the endpoint over in ``app/users.py``.
 .. lint-off
 
 .. code-block:: python
+    :caption: app/users.py
 
-    # app/users.py
     ...
     from .queries import create_user_async_edgeql as create_user_qry
     from .queries import get_user_by_name_async_edgeql as get_user_by_name_qry
@@ -699,6 +702,7 @@ Start by creating ``app/queries/delete_user.edgeql`` and filling it with this
 query:
 
 .. code-block:: edgeql
+    :caption: app/queries/delete_user.edgeql
 
     select (
         delete User filter .name = <str>$name
@@ -711,8 +715,8 @@ we've already written:
 .. lint-off
 
 .. code-block:: python
+    :caption: app/users.py
 
-    # app/users.py
     ...
     from .queries import create_user_async_edgeql as create_user_qry
     from .queries import delete_user_async_edgeql as delete_user_qry
@@ -779,6 +783,7 @@ First, we need a query. Create a file ``app/queries/create_event.edgeql`` and
 drop this query into it:
 
 .. code-block:: edgeql
+    :caption: app/queries/create_event.edgeql
 
     with name := <str>$name,
         address := <str>$address,
@@ -804,8 +809,8 @@ time to code up the endpoint to use that freshly generated query.
 .. lint-off
 
 .. code-block:: python
+    :caption: app/events.py
 
-    # app/events.py
     from __future__ import annotations
 
     from http import HTTPStatus
@@ -878,8 +883,8 @@ API in ``app/main.py``. Open that file, and update the import on line 6 to also
 import ``events``:
 
 .. code-block:: python
+    :caption: app/main.py
 
-    # app/main.py
     ...
     from app import users, events
     ...
@@ -887,8 +892,8 @@ import ``events``:
 Drop down to the bottom of ``main.py`` and include the events router:
 
 .. code-block:: python
+    :caption: app/main.py
 
-    # app/main.py
     ...
     fast_api.include_router(events.router)
 
@@ -926,6 +931,7 @@ endpoints. Start by creating a file in ``app/queries`` named
 ``get_events.edgeql``. This one is really straightforward:
 
 .. code-block:: edgeql
+    :caption: app/queries/get_events.edgeql
 
     select Event {name, address, schedule, host : {name}};
 
@@ -933,6 +939,7 @@ Save that one and create ``app/queries/get_event_by_name.edgeql`` with this
 query:
 
 .. code-block:: edgeql
+    :caption: app/queries/get_event_by_name.edgeql
 
     select Event {
         name, address, schedule,
@@ -943,6 +950,7 @@ Those two will handle queries for ``GET /events``. Next, create
 ``app/queries/update_event.edgeql`` with this query:
 
 .. code-block:: edgeql
+    :caption: app/queries/update_event.edgeql
 
     with current_name := <str>$current_name,
         new_name := <str>$name,
@@ -964,6 +972,7 @@ That query will handle PUT requests. The last method left is DELETE. Create
 ``app/queries/delete_event.edgeql`` and put this query in it:
 
 .. code-block:: edgeql
+    :caption: app/queries/delete_event.edgeql
 
     select (
         delete Event filter .name = <str>$name
@@ -977,8 +986,8 @@ coding GET. Import the newly generated queries and write the GET endpoint in
 .. lint-off
 
 .. code-block:: python
+    :caption: app/events.py
 
-    # app/events.py
     ...
     from .queries import create_event_async_edgeql as create_event_qry
     from .queries import delete_event_async_edgeql as delete_event_qry
@@ -1064,8 +1073,8 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
 .. lint-off
 
 .. code-block:: python
+    :caption: app/events.py
 
-    # app/events.py
     ...
     @router.put("/events")
     async def put_event(
