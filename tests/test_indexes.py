@@ -173,8 +173,8 @@ class TestIndexes(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.SchemaDefinitionError,
-            "cannot use aggregate functions or operators in an "
-            "index expression",
+            "cannot use aggregate operator 'std::EXISTS' "
+            "in an index expression",
         ):
             await self.con.execute(
                 """
@@ -186,8 +186,8 @@ class TestIndexes(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.SchemaDefinitionError,
-            "cannot use aggregate functions or operators in an "
-            "index expression",
+            "cannot use aggregate function 'std::count' "
+            "in an index expression",
         ):
             await self.con.execute(
                 """

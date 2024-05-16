@@ -2875,9 +2875,9 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(
-        errors.UnsupportedFeatureError,
-        'set returning operator std::DISTINCT is not supported '
-        'in singleton expressions',
+        errors.SchemaDefinitionError,
+        "cannot use aggregate operator 'std::DISTINCT' "
+        "in an index expression",
     )
     def test_schema_index_non_singleton_01(self):
         """
@@ -2885,6 +2885,20 @@ class TestSchema(tb.BaseSchemaLoadTest):
             property has_bad_index -> str;
 
             index on (distinct .has_bad_index)
+        }
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "cannot use aggregate function 'std::count' "
+        "in an index expression",
+    )
+    def test_schema_index_non_singleton_02(self):
+        """
+        type IndexNonSingletonTest {
+            property has_bad_index -> str;
+
+            index on (count(.has_bad_index))
         }
         """
 

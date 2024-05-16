@@ -13217,13 +13217,25 @@ type default::Foo {
 
     async def test_edgeql_ddl_index_08(self):
         async with self.assertRaisesRegexTx(
-                edgedb.UnsupportedFeatureError,
-                'set returning operator std::DISTINCT is not supported '
-                'in singleton expressions'):
+                edgedb.SchemaDefinitionError,
+                "cannot use aggregate operator 'std::DISTINCT' "
+                "in an index expression"):
             await self.con.execute(r"""
                 CREATE TYPE default::IndexNonSingletonTest {
                     CREATE PROPERTY has_bad_index: std::str;
                     CREATE INDEX ON (DISTINCT (.has_bad_index));
+                };
+            """)
+
+    async def test_edgeql_ddl_index_09(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaDefinitionError,
+                "cannot use aggregate function 'std::count' "
+                "in an index expression"):
+            await self.con.execute(r"""
+                CREATE TYPE default::IndexNonSingletonTest {
+                    CREATE PROPERTY has_bad_index: std::str;
+                    CREATE INDEX ON (std::count (.has_bad_index));
                 };
             """)
 
