@@ -94,14 +94,14 @@ base64url encode the resulting string. This new string is called the
     * @returns {Object} The verifier and challenge strings
     */
    const generatePKCE = () => {
-      const verifier = crypto.randomBytes(32).toString("base64url");
+     const verifier = crypto.randomBytes(32).toString("base64url");
 
-      const challenge = crypto
-         .createHash("sha256")
-         .update(verifier)
-         .digest("base64url");
+     const challenge = crypto
+       .createHash("sha256")
+       .update(verifier)
+       .digest("base64url");
 
-      return { verifier, challenge };
+     return { verifier, challenge };
    };
 
 
@@ -162,7 +162,11 @@ the end user's browser to the Identity Provider with the proper setup.
      redirectUrl.searchParams.set("challenge", pkce.challenge);
      redirectUrl.searchParams.set(
        "redirect_to",
-       `http://localhost:${SERVER_PORT}/auth/callback`,
+       `http://localhost:${SERVER_PORT}/auth/callback`
+     );
+     redirectUrl.searchParams.set(
+       "redirect_to_on_signup",
+       `http://localhost:${SERVER_PORT}/auth/callback?isSignUp=true`
      );
 
      res.writeHead(302, {
@@ -197,51 +201,171 @@ pieces of data for an ``auth_token``.
     * @param {Response} res
     */
    const handleCallback = async (req, res) => {
-      const requestUrl = getRequestUrl(req);
+     const requestUrl = getRequestUrl(req);
 
-      const code = requestUrl.searchParams.get("code");
-      if (!code) {
-         const error = requestUrl.searchParams.get("error");
-         res.status = 400;
-         res.end(
-            `OAuth callback is missing 'code'. OAuth provider responded with error: ${error}`,
-         );
-         return;
-      }
+     const code = requestUrl.searchParams.get("code");
+     if (!code) {
+       const error = requestUrl.searchParams.get("error");
+       res.status = 400;
+       res.end(
+         `OAuth callback is missing 'code'. OAuth provider responded with error: ${error}`
+       );
+       return;
+     }
 
-      const cookies = req.headers.cookie?.split("; ");
-      const verifier = cookies
-         ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
-         ?.split("=")[1];
-      if (!verifier) {
-         res.status = 400;
-         res.end(
-            `Could not find 'verifier' in the cookie store. Is this the same user agent/browser that started the authorization flow?`,
-         );
-         return;
-      }
+     const cookies = req.headers.cookie?.split("; ");
+     const verifier = cookies
+       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+       ?.split("=")[1];
+     if (!verifier) {
+       res.status = 400;
+       res.end(
+         `Could not find 'verifier' in the cookie store. Is this the same user agent/browser that started the authorization flow?`
+       );
+       return;
+     }
 
-      const codeExchangeUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
-      codeExchangeUrl.searchParams.set("code", code);
-      codeExchangeUrl.searchParams.set("verifier", verifier);
-      const codeExchangeResponse = await fetch(codeExchangeUrl.href, {
-         method: "GET",
-      });
+     const codeExchangeUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+     codeExchangeUrl.searchParams.set("code", code);
+     codeExchangeUrl.searchParams.set("verifier", verifier);
+     const codeExchangeResponse = await fetch(codeExchangeUrl.href, {
+       method: "GET",
+     });
 
-      if (!codeExchangeResponse.ok) {
-         const text = await codeExchangeResponse.text();
-         res.status = 400;
-         res.end(`Error from the auth server: ${text}`);
-         return;
-      }
+     if (!codeExchangeResponse.ok) {
+       const text = await codeExchangeResponse.text();
+       res.status = 400;
+       res.end(`Error from the auth server: ${text}`);
+       return;
+     }
 
-      const { auth_token } = await codeExchangeResponse.json();
-      res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
-      });
-      res.end();
+     const { auth_token } = await codeExchangeResponse.json();
+     res.writeHead(204, {
+       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+     });
+     res.end();
    };
 
 .. lint-on
+
+Creating a User object
+----------------------
+
+For some applications, you may want to create a custom ``User`` type in the
+default module to attach application-specific information. You can tie this to
+an ``ext::auth::Identity`` by using the ``auth_token`` in our
+``ext::auth::client_token`` global and inserting your ``User`` object with a
+link to the ``Identity``.
+
+.. note::
+
+    For this example, we'll assume you have a one-to-one relationship between
+    ``User`` objects and ``ext::auth::Identity`` objects. In your own
+    application, you may instead decide to have a one-to-many relationship.
+
+Given this ``User`` type:
+
+.. code-block:: sdl
+
+   type User {
+       email: str;
+       name: str;
+
+       required identity: ext::auth::Identity {
+           constraint exclusive;
+       };
+   }
+
+You can update the callback function like this to create a new ``User`` object
+when the callback succeeds. Recall that in our ``handleAuthorize`` route
+handler, we added a separate callback route for when the extension adds a new
+Identity which sets a search parameter on the URL to ``isSignUp=true``:
+
+.. code-block:: javascript-diff
+
+     const { auth_token } = await codeExchangeResponse.json();
+   +
+   + const isSignUp = requestUrl.searchParams.get("isSignUp");
+   + if (isSignUp === "true") {
+   +   const authedClient = client.withGlobals({
+   +     "ext::auth::client_token": auth_token,
+   +   });
+   +   await authedClient.query(`
+   +     insert User {
+   +       identity := (global ext::auth::ClientTokenIdentity)
+   +     };
+   +   `);
+   + }
+   +
+     res.writeHead(204, {
+       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+     });
+
+
+Making authenticated requests to the OAuth resource server
+----------------------------------------------------------
+
+Along with the ``auth_token`` which represents the authenticated user's
+identity within your system, for OAuth providers, we also return a
+``provider_token`` (and optionally a ``provider_refresh_token``) that you can
+use to make requests to the OAuth provider's resource server on behalf of the
+user.
+
+Here is an example of getting the user's profile information from Google
+utilizing OpenID Connect and the ``provider_token``:
+
+.. code-block:: javascript
+
+   /**
+    * Get the user's profile information from Google
+    */
+   async function getUserProfile(providerToken) {
+     const response = await fetch(
+       "https://accounts.google.com/.well-known/openid-configuration"
+     );
+     const discoveryDocument = await response.json();
+     const response = await fetch(discoveryDocument.userinfo_endpoint, {
+       headers: {
+         Authorization: `Bearer ${providerToken}`,
+         Accept: "application/json",
+       },
+     });
+     return await response.json();
+   }
+
+Then in our callback handler, we can use the ``provider_token`` to get the
+user's profile information and save it into our ``User`` object when we create
+it:
+
+.. code-block:: javascript-diff
+
+   - const { auth_token } = await codeExchangeResponse.json();
+   + const { auth_token, provider_token } = await codeExchangeResponse.json();
+
+     const isSignUp = requestUrl.searchParams.get("isSignUp");
+     if (isSignUp === "true") {
+   +   const profile = await getUserProfile(provider_token);
+       const authedClient = client.withGlobals({
+         "ext::auth::client_token": auth_token,
+       });
+       await authedClient.query(
+         `
+   +     with
+   +       email := <optional str>$email,
+   +       name := <optional str>$name,
+         insert User {
+   +       email := email,
+   +       name := name,
+           identity := (global ext::auth::ClientTokenIdentity)
+         };
+   -   `);
+   +     `,
+   +     { email: profile.email, name: profile.name }
+   +   );
+     }
+
+     res.writeHead(204, {
+       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+     });
 
 :ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`

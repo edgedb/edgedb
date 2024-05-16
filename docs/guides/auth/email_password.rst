@@ -449,6 +449,65 @@ an ``auth_token``.
    };
 
 
+Create a User object
+--------------------
+
+For some applications, you may want to create a custom ``User`` type in the
+default module to attach application-specific information. You can tie this to
+an ``ext::auth::Identity`` by using the ``auth_token`` in our
+``ext::auth::client_token`` global and inserting your ``User`` object with a
+link to the ``Identity``.
+
+.. note::
+
+    For this example, we'll assume you have a one-to-one relationship between
+    ``User`` objects and ``ext::auth::Identity`` objects. In your own
+    application, you may instead decide to have a one-to-many relationship.
+
+Given this ``User`` type:
+
+.. code-block:: sdl
+
+   type User {
+       email: str;
+       name: str;
+
+       required identity: ext::auth::Identity {
+           constraint exclusive;
+       };
+   }
+
+You can update the ``handleVerify`` function like this to create a new ``User``
+object:
+
+.. lint-off
+
+.. code-block:: javascript-diff
+
+     const { auth_token } = await codeExchangeResponse.json();
+   +
+   + const authedClient = client.withGlobals({
+   +   "ext::auth::client_token": auth_token,
+   + });
+   + await authedClient.query(`
+   +   with
+   +     identity := (global ext::auth::ClientTokenIdentity),
+   +     emailFactor := (
+   +       select ext::auth::EmailFactor filter .identity = identity
+   +     ),
+   +   insert User {
+   +     email := emailFactor.email,
+   +     identity := identity
+   +   };
+   + `);
+   +
+     res.writeHead(204, {
+       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+     });
+
+.. lint-on
+
+
 Password reset
 --------------
 
