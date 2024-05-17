@@ -3908,3 +3908,98 @@ class TestUpdate(tb.QueryTestCase):
                 {'a': [4]},
             ]
         )
+
+    async def test_edgeql_update_empty_array_01(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "expression returns value of indeterminate type"
+        ):
+            await self.con.execute("""
+                update UpdateTest
+                set {
+                    name := [],
+                };
+            """)
+
+    async def test_edgeql_update_empty_array_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidPropertyTargetError,
+            r"invalid target for property 'name' "
+            r"of object type 'default::UpdateTest': 'array<std::str>' "
+            r"\(expecting 'std::str'\)"
+        ):
+            await self.con.execute("""
+                update UpdateTest
+                set {
+                    name := ['a'] ?? [],
+                };
+            """)
+
+    async def test_edgeql_update_empty_array_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidPropertyTargetError,
+            r"invalid target for property 'name' "
+            r"of object type 'default::UpdateTest': 'std::int64' "
+            r"\(expecting 'std::str'\)"
+        ):
+            await self.con.execute("""
+                insert UpdateTest {
+                    name := array_unpack([1] ?? []),
+                };
+            """)
+
+    async def test_edgeql_update_empty_array_04(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "expression returns value of indeterminate type"
+        ):
+            await self.con.execute("""
+                update UpdateTest
+                set {
+                    annotated_status := (
+                        select Status {
+                            @note := []
+                        }
+                    )
+                };
+            """)
+
+    async def test_edgeql_update_empty_array_05(self):
+        await self.assert_query_result("""
+            select ( update UpdateTest
+                set {
+                    weighted_tags := (
+                        select Tag {
+                            @note := array_join(['a'] ++ [], '')
+                        }
+                    )
+                }
+            ) { name, weighted_tags: { name, @note } } ;
+            """,
+            [
+                {
+                    'name': 'update-test1',
+                    'weighted_tags': [
+                        {'name': 'fun', '@note': 'a'},
+                        {'name': 'boring', '@note': 'a'},
+                        {'name': 'wow', '@note': 'a'}
+                    ],
+                },
+                {
+                    'name': 'update-test2',
+                    'weighted_tags': [
+                        {'name': 'fun', '@note': 'a'},
+                        {'name': 'boring', '@note': 'a'},
+                        {'name': 'wow', '@note': 'a'}
+                    ],
+                },
+                {
+                    'name': 'update-test3',
+                    'weighted_tags': [
+                        {'name': 'fun', '@note': 'a'},
+                        {'name': 'boring', '@note': 'a'},
+                        {'name': 'wow', '@note': 'a'}
+                    ],
+                },
+            ],
+        )

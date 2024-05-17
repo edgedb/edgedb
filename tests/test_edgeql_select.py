@@ -4588,16 +4588,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_select_empty_05(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'expression returns value of indeterminate type'):
-            await self.con.query(r"""
-                SELECT Issue {
-                    number,
-                    # the empty set is of an unspecified type
-                    time_estimate := {}
-                } ORDER BY .number;
-                """)
+        await self.assert_query_result(
+            r"""
+            SELECT Issue {
+                number,
+                # the empty set is of an unspecified type
+                time_estimate := {}
+            } ORDER BY .number;
+            """,
+            [
+                {'number': '1', 'time_estimate': None},
+                {'number': '2', 'time_estimate': None},
+                {'number': '3', 'time_estimate': None},
+                {'number': '4', 'time_estimate': None},
+            ],
+        )
 
     async def test_edgeql_select_empty_object_01(self):
         await self.assert_query_result(
