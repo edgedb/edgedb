@@ -34,7 +34,10 @@ take advantage of the asynchronous I/O paradigm to communicate with the
 database more efficiently. You can use newer versions of Python if you prefer, 
 but you may need to adjust the code accordingly. If you want to skip ahead, 
 the completed source code for this API can be found `in our examples repo
-<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_.
+<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. If you
+want to check out an example with EdgeDB Auth, you can find that in the same
+repo in the `fastapi-crud-auth folder
+<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud-auth>`_.
 
 
 Create a project directory
@@ -1556,10 +1559,14 @@ Wrapping up
 Now you have a fully functioning events API in FastAPI backed by EdgeDB. If you
 want to see all the source code for the completed project, you'll find it in
 `our examples repo
-<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. If you're
-stuck or if you just want to show off what you've built, come talk to us `on
-Discord <https://discord.gg/umUueND6ag>`_. It's a great community of helpful
-folks, all passionate about being part of the next generation of databases.
+<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. We also 
+have a separate example that demonstrates how to integrate EdgeDB Auth with
+FastAPI in the same repo. Check it out 
+`here <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud-auth>`_.
+If you're stuck or if you just want to show off what you've built, come talk 
+to us `on Discord <https://discord.gg/umUueND6ag>`_. It's a great community of 
+helpful folks, all passionate about being part of the next generation of 
+databases.
 
 If you like what you see and want to dive deeper into EdgeDB and what it can
 do, check out our `Easy EdgeDB book </easy-edgedb>`_. In
