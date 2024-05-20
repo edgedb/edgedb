@@ -18,6 +18,13 @@ data, and writing your first query. Let's jump in!
 First let's install the EdgeDB CLI. Open a terminal and run the appropriate
 command below.
 
+.. note:: Great news for Node users!
+
+    Skip installing and start using the EdgeDB CLI right away! Just use ``npx
+    edgedb``. For example, to create a new project, you can use ``npx edgedb
+    project init``. Try it with :ref:`any of our CLI commands
+    <ref_cli_overview>`!
+
 Linux
 -----
 
