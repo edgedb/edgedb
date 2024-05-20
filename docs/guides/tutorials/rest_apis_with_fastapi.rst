@@ -1340,7 +1340,7 @@ Next, we're going to create endpoints in FastAPI to handle user registration
     router = APIRouter()
     
     # Value should be:
-    # `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
+    # {protocol}://${host}:${port}/branch/${branch}/ext/auth/
     EDGEDB_AUTH_BASE_URL = os.getenv('EDGEDB_AUTH_BASE_URL')
 
     @router.post("/auth/signup")
