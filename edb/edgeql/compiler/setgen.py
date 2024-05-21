@@ -1215,9 +1215,14 @@ def tuple_indirection_set(
 
     assert isinstance(source, s_types.Tuple)
 
-    el_name = ptr_name
-    el_norm_name = source.normalize_index(ctx.env.schema, el_name)
-    el_type = source.get_subtype(ctx.env.schema, el_name)
+    try:
+        el_name = ptr_name
+        el_norm_name = source.normalize_index(ctx.env.schema, el_name)
+        el_type = source.get_subtype(ctx.env.schema, el_name)
+    except errors.InvalidReferenceError as e:
+        if span and not e.has_span():
+            e.set_span(span)
+        raise e
 
     path_id = pathctx.get_tuple_indirection_path_id(
         path_tip.path_id, el_norm_name, el_type, ctx=ctx)
