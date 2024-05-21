@@ -85,7 +85,7 @@ docs = [
     'sphinx_code_tabs~=0.5.3',
 ]
 
-language_server = [
+language-server = [
     'pygls~=1.3.1',
 ]
 
