@@ -434,6 +434,34 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
                 my_param='1 sec',
             )
 
+    async def test_edgeql_globals_14(self):
+        with self.assertRaisesRegex(
+            edgedb.ConfigurationError,
+            "global 'def_cur_user_excited' is computed from an expression "
+            "and cannot be modified",
+        ):
+            await self.con.execute(
+                '''
+                set global def_cur_user_excited := 'yay!'
+                ''',
+            )
+
+    async def test_edgeql_globals_15(self):
+        await self.con.execute('''
+            create global foo := 1;
+        ''')
+
+        with self.assertRaisesRegex(
+            edgedb.ConfigurationError,
+            "global 'def_cur_user_excited' is computed from an expression "
+            "and cannot be modified",
+        ):
+            await self.con.execute(
+                '''
+                reset global def_cur_user_excited
+                ''',
+            )
+
     async def test_edgeql_globals_state_cardinality(self):
         await self.con.execute('''
             set global cur_user := {};
