@@ -732,7 +732,7 @@ class ConstraintCommand(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        subject_obj: Optional[so.Object],
+        subject_obj: so.Object,
         *,
         name: sn.QualName,
         subjectexpr: Optional[s_expr.Expression] = None,
@@ -761,17 +761,27 @@ class ConstraintCommand(
         if not constr_base.is_non_concrete(schema):
             return
 
-        orig_subjectexpr = subjectexpr
-        orig_subject = subject_obj
+        attrs = dict(kwargs)
+        inherited = dict()
+
         base_subjectexpr = constr_base.get_field_value(schema, 'subjectexpr')
         if subjectexpr is None:
+            attrs['subjectexpr'] = subjectexpr
+            inherited['subjectexpr'] = subjectexpr_inherited
+
             subjectexpr = base_subjectexpr
-        elif (base_subjectexpr is not None
+        else:
+            if (base_subjectexpr is not None
                 and subjectexpr.text != base_subjectexpr.text):
-            raise errors.InvalidConstraintDefinitionError(
-                f'subjectexpr is already defined for {name}',
-                span=sourcectx,
-            )
+                raise errors.InvalidConstraintDefinitionError(
+                    f'subjectexpr is already defined for {name}',
+                    span=sourcectx,
+                )
+
+            base_subjectexpr = constr_base.get_subjectexpr(schema)
+            if base_subjectexpr is not None:
+                attrs['subjectexpr'] = base_subjectexpr
+                inherited['subjectexpr'] = True
 
         if (isinstance(subject_obj, s_scalars.ScalarType)
                 and constr_base.get_is_aggregate(schema)):
@@ -790,12 +800,6 @@ class ConstraintCommand(
                 span=sourcectx,
             )
 
-        if subjectexpr is not None:
-            subject_ql = subjectexpr.parse()
-            subject = subject_ql
-        else:
-            subject = subject_obj
-
         expr: s_expr.Expression = constr_base.get_field_value(schema, 'expr')
         if not expr:
             raise errors.InvalidConstraintDefinitionError(
@@ -805,26 +809,16 @@ class ConstraintCommand(
         # the AST below.
         expr_ql = qlparser.parse_query(expr.text)
 
+        if subjectexpr is not None:
+            # subject has been redefined
+            subject_ql = subjectexpr.parse()
+
+            assert isinstance(subject_ql, qlast.Base)
+            qlutils.inline_anchors(
+                expr_ql, anchors={'__subject__': subject_ql})
+
         if not args:
             args = constr_base.get_field_value(schema, 'args')
-
-        attrs = dict(kwargs)
-        inherited = dict()
-        if orig_subjectexpr is not None:
-            attrs['subjectexpr'] = orig_subjectexpr
-            inherited['subjectexpr'] = subjectexpr_inherited
-        else:
-            base_subjectexpr = constr_base.get_subjectexpr(schema)
-            if base_subjectexpr is not None:
-                attrs['subjectexpr'] = base_subjectexpr
-                inherited['subjectexpr'] = True
-
-        if subject is not orig_subject:
-            # subject has been redefined
-            assert isinstance(subject, qlast.Base)
-            qlutils.inline_anchors(
-                expr_ql, anchors={'__subject__': subject})
-            subject = orig_subject
 
         if args:
             args_ql: List[qlast.Base] = [
@@ -840,17 +834,13 @@ class ConstraintCommand(
 
         attrs['args'] = args
 
-        if subject_obj:
-            assert isinstance(subject_obj, (s_types.Type, s_pointers.Pointer))
-            singletons = frozenset({subject_obj})
-        else:
-            singletons = frozenset()
+        assert isinstance(subject_obj, (s_types.Type, s_pointers.Pointer))
+        singletons = frozenset({subject_obj})
 
-        assert subject is not None
         final_expr = s_expr.Expression.from_ast(expr_ql, schema, {}).compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
-                anchors={'__subject__': subject},
+                anchors={'__subject__': subject_obj},
                 path_prefix_anchor='__subject__',
                 singletons=singletons,
                 apply_query_rewrites=False,
@@ -874,7 +864,7 @@ class ConstraintCommand(
 
         if subjectexpr is not None:
             options = qlcompiler.CompilerOptions(
-                anchors={'__subject__': subject},
+                anchors={'__subject__': subject_obj},
                 path_prefix_anchor='__subject__',
                 singletons=singletons,
                 apply_query_rewrites=False,
@@ -896,7 +886,6 @@ class ConstraintCommand(
 
             has_any_multi = has_non_subject_multi = False
             for ref in refs:
-                assert subject_obj
                 while isinstance(ref.expr, irast.Pointer):
                     rptr = ref.expr
 
@@ -920,7 +909,7 @@ class ConstraintCommand(
                                        irast.TupleIndirectionPointerRef)
                             and rptr.ptrref.source_ptr is None
                             and isinstance(rptr.source.expr, irast.Pointer)):
-                        if isinstance(subject, s_links.Link):
+                        if isinstance(subject_obj, s_links.Link):
                             raise errors.InvalidConstraintDefinitionError(
                                 "link constraints may not access "
                                 "the link target",
