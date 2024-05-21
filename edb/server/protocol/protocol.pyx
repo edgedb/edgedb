@@ -518,7 +518,7 @@ cdef class HttpProtocol:
 
     async def handle_request(self, HttpRequest request, HttpResponse response):
         request_url = get_request_url(request, self.is_tls)
-        path = urllib.parse.unquote(request_url.path.decode('ascii'))
+        path = request_url.path.decode('ascii')
         path = path.strip('/')
         path_parts = path.split('/')
         path_parts_len = len(path_parts)
@@ -542,7 +542,7 @@ cdef class HttpProtocol:
             if path_parts_len < 2:
                 return self._not_found(request, response)
 
-            dbname = path_parts[1]
+            dbname = urllib.parse.unquote(path_parts[1])
             dbname = self.tenant.resolve_branch_name(
                 database=dbname if route == 'db' else None,
                 branch=dbname if route == 'branch' else None,
@@ -667,11 +667,12 @@ cdef class HttpProtocol:
                             if request_url.port
                             else request_url.host.decode()
                     )
-                    extension_base_path = f"{request_url.schema.decode()}://" \
-                                          f"{netloc}/{route}/{dbname}/ext/auth"
+                    ext_base_path = f"{request_url.schema.decode()}://" \
+                                    f"{netloc}/{route}/" \
+                                    f"{urllib.parse.quote(dbname)}/ext/auth"
                     handler = auth_ext.http.Router(
                         db=db,
-                        base_path=extension_base_path,
+                        base_path=ext_base_path,
                         tenant=self.tenant,
                     )
                     await handler.handle_request(request, response, args)
