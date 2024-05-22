@@ -695,7 +695,9 @@ def trace_IsOp(node: qlast.IsOp, *, ctx: TracerContext) -> None:
 
             hint: Optional[str] = None
             if typename.name.lower() in ['null', 'none']:
-                hint = 'Did you mean to use `exists`?'
+                hint = (
+                    'Did you mean to use `exists` to check if a set is empty?'
+                )
             check_type_exists(typename, ctx, node.right.span, hint=hint)
 
             ctx.refs.add(typename)

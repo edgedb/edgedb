@@ -3009,7 +3009,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
     @tb.must_fail(
         errors.InvalidReferenceError,
         "type 'test::null' does not exist",
-        hint='Did you mean to use `exists`?'
+        hint='Did you mean to use `exists` to check if a set is empty?'
     )
     def test_schema_unknown_typename_03(self):
         """
@@ -3023,7 +3023,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
     @tb.must_fail(
         errors.InvalidReferenceError,
         "type 'test::NONE' does not exist",
-        hint='Did you mean to use `exists`?'
+        hint='Did you mean to use `exists` to check if a set is empty?'
     )
     def test_schema_unknown_typename_04(self):
         """
