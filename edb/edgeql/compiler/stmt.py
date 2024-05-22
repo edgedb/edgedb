@@ -1374,9 +1374,16 @@ def compile_result_clause(
                 span=result_expr.span,
             )
         elif astutils.is_ql_empty_array(result_expr):
+            type_hint: Optional[s_types.Type] = None
+            if (
+                sctx.empty_result_type_hint is not None
+                and sctx.empty_result_type_hint.is_array()
+            ):
+                type_hint = sctx.empty_result_type_hint
+
             expr = setgen.new_array_set(
                 [],
-                stype=sctx.empty_result_type_hint,
+                stype=type_hint,
                 ctx=sctx,
                 span=result_expr.span,
             )

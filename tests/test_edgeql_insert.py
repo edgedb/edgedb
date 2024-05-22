@@ -6829,3 +6829,74 @@ class TestInsert(tb.QueryTestCase):
             'select Note { note }',
             [{'note': "note"}],
         )
+
+    async def test_edgeql_insert_empty_array_01(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "expression returns value of indeterminate type"
+        ):
+            await self.con.execute("""
+                insert InsertTest {
+                    name := [],
+                    l2 := 0,
+                };
+            """)
+
+    async def test_edgeql_insert_empty_array_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidPropertyTargetError,
+            r"invalid target for property 'name' "
+            r"of object type 'default::InsertTest': 'array<std::str>' "
+            r"\(expecting 'std::str'\)"
+        ):
+            await self.con.execute("""
+                insert InsertTest {
+                    name := ['a'] ++ [],
+                    l2 := 0,
+                };
+            """)
+
+    async def test_edgeql_insert_empty_array_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidPropertyTargetError,
+            r"invalid target for property 'name' "
+            r"of object type 'default::InsertTest': 'std::int64' "
+            r"\(expecting 'std::str'\)"
+        ):
+            await self.con.execute("""
+                insert InsertTest {
+                    name := array_unpack([1] ++ []),
+                    l2 := 0,
+                };
+            """)
+
+    async def test_edgeql_insert_empty_array_04(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "expression returns value of indeterminate type"
+        ):
+            await self.con.execute("""
+                insert InsertTest {
+                    l2 := 0,
+                    subordinates := (
+                        select Subordinate {
+                            @comment := []
+                        }
+                    )
+                };
+            """)
+
+    async def test_edgeql_insert_empty_array_05(self):
+        await self.assert_query_result("""
+            insert Subordinate { name := 'hi' };
+            select ( insert InsertTest {
+                l2 := 0,
+                subordinates := (
+                    select Subordinate {
+                        @comment := array_join(['a'] ++ [], '')
+                    }
+                )
+            }) { l2, subordinates: { name, @comment } };
+            """,
+            [{'l2': 0, 'subordinates': [{'name': 'hi', '@comment': 'a'}]}],
+        )

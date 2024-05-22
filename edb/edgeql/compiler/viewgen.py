@@ -1393,8 +1393,10 @@ def _compile_qlexpr(
         if should_set_partial_prefix:
             shape_expr_ctx.partial_path_prefix = source_set
 
-        if s_ctx.exprtype.is_mutation() and ptrcls is not None:
-            shape_expr_ctx.expr_exposed = context.Exposure.EXPOSED
+        if ptrcls is not None:
+            if s_ctx.exprtype.is_mutation():
+                shape_expr_ctx.expr_exposed = context.Exposure.EXPOSED
+
             shape_expr_ctx.empty_result_type_hint = \
                 ptrcls.get_target(ctx.env.schema)
 
