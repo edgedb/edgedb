@@ -239,8 +239,10 @@ def new_tuple_set(
 ) -> irast.Set:
 
     element_types = {el.name: get_set_type(el.val, ctx=ctx) for el in elements}
-    ctx.env.schema, stype = s_types.Tuple.create(
+    ctx.env.schema, stype, has_been_created = s_types.Tuple.create(
         ctx.env.schema, element_types=element_types, named=named)
+    if has_been_created:
+        ctx.env.created_schema_objects.add(stype)
     result_path_id = pathctx.get_expression_path_id(stype, ctx=ctx)
 
     final_elems = []
@@ -287,6 +289,7 @@ def new_array_set(
         assert element_type
         ctx.env.schema, stype = s_types.Array.from_subtypes(
             ctx.env.schema, [element_type])
+        ctx.env.created_schema_objects.add(stype)
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
     arr = irast.Array(elements=elements, typeref=typeref)
     return ensure_set(arr, type_override=stype, ctx=ctx)
