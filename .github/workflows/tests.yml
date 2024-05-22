@@ -67,7 +67,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -c "import sys; print(sys.prefix)"
-        python -m pip install uv && uv pip install -U -r requirements.txt
+        python -m pip install uv~=0.1.0 && uv pip install -U -r requirements.txt
 
     - name: Compute cache keys and download the running times log
       env:
@@ -386,7 +386,7 @@ jobs:
         key: edb-requirements-${{ hashFiles('pyproject.toml') }}
 
     - name: Install Python dependencies
-      run: python -m pip install uv && uv pip install -U -r requirements.txt
+      run: python -m pip install uv~=0.1.0 && uv pip install -U -r requirements.txt
 
     - name: Download cache key
       uses: actions/download-artifact@v4
@@ -472,7 +472,7 @@ jobs:
         key: edb-requirements-${{ hashFiles('pyproject.toml') }}
 
     - name: Install Python dependencies
-      run: python -m pip install uv && uv pip install -U -r requirements.txt
+      run: python -m pip install uv~=0.1.0 && uv pip install -U -r requirements.txt
 
     # Restore the artifacts and environment variables
 
@@ -631,7 +631,7 @@ jobs:
         key: edb-requirements-${{ hashFiles('pyproject.toml') }}
 
     - name: Install Python dependencies
-      run: python -m pip install uv && uv pip install -U -r requirements.txt
+      run: python -m pip install uv~=0.1.0 && uv pip install -U -r requirements.txt
 
     # Restore the artifacts and environment variables
 
