@@ -48,6 +48,7 @@ from edb.common import ast
 from edb.common import ordered
 
 from edb.edgeql import qltypes as ft
+from edb.schema import name as sn
 
 from . import ast as irast
 from . import typeutils
@@ -489,13 +490,47 @@ def find_potentially_visible(
     return visible_paths
 
 
-def contains_set_of_op(ir: irast.Base) -> bool:
+def is_singleton_set_of_call(
+    call: irast.Call
+) -> bool:
+    # Some set functions and operators are allowed in singleton mode
+    # as long as their inputs are singletons
+
+    return call.func_shortname in {
+        sn.QualName('std', 'IN'),
+        sn.QualName('std', 'NOT IN'),
+        sn.QualName('std', 'EXISTS'),
+        sn.QualName('std', '??'),
+        sn.QualName('std', 'IF'),
+    }
+
+
+def has_set_of_param(
+    call: irast.Call,
+) -> bool:
+    return any(
+        arg.param_typemod == ft.TypeModifier.SetOfType
+        for arg in call.args.values()
+    )
+
+
+def returns_set_of(
+    call: irast.Call,
+) -> bool:
+    return call.typemod == ft.TypeModifier.SetOfType
+
+
+def find_set_of_op(
+    ir: irast.Base,
+    has_multi_param: bool,
+) -> Optional[irast.Call]:
     def flt(n: irast.Call) -> bool:
-        return any(
-            arg.param_typemod == ft.TypeModifier.SetOfType
-            for arg in n.args.values()
+        return (
+            (has_multi_param or not is_singleton_set_of_call(n))
+            and (has_set_of_param(n) or returns_set_of(n))
         )
-    return bool(ast.find_children(ir, irast.Call, flt, terminate_early=True))
+    calls = ast.find_children(ir, irast.Call, flt, terminate_early=True)
+    return next(iter(calls or []), None)
 
 
 T = TypeVar('T')

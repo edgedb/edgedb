@@ -2577,8 +2577,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        'set returning operator std::DISTINCT is not supported '
-        'in singleton expressions',
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in a constraint",
     )
     def test_schema_constraint_non_singleton_01(self):
         """
@@ -2593,8 +2593,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        'set returning operator std::DISTINCT is not supported '
-        'in singleton expressions',
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in a constraint",
     )
     def test_schema_constraint_non_singleton_02(self):
         """
@@ -2609,8 +2609,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        'set returning operator std::DISTINCT is not supported '
-        'in singleton expressions',
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in a constraint",
     )
     def test_schema_constraint_non_singleton_03(self):
         """
@@ -2623,8 +2623,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        'set returning operator std::DISTINCT is not supported '
-        'in singleton expressions',
+        "set returning operator 'std::DISTINCT' is not supported "
+        "in singleton expressions",
     )
     def test_schema_constraint_non_singleton_04(self):
         """
@@ -2639,8 +2639,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        'set returning operator std::DISTINCT is not supported '
-        'in singleton expressions',
+        "set returning operator 'std::DISTINCT' is not supported "
+        "in singleton expressions",
     )
     def test_schema_constraint_non_singleton_05(self):
         """
@@ -2651,8 +2651,233 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        'set returning operator std::DISTINCT is not supported '
-        'in singleton expressions',
+        "aggregate function 'std::count' is not supported "
+        "in singleton expressions",
+    )
+    def test_schema_constraint_non_singleton_06(self):
+        """
+        abstract constraint bad_constraint {
+            using (count(__subject__) <= 2);
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        "cannot use SET OF function 'std::count' "
+        "in a constraint",
+    )
+    def test_schema_constraint_non_singleton_07(self):
+        """
+        type Foo;
+        type ConstraintNonSingletonTest {
+            link has_bad_constraint -> Foo {
+                constraint expression on (
+                    count(__subject__) <= 2
+                )
+            }
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        "cannot use SET OF function 'std::count' "
+        "in a constraint",
+    )
+    def test_schema_constraint_non_singleton_08(self):
+        """
+        type Foo;
+        type ConstraintNonSingletonTest {
+            multi link has_bad_constraint -> Foo {
+                constraint expression on (
+                    count(__subject__) <= 2
+                )
+            }
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in a constraint",
+    )
+    def test_schema_constraint_non_singleton_09(self):
+        """
+        type Foo;
+        type ConstraintNonSingletonTest {
+            link has_bad_constraint -> Foo {
+                constraint expression on (
+                    distinct __subject__ = __subject__
+                )
+            }
+        }
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in a constraint",
+    )
+    def test_schema_constraint_non_singleton_10(self):
+        """
+        type Foo;
+        type ConstraintNonSingletonTest {
+            multi link has_bad_constraint -> Foo {
+                constraint expression on (
+                    distinct __subject__ = __subject__
+                )
+            }
+        }
+        """
+
+    def test_schema_constraint_singleton_01a(self):
+        # `IN` allowed in singleton
+        """
+        type X {
+            property a -> int64 {
+                constraint expression on (
+                    __subject__ in {1}
+                );
+            }
+        };
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        "cannot use SET OF operator 'std::IN' "
+        "in a constraint",
+    )
+    def test_schema_constraint_singleton_01b(self):
+        """
+        type X {
+            multi property a -> int64 {
+                constraint expression on (
+                    __subject__ in {1}
+                );
+            }
+        };
+        """
+
+    def test_schema_constraint_singleton_02a(self):
+        # `NOT IN` allowed in singleton
+        """
+        type X {
+            property a -> int64 {
+                constraint expression on (
+                    __subject__ not in {1}
+                );
+            }
+        };
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        "cannot use SET OF operator 'std::NOT IN' "
+        "in a constraint",
+    )
+    def test_schema_constraint_singleton_02b(self):
+        """
+        type X {
+            multi property a -> int64 {
+                constraint expression on (
+                    __subject__ not in {1}
+                );
+            }
+        };
+        """
+
+    def test_schema_constraint_singleton_03a(self):
+        # `EXISTS` allowed in singleton
+        """
+        type X {
+            property a -> int64 {
+                constraint expression on (
+                    exists(__subject__)
+                );
+            }
+        };
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        "cannot use SET OF operator 'std::EXISTS' "
+        "in a constraint",
+    )
+    def test_schema_constraint_singleton_03b(self):
+        """
+        type Foo;
+        type ConstraintNonSingletonTest {
+            multi link has_bad_constraint -> Foo {
+                constraint expression on (
+                    exists(__subject__)
+                )
+            }
+        }
+        """
+
+    def test_schema_constraint_singleton_04a(self):
+        # `??` allowed in singleton
+        """
+        type X {
+            property a -> int64 {
+                constraint expression on (
+                    __subject__ ?? 1 = 0
+                );
+            }
+        };
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        r"cannot use SET OF operator 'std::\?\?' "
+        r"in a constraint",
+    )
+    def test_schema_constraint_singleton_04b(self):
+        """
+        type X {
+            multi property a -> int64 {
+                constraint expression on (
+                    __subject__ ?? 1 = 0
+                );
+            }
+        };
+        """
+
+    def test_schema_constraint_singleton_05a(self):
+        # `IF` allowed in singleton
+        """
+        type X {
+            property a -> tuple<bool, int64> {
+                constraint expression on (
+                    __subject__.1 < 0
+                    if __subject__.0 else
+                    __subject__.1 >= 0
+                );
+            }
+        };
+        """
+
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        "cannot use SET OF operator 'std::IF' "
+        "in a constraint",
+    )
+    def test_schema_constraint_singleton_05b(self):
+        """
+        type X {
+            multi property a -> tuple<bool, int64> {
+                constraint expression on (
+                    __subject__.1 < 0
+                    if __subject__.0 else
+                    __subject__.1 >= 0
+                );
+            }
+        };
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in an index expression",
     )
     def test_schema_index_non_singleton_01(self):
         """
@@ -2660,6 +2885,20 @@ class TestSchema(tb.BaseSchemaLoadTest):
             property has_bad_index -> str;
 
             index on (distinct .has_bad_index)
+        }
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "cannot use SET OF function 'std::count' "
+        "in an index expression",
+    )
+    def test_schema_index_non_singleton_02(self):
+        """
+        type IndexNonSingletonTest {
+            property has_bad_index -> str;
+
+            index on (count(.has_bad_index))
         }
         """
 

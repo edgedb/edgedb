@@ -433,10 +433,16 @@ def compile_OperatorCall(
                 dispatch.compile(r_expr, ctx=ctx),
             ],
         )
-    elif expr.typemod is ql_ft.TypeModifier.SetOfType:
+    elif irutils.is_singleton_set_of_call(expr):
+        pass
+    elif irutils.returns_set_of(expr):
         raise errors.UnsupportedFeatureError(
-            f'set returning operator {expr.func_shortname} is not supported '
-            f'in singleton expressions')
+            f"set returning operator '{expr.func_shortname}' is not supported "
+            f"in singleton expressions")
+    elif irutils.has_set_of_param(expr):
+        raise errors.UnsupportedFeatureError(
+            f"aggregate operator '{expr.func_shortname}' is not supported "
+            f"in singleton expressions")
 
     args, maybe_null = _compile_call_args(expr, ctx=ctx)
     return _wrap_call(
@@ -683,9 +689,15 @@ def compile_FunctionCall(
             f'unimplemented function for singleton mode: {fname}'
         )
 
-    if expr.typemod is ql_ft.TypeModifier.SetOfType:
+    if irutils.is_singleton_set_of_call(expr):
+        pass
+    elif irutils.returns_set_of(expr):
         raise errors.UnsupportedFeatureError(
             'set returning functions are not supported in simple expressions')
+    elif irutils.has_set_of_param(expr):
+        raise errors.UnsupportedFeatureError(
+            f"aggregate function '{expr.func_shortname}' is not supported "
+            f"in singleton expressions")
 
     args, maybe_null = _compile_call_args(expr, ctx=ctx)
 

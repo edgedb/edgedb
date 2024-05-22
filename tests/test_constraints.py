@@ -1400,9 +1400,9 @@ class TestConstraintsDDL(tb.DDLTestCase):
             """)
 
         async with self.assertRaisesRegexTx(
-            edgedb.InvalidConstraintDefinitionError,
-            "cannot use aggregate functions or operators in a "
-            "non-aggregating constraint",
+            edgedb.UnsupportedFeatureError,
+            "cannot use SET OF operator 'std::EXISTS' "
+            "in a constraint",
         ):
             await self.con.execute("""
                 ALTER TYPE ObjCnstr2 {
@@ -1411,9 +1411,9 @@ class TestConstraintsDDL(tb.DDLTestCase):
             """)
 
         async with self.assertRaisesRegexTx(
-            edgedb.InvalidConstraintDefinitionError,
-            "cannot use aggregate functions or operators in a "
-            "non-aggregating constraint",
+            edgedb.UnsupportedFeatureError,
+            "cannot use SET OF operator 'std::EXISTS' "
+            "in a constraint",
         ):
             await self.con.execute("""
                 ALTER TYPE ObjCnstr2 {
@@ -2118,4 +2118,148 @@ class TestConstraintsDDL(tb.DDLTestCase):
         ):
             await self.con.execute("""
                 update ChatBase set { messages := 'hello world' };
+            """)
+
+    async def test_constraints_singleton_set_ops_01(self):
+        await self.con.execute(
+            """
+            create type X {
+                create property a -> int64 {
+                    create constraint expression on (
+                        __subject__ in {1}
+                    );
+                }
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            "cannot use SET OF operator 'std::IN' "
+            "in a constraint"
+        ):
+            await self.con.execute(
+                """
+                create type Y {
+                    create multi property a -> int64 {
+                        create constraint expression on (
+                            __subject__ in {1}
+                        );
+                    }
+                };
+            """)
+
+    async def test_constraints_singleton_set_ops_02(self):
+        await self.con.execute(
+            """
+            create type X {
+                create property a -> int64 {
+                    create constraint expression on (
+                        __subject__ not in {1}
+                    );
+                }
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            "cannot use SET OF operator 'std::NOT IN' "
+            "in a constraint"
+        ):
+            await self.con.execute(
+                """
+                create type Y {
+                    create multi property a -> int64 {
+                        create constraint expression on (
+                            __subject__ not in {1}
+                        );
+                    }
+                };
+            """)
+
+    async def test_constraints_singleton_set_ops_03(self):
+        await self.con.execute(
+            """
+            create type X {
+                create property a -> int64 {
+                    create constraint expression on (
+                        exists(__subject__)
+                    );
+                }
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            "cannot use SET OF operator 'std::EXISTS' "
+            "in a constraint"
+        ):
+            await self.con.execute(
+                """
+                create type Y {
+                    create multi property a -> int64 {
+                        create constraint expression on (
+                            exists(__subject__)
+                        );
+                    }
+                };
+            """)
+
+    async def test_constraints_singleton_set_ops_04(self):
+        await self.con.execute(
+            """
+            create type X {
+                create property a -> int64 {
+                    create constraint expression on (
+                        __subject__ ?? 1 = 0
+                    );
+                }
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"cannot use SET OF operator 'std::\?\?' "
+            r"in a constraint"
+        ):
+            await self.con.execute(
+                """
+                create type Y {
+                    create multi property a -> int64 {
+                        create constraint expression on (
+                            __subject__ ?? 1 = 0
+                        );
+                    }
+                };
+            """)
+
+    async def test_constraints_singleton_set_ops_05(self):
+        await self.con.execute(
+            """
+            create type X {
+                create property a -> tuple<bool, int64> {
+                    create constraint expression on (
+                        __subject__.1 < 0
+                        if __subject__.0 else
+                        __subject__.1 >= 0
+                    );
+                }
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            "cannot use SET OF operator 'std::IF' "
+            "in a constraint"
+        ):
+            await self.con.execute(
+                """
+                create type Y {
+                    create multi property a -> tuple<bool, int64> {
+                        create constraint expression on (
+                            __subject__.1 < 0
+                            if __subject__.0 else
+                            __subject__.1 >= 0
+                        );
+                    }
+                };
             """)

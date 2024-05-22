@@ -798,6 +798,7 @@ class IndexCommand(
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.CompiledExpression:
+        from edb.ir import ast as irast
         from edb.ir import utils as irutils
 
         if field.name in {'expr', 'except_expr'}:
@@ -850,11 +851,20 @@ class IndexCommand(
                     has_multi = True
                     break
 
-            if has_multi and irutils.contains_set_of_op(expr.irast):
+            if set_of_op := irutils.find_set_of_op(
+                expr.irast,
+                has_multi,
+            ):
+                label = (
+                    'function'
+                    if isinstance(set_of_op, irast.FunctionCall) else
+                    'operator'
+                )
+                op_name = str(set_of_op.func_shortname)
                 raise errors.SchemaDefinitionError(
-                    "cannot use aggregate functions or operators "
-                    "in an index expression",
-                    span=self.span,
+                    f"cannot use SET OF {label} '{op_name}' "
+                    f"in an index expression",
+                    span=set_of_op.span
                 )
 
             # compile the expression to sql to preempt errors downstream

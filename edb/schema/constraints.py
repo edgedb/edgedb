@@ -931,12 +931,20 @@ class ConstraintCommand(
                     span=sourcectx
                 )
 
-            if has_any_multi and ir_utils.contains_set_of_op(
-                    final_subjectexpr.irast):
-                raise errors.InvalidConstraintDefinitionError(
-                    "cannot use aggregate functions or operators "
-                    "in a non-aggregating constraint",
-                    span=sourcectx
+            if set_of_op := ir_utils.find_set_of_op(
+                final_subjectexpr.irast,
+                has_any_multi,
+            ):
+                label = (
+                    'function'
+                    if isinstance(set_of_op, irast.FunctionCall) else
+                    'operator'
+                )
+                op_name = str(set_of_op.func_shortname)
+                raise errors.UnsupportedFeatureError(
+                    f"cannot use SET OF {label} '{op_name}' "
+                    f"in a constraint",
+                    span=set_of_op.span
                 )
 
             if (
