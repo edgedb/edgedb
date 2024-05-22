@@ -7,9 +7,21 @@ CLI
 :edb-alt-title: Using EdgeDB Cloud via the CLI
 
 To use EdgeDB Cloud via the CLI, first log in using
-:ref:`ref_cli_edgedb_cloud_login`. Once your login is successful, you will be
-able to create an instance using either :ref:`ref_cli_edgedb_instance_create`
-or :ref:`ref_cli_edgedb_project_init`, depending on whether you also want to
+:ref:`ref_cli_edgedb_cloud_login`.
+
+.. note::
+
+    This is the way you'll log in interactively on your development machine,
+    but when interacting with EdgeDB Cloud via a script or in CI, you'll
+    instead set the ``EDGEDB_SECRET_KEY`` environment variable to your secret
+    key. Generate a secret key in the EdgeDB Cloud UI or by running
+    :ref:`ref_cli_edgedb_cloud_secretkey_create`. The ``edgedb cloud login``
+    and ``edgedb cloud logout`` commands are not intended for use in this
+    context.
+
+Once your login is successful, you will be able to create an instance using
+either :ref:`ref_cli_edgedb_instance_create` or
+:ref:`ref_cli_edgedb_project_init`, depending on whether you also want to
 create a local project linked to your instance.
 
 * :ref:`ref_cli_edgedb_instance_create` with an instance name of

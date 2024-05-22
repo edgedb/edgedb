@@ -16,6 +16,15 @@ The tool will find all the unapplied migrations in
 ``dbschema/migrations/`` directory and sequentially run them on the
 target instance.
 
+.. warning:: EdgeDB Cloud CI users and scripters
+
+    When scripting a ``migrate``/``migration apply`` for an EdgeDB Cloud
+    instance, do not use ``edgedb login`` to authenticate. Instead, you should
+    generate a secret key in the EdgeDB Cloud UI or by running
+    :ref:`ref_cli_edgedb_cloud_secretkey_create` and set the
+    ``EDGEDB_SECRET_KEY`` environment variable to your secret key. Once this
+    variable is set to your secret key, logging in is no longer required.
+
 Options
 =======
 
