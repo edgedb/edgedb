@@ -434,7 +434,7 @@ def compile_OperatorCall(
             ],
         )
     elif irutils.is_singleton_set_of_call(expr):
-        ...
+        pass
     elif irutils.returns_set_of(expr):
         raise errors.UnsupportedFeatureError(
             f"set returning operator '{expr.func_shortname}' is not supported "
@@ -690,7 +690,7 @@ def compile_FunctionCall(
         )
 
     if irutils.is_singleton_set_of_call(expr):
-        ...
+        pass
     elif irutils.returns_set_of(expr):
         raise errors.UnsupportedFeatureError(
             'set returning functions are not supported in simple expressions')
