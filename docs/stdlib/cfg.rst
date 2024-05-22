@@ -237,11 +237,27 @@ Client connections
   The default is 10 seconds. Setting it to ``<duration>'0'`` disables
   the mechanism.
 
+  .. note::
+
+      For ``session_idle_transaction_timeout`` and ``query_execution_timeout``,
+      values under 1ms are rounded down to zero, which will disable the timeout.
+      In order to set a timeout, please set a duration of 1ms or greater.
+
+      ``session_idle_timeout`` can take values below 1ms.
+
 :eql:synopsis:`query_execution_timeout -> std::duration`
   Sets a time limit on how long a query can be run.
 
   Setting it to ``<duration>'0'`` disables the mechanism.
   The timeout isn't enabled by default.
+
+  .. note::
+
+      For ``session_idle_transaction_timeout`` and ``query_execution_timeout``,
+      values under 1ms are rounded down to zero, which will disable the timeout.
+      In order to set a timeout, please set a duration of 1ms or greater.
+
+      ``session_idle_timeout`` can take values below 1ms.
 
 ----------
 
