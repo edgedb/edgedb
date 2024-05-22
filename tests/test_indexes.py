@@ -173,7 +173,7 @@ class TestIndexes(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.SchemaDefinitionError,
-            "cannot use aggregate operator 'std::EXISTS' "
+            "cannot use SET OF operator 'std::EXISTS' "
             "in an index expression",
         ):
             await self.con.execute(
@@ -186,7 +186,7 @@ class TestIndexes(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.SchemaDefinitionError,
-            "cannot use aggregate function 'std::count' "
+            "cannot use SET OF function 'std::count' "
             "in an index expression",
         ):
             await self.con.execute(

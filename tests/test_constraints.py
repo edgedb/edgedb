@@ -1401,8 +1401,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            "cannot use aggregate operator 'std::EXISTS' "
-            "in a non-aggregating constraint",
+            "cannot use SET OF operator 'std::EXISTS' "
+            "in a constraint",
         ):
             await self.con.execute("""
                 ALTER TYPE ObjCnstr2 {
@@ -1412,8 +1412,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            "cannot use aggregate operator 'std::EXISTS' "
-            "in a non-aggregating constraint",
+            "cannot use SET OF operator 'std::EXISTS' "
+            "in a constraint",
         ):
             await self.con.execute("""
                 ALTER TYPE ObjCnstr2 {
@@ -2134,8 +2134,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            "cannot use aggregate operator 'std::IN' "
-            "in a non-aggregating constraint"
+            "cannot use SET OF operator 'std::IN' "
+            "in a constraint"
         ):
             await self.con.execute(
                 """
@@ -2162,8 +2162,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            "cannot use aggregate operator 'std::NOT IN' "
-            "in a non-aggregating constraint"
+            "cannot use SET OF operator 'std::NOT IN' "
+            "in a constraint"
         ):
             await self.con.execute(
                 """
@@ -2190,8 +2190,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            "cannot use aggregate operator 'std::EXISTS' "
-            "in a non-aggregating constraint"
+            "cannot use SET OF operator 'std::EXISTS' "
+            "in a constraint"
         ):
             await self.con.execute(
                 """
@@ -2218,8 +2218,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            r"cannot use aggregate operator 'std::\?\?' "
-            r"in a non-aggregating constraint"
+            r"cannot use SET OF operator 'std::\?\?' "
+            r"in a constraint"
         ):
             await self.con.execute(
                 """
@@ -2248,8 +2248,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            "cannot use aggregate operator 'std::IF' "
-            "in a non-aggregating constraint"
+            "cannot use SET OF operator 'std::IF' "
+            "in a constraint"
         ):
             await self.con.execute(
                 """

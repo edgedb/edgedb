@@ -862,7 +862,7 @@ class IndexCommand(
                 )
                 op_name = str(set_of_op.func_shortname)
                 raise errors.SchemaDefinitionError(
-                    f"cannot use aggregate {label} '{op_name}' "
+                    f"cannot use SET OF {label} '{op_name}' "
                     f"in an index expression",
                     span=set_of_op.span
                 )

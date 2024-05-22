@@ -10852,8 +10852,8 @@ type default::Foo {
     async def test_edgeql_ddl_constraint_27(self):
         async with self.assertRaisesRegexTx(
                 edgedb.UnsupportedFeatureError,
-                "cannot use aggregate operator 'std::DISTINCT' "
-                "in a non-aggregating constraint"):
+                "cannot use SET OF operator 'std::DISTINCT' "
+                "in a constraint"):
             await self.con.execute(r"""
                 CREATE TYPE default::ConstraintNonSingletonTest {
                     CREATE PROPERTY has_bad_constraint: std::str {
@@ -10867,8 +10867,8 @@ type default::Foo {
     async def test_edgeql_ddl_constraint_28(self):
         async with self.assertRaisesRegexTx(
                 edgedb.UnsupportedFeatureError,
-                "cannot use aggregate operator 'std::DISTINCT' "
-                "in a non-aggregating constraint"):
+                "cannot use SET OF operator 'std::DISTINCT' "
+                "in a constraint"):
             await self.con.execute(r"""
                 CREATE TYPE default::ConstraintNonSingletonTest {
                     CREATE PROPERTY has_bad_constraint: std::str {
@@ -10882,8 +10882,8 @@ type default::Foo {
     async def test_edgeql_ddl_constraint_29(self):
         async with self.assertRaisesRegexTx(
                 edgedb.UnsupportedFeatureError,
-                "cannot use aggregate operator 'std::DISTINCT' "
-                "in a non-aggregating constraint"):
+                "cannot use SET OF operator 'std::DISTINCT' "
+                "in a constraint"):
             await self.con.execute(r"""
                 CREATE TYPE default::ConstraintNonSingletonTest {
                     CREATE PROPERTY has_bad_constraint: std::str;
@@ -13218,7 +13218,7 @@ type default::Foo {
     async def test_edgeql_ddl_index_08(self):
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaDefinitionError,
-                "cannot use aggregate operator 'std::DISTINCT' "
+                "cannot use SET OF operator 'std::DISTINCT' "
                 "in an index expression"):
             await self.con.execute(r"""
                 CREATE TYPE default::IndexNonSingletonTest {
@@ -13230,7 +13230,7 @@ type default::Foo {
     async def test_edgeql_ddl_index_09(self):
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaDefinitionError,
-                "cannot use aggregate function 'std::count' "
+                "cannot use SET OF function 'std::count' "
                 "in an index expression"):
             await self.con.execute(r"""
                 CREATE TYPE default::IndexNonSingletonTest {

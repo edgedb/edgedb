@@ -2577,8 +2577,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate operator 'std::DISTINCT' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in a constraint",
     )
     def test_schema_constraint_non_singleton_01(self):
         """
@@ -2593,8 +2593,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate operator 'std::DISTINCT' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in a constraint",
     )
     def test_schema_constraint_non_singleton_02(self):
         """
@@ -2609,8 +2609,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate operator 'std::DISTINCT' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in a constraint",
     )
     def test_schema_constraint_non_singleton_03(self):
         """
@@ -2663,8 +2663,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate function 'std::count' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF function 'std::count' "
+        "in a constraint",
     )
     def test_schema_constraint_non_singleton_07(self):
         """
@@ -2680,8 +2680,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate function 'std::count' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF function 'std::count' "
+        "in a constraint",
     )
     def test_schema_constraint_non_singleton_08(self):
         """
@@ -2697,8 +2697,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate operator 'std::DISTINCT' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in a constraint",
     )
     def test_schema_constraint_non_singleton_09(self):
         """
@@ -2714,8 +2714,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate operator 'std::DISTINCT' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF operator 'std::DISTINCT' "
+        "in a constraint",
     )
     def test_schema_constraint_non_singleton_10(self):
         """
@@ -2743,8 +2743,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate operator 'std::IN' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF operator 'std::IN' "
+        "in a constraint",
     )
     def test_schema_constraint_singleton_01b(self):
         """
@@ -2771,8 +2771,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate operator 'std::NOT IN' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF operator 'std::NOT IN' "
+        "in a constraint",
     )
     def test_schema_constraint_singleton_02b(self):
         """
@@ -2799,8 +2799,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate operator 'std::EXISTS' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF operator 'std::EXISTS' "
+        "in a constraint",
     )
     def test_schema_constraint_singleton_03b(self):
         """
@@ -2828,8 +2828,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        r"cannot use aggregate operator 'std::\?\?' "
-        r"in a non-aggregating constraint",
+        r"cannot use SET OF operator 'std::\?\?' "
+        r"in a constraint",
     )
     def test_schema_constraint_singleton_04b(self):
         """
@@ -2858,8 +2858,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.UnsupportedFeatureError,
-        "cannot use aggregate operator 'std::IF' "
-        "in a non-aggregating constraint",
+        "cannot use SET OF operator 'std::IF' "
+        "in a constraint",
     )
     def test_schema_constraint_singleton_05b(self):
         """
@@ -2876,7 +2876,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.SchemaDefinitionError,
-        "cannot use aggregate operator 'std::DISTINCT' "
+        "cannot use SET OF operator 'std::DISTINCT' "
         "in an index expression",
     )
     def test_schema_index_non_singleton_01(self):
@@ -2890,7 +2890,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.SchemaDefinitionError,
-        "cannot use aggregate function 'std::count' "
+        "cannot use SET OF function 'std::count' "
         "in an index expression",
     )
     def test_schema_index_non_singleton_02(self):

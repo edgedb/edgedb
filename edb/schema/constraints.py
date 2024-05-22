@@ -942,8 +942,8 @@ class ConstraintCommand(
                 )
                 op_name = str(set_of_op.func_shortname)
                 raise errors.UnsupportedFeatureError(
-                    f"cannot use aggregate {label} '{op_name}' "
-                    f"in a non-aggregating constraint",
+                    f"cannot use SET OF {label} '{op_name}' "
+                    f"in a constraint",
                     span=set_of_op.span
                 )
 
