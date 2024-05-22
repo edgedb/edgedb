@@ -1,0 +1,443 @@
+<% macro workflow(targets, publications, subdist="", publish_all=False) %>
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.whichver.outputs.branch }}
+<% if subdist == "nightly" %>
+<% for tgt in targets.linux + targets.macos %>
+      if_<< tgt.name.replace('-', '_') >>: ${{ steps.scm.outputs.if_<< tgt.name.replace('-', '_') >> }}
+<% endfor %>
+<% endif %>
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Determine package version
+      shell: bash
+      run: |
+        branch=${GITHUB_REF#refs/heads/}
+        echo branch="${branch}" >> $GITHUB_OUTPUT
+      id: whichver
+
+<% if subdist == "nightly" %>
+    - name: Determine SCM revision
+      id: scm
+      shell: bash
+      run: |
+        rev=$(git rev-parse HEAD)
+        jq_filter='.packages[] | select(.basename == "edgedb-server") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select(($rev != null) and ($REV | startswith($rev)))'
+<% for tgt in targets.linux %>
+        val=true
+<% if tgt.family == "debian" %>
+        idx_file=<< tgt.platform_version >>.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing << tgt.name >>'
+          val=false
+        fi
+<% elif tgt.family == "redhat" %>
+        idx_file=el<< tgt.platform_version >>.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing << tgt.name >>'
+          val=false
+        fi
+<% elif tgt.family == "generic" %>
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing << tgt.name >>'
+          val=false
+        fi
+<% endif %>
+        echo if_<< tgt.name.replace('-', '_') >>="$val" >> $GITHUB_OUTPUT
+<% endfor %>
+<% for tgt in targets.macos %>
+        val=true
+<% if tgt.platform == "macos" %>
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing << tgt.platform >>-<< tgt.platform_version >>'
+          val=false
+        fi
+<% elif tgt.platform == "win" %>
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-pc-windows-msvc.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing << tgt.platform >>-<< tgt.platform_version >>'
+          val=false
+        fi
+<% endif %>
+        echo if_<< tgt.name.replace('-', '_') >>="$val" >> $GITHUB_OUTPUT
+<% endfor %>
+<% endif %>
+
+<%- for tgt in targets.linux %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
+  build-<< tgt.name >>:
+    runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
+    needs: prep
+<% if subdist == "nightly" %>
+    if: needs.prep.outputs.if_<< tgt.name.replace('-', '_') >> == 'true'
+<% endif %>
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/<< plat_id >>@language-server
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        <%- if subdist != "" %>
+        PKG_SUBDIST: "<< subdist >>"
+        <%- endif %>
+        PKG_PLATFORM: "<< tgt.platform >>"
+        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        EXTRA_OPTIMIZATIONS: "true"
+        <%- if subdist != "nightly" %>
+        BUILD_IS_RELEASE: "true"
+        <%- endif %>
+        <%- if tgt.family == "generic" %>
+        BUILD_GENERIC: true
+        <%- endif %>
+        <%- if tgt.platform_libc %>
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
+        <%- endif %>
+        METAPKG_GIT_CACHE: disabled
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< plat_id >>
+<%- endfor %>
+
+<%- for tgt in targets.macos %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
+  build-<< tgt.name >>:
+    runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
+    needs: prep
+<% if subdist == "nightly" %>
+    if: needs.prep.outputs.if_<< tgt.name.replace('-', '_') >> == 'true'
+<% endif %>
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      with:
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "<< tgt.arch >>-apple-darwin"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      with:
+        python-version: "3.x"
+
+    - name: Set up NodeJS
+      uses: actions/setup-node@v4
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
+
+    - name: Build
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        <%- if subdist != "nightly" %>
+        BUILD_IS_RELEASE: "true"
+        <%- endif %>
+        PKG_REVISION: "<current-date>"
+        <%- if subdist != "" %>
+        PKG_SUBDIST: "<< subdist >>"
+        <%- endif %>
+        PKG_PLATFORM: "<< tgt.platform >>"
+        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_ARCH: "<< tgt.arch if tgt.arch else '' >>"
+        EXTRA_OPTIMIZATIONS: "true"
+        METAPKG_GIT_CACHE: disabled
+        <%- if tgt.family == "generic" %>
+        BUILD_GENERIC: true
+        <%- endif %>
+      run: |
+        edgedb-pkg/integration/macos/build.sh
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< plat_id >>
+<%- endfor %>
+
+<%- if publish_all %>
+  collect:
+    needs:
+    <%- for tgt in targets.linux + targets.macos %>
+    - build-<< tgt.name >>
+    <%- endfor %>
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'All build+tests passed, ready to publish now!'
+<%- endif %>
+
+<%- for tgt in targets.linux %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- for publish in publications %>
+
+  publish<< publish.suffix>>-<< tgt.name >>:
+    needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< plat_id >>
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        <%- if subdist != "" %>
+        PKG_SUBDIST: "<< subdist >>"
+        <%- endif %>
+        <%- if publish.server != "" %>
+        PACKAGE_SERVER: << publish.server >>
+        <%- endif %>
+        PKG_PLATFORM: "<< tgt.platform >>"
+        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published<<publish.suffix>>-<< tgt.name >>:
+    needs: [publish<< publish.suffix >>-<< tgt.name >>]
+    runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< plat_id >>
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: << plat_id >>
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@language-server
+      env:
+        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        <%- if subdist != "" %>
+        PKG_SUBDIST: "<< subdist >>"
+        <%- endif %>
+        <%- if publish.server != "" %>
+        PACKAGE_SERVER: << publish.server >>
+        <%- endif %>
+        PKG_PLATFORM: "<< tgt.platform >>"
+        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+<%- endfor %>
+<%- endfor %>
+
+<%- if publications %>
+<%- for tgt in targets.macos %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
+  publish-<< tgt.name >>:
+    needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< plat_id >>
+
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: << plat_id >>
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        <%- if subdist != "" %>
+        PKG_SUBDIST: "<< subdist >>"
+        <%- endif %>
+        PKG_PLATFORM: "<< tgt.platform >>"
+        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+<%- endfor %>
+<%- endif %>
+
+<%- set docker_tgts = targets.linux | selectattr("docker_arch") | list %>
+<%- if docker_tgts and publications %>
+<%- set pub_outputs = "needs.check-published-" + (docker_tgts|first)["name"] + ".outputs" %>
+
+  publish-docker:
+    needs:
+      <%- for tgt in docker_tgts %>
+      - check-published-<< tgt.name >>
+      <%- endfor %>
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: dockerfile
+
+    - env:
+        VERSION_SLOT: "${{ << pub_outputs >>.version-slot }}"
+        VERSION_CORE: "${{ << pub_outputs >>.version-core }}"
+        PKG_SUBDIST: "<< subdist >>"
+      id: tags
+      run: |
+        set -e
+
+        url='https://registry.hub.docker.com/v2/repositories/edgedb/edgedb/tags?page_size=100'
+        repo_tags=$(
+          while [ -n "$url" ]; do
+            resp=$(curl -L -s "$url")
+            url=$(echo "$resp" | jq -r ".next")
+            if [ "$url" = "null" ] || [ -z "$url" ]; then
+              break
+            fi
+            echo "$resp" | jq -r '."results"[]["name"]'
+          done | grep "^[[:digit:]]\+.*" | grep -v "alpha\|beta\|rc" || :
+        )
+
+        tags=( "$VERSION_CORE" )
+
+        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+              | grep "^${VERSION_SLOT}[\.-]" \
+              | sort --version-sort --reverse | head -n 1)
+        if [ "$top" == "$VERSION_CORE" ]; then
+          tags+=( "$VERSION_SLOT" )
+        fi
+
+        if [ -z "$PKG_SUBDIST" ]; then
+          top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+                | sort --version-sort --reverse | head -n 1)
+          if [ "$top" == "$VERSION_CORE" ]; then
+            tags+=( "latest" )
+          fi
+        fi
+
+        IFS=,
+        echo "tags=${tags[*]}" >> $GITHUB_OUTPUT
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@edfb0fe6204400c56fbfd3feba3fe9ad1adfa345  # v3
+
+    - name: Publish Docker Image (docker.io)
+      uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
+      with:
+        name: edgedb/edgedb
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        <%- if subdist == "nightly" %>
+        tags: "nightly,nightly_${{ << pub_outputs >>.version-slot }}_cv${{ << pub_outputs >>.catalog-version }}"
+        <%- else %>
+        tags: "${{ steps.tags.outputs.tags }}"
+        <%- endif %>
+        workdir: dockerfile
+        buildargs: version=${{ << pub_outputs >>.version-slot }},exact_version=${{ << pub_outputs >>.version-core }}<% if subdist != "" %>,subdist=<< subdist >><% endif %>
+        platforms: << docker_tgts|map(attribute="docker_arch")|join(",") >>
+
+    - name: Publish Docker Image (ghcr.io)
+      uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
+      with:
+        registry: ghcr.io
+        name: ${{ github.repository }}
+        username: "edgedb-ci"
+        password: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
+        <%- if subdist == "nightly" %>
+        tags: "nightly,nightly_${{ << pub_outputs >>.version-slot }}_cv${{ << pub_outputs >>.catalog-version }}"
+        <%- else %>
+        tags: "${{ steps.tags.outputs.tags }}"
+        <%- endif %>
+        workdir: dockerfile
+        buildargs: version=${{ << pub_outputs >>.version-slot }},exact_version=${{ << pub_outputs >>.version-core }}<% if subdist != "" %>,subdist=<< subdist >><% endif %>
+        platforms: << docker_tgts|map(attribute="docker_arch")|join(",") >>
+<%- endif %>
+
+  workflow-notifications:
+    if: failure() && github.event_name != 'pull_request'
+    name: Notify in Slack on failures
+
+    needs:
+      - prep
+    <%- if publish_all %>
+      - collect
+    <%- else %>
+    <%- endif %>
+    <%- for tgt in targets.linux %>
+      - build-<< tgt.name >>
+      - test-<< tgt.name >>
+    <%- for publish in publications %>
+      - publish<< publish.suffix>>-<< tgt.name >>
+      - check-published<< publish.suffix>>-<< tgt.name >>
+    <%- endfor %>
+    <%- endfor %>
+    <%- for tgt in targets.macos %>
+      - build-<< tgt.name >>
+      - test-<< tgt.name >>
+    <%- for publish in publications %>
+      - publish<< publish.suffix>>-<< tgt.name >>
+    <%- endfor %>
+    <%- endfor %>
+    <%- if docker_tgts and publications %>
+      - publish-docker
+    <%- endif %>
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@26a36836c887f260477432e4314ec3490a84f309
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'
+
+<%- endmacro %>
