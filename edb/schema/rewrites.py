@@ -139,13 +139,15 @@ class RewriteCommand(
         track_schema_ref_exprs: bool = False,
     ) -> s_expr.CompiledExpression:
         if field.name == 'expr':
+            from edb.common import ast
+            from edb.ir import ast as irast
             from edb.ir import pathid
             from . import pointers as s_pointers
             from . import objtypes as s_objtypes
             from . import links as s_links
 
             parent_ctx = self.get_referrer_context_or_die(context)
-            pointer = parent_ctx.op.get_object(schema, context)
+            pointer = parent_ctx.op.scls
             assert isinstance(pointer, s_pointers.Pointer)
 
             source = pointer.get_source(schema)
@@ -205,6 +207,26 @@ class RewriteCommand(
 
             singletons = frozenset(anchors.values())
 
+            def find_extra_refs(ir_expr: irast.Set) -> set[so.Object]:
+                def find_specified(node: irast.TupleIndirectionPointer) -> bool:
+                    return node.source.anchor == '__specified__'
+
+                ref_ptr_names: set[str] = set()
+                for tuple_node in ast.find_children(
+                    ir_expr,
+                    irast.TupleIndirectionPointer,
+                    test_func=find_specified,
+                ):
+                    ref_ptr_names.add(tuple_node.ptrref.name.name)
+
+                ref_ptrs: set[so.Object] = set(
+                    pointer
+                    for pointer in subject.get_pointers(schema).objects(schema)
+                    if pointer.get_shortname(schema).name in ref_ptr_names
+                )
+
+                return ref_ptrs
+
             return type(value).compiled(
                 value,
                 schema=schema,
@@ -219,6 +241,7 @@ class RewriteCommand(
                     # in_ddl_context_name=in_ddl_context_name,
                     detached=True,
                 ),
+                find_extra_refs=find_extra_refs,
             )
         else:
             return super().compile_expr_field(
