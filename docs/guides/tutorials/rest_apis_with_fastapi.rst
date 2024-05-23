@@ -1446,7 +1446,7 @@ to store the EdgeDB Auth identity and a new ``current_user`` type.
     +         filter .identity = global ext::auth::ClientTokenIdentity
     +     ))
     + );
-
+      
       type User extending Auditable {
     +    required identity: ext::auth::Identity;
          required name: str {
