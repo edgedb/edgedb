@@ -134,22 +134,22 @@ ALTER TYPE cfg::AbstractConfig {
     ('edgeql+schema', ''),  # for SQL introspection schema updates
     # === 5.3
     ('edgeql', '''
-ALTER FUNCTION 
+ALTER FUNCTION
 std::range_get_upper(r: range<anypoint>)
 {
     SET force_return_cast := true;
 };
-ALTER FUNCTION 
+ALTER FUNCTION
 std::range_get_lower(r: range<anypoint>)
 {
     SET force_return_cast := true;
 };
-ALTER FUNCTION 
+ALTER FUNCTION
 std::range_get_upper(r: multirange<anypoint>)
 {
     SET force_return_cast := true;
 };
-ALTER FUNCTION 
+ALTER FUNCTION
 std::range_get_lower(r: multirange<anypoint>)
 {
     SET force_return_cast := true;
