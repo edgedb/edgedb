@@ -287,9 +287,11 @@ def new_array_set(
 
     if stype is None:
         assert element_type
-        ctx.env.schema, stype = s_types.Array.from_subtypes(
-            ctx.env.schema, [element_type])
-        ctx.env.created_schema_objects.add(stype)
+        ctx.env.schema, stype, has_created = s_types.Array.create(
+            ctx.env.schema, element_type=element_type, dimensions=[-1]
+        )
+        if has_created:
+            ctx.env.created_schema_objects.add(stype)
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
     arr = irast.Array(elements=elements, typeref=typeref)
     return ensure_set(arr, type_override=stype, ctx=ctx)
