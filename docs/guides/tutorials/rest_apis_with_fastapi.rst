@@ -1437,23 +1437,23 @@ EdgeDB Auth identity.
 First, let's update the EdgeDB schema to include a new field in the User type
 to store the EdgeDB Auth identity and a new ``current_user`` type.
 
-.. code-block:: edgeql-diff
+.. code-block:: edgeql
     :caption: dbschema/default.esdl
 
-    + global current_user := (
-    +     assert_single((
-    +         select User { id, name }
-    +         filter .identity = global ext::auth::ClientTokenIdentity
-    +     ))
-    + );
-      
-      type User extending Auditable {
-    +    required identity: ext::auth::Identity;
-         required name: str {
-            constraint exclusive;
-            constraint max_len_value(50);
-         };
-      }
+    global current_user := assert_single(
+        ((
+            select User { id, name }
+            filter .identity = global ext::auth::ClientTokenIdentity
+        ))
+    );
+
+    type User extending Auditable {
+        required identity: ext::auth::Identity;
+        required name: str {
+           constraint exclusive;
+           constraint max_len_value(50);
+        };
+    }
 
 After updating the schema, run the following command to apply the changes:
 
