@@ -1,14 +1,23 @@
-name: 'edgedb-ls: Build and Publish a Testing Release'
+name: 'edgedb-ls: Build and Publish Nightly Packages'
 
 on:
+  schedule:
+    - cron: "0 1 * * *"
   workflow_dispatch:
     inputs: {}
+  push:
+    branches:
+      - nightly
 
 jobs:
   prep:
     runs-on: ubuntu-latest
     outputs:
       branch: ${{ steps.whichver.outputs.branch }}
+
+
+      if_linux_x86_64: ${{ steps.scm.outputs.if_linux_x86_64 }}
+
 
     steps:
     - uses: actions/checkout@v4
@@ -21,10 +30,31 @@ jobs:
       id: whichver
 
 
+    - name: Determine SCM revision
+      id: scm
+      shell: bash
+      run: |
+        rev=$(git rev-parse HEAD)
+        jq_filter='.packages[] | select(.basename == "edgedb-server") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select(($rev != null) and ($REV | startswith($rev)))'
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linux-x86_64'
+          val=false
+        fi
+
+        echo if_linux_x86_64="$val" >> $GITHUB_OUTPUT
+
+
+
 
   build-linux-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
+    if: needs.prep.outputs.if_linux_x86_64 == 'true'
 
 
     steps:
@@ -34,11 +64,10 @@ jobs:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
         PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
-        PKG_SUBDIST: "testing"
+        PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         EXTRA_OPTIMIZATIONS: "true"
-        BUILD_IS_RELEASE: "true"
         BUILD_GENERIC: true
         METAPKG_GIT_CACHE: disabled
 
@@ -46,15 +75,9 @@ jobs:
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
-  collect:
-    needs:
-    - build-linux-x86_64
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo 'All build+tests passed, ready to publish now!'
 
   publish-linux-x86_64:
-    needs: [collect]
+    needs: [test-linux-x86_64]
     runs-on: ubuntu-latest
 
     steps:
@@ -67,7 +90,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
-        PKG_SUBDIST: "testing"
+        PKG_SUBDIST: "nightly"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
@@ -95,7 +118,7 @@ jobs:
       env:
         PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "testing"
+        PKG_SUBDIST: "nightly"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
@@ -113,7 +136,6 @@ jobs:
 
     needs:
       - prep
-      - collect
       - build-linux-x86_64
       - test-linux-x86_64
       - publish-linux-x86_64
