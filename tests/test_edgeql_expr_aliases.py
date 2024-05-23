@@ -1114,3 +1114,16 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             """,
             [4]
         )
+
+    async def test_edgeql_aliases_coll_types_01(self):
+        await self.con.execute(
+            r"""
+                create type X;
+                create global y := (select
+                    (a := 'hello', b := [(select X limit 1)])
+                );
+                create alias z := (
+                   a := 'hello', b := [(select X limit 1)]
+                );
+            """
+        )
