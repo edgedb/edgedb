@@ -1,0 +1,154 @@
+name: 'edgedb-ls: Build and Publish Nightly Packages'
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs: {}
+  push:
+    branches:
+      - nightly
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.whichver.outputs.branch }}
+
+
+      if_linux_x86_64: ${{ steps.scm.outputs.if_linux_x86_64 }}
+
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Determine package version
+      shell: bash
+      run: |
+        branch=${GITHUB_REF#refs/heads/}
+        echo branch="${branch}" >> $GITHUB_OUTPUT
+      id: whichver
+
+
+    - name: Determine SCM revision
+      id: scm
+      shell: bash
+      run: |
+        rev=$(git rev-parse HEAD)
+        jq_filter='.packages[] | select(.basename == "edgedb-server") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select(($rev != null) and ($REV | startswith($rev)))'
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linux-x86_64'
+          val=false
+        fi
+
+        echo if_linux_x86_64="$val" >> $GITHUB_OUTPUT
+
+
+
+
+  build-linux-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
+    needs: prep
+
+    if: needs.prep.outputs.if_linux_x86_64 == 'true'
+
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@language-server
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        EXTRA_OPTIMIZATIONS: "true"
+        BUILD_GENERIC: true
+        METAPKG_GIT_CACHE: disabled
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
+
+  publish-linux-x86_64:
+    needs: [test-linux-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-linux-x86_64:
+    needs: [publish-linux-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linux-x86_64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@language-server
+      env:
+        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  workflow-notifications:
+    if: failure() && github.event_name != 'pull_request'
+    name: Notify in Slack on failures
+
+    needs:
+      - prep
+      - build-linux-x86_64
+      - test-linux-x86_64
+      - publish-linux-x86_64
+      - check-published-linux-x86_64
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@26a36836c887f260477432e4314ec3490a84f309
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

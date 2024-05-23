@@ -558,9 +558,9 @@ fn injection_cost(kind: &Kind) -> u16 {
 
         // Manual keyword tweaks to encourage some error messages and discourage others.
         Keyword(keywords::Keyword(
-            "delete" | "update" | "migration" | "role" | "global" | "administer",
+            "delete" | "update" | "migration" | "role" | "global" | "administer" | "future" | "database",
         )) => 100,
-        Keyword(keywords::Keyword("insert")) => 20,
+        Keyword(keywords::Keyword("insert" | "module" | "extension" | "branch")) => 20,
         Keyword(keywords::Keyword("select" | "property" | "type")) => 10,
         Keyword(_) => 15,
 

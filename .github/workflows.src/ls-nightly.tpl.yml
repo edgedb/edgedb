@@ -1,0 +1,14 @@
+<% from "ls-build.inc.yml" import workflow -%>
+name: 'edgedb-ls: Build and Publish Nightly Packages'
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs: {}
+  push:
+    branches:
+      - nightly
+
+jobs:
+  <<- workflow(targets, publications, subdist="nightly") ->>

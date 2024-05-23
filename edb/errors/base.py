@@ -182,6 +182,14 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         return int(self._attrs.get(FIELD_COLUMN_START, -1))
 
     @property
+    def line_end(self):
+        return int(self._attrs.get(FIELD_LINE_END, -1))
+
+    @property
+    def col_end(self):
+        return int(self._attrs.get(FIELD_COLUMN_END, -1))
+
+    @property
     def position(self):
         return int(self._attrs.get(FIELD_POSITION_START, -1))
 
