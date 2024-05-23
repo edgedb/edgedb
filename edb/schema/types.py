@@ -1250,7 +1250,7 @@ class Array(
         dimensions: Sequence[int] = (),
         element_type: Any,
         **kwargs: Any,
-    ) -> typing.Tuple[s_schema.Schema, Array_T]:
+    ) -> typing.Tuple[s_schema.Schema, Array_T, bool]:
         if not dimensions:
             dimensions = [-1]
 
@@ -1266,7 +1266,10 @@ class Array(
         else:
             result = schema.get_global(cls, name, default=None)
 
+        has_been_created = False
+
         if result is None:
+            has_been_created = True
             schema, result = super().create_in_schema(
                 schema,
                 id=id,
@@ -1278,7 +1281,7 @@ class Array(
             # Compute material type so that we can retrieve it safely later
             schema, _ = result.material_type(schema)
 
-        return schema, result
+        return schema, result, has_been_created
 
     def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
         return type(self).generate_name(
@@ -1450,13 +1453,14 @@ class Array(
         # One-dimensional unbounded array.
         dimensions = [-1]
 
-        return cls.create(
+        schema, ty, _ = cls.create(
             schema,
             element_type=stype,
             dimensions=dimensions,
             name=name,
             **kwargs,
         )
+        return schema, ty
 
     @classmethod
     def create_shell(
@@ -1646,7 +1650,7 @@ class Tuple(
         element_types: Mapping[str, Type],
         named: bool = False,
         **kwargs: Any,
-    ) -> typing.Tuple[s_schema.Schema, Tuple_T]:
+    ) -> typing.Tuple[s_schema.Schema, Tuple_T, bool]:
         el_types = so.ObjectDict[str, Type].create(schema, element_types)
         if name is None:
             name = cls.generate_name(
@@ -1659,7 +1663,10 @@ class Tuple(
         else:
             result = schema.get_global(cls, name, default=None)
 
+        has_been_created = False
+
         if result is None:
+            has_been_created = True
             schema, result = super().create_in_schema(
                 schema,
                 id=id,
@@ -1671,7 +1678,7 @@ class Tuple(
             # Compute material type so that we can retrieve it safely later
             schema, _ = result.material_type(schema)
 
-        return schema, result
+        return schema, result, has_been_created
 
     def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
         els = {n: st.get_name(schema) for n, st in self.iter_subtypes(schema)}
@@ -1789,8 +1796,9 @@ class Tuple(
             types = subtypes
         else:
             types = {str(i): type for i, type in enumerate(subtypes)}
-        return cls.create(
+        schema, ty, _ = cls.create(
             schema, element_types=types, named=named, name=name, **kwargs)
+        return schema, ty
 
     @classmethod
     def create_shell(
