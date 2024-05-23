@@ -213,9 +213,6 @@ class Environment:
 
     This is used for rewriting expressions in the schema after a rename. """
 
-    created_schema_objects: Set[s_obj.Object]
-    """A set of all schema objects derived by this compilation."""
-
     # Caches for costly operations in edb.ir.typeutils
     ptr_ref_cache: PointerRefCache
     type_ref_cache: Dict[irtyputils.TypeRefCacheKey, irast.TypeRef]
@@ -310,7 +307,6 @@ class Environment:
             irast.ViewShapeMetadata)
         self.schema_refs = set()
         self.schema_ref_exprs = {} if options.track_schema_ref_exprs else None
-        self.created_schema_objects = set()
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
         self.dml_exprs = []

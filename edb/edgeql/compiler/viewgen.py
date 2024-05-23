@@ -2642,7 +2642,5 @@ def _record_created_collection_types(
     if isinstance(
         type, s_types.Collection
     ) and not ctx.env.orig_schema.get_by_id(type.id, default=None):
-        ctx.env.created_schema_objects.add(type)
-
         for sub_type in type.get_subtypes(ctx.env.schema):
             _record_created_collection_types(sub_type, ctx)

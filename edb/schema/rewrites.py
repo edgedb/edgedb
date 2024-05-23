@@ -184,7 +184,7 @@ class RewriteCommand(
             )
             # __specified__
             bool_type = schema.get("std::bool", type=s_types.Type)
-            schema, specified_type, _ = s_types.Tuple.create(
+            schema, specified_type = s_types.Tuple.create(
                 schema,
                 named=True,
                 element_types={

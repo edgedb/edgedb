@@ -572,7 +572,7 @@ def sub_expr(ir: irast.Set) -> Optional[irast.Expr]:
 
 class CollectSchemaTypesVisitor(ast.NodeVisitor):
     types: Set[uuid.UUID]
-    
+
     def __init__(self) -> None:
         super().__init__()
         self.types = set()

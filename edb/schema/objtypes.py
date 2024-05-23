@@ -417,7 +417,7 @@ def get_or_create_intersection_type(
     *,
     module: Optional[str] = None,
     transient: bool = False,
-) -> Tuple[s_schema.Schema, ObjectType, bool]:
+) -> Tuple[s_schema.Schema, ObjectType]:
 
     name = s_types.get_intersection_type_name(
         (c.get_name(schema) for c in components),
@@ -425,7 +425,6 @@ def get_or_create_intersection_type(
     )
 
     objtype = schema.get(name, default=None, type=ObjectType)
-    created = objtype is None
     if objtype is None:
         components = list(components)
 
@@ -469,7 +468,7 @@ def get_or_create_intersection_type(
                 schema = objtype.add_pointer(schema, ptr)
 
     assert isinstance(objtype, ObjectType)
-    return schema, objtype, created
+    return schema, objtype
 
 
 class ObjectTypeCommandContext(
