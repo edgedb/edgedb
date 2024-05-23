@@ -160,3 +160,13 @@ alias UserAlias := (
 alias SpecialCardAlias := SpecialCard {
     el_cost := (.element, .cost)
 };
+
+# This is pulled from test_edgeql_ddl_collection_cleanup_05 to test
+# that schemas with tuple aliases like this work properly after the
+# fix in #7375.
+# This works because one of the patches tests creates the cards database
+# before the upgrade and then migrates to it after.
+# (See .github/scripts/patches/create-databases.py)
+scalar type alias_test_a extending str;
+scalar type alias_test_b extending str;
+alias alias_test_Bar := (<alias_test_a>"", <alias_test_b>"");
