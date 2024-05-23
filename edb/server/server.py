@@ -370,55 +370,58 @@ class BaseServer:
 
     def monitor_fs(
         self,
-        path: str | pathlib.Path,
+        file_path: str | pathlib.Path,
         cb: Callable[[], None],
     ) -> Callable[[], None]:
         if not self._use_monitor_fs:
             return lambda: None
 
+        if isinstance(file_path, str):
+            path = pathlib.Path(file_path)
+            path_str = file_path
+        else:
+            path = file_path
+            path_str = str(file_path)
         handle = None
-        parent_dir = pathlib.Path(path).parent
+        parent_dir = path.parent
 
         def watch_dir(file_modified, _event):
             nonlocal handle
-            if parent_dir / os.fsdecode(file_modified) == pathlib.Path(path):
+            if parent_dir / os.fsdecode(file_modified) == path:
                 try:
                     new_handle = self.__loop._monitor_fs(  # type: ignore
-                        str(path), callback)
+                        path_str, callback)
                 except FileNotFoundError:
                     pass
                 else:
                     finalizer()
                     handle = new_handle
                     self._file_watch_handles.append(handle)
+                    cb()
 
-        def callback(file_modified, event):
+        def callback(_file_modified, _event):
             nonlocal handle
-            if event == 2:  # CHANGE
+            # First, cancel the existing watcher and call cb() regardless of
+            # what event it is. This is because macOS issues RENAME while Linux
+            # issues CHANGE, and we don't have enough knowledge about renaming.
+            # The idea here is to re-watch the file path after every event, so
+            # that even if the file is recreated, we still watch the right one.
+            finalizer()
+            try:
                 cb()
-            elif (
-                event == 1 and  # RENAME - macOS issues this event for CHANGE
-                parent_dir / os.fsdecode(file_modified) == pathlib.Path(path)
-            ):
-                cb()
-            elif event == 1 or event == 3:  # RENAME, RENAME_CHANGE
-                # File is likely renamed or deleted, stop watching
-                finalizer()
+            finally:
                 try:
                     # Then, see if we can directly re-watch the target path
                     handle = self.__loop._monitor_fs(  # type: ignore
-                        str(path), callback)
+                        path_str, callback)
                 except FileNotFoundError:
                     # If not, watch the parent directory to wait for recreation
                     handle = self.__loop._monitor_fs(  # type: ignore
                         str(parent_dir), watch_dir)
                 self._file_watch_handles.append(handle)
-            else:
-                # Unknown events are ignored
-                pass
 
         # ... we depend on an event loop internal _monitor_fs
-        handle = self.__loop._monitor_fs(str(path), callback)  # type: ignore
+        handle = self.__loop._monitor_fs(path_str, callback)  # type: ignore
 
         def finalizer():
             try:
