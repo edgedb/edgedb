@@ -409,7 +409,6 @@ class BaseLabeledCounter(BaseMetric):
             fmt_label = ','.join(
                 f'{label}="{_format_label_val(label_val)}"'
                 for label, label_val in zip(self._labels, labels)
-                if label not in label_filters
             )
             buffer.append(
                 f'{self._name}{self._suffix}{{{fmt_label}}} {float(value)}'
@@ -425,7 +424,6 @@ class BaseLabeledCounter(BaseMetric):
                 fmt_label = ','.join(
                     f'{label}="{_format_label_val(label_val)}"'
                     for label, label_val in zip(self._labels, labels)
-                    if label not in label_filters
                 )
                 buffer.append(
                     f'{self._name}_created{{{fmt_label}}} {float(value)}'
@@ -618,7 +616,6 @@ class LabeledHistogram(BaseHistogram):
             fmt_label = ','.join(
                 f'{label}="{_format_label_val(label_val)}"'
                 for label, label_val in zip(self._labels, labels)
-                if label not in label_filters
             )
             accum = 0.0
             for buck, val in zip(self._buckets, values[1]):  # type: ignore
@@ -648,7 +645,6 @@ class LabeledHistogram(BaseHistogram):
                 fmt_label = ','.join(
                     f'{label}="{_format_label_val(label_val)}"'
                     for label, label_val in zip(self._labels, labels)
-                    if label not in label_filters
                 )
                 buffer.append(
                     f'{self._name}_created{{{fmt_label}}} {float(value)}'
