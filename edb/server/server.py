@@ -397,6 +397,7 @@ class BaseServer:
                     finalizer()
                     handle = new_handle
                     self._file_watch_handles.append(handle)
+                    cb()
 
         def callback(_file_modified, _event):
             nonlocal handle
