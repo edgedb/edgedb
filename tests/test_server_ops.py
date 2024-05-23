@@ -901,6 +901,22 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
                         conn = await sd.connect()
                         await conn.aclose()
+
+                # Re-create the file, the server should pick it up
+                rf = open(rf_name, "w")
+                print("not_ready", file=rf, flush=True)
+                await sd.connect()
+                async for tr in self.try_until_succeeds(
+                    ignore=(errors.AccessError, AssertionError),
+                ):
+                    async with tr:
+                        with self.http_con(server=sd) as http_con:
+                            _, _, status = self.http_con_request(
+                                http_con,
+                                path='/server/status/ready',
+                            )
+                            self.assertEqual(
+                                status, http.HTTPStatus.SERVICE_UNAVAILABLE)
         finally:
             if os.path.exists(rf_name):
                 rf.close()
