@@ -508,6 +508,7 @@ def _create_alias_types(
     Set[so.ObjectShell[s_types.Type]],
 ]:
     from . import ordering as s_ordering
+    from edb.ir import utils as irutils
 
     ir = expr.irast
     new_schema = ir.schema
@@ -516,7 +517,12 @@ def _create_alias_types(
 
     created_type_shells: Set[so.ObjectShell[s_types.Type]] = set()
 
-    for ty in ir.created_schema_types:
+    for ty_id in irutils.collect_schema_types(ir.expr):
+        if schema.has_object(ty_id):
+            # this is not a new type, skip
+            continue
+        ty = new_schema.get_by_id(ty_id, type=s_types.Type)
+
         name = ty.get_name(new_schema)
         if (
             not isinstance(ty, s_types.Collection)
