@@ -706,11 +706,12 @@ cdef class HttpProtocol:
                 self.tenant,
             )
         elif route == 'server':
-            if not await self._authenticate_for_default_conn_transport(
+            auth_method = await self._authenticate_for_default_conn_transport(
                 request,
                 response,
                 srvargs.ServerConnTransport.HTTP_HEALTH,
-            ):
+            )
+            if not auth_method:
                 return
 
             # System API request
@@ -720,6 +721,7 @@ cdef class HttpProtocol:
                 path_parts[1:],
                 self.server,
                 self.tenant,
+                auth_method,
             )
         elif path_parts == ['metrics'] and request.method == b'GET':
             if not await self._authenticate_for_default_conn_transport(
@@ -940,6 +942,7 @@ cdef class HttpProtocol:
         HttpResponse response,
         transport: srvargs.ServerConnTransport,
     ):
+        rv = None
         try:
             auth_methods = self.server.get_default_auth_methods(transport)
             auth_errors = {}
@@ -964,6 +967,7 @@ cdef class HttpProtocol:
                 except errors.AuthenticationError as e:
                     auth_errors[authmethod_name] = e
                 else:
+                    rv = authmethod_name
                     break
 
             if len(auth_errors) == len(auth_methods):
@@ -981,9 +985,9 @@ cdef class HttpProtocol:
 
             self._unauthorized(request, response, str(ex))
 
-            return False
+            return None
 
-        return True
+        return rv
 
 def get_request_url(request, is_tls):
     request_url = request.url

@@ -50,6 +50,7 @@ class Database:
     dbver: int
     db_config: Config
     extensions: set[str]
+    schema_version: Optional[uuid.UUID]
 
     @property
     def server(self) -> server.Server:
