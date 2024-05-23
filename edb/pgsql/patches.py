@@ -155,4 +155,6 @@ std::range_get_lower(r: multirange<anypoint>)
     SET force_return_cast := true;
 };
 '''),
+    # === 5.4
+    ('repair', ''),  # for #7375
 ])
