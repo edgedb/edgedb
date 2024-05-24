@@ -91,7 +91,7 @@
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
         <%- endif %>
@@ -160,7 +160,7 @@
     - name: Build
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         <%- if subdist != "nightly" %>
         BUILD_IS_RELEASE: "true"
         <%- endif %>
@@ -213,7 +213,7 @@
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
         <%- endif %>
@@ -244,7 +244,7 @@
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@language-server
       env:
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
@@ -293,7 +293,7 @@
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
         <%- endif %>

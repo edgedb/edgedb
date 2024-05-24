@@ -63,7 +63,7 @@ jobs:
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
@@ -89,7 +89,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_SUBDIST: "nightly"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
@@ -116,7 +116,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@language-server
       env:
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
