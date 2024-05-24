@@ -1641,6 +1641,21 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    def test_schema_rewrite_order_02(self):
+        # One of the properties is going to reference the other property
+        # before it is created in its rewrite via __specified__.
+        # Ensure that this gets ordered correctly.
+        """
+            type User {
+              property foo -> bool {
+                rewrite insert using (__specified__.bar);
+              };
+              property bar -> bool {
+                rewrite insert using (__specified__.foo);
+              };
+            };
+        """
+
     def test_schema_scalar_order_01(self):
         # Make sure scalar types account for base types when tracing SDL
         # dependencies.
@@ -9105,6 +9120,44 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     name: str {
                         rewrite update, insert using (.name ++ "!")
                     }
+                };
+            """,
+            r"""
+            """,
+        ])
+
+    def test_schema_migrations_rewrites_02(self):
+        self._assert_migration_equivalence([
+            r"""
+                type User {
+                    property foo -> bool;
+                    property bar -> bool;
+                };
+            """,
+            r"""
+                type User {
+                    property foo -> bool {
+                        rewrite insert using (
+                            __specified__.bar and __specified__.baz
+                        );
+                    };
+                    property bar -> bool {
+                        rewrite insert using (
+                            __specified__.foo and __specified__.baz
+                        );
+                    };
+                    property baz -> bool {
+                        rewrite insert using (
+                            __specified__.foo and __specified__.bar
+                        );
+                    };
+                };
+            """,
+            r"""
+                type User {
+                    property foo -> bool;
+                    property bar -> bool;
+                    property baz -> bool;
                 };
             """,
             r"""
