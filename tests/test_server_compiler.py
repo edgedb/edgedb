@@ -317,6 +317,11 @@ class TestServerCompilerPool(tbs.TestCase):
             self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
             pid1, pid2 = await self._get_worker_pids(sd)
 
+            data = sd.fetch_metrics()
+            self.assertRegex(
+                data, r'\nedgedb_server_compiler_processes_current 2.0\n'
+            )
+
             # Terminate one worker, the server is still OK
             self._kill_and_wait(pid1)
             self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
