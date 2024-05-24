@@ -95,7 +95,7 @@ std::__json_get_not_null(
     SET volatility := 'Immutable';
     SET internal := true;
     USING SQL $$
-    SELECT 
+    SELECT
         CASE
         WHEN "json" = 'null'::jsonb THEN
             NULL
@@ -458,7 +458,7 @@ std::__range_validate_json(val: std::json, detail: std::str='') -> OPTIONAL std:
             ARRAY['object', 'null'],
             detail => detail
         ) AS v
-    )
+    ) AS x
     $$;
 };
 
