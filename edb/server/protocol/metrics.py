@@ -21,6 +21,7 @@ import http
 
 from edb import errors
 from edb.server import metrics
+from edb.server import server
 
 from edb.common import debug
 from edb.common import markup
@@ -32,7 +33,7 @@ async def handle_request(
     tenant,
 ):
     try:
-        if tenant is None:
+        if tenant is None or isinstance(tenant.server, server.Server):
             output = metrics.registry.generate()
         else:
             output = metrics.registry.generate(
