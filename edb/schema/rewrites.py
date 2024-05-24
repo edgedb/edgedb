@@ -207,6 +207,35 @@ class RewriteCommand(
 
             singletons = frozenset(anchors.values())
 
+            # If the `__specified__` anchor is used, create references to the
+            # matching pointers.
+            #
+            # These references are necessary in order to compute the dependency
+            # and ordering of Rewrite commands when producing DDL.
+            #
+            # If creating Type T with two properties, A and B, such that
+            # A has a Rewrite containing `__specified__.B`.
+            #
+            # Without the references, the DDL may look like:
+            # - Create Type T
+            #   - Create Property A
+            #     - Create Rewrite using __specified__.B
+            #   - Create Property B
+            #
+            # This will cause an issue when compiling the Rewrite. At that
+            # point, the schema will not know about B and so the tuple will not
+            # have element `.B`.
+            #
+            # The reference will cause the reordering of commands and the DDL
+            # may instead look like:
+            # - Create Object O
+            #   - Create Property A
+            #   - Create Property B
+            #   - Alter Property A
+            #     - Create Rewrite using __specified__.B
+            #
+            # With Create Rewrite ordered after Property B, the tuple for
+            # `__specified__` will correctly have element `.B`.
             def find_extra_refs(ir_expr: irast.Set) -> set[so.Object]:
                 def find_specified(node: irast.TupleIndirectionPointer) -> bool:
                     return node.source.anchor == '__specified__'
