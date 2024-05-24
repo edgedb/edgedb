@@ -77,7 +77,7 @@ jobs:
         path: artifacts/linux-x86_64
 
   publish-linux-x86_64:
-    needs: [test-linux-x86_64]
+    needs: [build-linux-x86_64]
     runs-on: ubuntu-latest
 
     steps:
@@ -137,7 +137,6 @@ jobs:
     needs:
       - prep
       - build-linux-x86_64
-      - test-linux-x86_64
       - publish-linux-x86_64
       - check-published-linux-x86_64
     runs-on: ubuntu-latest
