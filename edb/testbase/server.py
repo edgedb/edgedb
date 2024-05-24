@@ -660,16 +660,23 @@ def _shutdown_cluster(cluster, *, destroy=True):
             cluster.destroy()
 
 
-def _fetch_metrics(host: str, port: int) -> str:
-    return _call_system_api(host, port, '/metrics', return_json=False)
+def _fetch_metrics(host: str, port: int, sslctx=None) -> str:
+    return _call_system_api(
+        host, port, '/metrics', return_json=False, sslctx=sslctx
+    )
 
 
 def _fetch_server_info(host: str, port: int) -> dict[str, Any]:
     return _call_system_api(host, port, '/server-info')
 
 
-def _call_system_api(host: str, port: int, path: str, return_json=True):
-    con = http.client.HTTPConnection(host, port)
+def _call_system_api(
+    host: str, port: int, path: str, return_json=True, sslctx=None
+):
+    if sslctx is None:
+        con = http.client.HTTPConnection(host, port)
+    else:
+        con = http.client.HTTPSConnection(host, port, context=sslctx)
     con.connect()
     try:
         con.request(
@@ -773,7 +780,9 @@ class ClusterTestCase(BaseHTTPTestCase):
         assert cls.cluster is not None
         conargs = cls.cluster.get_connect_args()
         host, port = conargs['host'], conargs['port']
-        return _fetch_metrics(host, port)
+        ctx = ssl.create_default_context()
+        ctx.load_verify_locations(conargs['tls_ca_file'])
+        return _fetch_metrics(host, port, sslctx=ctx)
 
     @classmethod
     def get_connect_args(
@@ -2060,7 +2069,9 @@ class _EdgeDBServerData(NamedTuple):
         return conn_args
 
     def fetch_metrics(self) -> str:
-        return _fetch_metrics(self.host, self.port)
+        ctx = ssl.create_default_context()
+        ctx.load_verify_locations(self.tls_cert_file)
+        return _fetch_metrics(self.host, self.port, sslctx=ctx)
 
     def fetch_server_info(self) -> dict[str, Any]:
         return _fetch_server_info(self.host, self.port)
