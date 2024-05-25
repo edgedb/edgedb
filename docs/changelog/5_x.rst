@@ -569,3 +569,34 @@ Bug fixes
 
   This avoids accidentally being able to use other (short-lived) JWT tokens
   as the ``auth_token`` JWT directly.
+
+5.4
+===
+
+* Improve error message when creating union with incompatible types.
+  (:eql:gh:`#7278`)
+
+* Fix handling of enums in arrays and multi properties for GraphQL.
+  (:eql:gh:`#3990`)
+
+* Fix modifying global that is used in a policy on a type it refers to.
+  (:eql:gh:`#7310`)
+
+* Fix a bug involving globals in a somewhat complex interaction with policies.
+  (:eql:gh:`#7314`)
+
+* Set content-type header for AI extension errors.
+  (:eql:gh:`#7324`)
+
+* Fix an ``UNLESS CONFLICT`` on links performance regression.
+  (:eql:gh:`#7349`)
+
+* Fix ``EDGEDB_SERVER_CONFIG`` configuration of enum values.
+  (:eql:gh:`#7350`)
+
+* Only decode url encoded slashes in db/branch name after splitting path into
+  parts.
+  (:eql:gh:`#7352`)
+
+* Fix an issue with collection types that affected some migrations.
+  (:eql:gh:`#7375`)
