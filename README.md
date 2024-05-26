@@ -71,7 +71,7 @@ Forget foreign keys; tabular data modeling is a relic of an older age, and it
 with modern languages. Instead, EdgeDB thinks about schema the same way you do:
 as **object types** containing **properties** connected by **links**.
 
-```elm
+```esdl
 type Person {
   required name: str;
 }
@@ -101,7 +101,7 @@ EdgeDB's super-powered query language EdgeQL is designed as a ground-up
 redesign of SQL. EdgeQL queries produce rich, structured objects, not flat
 lists of rows. Deeply fetching related objects is painless...bye, bye, JOINs.
 
-```elm
+```esdl
 select Movie {
   title,
   actors: {
