@@ -115,7 +115,7 @@ EdgeQL queries are also _composable_; you can use one EdgeQL query as an
 expression inside another. This property makes things like _subqueries_ and
 _nested mutations_ a breeze.
 
-```elm
+```esdl
 insert Movie {
   title := "The Matrix Resurrections",
   actors := (
