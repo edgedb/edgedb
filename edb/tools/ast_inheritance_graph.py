@@ -54,6 +54,8 @@ def main(ast: ASTModule) -> None:
         if not issubclass(typ, ast_mod.Base) or name in {
             'Base',
             'ImmutableBase',
+            'DDL',
+            'SDL',
         }:
             continue
 

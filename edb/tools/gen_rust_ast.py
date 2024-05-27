@@ -1,4 +1,4 @@
-import itertools
+import collections
 import typing
 import dataclasses
 import textwrap
@@ -48,9 +48,6 @@ def main() -> None:
             #![allow(non_camel_case_types)]
 
             use indexmap::IndexMap;
-
-            #[cfg(feature = "python")]
-            use edgeql_parser_derive::IntoPython;
             '''
         )
     )
@@ -92,17 +89,28 @@ def main() -> None:
 
 
 def codegen_struct(cls: ASTClass) -> str:
-    field_names = set()
-    fields = ''
-    doc_comment = ''
+    if cls.typ.__abstract_node__:
+        return codegen_union(ASTUnion(
+            name=cls.name, variants=cls.children, for_composition=True
+        ))
 
-    for f in typing.cast(typing.List[ast._Field], cls.typ._direct_fields):
+    fields = collections.OrderedDict()
+    for parent in reversed(cls.typ.__mro__):
+        lst = getattr(parent, '_direct_fields', [])
+        for field in lst:
+            fields[field.name] = field
+
+    field_names = set()
+    fields_text = ''
+    doc_comment = ''
+    for f in typing.cast(typing.List[ast._Field], fields.values()):
 
         if f.hidden:
             continue
 
         union_name = f'{cls.name}{title_case(f.name)}'
 
+        print(f'struct {cls.name}, field {f.name}, type: {f.type}')
         typ = translate_type(f.type, union_name, False)
         if hasattr(cls.typ, '__rust_box__') and f.name in cls.typ.__rust_box__:
             typ = f'Box<{typ}>'
@@ -110,39 +118,14 @@ def codegen_struct(cls: ASTClass) -> str:
         f_name = quote_rust_ident(f.name)
         field_names.add(f_name)
 
-        fields += f'    pub {f_name}: {typ},\n'
-
-    if len(cls.children) > 0:
-
-        # find an unused name for the py_child field
-        for i in itertools.count(0, 1):
-            kind_name = 'kind' if i == 0 else f'kind{i}'
-            if kind_name not in field_names:
-                break
-
-        name = f'{cls.name}Kind'
-        variants: typing.Sequence[typing.Type | str] = cls.children
-
-        union_types.append(
-            ASTUnion(name=name, variants=variants, for_composition=True)
-        )
-
-        if cls.typ.__abstract_node__:
-            field_type = name
-        else:
-            field_type = f'Option<{name}>'
-
-        fields += (
-            f'    #[cfg_attr(feature = "python", py_child)]\n'
-            f'    pub {kind_name}: {field_type},\n'
-        )
+        fields_text += f'    pub {f_name}: {typ},\n'
 
     return (
         f'\n{doc_comment}'
         + f'#[derive(Debug, Clone)]\n'
-        + f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
+        # + f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
         + f'pub struct {cls.name} {"{"}\n'
-        + fields
+        + fields_text
         + '}\n'
     ).replace('{\n}', r'{}')
 
@@ -163,8 +146,8 @@ def codegen_enum(name: str, cls: typing.Type) -> str:
 
     return (
         '\n#[derive(Debug, Clone)]\n'
-        + f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
-        + f'#[cfg_attr(feature = "python", py_enum({cls_path}))]\n'
+        # + f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
+        # + f'#[cfg_attr(feature = "python", py_enum({cls_path}))]\n'
         + f'pub enum {name} {"{"}\n'
         + fields
         + '}\n'
@@ -187,15 +170,16 @@ def codegen_union(union: ASTUnion) -> str:
         if isinstance(arg, str):
             fields += f'    {arg},\n'
         else:
+            print(f'union {union.name}, variant {arg}')
             typ = translate_type(arg, '???', union.for_composition)
             fields += f'    {arg.__name__}({typ}),\n'
 
-    attr = 'py_child' if union.for_composition else 'py_union'
+    # attr = 'py_child' if union.for_composition else 'py_union'
 
     return (
         '\n#[derive(Debug, Clone)]\n'
-        f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
-        f'#[cfg_attr(feature = "python", {attr})]\n'
+        # f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
+        # f'#[cfg_attr(feature = "python", {attr})]\n'
         f'pub enum {union.name} {"{"}\n{fields}{"}"}\n'
     )
 
@@ -258,22 +242,4 @@ def translate_type(
     if for_composition or typ.__name__ not in ast_classes:
         return typ.__name__
 
-    ancestor = find_covering_ancestor(
-        typ, set(f.name for f in typ._fields.values() if not f.hidden)
-    )
-    return ancestor.__name__
-
-
-def find_covering_ancestor(typ: typing.Type, fields: typing.Set[str]):
-    # In Rust, a type will not inherit fields from parent types.
-    # This means that we need to omit some ancestor of this type, which
-    # would include all fields of the type.
-    # We lose a bit of type checking strictness here.
-    for parent in typ.__mro__:
-        if not hasattr(parent, '_direct_fields'):
-            continue
-
-        fields = fields.difference((f.name for f in parent._direct_fields))
-        if len(fields) == 0:
-            return parent
-    raise AssertionError('unreachable')
+    return typ.__name__
