@@ -1470,6 +1470,162 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         # Auto-complete migration
         await self.fast_forward_describe_migration()
 
+    async def test_edgeql_migration_describe_index_01(self):
+        # Migration that creates index.
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        property a -> int64;
+                    };
+                };
+            };
+        ''')
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        property a -> int64;
+                        index on (.a)
+                    };
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'prompt': (
+                    "did you create index on (.a) "
+                    "of object type 'test::Foo'?"
+                )
+            }
+        })
+
+    async def test_edgeql_migration_describe_index_02(self):
+        # Migration that drops index expression.
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        property a -> int64;
+                        index on (.a)
+                    };
+                };
+            };
+        ''')
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        property a -> int64;
+                    };
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'prompt': (
+                    "did you drop index on (.a) "
+                    "of object type 'test::Foo'?"
+                )
+            }
+        })
+
+    async def test_edgeql_migration_describe_index_03(self):
+        # Migration that creates index on link property
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        link bar -> Bar {
+                            baz -> int64;
+                        }
+                    };
+                    type Bar;
+                };
+            };
+        ''')
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        link bar -> Bar {
+                            baz -> int64;
+                            index on (@baz);
+                        }
+                    };
+                    type Bar;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'prompt': (
+                    "did you create index on (@baz) "
+                    "of link 'bar'?"
+                )
+            }
+        })
+
+    async def test_edgeql_migration_describe_index_04(self):
+        # Migration that drops index on link property
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        link bar -> Bar {
+                            baz -> int64;
+                            index on (@baz);
+                        }
+                    };
+                    type Bar;
+                };
+            };
+        ''')
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        link bar -> Bar {
+                            baz -> int64;
+                        }
+                    };
+                    type Bar;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'prompt': (
+                    "did you drop index on (@baz) "
+                    "of link 'bar'?"
+                )
+            }
+        })
+
     async def test_edgeql_migration_describe_scalar_01(self):
         # Migration that renames a type.
         await self.con.execute('''
