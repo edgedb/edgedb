@@ -34,7 +34,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
 
     INTERPRETER_USE_SQLITE = False
 
-    def test_edgeql_select_interpreter_unique_01(self):
+    def test_interpreter_select_interpreter_unique_01(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -58,7 +58,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_unique_02(self):
+    def test_interpreter_select_interpreter_unique_02(self):
         self.assert_query_result(
             r'''
             SELECT Issue.owner{name}
@@ -70,7 +70,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_01(self):
+    def test_interpreter_select_interpreter_computable_01(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -93,7 +93,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_02(self):
+    def test_interpreter_select_interpreter_computable_02(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -109,7 +109,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1', 'total_time_spent': 50000}],
         )
 
-    def test_edgeql_select_interpreter_computable_03(self):
+    def test_interpreter_select_interpreter_computable_03(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -139,7 +139,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_04(self):
+    def test_interpreter_select_interpreter_computable_04(self):
         self.assert_query_result(
             r'''
             WITH
@@ -171,7 +171,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_05(self):
+    def test_interpreter_select_interpreter_computable_05(self):
         self.assert_query_result(
             r'''
             WITH
@@ -217,7 +217,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_06(self):
+    def test_interpreter_select_interpreter_computable_06(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -246,7 +246,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_07(self):
+    def test_interpreter_select_interpreter_computable_07(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -275,7 +275,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_08(self):
+    def test_interpreter_select_interpreter_computable_08(self):
         self.assert_query_result(
             r"""
             # get a user + the latest issue (regardless of owner), which has
@@ -314,7 +314,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_09(self):
+    def test_interpreter_select_interpreter_computable_09(self):
         self.assert_query_result(
             r"""
             SELECT Text{
@@ -346,7 +346,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_10(self):
+    def test_interpreter_select_interpreter_computable_10(self):
         self.assert_query_result(
             r"""
             SELECT Issue{
@@ -366,7 +366,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_11(self):
+    def test_interpreter_select_interpreter_computable_11(self):
         self.assert_query_result(
             r'''
             WITH
@@ -384,7 +384,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['Minor lexer tweaks.'],
         )
 
-    def test_edgeql_select_interpreter_computable_12(self):
+    def test_interpreter_select_interpreter_computable_12(self):
         self.assert_query_result(
             r'''
             WITH
@@ -402,7 +402,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['default::Issue'],
         )
 
-    def test_edgeql_select_interpreter_computable_13(self):
+    def test_interpreter_select_interpreter_computable_13(self):
         self.assert_query_result(
             r'''
             WITH
@@ -420,7 +420,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['3'],
         )
 
-    def test_edgeql_select_interpreter_computable_14(self):
+    def test_interpreter_select_interpreter_computable_14(self):
         self.assert_query_result(
             r"""
             SELECT Issue{
@@ -439,7 +439,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_15(self):
+    def test_interpreter_select_interpreter_computable_15(self):
         self.execute(
             """\
             SELECT Issue{
@@ -451,7 +451,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
         """
         )
 
-    def test_edgeql_select_interpreter_computable_16(self):
+    def test_interpreter_select_interpreter_computable_16(self):
         self.assert_query_result(
             r"""
             SELECT Issue{
@@ -472,7 +472,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_17(self):
+    def test_interpreter_select_interpreter_computable_17(self):
         self.execute(
             """\
             WITH
@@ -486,7 +486,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
         """
         )
 
-    def test_edgeql_select_interpreter_computable_18(self):
+    def test_interpreter_select_interpreter_computable_18(self):
         self.execute(
             '''
                     INSERT Publication {
@@ -521,7 +521,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_19(self):
+    def test_interpreter_select_interpreter_computable_19(self):
         self.assert_query_result(
             r"""
             SELECT Issue{
@@ -538,7 +538,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_30(self):
+    def test_interpreter_select_interpreter_computable_30(self):
         self.assert_query_result(
             r"""
                 WITH O := (SELECT {m := 10}),
@@ -549,7 +549,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_32(self):
+    def test_interpreter_select_interpreter_computable_32(self):
         self.assert_query_result(
             r"""
             SELECT _ := (User {x := .name}.x, (SELECT User.name)) ORDER BY _;
@@ -581,7 +581,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_33(self):
+    def test_interpreter_select_interpreter_computable_33(self):
         self.assert_query_result(
             r"""
             SELECT User {name, todo_ids := .todo.id} FILTER .name = 'Elvis';
@@ -602,7 +602,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_computable_34(self):
+    def test_interpreter_select_interpreter_computable_34(self):
         self.execute(
             """\
             SELECT Issue{
@@ -613,7 +613,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
         """
         )
 
-    def test_edgeql_select_interpreter_computable_35(self):
+    def test_interpreter_select_interpreter_computable_35(self):
         # allow computed __type__ field
         self.assert_query_result(
             """
@@ -628,7 +628,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_match_01(self):
+    def test_interpreter_select_interpreter_match_01(self):
         self.assert_query_result(
             r"""
             SELECT
@@ -662,7 +662,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '2'}],
         )
 
-    def test_edgeql_select_interpreter_match_02(self):
+    def test_interpreter_select_interpreter_match_02(self):
         self.assert_query_result(
             r"""
             SELECT
@@ -701,7 +701,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_match_03(self):
+    def test_interpreter_select_interpreter_match_03(self):
         self.assert_query_result(
             r"""
             SELECT
@@ -740,7 +740,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_match_04(self):
+    def test_interpreter_select_interpreter_match_04(self):
         self.assert_query_result(
             r"""
             SELECT
@@ -774,7 +774,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_match_07(self):
+    def test_interpreter_select_interpreter_match_07(self):
         self.assert_query_result(
             r"""
             SELECT
@@ -823,7 +823,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_match_08(self):
+    def test_interpreter_select_interpreter_match_08(self):
         self.assert_query_result(
             r"""
             SELECT
@@ -880,7 +880,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_type_01(self):
+    def test_interpreter_select_interpreter_type_01(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -901,7 +901,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_type_02(self):
+    def test_interpreter_select_interpreter_type_02(self):
         self.assert_query_result(
             r'''
             SELECT User.__type__.name LIMIT 1;
@@ -909,7 +909,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['default::User'],
         )
 
-    def test_edgeql_select_interpreter_recursive_01(self):
+    def test_interpreter_select_interpreter_recursive_01(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -925,7 +925,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2', 'related_to': []}],
         )
 
-    def test_edgeql_select_interpreter_limit_01(self):
+    def test_interpreter_select_interpreter_limit_01(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -956,7 +956,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_limit_02(self):
+    def test_interpreter_select_interpreter_limit_02(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -987,7 +987,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_limit_03(self):
+    def test_interpreter_select_interpreter_limit_03(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -1019,7 +1019,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_limit_04(self):
+    def test_interpreter_select_interpreter_limit_04(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -1046,7 +1046,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_limit_05(self):
+    def test_interpreter_select_interpreter_limit_05(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -1073,7 +1073,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_limit_10(self):
+    def test_interpreter_select_interpreter_limit_10(self):
         with self.assertRaisesRegex(ValueError, r'LIMIT must not be negative'):
 
             self.execute(
@@ -1082,7 +1082,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
             )
 
-    def test_edgeql_select_interpreter_offset_01(self):
+    def test_interpreter_select_interpreter_offset_01(self):
         with self.assertRaisesRegex(
             ValueError, r'OFFSET must not be negative'
         ):
@@ -1093,7 +1093,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
             )
 
-    def test_edgeql_select_interpreter_polymorphic_02(self):
+    def test_interpreter_select_interpreter_polymorphic_02(self):
         self.assert_query_result(
             r'''
             SELECT User{
@@ -1111,7 +1111,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_polymorphic_03(self):
+    def test_interpreter_select_interpreter_polymorphic_03(self):
         self.assert_query_result(
             r'''
             SELECT User{
@@ -1133,7 +1133,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_polymorphic_04(self):
+    def test_interpreter_select_interpreter_polymorphic_04(self):
         self.execute(
             r'''
                 SELECT User {
@@ -1142,7 +1142,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             '''
         )
 
-    def test_edgeql_select_interpreter_polymorphic_14(self):
+    def test_interpreter_select_interpreter_polymorphic_14(self):
         # This one isn't *really* polymorphic, and that caused some trouble
         self.assert_query_result(
             r'''
@@ -1157,7 +1157,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ),
         )
 
-    def test_edgeql_select_interpreter_reverse_link_03(self):
+    def test_interpreter_select_interpreter_reverse_link_03(self):
         with self.assertRaisesRegex(
             edgedb.InvalidReferenceError,
             "property 'since' does not exist",
@@ -1173,7 +1173,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
                 ''',
             )
 
-    def test_edgeql_select_interpreter_reverse_link_05(self):
+    def test_interpreter_select_interpreter_reverse_link_05(self):
         self.assert_query_result(
             r'''
             SELECT (User.<owner[IS Comment], User.<owner[IS Issue]);
@@ -1181,7 +1181,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_empty_intersection_property(self):
+    def test_interpreter_select_interpreter_empty_intersection_property(self):
         with self.assertRaisesRegex(
             edgedb.InvalidReferenceError, "property 'since' does not exist"
         ):
@@ -1195,7 +1195,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
                 ''',
             )
 
-    def test_edgeql_select_interpreter_nested_redefined_link(self):
+    def test_interpreter_select_interpreter_nested_redefined_link(self):
         self.assert_query_result(
             '''
                 SELECT (SELECT (SELECT Issue { watchers: {name} }).watchers);
@@ -1208,7 +1208,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ),
         )
 
-    def test_edgeql_select_interpreter_tvariant_01(self):
+    def test_interpreter_select_interpreter_tvariant_01(self):
         self.assert_query_result(
             r'''
             SELECT Issue{
@@ -1226,7 +1226,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_tvariant_02(self):
+    def test_interpreter_select_interpreter_tvariant_02(self):
         self.assert_query_result(
             r'''
             SELECT User{
@@ -1244,7 +1244,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_tvariant_03(self):
+    def test_interpreter_select_interpreter_tvariant_03(self):
         self.assert_query_result(
             r'''
             SELECT User{
@@ -1268,7 +1268,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_tvariant_04(self):
+    def test_interpreter_select_interpreter_tvariant_04(self):
         self.assert_query_result(
             r"""
             WITH
@@ -1288,7 +1288,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_tvariant_05(self):
+    def test_interpreter_select_interpreter_tvariant_05(self):
         self.assert_query_result(
             r"""
             SELECT Issue.owner {
@@ -1321,7 +1321,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ),
         )
 
-    def test_edgeql_select_interpreter_tvariant_06(self):
+    def test_interpreter_select_interpreter_tvariant_06(self):
         self.assert_query_result(
             r"""
             SELECT User {
@@ -1342,7 +1342,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_tvariant_07(self):
+    def test_interpreter_select_interpreter_tvariant_07(self):
         self.assert_query_result(
             r"""
             # semantically identical to the previous test
@@ -1367,7 +1367,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_tvariant_09(self):
+    def test_interpreter_select_interpreter_tvariant_09(self):
         self.assert_query_result(
             r"""
                 SELECT
@@ -1378,7 +1378,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             {"1!1", "2!2", "3!3", "4!4"},
         )
 
-    def test_edgeql_select_interpreter_tvariant_bad_01(self):
+    def test_interpreter_select_interpreter_tvariant_bad_01(self):
         self.execute(
             """
                 SELECT User {
@@ -1387,7 +1387,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
         )
 
-    def test_edgeql_select_interpreter_tvariant_bad_02(self):
+    def test_interpreter_select_interpreter_tvariant_bad_02(self):
         self.execute(
             """
                 SELECT User {
@@ -1396,7 +1396,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
         )
 
-    def test_edgeql_select_interpreter_tvariant_bad_03(self):
+    def test_interpreter_select_interpreter_tvariant_bad_03(self):
         self.execute(
             """
                 SELECT Issue {
@@ -1405,7 +1405,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
         )
 
-    def test_edgeql_select_interpreter_tvariant_bad_04(self):
+    def test_interpreter_select_interpreter_tvariant_bad_04(self):
         self.execute(
             """
                 SELECT Issue {
@@ -1414,7 +1414,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
         )
 
-    def test_edgeql_select_interpreter_tvariant_bad_05(self):
+    def test_interpreter_select_interpreter_tvariant_bad_05(self):
         self.execute(
             """
                 SELECT Issue {
@@ -1423,7 +1423,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
         )
 
-    def test_edgeql_select_interpreter_tvariant_bad_06(self):
+    def test_interpreter_select_interpreter_tvariant_bad_06(self):
         self.execute(
             """
                 SELECT Issue {
@@ -1432,7 +1432,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
         )
 
-    def test_edgeql_select_interpreter_tvariant_bad_07(self):
+    def test_interpreter_select_interpreter_tvariant_bad_07(self):
         self.execute(
             """
                 SELECT Issue {
@@ -1441,7 +1441,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
         )
 
-    def test_edgeql_select_interpreter_tvariant_bad_08(self):
+    def test_interpreter_select_interpreter_tvariant_bad_08(self):
         self.execute(
             """
                 SELECT Issue {
@@ -1450,7 +1450,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
         )
 
-    def test_edgeql_select_interpreter_instance_01(self):
+    def test_interpreter_select_interpreter_instance_01(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -1463,7 +1463,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_instance_03(self):
+    def test_interpreter_select_interpreter_instance_03(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -1476,7 +1476,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_03(self):
+    def test_interpreter_select_interpreter_setops_03(self):
         self.assert_query_result(
             r"""
             SELECT Issue {
@@ -1511,7 +1511,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_04(self):
+    def test_interpreter_select_interpreter_setops_04(self):
         self.assert_query_result(
             r"""
             # equivalent to ?=
@@ -1529,7 +1529,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}],
         )
 
-    def test_edgeql_select_interpreter_setops_05(self):
+    def test_interpreter_select_interpreter_setops_05(self):
         self.assert_query_result(
             r"""
             # using DISTINCT on a UNION with overlapping sets of Objects
@@ -1553,7 +1553,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_setops_06(self):
+    def test_interpreter_select_interpreter_setops_06(self):
         self.assert_query_result(
             r"""
             # using DISTINCT on a UNION with overlapping sets of Objects
@@ -1574,7 +1574,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [2],
         )
 
-    def test_edgeql_select_interpreter_setops_07(self):
+    def test_interpreter_select_interpreter_setops_07(self):
         self.assert_query_result(
             r"""
             # using UNION with overlapping sets of Objects
@@ -1593,7 +1593,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_setops_08(self):
+    def test_interpreter_select_interpreter_setops_08(self):
         self.assert_query_result(
             r"""
             # using implicit nested UNION with overlapping sets of Objects
@@ -1641,7 +1641,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_09(self):
+    def test_interpreter_select_interpreter_setops_09(self):
         self.assert_query_result(
             r"""
             # same as above but with a DISTINCT
@@ -1684,7 +1684,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_10(self):
+    def test_interpreter_select_interpreter_setops_10(self):
         self.assert_query_result(
             r"""
             # using UNION in a FILTER
@@ -1703,7 +1703,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'name': 'Elvis'}, {'name': 'Yury'}],
         )
 
-    def test_edgeql_select_interpreter_setops_11(self):
+    def test_interpreter_select_interpreter_setops_11(self):
         self.assert_query_result(
             r"""
             WITH
@@ -1720,7 +1720,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_12(self):
+    def test_interpreter_select_interpreter_setops_12(self):
         self.assert_query_result(
             r"""
             WITH
@@ -1736,7 +1736,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_13a(self):
+    def test_interpreter_select_interpreter_setops_13a(self):
         self.assert_query_result(
             r"""
             WITH
@@ -1759,7 +1759,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_13b(self):
+    def test_interpreter_select_interpreter_setops_13b(self):
         # This should be equivalent to the above test, but actually we
         # end up deduplicating.
         self.assert_query_result(
@@ -1784,7 +1784,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_13c(self):
+    def test_interpreter_select_interpreter_setops_13c(self):
         "This is a similar to the above test, but without WITH"
         self.assert_query_result(
             r"""
@@ -1807,7 +1807,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_14(self):
+    def test_interpreter_select_interpreter_setops_14(self):
         self.execute(
             r"""
                 SELECT {
@@ -1816,7 +1816,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
                 """
         )
 
-    def test_edgeql_select_interpreter_setops_15(self):
+    def test_interpreter_select_interpreter_setops_15(self):
         self.execute(
             r"""
                 WITH
@@ -1825,7 +1825,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
                 """
         )
 
-    def test_edgeql_select_interpreter_setops_16(self):
+    def test_interpreter_select_interpreter_setops_16(self):
         self.assert_query_result(
             r"""
             # Named doesn't have a property number.
@@ -1834,7 +1834,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             {'1', '2', '3', '4'},
         )
 
-    def test_edgeql_select_interpreter_setops_18(self):
+    def test_interpreter_select_interpreter_setops_18(self):
         self.assert_query_result(
             r"""
             # UNION between Issue and empty set Named should be
@@ -1849,7 +1849,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             },
         )
 
-    def test_edgeql_select_interpreter_setops_19(self):
+    def test_interpreter_select_interpreter_setops_19(self):
         self.assert_query_result(
             r"""
             # UNION between Issue and empty set Issue should be
@@ -1872,7 +1872,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             {'1', '2', '3', '4'},
         )
 
-    def test_edgeql_select_interpreter_setops_24(self):
+    def test_interpreter_select_interpreter_setops_24(self):
         # Establish that EXCEPT and INTERSECT filter out the objects we'd
         # expect.
         self.assert_query_result(
@@ -1891,7 +1891,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             {True},
         )
 
-    def test_edgeql_select_interpreter_setops_25(self):
+    def test_interpreter_select_interpreter_setops_25(self):
         # Establish that EXCEPT and INTERSECT filter out the objects we'd
         # expect.
         self.assert_query_result(
@@ -1918,7 +1918,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_26(self):
+    def test_interpreter_select_interpreter_setops_26(self):
         # Establish that EXCEPT and INTERSECT filter out the objects we'd
         # expect.
         self.assert_query_result(
@@ -1935,7 +1935,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_setops_27(self):
+    def test_interpreter_select_interpreter_setops_27(self):
         self.assert_query_result(
             r"""
             with
@@ -1977,7 +1977,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_setops_28(self):
+    def test_interpreter_select_interpreter_setops_28(self):
         self.assert_query_result(
             r"""
             select _ :=
@@ -2008,7 +2008,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_order_01(self):
+    def test_interpreter_select_interpreter_order_01(self):
         self.assert_query_result(
             r'''
             SELECT Issue {name}
@@ -2035,7 +2035,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_order_02(self):
+    def test_interpreter_select_interpreter_order_02(self):
         self.assert_query_result(
             r'''
             SELECT Text {body}
@@ -2054,7 +2054,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_order_03(self):
+    def test_interpreter_select_interpreter_order_03(self):
         self.assert_query_result(
             r'''
             SELECT User {name}
@@ -2068,7 +2068,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_where_01(self):
+    def test_interpreter_select_interpreter_where_01(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2079,7 +2079,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_where_02(self):
+    def test_interpreter_select_interpreter_where_02(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2089,7 +2089,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}],
         )
 
-    def test_edgeql_select_interpreter_where_03(self):
+    def test_interpreter_select_interpreter_where_03(self):
         self.assert_query_result(
             r'''
             SELECT Issue{
@@ -2120,7 +2120,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_func_01(self):
+    def test_interpreter_select_interpreter_func_01(self):
         self.assert_query_result(
             r'''
             SELECT std::len(User.name) ORDER BY User.name;
@@ -2135,7 +2135,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [10],
         )
 
-    def test_edgeql_select_interpreter_exists_01(self):
+    def test_interpreter_select_interpreter_exists_01(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -2164,7 +2164,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}],
         )
 
-    def test_edgeql_select_interpreter_exists_02(self):
+    def test_interpreter_select_interpreter_exists_02(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -2179,7 +2179,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_exists_03(self):
+    def test_interpreter_select_interpreter_exists_03(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -2194,7 +2194,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_exists_04(self):
+    def test_interpreter_select_interpreter_exists_04(self):
         self.assert_query_result(
             r'''
             SELECT
@@ -2209,7 +2209,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}],
         )
 
-    def test_edgeql_select_interpreter_exists_05(self):
+    def test_interpreter_select_interpreter_exists_05(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2220,7 +2220,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_exists_06(self):
+    def test_interpreter_select_interpreter_exists_06(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using object types
         self.assert_query_result(
@@ -2233,7 +2233,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_exists_07(self):
+    def test_interpreter_select_interpreter_exists_07(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2244,7 +2244,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}],
         )
 
-    def test_edgeql_select_interpreter_exists_08(self):
+    def test_interpreter_select_interpreter_exists_08(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using object types
         self.assert_query_result(
@@ -2257,7 +2257,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}],
         )
 
-    def test_edgeql_select_interpreter_exists_09(self):
+    def test_interpreter_select_interpreter_exists_09(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2268,7 +2268,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_exists_10(self):
+    def test_interpreter_select_interpreter_exists_10(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using object types
         self.assert_query_result(
@@ -2281,7 +2281,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_exists_11(self):
+    def test_interpreter_select_interpreter_exists_11(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2292,7 +2292,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_exists_12(self):
+    def test_interpreter_select_interpreter_exists_12(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using object types
         self.assert_query_result(
@@ -2305,7 +2305,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_exists_13(self):
+    def test_interpreter_select_interpreter_exists_13(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2316,7 +2316,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_exists_14(self):
+    def test_interpreter_select_interpreter_exists_14(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2335,7 +2335,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}],
         )
 
-    def test_edgeql_select_interpreter_exists_15(self):
+    def test_interpreter_select_interpreter_exists_15(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2355,7 +2355,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_exists_16(self):
+    def test_interpreter_select_interpreter_exists_16(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2375,7 +2375,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_exists_17(self):
+    def test_interpreter_select_interpreter_exists_17(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2395,7 +2395,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_exists_18(self):
+    def test_interpreter_select_interpreter_exists_18(self):
         self.assert_query_result(
             r'''
             SELECT EXISTS (
@@ -2406,7 +2406,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_coalesce_01(self):
+    def test_interpreter_select_interpreter_coalesce_01(self):
         self.assert_query_result(
             r'''
             SELECT Issue{
@@ -2422,7 +2422,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_coalesce_03(self):
+    def test_interpreter_select_interpreter_coalesce_03(self):
         issues_h = self.execute(
             r'''
             SELECT Issue{number}
@@ -2452,7 +2452,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': o['number']} for o in [*issues_h, *issues_n]],
         )
 
-    def test_edgeql_select_interpreter_equivalence_01(self):
+    def test_interpreter_select_interpreter_equivalence_01(self):
         self.assert_query_result(
             r'''
             SELECT Issue {
@@ -2496,7 +2496,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_equivalence_02(self):
+    def test_interpreter_select_interpreter_equivalence_02(self):
         self.assert_query_result(
             r'''
             # get Issues such that there's another Issue with
@@ -2513,7 +2513,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_equivalence_03(self):
+    def test_interpreter_select_interpreter_equivalence_03(self):
         self.assert_query_result(
             r'''
             # get Issues with priority equivalent to empty
@@ -2525,7 +2525,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_equivalence_04(self):
+    def test_interpreter_select_interpreter_equivalence_04(self):
         self.assert_query_result(
             r'''
             # get Issues with priority equivalent to empty
@@ -2537,7 +2537,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_as_01(self):
+    def test_interpreter_select_interpreter_as_01(self):
         # NOTE: for the expected ordering of Text see instance04 test
         self.assert_query_result(
             r'''
@@ -2546,7 +2546,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['4', '1', '3', '2'],
         )
 
-    def test_edgeql_select_interpreter_as_02(self):
+    def test_interpreter_select_interpreter_as_02(self):
         self.assert_query_result(
             r'''
             SELECT (
@@ -2558,7 +2558,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['Release EdgeDB'],
         )
 
-    def test_edgeql_select_interpreter_and_01(self):
+    def test_interpreter_select_interpreter_and_01(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2571,7 +2571,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_and_02(self):
+    def test_interpreter_select_interpreter_and_02(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2584,7 +2584,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_and_03(self):
+    def test_interpreter_select_interpreter_and_03(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2597,7 +2597,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_and_04(self):
+    def test_interpreter_select_interpreter_and_04(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2610,7 +2610,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_and_05(self):
+    def test_interpreter_select_interpreter_and_05(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2623,7 +2623,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}],
         )
 
-    def test_edgeql_select_interpreter_and_06(self):
+    def test_interpreter_select_interpreter_and_06(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2636,7 +2636,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}],
         )
 
-    def test_edgeql_select_interpreter_and_07(self):
+    def test_interpreter_select_interpreter_and_07(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2649,7 +2649,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_and_08(self):
+    def test_interpreter_select_interpreter_and_08(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2662,7 +2662,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_and_09(self):
+    def test_interpreter_select_interpreter_and_09(self):
         self.assert_query_result(
             r'''
             select BooleanTest {
@@ -2680,7 +2680,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_and_10(self):
+    def test_interpreter_select_interpreter_and_10(self):
         self.assert_query_result(
             r'''
             select BooleanTest {
@@ -2698,7 +2698,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_and_11(self):
+    def test_interpreter_select_interpreter_and_11(self):
         self.assert_query_result(
             r'''
             select BooleanTest {
@@ -2738,7 +2738,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_and_12(self):
+    def test_interpreter_select_interpreter_and_12(self):
         self.assert_query_result(
             r'''
             select BooleanTest {
@@ -2779,7 +2779,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_or_01(self):
+    def test_interpreter_select_interpreter_or_01(self):
         issues_h = self.execute(
             r'''
             SELECT Issue{number}
@@ -2810,7 +2810,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': o['number']} for o in [*issues_h, *issues_l]],
         )
 
-    def test_edgeql_select_interpreter_or_04(self):
+    def test_interpreter_select_interpreter_or_04(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2850,7 +2850,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_or_05(self):
+    def test_interpreter_select_interpreter_or_05(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2876,7 +2876,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_or_06(self):
+    def test_interpreter_select_interpreter_or_06(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2889,7 +2889,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_or_07(self):
+    def test_interpreter_select_interpreter_or_07(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2902,7 +2902,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_or_08(self):
+    def test_interpreter_select_interpreter_or_08(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2920,7 +2920,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_or_09(self):
+    def test_interpreter_select_interpreter_or_09(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2938,7 +2938,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_or_10(self):
+    def test_interpreter_select_interpreter_or_10(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2951,7 +2951,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_or_11(self):
+    def test_interpreter_select_interpreter_or_11(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2964,7 +2964,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_or_12(self):
+    def test_interpreter_select_interpreter_or_12(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2977,7 +2977,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_or_13(self):
+    def test_interpreter_select_interpreter_or_13(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -2990,7 +2990,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_or_14(self):
+    def test_interpreter_select_interpreter_or_14(self):
         self.assert_query_result(
             r'''
             # Find Issues that have status 'Closed' or number 2 or 3
@@ -3007,7 +3007,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_or_15(self):
+    def test_interpreter_select_interpreter_or_15(self):
         self.assert_query_result(
             r'''
             # Find Issues that have status 'Closed' or number 2 or 3
@@ -3032,7 +3032,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_or_16(self):
+    def test_interpreter_select_interpreter_or_16(self):
         self.assert_query_result(
             r'''
             select BooleanTest {
@@ -3050,7 +3050,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_or_17(self):
+    def test_interpreter_select_interpreter_or_17(self):
         self.assert_query_result(
             r'''
             select BooleanTest {
@@ -3068,7 +3068,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_or_18(self):
+    def test_interpreter_select_interpreter_or_18(self):
         self.assert_query_result(
             r'''
             select BooleanTest {
@@ -3108,7 +3108,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_or_19(self):
+    def test_interpreter_select_interpreter_or_19(self):
         self.assert_query_result(
             r'''
             select BooleanTest {
@@ -3149,7 +3149,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_not_01(self):
+    def test_interpreter_select_interpreter_not_01(self):
         self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -3168,7 +3168,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_not_02(self):
+    def test_interpreter_select_interpreter_not_02(self):
         # testing double negation
         self.assert_query_result(
             r'''
@@ -3188,7 +3188,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_not_03(self):
+    def test_interpreter_select_interpreter_not_03(self):
         # test that: a OR b = NOT( NOT a AND NOT b)
         self.assert_query_result(
             r'''
@@ -3206,7 +3206,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_not_04(self):
+    def test_interpreter_select_interpreter_not_04(self):
         # testing double negation
         self.assert_query_result(
             r'''
@@ -3242,7 +3242,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_not_05(self):
+    def test_interpreter_select_interpreter_not_05(self):
         # testing double negation
         self.assert_query_result(
             r'''
@@ -3318,7 +3318,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_empty_01(self):
+    def test_interpreter_select_interpreter_empty_01(self):
         self.assert_query_result(
             r"""
             # This is not the same as checking that number does not EXIST.
@@ -3330,7 +3330,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_empty_02(self):
+    def test_interpreter_select_interpreter_empty_02(self):
         self.assert_query_result(
             r"""
             # Test short-circuiting operations with empty
@@ -3360,7 +3360,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_empty_03(self):
+    def test_interpreter_select_interpreter_empty_03(self):
         self.assert_query_result(
             r"""
             # Test short-circuiting operations with empty
@@ -3390,7 +3390,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [0],
         )
 
-    def test_edgeql_select_interpreter_empty_04(self):
+    def test_interpreter_select_interpreter_empty_04(self):
         self.assert_query_result(
             r"""
             # Perfectly legal way to mask 'time_estimate' with empty set.
@@ -3407,7 +3407,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_empty_object_01(self):
+    def test_interpreter_select_interpreter_empty_object_01(self):
         self.assert_query_result(
             r'''
             SELECT <Issue>{}
@@ -3415,7 +3415,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_empty_object_02(self):
+    def test_interpreter_select_interpreter_empty_object_02(self):
         self.assert_query_result(
             r'''
             SELECT NOT EXISTS (<Issue>{})
@@ -3423,7 +3423,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_empty_object_03(self):
+    def test_interpreter_select_interpreter_empty_object_03(self):
         self.assert_query_result(
             r'''
             SELECT ((SELECT Issue FILTER false) ?= <Issue>{})
@@ -3431,7 +3431,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_empty_object_04(self):
+    def test_interpreter_select_interpreter_empty_object_04(self):
         self.assert_query_result(
             r'''
             SELECT count(<Issue>{}) = 0
@@ -3439,7 +3439,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_cross_01(self):
+    def test_interpreter_select_interpreter_cross_01(self):
         self.assert_query_result(
             r"""
             # the cross product of status and priority names
@@ -3449,7 +3449,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['ClosedHigh', 'ClosedLow', 'OpenHigh', 'OpenLow'],
         )
 
-    def test_edgeql_select_interpreter_cross_02(self):
+    def test_interpreter_select_interpreter_cross_02(self):
         self.assert_query_result(
             r"""
             # status and priority name for each issue
@@ -3459,7 +3459,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['OpenHigh', 'ClosedLow'],
         )
 
-    def test_edgeql_select_interpreter_cross_03(self):
+    def test_interpreter_select_interpreter_cross_03(self):
         self.assert_query_result(
             r"""
             # cross-product of all user names and issue numbers
@@ -3478,7 +3478,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_cross_04(self):
+    def test_interpreter_select_interpreter_cross_04(self):
         self.assert_query_result(
             r"""
             # concatenate the user name with every issue number that user has
@@ -3488,7 +3488,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['Elvis1', 'Elvis4', 'Yury2', 'Yury3'],
         )
 
-    def test_edgeql_select_interpreter_cross05(self):
+    def test_interpreter_select_interpreter_cross05(self):
         self.assert_query_result(
             r"""
             # tuples will not exist for the Issue without watchers
@@ -3498,7 +3498,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [['Elvis', 'Yury'], ['Yury', 'Elvis'], ['Yury', 'Elvis']],
         )
 
-    def test_edgeql_select_interpreter_cross06(self):
+    def test_interpreter_select_interpreter_cross06(self):
         self.assert_query_result(
             r"""
             # tuples will not exist for the Issue without watchers
@@ -3508,7 +3508,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['ElvisYury', 'YuryElvis', 'YuryElvis'],
         )
 
-    def test_edgeql_select_interpreter_cross_07(self):
+    def test_interpreter_select_interpreter_cross_07(self):
         self.assert_query_result(
             r"""
             SELECT _ := count(Issue.owner.name ++ Issue.watchers.name);
@@ -3524,7 +3524,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [2],
         )
 
-    def test_edgeql_select_interpreter_cross08(self):
+    def test_interpreter_select_interpreter_cross08(self):
         self.assert_query_result(
             r"""
             SELECT _ := Issue.owner.name ++ <str>count(Issue.watchers.name)
@@ -3533,7 +3533,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['Elvis0', 'Elvis1', 'Yury1', 'Yury1'],
         )
 
-    def test_edgeql_select_interpreter_cross_09(self):
+    def test_interpreter_select_interpreter_cross_09(self):
         self.assert_query_result(
             r"""
             SELECT _ := count(
@@ -3542,7 +3542,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [4],
         )
 
-    def test_edgeql_select_interpreter_cross_10(self):
+    def test_interpreter_select_interpreter_cross_10(self):
         self.assert_query_result(
             r"""
             WITH
@@ -3556,7 +3556,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [4],
         )
 
-    def test_edgeql_select_interpreter_cross_11(self):
+    def test_interpreter_select_interpreter_cross_11(self):
         self.assert_query_result(
             r"""
             SELECT count(
@@ -3568,7 +3568,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [4],
         )
 
-    def test_edgeql_select_interpreter_cross_12(self):
+    def test_interpreter_select_interpreter_cross_12(self):
         # Same as cross11, but without coalescing the time_estimate,
         # which should collapse the counted set to a single element.
         self.assert_query_result(
@@ -3582,7 +3582,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [1],
         )
 
-    def test_edgeql_select_interpreter_cross_13(self):
+    def test_interpreter_select_interpreter_cross_13(self):
         self.assert_query_result(
             r"""
             SELECT count(count(Issue.watchers));
@@ -3599,7 +3599,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [4],
         )
 
-    def test_edgeql_select_interpreter_subqueries_01(self):
+    def test_interpreter_select_interpreter_subqueries_01(self):
         self.assert_query_result(
             r"""
             WITH
@@ -3611,7 +3611,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['{}{}'.format(a, b) for a in range(1, 5) for b in range(1, 5)],
         )
 
-    def test_edgeql_select_interpreter_subqueries_02(self):
+    def test_interpreter_select_interpreter_subqueries_02(self):
         self.assert_query_result(
             r"""
             SELECT Issue{number}
@@ -3628,7 +3628,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_subqueries_03(self):
+    def test_interpreter_select_interpreter_subqueries_03(self):
         self.assert_query_result(
             r"""
             WITH
@@ -3646,7 +3646,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_subqueries_04(self):
+    def test_interpreter_select_interpreter_subqueries_04(self):
         self.assert_query_result(
             r"""
             WITH
@@ -3668,7 +3668,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_subqueries_05(self):
+    def test_interpreter_select_interpreter_subqueries_05(self):
         self.assert_query_result(
             r"""
             # find all issues such that there's at least one more
@@ -3690,7 +3690,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_subqueries_06(self):
+    def test_interpreter_select_interpreter_subqueries_06(self):
         self.assert_query_result(
             r"""
             # find all issues such that there's at least one more
@@ -3709,7 +3709,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_subqueries_07(self):
+    def test_interpreter_select_interpreter_subqueries_07(self):
         self.assert_query_result(
             r"""
             # find all issues such that there's at least one more
@@ -3732,7 +3732,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_subqueries_08(self):
+    def test_interpreter_select_interpreter_subqueries_08(self):
         self.assert_query_result(
             r"""
             # find all issues such that there's at least one more
@@ -3756,7 +3756,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_subqueries_09(self):
+    def test_interpreter_select_interpreter_subqueries_09(self):
         self.assert_query_result(
             r"""
             SELECT Issue.number ++ (SELECT Issue.number);
@@ -3764,7 +3764,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             {'11', '22', '33', '44'},
         )
 
-    def test_edgeql_select_interpreter_subqueries_10(self):
+    def test_interpreter_select_interpreter_subqueries_10(self):
         self.assert_query_result(
             r"""
             WITH
@@ -3792,7 +3792,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             },
         )
 
-    def test_edgeql_select_interpreter_subqueries_12(self):
+    def test_interpreter_select_interpreter_subqueries_12(self):
         self.assert_query_result(
             r"""
             # same as above, but also include the body_length computable
@@ -3822,7 +3822,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_subqueries_13(self):
+    def test_interpreter_select_interpreter_subqueries_13(self):
         self.assert_query_result(
             r"""
             SELECT User{name}
@@ -3836,7 +3836,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'name': 'Elvis'}],
         )
 
-    def test_edgeql_select_interpreter_subqueries_14(self):
+    def test_interpreter_select_interpreter_subqueries_14(self):
         self.assert_query_result(
             r"""
             SELECT User{name}
@@ -3852,7 +3852,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'name': 'Elvis'}],
         )
 
-    def test_edgeql_select_interpreter_subqueries_15(self):
+    def test_interpreter_select_interpreter_subqueries_15(self):
         self.assert_query_result(
             r"""
             # Find all issues such that there's at least one more
@@ -3882,7 +3882,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
-    def test_edgeql_select_interpreter_subqueries_16(self):
+    def test_interpreter_select_interpreter_subqueries_16(self):
         self.assert_query_result(
             r"""
             # testing IN and a subquery
@@ -3897,7 +3897,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'body': 'EdgeDB needs to happen soon.'}],
         )
 
-    def test_edgeql_select_interpreter_subqueries_17(self):
+    def test_interpreter_select_interpreter_subqueries_17(self):
         self.assert_query_result(
             r"""
             # get a comment whose owner is part of the users who own Issue "1"
@@ -3916,7 +3916,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'body': 'EdgeDB needs to happen soon.'}],
         )
 
-    def test_edgeql_select_interpreter_subqueries_18(self):
+    def test_interpreter_select_interpreter_subqueries_18(self):
         self.assert_query_result(
             r"""
             # here, DETACHED doesn't do anything special, because the
@@ -3936,7 +3936,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             {'ElvisElvis', 'ElvisYury', 'YuryElvis', 'YuryYury'},
         )
 
-    def test_edgeql_select_interpreter_alias_indirection_01(self):
+    def test_interpreter_select_interpreter_alias_indirection_01(self):
         self.assert_query_result(
             r"""
             # Direct reference to a computable element in a subquery
@@ -3950,7 +3950,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [2],
         )
 
-    def test_edgeql_select_interpreter_alias_indirection_02(self):
+    def test_interpreter_select_interpreter_alias_indirection_02(self):
         self.assert_query_result(
             r"""
             # Reference to a computable element in a subquery
@@ -3966,7 +3966,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [2],
         )
 
-    def test_edgeql_select_interpreter_alias_indirection_03(self):
+    def test_interpreter_select_interpreter_alias_indirection_03(self):
         self.assert_query_result(
             r"""
             # Reference a computed object set in an alias.
@@ -3984,7 +3984,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['Yury'],
         )
 
-    def test_edgeql_select_interpreter_alias_indirection_05(self):
+    def test_interpreter_select_interpreter_alias_indirection_05(self):
         self.assert_query_result(
             r"""
             # Reference multiple aliases.
@@ -4000,7 +4000,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_alias_indirection_06(self):
+    def test_interpreter_select_interpreter_alias_indirection_06(self):
         self.assert_query_result(
             r"""
             # Reference another alias from an alias.
@@ -4018,7 +4018,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['1', '4'],
         )
 
-    def test_edgeql_select_interpreter_alias_indirection_07(self):
+    def test_interpreter_select_interpreter_alias_indirection_07(self):
         self.assert_query_result(
             r"""
             # A combination of the above two.
@@ -4038,7 +4038,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_select_interpreter_alias_indirection_09(self):
+    def test_interpreter_select_interpreter_alias_indirection_09(self):
         self.assert_query_result(
             r'''
             WITH
@@ -4072,7 +4072,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_alias_indirection_10(self):
+    def test_interpreter_select_interpreter_alias_indirection_10(self):
         self.assert_query_result(
             r'''
             WITH
@@ -4095,7 +4095,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'name': 'Elvis', 'shortest_text_foo': 'Minor lexer tweaks.!'}],
         )
 
-    def test_edgeql_select_interpreter_alias_indirection_11(self):
+    def test_interpreter_select_interpreter_alias_indirection_11(self):
         self.assert_query_result(
             r'''
             WITH
@@ -4147,7 +4147,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_slice_01(self):
+    def test_interpreter_select_interpreter_slice_01(self):
         self.assert_query_result(
             r"""
             # full name of the Issue is 'Release EdgeDB'
@@ -4229,7 +4229,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['Release Edge'],
         )
 
-    def test_edgeql_select_interpreter_slice_03(self):
+    def test_interpreter_select_interpreter_slice_03(self):
         self.assert_query_result(
             r"""
             SELECT Issue{
@@ -4252,7 +4252,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_slice_04(self):
+    def test_interpreter_select_interpreter_slice_04(self):
 
         self.assert_query_result(
             r"""
@@ -4433,7 +4433,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             variables=(None,),
         )
 
-    def test_edgeql_select_interpreter_bigint_index_01(self):
+    def test_interpreter_select_interpreter_bigint_index_01(self):
 
         big_pos = str(2**40)
         big_neg = str(-(2**40))
@@ -4480,7 +4480,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[]],
         )
 
-    def test_edgeql_select_interpreter_bigint_index_02(self):
+    def test_interpreter_select_interpreter_bigint_index_02(self):
 
         big_pos = str(2**40)
         big_neg = str(-(2**40))
@@ -4527,7 +4527,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [""],
         )
 
-    def test_edgeql_select_interpreter_bigint_index_03(self):
+    def test_interpreter_select_interpreter_bigint_index_03(self):
 
         big_pos = str(2**40)
         big_neg = str(-(2**40))
@@ -4582,7 +4582,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['[]'],
         )
 
-    def test_edgeql_select_interpreter_tuple_01(self):
+    def test_interpreter_select_interpreter_tuple_01(self):
         self.assert_query_result(
             r"""
             # get tuples (status, number of issues)
@@ -4592,7 +4592,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [['Closed', 2], ['Open', 2]],
         )
 
-    def test_edgeql_select_interpreter_tuple_02(self):
+    def test_interpreter_select_interpreter_tuple_02(self):
         self.assert_query_result(
             r"""
             # nested tuples
@@ -4617,7 +4617,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_tuple_03(self):
+    def test_interpreter_select_interpreter_tuple_03(self):
         self.assert_query_result(
             r"""
             WITH
@@ -4637,7 +4637,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_tuple_04(self):
+    def test_interpreter_select_interpreter_tuple_04(self):
         self.assert_query_result(
             r"""
             SELECT
@@ -4654,7 +4654,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_tuple_05(self):
+    def test_interpreter_select_interpreter_tuple_05(self):
         self.assert_query_result(
             r"""
                 SELECT (
@@ -4665,7 +4665,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'statuses': 2, 'issues': 4}],
         )
 
-    def test_edgeql_select_interpreter_tuple_06(self):
+    def test_interpreter_select_interpreter_tuple_06(self):
         # Tuple in a common set expr.
         self.assert_query_result(
             r"""
@@ -4680,7 +4680,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [6],
         )
 
-    def test_edgeql_select_interpreter_tuple_07(self):
+    def test_interpreter_select_interpreter_tuple_07(self):
         # Object in a tuple.
         self.assert_query_result(
             r"""
@@ -4700,7 +4700,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['2'],
         )
 
-    def test_edgeql_select_interpreter_tuple_08(self):
+    def test_interpreter_select_interpreter_tuple_08(self):
         # Object in a tuple returned directly.
         self.assert_query_result(
             r"""
@@ -4712,7 +4712,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'user': {'name': 'Yury'}}],
         )
 
-    def test_edgeql_select_interpreter_tuple_09(self):
+    def test_interpreter_select_interpreter_tuple_09(self):
         # Object in a tuple referred to directly.
         self.assert_query_result(
             r"""
@@ -4724,7 +4724,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['Yury'],
         )
 
-    def test_edgeql_select_interpreter_tuple_10(self):
+    def test_interpreter_select_interpreter_tuple_10(self):
         # Tuple comparison
         self.assert_query_result(
             r"""
@@ -4753,7 +4753,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [False],
         )
 
-    def test_edgeql_select_interpreter_linkproperty_01(self):
+    def test_interpreter_select_interpreter_linkproperty_01(self):
         self.assert_query_result(
             r"""
             SELECT User.todo@rank + <int64>User.todo.number
@@ -4762,7 +4762,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [43, 44, 45, 46],
         )
 
-    def test_edgeql_select_interpreter_linkproperty_02(self):
+    def test_interpreter_select_interpreter_linkproperty_02(self):
         self.assert_query_result(
             r"""
             SELECT Issue.<todo[IS User]@rank + <int64>Issue.number
@@ -4771,7 +4771,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [43, 44, 45, 46],
         )
 
-    def test_edgeql_select_interpreter_linkproperty_03(self):
+    def test_interpreter_select_interpreter_linkproperty_03(self):
         self.assert_query_result(
             r"""
             SELECT User {
@@ -4813,7 +4813,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_linkproperty_04(self):
+    def test_interpreter_select_interpreter_linkproperty_04(self):
         self.execute(
             r'''
             SELECT
@@ -4821,7 +4821,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ''',
         )
 
-    def test_edgeql_select_interpreter_linkproperty_06(self):
+    def test_interpreter_select_interpreter_linkproperty_06(self):
         # Test that nested computed link props survive DISTINCT.
         self.assert_query_result(
             r'''
@@ -4851,7 +4851,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_if_else_01(self):
+    def test_interpreter_select_interpreter_if_else_01(self):
         self.assert_query_result(
             r"""
             SELECT Issue {
@@ -4880,7 +4880,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_if_else_02(self):
+    def test_interpreter_select_interpreter_if_else_02(self):
         self.assert_query_result(
             r"""
             SELECT Issue {
@@ -4910,7 +4910,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_if_else_03(self):
+    def test_interpreter_select_interpreter_if_else_03(self):
         self.execute(
             r"""
                 SELECT Issue {
@@ -4919,7 +4919,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
                 """
         )
 
-    def test_edgeql_select_interpreter_if_else_04(self):
+    def test_interpreter_select_interpreter_if_else_04(self):
         self.assert_query_result(
             r"""
             SELECT Issue{
@@ -4953,7 +4953,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_if_else_05(self):
+    def test_interpreter_select_interpreter_if_else_05(self):
         self.assert_query_result(
             r"""
             SELECT Issue {number}
@@ -4977,7 +4977,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}],
         )
 
-    def test_edgeql_select_interpreter_if_else_06(self):
+    def test_interpreter_select_interpreter_if_else_06(self):
         self.assert_query_result(
             r"""
             SELECT Issue {number}
@@ -5001,7 +5001,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}, {'number': '3'}, {'number': '4'}],
         )
 
-    def test_edgeql_select_interpreter_if_else_07(self):
+    def test_interpreter_select_interpreter_if_else_07(self):
         self.assert_query_result(
             r'''
             WITH a := (SELECT Issue FILTER .number = '2'),
@@ -5011,7 +5011,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_partial_01(self):
+    def test_interpreter_partial_01(self):
         self.assert_query_result(
             '''
             SELECT
@@ -5024,7 +5024,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}],
         )
 
-    def test_edgeql_partial_02(self):
+    def test_interpreter_partial_02(self):
         self.assert_query_result(
             '''
             SELECT
@@ -5037,7 +5037,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'name': 'Yury'}],
         )
 
-    def test_edgeql_partial_03(self):
+    def test_interpreter_partial_03(self):
         self.assert_query_result(
             '''
             SELECT Issue {
@@ -5059,7 +5059,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_partial_04(self):
+    def test_interpreter_partial_04(self):
         self.assert_query_result(
             '''
             SELECT Issue {
@@ -5074,7 +5074,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_partial_05(self):
+    def test_interpreter_partial_05(self):
         self.assert_query_result(
             '''
             SELECT
@@ -5088,7 +5088,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_union_target_01(self):
+    def test_interpreter_union_target_01(self):
         self.assert_query_result(
             r'''
             SELECT Issue {
@@ -5119,7 +5119,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '2'}],
         )
 
-    def test_edgeql_select_interpreter_for_01(self):
+    def test_interpreter_select_interpreter_for_01(self):
         self.assert_query_result(
             r'''
             SELECT Issue := (
@@ -5141,7 +5141,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_for_02(self):
+    def test_interpreter_select_interpreter_for_02(self):
         self.assert_query_result(
             r'''
             SELECT I := (
@@ -5168,7 +5168,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_for_03(self):
+    def test_interpreter_select_interpreter_for_03(self):
         self.assert_query_result(
             r'''
             FOR x IN {1, 3, 4}
@@ -5196,7 +5196,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ),
         )
 
-    def test_edgeql_select_interpreter_for_04(self):
+    def test_interpreter_select_interpreter_for_04(self):
         self.assert_query_result(
             r'''
                 SELECT Issue {
@@ -5209,7 +5209,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'asdf': None}],
         )
 
-    def test_edgeql_select_interpreter_json_01(self):
+    def test_interpreter_select_interpreter_json_01(self):
         self.assert_query_result(
             r'''
             # cast a type variant into a set of json
@@ -5235,7 +5235,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_precedence_03(self):
+    def test_interpreter_select_interpreter_precedence_03(self):
         self.assert_query_result(
             r'''
             SELECT (<str>1)[0];
@@ -5250,7 +5250,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ['3'],
         )
 
-    def test_edgeql_select_interpreter_precedence_04(self):
+    def test_interpreter_select_interpreter_precedence_04(self):
         self.assert_query_result(
             r'''
             SELECT EXISTS Issue{number};
@@ -5265,7 +5265,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_precedence_05(self):
+    def test_interpreter_select_interpreter_precedence_05(self):
         self.assert_query_result(
             r'''
             SELECT EXISTS Issue{number};
@@ -5273,7 +5273,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_is_01(self):
+    def test_interpreter_select_interpreter_is_01(self):
         self.assert_query_result(
             r'''SELECT 5 IS int64;''',
             [True],
@@ -5319,7 +5319,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [False],
         )
 
-    def test_edgeql_select_interpreter_is_02(self):
+    def test_interpreter_select_interpreter_is_02(self):
         self.assert_query_result(
             r'''SELECT 5.5 IS int64;''',
             [False],
@@ -5365,7 +5365,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [False],
         )
 
-    def test_edgeql_select_interpreter_is_03(self):
+    def test_interpreter_select_interpreter_is_03(self):
 
         self.assert_query_result(
             r'''SELECT Issue.time_estimate IS int64 LIMIT 1;''',
@@ -5412,7 +5412,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [False],
         )
 
-    def test_edgeql_select_interpreter_is_04(self):
+    def test_interpreter_select_interpreter_is_04(self):
 
         self.assert_query_result(
             r'''SELECT Issue.number IS int64 LIMIT 1;''',
@@ -5459,7 +5459,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [False],
         )
 
-    def test_edgeql_select_interpreter_is_05(self):
+    def test_interpreter_select_interpreter_is_05(self):
 
         self.assert_query_result(
             r'''SELECT Issue.status IS int64 LIMIT 1;''',
@@ -5501,7 +5501,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [False],
         )
 
-    def test_edgeql_select_interpreter_is_06(self):
+    def test_interpreter_select_interpreter_is_06(self):
         self.assert_query_result(
             r'''
             SELECT 5 IS anytype;
@@ -5509,7 +5509,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_is_07(self):
+    def test_interpreter_select_interpreter_is_07(self):
         self.assert_query_result(
             r'''
             SELECT 5 IS anyint;
@@ -5517,7 +5517,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_is_08(self):
+    def test_interpreter_select_interpreter_is_08(self):
         self.assert_query_result(
             r'''
             SELECT 5.5 IS anyfloat;
@@ -5525,7 +5525,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_is_09(self):
+    def test_interpreter_select_interpreter_is_09(self):
         self.assert_query_result(
             r'''
             SELECT Issue.time_estimate IS anytype LIMIT 1;
@@ -5533,7 +5533,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [True],
         )
 
-    def test_edgeql_select_interpreter_big_set_literal(self):
+    def test_interpreter_select_interpreter_big_set_literal(self):
         res = self.execute(
             """
             SELECT {
@@ -5553,7 +5553,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
 
         assert len(res) == 100
 
-    def test_edgeql_select_interpreter_big_unions(self):
+    def test_interpreter_select_interpreter_big_unions(self):
         res = self.execute(
             """
             SELECT (
@@ -5583,7 +5583,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
 
         assert len(res) == 100
 
-    def test_edgeql_select_interpreter_set_literal_in_order(self):
+    def test_interpreter_select_interpreter_set_literal_in_order(self):
         # *Technically speaking*, we don't necessarily promise
         # semantically that a set literal's elements be returned in
         # order. In practice, we want to, though.
@@ -5596,7 +5596,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             us = ' union '.join(str(i) for i in s)
             self.assert_query_result(f"SELECT {us}", s)
 
-    def test_edgeql_select_interpreter_revlink_on_union(self):
+    def test_interpreter_select_interpreter_revlink_on_union(self):
         self.assert_query_result(
             """
                 SELECT
@@ -5623,7 +5623,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_expr_objects_01(self):
+    def test_interpreter_select_interpreter_expr_objects_01(self):
         self.assert_query_result(
             r'''
                 SELECT array_agg(Issue ORDER BY .body)[0].owner.name;
@@ -5631,7 +5631,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ["Elvis"],
         )
 
-    def test_edgeql_select_interpreter_expr_objects_02(self):
+    def test_interpreter_select_interpreter_expr_objects_02(self):
         self.assert_query_result(
             r'''
                 SELECT _ := array_unpack(array_agg(Issue)).owner.name
@@ -5640,7 +5640,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ["Elvis", "Yury"],
         )
 
-    def test_edgeql_select_interpreter_expr_objects_04(self):
+    def test_interpreter_select_interpreter_expr_objects_04(self):
         self.assert_query_result(
             r'''
                 WITH items := array_agg((SELECT Named ORDER BY .name))
@@ -5670,7 +5670,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_expr_objects_05(self):
+    def test_interpreter_select_interpreter_expr_objects_05(self):
         self.assert_query_result(
             r"""
             WITH
@@ -5683,7 +5683,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_expr_objects_06(self):
+    def test_interpreter_select_interpreter_expr_objects_06(self):
         self.assert_query_result(
             r"""
             SELECT (User, User {name}) ORDER BY .1.name;
@@ -5694,7 +5694,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_expr_objects_07(self):
+    def test_interpreter_select_interpreter_expr_objects_07(self):
         # get the User names and ids
         res = self.execute(
             r'''
@@ -5735,7 +5735,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_expr_objects_08(self):
+    def test_interpreter_select_interpreter_expr_objects_08(self):
         self.assert_query_result(
             r'''
             SELECT DISTINCT
@@ -5757,7 +5757,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_banned_free_shape_01(self):
+    def test_interpreter_select_interpreter_banned_free_shape_01(self):
         self.execute(
             """
             SELECT DISTINCT {{ z := 1 }, { z := 2 }};
@@ -5770,11 +5770,11 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
         """
         )
 
-    def test_edgeql_select_interpreter_free_shape_01(self):
+    def test_interpreter_select_interpreter_free_shape_01(self):
         res = self.execute_single('SELECT {test := 1}')
         self.assertEqual(res['test'], 1)
 
-    def test_edgeql_select_interpreter_result_alias_binding_01(self):
+    def test_interpreter_select_interpreter_result_alias_binding_01(self):
         self.assert_query_result(
             r'''
                 SELECT _ := (User { tag := User.name }) ORDER BY _.name;
@@ -5782,7 +5782,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"tag": "Elvis"}, {"tag": "Yury"}],
         )
 
-    def test_edgeql_select_interpreter_reverse_overload_01(self):
+    def test_interpreter_select_interpreter_reverse_overload_01(self):
 
         self.assert_query_result(
             r'''
@@ -5794,7 +5794,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"z": [{"name": "Regression."}, {"name": "Release EdgeDB"}]}],
         )
 
-    def test_edgeql_select_interpreter_reverse_overload_02(self):
+    def test_interpreter_select_interpreter_reverse_overload_02(self):
 
         self.assert_query_result(
             r'''
@@ -5806,7 +5806,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"z": [{"name": "Regression."}, {"name": "Release EdgeDB"}]}],
         )
 
-    def test_edgeql_function_source_01a(self):
+    def test_interpreter_function_source_01a(self):
         # TODO: I think we might want to eliminate this sort of shape
         # propagation out of array_unpack instead?
         self.assert_query_result(
@@ -5818,7 +5818,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_01b(self):
+    def test_interpreter_function_source_01b(self):
         self.assert_query_result(
             r'''
                 SELECT (DISTINCT array_unpack([(
@@ -5828,7 +5828,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_02(self):
+    def test_interpreter_function_source_02(self):
         self.assert_query_result(
             r'''
                 SELECT DISTINCT enumerate((
@@ -5838,7 +5838,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_03(self):
+    def test_interpreter_function_source_03(self):
         self.assert_query_result(
             r'''
                 SELECT assert_single(array_unpack([(
@@ -5848,7 +5848,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_04(self):
+    def test_interpreter_function_source_04(self):
         self.assert_query_result(
             r'''
                 SELECT assert_distinct(array_unpack([(
@@ -5858,7 +5858,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_05(self):
+    def test_interpreter_function_source_05(self):
         self.assert_query_result(
             r'''
                 SELECT assert_exists(array_unpack([(
@@ -5868,7 +5868,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_06(self):
+    def test_interpreter_function_source_06(self):
         self.assert_query_result(
             r'''
                 SELECT enumerate(array_unpack([(
@@ -5878,7 +5878,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[0, {"name": "Elvis"}]],
         )
 
-    def test_edgeql_function_source_07(self):
+    def test_interpreter_function_source_07(self):
         self.assert_query_result(
             r'''
                 SELECT (enumerate((
@@ -5888,7 +5888,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_08(self):
+    def test_interpreter_function_source_08(self):
         self.assert_query_result(
             r'''
                 SELECT (enumerate((
@@ -5898,7 +5898,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_09(self):
+    def test_interpreter_function_source_09(self):
         self.assert_query_result(
             r'''
                 SELECT (enumerate((
@@ -5908,7 +5908,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_collection_shape_01(self):
+    def test_interpreter_collection_shape_01(self):
         self.assert_query_result(
             r'''
                 SELECT <array<User>>{} UNION [User]
@@ -5937,7 +5937,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"id": str}], [{"id": str}]],
         )
 
-    def test_edgeql_collection_shape_02(self):
+    def test_interpreter_collection_shape_02(self):
         self.assert_query_result(
             r'''
                 SELECT <array<User>>{} UNION array_agg(User)
@@ -5966,7 +5966,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"id": str}, {"id": str}]],
         )
 
-    def test_edgeql_collection_shape_03(self):
+    def test_interpreter_collection_shape_03(self):
         self.assert_query_result(
             r'''
                 SELECT <tuple<User, int64>>{} UNION (User, 2)
@@ -5995,7 +5995,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"id": str}, 2], [{"id": str}, 2]],
         )
 
-    def test_edgeql_collection_shape_04(self):
+    def test_interpreter_collection_shape_04(self):
         self.assert_query_result(
             r'''
                 SELECT [(User,)][0]
@@ -6010,7 +6010,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"name": "Elvis"}], [{"name": "Yury"}]],
         )
 
-    def test_edgeql_collection_shape_05(self):
+    def test_interpreter_collection_shape_05(self):
         self.assert_query_result(
             r'''
                 SELECT ([User],).0
@@ -6025,7 +6025,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"name": "Elvis"}], [{"name": "Yury"}]],
         )
 
-    def test_edgeql_collection_shape_06(self):
+    def test_interpreter_collection_shape_06(self):
         self.assert_query_result(
             r'''
                 SELECT { z := ([User],).0 }
@@ -6033,7 +6033,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"z": [[{"id": str}], [{"id": str}]]}],
         )
 
-    def test_edgeql_collection_shape_07(self):
+    def test_interpreter_collection_shape_07(self):
         self.assert_query_result(
             r'''
                 WITH Z := (<array<User>>{} IF false ELSE [User]),
@@ -6050,7 +6050,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"id": str}], [{"id": str}]],
         )
 
-    def test_edgeql_collection_shape_08(self):
+    def test_interpreter_collection_shape_08(self):
         self.assert_query_result(
             r'''
                 SELECT X := array_agg(User) FILTER X[0].name != 'Sully';
@@ -6065,7 +6065,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"id": str}]],
         )
 
-    def test_edgeql_assert_fail_object_computed_02(self):
+    def test_interpreter_assert_fail_object_computed_02(self):
         # Publication is empty, and so
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
@@ -6077,7 +6077,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             """
             )
 
-    def test_edgeql_select_interpreter_concat_null_01(self):
+    def test_interpreter_select_interpreter_concat_null_01(self):
         self.assert_query_result(
             r'''
             select BooleanTest {
@@ -6095,14 +6095,14 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_subshape_filter_01(self):
+    def test_interpreter_select_interpreter_subshape_filter_01(self):
         self.execute(
             r'''
             SELECT Comment { owner: { name } FILTER false }
             ''',
         )
 
-    def test_edgeql_select_interpreter_nested_order_01(self):
+    def test_interpreter_select_interpreter_nested_order_01(self):
         self.assert_query_result(
             r'''
                 SELECT
@@ -6120,7 +6120,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_nested_order_02(self):
+    def test_interpreter_select_interpreter_nested_order_02(self):
         self.assert_query_result(
             r'''
                 SELECT
@@ -6143,7 +6143,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_scalar_views_02(self):
+    def test_interpreter_select_interpreter_scalar_views_02(self):
         self.assert_query_result(
             '''
             select (select {1,2} filter random() > 0) filter random() > 0
@@ -6151,7 +6151,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             {1, 2},
         )
 
-    def test_edgeql_select_interpreter_scalar_views_03(self):
+    def test_interpreter_select_interpreter_scalar_views_03(self):
         # The thing this is testing for
         self.assert_query_result(
             '''
@@ -6160,7 +6160,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             {1, 2, 3, 4},
         )
 
-    def test_edgeql_select_interpreter_scalar_views_04(self):
+    def test_interpreter_select_interpreter_scalar_views_04(self):
         self.assert_query_result(
             '''
             for x in 2 union (select {1,x} filter random() > 0)
@@ -6168,7 +6168,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             {1, 2},
         )
 
-    def test_edgeql_with_rebind_01(self):
+    def test_interpreter_with_rebind_01(self):
         self.assert_query_result(
             r'''
             WITH Z := (SELECT User { name })
@@ -6177,7 +6177,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'name': str}, {'name': str}],
         )
 
-    def test_edgeql_select_interpreter_shadow_computable_01(self):
+    def test_interpreter_select_interpreter_shadow_computable_01(self):
         # The thing this is testing for
         self.assert_query_result(
             '''
@@ -6190,7 +6190,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_select_interpreter_card_blowup_01(self):
+    def test_interpreter_select_interpreter_card_blowup_01(self):
         # This used to really blow up cardinality inference
         self.execute(
             '''
@@ -6209,7 +6209,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
         '''
         )
 
-    def test_edgeql_select_interpreter_paths_01(self):
+    def test_interpreter_select_interpreter_paths_01(self):
         # This is OK because Issue.id is a property, not a link
         self.assert_query_result(
             r'''
