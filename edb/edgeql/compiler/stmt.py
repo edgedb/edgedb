@@ -78,22 +78,28 @@ from . import typegen
 from . import conflicts
 
 
-def try_desugar(
-    expr: qlast.Query, *, ctx: context.ContextLevel
-) -> Optional[irast.Set]:
-    new_syntax = desugar_group.try_group_rewrite(expr, aliases=ctx.aliases)
-    if new_syntax:
-        return dispatch.compile(new_syntax, ctx=ctx)
-    return None
+@dispatch.compile.register(qlast.WithBinding)
+def compile_WithBinding(
+    expr: qlast.WithBinding, *, ctx: context.ContextLevel
+) -> irast.Set:
+    new_expr = desugar_group.try_group_rewrite(expr, aliases=ctx.aliases)
+    if new_expr:
+        return dispatch.compile(new_expr, ctx=ctx)
+    
+    assert isinstance(expr.expr, qlast.Query), expr.expr
+    bindings = process_with_block(expr.aliases, expr.expr, ctx=ctx)
+    
+    irset = dispatch.compile(expr.expr, ctx=ctx)
+    
+    assert isinstance(irset.expr, irast.Stmt), irset.expr
+    irset.expr.bindings = bindings
+    return irset
 
 
 @dispatch.compile.register(qlast.SelectQuery)
 def compile_SelectQuery(
     expr: qlast.SelectQuery, *, ctx: context.ContextLevel
 ) -> irast.Set:
-    if rewritten := try_desugar(expr, ctx=ctx):
-        return rewritten
-
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
@@ -163,9 +169,6 @@ def compile_SelectQuery(
 def compile_ForQuery(
     qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel
 ) -> irast.Set:
-    if rewritten := try_desugar(qlstmt, ctx=ctx):
-        return rewritten
-
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt(span=qlstmt.span)
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
@@ -742,7 +745,6 @@ def compile_DeleteQuery(
                 )
 
             expr = qlast.DeleteQuery(
-                aliases=expr.aliases,
                 span=expr.span,
                 subject=subjql,
             )
@@ -1131,7 +1133,7 @@ def compile_Shape(
 
 def init_stmt(
     irstmt: irast.Stmt,
-    qlstmt: qlast.Statement,
+    qlstmt: qlast.Query | qlast.DescribeStmt,
     *,
     ctx: context.ContextLevel,
     parent_ctx: context.ContextLevel,
@@ -1194,8 +1196,10 @@ def init_stmt(
 
     irstmt.parent_stmt = parent_ctx.stmt
 
-    irstmt.bindings = process_with_block(
-        qlstmt, ctx=ctx, parent_ctx=parent_ctx)
+    if isinstance(qlstmt, qlast.DescribeStmt) and qlstmt.aliases:
+        irstmt.bindings = process_with_block(qlstmt.aliases, qlstmt, ctx=ctx)
+    else:
+        irstmt.bindings = []
 
     if isinstance(irstmt, irast.MutatingStmt):
         ctx.path_scope.factoring_fence = True
@@ -1260,17 +1264,14 @@ def fini_stmt(
 
 
 def process_with_block(
-    edgeql_tree: qlast.Statement,
+    aliases: List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]],
+    stmt: qlast.Statement,
     *,
     ctx: context.ContextLevel,
-    parent_ctx: context.ContextLevel,
 ) -> List[irast.Set]:
-    if edgeql_tree.aliases is None:
-        return []
-
     had_materialized = False
     results = []
-    for with_entry in edgeql_tree.aliases:
+    for with_entry in aliases:
         if isinstance(with_entry, qlast.ModuleAliasDecl):
             ctx.modaliases[with_entry.alias] = with_entry.module
 
@@ -1289,7 +1290,8 @@ def process_with_block(
                 if reason := setgen.should_materialize(binding, ctx=ctx):
                     had_materialized = True
                     typ = setgen.get_set_type(binding, ctx=ctx)
-                    ctx.env.materialized_sets[typ] = edgeql_tree, reason
+                    print(stmt)
+                    ctx.env.materialized_sets[typ] = stmt, reason
                     setgen.maybe_materialize(typ, binding, ctx=ctx)
 
         else:

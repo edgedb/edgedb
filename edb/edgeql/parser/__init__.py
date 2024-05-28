@@ -34,16 +34,25 @@ from .. import tokenizer as qltokenizer
 SPEC_LOADED = False
 
 
-def append_module_aliases(tree, aliases):
-    modaliases = []
+def append_module_aliases(
+    tree: qlast.Base, aliases: Mapping[Optional[str], str]
+) -> qlast.WithBinding | qlast.Command:
+    mod_aliases: List[qlast.AliasedExpr | qlast.ModuleAliasDecl] = []
     for alias, module in aliases.items():
         decl = qlast.ModuleAliasDecl(module=module, alias=alias)
-        modaliases.append(decl)
+        mod_aliases.append(decl)
+
+    if not isinstance(tree, (qlast.WithBinding, qlast.Command)):
+        assert isinstance(tree, qlast.Query)
+        tree = qlast.WithBinding(
+            aliases=[],
+            expr=tree,
+        )
 
     if not tree.aliases:
-        tree.aliases = modaliases
+        tree.aliases = mod_aliases
     else:
-        tree.aliases = modaliases + tree.aliases
+        tree.aliases = mod_aliases + tree.aliases
 
     return tree
 
@@ -72,7 +81,7 @@ def parse_query(
         tree = qlast.SelectQuery(result=tree)
 
     if module_aliases:
-        append_module_aliases(tree, module_aliases)
+        tree = append_module_aliases(tree, module_aliases)  # type: ignore
 
     return tree
 
@@ -83,8 +92,10 @@ def parse_block(
 ) -> list[qlast.Base]:
     trees = parse(tokens.T_STARTBLOCK, source)
     if module_aliases:
-        for tree in trees:
+        trees = [
             append_module_aliases(tree, module_aliases)
+            for tree in trees
+        ]
     return trees
 
 

@@ -182,7 +182,6 @@ def desugar_group(
 
     return qlast.InternalGroupQuery(
         span=node.span,
-        aliases=node.aliases,
         subject_alias=node.subject_alias,
         subject=node.subject,
         # rewritten parts!
@@ -208,7 +207,7 @@ def _count_alias_uses(
 
 
 def try_group_rewrite(
-    node: qlast.Query,
+    node: qlast.WithBinding,
     aliases: AliasGenerator,
 ) -> Optional[qlast.Query]:
     """
@@ -244,32 +243,40 @@ def try_group_rewrite(
     # Inline trivial uses of aliases bound to a group and then
     # immediately used, so that we can apply the other optimizations.
     match node:
-        case qlast.SelectQuery(
+        case qlast.WithBinding(
             aliases=[
                 *_,
                 qlast.AliasedExpr(alias=alias, expr=qlast.GroupQuery() as grp)
             ] as qaliases,
-            result=qlast.Shape(
-                expr=astutils.alias_view((alias2, [])),
-                elements=elements,
-            ) as result,
+            expr=qlast.SelectQuery(
+                result=qlast.Shape(
+                    expr=astutils.alias_view((alias2, [])),
+                    elements=elements,
+                ) as result
+            ) as select,
         ) if alias == alias2 and _count_alias_uses(result, alias) == 1:
             node = node.replace(
                 aliases=qaliases[:-1],
-                result=qlast.Shape(expr=grp, elements=elements),
+                expr=select.replace(
+                    result=qlast.Shape(expr=grp, elements=elements)
+                ),
             )
 
-        case qlast.ForQuery(
+        case qlast.WithBinding(
             aliases=[
                 *_,
                 qlast.AliasedExpr(alias=alias, expr=qlast.GroupQuery() as grp)
             ] as qaliases,
-            iterator=astutils.alias_view((alias2, [])),
-            result=result,
+            expr=qlast.ForQuery(
+                iterator=astutils.alias_view((alias2, [])),
+                result=result
+            ) as for_query,
         ) if alias == alias2 and _count_alias_uses(result, alias) == 0:
             node = node.replace(
                 aliases=qaliases[:-1],
-                iterator=grp,
+                expr=for_query.replace(
+                    iterator=grp
+                ),
             )
 
     # Sink shapes into the GROUP
@@ -306,6 +313,9 @@ def try_group_rewrite(
             iterator=igroup.result,
             result=node.result,
         )
-        return igroup.replace(result=new_result, aliases=node.aliases)
+        return node.replace(
+            aliases=node.aliases,
+            expr=igroup.replace(result=new_result)
+        )
 
     return None

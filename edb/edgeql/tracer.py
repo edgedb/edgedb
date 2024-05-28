@@ -1084,26 +1084,32 @@ def _update_path_prefix(tip: Optional[ObjectLike], ctx: TracerContext) -> None:
 
 
 @trace.register
+def trace_WithBinding(
+    node: qlast.WithBinding, *, ctx: TracerContext
+) -> Optional[ObjectLike]:
+    with alias_context(ctx, node.aliases) as ctx:
+        return trace(node.expr, ctx=ctx)
+
+@trace.register
 def trace_Select(
     node: qlast.SelectQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
-    with alias_context(ctx, node.aliases) as ctx:
-        tip = trace(node.result, ctx=ctx)
-        _update_path_prefix(tip, ctx=ctx)
+    tip = trace(node.result, ctx=ctx)
+    _update_path_prefix(tip, ctx=ctx)
 
-        # potentially SELECT uses an alias for the main result
-        with result_alias_context(ctx, node, tip) as nctx:
-            if node.where is not None:
-                trace(node.where, ctx=nctx)
-            if node.orderby:
-                for expr in node.orderby:
-                    trace(expr, ctx=nctx)
-            if node.offset is not None:
-                trace(node.offset, ctx=nctx)
-            if node.limit is not None:
-                trace(node.limit, ctx=nctx)
+    # potentially SELECT uses an alias for the main result
+    with result_alias_context(ctx, node, tip) as nctx:
+        if node.where is not None:
+            trace(node.where, ctx=nctx)
+        if node.orderby:
+            for expr in node.orderby:
+                trace(expr, ctx=nctx)
+        if node.offset is not None:
+            trace(node.offset, ctx=nctx)
+        if node.limit is not None:
+            trace(node.limit, ctx=nctx)
 
-        return tip
+    return tip
 
 
 def trace_GroupingAtom(node: qlast.GroupingAtom, *, ctx: TracerContext) -> None:
@@ -1141,30 +1147,29 @@ def trace_GroupingOperation(
 def trace_Group(
     node: qlast.GroupQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
-    with alias_context(ctx, node.aliases) as ctx:
-        tip = trace(node.subject, ctx=ctx)
-        if tip is not None:
-            tip_name = tip.get_name(ctx.schema)
-            assert isinstance(tip_name, sn.QualName)
-            ctx.path_prefix = tip_name
+    tip = trace(node.subject, ctx=ctx)
+    if tip is not None:
+        tip_name = tip.get_name(ctx.schema)
+        assert isinstance(tip_name, sn.QualName)
+        ctx.path_prefix = tip_name
 
-        # potentially GROUP uses an alias for the main result
-        with result_alias_context(ctx, node, tip) as nctx:
-            with alias_context(nctx, node.using) as byctx:
-                for by_el in node.by:
-                    trace(by_el, ctx=byctx)
+    # potentially GROUP uses an alias for the main result
+    with result_alias_context(ctx, node, tip) as nctx:
+        with alias_context(nctx, node.using) as byctx:
+            for by_el in node.by:
+                trace(by_el, ctx=byctx)
 
-        if isinstance(node, qlast.InternalGroupQuery):
-            with alias_context(nctx, node.using) as byctx:
-                ctx.objects[sn.QualName('__alias__', node.group_alias)] = (
-                    SentinelObject)
-                if node.grouping_alias:
-                    ctx.objects[
-                        sn.QualName('__alias__', node.grouping_alias)] = (
-                            SentinelObject)
-                trace(node.result, ctx=byctx)
+    if isinstance(node, qlast.InternalGroupQuery):
+        with alias_context(nctx, node.using) as byctx:
+            ctx.objects[sn.QualName('__alias__', node.group_alias)] = (
+                SentinelObject)
+            if node.grouping_alias:
+                ctx.objects[
+                    sn.QualName('__alias__', node.grouping_alias)] = (
+                        SentinelObject)
+            trace(node.result, ctx=byctx)
 
-        return tip
+    return tip
 
 
 @trace.register
@@ -1174,71 +1179,67 @@ def trace_SortExpr(node: qlast.SortExpr, *, ctx: TracerContext) -> None:
 
 @trace.register
 def trace_InsertQuery(node: qlast.InsertQuery, *, ctx: TracerContext) -> None:
-    with alias_context(ctx, node.aliases) as ctx:
-        if node.unless_conflict:
-            trace(node.unless_conflict[0], ctx=ctx)
-            trace(node.unless_conflict[1], ctx=ctx)
+    if node.unless_conflict:
+        trace(node.unless_conflict[0], ctx=ctx)
+        trace(node.unless_conflict[1], ctx=ctx)
 
-        tip = trace(qlast.Path(steps=[node.subject]), ctx=ctx)
-        _update_path_prefix(tip, ctx=ctx)
+    tip = trace(qlast.Path(steps=[node.subject]), ctx=ctx)
+    _update_path_prefix(tip, ctx=ctx)
 
-        for element in node.shape:
-            trace(element, ctx=ctx)
+    for element in node.shape:
+        trace(element, ctx=ctx)
 
 
 @trace.register
 def trace_UpdateQuery(
     node: qlast.UpdateQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
-    with alias_context(ctx, node.aliases) as ctx:
-        tip = trace(node.subject, ctx=ctx)
-        _update_path_prefix(tip, ctx=ctx)
+    tip = trace(node.subject, ctx=ctx)
+    _update_path_prefix(tip, ctx=ctx)
 
-        # potentially UPDATE uses an alias for the main result
-        with result_alias_context(ctx, node, tip) as nctx:
-            for element in node.shape:
-                trace(element, ctx=nctx)
+    # potentially UPDATE uses an alias for the main result
+    with result_alias_context(ctx, node, tip) as nctx:
+        for element in node.shape:
+            trace(element, ctx=nctx)
 
-            trace(node.where, ctx=nctx)
+        trace(node.where, ctx=nctx)
 
-        return tip
+    return tip
 
 
 @trace.register
 def trace_DeleteQuery(
     node: qlast.DeleteQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
-    with alias_context(ctx, node.aliases) as ctx:
-        tip = trace(node.subject, ctx=ctx)
-        _update_path_prefix(tip, ctx=ctx)
+    tip = trace(node.subject, ctx=ctx)
+    _update_path_prefix(tip, ctx=ctx)
 
-        # potentially DELETE uses an alias for the main result
-        with result_alias_context(ctx, node, tip) as nctx:
-            if node.where is not None:
-                trace(node.where, ctx=nctx)
-            if node.orderby:
-                for expr in node.orderby:
-                    trace(expr, ctx=nctx)
-            if node.offset is not None:
-                trace(node.offset, ctx=nctx)
-            if node.limit is not None:
-                trace(node.limit, ctx=nctx)
+    # potentially DELETE uses an alias for the main result
+    with result_alias_context(ctx, node, tip) as nctx:
+        if node.where is not None:
+            trace(node.where, ctx=nctx)
+        if node.orderby:
+            for expr in node.orderby:
+                trace(expr, ctx=nctx)
+        if node.offset is not None:
+            trace(node.offset, ctx=nctx)
+        if node.limit is not None:
+            trace(node.limit, ctx=nctx)
 
-        return tip
+    return tip
 
 
 @trace.register
 def trace_For(
     node: qlast.ForQuery, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
-    with alias_context(ctx, node.aliases) as ctx:
-        obj = trace(node.iterator, ctx=ctx)
-        if obj is None:
-            obj = SentinelObject
-        ctx.objects[sn.QualName('__alias__', node.iterator_alias)] = obj
-        tip = trace(node.result, ctx=ctx)
+    obj = trace(node.iterator, ctx=ctx)
+    if obj is None:
+        obj = SentinelObject
+    ctx.objects[sn.QualName('__alias__', node.iterator_alias)] = obj
+    tip = trace(node.result, ctx=ctx)
 
-        return tip
+    return tip
 
 
 @trace.register

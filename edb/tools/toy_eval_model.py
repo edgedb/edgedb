@@ -583,20 +583,17 @@ def add_alias(name: str, vals: Data, ctx: EvalContext) -> EvalContext:
     )
 
 
-def eval_aliases(node: qlast.Statement, ctx: EvalContext) -> EvalContext:
-    if node.aliases:
-        for alias in node.aliases:
-            assert isinstance(alias, qlast.AliasedExpr)
-            ctx = add_alias(
-                alias.alias, subquery(alias.expr, ctx=ctx), ctx=ctx)
-
-    return ctx
+@_eval.register
+def eval_WithBinding(node: qlast.WithBinding, ctx: EvalContext) -> Result:
+    for alias in node.aliases:
+        assert isinstance(alias, qlast.AliasedExpr)
+        ctx = add_alias(
+            alias.alias, subquery(alias.expr, ctx=ctx), ctx=ctx)
+    return eval(node.expr, ctx=ctx)
 
 
 @_eval.register
 def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> Result:
-    ctx = eval_aliases(node, ctx)
-
     # XXX: I believe this is right, but:
     # WHERE and ORDER BY are treated as subqueries of the result query,
     # and LIMIT and OFFSET are not.
@@ -705,8 +702,6 @@ def _keyify(v: Data) -> Data:
 def get_groups(
     node: qlast.GroupQuery, ctx: EvalContext
 ) -> List[Tuple[Tuple[Data, ...], Tuple[Dict[ByElement, Data], List[Data]]]]:
-    ctx = eval_aliases(node, ctx)
-
     # Actually evaluate the subject
     subject_vals = subquery(node.subject, ctx=ctx)
 
@@ -910,7 +905,6 @@ def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> Result:
 
 @_eval.register
 def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> Result:
-    ctx = eval_aliases(node, ctx)
     iter_vals = strip_shapes(subquery(node.iterator, ctx=ctx))
     if node.optional and not iter_vals:
         iter_vals = [None]
@@ -1266,9 +1260,6 @@ class PathFinder(NodeVisitor):
 
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
         with self.subquery():
-            # XXX: shadowing?
-            self.visit(query.aliases)
-
             if query.result_alias:
                 with self.subquery():
                     self.visit(query.result)
@@ -1285,8 +1276,6 @@ class PathFinder(NodeVisitor):
 
     def visit_GroupQuery(self, query: qlast.GroupQuery) -> None:
         with self.subquery():
-            self.visit(query.aliases)
-
             if query.subject_alias:
                 with self.subquery():
                     self.visit(query.subject)

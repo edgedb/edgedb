@@ -492,12 +492,12 @@ class Shape(Expr):
 class Query(Expr):
     __abstract_node__ = True
 
-    aliases: typing.Optional[
-        typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
-    ] = None
+
+class WithBinding(Expr):
+    aliases: typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
+    expr: Query
 
 
-"""A node that can have a WITH block"""
 Statement = Query | Command
 
 

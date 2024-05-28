@@ -574,47 +574,49 @@ class ExpressionDict(checked.CheckedDict[str, Expression]):
 
 
 def imprint_expr_context(
-    qltree: qlast_.Base,
+    ql_stmt: qlast_.Statement,
     modaliases: Mapping[Optional[str], str],
 ) -> qlast_.Base:
     # Imprint current module aliases as explicit
     # alias declarations in the expression.
 
-    if (isinstance(qltree, qlast_.BaseConstant)
-            or qltree is None
-            or (isinstance(qltree, qlast_.Set)
-                and not qltree.elements)
-            or (isinstance(qltree, qlast_.Array)
+    if (isinstance(ql_stmt, qlast_.BaseConstant)
+            or ql_stmt is None
+            or (isinstance(ql_stmt, qlast_.Set)
+                and not ql_stmt.elements)
+            or (isinstance(ql_stmt, qlast_.Array)
                 and all(isinstance(el, qlast_.BaseConstant)
-                        for el in qltree.elements))):
+                        for el in ql_stmt.elements))):
         # Leave constants alone.
-        return qltree
+        return ql_stmt
 
-    if not isinstance(qltree, (qlast_.Query, qlast_.Command)):
-        assert isinstance(qltree, qlast_.Expr)
-        qltree = qlast_.SelectQuery(result=qltree, implicit=True)
+    node: qlast_.WithBinding | qlast_.Command
+    if not isinstance(ql_stmt, (qlast_.WithBinding, qlast_.Command)):
+        assert isinstance(ql_stmt, qlast_.Query)
+        node = qlast_.WithBinding(expr=ql_stmt, aliases=[])
     else:
-        qltree = copy.copy(qltree)
-        qltree.aliases = (
-            list(qltree.aliases) if qltree.aliases is not None else None)
+        node = copy.copy(ql_stmt)
+        node.aliases = (
+            list(ql_stmt.aliases) if ql_stmt.aliases is not None else []
+        )
 
     existing_aliases: Dict[Optional[str], str] = {}
-    for alias in (qltree.aliases or ()):
+    for alias in (node.aliases or ()):
         if isinstance(alias, qlast_.ModuleAliasDecl):
             existing_aliases[alias.alias] = alias.module
 
     aliases_to_add = set(modaliases) - set(existing_aliases)
     for alias_name in aliases_to_add:
-        if qltree.aliases is None:
-            qltree.aliases = []
-        qltree.aliases.append(
+        if node.aliases is None:
+            node.aliases = []
+        node.aliases.append(
             qlast_.ModuleAliasDecl(
                 alias=alias_name,
                 module=modaliases[alias_name],
             )
         )
 
-    return qltree
+    return node
 
 
 def get_expr_referrers(

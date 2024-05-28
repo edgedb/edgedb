@@ -447,6 +447,7 @@ def cmd_from_ddl(
     modaliases: Mapping[Optional[str], str],
     testmode: bool=False
 ) -> sd.Command:
+    assert isinstance(stmt, qlast.DDLCommand)
     ddl = s_expr.imprint_expr_context(stmt, modaliases)
     assert isinstance(ddl, qlast.DDLCommand)
 

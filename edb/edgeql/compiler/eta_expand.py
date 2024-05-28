@@ -232,9 +232,11 @@ def eta_expand_ir(
         source_ref = subctx.create_anchor(ir)
 
         alias, path = _get_alias('eta', ctx=subctx)
-        qry = qlast.SelectQuery(
-            result=eta_expand_ordered(
-                path, setgen.get_set_type(ir, ctx=subctx), ctx=subctx
+        qry = qlast.WithBinding(
+            expr=qlast.SelectQuery(
+                result=eta_expand_ordered(
+                    path, setgen.get_set_type(ir, ctx=subctx), ctx=subctx
+                )
             ),
             aliases=[
                 qlast.AliasedExpr(alias=alias, expr=source_ref)
@@ -250,7 +252,7 @@ def eta_expand_ordered(
     stype: s_types.Type,
     *,
     ctx: context.ContextLevel,
-) -> qlast.Expr:
+) -> qlast.WithBinding:
     """Do an order-preserving η-expansion
 
     Unlike in the lambda calculus, edgeql is a set-based language
@@ -269,14 +271,16 @@ def eta_expand_ordered(
     element_path = astutils.extend_path(enumerated_path, '1')
     result_expr = eta_expand(element_path, stype, ctx=ctx)
 
-    return qlast.SelectQuery(
-        result=result_expr,
-        orderby=[
-            qlast.SortExpr(path=astutils.extend_path(enumerated_path, '0'))
-        ],
+    return qlast.WithBinding(
         aliases=[
             qlast.AliasedExpr(alias=enumerated_alias, expr=enumerated)
         ],
+        expr=qlast.SelectQuery(
+            result=result_expr,
+            orderby=[
+                qlast.SortExpr(path=astutils.extend_path(enumerated_path, '0'))
+            ]
+        ),
     )
 
 

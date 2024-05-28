@@ -75,12 +75,12 @@ def renormalize_compat(
     orig_qltree = qlparser.parse_fragment(orig_text)
 
     norm_aliases: Dict[Optional[str], str] = {}
-    assert isinstance(norm_qltree, (qlast.Query, qlast.Command))
+    assert isinstance(norm_qltree, (qlast.WithBinding, qlast.Command))
     for alias in (norm_qltree.aliases or ()):
         if isinstance(alias, qlast.ModuleAliasDecl):
             norm_aliases[alias.alias] = alias.module
 
-    if isinstance(orig_qltree, (qlast.Query, qlast.Command)):
+    if isinstance(orig_qltree, (qlast.WithBinding, qlast.Command)):
         orig_aliases: Dict[Optional[str], str] = {}
         for alias in (orig_qltree.aliases or ()):
             if isinstance(alias, qlast.ModuleAliasDecl):
@@ -195,7 +195,7 @@ def normalize_DDL(
 
 
 def _normalize_with_block(
-    node: qlast.Query,
+    node: qlast.Base,
     *,
     field: str='aliases',
     schema: s_schema.Schema,
@@ -256,15 +256,13 @@ def _normalize_aliased_field(
 
 
 @normalize.register
-def normalize_SelectQuery(
-    node: qlast.SelectQuery,
+def normalize_WithBinding(
+    node: qlast.WithBinding,
     *,
     schema: s_schema.Schema,
     modaliases: Mapping[Optional[str], str],
     localnames: AbstractSet[str] = frozenset(),
 ) -> None:
-
-    # Process WITH block
     modaliases, localnames = _normalize_with_block(
         node,
         schema=schema,
@@ -272,6 +270,15 @@ def normalize_SelectQuery(
         localnames=localnames,
     )
 
+
+@normalize.register
+def normalize_SelectQuery(
+    node: qlast.SelectQuery,
+    *,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    localnames: AbstractSet[str] = frozenset(),
+) -> None:
     # Process the result expression
     localnames = _normalize_aliased_field(
         node,
@@ -286,7 +293,7 @@ def normalize_SelectQuery(
         schema=schema,
         modaliases=modaliases,
         localnames=localnames,
-        skip=('aliases', 'result'),
+        skip=('result', ),
     )
 
 
@@ -300,21 +307,11 @@ def normalize_DML(
     modaliases: Mapping[Optional[str], str],
     localnames: AbstractSet[str] = frozenset(),
 ) -> None:
-
-    # Process WITH block
-    modaliases, localnames = _normalize_with_block(
-        node,
-        schema=schema,
-        modaliases=modaliases,
-        localnames=localnames,
-    )
-
     normalize_generic(
         node,
         schema=schema,
         modaliases=modaliases,
         localnames=localnames,
-        skip=('aliases',),
     )
 
 
@@ -326,15 +323,6 @@ def normalize_ForQuery(
     modaliases: Mapping[Optional[str], str],
     localnames: AbstractSet[str] = frozenset(),
 ) -> None:
-
-    # Process WITH block
-    modaliases, localnames = _normalize_with_block(
-        node,
-        schema=schema,
-        modaliases=modaliases,
-        localnames=localnames,
-    )
-
     # Process the iterator expression
     localnames = _normalize_aliased_field(
         node,
@@ -362,14 +350,6 @@ def normalize_GroupQuery(
     modaliases: Mapping[Optional[str], str],
     localnames: AbstractSet[str] = frozenset(),
 ) -> None:
-    # Process WITH block
-    modaliases, localnames = _normalize_with_block(
-        node,
-        schema=schema,
-        modaliases=modaliases,
-        localnames=localnames,
-    )
-
     # Process the result expression
     localnames = _normalize_aliased_field(
         node,

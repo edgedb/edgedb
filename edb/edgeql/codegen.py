@@ -141,7 +141,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         parent: Optional[qlast.Base] = node._parent
         return (
             parent is not None
-            and not isinstance(parent, qlast.DDL)
+            and not isinstance(parent, (qlast.DDL, qlast.WithBinding))
             # Non-union FOR bodies can't have parens
             and not (
                 isinstance(parent, qlast.ForQuery)
@@ -169,12 +169,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write(' ')
 
-    def _visit_aliases(self, node: qlast.Statement) -> None:
+    def _visit_aliases(self, node: qlast.Command | qlast.WithBinding) -> None:
         if node.aliases:
             self._write_keywords('WITH')
             self._block_ws(1)
-            if node.aliases:
-                self.visit_list(node.aliases)
+            self.visit_list(node.aliases)
             self._block_ws(-1)
 
     def _visit_filter(
@@ -223,13 +222,26 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self._block_ws(-1)
 
+    def visit_WithBinding(self, node: qlast.WithBinding) -> None:
+        parenthesise = self._needs_parentheses(node)
+
+        if parenthesise:
+            self.write('(')
+
+        self._visit_aliases(node)
+
+        self.visit(node.expr)
+
+        if parenthesise:
+            self.write(')')
+
     def visit_InsertQuery(self, node: qlast.InsertQuery) -> None:
         # need to parenthesise when INSERT appears as an expression
         parenthesise = self._needs_parentheses(node)
 
         if parenthesise:
             self.write('(')
-        self._visit_aliases(node)
+
         self._write_keywords('INSERT')
         self._block_ws(1)
         self.visit(node.subject)
@@ -261,7 +273,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if parenthesise:
             self.write('(')
-        self._visit_aliases(node)
         self._write_keywords('UPDATE')
         self._block_ws(1)
         self.visit(node.subject)
@@ -283,8 +294,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if parenthesise:
             self.write('(')
 
-        self._visit_aliases(node)
-
         self._write_keywords('DELETE')
         self._block_ws(1)
         self.visit(node.subject)
@@ -300,20 +309,19 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         # the actual passed value is ignored.
         parenthesise = self._needs_parentheses(node)
         if node.implicit:
-            parenthesise = parenthesise and bool(node.aliases)
+            parenthesise = False
 
         if parenthesise:
             self.write('(')
 
-        if not node.implicit or node.aliases:
-            self._visit_aliases(node)
+        if not node.implicit:
             self._write_keywords('SELECT')
             self._block_ws(1)
 
         if node.result_alias:
             self.write(node.result_alias, ' := ')
         self.visit(node.result)
-        if not node.implicit or node.aliases:
+        if not node.implicit:
             self._block_ws(-1)
         else:
             self.write(' ')
@@ -329,8 +337,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if parenthesise:
             self.write('(')
-
-        self._visit_aliases(node)
 
         self._write_keywords('FOR ')
         self.write(ident_to_str(node.iterator_alias))
@@ -376,8 +382,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if parenthesise:
             self.write('(')
-
-        self._visit_aliases(node)
 
         if isinstance(node, qlast.InternalGroupQuery):
             self._write_keywords('FOR ')

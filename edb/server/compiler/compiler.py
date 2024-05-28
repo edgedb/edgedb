@@ -1845,7 +1845,7 @@ def _compile_ql_administer(
 
 def _compile_ql_query(
     ctx: CompileContext,
-    ql: qlast.Query | qlast.Command,
+    ql: qlast.Expr | qlast.Command,
     *,
     script_info: Optional[irast.ScriptInfo] = None,
     source: Optional[edgeql.Source] = None,
@@ -2556,7 +2556,7 @@ def _compile_dispatch_ql(
         return (query, caps)
 
     else:
-        assert isinstance(ql, (qlast.Query, qlast.Command))
+        assert isinstance(ql, (qlast.Query, qlast.Command, qlast.WithBinding))
         query = _compile_ql_query(
             ctx, ql, source=source, script_info=script_info)
         caps = enums.Capability(0)

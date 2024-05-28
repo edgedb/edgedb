@@ -133,10 +133,10 @@ class FindParams(ast.NodeVisitor):
     def visit_Command(self, n: qlast.Command) -> None:
         self._visit_with_stmt(n)
 
-    def visit_Query(self, n: qlast.Query) -> None:
+    def visit_WithBindings(self, n: qlast.WithBinding) -> None:
         self._visit_with_stmt(n)
 
-    def _visit_with_stmt(self, n: qlast.Statement) -> None:
+    def _visit_with_stmt(self, n: qlast.WithBinding | qlast.Command) -> None:
         old = self.modaliases
         for with_entry in (n.aliases or ()):
             if isinstance(with_entry, qlast.ModuleAliasDecl):
