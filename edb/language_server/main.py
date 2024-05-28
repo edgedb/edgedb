@@ -38,7 +38,16 @@ def main(*, version: bool, stdio: bool):
     if version:
         print(f"edgedb-ls, version {buildmeta.get_version()}")
         sys.exit(0)
-    
+
+    ls = init()
+
+    if stdio:
+        ls.start_io()
+    else:
+        print("Error: no LSP transport enabled. Use --stdio.")
+
+
+def init() -> ls_server.EdgeDBLanguageServer:
     ls = ls_server.EdgeDBLanguageServer()
 
     @ls.feature(
@@ -71,10 +80,7 @@ def main(*, version: bool, stdio: bool):
 
         return lsp_types.CompletionList(is_incomplete=False, items=items)
 
-    if stdio:
-        ls.start_io()
-    else:
-        print("Error: no LSP transport enabled. Use --stdio.")
+    return ls
 
 
 def document_updated(ls: ls_server.EdgeDBLanguageServer, doc_uri: str):
