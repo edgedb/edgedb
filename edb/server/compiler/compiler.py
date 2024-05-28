@@ -134,8 +134,9 @@ class CompileContext:
     schema_object_ids: Optional[
         Mapping[tuple[s_name.Name, Optional[str]], uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
-    backend_runtime_params: pg_params.BackendRuntimeParams = (
-        pg_params.get_default_runtime_params())
+    backend_runtime_params: pg_params.BackendRuntimeParams = dataclasses.field(
+        default_factory=pg_params.get_default_runtime_params
+    )
     compat_ver: Optional[verutils.Version] = None
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
@@ -201,7 +202,7 @@ class CompileContext:
 
 
 DEFAULT_MODULE_ALIASES_MAP: immutables.Map[Optional[str], str] = (
-    immutables.Map({None: defines.DEFAULT_MODULE_ALIAS}))
+    immutables.Map({None: s_mod.DEFAULT_MODULE_ALIAS}))
 
 
 def compile_edgeql_script(
@@ -2235,7 +2236,7 @@ def _compile_ql_sess_state(
         aliases = aliases.set(ql.decl.alias, ql.decl.module)
 
     elif isinstance(ql, qlast.SessionResetModule):
-        aliases = aliases.set(None, defines.DEFAULT_MODULE_ALIAS)
+        aliases = aliases.set(None, s_mod.DEFAULT_MODULE_ALIAS)
 
     elif isinstance(ql, qlast.SessionResetAllAliases):
         aliases = DEFAULT_MODULE_ALIASES_MAP
