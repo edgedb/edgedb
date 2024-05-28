@@ -111,7 +111,6 @@ def _get_devmode_pg_config_path() -> pathlib.Path:
 
 
 def get_pg_config_path() -> pathlib.Path:
-    # raise AssertionError('not allowed')
     if devmode.is_in_dev_mode():
         pg_config = _get_devmode_pg_config_path()
     else:
