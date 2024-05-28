@@ -39,7 +39,6 @@ from edb import edgeql
 from edb.common import debug
 from edb.common import uuidgen
 from edb.common import verutils
-from edb.common.ast import find_children
 from edb.edgeql import ast as qlast
 from edb.edgeql import declarative as s_decl
 from edb.server import defines
@@ -470,16 +469,6 @@ def apply_sdl(
     testmode: bool = False,
     allow_dml_in_functions: bool=False,
 ) -> s_schema.Schema:
-    if params := find_children(
-        sdl_document,
-        qlast.Parameter,
-        terminate_early=True
-    ):
-        raise errors.SchemaError(
-            'query parameters are not allowed in schemas',
-            span=params[0].span,
-        )
-
     # group declarations by module
     documents: Dict[str, List[qlast.DDL]] = defaultdict(list)
     # initialize the "default" module
