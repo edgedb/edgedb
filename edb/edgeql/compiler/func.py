@@ -337,6 +337,7 @@ def compile_FunctionCall(
         tuple_path_ids=tuple_path_ids,
         impl_is_strict=func.get_impl_is_strict(env.schema),
         prefer_subquery_args=func.get_prefer_subquery_args(env.schema),
+        is_singleton_set_of=func.get_is_singleton_set_of(env.schema),
         global_args=global_args,
         span=expr.span,
     )
@@ -593,6 +594,8 @@ def compile_operator(
     oper_name = oper.get_shortname(env.schema)
     str_oper_name = str(oper_name)
 
+    is_singleton_set_of = oper.get_is_singleton_set_of(env.schema)
+
     matched_params = oper.get_params(env.schema)
     rtype = matched_call.return_type
     matched_rtype = oper.get_return_type(env.schema)
@@ -646,6 +649,7 @@ def compile_operator(
         origin_module_id = env.schema.get_global(
             s_mod.Module, origin_name.module).id
         oper_name = derivative_op.get_shortname(env.schema)
+        is_singleton_set_of = derivative_op.get_is_singleton_set_of(env.schema)
     else:
         origin_name = None
         origin_module_id = None
@@ -673,6 +677,7 @@ def compile_operator(
         tuple_path_ids=[],
         impl_is_strict=oper.get_impl_is_strict(env.schema),
         prefer_subquery_args=oper.get_prefer_subquery_args(env.schema),
+        is_singleton_set_of=is_singleton_set_of,
         span=qlexpr.span,
     )
 

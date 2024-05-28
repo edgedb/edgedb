@@ -33,6 +33,7 @@ std::`IN` (e: anytype, s: SET OF anytype) -> std::bool
     USING SQL EXPRESSION;
     SET volatility := 'Immutable';
     SET derivative_of := 'std::=';
+    SET is_singleton_set_of := true;
 };
 
 
@@ -45,6 +46,7 @@ std::`NOT IN` (e: anytype, s: SET OF anytype) -> std::bool
     USING SQL EXPRESSION;
     SET volatility := 'Immutable';
     SET derivative_of := 'std::!=';
+    SET is_singleton_set_of := true;
 };
 
 
@@ -53,6 +55,7 @@ std::`EXISTS` (s: SET OF anytype) -> bool {
     CREATE ANNOTATION std::identifier := 'exists';
     CREATE ANNOTATION std::description := 'Test whether a set is not empty.';
     SET volatility := 'Immutable';
+    SET is_singleton_set_of := true;
     USING SQL EXPRESSION;
 };
 
@@ -99,6 +102,7 @@ std::`??` (l: OPTIONAL anytype, r: SET OF anytype) -> SET OF anytype {
     CREATE ANNOTATION std::identifier := 'coalesce';
     CREATE ANNOTATION std::description := 'Coalesce.';
     SET volatility := 'Immutable';
+    SET is_singleton_set_of := true;
     USING SQL EXPRESSION;
 };
 
@@ -110,5 +114,6 @@ std::`IF` (if_true: SET OF anytype, condition: bool,
     CREATE ANNOTATION std::description :=
         'Conditionally provide one or the other result.';
     SET volatility := 'Immutable';
+    SET is_singleton_set_of := true;
     USING SQL EXPRESSION;
 };
