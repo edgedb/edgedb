@@ -790,6 +790,32 @@ class IndexCommand(
         else:
             return id_fields
 
+    def get_friendly_object_name_for_description(
+        self,
+        *,
+        parent_op: Optional[sd.Command] = None,
+        schema: Optional[s_schema.Schema] = None,
+        object: Optional[so.Object_T] = None,
+        object_desc: Optional[str] = None,
+    ) -> str:
+        friendly_name: str = 'index'
+
+        expr: Optional[s_expr.Expression] = None
+        if (
+            self.has_ddl_identity('expr') and
+            (expr := self.get_ddl_identity('expr'))
+        ):
+            expr_text = expr.text
+            if expr_text[0] != '(' or expr_text[-1] != ')':
+                expr_text = '(' + expr_text + ')'
+
+            friendly_name = f"index on {expr_text}"
+
+        if not isinstance(parent_op, sd.ObjectCommand):
+            return f"{friendly_name}"
+        else:
+            return f"{friendly_name} of {parent_op.get_verbosename()}"
+
     def compile_expr_field(
         self,
         schema: s_schema.Schema,
