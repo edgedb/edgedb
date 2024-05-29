@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import (
     Any,
+    Callable,
     Optional,
     Tuple,
     Type,
@@ -210,6 +211,9 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         options: Optional[qlcompiler.CompilerOptions] = None,
         as_fragment: bool = False,
         detached: bool = False,
+        find_extra_refs: Optional[
+            Callable[[irast_.Set], set[so.Object]]
+        ] = None
     ) -> CompiledExpression:
 
         from edb.ir import ast as irast_
@@ -238,7 +242,12 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         assert isinstance(ir, irast_.Statement)
 
         # XXX: ref stuff - why doesn't it go into the delta tree? - temporary??
-        srefs = {ref for ref in ir.schema_refs if schema.has_object(ref.id)}
+        srefs: set[so.Object] = {
+            ref for ref in ir.schema_refs if schema.has_object(ref.id)
+        }
+
+        if find_extra_refs is not None:
+            srefs |= find_extra_refs(ir.expr)
 
         return CompiledExpression(
             text=self.text,
