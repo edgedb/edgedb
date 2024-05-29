@@ -139,13 +139,15 @@ class RewriteCommand(
         track_schema_ref_exprs: bool = False,
     ) -> s_expr.CompiledExpression:
         if field.name == 'expr':
+            from edb.common import ast
+            from edb.ir import ast as irast
             from edb.ir import pathid
             from . import pointers as s_pointers
             from . import objtypes as s_objtypes
             from . import links as s_links
 
             parent_ctx = self.get_referrer_context_or_die(context)
-            pointer = parent_ctx.op.get_object(schema, context)
+            pointer = parent_ctx.op.scls
             assert isinstance(pointer, s_pointers.Pointer)
 
             source = pointer.get_source(schema)
@@ -205,6 +207,55 @@ class RewriteCommand(
 
             singletons = frozenset(anchors.values())
 
+            # If the `__specified__` anchor is used, create references to the
+            # matching pointers.
+            #
+            # These references are necessary in order to compute the dependency
+            # and ordering of Rewrite commands when producing DDL.
+            #
+            # If creating Type T with two properties, A and B, such that
+            # A has a Rewrite containing `__specified__.B`.
+            #
+            # Without the references, the DDL may look like:
+            # - Create Type T
+            #   - Create Property A
+            #     - Create Rewrite using __specified__.B
+            #   - Create Property B
+            #
+            # This will cause an issue when compiling the Rewrite. At that
+            # point, the schema will not know about B and so the tuple will not
+            # have element `.B`.
+            #
+            # The reference will cause the reordering of commands and the DDL
+            # may instead look like:
+            # - Create Object O
+            #   - Create Property A
+            #   - Create Property B
+            #   - Alter Property A
+            #     - Create Rewrite using __specified__.B
+            #
+            # With Create Rewrite ordered after Property B, the tuple for
+            # `__specified__` will correctly have element `.B`.
+            def find_extra_refs(ir_expr: irast.Set) -> set[so.Object]:
+                def find_specified(node: irast.TupleIndirectionPointer) -> bool:
+                    return node.source.anchor == '__specified__'
+
+                ref_ptr_names: set[str] = set()
+                for tuple_node in ast.find_children(
+                    ir_expr,
+                    irast.TupleIndirectionPointer,
+                    test_func=find_specified,
+                ):
+                    ref_ptr_names.add(tuple_node.ptrref.name.name)
+
+                ref_ptrs: set[so.Object] = set(
+                    pointer
+                    for pointer in subject.get_pointers(schema).objects(schema)
+                    if pointer.get_shortname(schema).name in ref_ptr_names
+                )
+
+                return ref_ptrs
+
             return type(value).compiled(
                 value,
                 schema=schema,
@@ -219,6 +270,7 @@ class RewriteCommand(
                     # in_ddl_context_name=in_ddl_context_name,
                     detached=True,
                 ),
+                find_extra_refs=find_extra_refs,
             )
         else:
             return super().compile_expr_field(
