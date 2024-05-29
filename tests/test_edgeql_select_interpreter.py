@@ -5011,7 +5011,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [],
         )
 
-    def test_edgeql_partial_01(self):
+    def test_edgeql_interpreter_partial_01(self):
         self.assert_query_result(
             '''
             SELECT
@@ -5024,7 +5024,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'number': '1'}],
         )
 
-    def test_edgeql_partial_02(self):
+    def test_edgeql_interpreter_partial_02(self):
         self.assert_query_result(
             '''
             SELECT
@@ -5037,7 +5037,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{'name': 'Yury'}],
         )
 
-    def test_edgeql_partial_03(self):
+    def test_edgeql_interpreter_partial_03(self):
         self.assert_query_result(
             '''
             SELECT Issue {
@@ -5059,7 +5059,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_partial_04(self):
+    def test_edgeql_interpreter_partial_04(self):
         self.assert_query_result(
             '''
             SELECT Issue {
@@ -5074,7 +5074,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             ],
         )
 
-    def test_edgeql_partial_05(self):
+    def test_edgeql_interpreter_partial_05(self):
         self.assert_query_result(
             '''
             SELECT
@@ -5806,7 +5806,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"z": [{"name": "Regression."}, {"name": "Release EdgeDB"}]}],
         )
 
-    def test_edgeql_function_source_01a(self):
+    def test_edgeql_interpreter_function_source_01a(self):
         # TODO: I think we might want to eliminate this sort of shape
         # propagation out of array_unpack instead?
         self.assert_query_result(
@@ -5818,7 +5818,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_01b(self):
+    def test_edgeql_interpreter_function_source_01b(self):
         self.assert_query_result(
             r'''
                 SELECT (DISTINCT array_unpack([(
@@ -5828,7 +5828,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_02(self):
+    def test_edgeql_interpreter_function_source_02(self):
         self.assert_query_result(
             r'''
                 SELECT DISTINCT enumerate((
@@ -5838,7 +5838,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_03(self):
+    def test_edgeql_interpreter_function_source_03(self):
         self.assert_query_result(
             r'''
                 SELECT assert_single(array_unpack([(
@@ -5848,7 +5848,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_04(self):
+    def test_edgeql_interpreter_function_source_04(self):
         self.assert_query_result(
             r'''
                 SELECT assert_distinct(array_unpack([(
@@ -5858,7 +5858,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_05(self):
+    def test_edgeql_interpreter_function_source_05(self):
         self.assert_query_result(
             r'''
                 SELECT assert_exists(array_unpack([(
@@ -5868,7 +5868,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_06(self):
+    def test_edgeql_interpreter_function_source_06(self):
         self.assert_query_result(
             r'''
                 SELECT enumerate(array_unpack([(
@@ -5878,7 +5878,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[0, {"name": "Elvis"}]],
         )
 
-    def test_edgeql_function_source_07(self):
+    def test_edgeql_interpreter_function_source_07(self):
         self.assert_query_result(
             r'''
                 SELECT (enumerate((
@@ -5888,7 +5888,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_08(self):
+    def test_edgeql_interpreter_function_source_08(self):
         self.assert_query_result(
             r'''
                 SELECT (enumerate((
@@ -5898,7 +5898,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_function_source_09(self):
+    def test_edgeql_interpreter_function_source_09(self):
         self.assert_query_result(
             r'''
                 SELECT (enumerate((
@@ -5908,7 +5908,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"name": "Elvis"}],
         )
 
-    def test_edgeql_collection_shape_01(self):
+    def test_edgeql_interpreter_collection_shape_01(self):
         self.assert_query_result(
             r'''
                 SELECT <array<User>>{} UNION [User]
@@ -5937,7 +5937,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"id": str}], [{"id": str}]],
         )
 
-    def test_edgeql_collection_shape_02(self):
+    def test_edgeql_interpreter_collection_shape_02(self):
         self.assert_query_result(
             r'''
                 SELECT <array<User>>{} UNION array_agg(User)
@@ -5966,7 +5966,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"id": str}, {"id": str}]],
         )
 
-    def test_edgeql_collection_shape_03(self):
+    def test_edgeql_interpreter_collection_shape_03(self):
         self.assert_query_result(
             r'''
                 SELECT <tuple<User, int64>>{} UNION (User, 2)
@@ -5995,7 +5995,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"id": str}, 2], [{"id": str}, 2]],
         )
 
-    def test_edgeql_collection_shape_04(self):
+    def test_edgeql_interpreter_collection_shape_04(self):
         self.assert_query_result(
             r'''
                 SELECT [(User,)][0]
@@ -6010,7 +6010,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"name": "Elvis"}], [{"name": "Yury"}]],
         )
 
-    def test_edgeql_collection_shape_05(self):
+    def test_edgeql_interpreter_collection_shape_05(self):
         self.assert_query_result(
             r'''
                 SELECT ([User],).0
@@ -6025,7 +6025,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"name": "Elvis"}], [{"name": "Yury"}]],
         )
 
-    def test_edgeql_collection_shape_06(self):
+    def test_edgeql_interpreter_collection_shape_06(self):
         self.assert_query_result(
             r'''
                 SELECT { z := ([User],).0 }
@@ -6033,7 +6033,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [{"z": [[{"id": str}], [{"id": str}]]}],
         )
 
-    def test_edgeql_collection_shape_07(self):
+    def test_edgeql_interpreter_collection_shape_07(self):
         self.assert_query_result(
             r'''
                 WITH Z := (<array<User>>{} IF false ELSE [User]),
@@ -6050,7 +6050,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             [[{"id": str}], [{"id": str}]],
         )
 
-    def test_edgeql_collection_shape_08(self):
+    def test_edgeql_interpreter_collection_shape_08(self):
         self.assert_query_result(
             r'''
                 SELECT X := array_agg(User) FILTER X[0].name != 'Sully';
@@ -6168,7 +6168,7 @@ class TestEdgeQLSelectInterpreter(tb.ExperimentalInterpreterTestCase):
             {1, 2},
         )
 
-    def test_edgeql_with_rebind_01(self):
+    def test_edgeql_interpreter_with_rebind_01(self):
         self.assert_query_result(
             r'''
             WITH Z := (SELECT User { name })
