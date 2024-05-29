@@ -126,8 +126,24 @@ def get_default_runtime_params(
             **instance_params,
         )
     if 'version' not in instance_params:
+        try:
+            version = buildmeta.get_pg_version()
+        except buildmeta.MetadataError as _:
+            # HACK: if get_pg_version fails, this means we have no pg_config,
+            # which happens for edgedb-ls. It is invoking pg compiler from
+            # schema delta. Ideally, schema delta would not need pg compiler,
+            # but that would require a lot of cleanups.
+            version = BackendVersion(
+                major=100,
+                minor=0,
+                micro=0,
+                releaselevel='final',
+                serial=0,
+                string='100.0'
+            )
+
         instance_params = dict(
-            version=buildmeta.get_pg_version(),
+            version=version,
             **instance_params,
         )
 
