@@ -38,4 +38,9 @@ type Astronomy {
     content: str;
     deferred index ext::ai::index(embedding_model := 'text-embedding-test')
         on (.content);
+
+    # N.B: This was added late, for 5.5, so won't appear in 5.0 dumps.
+    # Test that having both AI and FTS indexes works.
+    index fts::index on (
+      fts::with_options(.content, language := fts::Language.eng));
 };
