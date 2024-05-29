@@ -2962,6 +2962,24 @@ class TestSchema(tb.BaseSchemaLoadTest):
         }
         """
 
+    @tb.must_fail(
+        errors.SchemaError,
+        "query parameters are not allowed in schemas",
+    )
+    def test_schema_query_parameter_01(self):
+        """
+        type Foo { foo := <int64>$0 }
+        """
+
+    @tb.must_fail(
+        errors.SchemaError,
+        "query parameters are not allowed in schemas",
+    )
+    def test_schema_query_parameter_02(self):
+        """
+        global foo := <int64>$0
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.
