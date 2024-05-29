@@ -57,15 +57,26 @@ class TestLanguageServer(unittest.TestCase):
         threading.Thread(target=stop_server).start()
         ls.start_io(stdin=stream_in, stdout=stream_out)
 
-        expected = """Content-Length: 95\r
-Content-Type: application/vscode-jsonrpc; charset=utf-8\r
-\r
-{"params": {"type": 4, "message": "Starting"}, "method": "window/logMessage", "jsonrpc": "2.0"}Content-Length: 94\r
-Content-Type: application/vscode-jsonrpc; charset=utf-8\r
-\r
-{"params": {"type": 4, "message": "Started"}, "method": "window/logMessage", "jsonrpc": "2.0"}Content-Length: 428\r
-Content-Type: application/vscode-jsonrpc; charset=utf-8\r
-\r
-{"id": 1, "jsonrpc": "2.0", "result": {"capabilities": {"positionEncoding": "utf-16", "textDocumentSync": {"openClose": true, "change": 2, "save": false}, "completionProvider": {"triggerCharacters": [","]}, "executeCommandProvider": {"commands": []}, "workspace": {"workspaceFolders": {"supported": true, "changeNotifications": true}, "fileOperations": {}}}, "serverInfo": {"name": "EdgeDB Language Server", "version": "v0.1"}}}"""
+        expected = (
+            'Content-Length: 95\r\n'
+            'Content-Type: application/vscode-jsonrpc; charset=utf-8\r\n'
+            '\r\n'
+            '{"params": {"type": 4, "message": "Starting"}, "method": '
+            '"window/logMessage", "jsonrpc": "2.0"}Content-Length: 94\r\n'
+            'Content-Type: application/vscode-jsonrpc; charset=utf-8\r\n'
+            '\r\n'
+            '{"params": {"type": 4, "message": "Started"}, "method": '
+            '"window/logMessage", "jsonrpc": "2.0"}Content-Length: 428\r\n'
+            'Content-Type: application/vscode-jsonrpc; charset=utf-8\r\n'
+            '\r\n'
+            '{"id": 1, "jsonrpc": "2.0", "result": {"capabilities": '
+            '{"positionEncoding": "utf-16", "textDocumentSync": {"openClose": '
+            'true, "change": 2, "save": false}, "completionProvider": '
+            '{"triggerCharacters": [","]}, "executeCommandProvider": '
+            '{"commands": []}, "workspace": {"workspaceFolders": {"supported":'
+            ' true, "changeNotifications": true}, "fileOperations": {}}}, '
+            '"serverInfo": {"name": "EdgeDB Language Server", "version": "v0.1"'
+            '}}}'
+        )
 
         self.assertEqual(str(stream_out.getvalue(), encoding='ascii'), expected)
