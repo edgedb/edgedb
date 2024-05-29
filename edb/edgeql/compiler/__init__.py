@@ -359,7 +359,6 @@ def compile_ast_fragment_to_ir(
         view_shapes_metadata={},
         schema_refs=frozenset(),
         schema_ref_exprs=None,
-        created_schema_types=frozenset(),
         scope_tree=ctx.path_scope,
         type_rewrites={},
         singletons=[],

@@ -369,14 +369,12 @@ def compile_InternalGroupQuery(
             viewgen.late_compile_view_shapes(stmt.group_binding, ctx=topctx)
 
             if expr.grouping_alias:
-                ctx.env.schema, grouping_stype, created = s_types.Array.create(
+                ctx.env.schema, grouping_stype = s_types.Array.create(
                     ctx.env.schema,
                     element_type=(
                         ctx.env.schema.get('std::str', type=s_types.Type)
                     )
                 )
-                if created:
-                    ctx.env.created_schema_objects.add(grouping_stype)
                 stmt.grouping_binding = _make_group_binding(
                     grouping_stype, expr.grouping_alias, ctx=topctx)
 

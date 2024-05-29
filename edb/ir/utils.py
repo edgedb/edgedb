@@ -568,3 +568,23 @@ def sub_expr(ir: irast.Set) -> Optional[irast.Expr]:
         return ir.expr.expr
     else:
         return ir.expr
+
+
+class CollectSchemaTypesVisitor(ast.NodeVisitor):
+    types: Set[uuid.UUID]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.types = set()
+
+    def visit_Set(self, node: irast.Set) -> None:
+        self.types.add(node.typeref.id)
+        self.generic_visit(node)
+
+
+def collect_schema_types(stmt: irast.Base) -> Set[uuid.UUID]:
+    """Collect ids of all types referenced in the statement."""
+
+    visitor = CollectSchemaTypesVisitor()
+    visitor.visit(stmt)
+    return visitor.types

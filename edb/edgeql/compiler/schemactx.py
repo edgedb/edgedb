@@ -295,8 +295,6 @@ def derive_view(
     if preserve_shape and stype in ctx.env.view_shapes:
         preserve_view_shape(stype, derived, ctx=ctx)
 
-    ctx.env.created_schema_objects.add(derived)
-
     return derived
 
 
@@ -366,8 +364,6 @@ def derive_ptr(
     if preserve_shape and ptr in ctx.env.view_shapes:
         preserve_view_shape(ptr, derived, ctx=ctx)
 
-    ctx.env.created_schema_objects.add(derived)
-
     return derived
 
 
@@ -415,7 +411,7 @@ def get_union_type(
         )
 
     try:
-        ctx.env.schema, union, created = s_utils.ensure_union_type(
+        ctx.env.schema, union, _ = s_utils.ensure_union_type(
             ctx.env.schema, targets,
             opaque=opaque, transient=True)
     except errors.SchemaError as e:
@@ -432,14 +428,9 @@ def get_union_type(
         e.set_span(span)
         raise e
 
-    if created:
-        ctx.env.created_schema_objects.add(union)
-    elif (
-        union not in ctx.env.created_schema_objects
-        and (
-            not isinstance(union, s_obj.QualifiedObject)
-            or union.get_name(ctx.env.schema).module != '__derived__'
-        )
+    if (
+        not isinstance(union, s_obj.QualifiedObject)
+        or union.get_name(ctx.env.schema).module != '__derived__'
     ):
         ctx.env.add_schema_ref(union, expr=None)
 
@@ -454,17 +445,13 @@ def get_intersection_type(
 
     targets: Sequence[s_types.Type]
     targets = s_utils.simplify_intersection_types(ctx.env.schema, types)
-    ctx.env.schema, intersection, created = s_utils.ensure_intersection_type(
-        ctx.env.schema, targets, transient=True)
+    ctx.env.schema, intersection = s_utils.ensure_intersection_type(
+        ctx.env.schema, targets, transient=True
+    )
 
-    if created:
-        ctx.env.created_schema_objects.add(intersection)
-    elif (
-        intersection not in ctx.env.created_schema_objects
-        and (
-            not isinstance(intersection, s_obj.QualifiedObject)
-            or intersection.get_name(ctx.env.schema).module != '__derived__'
-        )
+    if (
+        not isinstance(intersection, s_obj.QualifiedObject)
+        or intersection.get_name(ctx.env.schema).module != '__derived__'
     ):
         ctx.env.add_schema_ref(intersection, expr=None)
 
@@ -593,7 +580,6 @@ def derive_dummy_ptr(
     if derived_obj is None:
         ctx.env.schema, derived_obj = stdobj.derive_subtype(
             ctx.env.schema, name=derived_obj_name)
-        ctx.env.created_schema_objects.add(derived_obj)
 
     derived_name = ptr.get_derived_name(
         ctx.env.schema, derived_obj)
@@ -611,7 +597,6 @@ def derive_dummy_ptr(
             name=derived_name,
             mark_derived=True,
         )
-        ctx.env.created_schema_objects.add(derived)
 
     return derived
 
@@ -637,7 +622,4 @@ def get_union_pointer(
         modname=modname,
         transient=True,
     )
-
-    ctx.env.created_schema_objects.add(ptr)
-
     return ptr
