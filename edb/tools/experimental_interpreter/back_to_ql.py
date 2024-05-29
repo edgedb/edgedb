@@ -348,25 +348,22 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case WithExpr(bound=bound, next=next):
             name = next.var
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
-            if (
-                isinstance(body, qlast.SelectQuery)
-                or isinstance(body, qlast.InsertQuery)
-                or isinstance(body, qlast.UpdateQuery)
-                or isinstance(body, qlast.ForQuery)
-            ):
-                if body.aliases is None:
-                    body.aliases = []
+            if isinstance(body, qlast.WithBinding):
                 body.aliases = [
                     qlast.AliasedExpr(alias=name, expr=reverse_elab(bound)),
                     *body.aliases,
                 ]
                 return body
             else:
-                return qlast.SelectQuery(
-                    result=body,
+                if isinstance(body, qlast.Query):
+                    query = body
+                else:
+                    query = qlast.SelectQuery(result=body)
+                return qlast.WithBinding(
                     aliases=[
                         qlast.AliasedExpr(alias=name, expr=reverse_elab(bound))
                     ],
+                    expr=query,
                 )
         case ForExpr(bound=bound, next=next):
             name = next.var

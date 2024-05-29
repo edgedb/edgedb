@@ -310,13 +310,8 @@ def elab_InsertQuery(expr: qlast.InsertQuery) -> InsertExpr:
         ), "Not expecting leading dot notaiton in Shapes"
         unshaped[k.label] = v.body
 
-    return cast(
-        InsertExpr,
-        elab_aliases(
-            expr.aliases,
-            InsertExpr(name=e.UnqualifiedName(subject_type), new=unshaped),
-        ),
-    )  # TODO: we should allow qualified names here
+    # TODO: we should allow qualified names here
+    return InsertExpr(name=e.UnqualifiedName(subject_type), new=unshaped)
 
 
 @elab.register(qlast.Constant)
@@ -398,23 +393,20 @@ def elab_orderby(
 @elab.register(qlast.SelectQuery)
 def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
     if qle.offset is not None or qle.limit is not None:
-        return elab_aliases(
-            qle.aliases,
-            SubqueryExpr(
-                OffsetLimitExpr(
-                    subject=elab(qle.result),
-                    offset=(
-                        elab(qle.offset)
-                        if qle.offset is not None
-                        else IntVal(0)
-                    ),
-                    limit=(
-                        elab(qle.limit)
-                        if qle.limit is not None
-                        else e.MultiSetExpr([])
-                    ),
-                )
-            ),
+        return SubqueryExpr(
+            OffsetLimitExpr(
+                subject=elab(qle.result),
+                offset=(
+                    elab(qle.offset)
+                    if qle.offset is not None
+                    else IntVal(0)
+                ),
+                limit=(
+                    elab(qle.limit)
+                    if qle.limit is not None
+                    else e.MultiSetExpr([])
+                ),
+            )
         )
     else:
         subject_elab = elab(qle.result)
@@ -473,7 +465,7 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
                 subject=subject_elab, filter=filter_elab, order=order_elab
             )
         )
-        return elab_aliases(qle.aliases, without_alias)
+        return without_alias
 
 
 @elab.register(qlast.FunctionCall)
@@ -653,7 +645,7 @@ def elab_UpdateQuery(qle: qlast.UpdateQuery):
         order={},
     )
     shape = elab_Shape(qle.shape)
-    return elab_aliases(qle.aliases, UpdateExpr(subject=subject, shape=shape))
+    return UpdateExpr(subject=subject, shape=shape)
 
 
 @elab.register(qlast.DeleteQuery)
@@ -667,7 +659,7 @@ def elab_DeleteQuery(qle: qlast.DeleteQuery):
         ),
         order={},
     )
-    return elab_aliases(qle.aliases, e.DeleteExpr(subject=subject))
+    return e.DeleteExpr(subject=subject)
 
 
 @elab.register(qlast.Set)
@@ -675,15 +667,11 @@ def elab_Set(qle: qlast.Set):
     return MultiSetExpr(expr=[elab(e) for e in qle.elements])
 
 
-def elab_aliases(
-    aliases: Optional[Sequence[qlast.AliasedExpr | qlast.ModuleAliasDecl]],
-    tail_expr: Expr,
-) -> Expr:
-    if aliases is None:
-        return tail_expr
-    result = tail_expr
-    for i in reversed(range(len(aliases))):
-        cur_alias = aliases[i]
+@elab.register(qlast.WithBinding)
+def elab_WithBinding(binding: qlast.WithBinding):
+    result = elab(binding.expr)
+
+    for cur_alias in reversed(binding.aliases):
         if isinstance(cur_alias, qlast.AliasedExpr):
             result = WithExpr(
                 elab(cur_alias.expr),
@@ -725,16 +713,10 @@ def elab_ForQuery(qle: qlast.ForQuery) -> ForExpr | OptionalForExpr:
         raise elab_not_implemented(qle)
     return cast(
         (ForExpr | OptionalForExpr),
-        elab_aliases(
-            qle.aliases,
-            cast(
-                Expr,
-                (OptionalForExpr if qle.optional else ForExpr)(
-                    bound=elab(qle.iterator),
-                    next=abstract_over_expr(
-                        elab(qle.result), qle.iterator_alias
-                    ),
-                ),
+        (OptionalForExpr if qle.optional else ForExpr)(
+            bound=elab(qle.iterator),
+            next=abstract_over_expr(
+                elab(qle.result), qle.iterator_alias
             ),
         ),
     )
