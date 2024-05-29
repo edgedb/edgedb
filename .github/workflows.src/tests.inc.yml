@@ -48,7 +48,8 @@
       if: steps.requirements-cache.outputs.cache-hit != 'true'
       run: |
         python -m pip install pip-tools
-        pip-compile --no-strip-extras --all-build-deps --extra test \
+        pip-compile --no-strip-extras --all-build-deps \
+          --extra test,language-server \
           --output-file requirements.txt pyproject.toml
 
     - name: Install Python dependencies
