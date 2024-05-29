@@ -1865,6 +1865,30 @@ def maybe_materialize(
     *,
     ctx: context.ContextLevel,
 ) -> None:
+    """
+    Materializing a set of values consists of:
+    * Serializing each of the values in native mode, but with computed
+      shape fields included.
+    * Then, if the value is possibly multi, aggregating it into an array.
+
+    We consider materializing a set of values in two of our core binding
+    constructs:
+    * WITH statements
+    * ad-hoc computed pointers.
+    * We don't materialize the argument to FOR, because I thought that
+    FOR's iteration makes it unnecessary. I found some bugs involving
+    FOR, though, so maybe that is wrong.
+
+    We materialize a set in the following cases:
+    * If it is volatile, or uses a bound variable that is volatile
+    * If it appears in a computable and refers to a bound variable.
+    This is somewhat overly broad, but is intended to allow us to
+    capture FOR variables inside a shape, and similar patterns.
+
+    The materialized sets are computed at the enclosing statement:
+    at the WITH statement, or at the shape subject expression.
+    """
+
     if isinstance(stype, s_pointers.PseudoPointer):
         return
 
