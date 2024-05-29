@@ -41,7 +41,6 @@ from edb.edgeql import parser as qlparser
 from edb.edgeql.parser import grammar as qlgrammar
 from edb.edgeql import qltypes
 
-from edb.server import defines
 from edb.server import compiler as edbcompiler
 
 from edb.schema import ddl as s_ddl
@@ -51,6 +50,7 @@ from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 from edb.schema import utils as s_utils
+from edb.schema import modules as s_mod
 
 
 def must_fail(exc_type, exc_msg_re=None, **kwargs):
@@ -298,7 +298,7 @@ class BaseSchemaTest(BaseDocTest):
             cls.schema = _load_std_schema()
 
     @classmethod
-    def run_ddl(cls, schema, ddl, default_module=defines.DEFAULT_MODULE_ALIAS):
+    def run_ddl(cls, schema, ddl, default_module=s_mod.DEFAULT_MODULE_ALIAS):
         statements = edgeql.parse_block(ddl)
 
         current_schema = schema

@@ -18,6 +18,16 @@ jobs:
 
       if_linux_x86_64: ${{ steps.scm.outputs.if_linux_x86_64 }}
 
+      if_linux_aarch64: ${{ steps.scm.outputs.if_linux_aarch64 }}
+
+      if_linuxmusl_x86_64: ${{ steps.scm.outputs.if_linuxmusl_x86_64 }}
+
+      if_linuxmusl_aarch64: ${{ steps.scm.outputs.if_linuxmusl_aarch64 }}
+
+      if_macos_x86_64: ${{ steps.scm.outputs.if_macos_x86_64 }}
+
+      if_macos_aarch64: ${{ steps.scm.outputs.if_macos_aarch64 }}
+
 
     steps:
     - uses: actions/checkout@v4
@@ -47,6 +57,56 @@ jobs:
 
         echo if_linux_x86_64="$val" >> $GITHUB_OUTPUT
 
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linux-aarch64'
+          val=false
+        fi
+
+        echo if_linux_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linuxmusl-x86_64'
+          val=false
+        fi
+
+        echo if_linuxmusl_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing linuxmusl-aarch64'
+          val=false
+        fi
+
+        echo if_linuxmusl_aarch64="$val" >> $GITHUB_OUTPUT
+
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing macos-x86_64'
+          val=false
+        fi
+
+        echo if_macos_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing macos-aarch64'
+          val=false
+        fi
+
+        echo if_macos_aarch64="$val" >> $GITHUB_OUTPUT
 
 
 
@@ -59,11 +119,11 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
@@ -76,8 +136,206 @@ jobs:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
 
+  build-linux-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    if: needs.prep.outputs.if_linux_aarch64 == 'true'
+
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/linux-aarch64@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        EXTRA_OPTIMIZATIONS: "true"
+        BUILD_GENERIC: true
+        METAPKG_GIT_CACHE: disabled
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-linux-aarch64
+        path: artifacts/linux-aarch64
+
+  build-linuxmusl-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
+    needs: prep
+
+    if: needs.prep.outputs.if_linuxmusl_x86_64 == 'true'
+
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        EXTRA_OPTIMIZATIONS: "true"
+        BUILD_GENERIC: true
+        PKG_PLATFORM_LIBC: "musl"
+        METAPKG_GIT_CACHE: disabled
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-linuxmusl-x86_64
+        path: artifacts/linuxmusl-x86_64
+
+  build-linuxmusl-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    if: needs.prep.outputs.if_linuxmusl_aarch64 == 'true'
+
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        EXTRA_OPTIMIZATIONS: "true"
+        BUILD_GENERIC: true
+        PKG_PLATFORM_LIBC: "musl"
+        METAPKG_GIT_CACHE: disabled
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-linuxmusl-aarch64
+        path: artifacts/linuxmusl-aarch64
+
+  build-macos-x86_64:
+    runs-on: ['macos-13']
+    needs: prep
+
+    if: needs.prep.outputs.if_macos_x86_64 == 'true'
+
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      if: true
+      with:
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "x86_64-apple-darwin"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      if: true
+      with:
+        python-version: "3.x"
+
+    - name: Set up NodeJS
+      uses: actions/setup-node@v4
+      if: true
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      if: true
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
+
+    - name: Build
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "macos"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_ARCH: "x86_64"
+        EXTRA_OPTIMIZATIONS: "true"
+        METAPKG_GIT_CACHE: disabled
+        BUILD_GENERIC: true
+      run: |
+        edgedb-pkg/integration/macos/build.sh
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-macos-x86_64
+        path: artifacts/macos-x86_64
+
+  build-macos-aarch64:
+    runs-on: ['macos-14']
+    needs: prep
+
+    if: needs.prep.outputs.if_macos_aarch64 == 'true'
+
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      if: true
+      with:
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "aarch64-apple-darwin"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      if: true
+      with:
+        python-version: "3.x"
+
+    - name: Set up NodeJS
+      uses: actions/setup-node@v4
+      if: true
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      if: true
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
+
+    - name: Build
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "macos"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_ARCH: "aarch64"
+        EXTRA_OPTIMIZATIONS: "true"
+        METAPKG_GIT_CACHE: disabled
+        BUILD_GENERIC: true
+      run: |
+        edgedb-pkg/integration/macos/build.sh
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-macos-aarch64
+        path: artifacts/macos-aarch64
+
   publish-linux-x86_64:
-    needs: [test-linux-x86_64]
+    needs: [build-linux-x86_64]
     runs-on: ubuntu-latest
 
     steps:
@@ -89,7 +347,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_SUBDIST: "nightly"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
@@ -114,9 +372,9 @@ jobs:
         target: linux-x86_64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
       env:
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -130,6 +388,230 @@ jobs:
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
+  publish-linux-aarch64:
+    needs: [build-linux-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-linux-aarch64
+        path: artifacts/linux-aarch64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-linux-aarch64:
+    needs: [publish-linux-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-linux-aarch64
+        path: artifacts/linux-aarch64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linux-aarch64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-linuxmusl-x86_64:
+    needs: [build-linuxmusl-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-linuxmusl-x86_64
+        path: artifacts/linuxmusl-x86_64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_LIBC: "musl"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-linuxmusl-x86_64:
+    needs: [publish-linuxmusl-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-linuxmusl-x86_64
+        path: artifacts/linuxmusl-x86_64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linuxmusl-x86_64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-linuxmusl-aarch64:
+    needs: [build-linuxmusl-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-linuxmusl-aarch64
+        path: artifacts/linuxmusl-aarch64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_LIBC: "musl"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-linuxmusl-aarch64:
+    needs: [publish-linuxmusl-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-linuxmusl-aarch64
+        path: artifacts/linuxmusl-aarch64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linuxmusl-aarch64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-macos-x86_64:
+    needs: [build-macos-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-macos-x86_64
+        path: artifacts/macos-x86_64
+
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: macos-x86_64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "macos"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  publish-macos-aarch64:
+    needs: [build-macos-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-macos-aarch64
+        path: artifacts/macos-aarch64
+
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: macos-aarch64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "macos"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
   workflow-notifications:
     if: failure() && github.event_name != 'pull_request'
     name: Notify in Slack on failures
@@ -137,9 +619,21 @@ jobs:
     needs:
       - prep
       - build-linux-x86_64
-      - test-linux-x86_64
       - publish-linux-x86_64
       - check-published-linux-x86_64
+      - build-linux-aarch64
+      - publish-linux-aarch64
+      - check-published-linux-aarch64
+      - build-linuxmusl-x86_64
+      - publish-linuxmusl-x86_64
+      - check-published-linuxmusl-x86_64
+      - build-linuxmusl-aarch64
+      - publish-linuxmusl-aarch64
+      - check-published-linuxmusl-aarch64
+      - build-macos-x86_64
+      - publish-macos-x86_64
+      - build-macos-aarch64
+      - publish-macos-aarch64
     runs-on: ubuntu-latest
     permissions:
       actions: 'read'

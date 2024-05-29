@@ -17,15 +17,38 @@
 #
 
 from lsprotocol import types as lsp_types
+import click
+import sys
 
-
+from edb import buildmeta
+from edb.common import traceback as edb_traceback
 from edb.edgeql import parser as qlparser
 
 from . import parsing as ls_parsing
 from . import server as ls_server
 
 
-def main():
+@click.command()
+@click.option('--version', is_flag=True, help="Show the version and exit.")
+@click.option(
+    '--stdio',
+    is_flag=True,
+    help="Use stdio for LSP. This is currently the only transport.",
+)
+def main(*, version: bool, stdio: bool):
+    if version:
+        print(f"edgedb-ls, version {buildmeta.get_version()}")
+        sys.exit(0)
+
+    ls = init()
+
+    if stdio:
+        ls.start_io()
+    else:
+        print("Error: no LSP transport enabled. Use --stdio.")
+
+
+def init() -> ls_server.EdgeDBLanguageServer:
     ls = ls_server.EdgeDBLanguageServer()
 
     @ls.feature(
@@ -58,7 +81,7 @@ def main():
 
         return lsp_types.CompletionList(is_incomplete=False, items=items)
 
-    ls.start_io()
+    return ls
 
 
 def document_updated(ls: ls_server.EdgeDBLanguageServer, doc_uri: str):
@@ -79,8 +102,13 @@ def document_updated(ls: ls_server.EdgeDBLanguageServer, doc_uri: str):
         else:
             ls.publish_diagnostics(document.uri, [], document.version)
     except BaseException as e:
-        ls.show_message_log(f'Internal error: {e}')
+        send_internal_error(ls, e)
         ls.publish_diagnostics(document.uri, [], document.version)
+
+
+def send_internal_error(ls: ls_server.EdgeDBLanguageServer, e: BaseException):
+    text = edb_traceback.format_exception(e)
+    ls.show_message_log(f'Internal error: {text}')
 
 
 if __name__ == '__main__':

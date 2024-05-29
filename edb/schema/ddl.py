@@ -41,7 +41,6 @@ from edb.common import uuidgen
 from edb.common import verutils
 from edb.edgeql import ast as qlast
 from edb.edgeql import declarative as s_decl
-from edb.server import defines
 
 from . import delta as sd
 from . import expr as s_expr
@@ -472,7 +471,7 @@ def apply_sdl(
     # group declarations by module
     documents: Dict[str, List[qlast.DDL]] = defaultdict(list)
     # initialize the "default" module
-    documents[defines.DEFAULT_MODULE_ALIAS] = []
+    documents[s_mod.DEFAULT_MODULE_ALIAS] = []
     extensions = {}
     futures = {}
 

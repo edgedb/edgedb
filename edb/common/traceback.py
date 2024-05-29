@@ -21,6 +21,17 @@ StackSummaryLike = (
 )
 
 
+def format_exception(e: BaseException) -> str:
+    exctype = type(e)
+    value = e
+    tb = e.__traceback__
+    tb_e = traceback.TracebackException(
+        exctype, value, tb, compact=True
+    )
+    tb_e.stack = StandardStackSummary(tb_e.stack)
+    return '\n'.join(tb_e.format())
+
+
 def format_stack_summary(stack: StackSummaryLike) -> typing.List[str]:
     return _format_stack_summary(_into_list_of_frames(stack))
 

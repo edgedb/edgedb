@@ -36,6 +36,9 @@ RESERVED_MODULE_NAMES = {
 }
 
 
+DEFAULT_MODULE_ALIAS = 'default'
+
+
 class Module(
     s_anno.AnnotationSubject,
     so.Object,  # Help reflection figure out the right db MRO

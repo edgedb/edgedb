@@ -87,11 +87,11 @@
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/<< plat_id >>@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/build/<< plat_id >>@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
         <%- endif %>
@@ -160,7 +160,7 @@
     - name: Build
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         <%- if subdist != "nightly" %>
         BUILD_IS_RELEASE: "true"
         <%- endif %>
@@ -201,7 +201,7 @@
 <%- for publish in publications %>
 
   publish<< publish.suffix>>-<< tgt.name >>:
-    needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
+    needs: [<% if publish_all %>collect<% else %>build-<< tgt.name >><% endif %>]
     runs-on: ubuntu-latest
 
     steps:
@@ -213,7 +213,7 @@
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
         <%- endif %>
@@ -242,9 +242,9 @@
         target: << plat_id >>
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@master
       env:
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
@@ -269,7 +269,7 @@
 <%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
 
   publish-<< tgt.name >>:
-    needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
+    needs: [<% if publish_all %>collect<% else %>build-<< tgt.name >><% endif %>]
     runs-on: ubuntu-latest
 
     steps:
@@ -293,7 +293,7 @@
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE: edgedbpkg.edgedb-ls:EdgeDBLanguageServer
+        PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
         <%- endif %>
@@ -411,7 +411,6 @@
     <%- endif %>
     <%- for tgt in targets.linux %>
       - build-<< tgt.name >>
-      - test-<< tgt.name >>
     <%- for publish in publications %>
       - publish<< publish.suffix>>-<< tgt.name >>
       - check-published<< publish.suffix>>-<< tgt.name >>
@@ -419,7 +418,6 @@
     <%- endfor %>
     <%- for tgt in targets.macos %>
       - build-<< tgt.name >>
-      - test-<< tgt.name >>
     <%- for publish in publications %>
       - publish<< publish.suffix>>-<< tgt.name >>
     <%- endfor %>
