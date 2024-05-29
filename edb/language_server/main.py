@@ -21,6 +21,7 @@ import click
 import sys
 
 from edb import buildmeta
+from edb.common import traceback as edb_traceback
 from edb.edgeql import parser as qlparser
 
 from . import parsing as ls_parsing
@@ -101,8 +102,13 @@ def document_updated(ls: ls_server.EdgeDBLanguageServer, doc_uri: str):
         else:
             ls.publish_diagnostics(document.uri, [], document.version)
     except BaseException as e:
-        ls.show_message_log(f'Internal error: {e}')
+        send_internal_error(ls, e)
         ls.publish_diagnostics(document.uri, [], document.version)
+
+
+def send_internal_error(ls: ls_server.EdgeDBLanguageServer, e: BaseException):
+    text = edb_traceback.format_exception(e)
+    ls.show_message_log(f'Internal error: {text}')
 
 
 if __name__ == '__main__':
