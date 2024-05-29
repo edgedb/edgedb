@@ -1937,6 +1937,29 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 order by .name;
             ''')
 
+    async def test_edgeql_select_splat_06(self):
+        # Target property and link property with same name
+        await self.con.execute('''
+            CREATE TYPE X {
+                CREATE PROPERTY a: int64;
+            };
+            CREATE TYPE Y {
+                CREATE LINK x: X {
+                    CREATE PROPERTY a: int64;
+                };
+            };
+            insert Y { x := ( insert X { a := 1 } ){ @a := 2 } };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select Y {**}
+            ''',
+            tb.bag([
+                {'x': {'a': 1, '@a': 2}}
+            ]),
+        )
+
     async def test_edgeql_select_id_01(self):
         # allow assigning id to a computed (#4781)
         await self.con.query('SELECT schema::Type { XYZ := .id};')

@@ -289,7 +289,8 @@ def _process_view(
     }
 
     # Now look for any splats and expand them.
-    splat_descs: dict[str, ShapeElementDesc] = {}
+    # Track descriptions by name and whether they are link properties.
+    splat_descs: dict[Tuple[str, bool], ShapeElementDesc] = {}
     for shape_el in elements:
         if not isinstance(shape_el.expr.steps[0], qlast.Splat):
             continue
@@ -369,7 +370,8 @@ def _process_view(
             desc = _shape_el_ql_to_shape_el_desc(
                 splat_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
             )
-            if old_desc := splat_descs.get(desc.ptr_name):
+            desc_key: Tuple[str, bool] = (desc.ptr_name, desc.is_linkprop)
+            if old_desc := splat_descs.get(desc_key):
                 # If pointers appear in multiple splats, we take the
                 # one from the ancestor class. If neither class is an
                 # ancestor, we reject it.
@@ -390,7 +392,7 @@ def _process_view(
                     pass
                 elif old_source.issubclass(ctx.env.schema, new_source):
                     # Take the new one
-                    splat_descs[desc.ptr_name] = desc
+                    splat_descs[desc_key] = desc
                 else:
                     vn1 = old_source.get_verbosename(schema=ctx.env.schema)
                     vn2 = new_source.get_verbosename(schema=ctx.env.schema)
@@ -401,7 +403,7 @@ def _process_view(
                     )
 
             else:
-                splat_descs[desc.ptr_name] = desc
+                splat_descs[desc_key] = desc
 
     shape_desc.extend(splat_descs.values())
 
