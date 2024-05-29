@@ -87,7 +87,7 @@
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/<< plat_id >>@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/build/<< plat_id >>@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -242,7 +242,7 @@
         target: << plat_id >>
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@master
       env:
         PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_NAME: "${{ steps.describe.outputs.name }}"

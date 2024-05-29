@@ -119,7 +119,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -145,7 +145,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linux-aarch64@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/build/linux-aarch64@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -171,7 +171,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -198,7 +198,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -372,7 +372,7 @@ jobs:
         target: linux-x86_64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
       env:
         PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_NAME: "${{ steps.describe.outputs.name }}"
@@ -426,7 +426,7 @@ jobs:
         target: linux-aarch64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
       env:
         PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_NAME: "${{ steps.describe.outputs.name }}"
@@ -480,7 +480,7 @@ jobs:
         target: linuxmusl-x86_64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
       env:
         PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_NAME: "${{ steps.describe.outputs.name }}"
@@ -534,7 +534,7 @@ jobs:
         target: linuxmusl-aarch64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@language-server
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
       env:
         PACKAGE: edgedbpkg.edgedb_ls:EdgeDBLanguageServer
         PKG_NAME: "${{ steps.describe.outputs.name }}"
