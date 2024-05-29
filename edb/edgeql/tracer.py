@@ -27,6 +27,7 @@ from typing import (Dict, FrozenSet, Generator, List, Mapping, Optional,
 import functools
 
 from contextlib import contextmanager
+from edb import errors
 from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import objects as so
@@ -589,6 +590,14 @@ def trace_none(node: None, *, ctx: TracerContext) -> None:
 @trace.register
 def trace_Constant(node: qlast.BaseConstant, *, ctx: TracerContext) -> None:
     pass
+
+
+@trace.register
+def trace_Parameter(node: qlast.Parameter, *, ctx: TracerContext) -> None:
+    raise errors.SchemaError(
+        'query parameters are not allowed in schemas',
+        span=node.span,
+    )
 
 
 @trace.register
