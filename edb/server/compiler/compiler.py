@@ -3149,7 +3149,7 @@ def _describe_object(
         # and include them in the dump.
         nschema = schema
         for (name, col, _type) in source.get_addon_columns(schema):
-            nschema, fake_ptr = _add_fake_property(source, name, schema)
+            nschema, fake_ptr = _add_fake_property(source, name, nschema)
             cols.append(col)
             shape.append(fake_ptr)
 
