@@ -16915,3 +16915,29 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         )
         self.assertEqual(cnt, 1)
         self.assertEqual(len(objs), 1)
+
+    @test.xfail('''
+        Issue #7413: We create two indexes on `.id`
+    ''')
+    async def test_edgeql_ddl_single_index(self):
+        # Test that types only have a single index for id
+        await self.con.execute('''
+            create type DDLSingleIndex;
+        ''')
+
+        objid = await self.con.query_single('''
+            select (introspect DDLSingleIndex).id
+        ''')
+        async with self.with_backend_sql_connection() as scon:
+            res = await scon.fetch(
+                f'''
+                select indexname, tablename, indexdef from pg_indexes
+                where tablename = $1::text
+                ''',
+                str(objid),
+            )
+            self.assertEqual(
+                len(res),
+                1,
+                f"Too many indexes on .id: {res}",
+            )

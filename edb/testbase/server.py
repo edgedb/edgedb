@@ -1133,6 +1133,60 @@ class ConnectedTestCase(ClusterTestCase):
         if not look(json.loads(plan)):
             raise AssertionError(f"query did not use the {index_type!r} index")
 
+    @classmethod
+    def get_backend_sql_dsn(cls, dbname=None):
+        settings = cls.con.get_settings()
+        pgaddr = settings.get('pgaddr')
+        if pgaddr is None:
+            raise unittest.SkipTest('raw SQL test skipped: not in devmode')
+        pgaddr = json.loads(pgaddr)
+
+        # Try to grab a password from the specified DSN, if one is
+        # present, since the pgaddr won't have a real one. (The non
+        # specified DSN test suite setup doesn't have one, so it is
+        # fine.)
+        password = None
+        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+        if spec_dsn:
+            _, params = pgconnparams.parse_dsn(spec_dsn)
+            password = params.password
+
+        if dbname is None:
+            dbname = pgaddr["database"]
+
+        pgdsn = (
+            f'postgres:///{dbname}?user={pgaddr["user"]}'
+            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
+        )
+        if password is not None:
+            pgdsn += f'&password={password}'
+        return pgdsn
+
+    @classmethod
+    async def get_backend_sql_connection(cls, dbname=None):
+        """Get a raw connection to the underlying SQL server, if possible
+
+        This is useful when we want to do things like querying the pg_catalog
+        of the underlying database.
+        """
+        try:
+            import asyncpg
+        except ImportError:
+            raise unittest.SkipTest(
+                'SQL test skipped: asyncpg not installed')
+
+        pgdsn = cls.get_backend_sql_dsn(dbname=dbname)
+        return await asyncpg.connect(pgdsn)
+
+    @classmethod
+    @contextlib.asynccontextmanager
+    async def with_backend_sql_connection(cls, dbname=None):
+        con = await cls.get_backend_sql_connection(dbname=dbname)
+        try:
+            yield con
+        finally:
+            await con.close()
+
 
 class DatabaseTestCase(ConnectedTestCase):
 
@@ -1735,32 +1789,8 @@ class StablePGDumpTestCase(BaseQueryTestCase):
         cls._pg_bin_dir = cls.loop.run_until_complete(
             pgcluster.get_pg_bin_dir())
 
-        # Get the connection to the Postgres backend
-        settings = cls.con.get_settings()
-        pgaddr = settings.get('pgaddr')
-        if pgaddr is None:
-            raise unittest.SkipTest('SQL tests skipped: not in devmode')
-        pgaddr = json.loads(pgaddr)
-
-        # Try to grab a password from the specified DSN, if one is
-        # present, since the pgaddr won't have a real one. (The non
-        # specified DSN test suite setup doesn't have one, so it is
-        # fine.)
-        password = None
-        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
-        if spec_dsn:
-            _, params = pgconnparams.parse_dsn(spec_dsn)
-            password = params.password
-
-        pgparams = (
-            f'?user={pgaddr["user"]}'
-            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
-        )
-        if password is not None:
-            pgparams += f'&password={password}'
-
         cls.backend = cls.loop.run_until_complete(
-            asyncpg.connect(f'postgres:///{pgaddr["database"]}' + pgparams))
+            cls.get_backend_sql_connection())
 
         # Run pg_dump to create the dump data for an existing EdgeDB database.
         with tempfile.NamedTemporaryFile() as f:
@@ -1781,7 +1811,7 @@ class StablePGDumpTestCase(BaseQueryTestCase):
                 cls.backend.execute(f'create database {tgt_dbname}')
             )
 
-            newdsn = f'postgres:///{tgt_dbname}' + pgparams
+            newdsn = cls.get_backend_sql_dsn(dbname=tgt_dbname)
             # Populate the new database using the dump
             cmd = [
                 cls._pg_bin_dir / 'psql',
@@ -1807,7 +1837,7 @@ class StablePGDumpTestCase(BaseQueryTestCase):
 
         # Connect to the newly created database.
         cls.scon = cls.loop.run_until_complete(
-            asyncpg.connect(f'postgres:///{tgt_dbname}' + pgparams))
+            asyncpg.connect(newdsn))
 
     @classmethod
     def tearDownClass(cls):
