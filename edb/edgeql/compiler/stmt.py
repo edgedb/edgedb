@@ -82,18 +82,26 @@ from . import conflicts
 def compile_WithBinding(
     expr: qlast.WithBinding, *, ctx: context.ContextLevel
 ) -> irast.Set:
+
+    # special case: rewrite WITH (GROUP queries)
     new_expr = desugar_group.try_group_rewrite(expr, aliases=ctx.aliases)
     if new_expr:
         return dispatch.compile(new_expr, ctx=ctx)
-    
+
+    # base case
     assert isinstance(expr.expr, qlast.Query), expr.expr
-    bindings = process_with_block(expr.aliases, expr.expr, ctx=ctx)
-    
-    irset = dispatch.compile(expr.expr, ctx=ctx)
-    
-    assert isinstance(irset.expr, irast.Stmt), irset.expr
-    irset.expr.bindings = bindings
-    return irset
+    with ctx.subquery() as sctx:
+        stmt = irast.SelectStmt()
+        init_stmt(stmt, expr, parent_ctx=ctx, ctx=sctx)
+
+        # compile each of the bindings
+        stmt.bindings = process_with_block(expr.aliases, expr, ctx=sctx)
+
+        # compile the main expression
+        stmt.result = dispatch.compile(expr.expr, ctx=sctx)
+
+        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
+    return result
 
 
 @dispatch.compile.register(qlast.SelectQuery)
@@ -1133,7 +1141,7 @@ def compile_Shape(
 
 def init_stmt(
     irstmt: irast.Stmt,
-    qlstmt: qlast.Query | qlast.DescribeStmt,
+    qlstmt: qlast.Expr,
     *,
     ctx: context.ContextLevel,
     parent_ctx: context.ContextLevel,
@@ -1265,7 +1273,7 @@ def fini_stmt(
 
 def process_with_block(
     aliases: List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]],
-    stmt: qlast.Statement,
+    stmt: qlast.Expr,
     *,
     ctx: context.ContextLevel,
 ) -> List[irast.Set]:
