@@ -10,125 +10,125 @@ targets:
           platform: debian
           platform_version: buster
           family: debian
-          runs_on: [self-hosted, linux, x64]
+          runs_on: [package-builder, self-hosted, linux, x64]
           docker_arch: linux/amd64
         - name: debian-buster-aarch64
           arch: aarch64
           platform: debian
           platform_version: buster
           family: debian
-          runs_on: [self-hosted, linux, arm64]
+          runs_on: [package-builder, self-hosted, linux, arm64]
           docker_arch: linux/arm64
         - name: debian-bullseye-x86_64
           arch: x86_64
           platform: debian
           platform_version: bullseye
           family: debian
-          runs_on: [self-hosted, linux, x64]
+          runs_on: [package-builder, self-hosted, linux, x64]
         - name: debian-bullseye-aarch64
           arch: aarch64
           platform: debian
           platform_version: bullseye
           family: debian
-          runs_on: [self-hosted, linux, arm64]
+          runs_on: [package-builder, self-hosted, linux, arm64]
         - name: debian-bookworm-x86_64
           arch: x86_64
           platform: debian
           platform_version: bookworm
           family: debian
-          runs_on: [self-hosted, linux, x64]
+          runs_on: [package-builder, self-hosted, linux, x64]
         - name: debian-bookworm-aarch64
           arch: aarch64
           platform: debian
           platform_version: bookworm
           family: debian
-          runs_on: [self-hosted, linux, arm64]
+          runs_on: [package-builder, self-hosted, linux, arm64]
         - name: ubuntu-bionic-x86_64
           arch: x86_64
           platform: ubuntu
           platform_version: bionic
           family: debian
-          runs_on: [self-hosted, linux, x64]
+          runs_on: [package-builder, self-hosted, linux, x64]
         - name: ubuntu-bionic-aarch64
           arch: aarch64
           platform: ubuntu
           platform_version: bionic
           family: debian
-          runs_on: [self-hosted, linux, arm64]
+          runs_on: [package-builder, self-hosted, linux, arm64]
         - name: ubuntu-focal-x86_64
           arch: x86_64
           platform: ubuntu
           platform_version: focal
           family: debian
-          runs_on: [self-hosted, linux, x64]
+          runs_on: [package-builder, self-hosted, linux, x64]
         - name: ubuntu-focal-aarch64
           arch: aarch64
           platform: ubuntu
           platform_version: focal
           family: debian
-          runs_on: [self-hosted, linux, arm64]
+          runs_on: [package-builder, self-hosted, linux, arm64]
         - name: ubuntu-jammy-x86_64
           arch: x86_64
           platform: ubuntu
           platform_version: jammy
           family: debian
-          runs_on: [self-hosted, linux, x64]
+          runs_on: [package-builder, self-hosted, linux, x64]
         - name: ubuntu-jammy-aarch64
           arch: aarch64
           platform: ubuntu
           platform_version: jammy
           family: debian
-          runs_on: [self-hosted, linux, arm64]
+          runs_on: [package-builder, self-hosted, linux, arm64]
         - name: centos-8-x86_64
           arch: x86_64
           platform: centos
           platform_version: 8
           family: redhat
-          runs_on: [self-hosted, linux, x64]
+          runs_on: [package-builder, self-hosted, linux, x64]
         - name: centos-8-aarch64
           arch: aarch64
           platform: centos
           platform_version: 8
           family: redhat
-          runs_on: [self-hosted, linux, arm64]
+          runs_on: [package-builder, self-hosted, linux, arm64]
         - name: rockylinux-9-x86_64
           arch: x86_64
           platform: rockylinux
           platform_version: 9
           family: redhat
-          runs_on: [self-hosted, linux, x64]
+          runs_on: [package-builder, self-hosted, linux, x64]
         - name: rockylinux-9-aarch64
           arch: aarch64
           platform: rockylinux
           platform_version: 9
           family: redhat
-          runs_on: [self-hosted, linux, arm64]
+          runs_on: [package-builder, self-hosted, linux, arm64]
         - name: linux-x86_64
           arch: x86_64
           platform: linux
           platform_version: x86_64
           family: generic
-          runs_on: [self-hosted, linux, x64]
+          runs_on: [package-builder, self-hosted, linux, x64]
         - name: linux-aarch64
           arch: aarch64
           platform: linux
           platform_version: aarch64
           family: generic
-          runs_on: [self-hosted, linux, arm64]
+          runs_on: [package-builder, self-hosted, linux, arm64]
         - name: linuxmusl-x86_64
           arch: x86_64
           platform: linux
           platform_version: x86_64
           platform_libc: musl
           family: generic
-          runs_on: [self-hosted, linux, x64]
+          runs_on: [package-builder, self-hosted, linux, x64]
         - name: linuxmusl-aarch64
           arch: aarch64
           platform: linux
           platform_version: aarch64
           platform_libc: musl
           family: generic
-          runs_on: [self-hosted, linux, arm64]
+          runs_on: [package-builder, self-hosted, linux, arm64]
 
     macos:
         - name: macos-x86_64
