@@ -23,7 +23,7 @@ jobs:
 
 
   build-debian-buster-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
     needs: prep
 
 
@@ -46,7 +46,7 @@ jobs:
         path: artifacts/debian-buster
 
   build-debian-buster-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -69,7 +69,7 @@ jobs:
         path: artifacts/debian-buster
 
   build-debian-bullseye-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
     needs: prep
 
 
@@ -92,7 +92,7 @@ jobs:
         path: artifacts/debian-bullseye
 
   build-debian-bullseye-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -115,7 +115,7 @@ jobs:
         path: artifacts/debian-bullseye
 
   build-debian-bookworm-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
     needs: prep
 
 
@@ -138,7 +138,7 @@ jobs:
         path: artifacts/debian-bookworm
 
   build-debian-bookworm-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -161,7 +161,7 @@ jobs:
         path: artifacts/debian-bookworm
 
   build-ubuntu-bionic-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
     needs: prep
 
 
@@ -184,7 +184,7 @@ jobs:
         path: artifacts/ubuntu-bionic
 
   build-ubuntu-bionic-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -207,7 +207,7 @@ jobs:
         path: artifacts/ubuntu-bionic
 
   build-ubuntu-focal-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
     needs: prep
 
 
@@ -230,7 +230,7 @@ jobs:
         path: artifacts/ubuntu-focal
 
   build-ubuntu-focal-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -253,7 +253,7 @@ jobs:
         path: artifacts/ubuntu-focal
 
   build-ubuntu-jammy-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
     needs: prep
 
 
@@ -276,7 +276,7 @@ jobs:
         path: artifacts/ubuntu-jammy
 
   build-ubuntu-jammy-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -299,7 +299,7 @@ jobs:
         path: artifacts/ubuntu-jammy
 
   build-centos-8-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
     needs: prep
 
 
@@ -322,7 +322,7 @@ jobs:
         path: artifacts/centos-8
 
   build-centos-8-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -345,7 +345,7 @@ jobs:
         path: artifacts/centos-8
 
   build-rockylinux-9-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
     needs: prep
 
 
@@ -368,7 +368,7 @@ jobs:
         path: artifacts/rockylinux-9
 
   build-rockylinux-9-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -391,7 +391,7 @@ jobs:
         path: artifacts/rockylinux-9
 
   build-linux-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
     needs: prep
 
 
@@ -415,7 +415,7 @@ jobs:
         path: artifacts/linux-x86_64
 
   build-linux-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -439,7 +439,7 @@ jobs:
         path: artifacts/linux-aarch64
 
   build-linuxmusl-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
     needs: prep
 
 
@@ -464,7 +464,7 @@ jobs:
         path: artifacts/linuxmusl-x86_64
 
   build-linuxmusl-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -604,7 +604,7 @@ jobs:
 
   test-debian-buster-x86_64:
     needs: [build-debian-buster-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -625,7 +625,7 @@ jobs:
 
   test-debian-buster-aarch64:
     needs: [build-debian-buster-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -646,7 +646,7 @@ jobs:
 
   test-debian-bullseye-x86_64:
     needs: [build-debian-bullseye-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -667,7 +667,7 @@ jobs:
 
   test-debian-bullseye-aarch64:
     needs: [build-debian-bullseye-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -688,7 +688,7 @@ jobs:
 
   test-debian-bookworm-x86_64:
     needs: [build-debian-bookworm-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -709,7 +709,7 @@ jobs:
 
   test-debian-bookworm-aarch64:
     needs: [build-debian-bookworm-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -730,7 +730,7 @@ jobs:
 
   test-ubuntu-bionic-x86_64:
     needs: [build-ubuntu-bionic-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -751,7 +751,7 @@ jobs:
 
   test-ubuntu-bionic-aarch64:
     needs: [build-ubuntu-bionic-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -772,7 +772,7 @@ jobs:
 
   test-ubuntu-focal-x86_64:
     needs: [build-ubuntu-focal-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -793,7 +793,7 @@ jobs:
 
   test-ubuntu-focal-aarch64:
     needs: [build-ubuntu-focal-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -814,7 +814,7 @@ jobs:
 
   test-ubuntu-jammy-x86_64:
     needs: [build-ubuntu-jammy-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -835,7 +835,7 @@ jobs:
 
   test-ubuntu-jammy-aarch64:
     needs: [build-ubuntu-jammy-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -856,7 +856,7 @@ jobs:
 
   test-centos-8-x86_64:
     needs: [build-centos-8-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -877,7 +877,7 @@ jobs:
 
   test-centos-8-aarch64:
     needs: [build-centos-8-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -898,7 +898,7 @@ jobs:
 
   test-rockylinux-9-x86_64:
     needs: [build-rockylinux-9-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -919,7 +919,7 @@ jobs:
 
   test-rockylinux-9-aarch64:
     needs: [build-rockylinux-9-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -940,7 +940,7 @@ jobs:
 
   test-linux-x86_64:
     needs: [build-linux-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -961,7 +961,7 @@ jobs:
 
   test-linux-aarch64:
     needs: [build-linux-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -982,7 +982,7 @@ jobs:
 
   test-linuxmusl-x86_64:
     needs: [build-linuxmusl-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1003,7 +1003,7 @@ jobs:
 
   test-linuxmusl-aarch64:
     needs: [build-linuxmusl-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1124,7 +1124,7 @@ jobs:
 
   check-published-debian-buster-x86_64:
     needs: [publish-debian-buster-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1176,7 +1176,7 @@ jobs:
 
   check-published-debian-buster-aarch64:
     needs: [publish-debian-buster-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1228,7 +1228,7 @@ jobs:
 
   check-published-debian-bullseye-x86_64:
     needs: [publish-debian-bullseye-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1280,7 +1280,7 @@ jobs:
 
   check-published-debian-bullseye-aarch64:
     needs: [publish-debian-bullseye-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1332,7 +1332,7 @@ jobs:
 
   check-published-debian-bookworm-x86_64:
     needs: [publish-debian-bookworm-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1384,7 +1384,7 @@ jobs:
 
   check-published-debian-bookworm-aarch64:
     needs: [publish-debian-bookworm-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1436,7 +1436,7 @@ jobs:
 
   check-published-ubuntu-bionic-x86_64:
     needs: [publish-ubuntu-bionic-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1488,7 +1488,7 @@ jobs:
 
   check-published-ubuntu-bionic-aarch64:
     needs: [publish-ubuntu-bionic-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1540,7 +1540,7 @@ jobs:
 
   check-published-ubuntu-focal-x86_64:
     needs: [publish-ubuntu-focal-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1592,7 +1592,7 @@ jobs:
 
   check-published-ubuntu-focal-aarch64:
     needs: [publish-ubuntu-focal-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1644,7 +1644,7 @@ jobs:
 
   check-published-ubuntu-jammy-x86_64:
     needs: [publish-ubuntu-jammy-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1696,7 +1696,7 @@ jobs:
 
   check-published-ubuntu-jammy-aarch64:
     needs: [publish-ubuntu-jammy-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1748,7 +1748,7 @@ jobs:
 
   check-published-centos-8-x86_64:
     needs: [publish-centos-8-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1800,7 +1800,7 @@ jobs:
 
   check-published-centos-8-aarch64:
     needs: [publish-centos-8-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1852,7 +1852,7 @@ jobs:
 
   check-published-rockylinux-9-x86_64:
     needs: [publish-rockylinux-9-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1904,7 +1904,7 @@ jobs:
 
   check-published-rockylinux-9-aarch64:
     needs: [publish-rockylinux-9-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1956,7 +1956,7 @@ jobs:
 
   check-published-linux-x86_64:
     needs: [publish-linux-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -2008,7 +2008,7 @@ jobs:
 
   check-published-linux-aarch64:
     needs: [publish-linux-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -2060,7 +2060,7 @@ jobs:
 
   check-published-linuxmusl-x86_64:
     needs: [publish-linuxmusl-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -2112,7 +2112,7 @@ jobs:
 
   check-published-linuxmusl-aarch64:
     needs: [publish-linuxmusl-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
