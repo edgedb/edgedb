@@ -53,7 +53,7 @@ from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 
-from edb.common.ast import visitor as ast_visitor, find_children
+from edb.common.ast import visitor as ast_visitor
 from edb.common import ordered
 from edb.common.typeutils import not_none
 
@@ -191,9 +191,6 @@ def fini_expression(
         if p.sub_params and p.sub_params.decoder_ir
     ]
     extra_exprs += [trigger.expr for stage in ir_triggers for trigger in stage]
-    for type_cast in find_children(ir, irast.TypeCast):
-        if type_cast.error_message_context is not None:
-            extra_exprs.append(type_cast.error_message_context)
 
     all_exprs = [ir] + extra_exprs
 

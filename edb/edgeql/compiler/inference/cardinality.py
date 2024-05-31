@@ -863,6 +863,11 @@ def __infer_typecast(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
+    if ir.error_message_context is not None:
+        infer_cardinality(
+            ir.error_message_context, scope_tree=scope_tree, ctx=ctx
+        )
+
     card = infer_cardinality(
         ir.expr, scope_tree=scope_tree, ctx=ctx,
     )

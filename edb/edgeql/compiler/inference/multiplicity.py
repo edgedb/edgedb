@@ -562,6 +562,11 @@ def __infer_typecast(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
+    if ir.error_message_context is not None:
+        infer_multiplicity(
+            ir.error_message_context, scope_tree=scope_tree, ctx=ctx
+        )
+
     return infer_multiplicity(
         ir.expr, scope_tree=scope_tree, ctx=ctx,
     )
