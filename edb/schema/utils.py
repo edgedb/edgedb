@@ -343,12 +343,6 @@ def ast_to_type_shell(
                     span=node.span,
                 )
 
-            if isinstance(subtypes_list[0], s_types.ArrayTypeShell):
-                raise errors.UnsupportedFeatureError(
-                    'nested arrays are not supported',
-                    span=node.subtypes[0].span,
-                )
-
             try:
                 return coll.create_shell(  # type: ignore
                     schema,

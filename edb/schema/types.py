@@ -1446,10 +1446,6 @@ class Array(
                 f'unexpected number of subtypes, expecting 1: {subtypes!r}')
         stype = subtypes[0]
 
-        if isinstance(stype, Array):
-            raise errors.UnsupportedFeatureError(
-                f'nested arrays are not supported')
-
         # One-dimensional unbounded array.
         dimensions = [-1]
 

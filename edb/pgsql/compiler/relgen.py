@@ -3791,6 +3791,9 @@ def process_set_as_array_expr(
 
     for ir_element in expr.elements:
         element = dispatch.compile(ir_element, ctx=ctx)
+        if irtyputils.is_array(ir_element.typeref):
+            # Wrap nested arrays in a tuple
+            element = pgast.RowExpr(args=[element])
         elements.append(element)
 
         if serializing:
