@@ -930,6 +930,7 @@ class CallArg(ImmutableBase):
     multiplicity: qltypes.Multiplicity = qltypes.Multiplicity.UNKNOWN
     is_default: bool = False
     param_typemod: qltypes.TypeModifier
+    polymorphism: qltypes.Polymorphism = qltypes.Polymorphism.NotUsed
 
 
 class Call(ImmutableExpr):
@@ -977,6 +978,11 @@ class Call(ImmutableExpr):
     # to this function as a subquery-as-an-expression.
     # See comment in schema/functions.py for more discussion.
     prefer_subquery_args: bool = False
+
+    # The polymorphism of the return type
+    # This is used to identify cases where polymorphism needs to be handled in
+    # a specialized way (eg. arrays of arrays).
+    return_polymorphism: qltypes.Polymorphism = qltypes.Polymorphism.NotUsed
 
 
 class FunctionCall(Call):

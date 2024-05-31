@@ -57,6 +57,13 @@ class TypeModifier(s_enum.StrEnum):
             return ''
 
 
+class Polymorphism(s_enum.StrEnum):
+    NotUsed = 'NotUsed'
+    Simple = 'Simple'
+    Array = 'Array'
+    Collection = 'Collection'
+
+
 class OperatorKind(s_enum.StrEnum):
     Infix = 'Infix'
     Postfix = 'Postfix'

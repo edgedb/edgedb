@@ -339,6 +339,7 @@ def compile_FunctionCall(
         prefer_subquery_args=func.get_prefer_subquery_args(env.schema),
         global_args=global_args,
         span=expr.span,
+        return_polymorphism=matched_call.return_polymorphism,
     )
 
     # Apply special function handling
@@ -672,6 +673,7 @@ def compile_operator(
         impl_is_strict=oper.get_impl_is_strict(env.schema),
         prefer_subquery_args=oper.get_prefer_subquery_args(env.schema),
         span=qlexpr.span,
+        return_polymorphism=matched_call.return_polymorphism,
     )
 
     _check_free_shape_op(node, ctx=ctx)
@@ -952,8 +954,13 @@ def finalize_args(
             if ctx.path_scope.is_optional(orig_arg_val.path_id):
                 pathctx.register_set_in_scope(arg_val, optional=True, ctx=ctx)
 
-        arg = irast.CallArg(expr=arg_val, expr_type_path_id=arg_type_path_id,
-            is_default=barg.is_default, param_typemod=param_mod)
+        arg = irast.CallArg(
+            expr=arg_val,
+            expr_type_path_id=arg_type_path_id,
+            is_default=barg.is_default,
+            param_typemod=param_mod,
+            polymorphism=barg.polymorphism
+        )
         if param_kind is ft.ParameterKind.NamedOnlyParam:
             param_shortname = param.get_parameter_name(ctx.env.schema)
             args[param_shortname] = arg
