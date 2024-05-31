@@ -313,8 +313,6 @@ def try_group_rewrite(
             iterator=igroup.result,
             result=node.result,
         )
-        return node.replace(
-            expr=igroup.replace(result=new_result)
-        )
+        return igroup.replace(result=new_result)
 
     return None
