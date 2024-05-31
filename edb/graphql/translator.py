@@ -621,17 +621,20 @@ class GraphQLTranslator:
                     insert_shapes = [None]
                 self._context.fields.pop()
 
-            filterable.aliases = [
-                qlast.AliasedExpr(
-                    alias=alias,
-                    expr=qlast.Set(elements=[
-                        qlast.InsertQuery(
-                            subject=shape.expr,
-                            shape=sh,
-                        ) for sh in insert_shapes
-                    ])
-                )
-            ]
+            spec.compexpr = qlast.WithBinding(
+                aliases = [
+                    qlast.AliasedExpr(
+                        alias=alias,
+                        expr=qlast.Set(elements=[
+                            qlast.InsertQuery(
+                                subject=shape.expr,
+                                shape=sh,
+                            ) for sh in insert_shapes
+                        ])
+                    )
+                ],
+                expr=spec.compexpr,
+            )
             filterable.result.expr = qlast.Path(
                 steps=[qlast.ObjectRef(name=alias)])
 
@@ -666,15 +669,18 @@ class GraphQLTranslator:
             if delete_mode:
                 # this should be a DELETE operation, so we'll rearrange the
                 # components of the SelectQuery
-                filterable.aliases = [
-                    qlast.AliasedExpr(
-                        alias=alias,
-                        expr=qlast.DeleteQuery(
-                            subject=filterable.result.expr,
-                            where=filterable.where,
+                spec.compexpr = qlast.WithBinding(
+                    aliases = [
+                        qlast.AliasedExpr(
+                            alias=alias,
+                            expr=qlast.DeleteQuery(
+                                subject=filterable.result.expr,
+                                where=filterable.where,
+                            )
                         )
-                    )
-                ]
+                    ],
+                    expr=spec.compexpr,
+                )
                 filterable.where = None
                 filterable.result.expr = qlast.Path(
                     steps=[qlast.ObjectRef(name=alias)])
@@ -682,16 +688,19 @@ class GraphQLTranslator:
                 update_shape = self._visit_update_arguments(node.arguments)
                 # this should be an UPDATE operation, so we'll rearrange the
                 # components of the SelectQuery and add data operations
-                filterable.aliases = [
-                    qlast.AliasedExpr(
-                        alias=alias,
-                        expr=qlast.UpdateQuery(
-                            subject=filterable.result.expr,
-                            where=filterable.where,
-                            shape=update_shape,
+                spec.compexpr = qlast.WithBinding(
+                    aliases = [
+                        qlast.AliasedExpr(
+                            alias=alias,
+                            expr=qlast.UpdateQuery(
+                                subject=filterable.result.expr,
+                                where=filterable.where,
+                                shape=update_shape,
+                            )
                         )
-                    )
-                ]
+                    ],
+                    expr=spec.compexpr,
+                )
                 filterable.where = None
                 filterable.result.expr = qlast.Path(
                     steps=[qlast.ObjectRef(name=alias)])
