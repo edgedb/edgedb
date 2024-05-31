@@ -84,8 +84,8 @@ def compile_WithBinding(
 ) -> irast.Set:
 
     # special case: rewrite WITH (GROUP queries)
-    if new_expr := desugar_group.try_group_rewrite(expr, aliases=ctx.aliases):
-        return dispatch.compile(new_expr, ctx=ctx)
+    if e := desugar_group.try_group_rewrite(expr, aliases=ctx.aliases):
+        return dispatch.compile(e, ctx=ctx)
 
     # base case
     (_, sctx) = init_stmt(expr.expr, ctx=ctx)
@@ -170,7 +170,7 @@ def compile_SelectQuery(
         stmt.limit = clauses.compile_limit_offset_clause(
             expr.limit, ctx=sctx)
 
-        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx)
 
     return result
 
@@ -279,7 +279,7 @@ def compile_ForQuery(
                 ctx=sctx,
             )
 
-        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx)
 
     return result
 
@@ -434,7 +434,7 @@ def compile_InternalGroupQuery(
             stmt.orderby = clauses.compile_orderby_clause(
                 expr.orderby, ctx=bctx)
 
-        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx)
 
     return result
 
@@ -577,7 +577,7 @@ def compile_InsertQuery(
             stmt.final_typeref = typegen.type_to_typeref(final_typ, env=ctx.env)
 
         # Wrap the statement.
-        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx)
 
         # If we have an ELSE clause, and this is a toplevel statement,
         # we need to compile_query_subject *again* on the outer query,
@@ -706,7 +706,7 @@ def compile_UpdateQuery(
         stmt.conflict_checks = conflicts.compile_inheritance_conflict_checks(
             stmt, mat_stype, ctx=ictx)
 
-        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx)
 
     return result
 
@@ -852,7 +852,7 @@ def compile_DeleteQuery(
 
             stmt.links_to_delete[dtype.id] = tuple(ptrs)
 
-        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx)
 
     return result
 
@@ -1104,7 +1104,7 @@ def compile_DescribeStmt(
                 ctx=ictx,
             )
 
-        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx)
 
     return result
 
@@ -1252,9 +1252,9 @@ def init_stmt(
 def fini_stmt(
     irstmt: Union[irast.Stmt, irast.Set],
     *,
-    ctx: context.ContextLevel,
-    parent_ctx: context.ContextLevel,
+    ctx: context.ContextLevel
 ) -> irast.Set:
+    parent_ctx = ctx.parent_ctx
 
     view_name = parent_ctx.toplevel_result_view_name
     t = setgen.get_expr_type(irstmt, ctx=ctx)

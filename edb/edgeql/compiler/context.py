@@ -576,6 +576,8 @@ class ContextLevel(compiler.ContextLevel):
     type casts. These will also share the outermost cast info.
     """
 
+    parent_ctx: Optional[ContextLevel]
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -637,6 +639,7 @@ class ContextLevel(compiler.ContextLevel):
             self.disallow_dml = None
 
             self.collection_cast_info = None
+            self.parent_ctx = None
 
         else:
             self.env = prevlevel.env
@@ -683,6 +686,7 @@ class ContextLevel(compiler.ContextLevel):
             self.disallow_dml = prevlevel.disallow_dml
 
             self.collection_cast_info = prevlevel.collection_cast_info
+            self.parent_ctx = prevlevel
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
