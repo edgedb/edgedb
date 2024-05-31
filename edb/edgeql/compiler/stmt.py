@@ -84,23 +84,21 @@ def compile_WithBinding(
 ) -> irast.Set:
 
     # special case: rewrite WITH (GROUP queries)
-    new_expr = desugar_group.try_group_rewrite(expr, aliases=ctx.aliases)
-    if new_expr:
+    if new_expr := desugar_group.try_group_rewrite(expr, aliases=ctx.aliases):
         return dispatch.compile(new_expr, ctx=ctx)
 
     # base case
-    assert isinstance(expr.expr, qlast.Query), expr.expr
-    with ctx.subquery() as sctx:
-        stmt = irast.SelectStmt()
-        init_stmt(stmt, expr, parent_ctx=ctx, ctx=sctx)
-
+    (_, sctx) = init_stmt(expr.expr, ctx=ctx)
+    with sctx.reenter() as sctx:
         # compile each of the bindings
-        stmt.bindings = process_with_block(expr.aliases, expr, ctx=sctx)
+        assert isinstance(expr.expr, qlast.Query), expr.expr
+        bindings = process_with_block(expr.aliases, expr.expr, ctx=sctx)
 
         # compile the main expression
-        stmt.result = dispatch.compile(expr.expr, ctx=sctx)
+        result = dispatch.compile(expr.expr, ctx=sctx)
+        assert isinstance(result.expr, irast.Stmt)
+        result.expr.bindings = bindings
 
-        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
     return result
 
 
@@ -108,9 +106,13 @@ def compile_WithBinding(
 def compile_SelectQuery(
     expr: qlast.SelectQuery, *, ctx: context.ContextLevel
 ) -> irast.Set:
-    with ctx.subquery() as sctx:
-        stmt = irast.SelectStmt()
-        init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+    if new_expr := desugar_group.try_group_rewrite(expr, aliases=ctx.aliases):
+        return dispatch.compile(new_expr, ctx=ctx)
+
+    (stmt, sctx) = init_stmt(expr, ctx=ctx)
+    with sctx.reenter() as sctx:
+        assert isinstance(stmt, irast.SelectStmt)
+
         if expr.implicit:
             # Make sure path prefix does not get blown away by
             # implicit subqueries.
@@ -177,9 +179,12 @@ def compile_SelectQuery(
 def compile_ForQuery(
     qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel
 ) -> irast.Set:
-    with ctx.subquery() as sctx:
-        stmt = irast.SelectStmt(span=qlstmt.span)
-        init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
+    if new_expr := desugar_group.try_group_rewrite(qlstmt, aliases=ctx.aliases):
+        return dispatch.compile(new_expr, ctx=ctx)
+
+    (stmt, sctx) = init_stmt(qlstmt, ctx=ctx)
+    with sctx.reenter() as sctx:
+        assert isinstance(stmt, irast.SelectStmt)
 
         # As an optimization, if the iterator is a singleton set, use
         # the element directly.
@@ -317,9 +322,9 @@ def compile_InternalGroupQuery(
             span=expr.span,
         )
 
-    with ctx.subquery() as sctx:
-        stmt = irast.GroupStmt(by=expr.by)
-        init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+    (stmt, sctx) = init_stmt(expr, ctx=ctx)
+    with sctx.reenter() as sctx:
+        assert isinstance(stmt, irast.GroupStmt)
 
         with sctx.newscope(fenced=True) as topctx:
             # N.B: Subject is exposed because we want any shape on the
@@ -462,9 +467,9 @@ def compile_InsertQuery(
     # Record this node in the list of potential DML expressions.
     ctx.env.dml_exprs.append(expr)
 
-    with ctx.subquery() as ictx:
-        stmt = irast.InsertStmt(span=expr.span)
-        init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+    (stmt, ictx) = init_stmt(expr, ctx=ctx)
+    with ictx.reenter() as ictx:
+        assert isinstance(stmt, irast.InsertStmt)
 
         with ictx.new() as ectx:
             ectx.expr_exposed = context.Exposure.UNEXPOSED
@@ -616,9 +621,9 @@ def compile_UpdateQuery(
     # Record this node in the list of DML statements.
     ctx.env.dml_exprs.append(expr)
 
-    with ctx.subquery() as ictx:
-        stmt = irast.UpdateStmt(span=expr.span)
-        init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+    (stmt, ictx) = init_stmt(expr, ctx=ctx)
+    with ictx.reenter() as ictx:
+        assert isinstance(stmt, irast.UpdateStmt)
 
         with ictx.new() as ectx:
             ectx.expr_exposed = context.Exposure.UNEXPOSED
@@ -724,40 +729,40 @@ def compile_DeleteQuery(
     # Record this node in the list of potential DML expressions.
     ctx.env.dml_exprs.append(expr)
 
-    with ctx.subquery() as ictx:
-        stmt = irast.DeleteStmt(span=expr.span)
-        # Expand the DELETE from sugar into full DELETE (SELECT ...)
-        # form, if there's any additional clauses.
-        if any([expr.where, expr.orderby, expr.offset, expr.limit]):
-            if expr.offset or expr.limit:
-                subjql = qlast.SelectQuery(
-                    result=qlast.SelectQuery(
-                        result=expr.subject,
-                        where=expr.where,
-                        orderby=expr.orderby,
-                        span=expr.span,
-                        implicit=True,
-                    ),
-                    limit=expr.limit,
-                    offset=expr.offset,
-                    span=expr.span,
-                )
-            else:
-                subjql = qlast.SelectQuery(
+    # Expand the DELETE from sugar into full DELETE (SELECT ...)
+    # form, if there's any additional clauses.
+    if any([expr.where, expr.orderby, expr.offset, expr.limit]):
+        if expr.offset or expr.limit:
+            subjql = qlast.SelectQuery(
+                result=qlast.SelectQuery(
                     result=expr.subject,
                     where=expr.where,
                     orderby=expr.orderby,
-                    offset=expr.offset,
-                    limit=expr.limit,
                     span=expr.span,
-                )
-
-            expr = qlast.DeleteQuery(
+                    implicit=True,
+                ),
+                limit=expr.limit,
+                offset=expr.offset,
                 span=expr.span,
-                subject=subjql,
+            )
+        else:
+            subjql = qlast.SelectQuery(
+                result=expr.subject,
+                where=expr.where,
+                orderby=expr.orderby,
+                offset=expr.offset,
+                limit=expr.limit,
+                span=expr.span,
             )
 
-        init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+        expr = qlast.DeleteQuery(
+            span=expr.span,
+            subject=subjql,
+        )
+
+    (stmt, ictx) = init_stmt(expr, ctx=ctx)
+    with ictx.reenter() as ictx:
+        assert isinstance(stmt, irast.DeleteStmt)
 
         # DELETE Expr is a delete(SET OF X), so we need a scope fence.
         with ictx.newscope(fenced=True) as scopectx:
@@ -856,9 +861,9 @@ def compile_DeleteQuery(
 def compile_DescribeStmt(
     ql: qlast.DescribeStmt, *, ctx: context.ContextLevel
 ) -> irast.Set:
-    with ctx.subquery() as ictx:
-        stmt = irast.SelectStmt()
-        init_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
+    (stmt, ictx) = init_stmt(ql, ctx=ctx)
+    with ictx.reenter() as ictx:
+        assert isinstance(stmt, irast.SelectStmt)
 
         if ql.object is qlast.DescribeGlobal.Schema:
             if ql.language is qltypes.DescribeLanguage.DDL:
@@ -1140,78 +1145,108 @@ def compile_Shape(
 
 
 def init_stmt(
-    irstmt: irast.Stmt,
-    qlstmt: qlast.Expr,
+    qlstmt: qlast.Expr | qlast.DescribeStmt,
     *,
-    ctx: context.ContextLevel,
-    parent_ctx: context.ContextLevel,
-) -> None:
+    ctx: context.ContextLevel
+) -> Tuple[irast.Stmt, context.ContextLevel]:
 
-    ctx.env.compiled_stmts[qlstmt] = irstmt
+    # When qlstmt is wrapped in WithBinding, the init_stmt is called from the
+    # WithBinding and *also again in the inner query*. In the inner query,
+    # we detect that init_stmt has already been called and just exit.
+    # This is needed because if it is not wrapped in WithBinding, init_stmt
+    # will not yet be called and we need to proceed as normal.
+    if ctx.qlstmt == qlstmt:
+        assert ctx.stmt
+        return (ctx.stmt, ctx)
 
-    if isinstance(irstmt, irast.MutatingStmt):
-        # This is some kind of mutation, so we need to check if it is
-        # allowed.
-        if ctx.env.options.in_ddl_context_name is not None:
-            raise errors.SchemaDefinitionError(
-                f'mutations are invalid in '
-                f'{ctx.env.options.in_ddl_context_name}',
-                span=qlstmt.span,
+    irstmt: irast.Stmt
+    match qlstmt:
+        case qlast.SelectQuery() | qlast.ForQuery() | qlast.DescribeStmt():
+            irstmt = irast.SelectStmt(span=qlstmt.span)
+        case qlast.InsertQuery():
+            irstmt = irast.InsertStmt(span=qlstmt.span)
+        case qlast.DeleteQuery():
+            irstmt = irast.DeleteStmt(span=qlstmt.span)
+        case qlast.InternalGroupQuery(by=by) | qlast.GroupQuery(by=by):
+            irstmt = irast.GroupStmt(span=qlstmt.span, by=by)
+        case qlast.UpdateQuery():
+            irstmt = irast.UpdateStmt(span=qlstmt.span)
+        case _:
+            raise NotImplementedError()
+
+    # create new subquery context
+    parent_ctx = ctx
+    with parent_ctx.subquery() as ctx:
+
+        ctx.env.compiled_stmts[qlstmt] = irstmt
+
+        if isinstance(irstmt, irast.MutatingStmt):
+            # This is some kind of mutation, so we need to check if it is
+            # allowed.
+            if ctx.env.options.in_ddl_context_name is not None:
+                raise errors.SchemaDefinitionError(
+                    f'mutations are invalid in '
+                    f'{ctx.env.options.in_ddl_context_name}',
+                    span=qlstmt.span,
+                )
+            elif (
+                (dv := ctx.defining_view) is not None
+                and dv.get_expr_type(ctx.env.schema) is s_types.ExprType.Select
+                and not (
+                    # We allow DML in trivial *top-level* free objects
+                    ctx.partial_path_prefix
+                    and irutils.is_trivial_free_object(ctx.partial_path_prefix)
+                    # Find the enclosing context at the point the free object
+                    # was defined.
+                    and (outer_ctx := next((
+                        x for x in reversed(ctx._stack.stack)
+                        if isinstance(x, context.ContextLevel)
+                        and x.partial_path_prefix != ctx.partial_path_prefix
+                    ), None))
+                    and outer_ctx.expr_exposed
+                )
+            ):
+                # This is some shape in a regular query. Although
+                # DML is not allowed in the computable, but it may
+                # be possible to refactor it.
+                raise errors.QueryError(
+                    f"mutations are invalid in a shape's computed expression",
+                    hint=(
+                        f'To resolve this try to factor out the mutation '
+                        f'expression into the top-level WITH block.'
+                    ),
+                    span=qlstmt.span,
+                )
+
+        ctx.stmt = irstmt
+        ctx.qlstmt = qlstmt
+        if ctx.toplevel_stmt is None:
+            parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
+
+        ctx.path_scope = parent_ctx.path_scope.attach_fence()
+
+        pending_own_ns = parent_ctx.pending_stmt_own_path_id_namespace
+        if pending_own_ns:
+            ctx.path_scope.add_namespaces(pending_own_ns)
+
+        pending_full_ns = parent_ctx.pending_stmt_full_path_id_namespace
+        if pending_full_ns:
+            ctx.path_id_namespace |= pending_full_ns
+
+        irstmt.parent_stmt = parent_ctx.stmt
+
+        if isinstance(qlstmt, qlast.DescribeStmt) and qlstmt.aliases:
+            irstmt.bindings = process_with_block(
+                qlstmt.aliases, qlstmt, ctx=ctx
             )
-        elif (
-            (dv := ctx.defining_view) is not None
-            and dv.get_expr_type(ctx.env.schema) is s_types.ExprType.Select
-            and not (
-                # We allow DML in trivial *top-level* free objects
-                ctx.partial_path_prefix
-                and irutils.is_trivial_free_object(ctx.partial_path_prefix)
-                # Find the enclosing context at the point the free object
-                # was defined.
-                and (outer_ctx := next((
-                    x for x in reversed(ctx._stack.stack)
-                    if isinstance(x, context.ContextLevel)
-                    and x.partial_path_prefix != ctx.partial_path_prefix
-                ), None))
-                and outer_ctx.expr_exposed
-            )
-        ):
-            # This is some shape in a regular query. Although
-            # DML is not allowed in the computable, but it may
-            # be possible to refactor it.
-            raise errors.QueryError(
-                f"mutations are invalid in a shape's computed expression",
-                hint=(
-                    f'To resolve this try to factor out the mutation '
-                    f'expression into the top-level WITH block.'
-                ),
-                span=qlstmt.span,
-            )
+        else:
+            irstmt.bindings = []
 
-    ctx.stmt = irstmt
-    ctx.qlstmt = qlstmt
-    if ctx.toplevel_stmt is None:
-        parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
+        if isinstance(irstmt, irast.MutatingStmt):
+            ctx.path_scope.factoring_fence = True
+            ctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
 
-    ctx.path_scope = parent_ctx.path_scope.attach_fence()
-
-    pending_own_ns = parent_ctx.pending_stmt_own_path_id_namespace
-    if pending_own_ns:
-        ctx.path_scope.add_namespaces(pending_own_ns)
-
-    pending_full_ns = parent_ctx.pending_stmt_full_path_id_namespace
-    if pending_full_ns:
-        ctx.path_id_namespace |= pending_full_ns
-
-    irstmt.parent_stmt = parent_ctx.stmt
-
-    if isinstance(qlstmt, qlast.DescribeStmt) and qlstmt.aliases:
-        irstmt.bindings = process_with_block(qlstmt.aliases, qlstmt, ctx=ctx)
-    else:
-        irstmt.bindings = []
-
-    if isinstance(irstmt, irast.MutatingStmt):
-        ctx.path_scope.factoring_fence = True
-        ctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
+    return (irstmt, ctx)
 
 
 def fini_stmt(
@@ -1273,7 +1308,7 @@ def fini_stmt(
 
 def process_with_block(
     aliases: List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]],
-    stmt: qlast.Expr,
+    stmt: qlast.Statement,
     *,
     ctx: context.ContextLevel,
 ) -> List[irast.Set]:

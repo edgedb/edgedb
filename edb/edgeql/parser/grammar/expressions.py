@@ -48,7 +48,7 @@ class ListNonterm(parsing.ListNonterm, element=None, is_internal=True):
 class ExprStmt(Nonterm):
     def reduce_WithBlock_ExprStmtCore(self, *kids):
         self.val = qlast.WithBinding(
-            aliases = kids[0].val.aliases,
+            aliases=kids[0].val.aliases,
             expr=kids[1].val,
         )
 

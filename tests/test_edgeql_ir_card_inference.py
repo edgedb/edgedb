@@ -65,8 +65,10 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
                 f'unrecognized expected specification: {expected!r}')
 
         if field is not None:
-            shape = ir.expr.expr.result.shape
-            for el, _ in shape:
+            result_set = ir.expr.expr.result
+            if result_set.shape_source:
+                result_set = result_set.shape_source
+            for el, _ in result_set.shape:
                 if str(el.path_id.rptr_name()).endswith(field):
                     card = el.expr.ptrref.out_cardinality
                     self.assertEqual(card, expected_cardinality,

@@ -1090,6 +1090,7 @@ def trace_WithBinding(
     with alias_context(ctx, node.aliases) as ctx:
         return trace(node.expr, ctx=ctx)
 
+
 @trace.register
 def trace_Select(
     node: qlast.SelectQuery, *, ctx: TracerContext

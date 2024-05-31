@@ -207,7 +207,7 @@ def _count_alias_uses(
 
 
 def try_group_rewrite(
-    node: qlast.WithBinding,
+    node: qlast.WithBinding | qlast.Query,
     aliases: AliasGenerator,
 ) -> Optional[qlast.Query]:
     """
@@ -314,7 +314,6 @@ def try_group_rewrite(
             result=node.result,
         )
         return node.replace(
-            aliases=node.aliases,
             expr=igroup.replace(result=new_result)
         )
 
