@@ -8,3 +8,6 @@
 [submodule "edb/pgsql/parser/libpg_query"]
 	path = edb/pgsql/parser/libpg_query
 	url = https://github.com/msullivan/libpg_query.git
+[submodule "imdbench"]
+	path = imdbench
+	url = https://github.com/edgedb/imdbench.git
