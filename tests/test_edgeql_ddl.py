@@ -16916,9 +16916,6 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         self.assertEqual(cnt, 1)
         self.assertEqual(len(objs), 1)
 
-    @test.xfail('''
-        Issue #7413: We create two indexes on `.id`
-    ''')
     async def test_edgeql_ddl_single_index(self):
         # Test that types only have a single index for id
         await self.con.execute('''
