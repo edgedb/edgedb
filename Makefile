@@ -12,14 +12,15 @@ build-reqs:
 
 cython: build-reqs
 	find edb -name '*.pyx' | xargs touch
-	BUILD_EXT_MODE=py-only python setup.py build_ext --inplace
+	# See also: https://github.com/cython/cython/issues/5240
+	CFLAGS="${CFLAGS} -Wno-error=incompatible-pointer-types" BUILD_EXT_MODE=py-only python setup.py build_ext --inplace
 
 
 # Just rebuild actually changed cython. This *should* work, since
 # that is how build systems are supposed to be, but it sometimes
 # fails in annoying ways.
 cython-fast: build-reqs
-	BUILD_EXT_MODE=py-only python setup.py build_ext --inplace
+	CFLAGS="${CFLAGS} -Wno-error=incompatible-pointer-types" BUILD_EXT_MODE=py-only python setup.py build_ext --inplace
 
 
 rust: build-reqs
@@ -55,7 +56,8 @@ casts: build-reqs
 
 build: build-reqs
 	find edb -name '*.pyx' | xargs touch
-	pip install --upgrade --editable .[docs,test,language-server]
+	# See also: https://github.com/cython/cython/issues/5240
+	CFLAGS="${CFLAGS} -Wno-error=incompatible-pointer-types" pip install --upgrade --editable .[docs,test,language-server]
 
 
 clean:
