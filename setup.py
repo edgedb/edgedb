@@ -56,6 +56,8 @@ else:
     SAFE_EXT_CFLAGS += ['-O2']
 
 EXT_CFLAGS: list[str] = list(SAFE_EXT_CFLAGS)
+# See also: https://github.com/cython/cython/issues/5240
+EXT_CFLAGS += ['-Wno-error=incompatible-pointer-types']
 EXT_LDFLAGS: list[str] = []
 
 ROOT_PATH = pathlib.Path(__file__).parent.resolve()
