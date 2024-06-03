@@ -111,6 +111,7 @@ def compile_SelectQuery(
 
     (stmt, sctx) = init_stmt(expr, ctx=ctx)
     with sctx.reenter() as sctx:
+        ctx = sctx.parent_ctx
         assert isinstance(stmt, irast.SelectStmt)
 
         if expr.implicit:
@@ -118,6 +119,7 @@ def compile_SelectQuery(
             # implicit subqueries.
             sctx.partial_path_prefix = ctx.partial_path_prefix
             stmt.implicit_wrapper = True
+            sctx.view_rptr = ctx.view_rptr
 
         # If there is an offset or a limit, this query was a wrapper
         # around something else, and we need to forward_rptr
@@ -184,6 +186,7 @@ def compile_ForQuery(
 
     (stmt, sctx) = init_stmt(qlstmt, ctx=ctx)
     with sctx.reenter() as sctx:
+        ctx = sctx.parent_ctx
         assert isinstance(stmt, irast.SelectStmt)
 
         # As an optimization, if the iterator is a singleton set, use
@@ -324,6 +327,7 @@ def compile_InternalGroupQuery(
 
     (stmt, sctx) = init_stmt(expr, ctx=ctx)
     with sctx.reenter() as sctx:
+        ctx = sctx.parent_ctx
         assert isinstance(stmt, irast.GroupStmt)
 
         with sctx.newscope(fenced=True) as topctx:
@@ -469,6 +473,7 @@ def compile_InsertQuery(
 
     (stmt, ictx) = init_stmt(expr, ctx=ctx)
     with ictx.reenter() as ictx:
+        ctx = ictx.parent_ctx
         assert isinstance(stmt, irast.InsertStmt)
 
         with ictx.new() as ectx:
@@ -623,6 +628,7 @@ def compile_UpdateQuery(
 
     (stmt, ictx) = init_stmt(expr, ctx=ctx)
     with ictx.reenter() as ictx:
+        ctx = ictx.parent_ctx
         assert isinstance(stmt, irast.UpdateStmt)
 
         with ictx.new() as ectx:
@@ -762,6 +768,7 @@ def compile_DeleteQuery(
 
     (stmt, ictx) = init_stmt(expr, ctx=ctx)
     with ictx.reenter() as ictx:
+        ctx = ictx.parent_ctx
         assert isinstance(stmt, irast.DeleteStmt)
 
         # DELETE Expr is a delete(SET OF X), so we need a scope fence.
@@ -863,6 +870,7 @@ def compile_DescribeStmt(
 ) -> irast.Set:
     (stmt, ictx) = init_stmt(ql, ctx=ctx)
     with ictx.reenter() as ictx:
+        ctx = ictx.parent_ctx
         assert isinstance(stmt, irast.SelectStmt)
 
         if ql.object is qlast.DescribeGlobal.Schema:
