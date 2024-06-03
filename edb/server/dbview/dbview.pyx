@@ -228,6 +228,7 @@ cdef class Database:
 
             for _, units in ops:
                 units.cache_state = CacheState.Present
+                units[0].maybe_use_func_cache()
                 self._cache_notify_queue.put_nowait(str(units[0].cache_key))
 
     async def cache_notifier(self):
@@ -370,8 +371,11 @@ cdef class Database:
                 self.server.compilation_config_serializer)
             query_req.deserialize(in_data, "<unknown>")
 
-            if query_req not in self._eql_to_compiled:
+            if query_req in self._eql_to_compiled:
+                self._eql_to_compiled[query_req][0].maybe_use_func_cache()
+            else:
                 unit = dbstate.QueryUnit.deserialize(out_data)
+                unit.maybe_use_func_cache()
                 group = dbstate.QueryUnitGroup()
                 group.append(unit)
                 group.cache_state = CacheState.Present
