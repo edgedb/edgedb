@@ -5811,15 +5811,6 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                         cmd = dbops.AlterTableAddColumn(col)
                         alter_table.add_operation(cmd)
 
-                        if col.name == 'id':
-                            constraint = dbops.PrimaryKey(
-                                table_name=alter_table.name,
-                                columns=[col.name],
-                            )
-                            alter_table.add_operation(
-                                dbops.AlterTableAddConstraint(constraint),
-                            )
-
                     self.pgops.add(alter_table)
 
                 self.schedule_inhview_source_update(
