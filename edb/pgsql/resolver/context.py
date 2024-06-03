@@ -95,22 +95,38 @@ class CTE:
 @dataclass(kw_only=True)
 class Column:
     # Public SQL
-    name: Optional[str] = None
-
-    # Internal SQL
-    reference_as: Optional[str] = None
+    name: str
 
     # When true, column is not included when selecting *
     # Used for system columns
     # https://www.postgresql.org/docs/14/ddl-system-columns.html
     hidden: bool = False
 
-    # Value that can be used instead referencing the column.
-    # Used from __type__ only, so that's why it is UUID (for now).
-    static_val: Optional[uuid.UUID] = None
+    kind: ColumnKind
 
     def __str__(self) -> str:
         return self.name or '<unnamed>'
+
+
+class ColumnKind:
+    # When a column is referenced, implementation of this class determined
+    # into what it is compiled to.
+    # The base case is ColumnByName, which just means that it compiles to an
+    # identifier to a column.
+    pass
+
+
+@dataclass(kw_only=True)
+class ColumnByName(ColumnKind):
+    # Internal SQL column name
+    reference_as: str
+
+
+@dataclass(kw_only=True)
+class ColumnStaticVal(ColumnKind):
+    # Value that can be used instead referencing the column.
+    # Used from __type__ only, so that's why it is UUID (for now).
+    val: uuid.UUID
 
 
 class ContextSwitchMode(enum.Enum):

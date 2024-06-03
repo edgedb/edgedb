@@ -44,6 +44,12 @@ from . import sql_introspection
 Context = context.ResolverContextLevel
 
 
+def column_of_name(name: str) -> context.Column:
+    return context.Column(
+        name=name, kind=context.ColumnByName(reference_as=name)
+    )
+
+
 @dispatch._resolve_relation.register
 def resolve_SelectStmt(
     stmt: pgast.SelectStmt, *, ctx: Context
@@ -57,8 +63,7 @@ def resolve_SelectStmt(
         assert isinstance(first_val, pgast.ImplicitRowExpr)
         table = context.Table(
             columns=[
-                context.Column(name=ctx.names.get('col'))
-                for _ in first_val.args
+                column_of_name(ctx.names.get('col')) for _ in first_val.args
             ]
         )
         return relation, table
@@ -131,7 +136,10 @@ def resolve_SelectStmt(
     ctx.scope.tables.append(
         context.Table(
             columns=[
-                context.Column(name=c.name, reference_as=c.name)
+                context.Column(
+                    name=c.name,
+                    kind=context.ColumnByName(reference_as=c.name),
+                )
                 for c, target in zip(table.columns, stmt.target_list)
                 if target.name
                 and (
@@ -173,7 +181,10 @@ def register_projections(target_list: List[pgast.ResTarget], *, ctx: Context):
             continue
 
         table.columns.append(
-            context.Column(name=target.name, reference_as=target.name)
+            context.Column(
+                name=target.name,
+                kind=context.ColumnByName(reference_as=target.name),
+            )
         )
     ctx.scope.tables.append(table)
 
@@ -220,7 +231,7 @@ def resolve_relation(
 
     if preset_tables and relation.name in preset_tables[0]:
         cols = [
-            context.Column(name=n, reference_as=n)
+            context.Column(name=n, kind=context.ColumnByName(reference_as=n))
             for n, _type in preset_tables[0][relation.name]
         ]
         cols.extend(_construct_system_columns())
@@ -297,15 +308,20 @@ def resolve_relation(
             columns.append(_construct_column(p, ctx, ctx.include_inherited))
     else:
         for c in ['source', 'target']:
-            columns.append(context.Column(name=c, reference_as=c))
+            columns.append(
+                context.Column(
+                    name=c, kind=context.ColumnByName(reference_as=c)
+                )
+            )
 
     def column_order_key(c: context.Column) -> Tuple[int, str]:
-        spec = {
-            'id': 0,
-            'source': 0,
-            'target': 1
-        }
-        return (spec.get(c.reference_as or '', 2), c.name or '')
+        spec = {'id': 0, 'source': 0, 'target': 1}
+        order: int
+        if isinstance(c.kind, context.ColumnByName):
+            order = spec.get(c.kind.reference_as, 2)
+        else:
+            order = 2
+        return (order, c.name or '')
 
     # sort by name but put `id` first
     columns.sort(key=column_order_key)
@@ -377,26 +393,26 @@ def _lookup_pointer_table(
 def _construct_column(
     p: s_pointers.Pointer, ctx: Context, include_inherited: bool
 ) -> context.Column:
-    col = context.Column()
     short_name = p.get_shortname(ctx.schema)
 
+    col_name: str
+    kind: context.ColumnKind
     if isinstance(p, s_properties.Property):
-        col.name = short_name.name
+        col_name = short_name.name
 
         if p.is_link_source_property(ctx.schema):
-            col.reference_as = 'source'
+            kind = context.ColumnByName(reference_as='source')
         elif p.is_link_target_property(ctx.schema):
-            col.reference_as = 'target'
+            kind = context.ColumnByName(reference_as='target')
         elif p.is_id_pointer(ctx.schema):
-            col.reference_as = 'id'
+            kind = context.ColumnByName(reference_as='id')
         else:
             _, dbname = pgcommon.get_backend_name(ctx.schema, p, catenate=False)
-            col.reference_as = dbname
+            kind = context.ColumnByName(reference_as=dbname)
 
     elif isinstance(p, s_links.Link):
         if short_name.name == '__type__':
-            col.name = '__type__'
-            col.reference_as = '__type__'
+            col_name = '__type__'
 
             if not include_inherited:
                 # When using FROM ONLY, we will be referencing actual tables
@@ -405,17 +421,21 @@ def _construct_column(
                 # in some other way. Fortunately, it is a constant value, so we
                 # can compute it statically.
                 source_id = p.get_source_type(ctx.schema).get_id(ctx.schema)
-                col.static_val = source_id
+                kind = context.ColumnStaticVal(val=source_id)
+            else:
+                kind = context.ColumnByName(reference_as='__type__')
         else:
-            col.name = short_name.name + '_id'
+            col_name = short_name.name + '_id'
             _, dbname = pgcommon.get_backend_name(ctx.schema, p, catenate=False)
-            col.reference_as = dbname
+            kind = context.ColumnByName(reference_as=dbname)
 
-    return col
+    return context.Column(name=col_name, kind=kind)
 
 
 def _construct_system_columns() -> List[context.Column]:
     return [
-        context.Column(name=c, reference_as=c, hidden=True)
+        context.Column(
+            name=c, kind=context.ColumnByName(reference_as=c), hidden=True
+        )
         for c in ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
     ]
