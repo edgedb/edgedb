@@ -996,6 +996,96 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [2],
         )
 
+    async def test_edgeql_functions_array_set_01(self):
+        # Positive indexes
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], 0, 9);''',
+            [[9, 2, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], 1, 9);''',
+            [[1, 9, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], 2, 9);''',
+            [[1, 2, 9, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], 3, 9);''',
+            [[1, 2, 3, 9]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], 4, 9);''',
+            [[1, 2, 3, 4]],
+        )
+
+        # Negative indexes
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], -1, 9);''',
+            [[1, 2, 3, 9]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], -2, 9);''',
+            [[1, 2, 9, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], -3, 9);''',
+            [[1, 9, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], -4, 9);''',
+            [[9, 2, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], -5, 9);''',
+            [[1, 2, 3, 4]],
+        )
+
+        # Size 1 array
+        await self.assert_query_result(
+            r'''SELECT array_set([1], 0, 9);''',
+            [[9]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1], 1, 9);''',
+            [[1]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1], -1, 9);''',
+            [[9]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1], -2, 9);''',
+            [[1]],
+        )
+
+        # Size 0 array
+        await self.assert_query_result(
+            r'''SELECT array_set(<array<int64>>[], 0, 9);''',
+            [[]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set(<array<int64>>[], 1, 9);''',
+            [[]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set(<array<int64>>[], -1, 9);''',
+            [[]],
+        )
+
     @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
