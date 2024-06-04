@@ -144,6 +144,62 @@ std::array_set(
 
 
 CREATE FUNCTION
+std::array_insert(
+    array: array<anytype>,
+    idx: std::int64,
+    val: anytype
+) -> array<anytype>
+{
+    CREATE ANNOTATION std::description :=
+        'Insert *val* at the specified *index* of the *array*.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT CASE
+        WHEN cardinality("array") = 0 AND "idx"::int != 0 THEN
+            edgedb.raise(
+                "array",
+                'invalid_parameter_value',
+                msg => 'array index ' || idx::text || ' is out of bounds'
+            )
+        WHEN cardinality("array") = 0 AND "idx"::int = 0 THEN
+            ARRAY[val]
+
+        WHEN edgedb._normalize_array_index(
+            "idx"::int, array_upper("array", 1)
+        ) NOT BETWEEN 1 and array_upper("array", 1) + 1 THEN
+            edgedb.raise(
+                "array",
+                'invalid_parameter_value',
+                msg => 'array index ' || idx::text || ' is out of bounds'
+            )
+        WHEN edgedb._normalize_array_index(
+            "idx"::int, array_upper("array", 1)
+        ) = 1 THEN
+            ARRAY[val] || "array"
+        WHEN edgedb._normalize_array_index(
+            "idx"::int, array_upper("array", 1)
+        ) = array_upper("array", 1) + 1 THEN
+            "array" || ARRAY[val]
+        ELSE
+            "array"[
+                : edgedb._normalize_array_index(
+                    "idx"::int,
+                    array_upper("array", 1)
+                ) - 1
+            ]
+            || ARRAY[val]
+            || "array"[
+                edgedb._normalize_array_index(
+                    "idx"::int,
+                    array_upper("array", 1)
+                ) :
+            ]
+    END
+    $$;
+};
+
+
+CREATE FUNCTION
 std::array_join(array: array<std::str>, delimiter: std::str) -> std::str
 {
     CREATE ANNOTATION std::description := 'Render an array to a string.';
