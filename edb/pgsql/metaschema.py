@@ -201,7 +201,7 @@ class QueryCacheTable(dbops.Table):
         )
 
 
-class EvictQueryCacheFunction(dbops.Function):
+class EvictQueryCacheFunction(trampoline.VersionedFunction):
 
     text = f'''
     DECLARE
@@ -227,7 +227,7 @@ class EvictQueryCacheFunction(dbops.Function):
         )
 
 
-class ClearQueryCacheFunction(dbops.Function):
+class ClearQueryCacheFunction(trampoline.VersionedFunction):
 
     # TODO(fantix): this may consume a lot of memory in Postgres
     text = f'''
@@ -441,7 +441,7 @@ class LocalDatetimeRange(dbops.Range):
         )
 
 
-class RangeToJsonFunction(dbops.Function):
+class RangeToJsonFunction(trampoline.VersionedFunction):
     """Convert anyrange to a jsonb object."""
     text = r'''
         SELECT
@@ -475,7 +475,7 @@ class RangeToJsonFunction(dbops.Function):
         )
 
 
-class MultiRangeToJsonFunction(dbops.Function):
+class MultiRangeToJsonFunction(trampoline.VersionedFunction):
     """Convert anymultirange to a jsonb object."""
     text = r'''
         SELECT
@@ -487,7 +487,7 @@ class MultiRangeToJsonFunction(dbops.Function):
             ELSE
                 (
                     SELECT
-                        jsonb_agg(edgedb.range_to_jsonb(m.el))
+                        jsonb_agg(edgedb_VER.range_to_jsonb(m.el))
                     FROM
                         (SELECT
                             unnest(val) AS el
@@ -509,7 +509,7 @@ class MultiRangeToJsonFunction(dbops.Function):
         )
 
 
-class RangeValidateFunction(dbops.Function):
+class RangeValidateFunction(trampoline.VersionedFunction):
     """Range constructor validation function."""
     text = r'''
         SELECT
@@ -519,7 +519,7 @@ class RangeValidateFunction(dbops.Function):
                 AND (lower IS DISTINCT FROM upper
                      OR lower IS NOT NULL AND inc_upper AND inc_lower)
             THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::bool,
                     'invalid_parameter_value',
                     msg => 'conflicting arguments in range constructor:'
@@ -548,14 +548,14 @@ class RangeValidateFunction(dbops.Function):
         )
 
 
-class RangeUnpackLowerValidateFunction(dbops.Function):
+class RangeUnpackLowerValidateFunction(trampoline.VersionedFunction):
     """Range unpack validation function."""
     text = r'''
         SELECT
             CASE WHEN
                 NOT isempty(range)
             THEN
-                edgedb.raise_on_null(
+                edgedb_VER.raise_on_null(
                     lower(range),
                     'invalid_parameter_value',
                     msg => 'cannot unpack an unbounded range'
@@ -578,14 +578,14 @@ class RangeUnpackLowerValidateFunction(dbops.Function):
         )
 
 
-class RangeUnpackUpperValidateFunction(dbops.Function):
+class RangeUnpackUpperValidateFunction(trampoline.VersionedFunction):
     """Range unpack validation function."""
     text = r'''
         SELECT
             CASE WHEN
                 NOT isempty(range)
             THEN
-                edgedb.raise_on_null(
+                edgedb_VER.raise_on_null(
                     upper(range),
                     'invalid_parameter_value',
                     msg => 'cannot unpack an unbounded range'
@@ -608,7 +608,7 @@ class RangeUnpackUpperValidateFunction(dbops.Function):
         )
 
 
-class StrToConfigMemoryFunction(dbops.Function):
+class StrToConfigMemoryFunction(trampoline.VersionedFunction):
     """An implementation of std::str to cfg::memory cast."""
     text = r'''
         SELECT
@@ -637,7 +637,7 @@ class StrToConfigMemoryFunction(dbops.Function):
                         ELSE
                             -- Won't happen but we still have a guard for
                             -- completeness.
-                            edgedb.raise(
+                            edgedb_VER.raise(
                                 NULL::int8,
                                 'invalid_parameter_value',
                                 msg => (
@@ -652,7 +652,7 @@ class StrToConfigMemoryFunction(dbops.Function):
                         WHEN "val" = '0'
                         THEN 0::int8
                         ELSE
-                            edgedb.raise(
+                            edgedb_VER.raise(
                                 NULL::int8,
                                 'invalid_parameter_value',
                                 msg => (
@@ -682,7 +682,7 @@ class StrToConfigMemoryFunction(dbops.Function):
         )
 
 
-class ConfigMemoryToStrFunction(dbops.Function):
+class ConfigMemoryToStrFunction(trampoline.VersionedFunction):
     """An implementation of cfg::memory to std::str cast."""
     text = r'''
         SELECT
@@ -732,7 +732,7 @@ class ConfigMemoryToStrFunction(dbops.Function):
         )
 
 
-class AlterCurrentDatabaseSetString(dbops.Function):
+class AlterCurrentDatabaseSetString(trampoline.VersionedFunction):
     """Alter a PostgreSQL configuration parameter of the current database."""
     text = '''
     BEGIN
@@ -754,7 +754,7 @@ class AlterCurrentDatabaseSetString(dbops.Function):
         )
 
 
-class AlterCurrentDatabaseSetStringArray(dbops.Function):
+class AlterCurrentDatabaseSetStringArray(trampoline.VersionedFunction):
     """Alter a PostgreSQL configuration parameter of the current database."""
     text = '''
     BEGIN
@@ -786,7 +786,7 @@ class AlterCurrentDatabaseSetStringArray(dbops.Function):
         )
 
 
-class AlterCurrentDatabaseSetNonArray(dbops.Function):
+class AlterCurrentDatabaseSetNonArray(trampoline.VersionedFunction):
     """Alter a PostgreSQL configuration parameter of the current database."""
     text = '''
     BEGIN
@@ -811,7 +811,7 @@ class AlterCurrentDatabaseSetNonArray(dbops.Function):
         )
 
 
-class AlterCurrentDatabaseSetArray(dbops.Function):
+class AlterCurrentDatabaseSetArray(trampoline.VersionedFunction):
     """Alter a PostgreSQL configuration parameter of the current database."""
     text = '''
     BEGIN
@@ -843,10 +843,11 @@ class AlterCurrentDatabaseSetArray(dbops.Function):
         )
 
 
-class CopyDatabaseConfigs(dbops.Function):
+class CopyDatabaseConfigs(trampoline.VersionedFunction):
     """Copy database configs from one database to the current one"""
     text = '''
-        SELECT edgedb._alter_current_database_set(nameval.name, nameval.value)
+        SELECT edgedb_VER._alter_current_database_set(
+            nameval.name, nameval.value)
         FROM
             pg_db_role_setting AS cfg,
             LATERAL unnest(cfg.setconfig) as cfg_set(s),
@@ -874,7 +875,7 @@ class CopyDatabaseConfigs(dbops.Function):
         )
 
 
-class StrToBigint(dbops.Function):
+class StrToBigint(trampoline.VersionedFunction):
     """Parse bigint from text."""
 
     # The plpgsql execption handling nonsense is actually just so that
@@ -896,7 +897,7 @@ class StrToBigint(dbops.Function):
             IF scale(v) = 0 THEN
                 RETURN v::edgedb.bigint_t;
             ELSE
-                EXECUTE edgedb.raise(
+                EXECUTE edgedb_VER.raise(
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => (
@@ -919,14 +920,14 @@ class StrToBigint(dbops.Function):
             text=self.text)
 
 
-class StrToDecimal(dbops.Function):
+class StrToDecimal(trampoline.VersionedFunction):
     """Parse decimal from text."""
     text = r'''
         SELECT
             (CASE WHEN v.column1 != 'NaN' THEN
                 v.column1
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => (
@@ -953,7 +954,7 @@ class StrToDecimal(dbops.Function):
         )
 
 
-class StrToInt64NoInline(dbops.Function):
+class StrToInt64NoInline(trampoline.VersionedFunction):
     """String-to-int64 cast with noinline guard.
 
     Adding a LIMIT clause to the function statement makes it
@@ -981,7 +982,7 @@ class StrToInt64NoInline(dbops.Function):
         )
 
 
-class StrToInt32NoInline(dbops.Function):
+class StrToInt32NoInline(trampoline.VersionedFunction):
     """String-to-int32 cast with noinline guard."""
     text = r'''
         SELECT
@@ -1001,7 +1002,7 @@ class StrToInt32NoInline(dbops.Function):
         )
 
 
-class StrToInt16NoInline(dbops.Function):
+class StrToInt16NoInline(trampoline.VersionedFunction):
     """String-to-int16 cast with noinline guard."""
     text = r'''
         SELECT
@@ -1021,7 +1022,7 @@ class StrToInt16NoInline(dbops.Function):
         )
 
 
-class StrToFloat64NoInline(dbops.Function):
+class StrToFloat64NoInline(trampoline.VersionedFunction):
     """String-to-float64 cast with noinline guard."""
     text = r'''
         SELECT
@@ -1041,7 +1042,7 @@ class StrToFloat64NoInline(dbops.Function):
         )
 
 
-class StrToFloat32NoInline(dbops.Function):
+class StrToFloat32NoInline(trampoline.VersionedFunction):
     """String-to-float32 cast with noinline guard."""
     text = r'''
         SELECT
@@ -1061,7 +1062,7 @@ class StrToFloat32NoInline(dbops.Function):
         )
 
 
-class GetBackendCapabilitiesFunction(dbops.Function):
+class GetBackendCapabilitiesFunction(trampoline.VersionedFunction):
 
     text = f'''
         SELECT
@@ -1083,7 +1084,7 @@ class GetBackendCapabilitiesFunction(dbops.Function):
         )
 
 
-class GetBackendTenantIDFunction(dbops.Function):
+class GetBackendTenantIDFunction(trampoline.VersionedFunction):
 
     text = f'''
         SELECT
@@ -1105,16 +1106,16 @@ class GetBackendTenantIDFunction(dbops.Function):
         )
 
 
-class GetDatabaseBackendNameFunction(dbops.Function):
+class GetDatabaseBackendNameFunction(trampoline.VersionedFunction):
 
     text = f'''
     SELECT
         CASE
         WHEN
-            (edgedb.get_backend_capabilities()
+            (edgedb_VER.get_backend_capabilities()
              & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
         THEN
-            edgedb.get_backend_tenant_id() || '_' || "db_name"
+            edgedb_VER.get_backend_tenant_id() || '_' || "db_name"
         ELSE
             current_database()::text
         END
@@ -1131,13 +1132,13 @@ class GetDatabaseBackendNameFunction(dbops.Function):
         )
 
 
-class GetDatabaseFrontendNameFunction(dbops.Function):
+class GetDatabaseFrontendNameFunction(trampoline.VersionedFunction):
 
     text = f'''
     SELECT
         CASE
         WHEN
-            (edgedb.get_backend_capabilities()
+            (edgedb_VER.get_backend_capabilities()
              & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
         THEN
             substring(db_name, position('_' in db_name) + 1)
@@ -1157,16 +1158,16 @@ class GetDatabaseFrontendNameFunction(dbops.Function):
         )
 
 
-class GetRoleBackendNameFunction(dbops.Function):
+class GetRoleBackendNameFunction(trampoline.VersionedFunction):
 
     text = f'''
     SELECT
         CASE
         WHEN
-            (edgedb.get_backend_capabilities()
+            (edgedb_VER.get_backend_capabilities()
              & {int(params.BackendCapabilities.CREATE_ROLE)}) != 0
         THEN
-            edgedb.get_backend_tenant_id() || '_' || "role_name"
+            edgedb_VER.get_backend_tenant_id() || '_' || "role_name"
         ELSE
             current_user::text
         END
@@ -1183,7 +1184,7 @@ class GetRoleBackendNameFunction(dbops.Function):
         )
 
 
-class GetUserSequenceBackendNameFunction(dbops.Function):
+class GetUserSequenceBackendNameFunction(trampoline.VersionedFunction):
 
     text = f"""
         SELECT
@@ -1202,13 +1203,13 @@ class GetUserSequenceBackendNameFunction(dbops.Function):
         )
 
 
-class GetSequenceBackendNameFunction(dbops.Function):
+class GetSequenceBackendNameFunction(trampoline.VersionedFunction):
 
     text = f'''
         SELECT
             (CASE
-                WHEN edgedb.get_name_module(st.name)
-                     = any(edgedb.get_std_modules())
+                WHEN edgedb_VER.get_name_module(st.name)
+                     = any(edgedb_VER.get_std_modules())
                 THEN 'edgedbstd'
                 ELSE 'edgedbpub'
              END),
@@ -1230,7 +1231,7 @@ class GetSequenceBackendNameFunction(dbops.Function):
         )
 
 
-class GetStdModulesFunction(dbops.Function):
+class GetStdModulesFunction(trampoline.VersionedFunction):
 
     text = f'''
         SELECT ARRAY[{",".join(ql(str(m)) for m in s_schema.STD_MODULES)}]
@@ -1247,7 +1248,7 @@ class GetStdModulesFunction(dbops.Function):
         )
 
 
-class GetObjectMetadata(dbops.Function):
+class GetObjectMetadata(trampoline.VersionedFunction):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
         SELECT
@@ -1270,7 +1271,7 @@ class GetObjectMetadata(dbops.Function):
             text=self.text)
 
 
-class GetColumnMetadata(dbops.Function):
+class GetColumnMetadata(trampoline.VersionedFunction):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
         SELECT
@@ -1293,7 +1294,7 @@ class GetColumnMetadata(dbops.Function):
             text=self.text)
 
 
-class GetSharedObjectMetadata(dbops.Function):
+class GetSharedObjectMetadata(trampoline.VersionedFunction):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
         SELECT
@@ -1316,23 +1317,23 @@ class GetSharedObjectMetadata(dbops.Function):
             text=self.text)
 
 
-class GetDatabaseMetadataFunction(dbops.Function):
+class GetDatabaseMetadataFunction(trampoline.VersionedFunction):
     """Return EdgeDB metadata associated with a given database."""
     text = f'''
         SELECT
             CASE
             WHEN
                 "dbname" = {ql(defines.EDGEDB_SUPERUSER_DB)}
-                OR (edgedb.get_backend_capabilities()
+                OR (edgedb_VER.get_backend_capabilities()
                     & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
             THEN
-                edgedb.shobj_metadata(
+                edgedb_VER.shobj_metadata(
                     (SELECT
                         oid
                      FROM
                         pg_database
                      WHERE
-                        datname = edgedb.get_database_backend_name("dbname")
+                        datname = edgedb_VER.get_database_backend_name("dbname")
                     ),
                     'pg_database'
                 )
@@ -1360,18 +1361,18 @@ class GetDatabaseMetadataFunction(dbops.Function):
         )
 
 
-class GetCurrentDatabaseFunction(dbops.Function):
+class GetCurrentDatabaseFunction(trampoline.VersionedFunction):
 
     text = f'''
         SELECT
             CASE
             WHEN
-                (edgedb.get_backend_capabilities()
+                (edgedb_VER.get_backend_capabilities()
                  & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
             THEN
                 substr(
                     current_database(),
-                    char_length(edgedb.get_backend_tenant_id()) + 2
+                    char_length(edgedb_VER.get_backend_tenant_id()) + 2
                 )
             ELSE
                 {ql(defines.EDGEDB_SUPERUSER_DB)}
@@ -1389,7 +1390,7 @@ class GetCurrentDatabaseFunction(dbops.Function):
         )
 
 
-class RaiseExceptionFunction(dbops.Function):
+class RaiseExceptionFunction(trampoline.VersionedFunction):
     text = '''
     BEGIN
         RAISE EXCEPTION USING
@@ -1435,12 +1436,12 @@ class RaiseExceptionFunction(dbops.Function):
         )
 
 
-class RaiseExceptionOnNullFunction(dbops.Function):
+class RaiseExceptionOnNullFunction(trampoline.VersionedFunction):
     """Return the passed value or raise an exception if it's NULL."""
     text = '''
         SELECT coalesce(
             val,
-            edgedb.raise(
+            edgedb_VER.raise(
                 val,
                 exc,
                 msg => msg,
@@ -1477,7 +1478,7 @@ class RaiseExceptionOnNullFunction(dbops.Function):
         )
 
 
-class RaiseExceptionOnNotNullFunction(dbops.Function):
+class RaiseExceptionOnNotNullFunction(trampoline.VersionedFunction):
     """Return the passed value or raise an exception if it's NOT NULL."""
     text = '''
         SELECT
@@ -1485,7 +1486,7 @@ class RaiseExceptionOnNotNullFunction(dbops.Function):
             WHEN val IS NULL THEN
                 val
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     val,
                     exc,
                     msg => msg,
@@ -1522,12 +1523,12 @@ class RaiseExceptionOnNotNullFunction(dbops.Function):
         )
 
 
-class RaiseExceptionOnEmptyStringFunction(dbops.Function):
+class RaiseExceptionOnEmptyStringFunction(trampoline.VersionedFunction):
     """Return the passed string or raise an exception if it's empty."""
     text = '''
         SELECT
-            CASE WHEN edgedb._length(val) = 0 THEN
-                edgedb.raise(val, exc, msg => msg, detail => detail)
+            CASE WHEN edgedb_VER._length(val) = 0 THEN
+                edgedb_VER.raise(val, exc, msg => msg, detail => detail)
             ELSE
                 val
             END;
@@ -1549,12 +1550,12 @@ class RaiseExceptionOnEmptyStringFunction(dbops.Function):
         )
 
 
-class AssertJSONTypeFunction(dbops.Function):
+class AssertJSONTypeFunction(trampoline.VersionedFunction):
     """Assert that the JSON type matches what is expected."""
     text = '''
         SELECT
             CASE WHEN array_position(typenames, jsonb_typeof(val)) IS NULL THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::jsonb,
                     'wrong_object_type',
                     msg => coalesce(
@@ -1589,12 +1590,12 @@ class AssertJSONTypeFunction(dbops.Function):
         )
 
 
-class ExtractJSONScalarFunction(dbops.Function):
+class ExtractJSONScalarFunction(trampoline.VersionedFunction):
     """Convert a given JSON scalar value into a text value."""
     text = '''
         SELECT
             (to_jsonb(ARRAY[
-                edgedb.jsonb_assert_type(
+                edgedb_VER.jsonb_assert_type(
                     coalesce(val, 'null'::jsonb),
                     ARRAY[json_typename, 'null'],
                     msg => msg,
@@ -1618,12 +1619,12 @@ class ExtractJSONScalarFunction(dbops.Function):
         )
 
 
-class GetSchemaObjectNameFunction(dbops.Function):
+class GetSchemaObjectNameFunction(trampoline.VersionedFunction):
     text = '''
         SELECT coalesce(
             (SELECT name FROM edgedb."_SchemaObject"
              WHERE id = type::uuid),
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 msg => 'resolve_type_name: unknown type: "' || type || '"'
             )
@@ -1643,7 +1644,7 @@ class GetSchemaObjectNameFunction(dbops.Function):
         )
 
 
-class IssubclassFunction(dbops.Function):
+class IssubclassFunction(trampoline.VersionedFunction):
     text = '''
         SELECT
             clsid = any(classes) OR (
@@ -1666,7 +1667,7 @@ class IssubclassFunction(dbops.Function):
             text=self.__class__.text)
 
 
-class IssubclassFunction2(dbops.Function):
+class IssubclassFunction2(trampoline.VersionedFunction):
     text = '''
         SELECT
             clsid = pclsid OR (
@@ -1689,7 +1690,7 @@ class IssubclassFunction2(dbops.Function):
             text=self.__class__.text)
 
 
-class NormalizeNameFunction(dbops.Function):
+class NormalizeNameFunction(trampoline.VersionedFunction):
     text = '''
         SELECT
             CASE WHEN strpos(name, '@') = 0 THEN
@@ -1718,7 +1719,7 @@ class NormalizeNameFunction(dbops.Function):
             text=self.__class__.text)
 
 
-class GetNameModuleFunction(dbops.Function):
+class GetNameModuleFunction(trampoline.VersionedFunction):
     text = '''
         SELECT reverse(split_part(reverse("name"), '::', 1))
     '''
@@ -1733,7 +1734,7 @@ class GetNameModuleFunction(dbops.Function):
             text=self.__class__.text)
 
 
-class NullIfArrayNullsFunction(dbops.Function):
+class NullIfArrayNullsFunction(trampoline.VersionedFunction):
     """Check if array contains NULLs and if so, return NULL."""
     def __init__(self) -> None:
         super().__init__(
@@ -1748,7 +1749,7 @@ class NullIfArrayNullsFunction(dbops.Function):
             ''')
 
 
-class NormalizeArrayIndexFunction(dbops.Function):
+class NormalizeArrayIndexFunction(trampoline.VersionedFunction):
     """Convert an EdgeQL index to SQL index."""
 
     text = '''
@@ -1772,7 +1773,7 @@ class NormalizeArrayIndexFunction(dbops.Function):
         )
 
 
-class NormalizeArraySliceIndexFunction(dbops.Function):
+class NormalizeArraySliceIndexFunction(trampoline.VersionedFunction):
     """Convert an EdgeQL index to SQL index (for slices)"""
 
     text = '''
@@ -1797,7 +1798,7 @@ class NormalizeArraySliceIndexFunction(dbops.Function):
         )
 
 
-class IntOrNullFunction(dbops.Function):
+class IntOrNullFunction(trampoline.VersionedFunction):
     """
     Convert bigint to int. If it does not fit, return NULL.
     """
@@ -1822,15 +1823,16 @@ class IntOrNullFunction(dbops.Function):
         )
 
 
-class ArrayIndexWithBoundsFunction(dbops.Function):
+class ArrayIndexWithBoundsFunction(trampoline.VersionedFunction):
     """Get an array element or raise an out-of-bounds exception."""
 
     text = '''
         SELECT CASE WHEN val IS NULL THEN
             NULL
         ELSE
-            edgedb.raise_on_null(
-                val[edgedb._normalize_array_index(index, array_upper(val, 1))],
+            edgedb_VER.raise_on_null(
+                val[edgedb_VER._normalize_array_index(
+                    index, array_upper(val, 1))],
                 'array_subscript_error',
                 msg => 'array index ' || index::text || ' is out of bounds',
                 detail => detail
@@ -1851,7 +1853,7 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
         )
 
 
-class ArraySliceFunction(dbops.Function):
+class ArraySliceFunction(trampoline.VersionedFunction):
     """Get an array slice."""
 
     # This function is also inlined in expr.py#_inline_array_slicing.
@@ -1860,9 +1862,9 @@ class ArraySliceFunction(dbops.Function):
     # this will return last element instead of an empty array.
     text = """
         SELECT val[
-            edgedb._normalize_array_slice_index(start, cardinality(val))
+            edgedb_VER._normalize_array_slice_index(start, cardinality(val))
             :
-            edgedb._normalize_array_slice_index(stop, cardinality(val)) - 1
+            edgedb_VER._normalize_array_slice_index(stop, cardinality(val)) - 1
         ]
     """
 
@@ -1880,11 +1882,11 @@ class ArraySliceFunction(dbops.Function):
         )
 
 
-class StringIndexWithBoundsFunction(dbops.Function):
+class StringIndexWithBoundsFunction(trampoline.VersionedFunction):
     """Get a string character or raise an out-of-bounds exception."""
 
     text = '''
-        SELECT edgedb.raise_on_empty(
+        SELECT edgedb_VER.raise_on_empty(
             CASE WHEN pg_index IS NULL THEN
                 ''
             ELSE
@@ -1896,7 +1898,7 @@ class StringIndexWithBoundsFunction(dbops.Function):
         )
         FROM (
             SELECT (
-                edgedb._normalize_array_index("index", char_length("val"))
+                edgedb_VER._normalize_array_index("index", char_length("val"))
             ) as pg_index
         ) t
     '''
@@ -1918,11 +1920,11 @@ class StringIndexWithBoundsFunction(dbops.Function):
         )
 
 
-class BytesIndexWithBoundsFunction(dbops.Function):
+class BytesIndexWithBoundsFunction(trampoline.VersionedFunction):
     """Get a bytes character or raise an out-of-bounds exception."""
 
     text = '''
-        SELECT edgedb.raise_on_empty(
+        SELECT edgedb_VER.raise_on_empty(
             CASE WHEN pg_index IS NULL THEN
                 ''::bytea
             ELSE
@@ -1934,7 +1936,7 @@ class BytesIndexWithBoundsFunction(dbops.Function):
         )
         FROM (
             SELECT (
-                edgedb._normalize_array_index("index", length("val"))
+                edgedb_VER._normalize_array_index("index", length("val"))
             ) as pg_index
         ) t
     '''
@@ -1955,7 +1957,7 @@ class BytesIndexWithBoundsFunction(dbops.Function):
         )
 
 
-class SubstrProxyFunction(dbops.Function):
+class SubstrProxyFunction(trampoline.VersionedFunction):
     """Same as substr, but interpret negative length as 0 instead."""
 
     text = r"""
@@ -1981,7 +1983,7 @@ class SubstrProxyFunction(dbops.Function):
         )
 
 
-class LengthStringProxyFunction(dbops.Function):
+class LengthStringProxyFunction(trampoline.VersionedFunction):
     """Same as substr, but interpret negative length as 0 instead."""
     text = r'''
         SELECT char_length(val)
@@ -1997,7 +1999,7 @@ class LengthStringProxyFunction(dbops.Function):
             text=self.text)
 
 
-class LengthBytesProxyFunction(dbops.Function):
+class LengthBytesProxyFunction(trampoline.VersionedFunction):
     """Same as substr, but interpret negative length as 0 instead."""
     text = r'''
         SELECT length(val)
@@ -2013,22 +2015,22 @@ class LengthBytesProxyFunction(dbops.Function):
             text=self.text)
 
 
-class StringSliceImplFunction(dbops.Function):
+class StringSliceImplFunction(trampoline.VersionedFunction):
     """Get a string slice."""
 
     text = r"""
         SELECT
-            edgedb._substr(
+            edgedb_VER._substr(
                 val,
                 pg_start,
                 pg_end - pg_start
             )
         FROM (SELECT
-            edgedb._normalize_array_slice_index(
-                start, edgedb._length(val)
+            edgedb_VER._normalize_array_slice_index(
+                start, edgedb_VER._length(val)
             ) as pg_start,
-            edgedb._normalize_array_slice_index(
-                stop, edgedb._length(val)
+            edgedb_VER._normalize_array_slice_index(
+                stop, edgedb_VER._length(val)
             ) as pg_end
         ) t
     """
@@ -2047,10 +2049,10 @@ class StringSliceImplFunction(dbops.Function):
         )
 
 
-class StringSliceFunction(dbops.Function):
+class StringSliceFunction(trampoline.VersionedFunction):
     """Get a string slice."""
     text = r'''
-        SELECT edgedb._str_slice(val, start, stop)
+        SELECT edgedb_VER._str_slice(val, start, stop)
     '''
 
     def __init__(self) -> None:
@@ -2066,10 +2068,10 @@ class StringSliceFunction(dbops.Function):
             text=self.text)
 
 
-class BytesSliceFunction(dbops.Function):
+class BytesSliceFunction(trampoline.VersionedFunction):
     """Get a string slice."""
     text = r'''
-        SELECT edgedb._str_slice(val, start, stop)
+        SELECT edgedb_VER._str_slice(val, start, stop)
     '''
 
     def __init__(self) -> None:
@@ -2085,13 +2087,13 @@ class BytesSliceFunction(dbops.Function):
             text=self.text)
 
 
-class JSONIndexByTextFunction(dbops.Function):
+class JSONIndexByTextFunction(trampoline.VersionedFunction):
     """Get a JSON element by text index or raise an exception."""
     text = r'''
         SELECT
             CASE jsonb_typeof(val)
             WHEN 'object' THEN (
-                edgedb.raise_on_null(
+                edgedb_VER.raise_on_null(
                     val -> index,
                     'invalid_parameter_value',
                     msg => (
@@ -2102,7 +2104,7 @@ class JSONIndexByTextFunction(dbops.Function):
                 )
             )
             WHEN 'array' THEN (
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::jsonb,
                     'wrong_object_type',
                     msg => (
@@ -2113,7 +2115,7 @@ class JSONIndexByTextFunction(dbops.Function):
                 )
             )
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::jsonb,
                     'wrong_object_type',
                     msg => (
@@ -2145,14 +2147,14 @@ class JSONIndexByTextFunction(dbops.Function):
         )
 
 
-class JSONIndexByIntFunction(dbops.Function):
+class JSONIndexByIntFunction(trampoline.VersionedFunction):
     """Get a JSON element by int index or raise an exception."""
 
     text = r'''
         SELECT
             CASE jsonb_typeof(val)
             WHEN 'object' THEN (
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::jsonb,
                     'wrong_object_type',
                     msg => (
@@ -2163,15 +2165,15 @@ class JSONIndexByIntFunction(dbops.Function):
                 )
             )
             WHEN 'array' THEN (
-                edgedb.raise_on_null(
-                    val -> edgedb._int_or_null(index),
+                edgedb_VER.raise_on_null(
+                    val -> edgedb_VER._int_or_null(index),
                     'invalid_parameter_value',
                     msg => 'JSON index ' || index::text || ' is out of bounds',
                     detail => detail
                 )
             )
             WHEN 'string' THEN (
-                to_jsonb(edgedb._index(
+                to_jsonb(edgedb_VER._index(
                     val#>>'{}',
                     index,
                     detail,
@@ -2179,7 +2181,7 @@ class JSONIndexByIntFunction(dbops.Function):
                 ))
             )
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::jsonb,
                     'wrong_object_type',
                     msg => (
@@ -2211,7 +2213,7 @@ class JSONIndexByIntFunction(dbops.Function):
         )
 
 
-class JSONSliceFunction(dbops.Function):
+class JSONSliceFunction(trampoline.VersionedFunction):
     """Get a JSON array slice."""
 
     text = r"""
@@ -2219,7 +2221,7 @@ class JSONSliceFunction(dbops.Function):
             CASE
             WHEN val IS NULL THEN NULL
             WHEN jsonb_typeof(val) = 'array' THEN (
-                to_jsonb(edgedb._slice(
+                to_jsonb(edgedb_VER._slice(
                     (
                         SELECT coalesce(array_agg(value), '{}'::jsonb[])
                         FROM jsonb_array_elements(val)
@@ -2228,10 +2230,10 @@ class JSONSliceFunction(dbops.Function):
                 ))
             )
             WHEN jsonb_typeof(val) = 'string' THEN (
-                to_jsonb(edgedb._slice(val#>>'{}', start, stop))
+                to_jsonb(edgedb_VER._slice(val#>>'{}', start, stop))
             )
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::jsonb,
                     'wrong_object_type',
                     msg => (
@@ -2270,7 +2272,7 @@ class JSONSliceFunction(dbops.Function):
 # detect time-zones we restrict the inputs to ISO8601 format.
 #
 # See issue #740.
-class DatetimeInFunction(dbops.Function):
+class DatetimeInFunction(trampoline.VersionedFunction):
     """Cast text into timestamptz using ISO8601 spec."""
     text = r'''
         SELECT
@@ -2283,7 +2285,7 @@ class DatetimeInFunction(dbops.Function):
                     ')\s*$'
                 )
             THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::edgedb.timestamptz_t,
                     'invalid_datetime_format',
                     msg => (
@@ -2312,7 +2314,7 @@ class DatetimeInFunction(dbops.Function):
             text=self.text)
 
 
-class DurationInFunction(dbops.Function):
+class DurationInFunction(trampoline.VersionedFunction):
     """Cast text into duration, ensuring there is no days or months units"""
     text = r'''
         SELECT
@@ -2321,7 +2323,7 @@ class DurationInFunction(dbops.Function):
                 EXTRACT(YEAR FROM v.column1) != 0 OR
                 EXTRACT(DAY FROM v.column1) != 0
             THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::edgedb.duration_t,
                     'invalid_datetime_format',
                     msg => (
@@ -2351,7 +2353,7 @@ class DurationInFunction(dbops.Function):
         )
 
 
-class DateDurationInFunction(dbops.Function):
+class DateDurationInFunction(trampoline.VersionedFunction):
     """
     Cast text into date_duration, ensuring there is no unit smaller
     than days.
@@ -2363,7 +2365,7 @@ class DateDurationInFunction(dbops.Function):
                 EXTRACT(MINUTE FROM v.column1) != 0 OR
                 EXTRACT(SECOND FROM v.column1) != 0
             THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::edgedb.date_duration_t,
                     'invalid_datetime_format',
                     msg => (
@@ -2393,7 +2395,7 @@ class DateDurationInFunction(dbops.Function):
         )
 
 
-class LocalDatetimeInFunction(dbops.Function):
+class LocalDatetimeInFunction(trampoline.VersionedFunction):
     """Cast text into timestamp using ISO8601 spec."""
     text = r'''
         SELECT
@@ -2406,7 +2408,7 @@ class LocalDatetimeInFunction(dbops.Function):
                     ')\s*$'
                 )
             THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::edgedb.timestamp_t,
                     'invalid_datetime_format',
                     msg => (
@@ -2434,7 +2436,7 @@ class LocalDatetimeInFunction(dbops.Function):
             text=self.text)
 
 
-class LocalDateInFunction(dbops.Function):
+class LocalDateInFunction(trampoline.VersionedFunction):
     """Cast text into date using ISO8601 spec."""
     text = r'''
         SELECT
@@ -2445,7 +2447,7 @@ class LocalDateInFunction(dbops.Function):
                     ')\s*$'
                 )
             THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::edgedb.date_t,
                     'invalid_datetime_format',
                     msg => (
@@ -2473,13 +2475,13 @@ class LocalDateInFunction(dbops.Function):
             text=self.text)
 
 
-class LocalTimeInFunction(dbops.Function):
+class LocalTimeInFunction(trampoline.VersionedFunction):
     """Cast text into time using ISO8601 spec."""
     text = r'''
         SELECT
             CASE WHEN date_part('hour', x.t) = 24
             THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::time,
                     'invalid_datetime_format',
                     msg => (
@@ -2496,7 +2498,7 @@ class LocalTimeInFunction(dbops.Function):
                         '(\d{2}(:\d{2}(:\d{2}(\.\d+)?)?)?|\d{2,6}(\.\d+)?)' ||
                     ')\s*$')
                 THEN
-                    edgedb.raise(
+                    edgedb_VER.raise(
                         NULL::time,
                         'invalid_datetime_format',
                         msg => (
@@ -2526,7 +2528,7 @@ class LocalTimeInFunction(dbops.Function):
         )
 
 
-class ToTimestampTZCheck(dbops.Function):
+class ToTimestampTZCheck(trampoline.VersionedFunction):
     """Checks if the original text has time zone or not."""
     # What are we trying to mitigate?
     # We're trying to detect that when we're casting to datetime the
@@ -2591,7 +2593,7 @@ class ToTimestampTZCheck(dbops.Function):
             text=self.text)
 
 
-class ToDatetimeFunction(dbops.Function):
+class ToDatetimeFunction(trampoline.VersionedFunction):
     """Convert text into timestamptz using a formatting spec."""
     # NOTE that if only the TZM (minutes) are mentioned it is not
     # enough for a valid time zone definition
@@ -2604,7 +2606,7 @@ class ToDatetimeFunction(dbops.Function):
                     ')*(TZH).*$'
                 )
             THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::edgedb.timestamptz_t,
                     'invalid_datetime_format',
                     msg => (
@@ -2617,7 +2619,7 @@ class ToDatetimeFunction(dbops.Function):
                     )
                 )
             ELSE
-                edgedb._to_timestamptz_check(val, fmt, true)
+                edgedb_VER._to_timestamptz_check(val, fmt, true)
             END;
     '''
 
@@ -2631,7 +2633,7 @@ class ToDatetimeFunction(dbops.Function):
             text=self.text)
 
 
-class ToLocalDatetimeFunction(dbops.Function):
+class ToLocalDatetimeFunction(trampoline.VersionedFunction):
     """Convert text into timestamp using a formatting spec."""
     # NOTE time zone should not be mentioned at all.
     text = r'''
@@ -2643,7 +2645,7 @@ class ToLocalDatetimeFunction(dbops.Function):
                     ')*(TZH|TZM).*$'
                 )
             THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::edgedb.timestamp_t,
                     'invalid_datetime_format',
                     msg => (
@@ -2652,7 +2654,7 @@ class ToLocalDatetimeFunction(dbops.Function):
                     )
                 )
             ELSE
-                edgedb._to_timestamptz_check(val, fmt, false)
+                edgedb_VER._to_timestamptz_check(val, fmt, false)
                     ::edgedb.timestamp_t
             END;
     '''
@@ -2667,7 +2669,7 @@ class ToLocalDatetimeFunction(dbops.Function):
             text=self.text)
 
 
-class StrToBool(dbops.Function):
+class StrToBool(trampoline.VersionedFunction):
     """Parse bool from text."""
     # We first try to match case-insensitive "true|false" at all. On
     # null, we raise an exception. But otherwise we know that we have
@@ -2678,7 +2680,7 @@ class StrToBool(dbops.Function):
         SELECT (
             coalesce(
                 regexp_match(val, '^\s*(?:(true)|(false))\s*$', 'i')::text[],
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::text[],
                     'invalid_text_representation',
                     msg => 'invalid input syntax for type bool: '
@@ -2699,7 +2701,7 @@ class StrToBool(dbops.Function):
             text=self.text)
 
 
-class QuoteLiteralFunction(dbops.Function):
+class QuoteLiteralFunction(trampoline.VersionedFunction):
     """Encode string as edgeql literal quoted string"""
     text = r'''
         SELECT concat('\'',
@@ -2718,7 +2720,7 @@ class QuoteLiteralFunction(dbops.Function):
             text=self.text)
 
 
-class QuoteIdentFunction(dbops.Function):
+class QuoteIdentFunction(trampoline.VersionedFunction):
     """Quote ident function."""
     # TODO do not quote valid identifiers unless they are reserved
     text = r'''
@@ -2735,11 +2737,11 @@ class QuoteIdentFunction(dbops.Function):
         )
 
 
-class QuoteNameFunction(dbops.Function):
+class QuoteNameFunction(trampoline.VersionedFunction):
 
     text = r"""
         SELECT
-            string_agg(edgedb.quote_ident(np), '::')
+            string_agg(edgedb_VER.quote_ident(np), '::')
         FROM
             unnest(string_to_array("name", '::')) AS np
     """
@@ -2754,7 +2756,7 @@ class QuoteNameFunction(dbops.Function):
         )
 
 
-class DescribeRolesAsDDLFunctionForwardDecl(dbops.Function):
+class DescribeRolesAsDDLFunctionForwardDecl(trampoline.VersionedFunction):
     """Forward declaration for _describe_roles_as_ddl"""
 
     def __init__(self) -> None:
@@ -2768,7 +2770,7 @@ class DescribeRolesAsDDLFunctionForwardDecl(dbops.Function):
         )
 
 
-class DescribeRolesAsDDLFunction(dbops.Function):
+class DescribeRolesAsDDLFunction(trampoline.VersionedFunction):
     """Describe roles as DDL"""
 
     def __init__(self, schema: s_schema.Schema) -> None:
@@ -2809,7 +2811,7 @@ class DescribeRolesAsDDLFunction(dbops.Function):
                             concat(
                                 ' EXTENDING ',
                                 string_agg(
-                                    edgedb.quote_ident(parent.{qi(name_col)}),
+                                    edgedb_VER.quote_ident(parent.{qi(name_col)}),
                                     ', '
                                 ),
                                 ';'
@@ -2829,11 +2831,11 @@ class DescribeRolesAsDDLFunction(dbops.Function):
                 ELSE
                     concat(
                         'CREATE SUPERUSER ROLE ',
-                        edgedb.quote_ident(role.{qi(name_col)}),
+                        edgedb_VER.quote_ident(role.{qi(name_col)}),
                         NULLIF((SELECT
                             concat(' EXTENDING ',
                                 string_agg(
-                                    edgedb.quote_ident(parent.{qi(name_col)}),
+                                    edgedb_VER.quote_ident(parent.{qi(name_col)}),
                                     ', '
                                 )
                             )
@@ -2865,13 +2867,13 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             text=text)
 
 
-class DumpSequencesFunction(dbops.Function):
+class DumpSequencesFunction(trampoline.VersionedFunction):
 
     text = r"""
         SELECT
             string_agg(
                 'SELECT std::sequence_reset('
-                || 'INTROSPECT ' || edgedb.quote_name(seq.name)
+                || 'INTROSPECT ' || edgedb_VER.quote_name(seq.name)
                 || (CASE WHEN seq_st.is_called
                     THEN ', ' || seq_st.last_value::text
                     ELSE '' END)
@@ -2894,7 +2896,7 @@ class DumpSequencesFunction(dbops.Function):
                 FROM
                     pg_sequences,
                     LATERAL ROWS FROM (
-                        edgedb.get_sequence_backend_name(seq.id)
+                        edgedb_VER.get_sequence_backend_name(seq.id)
                     ) AS seq_name(schema text, name text)
                 WHERE
                     (pg_sequences.schemaname, pg_sequences.sequencename)
@@ -2973,7 +2975,7 @@ class SysConfigEntryType(dbops.CompositeType):
         ])
 
 
-class IntervalToMillisecondsFunction(dbops.Function):
+class IntervalToMillisecondsFunction(trampoline.VersionedFunction):
     """Cast an interval into milliseconds."""
 
     text = r'''
@@ -2993,7 +2995,7 @@ class IntervalToMillisecondsFunction(dbops.Function):
         )
 
 
-class SafeIntervalCastFunction(dbops.Function):
+class SafeIntervalCastFunction(trampoline.VersionedFunction):
     """A safer text to interval casting implementaion.
 
     Casting large-unit durations (like '4032000000us') results in an error.
@@ -3028,7 +3030,7 @@ class SafeIntervalCastFunction(dbops.Function):
         )
 
 
-class ConvertPostgresConfigUnitsFunction(dbops.Function):
+class ConvertPostgresConfigUnitsFunction(trampoline.VersionedFunction):
     """Convert duration/memory values to milliseconds/kilobytes.
 
     See https://www.postgresql.org/docs/12/config-setting.html
@@ -3040,7 +3042,7 @@ class ConvertPostgresConfigUnitsFunction(dbops.Function):
         CASE
             WHEN "unit" = any(ARRAY['us', 'ms', 's', 'min', 'h'])
             THEN to_jsonb(
-                edgedb._interval_safe_cast(
+                edgedb_VER._interval_safe_cast(
                     ("value" * "multiplier")::text || "unit"
                 )
             )
@@ -3073,7 +3075,7 @@ class ConvertPostgresConfigUnitsFunction(dbops.Function):
             WHEN "unit" = ''
             THEN ("value" * "multiplier")::text::jsonb
 
-            ELSE edgedb.raise(
+            ELSE edgedb_VER.raise(
                 NULL::jsonb,
                 msg => (
                     'unknown configuration unit "' ||
@@ -3099,7 +3101,7 @@ class ConvertPostgresConfigUnitsFunction(dbops.Function):
         )
 
 
-class TypeIDToConfigType(dbops.Function):
+class TypeIDToConfigType(trampoline.VersionedFunction):
     """Get a postgres config type from a type id.
 
     (We typically try to read extension configs straight from the
@@ -3125,7 +3127,7 @@ class TypeIDToConfigType(dbops.Function):
     SELECT (
         CASE
             {scases}
-            ELSE edgedb.raise(
+            ELSE edgedb_VER.raise(
                 NULL::text,
                 msg => (
                     'unknown configuration type "' || "typeid" || '"'
@@ -3147,7 +3149,7 @@ class TypeIDToConfigType(dbops.Function):
         )
 
 
-class NormalizedPgSettingsView(dbops.View):
+class NormalizedPgSettingsView(trampoline.VersionedView):
     """Just like `pg_settings` but with the parsed 'unit' column."""
 
     query = r'''
@@ -3186,7 +3188,7 @@ class NormalizedPgSettingsView(dbops.View):
         )
 
 
-class InterpretConfigValueToJsonFunction(dbops.Function):
+class InterpretConfigValueToJsonFunction(trampoline.VersionedFunction):
     """Convert a Postgres config value to jsonb.
 
     This function:
@@ -3218,12 +3220,12 @@ class InterpretConfigValueToJsonFunction(dbops.Function):
             THEN to_jsonb("value")
 
             WHEN "type" = 'integer' OR "type" = 'real'
-            THEN edgedb._convert_postgres_config_units(
+            THEN edgedb_VER._convert_postgres_config_units(
                     "value"::numeric, "multiplier"::numeric, "unit"
                  )
 
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::jsonb,
                     msg => (
                         'unknown configuration type "' ||
@@ -3250,7 +3252,7 @@ class InterpretConfigValueToJsonFunction(dbops.Function):
         )
 
 
-class PostgresConfigValueToJsonFunction(dbops.Function):
+class PostgresConfigValueToJsonFunction(trampoline.VersionedFunction):
     """Convert a Postgres setting to JSON value.
 
     Steps:
@@ -3281,7 +3283,7 @@ class PostgresConfigValueToJsonFunction(dbops.Function):
 
                 WHEN parsed_value.unit != ''
                 THEN
-                    edgedb._interpret_config_value_to_json(
+                    edgedb_VER._interpret_config_value_to_json(
                         parsed_value.val,
                         settings.vartype,
                         1,
@@ -3289,7 +3291,7 @@ class PostgresConfigValueToJsonFunction(dbops.Function):
                     )
 
                 ELSE
-                    edgedb._interpret_config_value_to_json(
+                    edgedb_VER._interpret_config_value_to_json(
                         "setting_value",
                         settings.vartype,
                         settings.multiplier,
@@ -3323,7 +3325,7 @@ class PostgresConfigValueToJsonFunction(dbops.Function):
             (
                 SELECT
                     COALESCE(settings_in.vartype,
-                             edgedb._type_id_to_config_type("setting_typeid"))
+                             edgedb_VER._type_id_to_config_type("setting_typeid"))
                     as vartype,
                     COALESCE(settings_in.multiplier, '1') as multiplier,
                     COALESCE(settings_in.unit, '') as unit
@@ -3345,7 +3347,7 @@ class PostgresConfigValueToJsonFunction(dbops.Function):
         )
 
 
-class SysConfigFullFunction(dbops.Function):
+class SysConfigFullFunction(trampoline.VersionedFunction):
 
     # This is a function because "_edgecon_state" is a temporary table
     # and therefore cannot be used in a view.
@@ -3394,7 +3396,7 @@ class SysConfigFullFunction(dbops.Function):
                 config_spec.backend_setting IS NOT NULL AS is_backend
             FROM
                 jsonb_each(
-                    edgedb.get_database_metadata(
+                    edgedb_VER.get_database_metadata(
                         {ql(defines.EDGEDB_SYSTEM_DB)}
                     ) -> 'sysconfig'
                 ) AS s
@@ -3431,7 +3433,7 @@ class SysConfigFullFunction(dbops.Function):
         pg_db_setting AS (
             SELECT
                 spec.name,
-                edgedb._postgres_config_value_to_json(
+                edgedb_VER._postgres_config_value_to_json(
                     spec.backend_setting, spec.typeid, nameval.value
                 ) AS value,
                 'database' AS source,
@@ -3473,7 +3475,7 @@ class SysConfigFullFunction(dbops.Function):
             pg_conf_settings AS (
                 SELECT
                     spec.name,
-                    edgedb._postgres_config_value_to_json(
+                    edgedb_VER._postgres_config_value_to_json(
                         spec.backend_setting, spec.typeid, setting
                     ) AS value,
                     'postgres configuration file' AS source,
@@ -3501,7 +3503,7 @@ class SysConfigFullFunction(dbops.Function):
             pg_auto_conf_settings AS (
                 SELECT
                     spec.name,
-                    edgedb._postgres_config_value_to_json(
+                    edgedb_VER._postgres_config_value_to_json(
                         spec.backend_setting, spec.typeid, setting
                     ) AS value,
                     'system override' AS source,
@@ -3532,7 +3534,7 @@ class SysConfigFullFunction(dbops.Function):
         pg_config AS (
             SELECT
                 spec.name,
-                edgedb._interpret_config_value_to_json(
+                edgedb_VER._interpret_config_value_to_json(
                     settings.setting,
                     settings.vartype,
                     settings.multiplier,
@@ -3576,7 +3578,7 @@ class SysConfigFullFunction(dbops.Function):
             SELECT
                 config_spec.name,
                 -- XXX: Or would it be better to just use the json directly?
-                edgedb._postgres_config_value_to_json(
+                edgedb_VER._postgres_config_value_to_json(
                     config_spec.backend_setting,
                     config_spec.typeid,
                     current_setting(config_spec.backend_setting, true)
@@ -3726,24 +3728,26 @@ class SysConfigFullFunction(dbops.Function):
         )
 
 
-class SysConfigUncachedFunction(dbops.Function):
+class SysConfigUncachedFunction(trampoline.VersionedFunction):
 
     text = f'''
     DECLARE
         backend_caps bigint;
     BEGIN
 
-    backend_caps := edgedb.get_backend_capabilities();
+    backend_caps := edgedb_VER.get_backend_capabilities();
     IF (backend_caps
         & {int(params.BackendCapabilities.CONFIGFILE_ACCESS)}) != 0
     THEN
         RETURN QUERY
         SELECT *
-        FROM edgedb._read_sys_config_full(source_filter, max_sources, TRUE);
+        FROM edgedb_VER._read_sys_config_full(
+            source_filter, max_sources, TRUE);
     ELSE
         RETURN QUERY
         SELECT *
-        FROM edgedb._read_sys_config_full(source_filter, max_sources, FALSE);
+        FROM edgedb_VER._read_sys_config_full(
+            source_filter, max_sources, FALSE);
     END IF;
 
     END;
@@ -3772,7 +3776,7 @@ class SysConfigUncachedFunction(dbops.Function):
         )
 
 
-class SysConfigFunction(dbops.Function):
+class SysConfigFunction(trampoline.VersionedFunction):
 
     text = f'''
     DECLARE
@@ -3788,7 +3792,7 @@ class SysConfigFunction(dbops.Function):
         RETURN QUERY
         SELECT
           (c.value).name, (c.value).value, (c.value).source, (c.value).scope
-        FROM edgedb._read_sys_config_uncached(
+        FROM edgedb_VER._read_sys_config_uncached(
           source_filter, ARRAY[max_source]) AS c;
         RETURN;
     END IF;
@@ -3798,7 +3802,7 @@ class SysConfigFunction(dbops.Function):
     THEN
         INSERT INTO "_config_cache"
         SELECT (s.max_source), (s.value)
-        FROM edgedb._read_sys_config_uncached(
+        FROM edgedb_VER._read_sys_config_uncached(
           source_filter, ARRAY[
             NULL, 'database', 'system override']::edgedb._sys_config_source_t[])
              AS s;
@@ -3834,7 +3838,7 @@ class SysConfigFunction(dbops.Function):
         )
 
 
-class SysClearConfigCacheFunction(dbops.Function):
+class SysClearConfigCacheFunction(trampoline.VersionedFunction):
 
     text = f'''
     DECLARE
@@ -3858,7 +3862,7 @@ class SysClearConfigCacheFunction(dbops.Function):
         )
 
 
-class ResetSessionConfigFunction(dbops.Function):
+class ResetSessionConfigFunction(trampoline.VersionedFunction):
 
     text = f'''
         RESET ALL
@@ -3875,7 +3879,7 @@ class ResetSessionConfigFunction(dbops.Function):
         )
 
 
-class ApplySessionConfigFunction(dbops.Function):
+class ApplySessionConfigFunction(trampoline.VersionedFunction):
     """Apply an EdgeDB config setting to the backend, if possible.
 
     The function accepts any EdgeDB config name/value pair. If this
@@ -3907,7 +3911,8 @@ class ApplySessionConfigFunction(dbops.Function):
                 and issubclass(setting.type, statypes.Duration)
             ):
                 valql = f"""
-                    edgedb._interval_to_ms(({valql})::interval)::text || 'ms'
+                    edgedb_VER._interval_to_ms(({valql})::interval)::text \
+                    || 'ms'
                 """
 
             variants_list.append(f'''
@@ -3975,7 +3980,7 @@ class ApplySessionConfigFunction(dbops.Function):
         )
 
 
-class SysGetTransactionIsolation(dbops.Function):
+class SysGetTransactionIsolation(trampoline.VersionedFunction):
     "Get transaction isolation value as text compatible with EdgeDB's enum."
     text = r'''
         SELECT
@@ -3983,7 +3988,7 @@ class SysGetTransactionIsolation(dbops.Function):
                 WHEN 'repeatable read' THEN 'RepeatableRead'
                 WHEN 'serializable' THEN 'Serializable'
                 ELSE (
-                    SELECT edgedb.raise(
+                    SELECT edgedb_VER.raise(
                         NULL::text,
                         msg => (
                             'unknown transaction isolation level "'
@@ -4006,7 +4011,7 @@ class SysGetTransactionIsolation(dbops.Function):
             text=self.text)
 
 
-class GetCachedReflection(dbops.Function):
+class GetCachedReflection(trampoline.VersionedFunction):
     "Return a list of existing schema reflection helpers."
     text = '''
         SELECT
@@ -4031,7 +4036,7 @@ class GetCachedReflection(dbops.Function):
         )
 
 
-class GetBaseScalarTypeMap(dbops.Function):
+class GetBaseScalarTypeMap(trampoline.VersionedFunction):
     """Return a map of base EdgeDB scalar type ids to Postgres type names."""
 
     text = "VALUES" + ", ".join(
@@ -4050,7 +4055,7 @@ class GetBaseScalarTypeMap(dbops.Function):
         )
 
 
-class GetTypeToRangeNameMap(dbops.Function):
+class GetTypeToRangeNameMap(trampoline.VersionedFunction):
     """Return a map of type names to the name of the associated range type"""
 
     text = f"VALUES" + ", ".join(
@@ -4069,7 +4074,7 @@ class GetTypeToRangeNameMap(dbops.Function):
         )
 
 
-class GetTypeToMultiRangeNameMap(dbops.Function):
+class GetTypeToMultiRangeNameMap(trampoline.VersionedFunction):
     "Return a map of type names to the name of the associated multirange type"
 
     text = f"VALUES" + ", ".join(
@@ -4088,7 +4093,7 @@ class GetTypeToMultiRangeNameMap(dbops.Function):
         )
 
 
-class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
+class GetPgTypeForEdgeDBTypeFunction(trampoline.VersionedFunction):
     """Return Postgres OID representing a given EdgeDB type."""
 
     text = f'''
@@ -4099,7 +4104,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                     SELECT
                         tn::regtype::oid
                     FROM
-                        edgedb._get_base_scalar_type_map()
+                        edgedb_VER._get_base_scalar_type_map()
                             AS m(tid uuid, tn text)
                     WHERE
                         m.tid = "typeid"
@@ -4127,7 +4132,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                                 SELECT
                                     tn::regtype::oid
                                 FROM
-                                    edgedb._get_base_scalar_type_map()
+                                    edgedb_VER._get_base_scalar_type_map()
                                         AS m(tid uuid, tn text)
                                 WHERE
                                     tid = "elemid"
@@ -4149,10 +4154,10 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                             SELECT
                                 rn::regtype::oid
                             FROM
-                                edgedb._get_base_scalar_type_map()
+                                edgedb_VER._get_base_scalar_type_map()
                                     AS m(tid uuid, tn text)
                             INNER JOIN
-                                edgedb._get_type_to_range_type_map()
+                                edgedb_VER._get_type_to_range_type_map()
                                     AS m2(tn2 text, rn text)
                                 ON tn = tn2
                             WHERE
@@ -4174,17 +4179,17 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                             SELECT
                                 rn::regtype::oid
                             FROM
-                                edgedb._get_base_scalar_type_map()
+                                edgedb_VER._get_base_scalar_type_map()
                                     AS m(tid uuid, tn text)
                             INNER JOIN
-                                edgedb._get_type_to_multirange_type_map()
+                                edgedb_VER._get_type_to_multirange_type_map()
                                     AS m2(tn2 text, rn text)
                                 ON tn = tn2
                             WHERE
                                 tid = "elemid"
                         )
                 ),
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::bigint,
                     'invalid_parameter_value',
                     msg => (
@@ -4212,7 +4217,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
         )
 
 
-class FTSParseQueryFunction(dbops.Function):
+class FTSParseQueryFunction(trampoline.VersionedFunction):
     """Return tsquery representing the given FTS input query."""
 
     text = r'''
@@ -4288,7 +4293,7 @@ class FTSParseQueryFunction(dbops.Function):
                 should := array_append(should, tsq);
             END IF;
 
-            RETURN edgedb.fts_parse_query(
+            RETURN edgedb_VER.fts_parse_query(
                 rest, language, must, should, cur_op);
         END IF;
 
@@ -4324,7 +4329,7 @@ class FTSParseQueryFunction(dbops.Function):
         )
 
 
-class FTSNormalizeWeightFunction(dbops.Function):
+class FTSNormalizeWeightFunction(trampoline.VersionedFunction):
     """Normalize an array of weights to be a 4-value weight array."""
 
     text = r'''
@@ -4370,7 +4375,7 @@ class FTSNormalizeWeightFunction(dbops.Function):
         )
 
 
-class FTSNormalizeDocFunction(dbops.Function):
+class FTSNormalizeDocFunction(trampoline.VersionedFunction):
     """Normalize a document based on an array of weights."""
 
     text = r'''
@@ -4425,7 +4430,7 @@ class FTSNormalizeDocFunction(dbops.Function):
         )
 
 
-class FTSToRegconfig(dbops.Function):
+class FTSToRegconfig(trampoline.VersionedFunction):
     """
     Converts ISO 639-3 language identifiers into a regconfig.
     Defaults to english.
@@ -4480,7 +4485,7 @@ class FTSToRegconfig(dbops.Function):
         )
 
 
-class FormatTypeFunction(dbops.Function):
+class FormatTypeFunction(trampoline.VersionedFunction):
     """Used instead of pg_catalog.format_type in pg_dump."""
 
     text = r'''
@@ -4527,7 +4532,7 @@ class FormatTypeFunction(dbops.Function):
         )
 
 
-class UuidGenerateV1mcFunction(dbops.Function):
+class UuidGenerateV1mcFunction(trampoline.VersionedFunction):
     def __init__(self, ext_schema: str) -> None:
         super().__init__(
             name=('edgedb', 'uuid_generate_v1mc'),
@@ -4541,7 +4546,7 @@ class UuidGenerateV1mcFunction(dbops.Function):
         )
 
 
-class UuidGenerateV4Function(dbops.Function):
+class UuidGenerateV4Function(trampoline.VersionedFunction):
     def __init__(self, ext_schema: str) -> None:
         super().__init__(
             name=('edgedb', 'uuid_generate_v4'),
@@ -4555,7 +4560,7 @@ class UuidGenerateV4Function(dbops.Function):
         )
 
 
-class UuidGenerateV5Function(dbops.Function):
+class UuidGenerateV5Function(trampoline.VersionedFunction):
     def __init__(self, ext_schema: str) -> None:
         super().__init__(
             name=('edgedb', 'uuid_generate_v5'),
@@ -4572,7 +4577,7 @@ class UuidGenerateV5Function(dbops.Function):
         )
 
 
-class PadBase64StringFunction(dbops.Function):
+class PadBase64StringFunction(trampoline.VersionedFunction):
     text = r"""
         WITH
             l AS (SELECT pg_catalog.length("s") % 4 AS r),
@@ -4907,22 +4912,22 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
     view_fields = {
         'id': "((d.description)->>'id')::uuid",
         'internal': f"""(CASE WHEN
-                (edgedb.get_backend_capabilities()
+                (edgedb_VER.get_backend_capabilities()
                  & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
              THEN
                 datname IN (
-                    edgedb.get_database_backend_name(
+                    edgedb_VER.get_database_backend_name(
                         {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                    edgedb.get_database_backend_name(
+                    edgedb_VER.get_database_backend_name(
                         {ql(defines.EDGEDB_SYSTEM_DB)})
                 )
              ELSE False END
         )""",
         'name': (
-            'edgedb.get_database_frontend_name(datname) COLLATE "default"'
+            'edgedb_VER.get_database_frontend_name(datname) COLLATE "default"'
         ),
         'name__internal': (
-            'edgedb.get_database_frontend_name(datname) COLLATE "default"'
+            'edgedb_VER.get_database_frontend_name(datname) COLLATE "default"'
         ),
         'computed_fields': 'ARRAY[]::text[]',
         'builtin': "((d.description)->>'builtin')::bool",
@@ -4935,12 +4940,13 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
             pg_database dat
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(dat.oid, 'pg_database')
+                    edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
                         AS description
             ) AS d
         WHERE
             (d.description)->>'id' IS NOT NULL
-            AND (d.description)->>'tenant_id' = edgedb.get_backend_tenant_id()
+            AND (d.description)->>'tenant_id'
+                = edgedb_VER.get_backend_tenant_id()
     '''
 
     annos_link_fields = {
@@ -4957,7 +4963,7 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
             pg_database dat
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(dat.oid, 'pg_database')
+                    edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
                         AS description
             ) AS d
             CROSS JOIN LATERAL
@@ -4979,7 +4985,7 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
             pg_database dat
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(dat.oid, 'pg_database')
+                    edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
                         AS description
             ) AS d
             CROSS JOIN LATERAL
@@ -5026,7 +5032,8 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
         'script': "(e.value->>'script')",
         'sql_extensions': '''
             COALESCE(
-                (SELECT array_agg(edgedb.jsonb_extract_scalar(q.v, 'string'))
+                (SELECT
+                    array_agg(edgedb_VER.jsonb_extract_scalar(q.v, 'string'))
                 FROM jsonb_array_elements(
                     e.value->'sql_extensions'
                 ) AS q(v)),
@@ -5035,7 +5042,8 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
         ''',
         'dependencies': '''
             COALESCE(
-                (SELECT array_agg(edgedb.jsonb_extract_scalar(q.v, 'string'))
+                (SELECT
+                    array_agg(edgedb_VER.jsonb_extract_scalar(q.v, 'string'))
                 FROM jsonb_array_elements(
                     e.value->'dependencies'
                 ) AS q(v)),
@@ -5068,7 +5076,7 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
             {format_fields(schema, ExtPkg, view_query_fields)}
         FROM
             jsonb_each(
-                edgedb.get_database_metadata(
+                edgedb_VER.get_database_metadata(
                     {ql(defines.EDGEDB_TEMPLATE_DB)}
                 ) -> 'ExtensionPackage'
             ) AS e
@@ -5092,7 +5100,7 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
             {format_fields(schema, annos, annos_link_fields)}
         FROM
             jsonb_each(
-                edgedb.get_database_metadata(
+                edgedb_VER.get_database_metadata(
                     {ql(defines.EDGEDB_TEMPLATE_DB)}
                 ) -> 'ExtensionPackage'
             ) AS e
@@ -5107,7 +5115,7 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
             {format_fields(schema, int_annos, int_annos_link_fields)}
         FROM
             jsonb_each(
-                edgedb.get_database_metadata(
+                edgedb_VER.get_database_metadata(
                     {ql(defines.EDGEDB_TEMPLATE_DB)}
                 ) -> 'ExtensionPackage'
             ) AS e
@@ -5154,7 +5162,7 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
                     ON (m.roleid = g.oid)
             WHERE
                 m.member = a.oid
-                AND g.rolname = edgedb.get_role_backend_name(
+                AND g.rolname = edgedb_VER.get_role_backend_name(
                     {ql(defines.EDGEDB_SUPERGROUP)}
                 )
         )
@@ -5181,12 +5189,13 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(a.oid, 'pg_authid')
+                    edgedb_VER.shobj_metadata(a.oid, 'pg_authid')
                         AS description
             ) AS d
         WHERE
             (d.description)->>'id' IS NOT NULL
-            AND (d.description)->>'tenant_id' = edgedb.get_backend_tenant_id()
+            AND
+              (d.description)->>'tenant_id' = edgedb_VER.get_backend_tenant_id()
     '''
 
     member_of_link_query_fields = {
@@ -5201,13 +5210,13 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(a.oid, 'pg_authid')
+                    edgedb_VER.shobj_metadata(a.oid, 'pg_authid')
                         AS description
             ) AS d
             INNER JOIN pg_auth_members m ON m.member = a.oid
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(m.roleid, 'pg_authid')
+                    edgedb_VER.shobj_metadata(m.roleid, 'pg_authid')
                         AS description
             ) AS md
     '''
@@ -5225,13 +5234,13 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(a.oid, 'pg_authid')
+                    edgedb_VER.shobj_metadata(a.oid, 'pg_authid')
                         AS description
             ) AS d
             INNER JOIN pg_auth_members m ON m.member = a.oid
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(m.roleid, 'pg_authid')
+                    edgedb_VER.shobj_metadata(m.roleid, 'pg_authid')
                         AS description
             ) AS md
     '''
@@ -5243,13 +5252,13 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(a.oid, 'pg_authid')
+                    edgedb_VER.shobj_metadata(a.oid, 'pg_authid')
                         AS description
             ) AS d
             INNER JOIN pg_auth_members m ON m.member = a.oid
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(m.roleid, 'pg_authid')
+                    edgedb_VER.shobj_metadata(m.roleid, 'pg_authid')
                         AS description
             ) AS md
     '''
@@ -5268,7 +5277,7 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(a.oid, 'pg_authid')
+                    edgedb_VER.shobj_metadata(a.oid, 'pg_authid')
                         AS description
             ) AS d
             CROSS JOIN LATERAL
@@ -5292,7 +5301,7 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
                 SELECT
-                    edgedb.shobj_metadata(a.oid, 'pg_authid')
+                    edgedb_VER.shobj_metadata(a.oid, 'pg_authid')
                         AS description
             ) AS d
             CROSS JOIN LATERAL
@@ -5354,7 +5363,7 @@ def _generate_single_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             edgedbinstdata.instdata
         WHERE
             key = 'single_role_metadata'
-            AND json->>'tenant_id' = edgedb.get_backend_tenant_id()
+            AND json->>'tenant_id' = edgedb_VER.get_backend_tenant_id()
     '''
 
     member_of_link_query_fields = {
@@ -5404,7 +5413,7 @@ def _generate_single_role_views(schema: s_schema.Schema) -> List[dbops.View]:
                 ) AS annotations
         WHERE
             key = 'single_role_metadata'
-            AND json->>'tenant_id' = edgedb.get_backend_tenant_id()
+            AND json->>'tenant_id' = edgedb_VER.get_backend_tenant_id()
     '''
 
     int_annos_link_fields = {
@@ -5424,7 +5433,7 @@ def _generate_single_role_views(schema: s_schema.Schema) -> List[dbops.View]:
                 ) AS annotations
         WHERE
             key = 'single_role_metadata'
-            AND json->>'tenant_id' = edgedb.get_backend_tenant_id()
+            AND json->>'tenant_id' = edgedb_VER.get_backend_tenant_id()
     '''
 
     objects = {
@@ -5466,7 +5475,7 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
             {format_fields(schema, Ver, view_fields)}
         FROM
             jsonb_each(
-                edgedb.get_database_metadata(
+                edgedb_VER.get_database_metadata(
                     {ql(defines.EDGEDB_TEMPLATE_DB)}
                 ) -> 'GlobalSchemaVersion'
             ) AS v
@@ -5576,7 +5585,7 @@ def _generate_schema_alias_view(
     else:
         name = f'_{prefix}{obj.get_name(schema).name}'
 
-    return dbops.View(
+    return trampoline.VersionedView(
         name=('edgedb', name),
         query=(f'SELECT {", ".join(targets)} FROM {q(*bn)}')
     )
@@ -5589,7 +5598,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     # A helper view that contains all data tables we expose over SQL, excluding
     # introspection tables.
     # It contains table & schema names and associated module id.
-    virtual_tables = dbops.View(
+    virtual_tables = trampoline.VersionedView(
         name=('edgedbsql', 'virtual_tables'),
         query='''
         WITH obj_ty_pre AS (
@@ -5764,12 +5773,12 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     sql_bool = 'information_schema.yes_or_no'
     sql_card = 'information_schema.cardinal_number'
     tables_and_columns = [
-        dbops.View(
+        trampoline.VersionedView(
             name=('edgedbsql', 'tables'),
             query=(
                 f'''
         SELECT
-            edgedb.get_current_database()::{sql_ident} AS table_catalog,
+            edgedb_VER.get_current_database()::{sql_ident} AS table_catalog,
             vt.schema_name::{sql_ident} AS table_schema,
             vt.table_name::{sql_ident} AS table_name,
             ist.table_type,
@@ -5786,12 +5795,12 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             '''
             ),
         ),
-        dbops.View(
+        trampoline.VersionedView(
             name=('edgedbsql', 'columns'),
             query=(
                 f'''
         SELECT
-            edgedb.get_current_database()::{sql_ident} AS table_catalog,
+            edgedb_VER.get_current_database()::{sql_ident} AS table_catalog,
             vt_table_schema::{sql_ident} AS table_schema,
             vt_table_name::{sql_ident} AS table_name,
             v_column_name::{sql_ident} as column_name,
@@ -5819,7 +5828,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             NULL::{sql_ident} AS domain_catalog,
             NULL::{sql_ident} AS domain_schema,
             NULL::{sql_ident} AS domain_name,
-            edgedb.get_current_database()::{sql_ident} AS udt_catalog,
+            edgedb_VER.get_current_database()::{sql_ident} AS udt_catalog,
             'pg_catalog'::{sql_ident} AS udt_schema,
             NULL::{sql_ident} AS udt_name,
             NULL::{sql_ident} AS scope_catalog,
@@ -5872,7 +5881,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     ]
 
     pg_catalog_views = [
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_namespace"),
             query="""
         SELECT
@@ -5915,7 +5924,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         ) t
         """,
         ),
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_type"),
             query="""
         SELECT
@@ -5940,7 +5949,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         ),
         # TODO: Should we try to filter here, and fix up some stuff
         # elsewhere, instead of overriding pg_get_constraintdef?
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_constraint"),
             query="""
         SELECT
@@ -5951,7 +5960,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE NOT (pn.nspname = 'edgedbpub' AND pc.conbin IS NOT NULL)
         """
         ),
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_index"),
             query="""
         SELECT pi.*, pi.tableoid, pi.xmin, pi.cmin, pi.xmax, pi.cmax, pi.ctid
@@ -5961,7 +5970,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE pn.nspname <> 'edgedbpub'
         """,
         ),
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_class"),
             query="""
         WITH
@@ -6086,7 +6095,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         # constructed attnum into underlying attnum.
         # To do that, we have pg_attribute_ext view with additional
         # attnum_internal column.
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_attribute_ext"),
             query=r"""
         SELECT attrelid,
@@ -6195,7 +6204,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         ) t
         """,
         ),
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_attribute"),
             query="""
         SELECT
@@ -6234,12 +6243,12 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         """,
         ),
 
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_database"),
             query="""
         SELECT
             oid,
-            edgedb.get_current_database()::name as datname,
+            edgedb_VER.get_current_database()::name as datname,
             datdba,
             encoding,
             datcollate,
@@ -6261,7 +6270,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         # HACK: there were problems with pg_dump when exposing this table, so
         # I've added WHERE FALSE. The query could be simplified, but it may
         # be needed in the future. Its EXPLAIN cost is 0..0 anyway.
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_stats"),
             query="""
         SELECT n.nspname AS schemaname,
@@ -6287,7 +6296,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE FALSE
         """,
         ),
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_statistic"),
             query="""
         SELECT
@@ -6329,7 +6338,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         )
         """,
         ),
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_statistic_ext"),
             query="""
         SELECT
@@ -6346,7 +6355,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         FROM pg_statistic_ext
         """,
         ),
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_statistic_ext_data"),
             query="""
         SELECT
@@ -6359,7 +6368,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         FROM pg_statistic_ext_data
         """,
         ),
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_rewrite"),
             query="""
         SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
@@ -6373,7 +6382,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         # not exposing any casts at all here since there is no real reason for
         # this compatibility layer that is read-only to have elaborate casts
         # present.
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_cast"),
             query="""
         SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
@@ -6382,7 +6391,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         """,
         ),
         # Omit all funcitons for now.
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_proc"),
             query="""
         SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
@@ -6391,7 +6400,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         """,
         ),
         # Omit all operators for now.
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_operator"),
             query="""
         SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
@@ -6400,7 +6409,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         """,
         ),
         # Omit all triggers for now.
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_trigger"),
             query="""
         SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
@@ -6414,7 +6423,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         # view expands the query to all columns, which is not allowed.
         # So we have to construct an empty view with correct signature that
         # does not reference pg_subscription.
-        dbops.View(
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_subscription"),
             query="""
         SELECT
@@ -6500,7 +6509,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             columns = list(columns) + system_columns
 
         columns_sql = ','.join('o.' + c for c in columns)
-        return dbops.View(
+        return trampoline.VersionedView(
             name=("edgedbsql", table_name),
             query=f"SELECT {columns_sql} FROM pg_catalog.{table_name} o",
         )
@@ -6511,14 +6520,14 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     # views that expose the actual data.
     # I've been cautious about exposing too much data, for example limiting
     # pg_type to pg_catalog and pg_toast namespaces.
-    views = []
+    views: list[dbops.View] = []
     views.extend(tables_and_columns)
 
     for table_name, columns in sql_introspection.INFORMATION_SCHEMA.items():
         if table_name in ["tables", "columns"]:
             continue
         views.append(
-            dbops.View(
+            trampoline.VersionedView(
                 name=("edgedbsql", table_name),
                 query="SELECT {} LIMIT 0".format(
                     ",".join(
@@ -6748,7 +6757,8 @@ def get_config_type_views(
         existing_view_columns=existing_view_columns,
     )
     commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
+        dbops.CreateView(
+            trampoline.VersionedView(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
     ])
 
@@ -6932,7 +6942,7 @@ def _build_key_expr(key_components: List[str]) -> str:
         (SELECT
             (CASE WHEN array_position(q.v, NULL) IS NULL
              THEN
-                 edgedb.uuid_generate_v5(
+                 edgedb_VER.uuid_generate_v5(
                      '{DATABASE_ID_NAMESPACE}'::uuid,
                      array_to_string(q.v, ';')
                  )
@@ -7036,7 +7046,7 @@ def _generate_config_type_view(
                 (SELECT
                     (SELECT jsonb_object_agg(
                       substr(name, {len(cfg_name) + 3}), value) AS val
-                    FROM edgedb._read_sys_config(
+                    FROM edgedb_VER._read_sys_config(
                       NULL, scope::edgedb._sys_config_source_t) cfg
                     WHERE name LIKE {ql(escaped_name + '%')}
                     ) AS val, scope::text AS scope, scope_id AS scope_id
@@ -7051,7 +7061,8 @@ def _generate_config_type_view(
             # This is the root config object.
             source0 = f'''
                 (SELECT jsonb_object_agg(name, value) AS val
-                FROM edgedb._read_sys_config(NULL, {max_source}) cfg) AS q0'''
+                FROM edgedb_VER._read_sys_config(NULL, {max_source}) cfg)
+                AS q0'''
         else:
             rptr_name = rptr.get_shortname(schema).name
             rptr_source = not_none(rptr.get_source(schema))
@@ -7070,7 +7081,7 @@ def _generate_config_type_view(
                      ) AS s(scope, scope_id),
                      LATERAL (
                          SELECT (value::jsonb) AS val
-                         FROM edgedb._read_sys_config(
+                         FROM edgedb_VER._read_sys_config(
                            NULL, scope::edgedb._sys_config_source_t) cfg
                          WHERE name LIKE {ql(escaped_name + '%')}
                      ) AS cfg,
@@ -7083,7 +7094,7 @@ def _generate_config_type_view(
                     (SELECT el.val
                      FROM
                         (SELECT (value::jsonb) AS val
-                        FROM edgedb._read_sys_config(NULL, {max_source})
+                        FROM edgedb_VER._read_sys_config(NULL, {max_source})
                         WHERE name = {ql(rptr_name)}) AS cfg,
                         LATERAL jsonb_array_elements(cfg.val) AS el(val)
                     ) AS q0'''
@@ -7112,14 +7123,14 @@ def _generate_config_type_view(
                         (SELECT el.val
                         FROM
                             (SELECT (value::jsonb) AS val
-                            FROM edgedb._read_sys_config(NULL, {max_source})
+                            FROM edgedb_VER._read_sys_config(NULL, {max_source})
                             WHERE name = {ql(l_name)}) AS cfg,
                             LATERAL jsonb_array_elements(cfg.val) AS el(val)
                         ) AS q{i}'''
                 else:
                     sourceN = f'''
                         (SELECT (value::jsonb) AS val
-                        FROM edgedb._read_sys_config(NULL, {max_source}) cfg
+                        FROM edgedb_VER._read_sys_config(NULL, {max_source}) cfg
                         WHERE name = {ql(l_name)}) AS q{i}'''
             else:
                 sourceN = _build_data_source(schema, l, i - 1)
