@@ -885,7 +885,13 @@ def trace_Path(
                                 # We haven't computed the target yet,
                                 # so try computing it now.
                                 ctx.visited.add(ptr)
-                                ptr_target = trace(ptr.target_expr, ctx=ctx)
+
+                                target_ctx = _fork_context(ctx)
+                                target_ctx.path_prefix = sname
+                                ptr_target = trace(
+                                    ptr.target_expr, ctx=target_ctx
+                                )
+
                                 if isinstance(ptr_target, (Type,
                                                            s_types.Type)):
                                     tip = ptr.target = ptr_target
