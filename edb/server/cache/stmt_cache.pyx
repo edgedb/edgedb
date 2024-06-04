@@ -49,6 +49,14 @@ cdef class StatementsCache:
         self._dict_move_to_end = self._dict.move_to_end
         self._dict_get = self._dict.get
 
+    cdef StatementsCache copy(self):
+        cdef StatementsCache rv = StatementsCache.__new__(StatementsCache)
+        rv._dict = self._dict.copy()
+        rv._maxsize = self._maxsize
+        rv._dict_move_to_end = rv._dict.move_to_end
+        rv._dict_get = rv._dict.get
+        return rv
+
     cpdef get(self, key, default):
         o = self._dict_get(key, _LRU_MARKER)
         if o is _LRU_MARKER:

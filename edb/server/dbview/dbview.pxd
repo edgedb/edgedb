@@ -124,6 +124,8 @@ cdef class DatabaseConnectionView:
         # State properties
         object _config
         object _in_tx_config
+        stmt_cache.StatementsCache _eql_to_compiled_snapshot
+        stmt_cache.StatementsCache _in_tx_eql_to_compiled
 
         object _globals
         object _in_tx_globals
@@ -177,6 +179,7 @@ cdef class DatabaseConnectionView:
     cdef cache_compiled_query(self, object key, object query_unit_group)
     cdef lookup_compiled_query(self, object key)
     cdef as_compiled(self, query_req, query_unit_group, bint use_metrics=?)
+    cdef _commit_query_cache(self)
 
     cdef tx_error(self)
 

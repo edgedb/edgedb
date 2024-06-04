@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import Any, Optional, Tuple, Iterator, Dict, List, NamedTuple, Self
 
+import copy
 import dataclasses
 import enum
 import io
@@ -222,7 +223,16 @@ class QueryUnit:
 
     cache_key: Optional[uuid.UUID] = None
     cache_sql: Optional[Tuple[bytes, bytes]] = None  # (persist, evict)
+
+    # cache_func_call stores the calling SQL of the cache function
+    # if QueryCacheMode is set to PgFunc.
     cache_func_call: Optional[Tuple[bytes, bytes]] = None  # (sql, hash)
+
+    # cache_inline is an in-memory temporary reservation of the inlined
+    # query cache when cache_func_call is applied in self.sql and sql_hash,
+    # used by transactions that don't yet have the visibility of the newly
+    # persisted query cache outside the transaction.
+    cache_inline: Optional[Tuple[bytes, bytes]] = None  # (sql, hash)
 
     # Output format of this query unit
     output_format: enums.OutputFormat = enums.OutputFormat.NONE
@@ -370,9 +380,18 @@ class QueryUnit:
 
     def maybe_use_func_cache(self) -> None:
         if self.cache_func_call is not None:
+            self.cache_inline = (self.sql[0], self.sql_hash)
             sql, sql_hash = self.cache_func_call
             self.sql = (sql,)
             self.sql_hash = sql_hash
+
+    def maybe_restore_inline_cache(self) -> Optional[Self]:
+        if self.cache_inline is not None:
+            rv = copy.copy(self)
+            sql, sql_hash = self.cache_inline
+            self.sql = (sql,)
+            self.sql_hash = sql_hash
+            return rv
 
 
 @dataclasses.dataclass
@@ -463,6 +482,14 @@ class QueryUnitGroup:
             self._units.append(query_unit)
         else:
             self._units.append(query_unit.serialize())
+
+    def maybe_restore_inline_cache(self) -> Optional[Self]:
+        if len(self._units) == 1:
+            restored_unit = self._units[0].maybe_restore_inline_cache()
+            if restored_unit is not None:
+                rv = copy.copy(self)
+                rv._units = [restored_unit]
+                return rv
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
