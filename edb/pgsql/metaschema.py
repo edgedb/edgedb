@@ -73,12 +73,14 @@ from . import dbops
 from . import types
 from . import params
 from . import codegen
-
+from . import trampoline
 
 q = common.qname
 qi = common.quote_ident
 ql = common.quote_literal
 qt = common.quote_type
+
+V = trampoline.versioned_schema
 
 
 DATABASE_ID_NAMESPACE = uuidgen.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
@@ -4602,6 +4604,22 @@ class PadBase64StringFunction(dbops.Function):
         )
 
 
+def trampoline_functions(cmds: list[dbops.Command]) -> list[dbops.Command]:
+    namespace = V('')
+    ncmds = list(cmds)
+    for cmd in cmds:
+        if (
+            isinstance(cmd, dbops.CreateFunction)
+            and cmd.function.name[0].endswith(namespace)
+        ):
+            # print("TRAMPOLINING", cmd.function.name)
+            ncmds.append(dbops.CreateFunction(
+                trampoline.make_trampoline(cmd.function),
+                or_replace=True,
+            ))
+    return ncmds
+
+
 async def bootstrap(
     conn: PGConnection,
     config_spec: edbconfig.Spec,
@@ -4611,6 +4629,12 @@ async def bootstrap(
         dbops.CreateSchema(name='edgedbpub'),
         dbops.CreateSchema(name='edgedbstd'),
         dbops.CreateSchema(name='edgedbsql'),
+
+        dbops.CreateSchema(name=V('edgedb')),
+        dbops.CreateSchema(name=V('edgedbpub')),
+        dbops.CreateSchema(name=V('edgedbstd')),
+        dbops.CreateSchema(name=V('edgedbsql')),
+
         dbops.CreateView(NormalizedPgSettingsView()),
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
@@ -4731,8 +4755,9 @@ async def bootstrap(
         dbops.CreateFunction(FTSToRegconfig()),
         dbops.CreateFunction(PadBase64StringFunction()),
     ]
+
     commands = dbops.CommandGroup()
-    commands.add_commands(cmds)
+    commands.add_commands(trampoline_functions(cmds))
 
     block = dbops.PLTopBlock()
     commands.generate(block)
@@ -4971,9 +4996,10 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
         int_annos: int_annos_link_query,
     }
 
-    views = []
+    views: list[dbops.View] = []
     for obj, query in objects.items():
-        tabview = dbops.View(name=tabname(schema, obj), query=query)
+        tabview = trampoline.VersionedView(
+            name=tabname(schema, obj), query=query)
         views.append(tabview)
 
     return views
@@ -5097,9 +5123,10 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
         int_annos: int_annos_link_query,
     }
 
-    views = []
+    views: list[dbops.View] = []
     for obj, query in objects.items():
-        tabview = dbops.View(name=tabname(schema, obj), query=query)
+        tabview = trampoline.VersionedView(
+            name=tabname(schema, obj), query=query)
         views.append(tabview)
 
     return views
@@ -5285,9 +5312,10 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
         int_annos: int_annos_link_query,
     }
 
-    views = []
+    views: list[dbops.View] = []
     for obj, query in objects.items():
-        tabview = dbops.View(name=tabname(schema, obj), query=query)
+        tabview = trampoline.VersionedView(
+            name=tabname(schema, obj), query=query)
         views.append(tabview)
 
     return views
@@ -5408,9 +5436,10 @@ def _generate_single_role_views(schema: s_schema.Schema) -> List[dbops.View]:
         int_annos: int_annos_link_query,
     }
 
-    views = []
+    views: list[dbops.View] = []
     for obj, query in objects.items():
-        tabview = dbops.View(name=tabname(schema, obj), query=query)
+        tabview = trampoline.VersionedView(
+            name=tabname(schema, obj), query=query)
         views.append(tabview)
 
     return views
@@ -5447,9 +5476,10 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
         Ver: view_query
     }
 
-    views = []
+    views: list[dbops.View] = []
     for obj, query in objects.items():
-        tabview = dbops.View(name=tabname(schema, obj), query=query)
+        tabview = trampoline.VersionedView(
+            name=tabname(schema, obj), query=query)
         views.append(tabview)
 
     return views
@@ -6829,12 +6859,12 @@ async def generate_support_functions(
 ) -> None:
     commands = dbops.CommandGroup()
 
-    commands.add_commands([
+    commands.add_commands(trampoline_functions([
         dbops.CreateFunction(IssubclassFunction()),
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
         dbops.CreateFunction(FormatTypeFunction()),
-    ])
+    ]))
 
     block = dbops.PLTopBlock()
     commands.generate(block)
@@ -6849,12 +6879,12 @@ async def generate_more_support_functions(
 ) -> None:
     commands = dbops.CommandGroup()
 
-    commands.add_commands([
+    commands.add_commands(trampoline_functions([
         dbops.CreateFunction(
             DescribeRolesAsDDLFunction(schema), or_replace=True),
         dbops.CreateFunction(GetSequenceBackendNameFunction()),
         dbops.CreateFunction(DumpSequencesFunction()),
-    ])
+    ]))
 
     block = dbops.PLTopBlock()
     commands.generate(block)
