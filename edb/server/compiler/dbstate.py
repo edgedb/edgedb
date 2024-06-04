@@ -392,6 +392,7 @@ class QueryUnit:
             self.sql = (sql,)
             self.sql_hash = sql_hash
             return rv
+        return None
 
 
 @dataclasses.dataclass
@@ -485,11 +486,12 @@ class QueryUnitGroup:
 
     def maybe_restore_inline_cache(self) -> Optional[Self]:
         if len(self._units) == 1:
-            restored_unit = self._units[0].maybe_restore_inline_cache()
+            restored_unit = self[0].maybe_restore_inline_cache()
             if restored_unit is not None:
                 rv = copy.copy(self)
                 rv._units = [restored_unit]
                 return rv
+        return None
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
