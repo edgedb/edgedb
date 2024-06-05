@@ -1210,93 +1210,102 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 r'''SELECT array_insert(<array<int64>>[], -1, 9);''',
             )
 
-    async def test_edgeql_functions_array_erase_01(self):
+    async def test_edgeql_functions_array_remove_01(self):
         # Positive indexes
         await self.assert_query_result(
-            r'''SELECT array_erase([1, 2, 3, 4], 0);''',
+            r'''SELECT array_remove([1, 2, 3, 4], 0);''',
             [[2, 3, 4]],
         )
 
         await self.assert_query_result(
-            r'''SELECT array_erase([1, 2, 3, 4], 1);''',
+            r'''SELECT array_remove([1, 2, 3, 4], 1);''',
             [[1, 3, 4]],
         )
 
         await self.assert_query_result(
-            r'''SELECT array_erase([1, 2, 3, 4], 2);''',
+            r'''SELECT array_remove([1, 2, 3, 4], 2);''',
             [[1, 2, 4]],
         )
 
         await self.assert_query_result(
-            r'''SELECT array_erase([1, 2, 3, 4], 3);''',
+            r'''SELECT array_remove([1, 2, 3, 4], 3);''',
             [[1, 2, 3]],
         )
 
         # Negative indexes
         await self.assert_query_result(
-            r'''SELECT array_erase([1, 2, 3, 4], -1);''',
+            r'''SELECT array_remove([1, 2, 3, 4], -1);''',
             [[1, 2, 3]],
         )
 
         await self.assert_query_result(
-            r'''SELECT array_erase([1, 2, 3, 4], -2);''',
+            r'''SELECT array_remove([1, 2, 3, 4], -2);''',
             [[1, 2, 4]],
         )
 
         await self.assert_query_result(
-            r'''SELECT array_erase([1, 2, 3, 4], -3);''',
+            r'''SELECT array_remove([1, 2, 3, 4], -3);''',
             [[1, 3, 4]],
         )
 
         # Size 1 array
         await self.assert_query_result(
-            r'''SELECT array_erase([1], 0);''',
+            r'''SELECT array_remove([1], 0);''',
             [[]],
         )
 
-    async def test_edgeql_functions_array_erase_02(self):
+    async def test_edgeql_functions_array_remove_02(self):
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
             'array index 4 is out of bounds'
         ):
             await self.con.query(
-                r'''SELECT array_erase([1, 2, 3, 4], 4);''',
+                r'''SELECT array_remove([1, 2, 3, 4], 4);''',
             )
 
-    async def test_edgeql_functions_array_erase_03(self):
+    async def test_edgeql_functions_array_remove_03(self):
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
             'array index -5 is out of bounds'
         ):
             await self.con.query(
-                r'''SELECT array_erase([1, 2, 3, 4], -5);''',
+                r'''SELECT array_remove([1, 2, 3, 4], -5);''',
             )
 
-    async def test_edgeql_functions_array_erase_04(self):
+    async def test_edgeql_functions_array_remove_04(self):
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
             'array index 1 is out of bounds'
         ):
             await self.con.query(
-                r'''SELECT array_erase([1], 1);''',
+                r'''SELECT array_remove([1], 1);''',
             )
 
-    async def test_edgeql_functions_array_erase_05(self):
+    async def test_edgeql_functions_array_remove_05(self):
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
             'array index -2 is out of bounds'
         ):
             await self.con.query(
-                r'''SELECT array_erase([1], -2);''',
+                r'''SELECT array_remove([1], -2);''',
             )
 
-    async def test_edgeql_functions_array_erase_06(self):
+    async def test_edgeql_functions_array_remove_06(self):
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
             'array index 0 is out of bounds'
         ):
             await self.con.query(
-                r'''SELECT array_erase(<array<int64>>[], 0);''',
+                r'''SELECT array_remove(<array<int64>>[], 0);''',
+            )
+
+    async def test_edgeql_functions_array_remove_07(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index -1 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_remove(<array<int64>>[], -1);''',
             )
 
     @test.xerror(

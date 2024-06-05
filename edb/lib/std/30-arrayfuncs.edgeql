@@ -200,13 +200,13 @@ std::array_insert(
 
 
 CREATE FUNCTION
-std::array_erase(
+std::array_remove(
     array: array<anytype>,
     idx: std::int64
 ) -> array<anytype>
 {
     CREATE ANNOTATION std::description :=
-        'Erase *val* at the specified *index* of the *array*.';
+        'Remove *val* at the specified *index* of the *array*.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT CASE
