@@ -4644,18 +4644,6 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }],
         )
 
-    @test.xerror('''
-        edgedb.errors.SchemaError: ObjectType 'test::Base' is already
-        present in the schema <Schema gen:3757 at 0x7fc3319fa820>
-
-        Exception: Error while processing
-        'CREATE ALIAS test::Base := (
-            SELECT
-                test::Child {
-                    bar := test::Child
-                }
-        );'
-    ''')
     async def test_edgeql_migration_eq_23(self):
         await self.migrate(r"""
             type Child {
