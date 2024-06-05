@@ -49,6 +49,10 @@ PGVECTOR_REPO = 'https://github.com/pgvector/pgvector.git'
 # This can be a branch, tag, or commit
 PGVECTOR_COMMIT = 'v0.6.0'
 
+POSTGIS_REPO = 'https://github.com/postgis/postgis.git'
+# This can be a branch, tag, or commit
+POSTGIS_COMMIT = '3.4.2'
+
 SAFE_EXT_CFLAGS: list[str] = []
 if flag := os.environ.get('EDGEDB_OPT_CFLAG'):
     SAFE_EXT_CFLAGS += [flag]
@@ -340,6 +344,95 @@ def _compile_pgvector(build_base, build_temp):
             f'PG_CONFIG={pg_config}',
         ],
         cwd=pgv_root,
+        check=True,
+    )
+
+
+def _compile_postgis(build_base, build_temp):
+    git_rev = _get_git_rev(POSTGIS_REPO, POSTGIS_COMMIT)
+
+    pgis_root = (build_base / 'postgis').resolve()
+    if not pgis_root.exists():
+        pgis_root.mkdir(parents=True)
+    pgis_src = (pgis_root / 'src').resolve()
+    if not pgis_src.exists():
+        subprocess.run(
+            [
+                'git',
+                'clone',
+                '--recursive',
+                POSTGIS_REPO,
+                pgis_src,
+            ],
+            check=True
+        )
+    else:
+        subprocess.run(
+            ['git', 'fetch', '--all'],
+            check=True,
+            cwd=pgis_src,
+        )
+
+    subprocess.run(
+        ['git', 'reset', '--hard', git_rev],
+        check=True,
+        cwd=pgis_src,
+    )
+
+    pgis_prefix = (pgis_root / 'install').resolve()
+    if not pgis_prefix.exists():
+        pgis_prefix.mkdir(parents=True)
+    pg_config = (
+        build_base / 'postgres' / 'install' / 'bin' / 'pg_config'
+    ).resolve()
+
+    cflags = os.environ.get("CFLAGS", "")
+    cflags = f"{cflags} {' '.join(SAFE_EXT_CFLAGS)} -std=gnu99"
+
+    subprocess.run(
+        [
+            'sh',
+            'autogen.sh',
+        ],
+        cwd=pgis_src,
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            str(pgis_src / 'configure'),
+            f'--prefix={pgis_prefix}',
+            f'--with-pgconfig={pg_config}',
+            '--without-raster',
+            f'CFLAGS={cflags}',
+        ],
+        cwd=pgis_src,
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            'make',
+        ],
+        cwd=pgis_src,
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            'make',
+            'comments',
+        ],
+        cwd=pgis_src,
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            'make',
+            'install',
+        ],
+        cwd=pgis_src,
         check=True,
     )
 
@@ -654,6 +747,10 @@ class build_postgres(setuptools.Command):
             produce_compile_commands_json=self.compile_commands,
         )
         _compile_pgvector(
+            pathlib.Path(build.build_base).resolve(),
+            pathlib.Path(build.build_temp).resolve(),
+        )
+        _compile_postgis(
             pathlib.Path(build.build_base).resolve(),
             pathlib.Path(build.build_temp).resolve(),
         )
