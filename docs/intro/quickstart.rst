@@ -18,34 +18,100 @@ data, and writing your first query. Let's jump in!
 First let's install the EdgeDB CLI. Open a terminal and run the appropriate
 command below.
 
-**macOS/Linux**
+.. note:: Great news for Node users!
 
-.. code-block:: bash
+    Skip installing and start using the EdgeDB CLI right away! Just prepend
+    :ref:`any CLI command <ref_cli_overview>` with ``npx`` or your package
+    manager's equivalent. For example, to create a new project, you can use
+    ``npx edgedb project init``.
 
-  $ curl https://sh.edgedb.com --proto '=https' -sSf1 | sh
+Linux
+-----
 
-**Windows (Powershell)**
+.. tabs::
+
+    .. code-tab:: bash
+        :caption: Script
+
+        $ curl https://sh.edgedb.com --proto '=https' -sSf1 | sh
+
+    .. code-tab:: bash
+        :caption: APT
+
+        $ # Import the EdgeDB packaging key
+        $ sudo mkdir -p /usr/local/share/keyrings && \
+          sudo curl --proto '=https' --tlsv1.2 -sSf \
+            -o /usr/local/share/keyrings/edgedb-keyring.gpg \
+            https://packages.edgedb.com/keys/edgedb-keyring.gpg && \
+        $ # Add the EdgeDB package repository
+        $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg]\
+            https://packages.edgedb.com/apt \
+            $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) main \
+            | sudo tee /etc/apt/sources.list.d/edgedb.list
+        $ # Install the EdgeDB package
+        $ sudo apt-get update && sudo apt-get install edgedb-5
+
+    .. code-tab:: bash
+        :caption: YUM
+
+        $ # Add the EdgeDB package repository
+        $ sudo curl --proto '=https' --tlsv1.2 -sSfL \
+            https://packages.edgedb.com/rpm/edgedb-rhel.repo \
+            > /etc/yum.repos.d/edgedb.repo
+        $ # Install the EdgeDB package
+        $ sudo yum install edgedb-5
+
+macOS
+-----
+
+.. tabs::
+
+    .. code-tab:: bash
+        :caption: Script
+
+        $ curl https://sh.edgedb.com --proto '=https' -sSf1 | sh
+
+    .. code-tab:: bash
+        :caption: Homebrew
+
+        $ # Add the EdgeDB tap to your Homebrew
+        $ brew tap edgedb/tap
+        $ # Install EdgeDB CLI
+        $ brew install edgedb-cli
+
+Windows (Powershell)
+--------------------
 
 .. note::
 
-    EdgeDB on Windows requires WSL 2 because the EdgeDB server runs on Linux.
+    EdgeDB on Windows requires WSL 2 to create local instances because the
+    EdgeDB server runs on Linux. It is *not* required if you will use the CLI
+    only to manage EdgeDB Cloud and/or other remote instances. This quickstart
+    *does* create local instances, so WSL 2 is required to complete the
+    quickstart.
 
-.. code-block::
+.. code-block:: powershell
 
-  PS> iwr https://ps1.edgedb.com -useb | iex
+    PS> iwr https://ps1.edgedb.com -useb | iex
 
-This command downloads and executes a bash script that installs the ``edgedb``
-CLI on your machine. You may be asked for your password. Once the installation
-completes, you may need to **restart your terminal** before you can use the
-``edgedb`` command.
+.. note:: Command prompt installation
 
-.. note::
+    To install EdgeDB in the Windows Command prompt, follow these steps:
 
-  Check out our additional installation methods `for various Linux distros\
-  <https://www.edgedb.com/install#linux-debianubuntults>`_, `via Homebrew on
-  macOS\ <https://www.edgedb.com/install#macos-homebrew>`_, and `for the
-  Windows Command Prompt\
-  <https://www.edgedb.com/install#windows-commandprompt>`_.
+    1. `Download the CLI <https://packages.edgedb.com/dist/x86_64-pc-windows-msvc/edgedb-cli.exe>`__
+
+    2. Navigate to the download location in the command prompt
+
+    3. Run the installation command:
+
+    .. code-block::
+
+        edgedb-cli.exe _self_install
+
+The script installation methods download and execute a bash script that
+installs the ``edgedb`` CLI on your machine. You may be asked for your
+password. Once the installation completes, you may need to **restart your
+terminal** before you can use the ``edgedb`` command.
 
 Now let's set up your EdgeDB project.
 
