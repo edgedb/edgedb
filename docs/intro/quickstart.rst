@@ -20,10 +20,10 @@ command below.
 
 .. note:: Great news for Node users!
 
-    Skip installing and start using the EdgeDB CLI right away! Just use ``npx
-    edgedb``. For example, to create a new project, you can use ``npx edgedb
-    project init``. Try it with :ref:`any of our CLI commands
-    <ref_cli_overview>`!
+    Skip installing and start using the EdgeDB CLI right away! Just prepend
+    :ref:`any CLI command <ref_cli_overview>` with ``npx`` or your package
+    manager's equivalent. For example, to create a new project, you can use
+    ``npx edgedb project init``.
 
 Linux
 -----
