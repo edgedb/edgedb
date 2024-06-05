@@ -151,6 +151,43 @@ can define an AI index on an expression:
         }
       };
 
+.. note:: When AI indexes aren't working…
+
+    If you find your queries are not returning the expected results, try
+    inspecting your instance logs. On an EdgeDB Cloud instance, use the "Logs"
+    tab in your instance dashboard. On local or :ref:`CLI-linked remote
+    instances <ref_cli_edgedb_instance_link>`, use ``edgedb instance logs -I
+    <instance-name>``. You may find the problem there.
+
+    Providers impose rate limits on their APIs which can often be the source of
+    AI index problems. If index creation hits a rate limit, EdgeDB will wait
+    the ``indexer_naptime`` (see the docs on :ref:`ext::ai configuration
+    <ref_ai_reference_config>`) and resume index creation.
+
+    If your indexed property contains values that exceed the token limit for a
+    single request, you may consider truncating the property value in your
+    index expression. You can do this with a string by slicing it:
+
+    .. code-block:: sdl
+
+        module default {
+          type Astronomy {
+            content: str;
+            deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
+              on (.content[0:10000]);
+          }
+        };
+
+    This example will slice the first 10,000 characters of the ``content``
+    property for indexing.
+
+    Tokens are not equivalent to characters. For OpenAI embedding generation,
+    you may test values via `OpenAI's web-based tokenizer
+    <https://platform.openai.com/tokenizer>`__. You may alternatively download
+    the library OpenAI uses for tokenization from that same page if you prefer.
+    By testing, you can get an idea how much of your content can be sent for
+    indexing.
+
 
 Run a semantic similarity query
 -------------------------------
