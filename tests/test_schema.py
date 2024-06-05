@@ -4186,6 +4186,23 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_55(self):
+        # In Bar, `.foo.b` refers to `.a`. Ensure that when tracing, `.a` is
+        # correctly `Foo.a`, otherwise a recurisve definition is found.
+        schema = r'''
+            type Foo {
+                property a -> str;
+                property b := .a;
+            }
+
+            type Bar {
+                property a := .foo.b;
+                link foo -> Foo;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
@@ -6400,8 +6417,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         with self.assertRaisesRegex(
             errors.InvalidDefinitionError,
             "definition dependency cycle between "
-            "property 'val' of object type 'default::Bar' and "
-            "property 'val' of object type 'default::Foo'"
+            "property 'val' of object type 'default::Foo' and "
+            "property 'val' of object type 'default::Bar'"
         ):
             self._assert_migration_equivalence([r"""
                 type Foo {
