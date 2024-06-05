@@ -313,7 +313,7 @@ def get_pointer_backend_name(id, module_name, *, catenate=False, aspect=None):
     return convert_name(name, suffix=suffix, catenate=catenate)
 
 
-_operator_map = {
+operator_map = {
     s_name.name_from_string('std::AND'): 'AND',
     s_name.name_from_string('std::OR'): 'OR',
     s_name.name_from_string('std::NOT'): 'NOT',
@@ -336,20 +336,12 @@ def get_operator_backend_name(name, catenate=False, *, aspect=None):
         raise ValueError(
             f'unexpected aspect for operator backend name: {aspect!r}')
 
-    oper_name = _operator_map.get(name)
+    oper_name = operator_map.get(name)
     if oper_name is None:
         oper_name = name.name
         if re.search(r'[a-zA-Z]', oper_name):
-            # Alphanumeric operator, cannot be expressed in Postgres as-is
-            # Since this is a rare occasion, we hard-code the translation
-            # table.
-            if oper_name == 'OR':
-                oper_name = '|||'
-            elif oper_name == 'AND':
-                oper_name = '&&&'
-            else:
-                raise ValueError(
-                    f'cannot represent operator {oper_name} in Postgres')
+            raise ValueError(
+                f'cannot represent operator {oper_name} in Postgres')
 
         oper_name = f'`{oper_name}`'
         schema = 'edgedb'

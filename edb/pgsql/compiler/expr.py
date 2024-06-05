@@ -481,18 +481,30 @@ def compile_operator(
         assert rexpr
         result = pgast.NullTest(arg=rexpr, negated=True)
 
+    elif expr.func_shortname in common.operator_map:
+        sql_oper = common.operator_map[expr.func_shortname]
+
     elif expr.sql_operator:
         sql_oper = expr.sql_operator[0]
         if len(expr.sql_operator) > 1:
             # Explicit operand types given in FROM SQL OPERATOR
             lexpr, rexpr = _cast_operands(lexpr, rexpr, expr.sql_operator[1:])
 
-    elif expr.sql_function:
-        sql_func = expr.sql_function[0]
-        func_name = tuple(sql_func.split('.', 1))
-        if len(expr.sql_function) > 1:
-            # Explicit operand types given in FROM SQL FUNCTION
-            lexpr, rexpr = _cast_operands(lexpr, rexpr, expr.sql_function[1:])
+    elif expr.origin_name is not None:
+        sql_oper = common.get_operator_backend_name(
+            expr.origin_name)[1]
+
+    else:
+        if expr.sql_function:
+            sql_func = expr.sql_function[0]
+            func_name = tuple(sql_func.split('.', 1))
+            if len(expr.sql_function) > 1:
+                # Explicit operand types given in FROM SQL FUNCTION
+                lexpr, rexpr = _cast_operands(
+                    lexpr, rexpr, expr.sql_function[1:])
+        else:
+            func_name = common.get_operator_backend_name(
+                expr.func_shortname, aspect='function')
 
         args = []
         if lexpr is not None:
@@ -501,14 +513,6 @@ def compile_operator(
             args.append(rexpr)
 
         result = pgast.FuncCall(name=func_name, args=args)
-
-    elif expr.origin_name is not None:
-        sql_oper = common.get_operator_backend_name(
-            expr.origin_name)[1]
-
-    else:
-        sql_oper = common.get_operator_backend_name(
-            expr.func_shortname)[1]
 
     # If result was not already computed, it's going to be a generic Expr.
     if result is None:

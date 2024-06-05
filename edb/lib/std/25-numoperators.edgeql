@@ -1751,6 +1751,7 @@ std::`+` (l: std::bigint, r: std::bigint) -> std::bigint {
     CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
+    SET force_return_cast := true;
     USING SQL OPERATOR r'+(numeric,numeric)';
 };
 
@@ -1817,6 +1818,7 @@ std::`+` (l: std::bigint) -> std::bigint {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL OPERATOR r'+(,numeric)';
 };
 
@@ -1883,6 +1885,7 @@ std::`-` (l: std::bigint, r: std::bigint) -> std::bigint {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL OPERATOR r'-(numeric,numeric)';
 };
 
@@ -1948,6 +1951,7 @@ std::`-` (l: std::bigint) -> std::bigint {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL OPERATOR r'-(,numeric)';
 };
 
@@ -2019,6 +2023,7 @@ std::`*` (l: std::bigint, r: std::bigint) -> std::bigint {
     CREATE ANNOTATION std::description := 'Arithmetic multiplication.';
     SET volatility := 'Immutable';
     SET commutator := 'std::*';
+    SET force_return_cast := true;
     USING SQL OPERATOR r'*(numeric,numeric)';
 };
 
@@ -2359,6 +2364,7 @@ std::`^` (n: std::bigint, p: std::bigint) -> std::decimal {
     CREATE ANNOTATION std::identifier := 'pow';
     CREATE ANNOTATION std::description := 'Power operation.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL OPERATOR '^(numeric,numeric)';
 };
 
