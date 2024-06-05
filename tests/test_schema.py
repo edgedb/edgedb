@@ -6437,8 +6437,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         with self.assertRaisesRegex(
             errors.InvalidDefinitionError,
             "definition dependency cycle between "
-            "property 'val' of object type 'default::Bar' and "
-            "property 'val' of object type 'default::Foo'"
+            "property 'val' of object type 'default::Foo' and "
+            "property 'val' of object type 'default::Bar'"
         ):
             self._assert_migration_equivalence([r"""
                 type Foo {
