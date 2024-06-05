@@ -37,9 +37,17 @@ def infer_alias(res_target: pgast.ResTarget) -> Optional[str]:
     if res_target.name:
         return res_target.name
 
+    val = res_target.val
+
+    if isinstance(val, pgast.TypeCast):
+        val = val.arg
+
+    if isinstance(val, pgast.FuncCall):
+        return val.name[-1]
+
     # if just name has been selected, use it as the alias
-    if isinstance(res_target.val, pgast.ColumnRef):
-        name = res_target.val.name
+    if isinstance(val, pgast.ColumnRef):
+        name = val.name
         if isinstance(name[-1], str):
             return name[-1]
 
@@ -61,19 +69,9 @@ def resolve_ResTarget(
         columns = []
         for table, column in col_res:
             columns.append(column)
-
-            assert table.reference_as
-            if column.static_val:
-                # special case: __type__ static value
-                val = _uuid_const(column.static_val)
-            else:
-                assert column.reference_as
-                val = pgast.ColumnRef(
-                    name=(table.reference_as, column.reference_as)
-                )
             res.append(
                 pgast.ResTarget(
-                    val=val,
+                    val=resolve_column_kind(table, column.kind, ctx=ctx),
                     name=column.name,
                 )
             )
@@ -90,11 +88,31 @@ def resolve_ResTarget(
     ):
         alias = static.name_in_pg_catalog(res_target.val.name)
 
-    col = context.Column(name=alias, reference_as=alias)
-    new_target = pgast.ResTarget(
-        val=val, name=alias, span=res_target.span
+    name: str = alias or ctx.names.get('col')
+    col = context.Column(
+        name=name, kind=context.ColumnByName(reference_as=name)
     )
+    new_target = pgast.ResTarget(val=val, name=name, span=res_target.span)
     return (new_target,), (col,)
+
+
+def resolve_column_kind(
+    table: context.Table, column: context.ColumnKind, *, ctx: Context
+) -> pgast.BaseExpr:
+    match column:
+        case context.ColumnByName(reference_as=reference_as):
+            if table.name:
+                assert table.reference_as
+                return pgast.ColumnRef(name=(table.reference_as, reference_as))
+            else:
+                # this is a reference to a local column
+                # so it doesn't need table name
+                return pgast.ColumnRef(name=(column.reference_as,))
+        case context.ColumnStaticVal(val=val):
+            # special case: __type__ static value
+            return _uuid_const(val)
+        case _:
+            raise NotImplementedError(column)
 
 
 @dispatch._resolve.register
@@ -109,17 +127,7 @@ def resolve_ColumnRef(
         assert table.reference_as
         return pgast.ColumnRef(name=(table.reference_as, pgast.Star()))
 
-    if column.static_val:
-        return _uuid_const(column.static_val)
-
-    assert column.reference_as
-
-    if table.name:
-        assert table.reference_as
-        return pgast.ColumnRef(name=(table.reference_as, column.reference_as))
-    else:
-        # this is a reference to a local column, so it doesn't need table name
-        return pgast.ColumnRef(name=(column.reference_as,))
+    return resolve_column_kind(table, column.kind, ctx=ctx)
 
 
 def _uuid_const(val: uuid.UUID):
@@ -157,7 +165,11 @@ def _lookup_column(
             # is it a reference to a rel var?
             try:
                 tab = _lookup_table(col_name, ctx)
-                col = context.Column(reference_as=tab.reference_as)
+                assert tab.reference_as
+                col = context.Column(
+                    name=tab.reference_as,
+                    kind=context.ColumnByName(reference_as=tab.reference_as)
+                )
                 return [(context.Table(), col)]
             except errors.QueryError:
                 pass
