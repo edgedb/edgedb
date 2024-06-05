@@ -37,9 +37,17 @@ def infer_alias(res_target: pgast.ResTarget) -> Optional[str]:
     if res_target.name:
         return res_target.name
 
+    val = res_target.val
+
+    if isinstance(val, pgast.TypeCast):
+        val = val.arg
+
+    if isinstance(val, pgast.FuncCall):
+        return val.name[-1]
+
     # if just name has been selected, use it as the alias
-    if isinstance(res_target.val, pgast.ColumnRef):
-        name = res_target.val.name
+    if isinstance(val, pgast.ColumnRef):
+        name = val.name
         if isinstance(name[-1], str):
             return name[-1]
 
