@@ -5092,26 +5092,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    @test.xerror(
-        '''
-        This wants to transmute an object type into an alias. It
-        produces DDL, but the DDL doesn't really make any sense. We
-        are going to probably need to add DDL syntax to accomplish
-        this.
-
-        Before we do that, we could just improve the error:
-        cannot produce migration because of a dependency cycle:
-          create alias 'default::Base' depends on
-          alter object type 'default::Alias01' depends on
-          create object type 'default::Base' depends on
-          drop object type 'default::Base' depends on
-          drop link '__type__' of object type 'default::Base' depends on
-          alter link '__type__' of link '__type__' depends on
-          alter object type 'default::Alias01' of
-            object type 'default::Alias01' depends on
-          create alias 'default::Base'
-        '''
-    )
     def test_schema_migrations_equivalence_23(self):
         self._assert_migration_equivalence([r"""
             type Child {
