@@ -252,6 +252,9 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: A set of type CTEs currently being generated
     pending_type_ctes: Set[RewriteKey]
 
+    #: CTEs representing types and their inherited types
+    type_inheritance_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
+
     #: The logical parent of the current query in the
     #: query hierarchy
     parent_rel: Optional[pgast.Query]
@@ -354,6 +357,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ptr_ctes = {}
             self.type_ctes = {}
             self.pending_type_ctes = set()
+            self.type_inheritance_ctes = {}
             self.dml_stmts = {}
             self.parent_rel = None
             self.pending_query = None
@@ -394,6 +398,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ptr_ctes = prevlevel.ptr_ctes
             self.type_ctes = prevlevel.type_ctes
             self.pending_type_ctes = prevlevel.pending_type_ctes
+            self.type_inheritance_ctes = prevlevel.type_inheritance_ctes
             self.dml_stmts = prevlevel.dml_stmts
             self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
