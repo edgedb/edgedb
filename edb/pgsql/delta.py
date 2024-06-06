@@ -1709,9 +1709,15 @@ class OperatorCommand(FunctionCommand):
         return args
 
     def make_operator_function(self, oper: s_opers.Operator, schema):
-        return dbops.Function(
-            name=common.get_backend_name(
-                schema, oper, catenate=False, aspect='function'),
+        name = common.get_backend_name(
+            schema, oper, catenate=False, aspect='function')
+        cls = (
+            trampoline.VersionedFunction if name[0] == 'edgedbstd'
+            else dbops.Function
+        )
+
+        return cls(
+            name=name,
             args=self.compile_args(oper, schema),
             volatility=oper.get_volatility(schema),
             returns=self.get_pgtype(
@@ -1795,6 +1801,14 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
             args = self.get_pg_operands(schema, oper)
             oper_func = self.make_operator_function(oper, schema)
             self.pgops.add(dbops.CreateFunction(oper_func))
+
+            # XXX: TRAMPOLINE: Is this where we want to do this???
+            if isinstance(oper_func, trampoline.VersionedFunction):
+                self.pgops.add(
+                    dbops.CreateFunction(
+                        trampoline.make_trampoline(oper_func), or_replace=True
+                    )
+                )
 
             if not params.has_polymorphic(schema):
                 cexpr = self.get_dummy_func_call(
