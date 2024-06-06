@@ -402,13 +402,13 @@ def _construct_column(
 
     col_name: str
     kind: context.ColumnKind
-    if p.get_computable(ctx.schema):
-        col_name = short_name.name
-        kind = context.ColumnComputable(pointer=p)
-    elif isinstance(p, s_properties.Property):
+
+    if isinstance(p, s_properties.Property):
         col_name = short_name.name
 
-        if p.is_link_source_property(ctx.schema):
+        if p.get_computable(ctx.schema):
+            kind = context.ColumnComputable(pointer=p)
+        elif p.is_link_source_property(ctx.schema):
             kind = context.ColumnByName(reference_as='source')
         elif p.is_link_target_property(ctx.schema):
             kind = context.ColumnByName(reference_as='target')
@@ -420,7 +420,10 @@ def _construct_column(
 
     elif isinstance(p, s_links.Link):
 
-        if short_name.name == '__type__':
+        if p.get_computable(ctx.schema):
+            col_name = short_name.name + '_id'
+            kind = context.ColumnComputable(pointer=p)
+        elif short_name.name == '__type__':
             col_name = '__type__'
 
             if not include_inherited:

@@ -724,8 +724,11 @@ class TestSQL(tb.SQLQueryTestCase):
                 ['Movie.director', 'bar', 'YES', 3],
                 ['Person', 'id', 'NO', 1],
                 ['Person', '__type__', 'NO', 2],
-                ['Person', 'first_name', 'NO', 3],
-                ['Person', 'last_name', 'YES', 4],
+                ['Person', 'favorite_genre_id', 'YES', 3],
+                ['Person', 'first_name', 'NO', 4],
+                ['Person', 'full_name', 'NO', 5],
+                ['Person', 'last_name', 'YES', 6],
+                ['Person', 'username', 'NO', 7],
                 ['novel', 'id', 'NO', 1],
                 ['novel', '__type__', 'NO', 2],
                 ['novel', 'foo', 'YES', 3],
@@ -796,14 +799,18 @@ class TestSQL(tb.SQLQueryTestCase):
             JOIN pg_namespace n ON n.oid = pc.relnamespace
             WHERE n.nspname = 'public' AND pc.relname = 'novel'
             ORDER BY attnum
-            -- skip the system columns
-            OFFSET 6
             '''
         )
 
         self.assertEqual(
             res,
             [
+                ['novel', 'tableoid', True],
+                ['novel', 'cmax', True],
+                ['novel', 'xmax', True],
+                ['novel', 'cmin', True],
+                ['novel', 'xmin', True],
+                ['novel', 'ctid', True],
                 ['novel', 'id', True],
                 ['novel', '__type__', True],
                 ['novel', 'foo', False],
@@ -1291,7 +1298,7 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [["Hello Tom Hanks"]])
 
-    async def test_sql_query_computed_04(self):
+    async def test_sql_query_computed_05(self):
         # computed in a lateral
         res = await self.squery_values(
             """
@@ -1302,7 +1309,7 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [["Robin"], ["Steven"], ["Tom"]])
 
-    async def test_sql_query_computed_05(self):
+    async def test_sql_query_computed_06(self):
         # globals are empty
         res = await self.squery_values(
             """
@@ -1312,26 +1319,26 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [["u_robin"]])
 
-    async def test_sql_query_computed_06(self):
+    async def test_sql_query_computed_07(self):
         # single link
         res = await self.scon.fetch(
             """
-            SELECT favorite_genre FROM "Person"
+            SELECT favorite_genre_id FROM "Person"
             """
         )
-        self.assert_shape(res, 3, ['favorite_genre'])
+        self.assert_shape(res, 3, ['favorite_genre_id'])
 
         res = await self.squery_values(
             """
             SELECT g.name
             FROM "Person" p
-            LEFT JOIN "Genre" g ON (p.favorite_genre = g.id)
+            LEFT JOIN "Genre" g ON (p.favorite_genre_id = g.id)
             """
         )
         self.assertEqual(res, [["Drama"], ["Drama"], ["Drama"]])
 
-    @test.xfail('''Unimplemented multi property''')
-    async def test_sql_query_computed_07(self):
+    @test.not_implemented("multi computed properties are not implemented")
+    async def test_sql_query_computed_08(self):
         # multi property
         await self.scon.fetch(
             """
@@ -1339,12 +1346,11 @@ class TestSQL(tb.SQLQueryTestCase):
             """
         )
 
-    @test.xfail('''Unimplemented multi link''')
-    async def test_sql_query_computed_08(self):
+    @test.not_implemented("multi computed links are not implemented")
+    async def test_sql_query_computed_09(self):
         # multi link
         await self.scon.fetch(
             """
             SELECT similar_to FROM "Movie"
             """
         )
-        
