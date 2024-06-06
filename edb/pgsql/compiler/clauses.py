@@ -413,6 +413,7 @@ def fini_toplevel(
         *ctx.param_ctes.values(),
         *ctx.ptr_ctes.values(),
         *ctx.type_ctes.values(),
+        *ctx.type_inheritance_ctes.values(),
     ]
 
     if ctx.env.named_param_prefix is None:

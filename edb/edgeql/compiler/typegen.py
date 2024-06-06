@@ -402,8 +402,7 @@ def type_to_typeref(
         expr_type is s_types.ExprType.Update
         or expr_type is s_types.ExprType.Delete
         or (
-            env.options.expand_inhviews
-            and isinstance(t, s_objtypes.ObjectType)
+            isinstance(t, s_objtypes.ObjectType)
         )
     )
     include_ancestors = (
