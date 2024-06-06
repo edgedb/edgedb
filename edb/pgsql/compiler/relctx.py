@@ -1538,43 +1538,79 @@ def range_for_material_objtype(
     # alias names that we use for relations, which we use to track which
     # parts of the query are being referred to.
     elif (
-        ctx.env.expand_inhviews
-        and include_descendants
+        include_descendants
         and not for_mutation
         and typeref.children is not None
 
         # HACK: This is a workaround for #4491
         and typeref.name_hint.module not in {'cfg', 'sys'}
     ):
-        ops = []
-        typerefs = [typeref, *irtyputils.get_typeref_descendants(typeref)]
-        all_abstract = all(subref.is_abstract for subref in typerefs)
-        for subref in typerefs:
-            if subref.is_abstract and not all_abstract:
-                continue
-            rvar = range_for_material_objtype(
-                subref, path_id, lateral=lateral,
-                include_descendants=False,
-                include_overlays=False,
-                ignore_rewrites=ignore_rewrites,  # XXX: Is this right?
+        typeref_path: irast.PathId = irast.PathId.from_typeref(
+            typeref,
+            # If there are backlinks and the path revisits a type, a semi-join
+            # is produced. This ensures that the rvar produced does not have
+            # a duplicate path var.
+            # For example: (select A.b.<b[is A])
+            namespace=frozenset({'typeref'})
+        )
+
+        if typeref.id not in ctx.type_inheritance_ctes:
+            ops = []
+            typerefs = [typeref, *irtyputils.get_typeref_descendants(typeref)]
+            all_abstract = all(subref.is_abstract for subref in typerefs)
+            for subref in typerefs:
+                if subref.is_abstract and not all_abstract:
+                    continue
+                rvar = range_for_material_objtype(
+                    subref, typeref_path, lateral=lateral,
+                    include_descendants=False,
+                    include_overlays=False,
+                    ignore_rewrites=ignore_rewrites,  # XXX: Is this right?
+                    ctx=ctx,
+                )
+                qry = pgast.SelectStmt(from_clause=[rvar])
+                sub_path_id = typeref_path
+                pathctx.put_path_value_rvar(qry, sub_path_id, rvar)
+                pathctx.put_path_source_rvar(qry, sub_path_id, rvar)
+
+                ops.append(('union', qry))
+
+            type_qry: pgast.SelectStmt = ops[0][1]
+            for op, rarg in ops[1:]:
+                type_qry = pgast.SelectStmt(
+                    op=op,
+                    all=True,
+                    larg=type_qry,
+                    rarg=rarg,
+                )
+
+            type_cte = pgast.CommonTableExpr(
+                name=ctx.env.aliases.get(f't_{typeref.name_hint}'),
+                query=type_qry,
+                materialized=False,
+            )
+            ctx.type_inheritance_ctes[typeref.id] = type_cte
+
+        else:
+            type_cte = ctx.type_inheritance_ctes[typeref.id]
+
+        with ctx.subrel() as sctx:
+            cte_rvar = rvar_for_rel(
+                type_cte,
+                typeref=typeref,
                 ctx=ctx,
             )
-            qry = pgast.SelectStmt(from_clause=[rvar])
-            sub_path_id = path_id
-            pathctx.put_path_value_rvar(qry, sub_path_id, rvar)
-            pathctx.put_path_source_rvar(qry, sub_path_id, rvar)
-
-            ops.append(('union', qry))
-
-        rvar = range_from_queryset(
-            ops,
-            typeref.name_hint,
-            lateral=lateral,
-            path_id=path_id,
-            typeref=typeref,
-            tag='expanded-inhview',
-            ctx=ctx,
-        )
+            if path_id != typeref_path:
+                pathctx.put_path_id_map(sctx.rel, path_id, typeref_path)
+            include_rvar(
+                sctx.rel,
+                cte_rvar,
+                typeref_path,
+                pull_namespace=False,
+                ctx=sctx,
+            )
+            rvar = rvar_for_rel(
+                sctx.rel, lateral=lateral, typeref=typeref, ctx=sctx)
 
     else:
         assert not typeref.is_view, "attempting to generate range from view"
