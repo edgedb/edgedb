@@ -847,6 +847,9 @@ async def handle_request(
         if not isinstance(ex, AIExtError):
             ex = InternalError(str(ex))
 
+        if not isinstance(ex, BadRequestError):
+            logger.error(f"error while handling a /{args[0]} request: {ex}")
+
         response.status = ex.get_http_status()
         response.content_type = b'application/json'
         response.body = json.dumps(ex.json()).encode("utf-8")
