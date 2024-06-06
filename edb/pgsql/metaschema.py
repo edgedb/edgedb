@@ -7417,6 +7417,12 @@ async def execute_sql_script(
 ) -> None:
     from edb.server import pgcon
 
+    try:
+        with open('bootstrap_script.sql', 'a') as f:
+            f.write(sql_text)
+    except Exception:
+        pass
+
     if debug.flags.bootstrap:
         debug.header('Bootstrap Script')
         if len(sql_text) > 102400:
