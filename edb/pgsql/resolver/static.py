@@ -26,10 +26,13 @@ from edb import errors
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import parser as pgparser
+from edb.pgsql import trampoline
 from edb.server import defines
 
 from . import context
 from . import dispatch
+
+V = trampoline.versioned_schema
 
 Context = context.ResolverContextLevel
 
@@ -255,7 +258,7 @@ def eval_FuncCall(
             'has_column_privilege',
         }
         if fn_name in has_wrapper:
-            return pgast.FuncCall(name=('edgedbsql', fn_name), args=fn_args)
+            return pgast.FuncCall(name=(V('edgedbsql'), fn_name), args=fn_args)
 
         return pgast.FuncCall(name=('pg_catalog', fn_name), args=fn_args)
 
@@ -271,7 +274,7 @@ def eval_FuncCall(
         )
 
         return pgast.FuncCall(
-            name=('edgedbsql', fn_name),
+            name=(V('edgedbsql'), fn_name),
             args=[arg_0, arg_1]
         )
 
@@ -343,8 +346,8 @@ def to_regclass(reg_class_name: str, ctx: Context) -> pgast.BaseExpr:
     [stmt] = pgparser.parse(
         f'''
         SELECT pc.oid
-        FROM edgedbsql.pg_class pc
-        JOIN edgedbsql.pg_namespace pn ON pn.oid = pc.relnamespace
+        FROM {V('edgedbsql')}.pg_class pc
+        JOIN {V('edgedbsql')}.pg_namespace pn ON pn.oid = pc.relnamespace
         WHERE {ql(namespace)} = pn.nspname AND pc.relname = {ql(rel_name)}
         '''
     )

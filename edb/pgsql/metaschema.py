@@ -6881,13 +6881,14 @@ def get_support_views(
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
+    # TODO: XXX: We still want to trampoline fewer of these.
+    # Currently we only skip the information schema stuff.
+    trampolines = []
+    trampolines.extend(trampoline_command(commands))
+
     commands.add_commands(_generate_sql_information_schema())
 
-    # TODO: XXX: We do not actually want to trampoline all of these!
-    # As few as possible, to be honest.
-    commands.add_commands(
-        trampoline_command(commands),
-    )
+    commands.add_commands(trampolines)
 
     return commands
 
