@@ -4609,19 +4609,47 @@ class PadBase64StringFunction(trampoline.VersionedFunction):
         )
 
 
-def trampoline_functions(cmds: list[dbops.Command]) -> list[dbops.Command]:
+def _maybe_trampoline(
+    cmd: dbops.Command, out_cmds: list[dbops.Command]
+) -> None:
     namespace = V('')
+    if (
+        isinstance(cmd, dbops.CreateFunction)
+        and cmd.function.name[0].endswith(namespace)
+    ):
+        out_cmds.append(dbops.CreateFunction(
+            trampoline.make_trampoline(cmd.function),
+            or_replace=True,
+        ))
+    elif (
+        isinstance(cmd, dbops.CreateView)
+        and cmd.view.name[0].endswith(namespace)
+    ):
+        out_cmds.append(dbops.CreateView(
+            trampoline.make_view_trampoline(cmd.view),
+            or_replace=True,
+        ))
+
+
+def trampoline_functions(cmds: list[dbops.Command]) -> list[dbops.Command]:
     ncmds = list(cmds)
     for cmd in cmds:
-        if (
-            isinstance(cmd, dbops.CreateFunction)
-            and cmd.function.name[0].endswith(namespace)
-        ):
-            # print("TRAMPOLINING", cmd.function.name)
-            ncmds.append(dbops.CreateFunction(
-                trampoline.make_trampoline(cmd.function),
-                or_replace=True,
-            ))
+        _maybe_trampoline(cmd, out_cmds=ncmds)
+    return ncmds
+
+
+def trampoline_command(cmd: dbops.Command) -> list[dbops.Command]:
+    ncmds: list[dbops.Command] = []
+
+    def go(cmd: dbops.Command) -> None:
+        if isinstance(cmd, dbops.CommandGroup):
+            for subcmd in cmd.commands:
+                go(subcmd)
+        else:
+            _maybe_trampoline(cmd, ncmds)
+
+    go(cmd)
+
     return ncmds
 
 
@@ -6758,7 +6786,11 @@ def get_config_type_views(
     )
     commands.add_commands([
         dbops.CreateView(
-            trampoline.VersionedView(name=tn, query=q), or_replace=True)
+            (trampoline.VersionedView if tn[0] == 'edgedbstd' else dbops.View)(
+                name=tn, query=trampoline.fixup_query(q)
+            ),
+            or_replace=True,
+        )
         for tn, q in cfg_views
     ])
 
@@ -6848,6 +6880,12 @@ def get_support_views(
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
     commands.add_commands(_generate_sql_information_schema())
+
+    # TODO: XXX: We do not actually want to trampoline all of these!
+    # As few as possible, to be honest.
+    commands.add_commands(
+        trampoline_command(commands),
+    )
 
     return commands
 
