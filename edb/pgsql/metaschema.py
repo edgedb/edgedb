@@ -1215,7 +1215,7 @@ class GetSequenceBackendNameFunction(trampoline.VersionedFunction):
              END),
             "sequence_type_id"::text || '_sequence'
         FROM
-            edgedb."_SchemaScalarType" AS st
+            edgedb_VER."_SchemaScalarType" AS st
         WHERE
             st.id = "sequence_type_id"
     '''
@@ -1622,7 +1622,7 @@ class ExtractJSONScalarFunction(trampoline.VersionedFunction):
 class GetSchemaObjectNameFunction(trampoline.VersionedFunction):
     text = '''
         SELECT coalesce(
-            (SELECT name FROM edgedb."_SchemaObject"
+            (SELECT name FROM edgedb_VER."_SchemaObject"
              WHERE id = type::uuid),
             edgedb_VER.raise(
                 NULL::text,
@@ -1652,7 +1652,7 @@ class IssubclassFunction(trampoline.VersionedFunction):
                 FROM
                     (SELECT
                         array_agg(o.target) AS ancestors
-                        FROM edgedb."_SchemaInheritingObject__ancestors" o
+                        FROM edgedb_VER."_SchemaInheritingObject__ancestors" o
                         WHERE o.source = clsid
                     ) AS q
             );
@@ -1675,7 +1675,7 @@ class IssubclassFunction2(trampoline.VersionedFunction):
                     pclsid IN (
                         SELECT
                             o.target
-                        FROM edgedb."_SchemaInheritingObject__ancestors" o
+                        FROM edgedb_VER."_SchemaInheritingObject__ancestors" o
                             WHERE o.source = clsid
                     )
             );
@@ -2885,7 +2885,7 @@ class DumpSequencesFunction(trampoline.VersionedFunction):
                 id,
                 name
              FROM
-                edgedb."_SchemaScalarType"
+                edgedb_VER."_SchemaScalarType"
              WHERE
                 id = any("seqs")
             ) AS seq,
@@ -3317,7 +3317,7 @@ class PostgresConfigValueToJsonFunction(trampoline.VersionedFunction):
                     epg_settings.multiplier AS multiplier,
                     epg_settings.unit AS unit
                 FROM
-                    edgedb._normalized_pg_settings AS epg_settings
+                    edgedb_VER._normalized_pg_settings AS epg_settings
                 WHERE
                     epg_settings.name = "setting_name"
             ) AS settings_in ON true
@@ -3557,7 +3557,7 @@ class SysConfigFullFunction(trampoline.VersionedFunction):
                                 'postgres ' || epg_settings.source
                         END) AS source
                     FROM
-                        edgedb._normalized_pg_settings AS epg_settings
+                        edgedb_VER._normalized_pg_settings AS epg_settings
                     WHERE
                         epg_settings.source != 'database'
                 ) AS settings,
@@ -4495,14 +4495,14 @@ class FormatTypeFunction(trampoline.VersionedFunction):
             SELECT
                 quote_ident(nspname) || '.' ||
                 quote_ident(el.typname) || tm.mod || '[]'
-            FROM edgedbsql.pg_namespace
+            FROM edgedbsql_VER.pg_namespace
             WHERE oid = el.typnamespace
         )
         ELSE (
             SELECT
                 quote_ident(nspname) || '.' ||
                 quote_ident(t.typname) || tm.mod
-            FROM edgedbsql.pg_namespace
+            FROM edgedbsql_VER.pg_namespace
             WHERE oid = t.typnamespace
         )
         END
@@ -4514,8 +4514,8 @@ class FormatTypeFunction(trampoline.VersionedFunction):
                 ELSE ''
                 END AS mod
         ) as tm,
-        edgedbsql.pg_type t
-    LEFT JOIN edgedbsql.pg_type el ON t.typelem = el.oid
+        edgedbsql_VER.pg_type t
+    LEFT JOIN edgedbsql_VER.pg_type el ON t.typelem = el.oid
     WHERE t.oid = typeoid
     '''
 
@@ -5634,7 +5634,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 id,
                 REGEXP_REPLACE(name, '::[^:]*$', '') AS module_name,
                 REGEXP_REPLACE(name, '^.*::', '') as table_name
-            FROM edgedb."_SchemaObjectType"
+            FROM edgedb_VER."_SchemaObjectType"
             WHERE internal IS NOT TRUE
         ),
         obj_ty AS (
@@ -5653,22 +5653,23 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 -- multi links and links with at least one property
                 -- (besides source and target)
                 SELECT link.id
-                FROM edgedb."_SchemaLink" link
-                JOIN edgedb."_SchemaProperty" AS prop ON link.id = prop.source
+                FROM edgedb_VER."_SchemaLink" link
+                JOIN edgedb_VER."_SchemaProperty" AS prop
+                  ON link.id = prop.source
                 WHERE prop.computable IS NOT TRUE AND prop.internal IS NOT TRUE
                 GROUP BY link.id, link.cardinality
                 HAVING link.cardinality = 'Many' OR COUNT(*) > 2
             )
             SELECT link.id, obj_ty.schema_name, obj_ty.module_name,
                 CONCAT(obj_ty.table_name, '.', link.name) AS table_name
-            FROM edgedb."_SchemaLink" link
+            FROM edgedb_VER."_SchemaLink" link
             JOIN obj_ty ON obj_ty.id = link.source
             WHERE link.id IN (SELECT * FROM qualified_links)
         ) UNION ALL (
             -- multi properties
             SELECT prop.id, obj_ty.schema_name, obj_ty.module_name,
                 CONCAT(obj_ty.table_name, '.', prop.name) AS table_name
-            FROM edgedb."_SchemaProperty" AS prop
+            FROM edgedb_VER."_SchemaProperty" AS prop
             JOIN obj_ty ON obj_ty.id = prop.source
             WHERE prop.computable IS NOT TRUE
             AND prop.internal IS NOT TRUE
@@ -5681,7 +5682,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             sm.id AS module_id,
             pt.oid AS backend_id
         FROM all_tables at
-        JOIN edgedb."_SchemaModule" sm ON sm.name = at.module_name
+        JOIN edgedb_VER."_SchemaModule" sm ON sm.name = at.module_name
         LEFT JOIN pg_type pt ON pt.typname = at.id::text
         WHERE schema_name not in ('cfg', 'sys', 'schema', 'std')
         '''
@@ -5695,7 +5696,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     #   tables in cfg and sys
 
     # For making up oids of schemas that represent modules
-    uuid_to_oid = dbops.Function(
+    uuid_to_oid = trampoline.VersionedFunction(
         name=('edgedbsql', 'uuid_to_oid'),
         args=(
             ('id', 'uuid'),
@@ -5708,7 +5709,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                  + 40000)::oid;
         """
     )
-    long_name = dbops.Function(
+    long_name = trampoline.VersionedFunction(
         name=('edgedbsql', '_long_name'),
         args=[
             ('origname', ('text',)),
@@ -5723,7 +5724,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 END
         '''
     )
-    type_rename = dbops.Function(
+    type_rename = trampoline.VersionedFunction(
         name=('edgedbsql', '_pg_type_rename'),
         args=[
             ('typeoid', ('oid',)),
@@ -5736,7 +5737,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 -- is the nmae in virtual_tables?
                 (
                     SELECT vt.table_name::name
-                    FROM edgedbsql.virtual_tables vt
+                    FROM edgedbsql_VER.virtual_tables vt
                     WHERE vt.backend_id = typeoid
                 ),
                 -- is this a scalar or tuple?
@@ -5747,14 +5748,14 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                         SELECT
                             split_part(name, '::', 2) AS name,
                             backend_id
-                        FROM edgedb."_SchemaScalarType"
+                        FROM edgedb_VER."_SchemaScalarType"
                         WHERE NOT builtin
                         UNION ALL
                         -- get the tuples
                         SELECT
-                            edgedbsql._long_name(typename, name),
+                            edgedbsql_VER._long_name(typename, name),
                             backend_id
-                        FROM edgedb."_SchemaTuple"
+                        FROM edgedb_VER."_SchemaTuple"
                     ) x
                     WHERE x.backend_id = typeoid
                 ),
@@ -5762,7 +5763,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             )
         '''
     )
-    namespace_rename = dbops.Function(
+    namespace_rename = trampoline.VersionedFunction(
         name=('edgedbsql', '_pg_namespace_rename'),
         args=[
             ('typeoid', ('oid',)),
@@ -5776,14 +5777,14 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                     SELECT oid FROM pg_namespace WHERE nspname = 'edgedbpub'
                 ),
                 nsdef AS (
-                    SELECT edgedbsql.uuid_to_oid(id) AS oid
-                    FROM edgedb."_SchemaModule"
+                    SELECT edgedbsql_VER.uuid_to_oid(id) AS oid
+                    FROM edgedb_VER."_SchemaModule"
                     WHERE name = 'default'
                 )
             SELECT COALESCE (
                 (
-                    SELECT edgedbsql.uuid_to_oid(vt.module_id)
-                    FROM edgedbsql.virtual_tables vt
+                    SELECT edgedbsql_VER.uuid_to_oid(vt.module_id)
+                    FROM edgedbsql_VER.virtual_tables vt
                     WHERE vt.backend_id = typeoid
                 ),
                 -- just replace "edgedbpub" with "public"
@@ -5819,7 +5820,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ist.is_typed,
             ist.commit_action
         FROM information_schema.tables ist
-        JOIN edgedbsql.virtual_tables vt ON vt.id::text = ist.table_name
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.id::text = ist.table_name
             '''
             ),
         ),
@@ -5889,7 +5890,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             COALESCE(spec.position, 2) as position,
             isc.*
         FROM information_schema.columns isc
-        JOIN edgedbsql.virtual_tables vt ON vt.id::text = isc.table_name
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.id::text = isc.table_name
 
         -- id is duplicated to get id and __type__ columns out of it
         LEFT JOIN (
@@ -5899,8 +5900,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                     ('target', 'target', 1)
         ) spec(k, name, position) ON (spec.k = isc.column_name)
 
-        LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = isc.column_name
-        LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = isc.column_name
+        LEFT JOIN edgedb_VER."_SchemaPointer" sp
+          ON sp.id::text = isc.column_name
+        LEFT JOIN edgedb_VER."_SchemaLink" sl ON sl.id::text = isc.column_name
         ) t
         WHERE v_column_name IS NOT NULL
             '''
@@ -5928,7 +5930,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                           'edgedb', 'edgedbstd')
         UNION ALL
         SELECT
-            edgedbsql.uuid_to_oid(t.module_id)  AS oid,
+            edgedbsql_VER.uuid_to_oid(t.module_id)  AS oid,
             t.schema_name                       AS nspname,
             (SELECT oid
              FROM pg_roles
@@ -5948,7 +5950,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             NULL                                AS ctid
         FROM (
             SELECT DISTINCT schema_name, module_id
-            FROM edgedbsql.virtual_tables
+            FROM edgedbsql_VER.virtual_tables
         ) t
         """,
         ),
@@ -5957,9 +5959,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             query="""
         SELECT
             pt.oid,
-            edgedbsql._pg_type_rename(pt.oid, pt.typname)
+            edgedbsql_VER._pg_type_rename(pt.oid, pt.typname)
                 AS typname,
-            edgedbsql._pg_namespace_rename(pt.oid, pt.typnamespace)
+            edgedbsql_VER._pg_namespace_rename(pt.oid, pt.typnamespace)
                 AS typnamespace,
             {0},
             pt.tableoid, pt.xmin, pt.cmin, pt.xmax, pt.cmax, pt.ctid
@@ -6003,8 +6005,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             query="""
         WITH
             nsdef AS (
-                SELECT edgedbsql.uuid_to_oid(id) AS oid
-                FROM edgedb."_SchemaModule"
+                SELECT edgedbsql_VER.uuid_to_oid(id) AS oid
+                FROM edgedb_VER."_SchemaModule"
                 WHERE name = 'default'
             )
         -- Postgres tables
@@ -6018,7 +6020,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         -- get all the tuples
         SELECT
             pc.oid,
-            edgedbsql._long_name(pc.reltype::text, tup.name) as relname,
+            edgedbsql_VER._long_name(pc.reltype::text, tup.name) as relname,
             nsdef.oid as relnamespace,
             pc.reltype,
             pc.reloftype,
@@ -6059,7 +6061,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         FROM
             nsdef,
             pg_class pc
-        JOIN edgedb."_SchemaTuple" tup ON tup.backend_id = pc.reltype
+        JOIN edgedb_VER."_SchemaTuple" tup ON tup.backend_id = pc.reltype
 
         UNION ALL
 
@@ -6067,7 +6069,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         SELECT
             oid,
             vt.table_name as relname,
-            edgedbsql.uuid_to_oid(vt.module_id) as relnamespace,
+            edgedbsql_VER.uuid_to_oid(vt.module_id) as relnamespace,
             reltype,
             reloftype,
             relowner,
@@ -6105,14 +6107,14 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pc.cmax,
             pc.ctid
         FROM pg_class pc
-        JOIN edgedbsql.virtual_tables vt ON vt.backend_id = pc.reltype
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.backend_id = pc.reltype
 
         UNION
 
         -- indexes
         SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
         FROM pg_class pc
-        JOIN edgedbsql.pg_index pi ON pc.oid = pi.indexrelid
+        JOIN edgedbsql_VER.pg_index pi ON pc.oid = pi.indexrelid
         """,
         ),
 
@@ -6161,7 +6163,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         FROM pg_attribute pa
         JOIN pg_class pc ON pa.attrelid = pc.oid
         JOIN pg_namespace pn ON pc.relnamespace = pn.oid
-        LEFT JOIN edgedb."_SchemaTuple" tup ON tup.backend_id = pc.reltype
+        LEFT JOIN edgedb_VER."_SchemaTuple" tup ON tup.backend_id = pc.reltype
         WHERE
             nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
             OR
@@ -6215,7 +6217,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
         FROM pg_attribute pa
         JOIN pg_class pc ON pc.oid = pa.attrelid
-        JOIN edgedbsql.virtual_tables vt ON vt.backend_id = pc.reltype
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.backend_id = pc.reltype
 
         -- id is duplicated to get id and __type__ columns out of it
         LEFT JOIN (
@@ -6225,8 +6227,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                     ('target', 'target', 1)
         ) spec(k, name, position) ON (spec.k = pa.attname)
 
-        LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = pa.attname
-        LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = pa.attname
+        LEFT JOIN edgedb_VER."_SchemaPointer" sp ON sp.id::text = pa.attname
+        LEFT JOIN edgedb_VER."_SchemaLink" sl ON sl.id::text = pa.attname
         -- Filter out internal columns
         WHERE pa.attname NOT LIKE '\_\_%\_\_' OR pa.attname = '__type__'
         ) t
@@ -6267,7 +6269,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
           xmax,
           cmax,
           ctid
-        FROM edgedbsql.pg_attribute_ext
+        FROM edgedbsql_VER.pg_attribute_ext
         """,
         ),
 
@@ -6317,7 +6319,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             s.stanumbers1 AS elem_count_histogram
         FROM pg_statistic s
         JOIN pg_class c ON c.oid = s.starelid
-        JOIN edgedbsql.pg_attribute_ext a ON (
+        JOIN edgedbsql_VER.pg_attribute_ext a ON (
             c.oid = a.attrelid and a.attnum_internal = s.staattnum
         )
         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -6361,7 +6363,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             NULL::real[] AS stavalues5,
             tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_statistic s
-        JOIN edgedbsql.pg_attribute_ext a ON (
+        JOIN edgedbsql_VER.pg_attribute_ext a ON (
             a.attrelid = s.starelid AND a.attnum_internal = s.staattnum
         )
         """,
@@ -6401,7 +6403,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             query="""
         SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
         FROM pg_rewrite pr
-        JOIN edgedbsql.pg_class pn ON pr.ev_class = pn.oid
+        JOIN edgedbsql_VER.pg_class pn ON pr.ev_class = pn.oid
         """,
         ),
 
@@ -6595,7 +6597,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         views.append(construct_pg_view(table_name, [c for c, _ in columns]))
 
     util_functions = [
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', 'has_schema_privilege'),
             args=(
                 ('schema_name', 'text'),
@@ -6605,12 +6607,12 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             text="""
             SELECT COALESCE((
                 SELECT has_schema_privilege(oid, privilege)
-                FROM edgedbsql.pg_namespace
+                FROM edgedbsql_VER.pg_namespace
                 WHERE nspname = schema_name
             ), TRUE);
             """
         ),
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', 'has_schema_privilege'),
             args=(
                 ('schema_oid', 'oid'),
@@ -6623,7 +6625,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 )
             """
         ),
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', 'has_table_privilege'),
             args=(
                 ('table_name', 'text'),
@@ -6632,11 +6634,11 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             returns=('bool',),
             text="""
                 SELECT has_table_privilege(oid, privilege)
-                FROM edgedbsql.pg_class
+                FROM edgedbsql_VER.pg_class
                 WHERE relname = table_name;
             """
         ),
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', 'has_table_privilege'),
             args=(
                 ('schema_oid', 'oid'),
@@ -6648,7 +6650,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             """
         ),
 
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', 'has_column_privilege'),
             args=(
                 ('tbl', 'oid'),
@@ -6660,7 +6662,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 SELECT has_column_privilege(tbl, col, privilege)
             """
         ),
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', 'has_column_privilege'),
             args=(
                 ('tbl', 'text'),
@@ -6670,11 +6672,11 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             returns=('bool',),
             text="""
                 SELECT has_column_privilege(oid, col, privilege)
-                FROM edgedbsql.pg_class
+                FROM edgedbsql_VER.pg_class
                 WHERE relname = tbl;
             """
         ),
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', 'has_column_privilege'),
             args=(
                 ('tbl', 'oid'),
@@ -6684,11 +6686,11 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             returns=('bool',),
             text="""
                 SELECT has_column_privilege(tbl, attnum_internal, privilege)
-                FROM edgedbsql.pg_attribute_ext pa
+                FROM edgedbsql_VER.pg_attribute_ext pa
                 WHERE attrelid = tbl AND attname = col
             """
         ),
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', 'has_column_privilege'),
             args=(
                 ('tbl', 'text'),
@@ -6698,16 +6700,16 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             returns=('bool',),
             text="""
                 SELECT has_column_privilege(pc.oid, attnum_internal, privilege)
-                FROM edgedbsql.pg_class pc
-                JOIN edgedbsql.pg_attribute_ext pa ON pa.attrelid = pc.oid
+                FROM edgedbsql_VER.pg_class pc
+                JOIN edgedbsql_VER.pg_attribute_ext pa ON pa.attrelid = pc.oid
                 WHERE pc.relname = tbl AND pa.attname = col;
             """
         ),
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', '_pg_truetypid'),
             args=(
-                ('att', ('edgedbsql', 'pg_attribute')),
-                ('typ', ('edgedbsql', 'pg_type')),
+                ('att', ('edgedbsql_VER', 'pg_attribute')),
+                ('typ', ('edgedbsql_VER', 'pg_type')),
             ),
             returns=('oid',),
             volatility='IMMUTABLE',
@@ -6719,11 +6721,11 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 END
             """
         ),
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', '_pg_truetypmod'),
             args=(
-                ('att', ('edgedbsql', 'pg_attribute')),
-                ('typ', ('edgedbsql', 'pg_type')),
+                ('att', ('edgedbsql_VER', 'pg_attribute')),
+                ('typ', ('edgedbsql_VER', 'pg_type')),
             ),
             returns=('int4',),
             volatility='IMMUTABLE',
@@ -6735,7 +6737,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 END
             """
         ),
-        dbops.Function(
+        trampoline.VersionedFunction(
             name=('edgedbsql', 'pg_table_is_visible'),
             args=[
                 ('id', ('oid',)),
@@ -6746,10 +6748,10 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             text=r'''
                 SELECT pc.relnamespace IN (
                     SELECT oid
-                    FROM edgedbsql.pg_namespace pn
+                    FROM edgedbsql_VER.pg_namespace pn
                     WHERE pn.nspname IN (select * from unnest(search_path))
                 )
-                FROM edgedbsql.pg_class pc
+                FROM edgedbsql_VER.pg_class pc
                 WHERE id = pc.oid
             '''
         )
