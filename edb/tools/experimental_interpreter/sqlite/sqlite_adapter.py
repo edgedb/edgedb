@@ -219,7 +219,7 @@ def get_table_view_from_property_view(
                     },
                 },
                 primary_key=["source", "target"],
-                indexes=[["target"], , ["source", "target"]],
+                indexes=[["target"], ["source", "target"]],
             )
 
     if (
