@@ -4186,6 +4186,23 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_55(self):
+        # In Bar, `.foo.b` refers to `.a`. Ensure that when tracing, `.a` is
+        # correctly `Foo.a`, otherwise a recurisve definition is found.
+        schema = r'''
+            type Foo {
+                property a -> str;
+                property b := .a;
+            }
+
+            type Bar {
+                property a := .foo.b;
+                link foo -> Foo;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
@@ -5092,26 +5109,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    @test.xerror(
-        '''
-        This wants to transmute an object type into an alias. It
-        produces DDL, but the DDL doesn't really make any sense. We
-        are going to probably need to add DDL syntax to accomplish
-        this.
-
-        Before we do that, we could just improve the error:
-        cannot produce migration because of a dependency cycle:
-          create alias 'default::Base' depends on
-          alter object type 'default::Alias01' depends on
-          create object type 'default::Base' depends on
-          drop object type 'default::Base' depends on
-          drop link '__type__' of object type 'default::Base' depends on
-          alter link '__type__' of link '__type__' depends on
-          alter object type 'default::Alias01' of
-            object type 'default::Alias01' depends on
-          create alias 'default::Base'
-        '''
-    )
     def test_schema_migrations_equivalence_23(self):
         self._assert_migration_equivalence([r"""
             type Child {
@@ -6420,8 +6417,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         with self.assertRaisesRegex(
             errors.InvalidDefinitionError,
             "definition dependency cycle between "
-            "property 'val' of object type 'default::Bar' and "
-            "property 'val' of object type 'default::Foo'"
+            "property 'val' of object type 'default::Foo' and "
+            "property 'val' of object type 'default::Bar'"
         ):
             self._assert_migration_equivalence([r"""
                 type Foo {

@@ -22,10 +22,14 @@ import io
 import unittest
 import time
 
+try:
+    from edb.language_server import main as ls_main
+except ImportError:
+    ls_main = None  # type: ignore
+    pass
 
-from edb.language_server import main as ls_main
 
-
+@unittest.skipIf(ls_main is None, 'edgedb-ls dependencies are missing')
 class TestLanguageServer(unittest.TestCase):
 
     def test_language_server_01(self):

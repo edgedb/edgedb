@@ -43,9 +43,9 @@ def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
         # `SELECT * FROM view`.
         relation, table = dispatch.resolve_relation(stmt.relation, ctx=ctx)
         col_map: Dict[str, str] = {
-            col.name: col.reference_as
+            col.name: col.kind.reference_as
             for col in table.columns
-            if col.name and col.reference_as
+            if col.name and isinstance(col.kind, context.ColumnByName)
         }
         if stmt.colnames:
             col_names = [col_map[name] for name in stmt.colnames]
@@ -59,8 +59,15 @@ def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
                 # alphabetically.
                 target_list = [col_map['id']]
                 for col_name, real_col in sorted(col_map.items()):
-                    if col_name not in {'id', 'tableoid', 'xmin', 'cmin',
-                                        'xmax', 'cmax', 'ctid'}:
+                    if col_name not in {
+                        'id',
+                        'tableoid',
+                        'xmin',
+                        'cmin',
+                        'xmax',
+                        'cmax',
+                        'ctid',
+                    }:
                         target_list.append(real_col)
             else:
                 target_list = col_names

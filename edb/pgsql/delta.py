@@ -1740,16 +1740,11 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
         oper_fromop = oper.get_from_operator(schema)
         oper_fromfunc = oper.get_from_function(schema)
         oper_code = oper.get_code(schema)
-        oper_comm = oper.get_commutator(schema)
-        if oper_comm:
-            commutator = self.oper_name_to_pg_name(schema, oper_comm)
-        else:
-            commutator = None
-        oper_neg = oper.get_negator(schema)
-        if oper_neg:
-            negator = self.oper_name_to_pg_name(schema, oper_neg)
-        else:
-            negator = None
+
+        # We support having both fromop and one of the others for
+        # "legacy" purposes, but ignore it.
+        if oper_code or oper_fromfunc:
+            oper_fromop = None
 
         if oper_language is ql_ast.Language.SQL and oper_fromop:
             pg_oper_name = oper_fromop[0]
@@ -1760,103 +1755,29 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
             else:
                 from_args = args
 
-            if oper_code:
-                oper_func = self.make_operator_function(oper, schema)
-                self.pgops.add(dbops.CreateFunction(oper_func))
-                oper_func_name = common.qname(*oper_func.name)
-
-            elif oper_fromfunc:
-                oper_func_name = oper_fromfunc[0]
-                if len(oper_fromfunc) > 1:
-                    from_args = oper_fromfunc[1:]
-
-            elif from_args != args:
-                # Need a proxy function with casts
-                oper_kind = oper.get_operator_kind(schema)
-
-                if oper_kind is ql_ft.OperatorKind.Infix:
-                    op = (f'$1::{from_args[0]} {pg_oper_name} '
-                          f'$2::{from_args[1]}')
-                elif oper_kind is ql_ft.OperatorKind.Postfix:
-                    op = f'$1::{from_args[0]} {pg_oper_name}'
-                elif oper_kind is ql_ft.OperatorKind.Prefix:
-                    op = f'{pg_oper_name} $1::{from_args[1]}'
-                else:
-                    raise RuntimeError(
-                        f'unexpected operator kind: {oper_kind!r}')
-
-                rtype = self.get_pgtype(
-                    oper, oper.get_return_type(schema), schema)
-
-                oper_func = dbops.Function(
-                    name=common.get_backend_name(
-                        schema, oper, catenate=False, aspect='function'),
-                    args=[(None, a) for a in args if a],
-                    volatility=oper.get_volatility(schema),
-                    returns=rtype,
-                    text=f'SELECT ({op})::{qt(rtype)}',
-                )
-
-                self.pgops.add(dbops.CreateFunction(oper_func))
-                oper_func_name = common.qname(*oper_func.name)
-
-            else:
-                oper_func_name = None
-
             if (
                 pg_oper_name is not None
                 and not params.has_polymorphic(schema)
-                or all(
-                    p.get_type(schema).is_array()
-                    for p in params.objects(schema)
-                )
+                and not oper.get_force_return_cast(schema)
             ):
-                self.pgops.add(dbops.CreateOperatorAlias(
-                    name=common.get_backend_name(schema, oper, catenate=False),
-                    args=args,
-                    procedure=oper_func_name,
-                    base_operator=('pg_catalog', pg_oper_name),
-                    operator_args=from_args,
-                    commutator=commutator,
-                    negator=negator,
-                ))
+                cexpr = self.get_dummy_operator_call(
+                    oper, pg_oper_name, from_args, schema)
 
-                if not params.has_polymorphic(schema):
-                    if oper_func_name is not None:
-                        cexpr = self.get_dummy_func_call(
-                            oper, oper_func_name, schema)
-                    else:
-                        cexpr = self.get_dummy_operator_call(
-                            oper, pg_oper_name, from_args, schema)
-
-                    # We don't do a strictness consistency check for
-                    # USING SQL OPERATOR because they are heavily
-                    # overloaded, and so we'd need to take the types
-                    # into account; this is doable, but doesn't seem
-                    # worth doing since the only non-strict operator
-                    # is || on arrays, and we use array_cat for that
-                    # anyway!
-                    check = self.sql_rval_consistency_check(
-                        oper, cexpr, schema)
-                    self.pgops.add(check)
-            elif oper_func_name is not None:
-                self.pgops.add(dbops.CreateOperator(
-                    name=common.get_backend_name(schema, oper, catenate=False),
-                    args=from_args,
-                    procedure=oper_func_name,
-                ))
+                # We don't do a strictness consistency check for
+                # USING SQL OPERATOR because they are heavily
+                # overloaded, and so we'd need to take the types
+                # into account; this is doable, but doesn't seem
+                # worth doing since the only non-strict operator
+                # is || on arrays, and we use array_cat for that
+                # anyway!
+                check = self.sql_rval_consistency_check(
+                    oper, cexpr, schema)
+                self.pgops.add(check)
 
         elif oper_language is ql_ast.Language.SQL and oper_code:
             args = self.get_pg_operands(schema, oper)
             oper_func = self.make_operator_function(oper, schema)
             self.pgops.add(dbops.CreateFunction(oper_func))
-            oper_func_name = common.qname(*oper_func.name)
-
-            self.pgops.add(dbops.CreateOperator(
-                name=common.get_backend_name(schema, oper, catenate=False),
-                args=args,
-                procedure=oper_func_name,
-            ))
 
             if not params.has_polymorphic(schema):
                 cexpr = self.get_dummy_func_call(
@@ -1907,24 +1828,7 @@ class AlterOperator(OperatorCommand, adapts=s_opers.AlterOperator):
 
 
 class DeleteOperator(OperatorCommand, adapts=s_opers.DeleteOperator):
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        orig_schema = schema
-        oper = schema.get(self.classname, type=s_opers.Operator)
-
-        if oper.get_abstract(schema):
-            return super().apply(schema, context)
-
-        name = common.get_backend_name(schema, oper, catenate=False)
-        args = self.get_pg_operands(schema, oper)
-
-        schema = super().apply(schema, context)
-        if not oper.get_from_expr(orig_schema):
-            self.pgops.add(dbops.DropOperator(name=name, args=args))
-        return schema
+    pass
 
 
 class CastCommand(MetaCommand):
