@@ -50,7 +50,7 @@ test = [
     'MarkupSafe~=1.1',
     'PyYAML~=6.0',
 
-    'mypy~=1.7.1',
+    'mypy~=1.10.0',
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
     'types-docutils~=0.17.0,<0.17.6', # incomplete nodes.document.__init__
@@ -122,6 +122,17 @@ skip-string-normalization = true
 # ========================
 
 [tool.mypy]
+exclude = [
+    "^.eggs",
+    "^.github",
+    "^.vscode",
+    "^build",
+    "^dist",
+    "^docs",
+    "^postgres",
+    "^target",
+]
+files = "."
 python_version = "3.12"
 plugins = "edb/tools/mypy/plugin.py"
 follow_imports = "normal"
