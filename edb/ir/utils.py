@@ -533,10 +533,13 @@ def find_set_of_op(
     return next(iter(calls or []), None)
 
 
-T = TypeVar('T')
+ExprT = TypeVar('ExprT', bound=irast.Expr)
 
 
-def is_set_instance(ir: irast.Set, typ: Type[T]) -> TypeGuard[irast.SetE[T]]:
+def is_set_instance(
+    ir: irast.Set,
+    typ: Type[ExprT],
+) -> TypeGuard[irast.SetE[ExprT]]:
     return isinstance(ir.expr, typ)
 
 
