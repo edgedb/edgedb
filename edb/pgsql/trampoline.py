@@ -17,7 +17,21 @@
 #
 
 
-"""Support for namespacing and trampolining the standard library."""
+"""Support for namespacing and trampolining the standard library.
+
+The idea here is that all of the functions, tables, and views in
+edgedb/edgedbstd/edgedbsql should be moved into namespaced libraries
+of the form `edgedb_VER`, where VER will be substituted with some
+version identifier.
+
+Then, for anything that might be referenced by a function, constraint,
+etc, we will create a *trampoline* in the un-suffixed namespace.
+When doing (eventually) in-place version upgrades, we will create the
+new namespace and then update the trampolines to point to it.
+
+CURRENT STATUS: So far, functions and views are mostly
+namespaced. Standard library schema object tables aren't yet.
+"""
 
 from __future__ import annotations
 from typing import (
@@ -47,7 +61,7 @@ def versioned_schema(s: str, version: Optional[int]=None) -> str:
 
 V = versioned_schema
 
-SCHEMAS = ['edgedb', 'edgedbstd', 'edgedbsql']
+SCHEMAS = ('edgedb', 'edgedbstd', 'edgedbsql')
 
 
 def fixup_query(query: str) -> str:
