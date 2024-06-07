@@ -113,6 +113,9 @@ if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 
 
+V = trampoline.versioned_schema
+
+
 # Modules where all the "types" in them are really just custom views
 # provided by metaschema.
 VIEW_MODULES = ('sys', 'cfg')
@@ -402,7 +405,7 @@ class AlterSchemaVersion(
                             (SELECT
                                 version::text
                             FROM
-                                edgedb."_SchemaSchemaVersion"
+                                {V('edgedb')}."_SchemaSchemaVersion"
                             FOR UPDATE),
                             {ql(str(expected_ver))}
                         )),
@@ -410,7 +413,7 @@ class AlterSchemaVersion(
                         msg => (
                             'Cannot serialize DDL: '
                             || (SELECT version::text FROM
-                                edgedb."_SchemaSchemaVersion")
+                                {V('edgedb')}."_SchemaSchemaVersion")
                         )
                     )
                 INTO _dummy_text
@@ -560,7 +563,7 @@ class AlterGlobalSchemaVersion(
                         msg => (
                             'Cannot serialize global DDL: '
                             || (SELECT version::text FROM
-                                edgedb."_SysGlobalSchemaVersion")
+                                {V('edgedb')}."_SysGlobalSchemaVersion")
                         )
                     )
                 INTO _dummy_text
@@ -577,7 +580,7 @@ class AlterGlobalSchemaVersion(
                             (SELECT
                                 version::text
                             FROM
-                                edgedb."_SysGlobalSchemaVersion"
+                                {V('edgedb')}."_SysGlobalSchemaVersion"
                             ),
                             {ql(str(expected_ver))}
                         )),
@@ -585,7 +588,7 @@ class AlterGlobalSchemaVersion(
                         msg => (
                             'Cannot serialize global DDL: '
                             || (SELECT version::text FROM
-                                edgedb."_SysGlobalSchemaVersion")
+                                {V('edgedb')}."_SysGlobalSchemaVersion")
                         )
                     )
                 INTO _dummy_text
@@ -1335,7 +1338,7 @@ class FunctionCommand(MetaCommand):
                             target AS ancestor,
                             index
                         FROM
-                            edgedb."_SchemaObjectType__ancestors"
+                            edgedb._object_ancestors
                             WHERE source = {qi(type_param_name)}
                         ) a
                     WHERE ancestor IN ({impl_ids})
@@ -6261,7 +6264,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                             edgedb._get_schema_object_name(link.{far_endpoint})
                             INTO linkname, endname
                         FROM
-                            edgedb."_SchemaLink" AS link
+                            edgedb._schema_links AS link
                         WHERE
                             link.id = link_type_id;
                         RAISE foreign_key_violation
@@ -6483,7 +6486,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                             edgedb._get_schema_object_name(link.{far_endpoint})
                             INTO linkname, endname
                         FROM
-                            edgedb."_SchemaLink" AS link
+                            edgedb._schema_links AS link
                         WHERE
                             link.id = link_type_id;
                         RAISE foreign_key_violation

@@ -897,10 +897,11 @@ class Tenant(ha_base.ClusterProtocol):
     async def _introspect_extensions(
         self, conn: pgcon.PGConnection
     ) -> set[str]:
+        from edb.pgsql import trampoline
         extension_names_json = await conn.sql_fetch_val(
-            b"""
-                SELECT json_agg(name) FROM edgedb."_SchemaExtension";
-            """,
+            trampoline.fixup_query("""
+                SELECT json_agg(name) FROM edgedb_VER."_SchemaExtension";
+            """).encode('utf-8'),
         )
         if extension_names_json:
             extensions = set(json.loads(extension_names_json))
@@ -926,6 +927,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         Returns True if the query cache mode changed.
         """
+        from edb.pgsql import trampoline
         logger.info("introspecting database '%s'", dbname)
 
         assert self._dbindex is not None
@@ -968,15 +970,15 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
             backend_ids_json = await conn.sql_fetch_val(
-                b"""
+                trampoline.fixup_query("""
                 SELECT
                     json_object_agg(
                         "id"::text,
                         "backend_id"
                     )::text
                 FROM
-                    edgedb."_SchemaType"
-                """,
+                    edgedb_VER."_SchemaType"
+                """).encode('utf-8'),
             )
             backend_ids = json.loads(backend_ids_json)
 
