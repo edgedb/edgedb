@@ -1,0 +1,20 @@
+[package]
+name = "edgedb_ext"
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["pg16"]
+pg14 = ["pgrx/pg14", "pgrx-tests/pg14" ]
+pg15 = ["pgrx/pg15", "pgrx-tests/pg15" ]
+pg16 = ["pgrx/pg16", "pgrx-tests/pg16" ]
+pg_test = []
+
+[dependencies]
+pgrx = "=0.11.4"
+
+[dev-dependencies]
+pgrx-tests = "=0.11.4"

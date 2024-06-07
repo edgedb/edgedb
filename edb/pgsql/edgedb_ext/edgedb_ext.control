@@ -1,0 +1,5 @@
+comment = 'edgedb_ext:  Created by pgrx'
+default_version = '@CARGO_VERSION@'
+module_pathname = '$libdir/edgedb_ext'
+relocatable = false
+superuser = true
