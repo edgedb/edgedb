@@ -54,8 +54,12 @@ qi = common.quote_ident
 
 def versioned_schema(s: str, version: Optional[int]=None) -> str:
     if version is None:
-        # ... get_version_dict() is cached
+        # ... get_version_dict() is cached, so we use it instead of
+        # get_version(). We might change this to use catalog version at
+        # some point?
         version = buildmeta.get_version_dict()['major']
+    # N.B: We don't bother quoting the schema name, so make sure it is
+    # lower case and doesn't have weird characters.
     return f'{s}_v{version}'
 
 
