@@ -106,6 +106,7 @@ from .common import quote_type as qt
 from . import compiler
 from . import codegen
 from . import schemamech
+from . import trampoline
 from . import types
 
 if TYPE_CHECKING:
@@ -1177,8 +1178,14 @@ class FunctionCommand(MetaCommand):
     def make_function(self, func: s_funcs.Function, code, schema):
         func_return_typemod = func.get_return_typemod(schema)
         func_params = func.get_params(schema)
-        return dbops.Function(
-            name=self.get_pgname(func, schema),
+
+        name = self.get_pgname(func, schema)
+        cls = (
+            trampoline.VersionedFunction if name[0] == 'edgedbstd'
+            else dbops.Function
+        )
+        return cls(
+            name=name,
             args=self.compile_args(func, schema),
             has_variadic=func_params.find_variadic(schema) is not None,
             set_returning=func_return_typemod is ql_ft.TypeModifier.SetOfType,
@@ -1186,7 +1193,8 @@ class FunctionCommand(MetaCommand):
             strict=func.get_impl_is_strict(schema),
             returns=self.get_pgtype(
                 func, func.get_return_type(schema), schema),
-            text=code)
+            text=code,
+        )
 
     def compile_sql_function(self, func: s_funcs.Function, schema):
         return self.make_function(func, func.get_code(schema), schema)
@@ -1564,8 +1572,17 @@ class FunctionCommand(MetaCommand):
                     f'unsupported language {func_language}',
                     span=self.span)
 
-            op = dbops.CreateFunction(dbf, or_replace=or_replace)
-            return (op,)
+            ops = []
+
+            ops.append(dbops.CreateFunction(dbf, or_replace=or_replace))
+            # XXX: TRAMPOLINE: Is this where we want to do this???
+            if isinstance(dbf, trampoline.VersionedFunction):
+                ops.append(
+                    dbops.CreateFunction(
+                        trampoline.make_trampoline(dbf), or_replace=True
+                    )
+                )
+            return ops
 
 
 class CreateFunction(
@@ -1692,9 +1709,15 @@ class OperatorCommand(FunctionCommand):
         return args
 
     def make_operator_function(self, oper: s_opers.Operator, schema):
-        return dbops.Function(
-            name=common.get_backend_name(
-                schema, oper, catenate=False, aspect='function'),
+        name = common.get_backend_name(
+            schema, oper, catenate=False, aspect='function')
+        cls = (
+            trampoline.VersionedFunction if name[0] == 'edgedbstd'
+            else dbops.Function
+        )
+
+        return cls(
+            name=name,
             args=self.compile_args(oper, schema),
             volatility=oper.get_volatility(schema),
             returns=self.get_pgtype(
@@ -1778,6 +1801,14 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
             args = self.get_pg_operands(schema, oper)
             oper_func = self.make_operator_function(oper, schema)
             self.pgops.add(dbops.CreateFunction(oper_func))
+
+            # XXX: TRAMPOLINE: Is this where we want to do this???
+            if isinstance(oper_func, trampoline.VersionedFunction):
+                self.pgops.add(
+                    dbops.CreateFunction(
+                        trampoline.make_trampoline(oper_func), or_replace=True
+                    )
+                )
 
             if not params.has_polymorphic(schema):
                 cexpr = self.get_dummy_func_call(

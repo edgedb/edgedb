@@ -25,6 +25,7 @@ import uuid
 from edb import errors
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import trampoline
 
 from . import dispatch
 from . import context
@@ -331,8 +332,10 @@ def resolve_SortBy(
 
 
 func_calls_remapping: Dict[Tuple[str, ...], Tuple[str, ...]] = {
-    ('information_schema', '_pg_truetypid'): ('edgedbsql', '_pg_truetypid'),
-    ('information_schema', '_pg_truetypmod'): ('edgedbsql', '_pg_truetypmod'),
+    ('information_schema', '_pg_truetypid'): (
+        trampoline.versioned_schema('edgedbsql'), '_pg_truetypid'),
+    ('information_schema', '_pg_truetypmod'): (
+        trampoline.versioned_schema('edgedbsql'), '_pg_truetypmod'),
     ('pg_catalog', 'format_type'): ('edgedb', '_format_type'),
 }
 
