@@ -111,11 +111,19 @@ std::array_set(
     USING SQL $$
     SELECT CASE
         WHEN cardinality("array") = 0 THEN
-            "array"
+            edgedb.raise(
+                "array",
+                'invalid_parameter_value',
+                msg => 'array index ' || idx::text || ' is out of bounds'
+            )
         WHEN edgedb._normalize_array_index(
             "idx"::int, array_upper("array", 1)
         ) NOT BETWEEN 1 and array_upper("array", 1) THEN
-            "array"
+            edgedb.raise(
+                "array",
+                'invalid_parameter_value',
+                msg => 'array index ' || idx::text || ' is out of bounds'
+            )
         WHEN edgedb._normalize_array_index(
             "idx"::int, array_upper("array", 1)
         ) = 1 THEN
