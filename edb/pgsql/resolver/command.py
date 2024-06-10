@@ -19,12 +19,13 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 
 from edb.pgsql import ast as pgast
 
 from . import dispatch
 from . import context
+from . import expr as pg_res_expr
 
 Context = context.ResolverContextLevel
 
@@ -32,62 +33,44 @@ Context = context.ResolverContextLevel
 @dispatch._resolve.register
 def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
 
-    # Query
-    query = dispatch.resolve_opt(stmt.query, ctx=ctx)
-    relation: Optional[pgast.Relation] = None
-    col_names: Optional[List[str]] = None
+    query: Optional[pgast.Query]
 
-    if stmt.relation:
-        # A table is going to be copied, which potentially is a view that
-        # cannot be copied as a table, but needs to be wrapped into a
-        # `SELECT * FROM view`.
+    if stmt.query:
+        query = dispatch.resolve(stmt.query, ctx=ctx)
+
+    elif stmt.relation:
         relation, table = dispatch.resolve_relation(stmt.relation, ctx=ctx)
-        col_map: Dict[str, str] = {
-            col.name: col.kind.reference_as
-            for col in table.columns
-            if col.name and isinstance(col.kind, context.ColumnByName)
-        }
         if stmt.colnames:
-            col_names = [col_map[name] for name in stmt.colnames]
+            col_map: Dict[str, context.Column] = {
+                col.name: col for col in table.columns
+            }
+            selected_columns = (col_map[name] for name in stmt.colnames)
+        else:
+            selected_columns = (c for c in table.columns if not c.hidden)
 
-        if relation.schemaname == 'edgedbpub':
-            # This is probably a view based on edgedb schema, so wrap it into
-            # a select query.
-            if not col_names:
-                # Avoid adding the system columns here. Also order the columns
-                # the same way as in the information_schema: id first, then
-                # alphabetically.
-                target_list = [col_map['id']]
-                for col_name, real_col in sorted(col_map.items()):
-                    if col_name not in {
-                        'id',
-                        'tableoid',
-                        'xmin',
-                        'cmin',
-                        'xmax',
-                        'cmax',
-                        'ctid',
-                    }:
-                        target_list.append(real_col)
-            else:
-                target_list = col_names
-            query = pgast.SelectStmt(
-                from_clause=[pgast.RelRangeVar(relation=relation)],
-                target_list=[
-                    pgast.ResTarget(
-                        val=pgast.ColumnRef(name=(cn,)),
-                    )
-                    for cn in target_list
-                ],
-            )
-            relation = None
+        # The relation being copied is potentially a view and views cannot be
+        # copied if referenced by name, so we just always wrap it into a SELECT.
+
+        # This is probably a view based on edgedb schema, so wrap it into
+        # a select query.
+        query = pgast.SelectStmt(
+            from_clause=[pgast.RelRangeVar(relation=relation)],
+            target_list=[
+                pgast.ResTarget(
+                    val=pg_res_expr.resolve_column_kind(table, c.kind, ctx=ctx)
+                )
+                for c in selected_columns
+            ],
+        )
+    else:
+        raise AssertionError('CopyStmt must either have relation or query set')
 
     # WHERE
     where = dispatch.resolve_opt(stmt.where_clause, ctx=ctx)
 
     return pgast.CopyStmt(
         relation=None,
-        colnames=col_names,
+        colnames=None,
         query=query,
         is_from=stmt.is_from,
         is_program=stmt.is_program,
