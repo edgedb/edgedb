@@ -92,9 +92,12 @@ __all__ = ('not_implemented', 'xerror', 'xfail', '_xfail', 'skip')
 @click.option('--running-times-log', 'running_times_log_file',
               type=click.File('a+'), metavar='FILEPATH',
               help='maintain a running time log file at FILEPATH')
-@click.option('--log-result/--no-log-result', is_flag=True,
-              help='write the test result to a log file',
-              default=True)
+@click.option('--result-log', type=str, metavar='FILEPATH',
+              help='write the test result to a log file. '
+                'If the path contains %TIMESTAMP%, it will be replaced by '
+                'ISO8601 date and time. '
+                'Empty string means not to write the log at all.',
+              default='build/test-results/%TIMESTAMP%.json')
 @click.option('--include-unsuccessful', is_flag=True,
               help='include the tests that were not successful in the last run')
 @click.option('--list', 'list_tests', is_flag=True,
@@ -127,7 +130,7 @@ def test(
     backend_dsn: typing.Optional[str],
     use_db_cache: bool,
     data_dir: typing.Optional[str],
-    log_result: bool,
+    result_log: str,
     include_unsuccessful: bool,
 ):
     """Run EdgeDB test suite.
@@ -206,7 +209,7 @@ def test(
         backend_dsn=backend_dsn,
         try_cached_db=use_db_cache,
         data_dir=data_dir,
-        log_result=log_result,
+        result_log=result_log,
         include_unsuccessful=include_unsuccessful,
     )
 
@@ -300,7 +303,7 @@ def _run(
     backend_dsn: typing.Optional[str],
     try_cached_db: bool,
     data_dir: typing.Optional[str],
-    log_result: bool,
+    result_log: str,
     include_unsuccessful: bool,
 ):
     suite = unittest.TestSuite()
@@ -321,8 +324,8 @@ def _run(
     else:
         _update_progress = None
 
-    if include_unsuccessful:
-        unsuccessful = results.read_unsuccessful()
+    if include_unsuccessful and result_log:
+        unsuccessful = results.read_unsuccessful(result_log)
         include = list(include) + unsuccessful + ['a_non_existing_test']
 
     test_loader = loader.TestLoader(
@@ -383,7 +386,7 @@ def _run(
         if not result.was_successful:
             break
 
-    if log_result:
-        results.write_result(result)
+    if result_log:
+        results.write_result(result_log, result)
 
     return 0 if result.was_successful else 1

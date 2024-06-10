@@ -274,39 +274,33 @@ def render_result(
     _echo(file)
 
 
-def _result_log_dir() -> typing.Optional[pathlib.Path]:
-    try:
-        build_dir = pathlib.Path('.') / 'build'
-        build_dir.mkdir(exist_ok=True)
-        dir = build_dir / 'test-results'
-        dir.mkdir(exist_ok=True)
-        return dir
-    except Exception:
+def _result_log_path(path_template: str) -> typing.Optional[pathlib.Path]:
+    now = str(datetime.datetime.now()).replace(' ', '_')
+    path = pathlib.Path(path_template.replace('%TIMESTAMP%', now))
+
+    dir = path.parent
+    try:       
+        dir.mkdir(parents=True, exist_ok=True)
+        return path
+    except OSError:
         # this might happen when the process is running in readonly mode
         return None
 
 
-def _result_log_file() -> typing.Optional[typing.IO]:
-    dir = _result_log_dir()
-    if not dir:
+def write_result(path_template: str, res: TestResult):
+    path = _result_log_path(path_template)
+    if not path:
         return None
-    now = str(datetime.datetime.now()).replace(' ', '_')
-    return open(dir / f'{now}.json', 'w')
-
-
-def write_result(res: TestResult):
-    log_file = _result_log_file()
-    if not log_file:
-        return
+    log_file = open(path, 'w')
 
     json.dump(dataclasses.asdict(res), log_file, indent=4)
 
 
-def read_unsuccessful() -> typing.List[str]:
-    dir = _result_log_dir()
-    if not dir:
+def read_unsuccessful(path_template: str) -> typing.List[str]:
+    log_path = _result_log_path(path_template)
+    if not log_path:
         return []
-    results = list(dir.iterdir())
+    results = list(log_path.parent.iterdir())
     if not results:
         return []
 
