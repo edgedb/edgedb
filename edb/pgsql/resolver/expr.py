@@ -91,10 +91,23 @@ def resolve_ResTarget(
         alias = static.name_in_pg_catalog(res_target.val.name)
 
     col = context.Column(name=alias, reference_as=alias)
-    new_target = pgast.ResTarget(
-        val=val, name=alias, span=res_target.span
-    )
+    new_target = pgast.ResTarget(val=val, name=alias, span=res_target.span)
     return (new_target,), (col,)
+
+
+def resolve_column(
+    table: context.Table, column: context.Column
+) -> pgast.BaseExpr:
+    if column.static_val:
+        return _uuid_const(column.static_val)
+
+    assert column.reference_as
+
+    if table.reference_as:
+        return pgast.ColumnRef(name=(table.reference_as, column.reference_as))
+    else:
+        # this is a reference to a local column, so it doesn't need table name
+        return pgast.ColumnRef(name=(column.reference_as,))
 
 
 @dispatch._resolve.register
@@ -109,17 +122,7 @@ def resolve_ColumnRef(
         assert table.reference_as
         return pgast.ColumnRef(name=(table.reference_as, pgast.Star()))
 
-    if column.static_val:
-        return _uuid_const(column.static_val)
-
-    assert column.reference_as
-
-    if table.name:
-        assert table.reference_as
-        return pgast.ColumnRef(name=(table.reference_as, column.reference_as))
-    else:
-        # this is a reference to a local column, so it doesn't need table name
-        return pgast.ColumnRef(name=(column.reference_as,))
+    return resolve_column(table, column)
 
 
 def _uuid_const(val: uuid.UUID):

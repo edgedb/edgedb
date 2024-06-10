@@ -45,7 +45,7 @@ def resolve_BaseRangeVar(
         return _resolve_JoinExpr(range_var, ctx=ctx)
 
     # generate internal alias
-    internal_alias = ctx.names.get('relation')
+    internal_alias = ctx.names.get('rel')
     alias = pgast.Alias(
         aliasname=internal_alias, colnames=range_var.alias.colnames
     )

@@ -1442,6 +1442,8 @@ class SQLQueryTestCase(BaseQueryTestCase):
 
     BASE_TEST_CLASS = True
 
+    scon: asyncpg.Connection
+
     @classmethod
     def setUpClass(cls):
         try:

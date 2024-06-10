@@ -40,7 +40,7 @@ insert Movie {
         select Person { @role := 'Captain Miller' } filter .first_name = 'Tom'
     ),
     director := (
-        select Person filter .last_name = 'Spielberg' limit 1
+        select Person { @bar := 'bar' } filter .last_name = 'Spielberg' limit 1
     ),
     genre := (select Genre filter .name = 'Drama' limit 1),
 };
@@ -54,6 +54,12 @@ insert novel {
 insert Book {
     title:='Chronicles of Narnia',
     pages := 206,
+    chapters := {
+        'Lucy looks into a wardrobe',
+        'What Lucy found there',
+        'Edmund and the wardrobe',
+        'Turkish delight',
+    },
     genre:= (select Genre filter .name = 'Fiction' limit 1)
 };
 
