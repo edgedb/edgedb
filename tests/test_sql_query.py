@@ -1055,15 +1055,15 @@ class TestSQL(tb.SQLQueryTestCase):
 
         out = io.BytesIO()
         await self.scon.copy_from_table(
-            "Person", columns=['first_name'], output=out,  # 'full_name'
+            "Person", columns=['first_name', 'full_name'], output=out,
             format="csv", delimiter="\t"
         )
         out = io.StringIO(out.getvalue().decode("utf-8"))
         res = list(csv.reader(out, delimiter="\t"))
         self.assert_data_shape(res, tb.bag([
-            ["Robin"],  # "Robin"
-            ["Steven"],  # "Steven Spielberg"
-            ["Tom"],  # "Tom Hanks"
+            ["Robin", "Robin"],
+            ["Steven", "Steven Spielberg"],
+            ["Tom", "Tom Hanks"],
         ]))
 
     async def test_sql_query_error_01(self):
@@ -1299,7 +1299,7 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertEqual(res, [["Hello Tom Hanks"]])
 
     async def test_sql_query_computed_05(self):
-        # computed in a lateral
+        # computed in ORDER BY
         res = await self.squery_values(
             """
             SELECT first_name
