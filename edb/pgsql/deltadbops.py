@@ -33,6 +33,7 @@ from edb.schema import objects as s_obj
 from edb.pgsql import common
 from edb.pgsql import dbops
 from edb.pgsql import schemamech
+from edb.pgsql import trampoline
 
 
 class SchemaDBObjectMeta(adapter.Adapter):  # type: ignore
@@ -304,8 +305,9 @@ class MultiConstraintItem:
 
     def get_id(self):
         raw_name = self.constraint.raw_constraint_name()
-        name = common.edgedb_name_to_pg_name(
-            '{}#{}'.format(raw_name, self.index))
+        # XXX
+        name = trampoline.versioned_name(common.edgedb_name_to_pg_name(
+            '{}#{}'.format(raw_name, self.index)))
         name = common.quote_ident(name)
 
         return '{} ON {} {}'.format(

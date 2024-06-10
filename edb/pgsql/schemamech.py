@@ -54,6 +54,7 @@ from . import common
 from . import types
 from . import compiler
 from . import codegen
+from . import trampoline
 from .common import qname as qn
 
 
@@ -521,7 +522,7 @@ class SchemaTableConstraint:
         origin_expressions = pg_c.origin_expressions
 
         return deltadbops.SchemaConstraintTableConstraint(
-            table_name,
+            trampoline.versioned_name(table_name),
             constraint=constr.constraint,
             exprdata=expressions,
             origin_exprdata=origin_expressions,
@@ -537,7 +538,9 @@ class SchemaTableConstraint:
 
         tabconstr = self._table_constraint(self)
         add_constr = deltadbops.AlterTableAddConstraint(
-            name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
+            name=tabconstr.get_subject_name(quote=False),
+            constraint=tabconstr,
+        )
 
         ops.add_command(add_constr)
 
@@ -565,7 +568,9 @@ class SchemaTableConstraint:
 
         tabconstr = self._table_constraint(self)
         add_constr = deltadbops.AlterTableDropConstraint(
-            name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
+            name=tabconstr.get_subject_name(quote=False),
+            constraint=tabconstr,
+        )
 
         ops.add_command(add_constr)
 

@@ -3068,8 +3068,8 @@ class CompositeMetaCommand(MetaCommand):
     def _get_table_name(obj, schema) -> tuple[str, str]:
         is_internal_view = is_cfg_view(obj, schema)
         aspect = 'dummy' if is_internal_view else None
-        return common.get_backend_name(
-            schema, obj, catenate=False, aspect=aspect)
+        return trampoline.versioned_name(common.get_backend_name(
+            schema, obj, catenate=False, aspect=aspect))
 
     @classmethod
     def _refresh_fake_cfg_view_cmd(
@@ -3214,7 +3214,7 @@ class CompositeMetaCommand(MetaCommand):
             (SELECT
                {coltext}
              FROM
-               {q(*tabname)} AS {talias}
+               {q(*trampoline.versioned_name(tabname))} AS {talias}
             )
         ''')
 
@@ -6932,8 +6932,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         inline: bool = False,
     ) -> None:
 
-        table_name = common.get_backend_name(
-            schema, objtype, catenate=False)
+        table_name = trampoline.versioned_name(common.get_backend_name(
+            schema, objtype, catenate=False))
 
         trigger_name = self.get_trigger_name(
             schema, objtype, disposition=disposition,

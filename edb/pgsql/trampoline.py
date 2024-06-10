@@ -63,6 +63,15 @@ def versioned_schema(s: str, version: Optional[int]=None) -> str:
     return f'{s}_v{version}'
 
 
+def versioned_name(
+    s: tuple[str, ...], version: Optional[int]=None
+) -> str:
+    if len(s) > 1:
+        return (versioned_schema(s[0], version), *s[1:])
+    else:
+        return s
+
+
 V = versioned_schema
 
 SCHEMAS = ('edgedb', 'edgedbstd', 'edgedbsql')
