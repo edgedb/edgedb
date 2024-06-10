@@ -5914,6 +5914,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         trampoline.VersionedView(
             name=("edgedbsql", "pg_namespace"),
             query="""
+        -- system schemas
         SELECT
             oid,
             nspname,
@@ -5929,6 +5930,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
                           'edgedb', 'edgedbstd')
         UNION ALL
+
+        -- virtual schemas
         SELECT
             edgedbsql_VER.uuid_to_oid(t.module_id)  AS oid,
             t.schema_name                       AS nspname,
@@ -5949,8 +5952,16 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             '0'::cid                            AS cmax,
             NULL                                AS ctid
         FROM (
-            SELECT DISTINCT schema_name, module_id
+            SELECT schema_name, module_id
             FROM edgedbsql_VER.virtual_tables
+
+            UNION
+
+            -- always include the default module,
+            -- because it is needed for tuple types
+            SELECT 'public' AS schema_name, id AS module_id
+            FROM edgedb_VER."_SchemaModule"
+            WHERE name = 'default'
         ) t
         """,
         ),
