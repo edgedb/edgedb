@@ -157,4 +157,5 @@ std::range_get_lower(r: multirange<anypoint>)
 '''),
     # === 5.4
     ('repair', ''),  # for #7375
+    ('sql-introspection', ''),  # for #7445
 ])
