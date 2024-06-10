@@ -106,11 +106,12 @@ def resolve_column_kind(
                 return pgast.ColumnRef(name=(table.reference_as, reference_as))
             else:
                 # In some cases tables might not have an assigned alias
-                # because that is not syntactically possible (COPY), or for some
-                # other reason.
-                # Here we make an assumption that in such cases, there is a
-                # single rel var in current context, so this will not be
-                # ambagious.
+                # because that is not syntactically possible (COPY), or because
+                # the table being referenced is currently being assembled
+                # (e.g. ORDER BY refers to a newly defined column).
+
+                # So we make an assumption that in such cases, this will not
+                # be ambiguous. I think this is not strictly correct.
                 return pgast.ColumnRef(name=(reference_as,))
 
         case context.ColumnStaticVal(val=val):
