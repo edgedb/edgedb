@@ -6255,9 +6255,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             false as atthasdef,
             COALESCE(atthasmissing, FALSE) as atthasmissing,
             COALESCE(attidentity, '') as attidentity,
-            -- computeds: generated='s' (stored), which is not exactly true,
-            -- but Postgres does not have a more correct option
-            COALESCE(attgenerated, 's') as attgenerated,
+            COALESCE(attgenerated, '') as attgenerated,
             COALESCE(attisdropped, FALSE) as attisdropped,
             COALESCE(attislocal, TRUE) as attislocal,
             COALESCE(attinhcount, 0) as attinhcount,
