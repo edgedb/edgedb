@@ -641,13 +641,14 @@ class MultiLineRenderer(BaseRenderer):
 
         print_empty_line()
         print_line(
-            f'Progress: {self.completed_tests}/{self.total_tests} tests.')
+            f'Progress: {self.completed_tests}/{self.total_tests} tests.'
+        )
 
-        if last_render:
-            if self.max_lines > len(lines):
-                for _ in range(self.max_lines - len(lines)):
-                    lines.insert(0, ' ' * cols)
-        else:
+        if self.max_lines > len(lines):
+            for _ in range(self.max_lines - len(lines)):
+                lines.insert(0, ' ' * cols)
+
+        if not last_render:
             # If it's not the last test, check if our render buffer
             # requires more rows than currently visible.
             if len(lines) + 1 > rows:
