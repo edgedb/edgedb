@@ -988,24 +988,71 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertNotEqual(v1, v2)
 
     async def test_sql_query_copy_01(self):
+        # copy without columns should select all columns
+
         out = io.BytesIO()
         await self.scon.copy_from_table(
             "Movie", output=out, format="csv", delimiter="\t"
         )
         out = io.StringIO(out.getvalue().decode("utf-8"))
-        # Get the columns order from the information_schema.
-        res = await self.squery_values(
-            r'''
-            SELECT column_name, ordinal_position
-            FROM information_schema.columns cols
-            WHERE cols.table_name = 'Movie'
-            '''
+        res = list(csv.reader(out, delimiter="\t"))
+
+        # should contain columns:
+        # id, __type__, director_id, genre_id, release_year, title
+        # 0,  1,        2,           3,        4,            5
+
+        self.assertEqual(
+            set(row[5] for row in res),
+            {"Forrest Gump", "Saving Private Ryan"}
         )
-        name_to_pos = {name: num - 1 for name, num in res}
-        titles = set(
-            row[name_to_pos['title']] for row in csv.reader(out, delimiter="\t")
+
+    async def test_sql_query_copy_02(self):
+        # copy of a link table
+
+        out = io.BytesIO()
+        await self.scon.copy_from_table(
+            "Movie.director", output=out, format="csv", delimiter="\t"
         )
-        self.assertEqual(titles, {"Forrest Gump", "Saving Private Ryan"})
+        out = io.StringIO(out.getvalue().decode("utf-8"))
+        res = list(csv.reader(out, delimiter="\t"))
+
+        # should contain columns:
+        # source, target, @bar
+        # 0,      1,      2
+
+        self.assertEqual(
+            {row[2] for row in res},
+            {"bar"}
+        )
+
+    async def test_sql_query_copy_03(self):
+        # copy of query
+
+        out = io.BytesIO()
+        await self.scon.copy_from_query(
+            "SELECT 1, 2 UNION ALL SELECT 3, 4",
+            output=out, format="csv", delimiter="\t"
+        )
+        out = io.StringIO(out.getvalue().decode("utf-8"))
+        res = list(csv.reader(out, delimiter="\t"))
+
+        self.assertEqual(res, [['1', '2'], ['3', '4']])
+
+    async def test_sql_query_copy_04(self):
+        # copy of table with columns specified
+
+        out = io.BytesIO()
+        await self.scon.copy_from_table(
+            "Person", columns=['first_name'], output=out,  # 'full_name'
+            format="csv", delimiter="\t"
+        )
+        out = io.StringIO(out.getvalue().decode("utf-8"))
+        res = list(csv.reader(out, delimiter="\t"))
+        self.assert_data_shape(res, tb.bag([
+            ["Robin"],  # "Robin"
+            ["Steven"],  # "Steven Spielberg"
+            ["Tom"],  # "Tom Hanks"
+        ]))
 
     async def test_sql_query_error_01(self):
         with self.assertRaisesRegex(

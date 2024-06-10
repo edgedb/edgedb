@@ -102,13 +102,17 @@ def resolve_column_kind(
 ) -> pgast.BaseExpr:
     match column:
         case context.ColumnByName(reference_as=reference_as):
-            if table.name:
-                assert table.reference_as
+            if table.reference_as:
                 return pgast.ColumnRef(name=(table.reference_as, reference_as))
             else:
-                # this is a reference to a local column
-                # so it doesn't need table name
-                return pgast.ColumnRef(name=(column.reference_as,))
+                # In some cases tables might not have an assigned alias
+                # because that is not syntactically possible (COPY), or for some
+                # other reason.
+                # Here we make an assumption that in such cases, there is a
+                # single rel var in current context, so this will not be
+                # ambagious.
+                return pgast.ColumnRef(name=(reference_as,))
+
         case context.ColumnStaticVal(val=val):
             # special case: __type__ static value
             return _uuid_const(val)
