@@ -548,6 +548,7 @@ class Environment:
         ignore_object_shapes: bool,
         singleton_mode: bool,
         expand_inhviews: bool,
+        use_type_inheritance_ctes: bool,
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
         type_rewrites: Dict[RewriteKey, irast.Set],
@@ -567,6 +568,7 @@ class Environment:
         self.ignore_object_shapes = ignore_object_shapes
         self.singleton_mode = singleton_mode
         self.expand_inhviews = expand_inhviews
+        self.use_type_inheritance_ctes = use_type_inheritance_ctes
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
         self.type_rewrites = type_rewrites
