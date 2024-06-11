@@ -378,7 +378,7 @@ if __name__ == '__main__':
     result = functools.reduce(
         lambda acc, r: _combine_test_results(acc, r) if acc else r,
         results,
-        None,
+        typing.cast(typing.Optional[TestResult], None),
     )
     if not result:
         raise ValueError(
