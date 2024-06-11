@@ -1946,10 +1946,6 @@ def range_for_ptrref(
         refs = {ptrref.computed_link_alias}
     else:
         refs = {ptrref}
-        assert isinstance(ptrref, irast.PointerRef), \
-            "expected regular PointerRef"
-        overlays = get_ptr_rel_overlays(
-            ptrref, dml_source=dml_source, ctx=ctx)
 
     include_descendants = not ptrref.union_is_exhaustive
 
@@ -1967,15 +1963,32 @@ def range_for_ptrref(
     ):
         include_descendants = False
         lrefs = []
+        has_overlays = False
         for ref in list(refs):
             lrefs.extend(ref.descendants())
             lrefs.append(ref)
+            assert isinstance(ref, irast.PointerRef)
+            has_overlays |= bool(get_ptr_rel_overlays(
+                ref, dml_source=dml_source, ctx=ctx))
+
+        # Try to only select from actual concrete types.
         concrete_lrefs = [
             ref for ref in lrefs if not ref.out_source.is_abstract
         ]
-        # If there aren't any concrete types, we still need to
-        # generate *something*, so just do all the abstract ones.
-        if concrete_lrefs:
+        if (
+            # If there aren't any concrete types, we still need to
+            # generate *something*, so just do all the abstract ones.
+            concrete_lrefs
+            # If any of the pointers being expanded have overlays
+            # active, don't skip abstract types. That's because the
+            # abstract base it needed to trigger the overlays being
+            # applied in the logic below.
+            #
+            # TODO: Separate out union types, expansions, and overlays
+            # more cleanly, like we do for types, instead of applying
+            # them all at once.
+            and not has_overlays
+        ):
             lrefs = concrete_lrefs
     else:
         lrefs = list(refs)
