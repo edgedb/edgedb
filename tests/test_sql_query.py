@@ -1358,12 +1358,12 @@ class TestSQL(tb.SQLQueryTestCase):
             """
         )
 
-    async def test_sql_dml_insert(self):
+    async def test_sql_dml_update(self):
         with self.assertRaisesRegex(
-            asyncpg.FeatureNotSupportedError, "DML", position="30",
+            asyncpg.FeatureNotSupportedError, "DML", position="25",
         ):
             await self.scon.fetch(
                 """
-                INSERT INTO "Movie" (title) VALUES ('A man called Ove')
+                UPDATE "Movie" SET title = 'A man called Ove'
                 """
             )

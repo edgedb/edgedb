@@ -595,6 +595,9 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             computables.append(path_tip)
 
         if pathctx.path_is_inserting(path_tip.path_id, ctx=ctx):
+            path_tip.dump()
+            stype = ctx.env.schema.get_by_id(path_tip.typeref.id)
+            assert stype
             raise_self_insert_error(stype, step.span, ctx=ctx)
 
         # Don't track this step of the path if it didn't change the set
