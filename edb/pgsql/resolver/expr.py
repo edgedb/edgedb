@@ -133,7 +133,6 @@ def resolve_column_kind(
 
             source = pointer.get_source(ctx.schema)
             assert isinstance(source, s_types.Type)
-            # assert isinstance(source, (s_types.Type, s_pointers.Pointer))
             source_id = irast.PathId.from_type(ctx.schema, source, env=None)
 
             singletons = [source]
