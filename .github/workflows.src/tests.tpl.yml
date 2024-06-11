@@ -106,13 +106,13 @@ jobs:
         path: .results
         retention-days: 1
 
-  collect:
+  python-test-list:
     needs: build
     runs-on: ubuntu-latest
     steps:
     <<- restore_cache() >>
 
-    # Collect tests and upload
+    # List tests and upload
 
     - name: Generate complete list of tests for verification
       env:
@@ -128,8 +128,9 @@ jobs:
         retention-days: 1
 
   test-conclusion:
-    needs: [cargo-test, python-test, collect]
+    needs: [cargo-test, python-test, python-test-list]
     runs-on: ubuntu-latest
+    if: ${{ always() }}
     steps:
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -139,6 +140,18 @@ jobs:
       - name: Install Python deps
         run: |
           python -m pip install requests
+
+      - name: Download python-test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: python-test-results-*
+          merge-multiple: true
+          path: .results
+
+      # Render results and exit if they were unsuccessful
+      - name: Render results
+        run: |
+          python edb/tools/test/results.py .results/result_*.json
 
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
@@ -151,17 +164,6 @@ jobs:
         with:
           name: test-list
           path: .tmp
-
-      - name: Download python-test results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: python-test-results-*
-          merge-multiple: true
-          path: .results
-
-      - name: Render results
-        run: |
-          python edb/tools/test/results.py .results/result_*.json
 
       - name: Merge stats and verify tests completion
         shell: python
