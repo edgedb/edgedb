@@ -25,7 +25,6 @@ import binascii
 import dataclasses
 import datetime
 import functools
-import itertools
 import json
 import pathlib
 import sys
