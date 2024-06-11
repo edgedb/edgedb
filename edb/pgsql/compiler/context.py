@@ -246,6 +246,10 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: CTEs representing types and their inherited types
     type_inheritance_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
 
+    # Type and type inheriance CTEs in creation order. This ensures type CTEs
+    # referring to other CTEs are in the correct order.
+    ordered_type_ctes: list[pgast.CommonTableExpr]
+
     #: The logical parent of the current query in the
     #: query hierarchy
     parent_rel: Optional[pgast.Query]
@@ -346,6 +350,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.type_ctes = {}
             self.pending_type_ctes = set()
             self.type_inheritance_ctes = {}
+            self.ordered_type_ctes = []
             self.dml_stmts = {}
             self.parent_rel = None
             self.pending_query = None
@@ -387,6 +392,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.type_ctes = prevlevel.type_ctes
             self.pending_type_ctes = prevlevel.pending_type_ctes
             self.type_inheritance_ctes = prevlevel.type_inheritance_ctes
+            self.ordered_type_ctes = prevlevel.ordered_type_ctes
             self.dml_stmts = prevlevel.dml_stmts
             self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
