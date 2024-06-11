@@ -42,37 +42,36 @@ class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
 
 class TestEdgeQLParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_empty_01(self):
-        """aasxasxasx"""
+        """"""
 
     def test_edgeql_syntax_empty_02(self):
-        """asx# only comment"""
+        """# only comment"""
 
     def test_edgeql_syntax_empty_03(self):
         """
-        asxasx
+
         # only comment
 
         """
 
     def test_edgeql_syntax_empty_04(self):
         """;
-        asxasx
 % OK %  """
 
     def test_edgeql_syntax_empty_05(self):
-        """asxasx;# only comment
+        """;# only comment
 % OK %  """
 
     def test_edgeql_syntax_empty_06(self):
         """
-        ;asxasxas
+        ;
         # only comment
         ;
 % OK %
         """
 
     def test_edgeql_syntax_case_01(self):
-        """asxasxasx
+        """
         Select 1;
         select 1;
         SELECT 1;
@@ -81,7 +80,6 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_omit_semicolon_01(self):
         """
-        asxasxasx
         SELECT 1
 
 % OK %
@@ -91,7 +89,6 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_omit_semicolon_02(self):
         """
-        asxasx
         SELECT 2;
         SELECT 1
 
