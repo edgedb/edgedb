@@ -759,7 +759,7 @@ jobs:
 
       - name: Install Python deps
         run: |
-          python -m pip install requests click shutil unittest
+          python -m pip install requests click
 
       - uses: actions/checkout@v4
         with:

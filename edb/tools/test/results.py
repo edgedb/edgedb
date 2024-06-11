@@ -32,11 +32,10 @@ import traceback
 import typing
 import unittest
 import glob
-
 import shutil
 from unittest.result import STDERR_LINE, STDOUT_LINE
-import click
 
+import click
 
 if typing.TYPE_CHECKING:
     from . import runner
@@ -344,13 +343,11 @@ def read_unsuccessful(path_template: str) -> typing.List[str]:
 
 
 def _dataclass_from_dict(cls: typing.Type | None, data: typing.Any):
-    from edb.common import typing_inspect
-
     if not cls:
         return data
 
-    if typing_inspect.get_origin(cls) is list:
-        args = typing_inspect.get_args(cls)
+    if hasattr(cls, '__origin__') and cls.__origin__ is list:
+        args = cls.__args__
         return [_dataclass_from_dict(args[0], e) for e in data]
 
     if not dataclasses.is_dataclass(cls):
