@@ -24,8 +24,11 @@ from dataclasses import dataclass, field
 import enum
 import uuid
 
+from edb.pgsql import ast as pgast
+
 from edb.common import compiler
 from edb.schema import schema as s_schema
+from edb.schema import pointers as s_pointers
 
 
 @dataclass(frozen=True)
@@ -129,6 +132,13 @@ class ColumnStaticVal(ColumnKind):
     val: uuid.UUID
 
 
+@dataclass(kw_only=True)
+class ColumnComputable(ColumnKind):
+    # An EdgeQL computable property. To get the AST for this column, EdgeQL
+    # compiler needs to be invoked.
+    pointer: s_pointers.Pointer
+
+
 class ContextSwitchMode(enum.Enum):
     EMPTY = enum.auto()
     CHILD = enum.auto()
@@ -145,6 +155,9 @@ class ResolverContextLevel(compiler.ContextLevel):
     # True iff relation currently resolving should also include instances of
     # child objects.
     include_inherited: bool
+
+    # List of CTEs to append to the current SELECT statement
+    cte_to_append: List[pgast.CommonTableExpr]
 
     options: Options
 

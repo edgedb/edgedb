@@ -5887,12 +5887,32 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 -- fallback to pointer name, with suffix '_id' for links
                 sp.name || case when sl.id is not null then '_id' else '' end
             ) AS v_column_name,
-            COALESCE(spec.position, 2) as position,
-            isc.*
-        FROM information_schema.columns isc
-        JOIN edgedbsql_VER.virtual_tables vt ON vt.id::text = isc.table_name
+            COALESCE(spec.position, 2) AS position,
+            (sp.expr IS NOT NULL) AS is_computed,
+            isc.column_default,
+            CASE WHEN sp.required OR spec.k IS NOT NULL
+                THEN 'NO' ELSE 'YES' END AS is_nullable,
 
-        -- id is duplicated to get id and __type__ columns out of it
+            -- HACK: computeds don't have backing rows in isc,
+            -- so we just default to 'text'. This is wrong.
+            COALESCE(isc.data_type, 'text') AS data_type
+        FROM edgedb_VER."_SchemaPointer" sp
+        LEFT JOIN information_schema.columns isc ON (
+            isc.table_name = sp.source::TEXT AND CASE
+                WHEN length(isc.column_name) = 36 -- if column name is uuid
+                THEN isc.column_name = sp.id::text -- compare uuids
+                ELSE isc.column_name = sp.name -- for id, source, target
+            END
+        )
+
+        -- needed for attaching `_id`
+        LEFT JOIN edgedb_VER."_SchemaLink" sl ON sl.id = sp.id
+
+        -- needed for determining table name
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.id = sp.source
+
+        -- positions for special pointers
+        -- duplicate id get both id and __type__ columns out of it
         LEFT JOIN (
             VALUES  ('id', 'id', 0),
                     ('id', '__type__', 1),
@@ -5900,11 +5920,43 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                     ('target', 'target', 1)
         ) spec(k, name, position) ON (spec.k = isc.column_name)
 
-        LEFT JOIN edgedb_VER."_SchemaPointer" sp
-          ON sp.id::text = isc.column_name
-        LEFT JOIN edgedb_VER."_SchemaLink" sl ON sl.id::text = isc.column_name
+        WHERE isc.column_name IS NOT NULL -- normal pointers
+           OR sp.expr IS NOT NULL AND sp.cardinality <> 'Many' -- computeds
+
+        UNION ALL
+
+        -- special case: multi properties source and target
+        -- (this is needed, because schema does not create pointers for
+        -- these two columns)
+        SELECT
+            vt.schema_name AS vt_table_schema,
+            vt.table_name AS vt_table_name,
+            isc.column_name AS v_column_name,
+            spec.position as position,
+            FALSE as is_computed,
+            isc.column_default,
+            'NO' as is_nullable,
+            isc.data_type as data_type
+        FROM edgedb_VER."_SchemaPointer" sp
+        JOIN information_schema.columns isc ON isc.table_name = sp.id::TEXT
+
+        -- needed for filtering out links
+        LEFT JOIN edgedb_VER."_SchemaLink" sl ON sl.id = sp.id
+
+        -- needed for determining table name
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.id = sp.id
+
+        -- positions for special pointers
+        JOIN (
+            VALUES  ('source', 'source', 0),
+                    ('target', 'target', 1)
+        ) spec(k, name, position) ON (spec.k = isc.column_name)
+
+        WHERE
+            sl.id IS NULL -- property (non-link)
+            AND sp.cardinality = 'Many' -- multi
+            AND sp.expr IS NULL -- non-computed
         ) t
-        WHERE v_column_name IS NOT NULL
             '''
             ),
         ),
@@ -6182,32 +6234,32 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
 
         UNION ALL
 
-        SELECT attrelid,
+        SELECT pc_oid as attrelid,
             col_name as attname,
-            atttypid,
-            attstattarget,
-            attlen,
+            COALESCE(atttypid, 25) as atttypid, -- defaults to TEXT
+            COALESCE(attstattarget, -1) as attstattarget,
+            COALESCE(attlen, -1) as attlen,
             (ROW_NUMBER() OVER (
-                PARTITION BY attrelid
+                PARTITION BY pc_oid
                 ORDER BY col_position, col_name
             ) - 6)::smallint AS attnum,
             t.attnum as attnum_internal,
-            attndims,
-            attcacheoff,
-            atttypmod,
-            attbyval,
-            attstorage,
-            attalign,
-            attnotnull,
+            COALESCE(attndims, 0) as attndims,
+            COALESCE(attcacheoff, -1) as attcacheoff,
+            COALESCE(atttypmod, -1) as atttypmod,
+            COALESCE(attbyval, FALSE) as attbyval,
+            COALESCE(attstorage, 'x') as attstorage,
+            COALESCE(attalign, 'i') as attalign,
+            required as attnotnull,
             -- Always report no default, to avoid expr trouble
             false as atthasdef,
-            atthasmissing,
-            attidentity,
-            attgenerated,
-            attisdropped,
-            attislocal,
-            attinhcount,
-            attcollation,
+            COALESCE(atthasmissing, FALSE) as atthasmissing,
+            COALESCE(attidentity, '') as attidentity,
+            COALESCE(attgenerated, '') as attgenerated,
+            COALESCE(attisdropped, FALSE) as attisdropped,
+            COALESCE(attislocal, TRUE) as attislocal,
+            COALESCE(attinhcount, 0) as attinhcount,
+            COALESCE(attcollation, 0) as attcollation,
             attacl,
             attoptions,
             attfdwoptions,
@@ -6220,17 +6272,27 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 sp.name || case when sl.id is not null then '_id' else '' end,
                 pa.attname -- for system columns
             ) as col_name,
-            CASE
-                WHEN pa.attnum <= 0 THEN pa.attnum
-                ELSE COALESCE(spec.position, 2)
-            END as col_position,
+            COALESCE(spec.position, 2) AS col_position,
+            (sp.required IS TRUE OR spec.k IS NOT NULL) as required,
+            pc.oid AS pc_oid,
             pa.*,
             pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
-        FROM pg_attribute pa
-        JOIN pg_class pc ON pc.oid = pa.attrelid
-        JOIN edgedbsql_VER.virtual_tables vt ON vt.backend_id = pc.reltype
 
-        -- id is duplicated to get id and __type__ columns out of it
+        FROM edgedb_VER."_SchemaPointer" sp
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.id = sp.source
+        JOIN pg_class pc ON pc.reltype = vt.backend_id
+
+        -- try to find existing pg_attribute (it will not exist for computeds)
+        LEFT JOIN pg_attribute pa ON (
+            pa.attrelid = pc.oid AND CASE
+                WHEN length(pa.attname) = 36 -- if column name is uuid
+                THEN pa.attname = sp.id::text -- compare uuids
+                ELSE pa.attname = sp.name -- for id, source, target
+            END
+        )
+
+        -- positions for special pointers
+        -- duplicate id get both id and __type__ columns out of it
         LEFT JOIN (
             VALUES  ('id', 'id', 0),
                     ('id', '__type__', 1),
@@ -6238,10 +6300,56 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                     ('target', 'target', 1)
         ) spec(k, name, position) ON (spec.k = pa.attname)
 
-        LEFT JOIN edgedb_VER."_SchemaPointer" sp ON sp.id::text = pa.attname
-        LEFT JOIN edgedb_VER."_SchemaLink" sl ON sl.id::text = pa.attname
-        -- Filter out internal columns
-        WHERE pa.attname NOT LIKE '\_\_%\_\_' OR pa.attname = '__type__'
+        -- needed for attaching `_id`
+        LEFT JOIN edgedb_VER."_SchemaLink" sl ON sl.id = sp.id
+
+        WHERE pa.attname IS NOT NULL -- non-computed pointers
+           OR sp.expr IS NOT NULL AND sp.cardinality <> 'Many' -- computeds
+
+        UNION ALL
+
+        -- special case: multi properties source and target
+        -- (this is needed, because schema does not create pointers for
+        -- these two columns)
+        SELECT
+            pa.attname AS col_name,
+            spec.position as position,
+            TRUE as required,
+            pa.attrelid as pc_oid,
+            pa.*,
+            pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
+        FROM edgedb_VER."_SchemaPointer" sp
+        JOIN pg_class pc ON pc.relname = sp.id::TEXT
+        JOIN pg_attribute pa ON pa.attrelid = pc.oid
+
+        -- needed for filtering out links
+        LEFT JOIN edgedb_VER."_SchemaLink" sl ON sl.id = sp.id
+
+        -- positions for special pointers
+        JOIN (
+            VALUES  ('source', 0),
+                    ('target', 1)
+        ) spec(k, position) ON (spec.k = pa.attname)
+
+        WHERE
+            sl.id IS NULL -- property (non-link)
+            AND sp.cardinality = 'Many' -- multi
+            AND sp.expr IS NULL -- non-computed
+
+        UNION ALL
+
+        -- special case: system columns
+        SELECT
+            pa.attname AS col_name,
+            pa.attnum as position,
+            TRUE as required,
+            pa.attrelid as pc_oid,
+            pa.*,
+            pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
+        FROM pg_attribute pa
+        JOIN pg_class pc ON pc.oid = pa.attrelid
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.backend_id = pc.reltype
+        WHERE pa.attnum < 0
         ) t
         """,
         ),

@@ -40,6 +40,8 @@ def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
 
     elif stmt.relation:
         relation, table = dispatch.resolve_relation(stmt.relation, ctx=ctx)
+        table.reference_as = ctx.names.get('rel')
+
         if stmt.colnames:
             col_map: Dict[str, context.Column] = {
                 col.name: col for col in table.columns
@@ -54,7 +56,12 @@ def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
         # This is probably a view based on edgedb schema, so wrap it into
         # a select query.
         query = pgast.SelectStmt(
-            from_clause=[pgast.RelRangeVar(relation=relation)],
+            from_clause=[
+                pgast.RelRangeVar(
+                    alias=pgast.Alias(aliasname=table.reference_as),
+                    relation=relation,
+                )
+            ],
             target_list=[
                 pgast.ResTarget(
                     val=pg_res_expr.resolve_column_kind(table, c.kind, ctx=ctx)

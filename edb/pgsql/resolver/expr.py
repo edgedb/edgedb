@@ -1,4 +1,5 @@
 #
+#
 # This source file is part of the EdgeDB open source project.
 #
 # Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
@@ -26,6 +27,14 @@ from edb import errors
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import trampoline
+from edb.pgsql import compiler as pgcompiler
+
+from edb.schema import types as s_types
+
+from edb.ir import ast as irast
+
+
+from edb.edgeql import compiler as qlcompiler
 
 from . import dispatch
 from . import context
@@ -117,6 +126,39 @@ def resolve_column_kind(
         case context.ColumnStaticVal(val=val):
             # special case: __type__ static value
             return _uuid_const(val)
+        case context.ColumnComputable(pointer=pointer):
+
+            expr = pointer.get_expr(ctx.schema)
+            assert expr
+
+            source = pointer.get_source(ctx.schema)
+            assert isinstance(source, s_types.Type)
+            source_id = irast.PathId.from_type(ctx.schema, source, env=None)
+
+            singletons = [source]
+            options = qlcompiler.CompilerOptions(
+                modaliases={None: 'default'},
+                anchors={'__source__': source},
+                path_prefix_anchor='__source__',
+                singletons=singletons,
+                make_globals_empty=True,  # TODO: globals in SQL
+            )
+            compiled = expr.compiled(ctx.schema, options=options)
+
+            sql_tree = pgcompiler.compile_ir_to_sql_tree(
+                compiled.irast,
+                external_rvars={
+                    (source_id, 'source'): pgast.RelRangeVar(
+                        alias=pgast.Alias(
+                            aliasname=table.reference_as,
+                        ),
+                        relation=pgast.Relation(name=table.reference_as),
+                    ),
+                },
+                output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+            )
+            assert isinstance(sql_tree.ast, pgast.BaseExpr)
+            return sql_tree.ast
         case _:
             raise NotImplementedError(column)
 
@@ -174,7 +216,7 @@ def _lookup_column(
                 assert tab.reference_as
                 col = context.Column(
                     name=tab.reference_as,
-                    kind=context.ColumnByName(reference_as=tab.reference_as)
+                    kind=context.ColumnByName(reference_as=tab.reference_as),
                 )
                 return [(context.Table(), col)]
             except errors.QueryError:
@@ -338,9 +380,13 @@ def resolve_SortBy(
 
 func_calls_remapping: Dict[Tuple[str, ...], Tuple[str, ...]] = {
     ('information_schema', '_pg_truetypid'): (
-        trampoline.versioned_schema('edgedbsql'), '_pg_truetypid'),
+        trampoline.versioned_schema('edgedbsql'),
+        '_pg_truetypid',
+    ),
     ('information_schema', '_pg_truetypmod'): (
-        trampoline.versioned_schema('edgedbsql'), '_pg_truetypmod'),
+        trampoline.versioned_schema('edgedbsql'),
+        '_pg_truetypmod',
+    ),
     ('pg_catalog', 'format_type'): ('edgedb', '_format_type'),
 }
 

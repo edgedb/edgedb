@@ -309,8 +309,6 @@ def resolve_relation(
             card = p.get_cardinality(ctx.schema)
             if card.is_multi():
                 continue
-            if p.get_computable(ctx.schema):
-                continue
 
             columns.append(_construct_column(p, ctx, ctx.include_inherited))
     else:
@@ -404,10 +402,13 @@ def _construct_column(
 
     col_name: str
     kind: context.ColumnKind
+
     if isinstance(p, s_properties.Property):
         col_name = short_name.name
 
-        if p.is_link_source_property(ctx.schema):
+        if p.get_computable(ctx.schema):
+            kind = context.ColumnComputable(pointer=p)
+        elif p.is_link_source_property(ctx.schema):
             kind = context.ColumnByName(reference_as='source')
         elif p.is_link_target_property(ctx.schema):
             kind = context.ColumnByName(reference_as='target')
@@ -418,7 +419,11 @@ def _construct_column(
             kind = context.ColumnByName(reference_as=dbname)
 
     elif isinstance(p, s_links.Link):
-        if short_name.name == '__type__':
+
+        if p.get_computable(ctx.schema):
+            col_name = short_name.name + '_id'
+            kind = context.ColumnComputable(pointer=p)
+        elif short_name.name == '__type__':
             col_name = '__type__'
 
             if not include_inherited:

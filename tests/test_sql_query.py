@@ -21,6 +21,7 @@ import io
 import os.path
 import unittest
 
+from edb.tools import test
 from edb.testbase import server as tb
 
 try:
@@ -174,17 +175,21 @@ class TestSQL(tb.SQLQueryTestCase):
             JOIN "Genre" g ON "Movie".genre_id = g.id
             '''
         )
-        self.assert_shape(res, 2, [
-            'id',
-            '__type__',
-            'director_id',
-            'genre_id',
-            'release_year',
-            'title',
-            'id',
-            '__type__',
-            'name'
-        ])
+        self.assert_shape(
+            res,
+            2,
+            [
+                'id',
+                '__type__',
+                'director_id',
+                'genre_id',
+                'release_year',
+                'title',
+                'id',
+                '__type__',
+                'name',
+            ],
+        )
 
     async def test_sql_query_12(self):
         # JOIN USING
@@ -719,8 +724,11 @@ class TestSQL(tb.SQLQueryTestCase):
                 ['Movie.director', 'bar', 'YES', 3],
                 ['Person', 'id', 'NO', 1],
                 ['Person', '__type__', 'NO', 2],
-                ['Person', 'first_name', 'NO', 3],
-                ['Person', 'last_name', 'YES', 4],
+                ['Person', 'favorite_genre_id', 'YES', 3],
+                ['Person', 'first_name', 'NO', 4],
+                ['Person', 'full_name', 'NO', 5],
+                ['Person', 'last_name', 'YES', 6],
+                ['Person', 'username', 'NO', 7],
                 ['novel', 'id', 'NO', 1],
                 ['novel', '__type__', 'NO', 2],
                 ['novel', 'foo', 'YES', 3],
@@ -791,14 +799,18 @@ class TestSQL(tb.SQLQueryTestCase):
             JOIN pg_namespace n ON n.oid = pc.relnamespace
             WHERE n.nspname = 'public' AND pc.relname = 'novel'
             ORDER BY attnum
-            -- skip the system columns
-            OFFSET 6
             '''
         )
 
         self.assertEqual(
             res,
             [
+                ['novel', 'tableoid', True],
+                ['novel', 'cmax', True],
+                ['novel', 'xmax', True],
+                ['novel', 'cmin', True],
+                ['novel', 'xmin', True],
+                ['novel', 'ctid', True],
                 ['novel', 'id', True],
                 ['novel', '__type__', True],
                 ['novel', 'foo', False],
@@ -1043,15 +1055,15 @@ class TestSQL(tb.SQLQueryTestCase):
 
         out = io.BytesIO()
         await self.scon.copy_from_table(
-            "Person", columns=['first_name'], output=out,  # 'full_name'
+            "Person", columns=['first_name', 'full_name'], output=out,
             format="csv", delimiter="\t"
         )
         out = io.StringIO(out.getvalue().decode("utf-8"))
         res = list(csv.reader(out, delimiter="\t"))
         self.assert_data_shape(res, tb.bag([
-            ["Robin"],  # "Robin"
-            ["Steven"],  # "Steven Spielberg"
-            ["Tom"],  # "Tom Hanks"
+            ["Robin", "Robin"],
+            ["Steven", "Steven Spielberg"],
+            ["Tom", "Tom Hanks"],
         ]))
 
     async def test_sql_query_error_01(self):
@@ -1234,3 +1246,111 @@ class TestSQL(tb.SQLQueryTestCase):
             " WHERE name = 'bytea_output'; "
         )
         await self.scon.execute("SET client_encoding='WIN874';")
+
+    async def test_sql_query_computed_01(self):
+        # single property
+        res = await self.squery_values(
+            """
+            SELECT full_name
+            FROM "Person" p
+            ORDER BY first_name
+            """
+        )
+        self.assertEqual(res, [["Robin"], ["Steven Spielberg"], ["Tom Hanks"]])
+
+    async def test_sql_query_computed_02(self):
+        # computeds can only be accessed on the table, not rel vars
+        with self.assertRaisesRegex(
+            asyncpg.PostgresError, "cannot find column `full_name`"
+        ):
+            await self.squery_values(
+                """
+                SELECT t.full_name
+                FROM (
+                    SELECT first_name, last_name
+                    FROM "Person"
+                ) t
+                """
+            )
+
+    async def test_sql_query_computed_03(self):
+        # computed in a sublink
+        res = await self.squery_values(
+            """
+            SELECT (SELECT 'Hello ' || full_name) as hello
+            FROM "Person"
+            ORDER BY first_name DESC
+            LIMIT 1
+            """
+        )
+        self.assertEqual(res, [["Hello Tom Hanks"]])
+
+    async def test_sql_query_computed_04(self):
+        # computed in a lateral
+        res = await self.squery_values(
+            """
+            SELECT t.hello
+            FROM "Person",
+                LATERAL (SELECT ('Hello ' || full_name) as hello) t
+            ORDER BY first_name DESC
+            LIMIT 1
+            """
+        )
+        self.assertEqual(res, [["Hello Tom Hanks"]])
+
+    async def test_sql_query_computed_05(self):
+        # computed in ORDER BY
+        res = await self.squery_values(
+            """
+            SELECT first_name
+            FROM "Person"
+            ORDER BY full_name
+            """
+        )
+        self.assertEqual(res, [["Robin"], ["Steven"], ["Tom"]])
+
+    async def test_sql_query_computed_06(self):
+        # globals are empty
+        res = await self.squery_values(
+            """
+            SELECT username FROM "Person"
+            ORDER BY first_name LIMIT 1
+            """
+        )
+        self.assertEqual(res, [["u_robin"]])
+
+    async def test_sql_query_computed_07(self):
+        # single link
+        res = await self.scon.fetch(
+            """
+            SELECT favorite_genre_id FROM "Person"
+            """
+        )
+        self.assert_shape(res, 3, ['favorite_genre_id'])
+
+        res = await self.squery_values(
+            """
+            SELECT g.name
+            FROM "Person" p
+            LEFT JOIN "Genre" g ON (p.favorite_genre_id = g.id)
+            """
+        )
+        self.assertEqual(res, [["Drama"], ["Drama"], ["Drama"]])
+
+    @test.not_implemented("multi computed properties are not implemented")
+    async def test_sql_query_computed_08(self):
+        # multi property
+        await self.scon.fetch(
+            """
+            SELECT actor_names FROM "Movie"
+            """
+        )
+
+    @test.not_implemented("multi computed links are not implemented")
+    async def test_sql_query_computed_09(self):
+        # multi link
+        await self.scon.fetch(
+            """
+            SELECT similar_to FROM "Movie"
+            """
+        )
