@@ -55,7 +55,7 @@ casts: build-reqs
 
 build: build-reqs
 	find edb -name '*.pyx' | xargs touch
-	pip install -Ue .[docs,test]
+	pip install --upgrade --editable .[docs,test,language-server]
 
 
 clean:
