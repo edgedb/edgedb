@@ -67,6 +67,8 @@ class Scope:
 
 @dataclass(kw_only=True)
 class Table:
+    # The schema id of the object that is the source of this table
+    schema_id: Optional[uuid.UUID] = None
 
     # Public SQL
     name: Optional[str] = None

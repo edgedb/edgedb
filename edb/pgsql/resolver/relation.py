@@ -208,17 +208,6 @@ def register_projections(target_list: List[pgast.ResTarget], *, ctx: Context):
     ctx.scope.tables.append(table)
 
 
-@dispatch._resolve_relation.register
-def resolve_DMLQuery(
-    query: pgast.DMLQuery, *, include_inherited: bool, ctx: Context
-) -> Tuple[pgast.DMLQuery, context.Table]:
-    raise errors.QueryError(
-        'DML queries (INSERT/UPDATE/DELETE) are not supported',
-        span=query.span,
-        pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
-    )
-
-
 PG_TOAST_TABLE: List[
     Tuple[sql_introspection.ColumnName, sql_introspection.ColumnType]
 ] = [
@@ -315,7 +304,10 @@ def resolve_relation(
         )
 
     # extract table name
-    table = context.Table(name=relation.name)
+    table = context.Table(
+        schema_id=obj.id,
+        name=relation.name
+    )
 
     # extract table columns
     # when changing this, make sure to update sql information_schema
