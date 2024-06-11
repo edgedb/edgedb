@@ -3140,6 +3140,8 @@ def compile_triggers(
         # available for pointers off of __old__ to use.
         ictx.trigger_mode = True
         ictx.type_ctes = {}
+        ictx.type_inheritance_ctes = {}
+        ictx.ordered_type_ctes = []
         ictx.toplevel_stmt = stmt
 
         for stage in triggers:
@@ -3156,7 +3158,7 @@ def compile_triggers(
 
     # Install any newly created type CTEs before the CTEs created from
     # this trigger compilation but after anything compiled before.
-    stmt.ctes[start_ctes:start_ctes] = list(ictx.type_ctes.values())
+    stmt.ctes[start_ctes:start_ctes] = ictx.ordered_type_ctes
 
 
 def compile_trigger(

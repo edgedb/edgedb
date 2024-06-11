@@ -420,8 +420,7 @@ def fini_toplevel(
     stmt.ctes[:0] = [
         *ctx.param_ctes.values(),
         *ctx.ptr_ctes.values(),
-        *ctx.type_ctes.values(),
-        *ctx.type_inheritance_ctes.values(),
+        *ctx.ordered_type_ctes,
     ]
 
     if ctx.env.named_param_prefix is None:
