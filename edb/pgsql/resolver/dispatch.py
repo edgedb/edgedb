@@ -67,10 +67,10 @@ def resolve_opt_list(
 
 
 def resolve_relation(
-    rel: BaseRelation_T, *, ctx: context.ResolverContextLevel
-) -> typing.Tuple[BaseRelation_T, context.Table]:
-    res, tab = _resolve_relation(rel, ctx=ctx)
-    return typing.cast(BaseRelation_T, res.replace(span=rel.span)), tab
+    rel: pgast.BaseRelation, *, ctx: context.ResolverContextLevel
+) -> typing.Tuple[pgast.BaseRelation, context.Table]:
+    rel, tab = _resolve_relation(rel, ctx=ctx)
+    return rel.replace(span=rel.span), tab
 
 
 @functools.singledispatch
