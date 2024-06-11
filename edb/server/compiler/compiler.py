@@ -1705,6 +1705,11 @@ def _get_compile_options(
             and not ctx.bootstrap_mode
             and not ctx.schema_reflection_mode
         ) or is_explain,
+        use_type_inheritance_ctes=(
+            not is_explain
+            and not ctx.bootstrap_mode
+            and not ctx.schema_reflection_mode
+        ),
         testmode=_get_config_val(ctx, '__internal_testmode'),
         schema_reflection_mode=(
             ctx.schema_reflection_mode
@@ -1890,6 +1895,7 @@ def _compile_ql_query(
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
         expand_inhviews=options.expand_inhviews,
+        use_type_inheritance_ctes=options.use_type_inheritance_ctes,
         detach_params=(use_persistent_cache
                        and cache_mode is config.QueryCacheMode.PgFunc),
     )
