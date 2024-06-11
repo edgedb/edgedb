@@ -1515,6 +1515,7 @@ def range_for_material_objtype(
                         materialized=is_global or force_cte,
                     )
                     ctx.type_ctes[key] = type_cte
+                    ctx.ordered_type_ctes.append(type_cte)
                     type_rel = type_cte
         else:
             type_rel = type_cte
@@ -1592,6 +1593,7 @@ def range_for_material_objtype(
                 materialized=False,
             )
             ctx.type_inheritance_ctes[typeref.id] = type_cte
+            ctx.ordered_type_ctes.append(type_cte)
 
         else:
             type_cte = ctx.type_inheritance_ctes[typeref.id]
