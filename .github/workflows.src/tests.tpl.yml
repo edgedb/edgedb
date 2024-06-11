@@ -155,7 +155,7 @@ jobs:
       # Render results and exit if they were unsuccessful
       - name: Render results
         run: |
-          python edb/tools/test/results.py .results/result_*.json
+          python edb/tools/test/results.py '.results/result_*.json'
 
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
