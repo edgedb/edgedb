@@ -761,6 +761,10 @@ jobs:
         run: |
           python -m pip install requests
 
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
       - name: Download python-test results
         uses: actions/download-artifact@v4
         with:
