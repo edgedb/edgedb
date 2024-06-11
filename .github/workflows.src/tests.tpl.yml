@@ -96,7 +96,7 @@ jobs:
         mkdir -p .results/
         cp .tmp/time_stats.csv .results/running_times_${SHARD}.csv
         edb test --jobs 2 --verbose --shard ${SHARD}/16 \
-          --running-times-log=.results/running_times_${SHARD}.csv
+          --running-times-log=.results/running_times_${SHARD}.csv \
           --result-log=.results/result_${SHARD}.json
 
     - name: Upload test results
