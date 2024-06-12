@@ -24,7 +24,7 @@ import functools
 import hashlib
 import base64
 import re
-from typing import Literal, Optional, Tuple, Union, overload
+from typing import Any, Literal, Optional, Tuple, Union, overload
 import uuid
 
 from edb.common import uuidgen
@@ -424,6 +424,7 @@ def get_backend_name(
     obj: so.Object,
     catenate: Literal[True]=True,
     *,
+    versioned: bool=False,
     aspect: Optional[str]=None
 ) -> str:
     ...
@@ -435,12 +436,28 @@ def get_backend_name(
     obj: so.Object,
     catenate: Literal[False],
     *,
+    versioned: bool=False,
     aspect: Optional[str]=None
 ) -> tuple[str, str]:
     ...
 
 
 def get_backend_name(
+    schema: s_schema.Schema,
+    obj: so.Object,
+    catenate: bool=True,
+    *,
+    aspect: Optional[str]=None,
+    versioned: bool=False,
+) -> Union[str, tuple[str, str]]:
+    name: Any = _get_backend_name(schema, obj, catenate=catenate, aspect=aspect)
+    if versioned and isinstance(name, tuple):
+        from . import trampoline
+        name = trampoline.versioned_name(name)
+    return name
+
+
+def _get_backend_name(
     schema: s_schema.Schema,
     obj: so.Object,
     catenate: bool=True,

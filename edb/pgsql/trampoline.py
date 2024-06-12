@@ -52,6 +52,9 @@ q = common.qname
 qi = common.quote_ident
 
 
+SCHEMAS = ('edgedb', 'edgedbstd', 'edgedbsql')
+
+
 def versioned_schema(s: str, version: Optional[int]=None) -> str:
     if version is None:
         # ... get_version_dict() is cached, so we use it instead of
@@ -63,18 +66,20 @@ def versioned_schema(s: str, version: Optional[int]=None) -> str:
     return f'{s}_v{version}'
 
 
+def maybe_versioned_schema(s: str, version: Optional[int]=None) -> str:
+    return versioned_schema(s, version=version) if s in SCHEMAS else s
+
+
 def versioned_name(
     s: tuple[str, ...], version: Optional[int]=None
-) -> str:
+) -> tuple[str, ...]:
     if len(s) > 1:
-        return (versioned_schema(s[0], version), *s[1:])
+        return (maybe_versioned_schema(s[0], version), *s[1:])
     else:
         return s
 
 
 V = versioned_schema
-
-SCHEMAS = ('edgedb', 'edgedbstd', 'edgedbsql')
 
 
 def fixup_query(query: str) -> str:

@@ -520,6 +520,7 @@ class SchemaTableConstraint:
         table_name = pg_c.subject_db_name
         expressions = pg_c.expressions
         origin_expressions = pg_c.origin_expressions
+        assert table_name
 
         return deltadbops.SchemaConstraintTableConstraint(
             trampoline.versioned_name(table_name),
