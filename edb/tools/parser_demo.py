@@ -388,6 +388,7 @@ QUERIES = [
             related_to *5,
         };
     ''',
-    '''sdl# comment
     '''
+    SELECT Foo ORDER BY .name DESC THEN .age;
+    ''',
 ]
