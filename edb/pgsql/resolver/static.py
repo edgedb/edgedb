@@ -25,14 +25,14 @@ from typing import Optional, Sequence, List
 from edb import errors
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import common
 from edb.pgsql import parser as pgparser
-from edb.pgsql import trampoline
 from edb.server import defines
 
 from . import context
 from . import dispatch
 
-V = trampoline.versioned_schema
+V = common.versioned_schema
 
 Context = context.ResolverContextLevel
 

@@ -79,8 +79,7 @@ q = common.qname
 qi = common.quote_ident
 ql = common.quote_literal
 qt = common.quote_type
-
-V = trampoline.versioned_schema
+V = common.versioned_schema
 
 
 DATABASE_ID_NAMESPACE = uuidgen.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')

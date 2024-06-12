@@ -24,9 +24,10 @@ import functools
 import hashlib
 import base64
 import re
-from typing import Any, Literal, Optional, Tuple, Union, overload
+from typing import Literal, Optional, Tuple, Union, overload
 import uuid
 
+from edb import buildmeta
 from edb.common import uuidgen
 from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
@@ -164,6 +165,33 @@ def get_unique_random_name() -> str:
     return base64.b64encode(uuidgen.uuid1mc().bytes).rstrip(b'=').decode()
 
 
+VERSIONED_SCHEMAS = ('edgedb', 'edgedbstd', 'edgedbsql')
+
+
+def versioned_schema(s: str, version: Optional[int]=None) -> str:
+    if version is None:
+        # ... get_version_dict() is cached, so we use it instead of
+        # get_version(). We might change this to use catalog version at
+        # some point?
+        version = buildmeta.get_version_dict()['major']
+    # N.B: We don't bother quoting the schema name, so make sure it is
+    # lower case and doesn't have weird characters.
+    return f'{s}_v{version}'
+
+
+def maybe_versioned_schema(s: str, version: Optional[int]=None) -> str:
+    return versioned_schema(s, version=version) if s in VERSIONED_SCHEMAS else s
+
+
+def versioned_name(
+    s: tuple[str, ...], version: Optional[int]=None
+) -> tuple[str, ...]:
+    if len(s) > 1:
+        return (maybe_versioned_schema(s[0], version), *s[1:])
+    else:
+        return s
+
+
 @functools.lru_cache()
 def _edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     # Note: PostgreSQL doesn't have a sha1 implementation as a
@@ -217,8 +245,7 @@ def convert_name(
     dbname = edgedb_name_to_pg_name(sname)
 
     if versioned:
-        from . import trampoline
-        schema = trampoline.maybe_versioned_schema(schema)
+        schema = maybe_versioned_schema(schema)
 
     if catenate:
         return qname(schema, dbname)

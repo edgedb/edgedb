@@ -103,6 +103,7 @@ from .common import qname as q
 from .common import quote_literal as ql
 from .common import quote_ident as qi
 from .common import quote_type as qt
+from .common import versioned_schema as V
 from . import compiler
 from . import codegen
 from . import schemamech
@@ -111,9 +112,6 @@ from . import types
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-
-
-V = trampoline.versioned_schema
 
 
 # Modules where all the "types" in them are really just custom views
