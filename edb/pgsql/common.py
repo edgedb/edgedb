@@ -206,7 +206,7 @@ def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
 def convert_name(
     name: s_name.QualName, suffix='', catenate=True,
     *,
-    versioned=False,
+    versioned=True,
 ):
     schema = get_module_backend_name(name.get_module_name())
     if suffix:
@@ -310,7 +310,7 @@ def get_objtype_backend_name(
 
 
 def get_pointer_backend_name(
-    id, module_name, *, catenate=False, aspect=None, versioned=False
+    id, module_name, *, catenate=False, aspect=None, versioned=True
 ):
     if aspect is None:
         aspect = 'table'
@@ -341,7 +341,7 @@ operator_map = {
 
 
 def get_operator_backend_name(
-    name, catenate=False, *, versioned=False, aspect=None
+    name, catenate=False, *, versioned=True, aspect=None
 ):
     if aspect is None:
         aspect = 'operator'
@@ -382,7 +382,7 @@ def get_cast_backend_name(
 
 
 def get_function_backend_name(
-    name, backend_name, catenate=False, versioned=False,
+    name, backend_name, catenate=False, versioned=True,
 ):
     real_name = backend_name or name.name
 
@@ -444,7 +444,7 @@ def get_backend_name(
     obj: so.Object,
     catenate: Literal[True]=True,
     *,
-    versioned: bool=False,
+    versioned: bool=True,
     aspect: Optional[str]=None
 ) -> str:
     ...
@@ -456,7 +456,7 @@ def get_backend_name(
     obj: so.Object,
     catenate: Literal[False],
     *,
-    versioned: bool=False,
+    versioned: bool=True,
     aspect: Optional[str]=None
 ) -> tuple[str, str]:
     ...
@@ -468,7 +468,7 @@ def get_backend_name(
     catenate: bool=True,
     *,
     aspect: Optional[str]=None,
-    versioned: bool=False,
+    versioned: bool=True,
 ) -> Union[str, tuple[str, str]]:
     name: Union[s_name.QualName, s_name.Name]
     if isinstance(obj, s_objtypes.ObjectType):
