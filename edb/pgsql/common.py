@@ -340,12 +340,14 @@ operator_map = {
 }
 
 
-def get_operator_backend_name(name, catenate=False, *, aspect=None):
+def get_operator_backend_name(
+    name, catenate=False, *, versioned=False, aspect=None
+):
     if aspect is None:
         aspect = 'operator'
 
     if aspect == 'function':
-        return convert_name(name, 'f', catenate=catenate)
+        return convert_name(name, 'f', catenate=catenate, versioned=versioned)
     elif aspect != 'operator':
         raise ValueError(
             f'unexpected aspect for operator backend name: {aspect!r}')
@@ -371,6 +373,7 @@ def get_operator_backend_name(name, catenate=False, *, aspect=None):
 def get_cast_backend_name(
     fullname: s_name.QualName, catenate=False, *, aspect=None
 ):
+    # XXX: VERSIONS
     if aspect == "function":
         return convert_name(fullname, "f", catenate=catenate)
     else:
@@ -378,11 +381,14 @@ def get_cast_backend_name(
             f'unexpected aspect for cast backend name: {aspect!r}')
 
 
-def get_function_backend_name(name, backend_name, catenate=False):
+def get_function_backend_name(
+    name, backend_name, catenate=False, versioned=False,
+):
     real_name = backend_name or name.name
 
     fullname = s_name.QualName(module=name.module, name=real_name)
-    schema, func_name = convert_name(fullname, catenate=False)
+    schema, func_name = convert_name(
+        fullname, catenate=False, versioned=versioned)
     if catenate:
         return qname(schema, func_name)
     else:
@@ -464,29 +470,18 @@ def get_backend_name(
     aspect: Optional[str]=None,
     versioned: bool=False,
 ) -> Union[str, tuple[str, str]]:
-    name: Any = _get_backend_name(schema, obj, catenate=catenate, aspect=aspect)
-    if versioned and isinstance(name, tuple):
-        from . import trampoline
-        name = trampoline.versioned_name(name)
-    return name
-
-
-def _get_backend_name(
-    schema: s_schema.Schema,
-    obj: so.Object,
-    catenate: bool=True,
-    *,
-    aspect: Optional[str]=None
-) -> Union[str, tuple[str, str]]:
     name: Union[s_name.QualName, s_name.Name]
     if isinstance(obj, s_objtypes.ObjectType):
         name = obj.get_name(schema)
         return get_objtype_backend_name(
-            obj.id, name.module, catenate=catenate, aspect=aspect)
+            obj.id, name.module, catenate=catenate,
+            aspect=aspect, versioned=versioned,
+        )
 
     elif isinstance(obj, s_pointers.Pointer):
         name = obj.get_name(schema)
         return get_pointer_backend_name(obj.id, name.module, catenate=catenate,
+                                        versioned=versioned,
                                         aspect=aspect)
 
     elif isinstance(obj, s_scalars.ScalarType):
@@ -497,10 +492,11 @@ def _get_backend_name(
     elif isinstance(obj, s_opers.Operator):
         name = obj.get_shortname(schema)
         return get_operator_backend_name(
-            name, catenate, aspect=aspect)
+            name, catenate, versioned=versioned, aspect=aspect)
 
     elif isinstance(obj, s_casts.Cast):
         name = obj.get_name(schema)
+        # XXX: TRAMPOLINE: VERSIONED
         return get_cast_backend_name(
             name, catenate, aspect=aspect)
 
@@ -508,7 +504,7 @@ def _get_backend_name(
         name = obj.get_shortname(schema)
         backend_name = obj.get_backend_name(schema)
         return get_function_backend_name(
-            name, backend_name, catenate)
+            name, backend_name, catenate, versioned=versioned)
 
     elif isinstance(obj, s_constr.Constraint):
         name = obj.get_name(schema)
@@ -521,6 +517,7 @@ def _get_backend_name(
             obj.id, name.module, catenate, aspect=aspect)
 
     elif isinstance(obj, s_types.Tuple):
+        # XXX: TRAMPOLINE: VERSIONED?
         return get_tuple_backend_name(
             obj.id, catenate, aspect=aspect)
 
