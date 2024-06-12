@@ -300,7 +300,7 @@ def compile_constraint(
 
         assert subject_table
         subject_db_name = common.get_backend_name(
-            schema, subject_table, catenate=False, versioned=True
+            schema, subject_table, catenate=False,
         )
         table_type = 'ObjectType'
 
@@ -358,7 +358,6 @@ def compile_constraint(
                 schema,
                 origin_subject,
                 catenate=False,
-                versioned=True,
             )
 
         origin_except_data = None
@@ -750,7 +749,7 @@ def get_ref_storage_info(
 
     for ref, (ptr, src) in ref_ptrs.items():
         ptr_info = types.get_pointer_storage_info(
-            ptr, source=src, resolve_type=False, schema=schema, versioned=True)
+            ptr, source=src, resolve_type=False, schema=schema)
 
         # See if any of the refs are hosted in pointer tables and others
         # are not...
@@ -767,7 +766,7 @@ def get_ref_storage_info(
             ptr, src = ref_ptrs[ref]
             ptr_info = types.get_pointer_storage_info(
                 ptr, source=src, resolve_type=False, link_bias=True,
-                schema=schema, versioned=True)
+                schema=schema)
 
             if ptr_info is not None and ptr_info.table_type == 'link':
                 link_biased[ref] = ptr_info

@@ -3069,7 +3069,7 @@ class CompositeMetaCommand(MetaCommand):
         is_internal_view = is_cfg_view(obj, schema)
         aspect = 'dummy' if is_internal_view else None
         return common.get_backend_name(
-            schema, obj, catenate=False, versioned=True, aspect=aspect)
+            schema, obj, catenate=False, aspect=aspect)
 
     @classmethod
     def _refresh_fake_cfg_view_cmd(
@@ -3100,7 +3100,7 @@ class CompositeMetaCommand(MetaCommand):
         # Then, when we run the metaschema script, it simply swaps out
         # this hacky view for the real one and everything works out fine.
         orig_name = common.get_backend_name(
-            schema, obj, catenate=False, versioned=True
+            schema, obj, catenate=False,
         )
         dummy_name = cls._get_table_name(obj, schema)
         query = f'''
@@ -3216,7 +3216,7 @@ class CompositeMetaCommand(MetaCommand):
             (SELECT
                {coltext}
              FROM
-               {q(*trampoline.versioned_name(tabname))} AS {talias}
+               {q(*tabname)} AS {talias}
             )
         ''')
 
@@ -3231,7 +3231,7 @@ class CompositeMetaCommand(MetaCommand):
         pg_schema: Optional[str] = None,
     ) -> dbops.View:
         inhview_name = common.get_backend_name(
-            schema, obj, catenate=False, aspect='inhview', versioned=True)
+            schema, obj, catenate=False, aspect='inhview')
 
         if pg_schema is not None:
             inhview_name = (pg_schema, inhview_name[1])
@@ -3476,7 +3476,7 @@ class CompositeMetaCommand(MetaCommand):
         conditional: bool = False,
     ) -> None:
         inhview_name = common.get_backend_name(
-            schema, obj, catenate=False, aspect='inhview', versioned=True)
+            schema, obj, catenate=False, aspect='inhview')
         conditions = []
         if conditional:
             conditions.append(dbops.ViewExists(inhview_name))
@@ -4245,7 +4245,6 @@ class PointerMetaCommand(
             orig_schema,
             source,
             catenate=False,
-            versioned=True,
         ))
 
         # initial extern relvar (see docs of _compile_conversion_expr)
@@ -4343,7 +4342,6 @@ class PointerMetaCommand(
                 orig_schema,
                 source,
                 catenate=False,
-                versioned=True,
             ))
 
             update_qry = textwrap.dedent(f'''\
@@ -4446,7 +4444,7 @@ class PointerMetaCommand(
         if fill_expr is not None:
 
             assert ptr_stor_info.table_name
-            tab = q(*trampoline.versioned_name(ptr_stor_info.table_name))
+            tab = q(*ptr_stor_info.table_name)
             target_col = ptr_stor_info.column_name
             source = ptr.get_source(orig_schema)
             assert source
@@ -4454,7 +4452,6 @@ class PointerMetaCommand(
                 orig_schema,
                 source,
                 catenate=False,
-                versioned=True,
             ))
 
             if not is_multi:
@@ -4617,7 +4614,7 @@ class PointerMetaCommand(
                 schema=orig_schema,
             )
 
-        tab = q(*trampoline.versioned_name(old_ptr_stor_info.table_name))
+        tab = q(*old_ptr_stor_info.table_name)
         target_col = old_ptr_stor_info.column_name
         aux_ptr_table = None
         aux_ptr_col = None
@@ -6937,8 +6934,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         inline: bool = False,
     ) -> None:
 
-        table_name = trampoline.versioned_name(common.get_backend_name(
-            schema, objtype, catenate=False))
+        table_name = common.get_backend_name(schema, objtype, catenate=False)
 
         trigger_name = self.get_trigger_name(
             schema, objtype, disposition=disposition,
