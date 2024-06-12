@@ -92,7 +92,7 @@ class VersionedFunction(dbops.Function):
     if not TYPE_CHECKING:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.name = (V(self.name[0]), *self.name[1:])
+            self.name = (maybe_versioned_schema(self.name[0]), *self.name[1:])
             self.text = fixup_query(self.text)
 
             if self.args:
@@ -110,7 +110,7 @@ class VersionedView(dbops.View):
     if not TYPE_CHECKING:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.name = (V(self.name[0]), *self.name[1:])
+            self.name = (maybe_versioned_schema(self.name[0]), *self.name[1:])
             self.query = fixup_query(self.query)
 
 

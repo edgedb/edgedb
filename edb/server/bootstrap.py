@@ -84,6 +84,7 @@ from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
 from edb.pgsql import params
 from edb.pgsql import patches
+from edb.pgsql import trampoline
 from edb.pgsql.common import quote_ident as qi
 from edb.pgsql.common import quote_literal as ql
 
@@ -1152,6 +1153,7 @@ async def create_branch(
     dump_args = [
         '--data-only',
         '--table=edgedbstd.*',
+        f'--table={trampoline.versioned_schema("edgedbstd")}.*',
         '--table=edgedb._db_config',
         '--table=edgedbinstdata.instdata',
         *data_arg,

@@ -451,10 +451,12 @@ TableInfo = Tuple[Tuple[str, str], str, str]
 
 
 def _source_table_info(
-    schema: s_schema.Schema, pointer: s_pointers.Pointer
+    schema: s_schema.Schema, pointer: s_pointers.Pointer,
+    versioned: bool,
 ) -> TableInfo:
     table = common.get_backend_name(
-        schema, not_none(pointer.get_source(schema)), catenate=False
+        schema, not_none(pointer.get_source(schema)),
+        catenate=False, versioned=versioned,
     )
     ptr_name = pointer.get_shortname(schema).name
     if ptr_name.startswith('__') or ptr_name == 'id':
@@ -467,9 +469,11 @@ def _source_table_info(
 
 
 def _pointer_table_info(
-    schema: s_schema.Schema, pointer: s_pointers.Pointer
+    schema: s_schema.Schema, pointer: s_pointers.Pointer,
+    versioned: bool,
 ) -> TableInfo:
-    table = common.get_backend_name(schema, pointer, catenate=False)
+    table = common.get_backend_name(
+        schema, pointer, catenate=False, versioned=versioned)
     col_name = 'target'
     table_type = 'link'
 
@@ -522,6 +526,7 @@ def get_pointer_storage_info(
     schema: s_schema.Schema,
     source: Optional[s_obj.InheritingObject] = None,
     resolve_type: bool = True,
+    versioned: bool = True,
     link_bias: bool = False,
 ) -> PointerStorageInfo:
     assert not pointer.is_non_concrete(
@@ -557,7 +562,8 @@ def get_pointer_storage_info(
         col_name = pointer.get_shortname(schema).name
     elif is_lprop:
         assert source
-        table = common.get_backend_name(schema, source, catenate=False)
+        table = common.get_backend_name(
+            schema, source, catenate=False, versioned=versioned)
         table_type = 'link'
         if pointer.get_shortname(schema).name == 'source':
             col_name = 'source'
@@ -570,9 +576,13 @@ def get_pointer_storage_info(
             table_type = 'ObjectType'
             col_name = None
         elif _pointer_storable_in_source(schema, pointer) and not link_bias:
-            table, table_type, col_name = _source_table_info(schema, pointer)
+            table, table_type, col_name = _source_table_info(
+                schema, pointer, versioned=versioned
+            )
         elif _pointer_storable_in_pointer(schema, pointer):
-            table, table_type, col_name = _pointer_table_info(schema, pointer)
+            table, table_type, col_name = _pointer_table_info(
+                schema, pointer, versioned=versioned,
+            )
         else:
             return None  # type: ignore
 
@@ -605,6 +615,7 @@ def get_ptrref_storage_info(
     resolve_type: bool = ...,
     link_bias: Literal[False] = False,
     allow_missing: Literal[False] = False,
+    versioned: bool = True,
 ) -> PointerStorageInfo: ...
 
 
@@ -615,6 +626,7 @@ def get_ptrref_storage_info(
     resolve_type: bool = ...,
     link_bias: bool = ...,
     allow_missing: bool = ...,
+    versioned: bool = True,
 ) -> Optional[PointerStorageInfo]: ...
 
 
@@ -624,6 +636,8 @@ def get_ptrref_storage_info(
     resolve_type: bool = True,
     link_bias: bool = False,
     allow_missing: bool = False,
+    # XXX
+    versioned: bool = True,
 ) -> Optional[PointerStorageInfo]:
     # We wrap the real version because of bad mypy interactions
     # with lru_cache.
@@ -632,6 +646,7 @@ def get_ptrref_storage_info(
         resolve_type=resolve_type,
         link_bias=link_bias,
         allow_missing=allow_missing,
+        versioned=versioned,
     )
 
 
@@ -642,6 +657,7 @@ def _get_ptrref_storage_info(
     resolve_type: bool = True,
     link_bias: bool = False,
     allow_missing: bool = False,
+    versioned: bool = False,
 ) -> Optional[PointerStorageInfo]:
 
     if ptrref.material_ptr:
@@ -669,7 +685,8 @@ def _get_ptrref_storage_info(
         source_ptr = ptrref.source_ptr
 
         table = common.get_pointer_backend_name(
-            source_ptr.id, source_ptr.name.module, catenate=False
+            source_ptr.id, source_ptr.name.module, catenate=False,
+            versioned=versioned,
         )
         table_type = 'link'
         if ptrref.shortname.name in ('source', 'target'):
@@ -688,8 +705,11 @@ def _get_ptrref_storage_info(
 
         elif _ptrref_storable_in_source(ptrref) and not link_bias:
             assert isinstance(source.name_hint, sn.QualName)
+            # XXX: TRAMPOLINE
             table = common.get_objtype_backend_name(
-                source.id, source.name_hint.module, catenate=False
+                source.id, source.name_hint.module, catenate=False,
+                versioned=versioned,
+
             )
             ptrname = ptrref.shortname.name
             if ptrname.startswith('__') or ptrname == 'id':
@@ -700,7 +720,8 @@ def _get_ptrref_storage_info(
 
         elif _ptrref_storable_in_pointer(ptrref):
             table = common.get_pointer_backend_name(
-                ptrref.id, ptrref.name.module, catenate=False)
+                ptrref.id, ptrref.name.module, catenate=False,
+                versioned=versioned)
             col_name = 'target'
             table_type = 'link'
 

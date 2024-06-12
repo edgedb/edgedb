@@ -203,7 +203,11 @@ def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     return _edgedb_name_to_pg_name(name, prefix_length)
 
 
-def convert_name(name: s_name.QualName, suffix='', catenate=True):
+def convert_name(
+    name: s_name.QualName, suffix='', catenate=True,
+    *,
+    versioned=False,
+):
     schema = get_module_backend_name(name.get_module_name())
     if suffix:
         sname = f'{name.name}_{suffix}'
@@ -211,6 +215,10 @@ def convert_name(name: s_name.QualName, suffix='', catenate=True):
         sname = name.name
 
     dbname = edgedb_name_to_pg_name(sname)
+
+    if versioned:
+        from . import trampoline
+        schema = trampoline.maybe_versioned_schema(schema)
 
     if catenate:
         return qname(schema, dbname)
@@ -280,6 +288,7 @@ def get_objtype_backend_name(
     module_name: str,
     *,
     catenate: bool = True,
+    versioned: bool = False,
     aspect: Optional[str] = None,
 ):
     if aspect is None:
@@ -296,10 +305,13 @@ def get_objtype_backend_name(
     name = s_name.QualName(module=module_name, name=str(id))
 
     suffix = get_aspect_suffix(aspect)
-    return convert_name(name, suffix=suffix, catenate=catenate)
+    return convert_name(
+        name, suffix=suffix, catenate=catenate, versioned=versioned)
 
 
-def get_pointer_backend_name(id, module_name, *, catenate=False, aspect=None):
+def get_pointer_backend_name(
+    id, module_name, *, catenate=False, aspect=None, versioned=False
+):
     if aspect is None:
         aspect = 'table'
 
@@ -310,7 +322,9 @@ def get_pointer_backend_name(id, module_name, *, catenate=False, aspect=None):
     name = s_name.QualName(module=module_name, name=str(id))
 
     suffix = get_aspect_suffix(aspect)
-    return convert_name(name, suffix=suffix, catenate=catenate)
+    return convert_name(
+        name, suffix=suffix, catenate=catenate, versioned=versioned
+    )
 
 
 operator_map = {

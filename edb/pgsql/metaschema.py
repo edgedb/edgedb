@@ -4872,6 +4872,7 @@ def tabname(
         obj,
         aspect='table',
         catenate=False,
+        versioned=True,
     )
 
 
@@ -4883,6 +4884,7 @@ def inhviewname(
         obj,
         aspect='inhview',
         catenate=False,
+        versioned=True,
     )
 
 
@@ -5577,6 +5579,7 @@ def _generate_schema_alias_view(
         obj,
         aspect='inhview',
         catenate=False,
+        versioned=True,
     )
 
     targets = []
