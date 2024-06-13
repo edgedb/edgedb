@@ -64,7 +64,7 @@ or set in your ``.profile`` or virtual environment.
 
 .. code-block:: bash
 
-   $ export PKG_CONFIG_PATH="/usr/local/opt/icu4c/lib/pkgconfig"
+   $ export PKG_CONFIG_PATH="$(brew --prefix icu4c)/lib/pkgconfig"
 
 A Nix shell with all dependencies and a Python virtual environment can
 be built with the following ``shell.nix`` file.
