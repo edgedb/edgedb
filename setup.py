@@ -1116,5 +1116,10 @@ setuptools.setup(
             path="edb/graphql-rewrite/Cargo.toml",
             binding=setuptools_rust.Binding.PyO3,
         ),
+        setuptools_rust.RustExtension(
+            "edb.server._conn_pool",
+            path="edb/server/conn_pool/Cargo.toml",
+            binding=setuptools_rust.Binding.PyO3,
+        ),
     ],
 )
