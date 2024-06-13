@@ -60,27 +60,27 @@ impl<C: Connector> Block<C> {
     }
 
     /// Creates or awaits a connection from this block.
-    async fn acquire(&self, connector: &C, new: bool) -> ConnResult<ConnHandle<C>> {
-        eprintln!("acquire {new}");
-        if new {
-            let conn = Conn::new(connector.connect(&self.db_name));
-            self.conns.borrow_mut().push(conn.clone());
-            poll_fn(|cx| conn.poll_ready(cx)).await?;
-            Ok(ConnHandle {
-                conn,
-                waiters: self.waiters.clone(),
-            })
-        } else {
-            loop {
-                eprintln!("loop");
-                if let Some(conn) = self.try_acquire_used() {
-                    return Ok(ConnHandle {
-                        conn,
-                        waiters: self.waiters.clone(),
-                    });
-                }
-                self.waiters.queue().await;
+    async fn create(&self, connector: &C) -> ConnResult<ConnHandle<C>> {
+        let conn = Conn::new(connector.connect(&self.db_name));
+        self.conns.borrow_mut().push(conn.clone());
+        poll_fn(|cx| conn.poll_ready(cx)).await?;
+        Ok(ConnHandle {
+            conn,
+            waiters: self.waiters.clone(),
+        })
+    }
+
+    /// Creates or awaits a connection from this block.
+    async fn queue(&self, connector: &C) -> ConnResult<ConnHandle<C>> {
+        loop {
+            eprintln!("loop");
+            if let Some(conn) = self.try_acquire_used() {
+                return Ok(ConnHandle {
+                    conn,
+                    waiters: self.waiters.clone(),
+                });
             }
+            self.waiters.queue().await;
         }
     }
 
@@ -130,9 +130,14 @@ impl<C: Connector> Blocks<C> {
             .clone()
     }
 
-    async fn acquire(&self, connector: &C, db: &str, new: bool) -> ConnResult<ConnHandle<C>> {
+    async fn create(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
         let block = self.block(db);
-        block.acquire(connector, new).await
+        block.create(connector).await
+    }
+
+    async fn queue(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
+        let block = self.block(db);
+        block.queue(connector).await
     }
 
     async fn close_one(&self, connector: &C, db: &str) -> ConnResult<()> {
@@ -214,7 +219,7 @@ mod tests {
         let connector = BasicConnector::no_delay();
         let block = Rc::new(Block::<BasicConnector>::new("db"));
         let conn = block
-            .acquire(&connector, true)
+            .create(&connector)
             .await
             .expect("Expected a connection");
         assert_eq!(block.stats(), ConnStats::connected(1));
@@ -224,7 +229,7 @@ mod tests {
             let connector = BasicConnector::no_delay();
             assert_eq!(block2.stats(), ConnStats::connected(1));
             block2
-                .acquire(&connector, false)
+                .queue(&connector)
                 .await
                 .expect("Expected a connection");
             assert_eq!(block2.stats(), ConnStats::connected(1));
@@ -242,15 +247,15 @@ mod tests {
         let connector = BasicConnector::no_delay();
         let block = Rc::new(Block::<BasicConnector>::new("db"));
         block
-            .acquire(&connector, true)
+            .create(&connector)
             .await
             .expect("Expected a connection");
         block
-            .acquire(&connector, true)
+            .create(&connector)
             .await
             .expect("Expected a connection");
         block
-            .acquire(&connector, true)
+            .create(&connector)
             .await
             .expect("Expected a connection");
         assert_eq!(block.stats(), ConnStats::connected(3));
@@ -264,7 +269,7 @@ mod tests {
                     tokio::task::yield_now().await;
                 }
                 block2
-                    .acquire(&connector, false)
+                    .queue(&connector)
                     .await
                     .expect("Expected a connection");
             });
@@ -279,15 +284,15 @@ mod tests {
         let blocks = Blocks::default();
         assert_eq!(0, blocks.block_count());
         blocks
-            .acquire(&connector, "db", true)
+            .create(&connector, "db")
             .await
             .expect("Expected a connection");
         blocks
-            .acquire(&connector, "db", true)
+            .create(&connector, "db")
             .await
             .expect("Expected a connection");
         blocks
-            .acquire(&connector, "db", true)
+            .create(&connector, "db")
             .await
             .expect("Expected a connection");
         assert_eq!(1, blocks.block_count());
@@ -316,11 +321,11 @@ mod tests {
         let blocks = Blocks::default();
         assert_eq!(0, blocks.block_count());
         blocks
-            .acquire(&connector, "db", true)
+            .create(&connector, "db")
             .await
             .expect("Expected a connection");
         blocks
-            .acquire(&connector, "db", true)
+            .create(&connector, "db")
             .await
             .expect("Expected a connection");
         assert_eq!(1, blocks.block_count());
