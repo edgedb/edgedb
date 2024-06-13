@@ -1,0 +1,31 @@
+[package]
+name = "conn-pool"
+version = "0.1.0"
+license = "MIT/Apache-2.0"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+rust-version = "1.65.0"
+edition = "2021"
+
+[dependencies]
+futures = "0"
+scopeguard = "1"
+
+[dependencies.derive_more]
+version = "1.0.0-beta.6"
+features = ["full"]
+
+[dependencies.pyo3]
+version = "0.20.2"
+features = ["extension-module"]
+
+[dev-dependencies]
+pretty_assertions = "1.2.0"
+
+[dev-dependencies.tokio]
+version = "1"
+features = ["macros", "rt-multi-thread", "time"]
+
+[lib]
+crate-type = ["lib", "cdylib"]
+name = "conn_pool"
+path = "src/lib.rs"
