@@ -1,6 +1,9 @@
-use std::{borrow::Cow, cell::{Cell, RefCell, UnsafeCell}, collections::HashMap, future::{poll_fn, Future}, marker::PhantomData, pin::Pin, process::Output, rc::Rc, task::{ready, Poll}};
-use futures::{lock, FutureExt};
 use scopeguard::defer;
+use std::{
+    cell::{Cell, RefCell},
+    future::poll_fn,
+    task::Poll,
+};
 
 #[derive(Default)]
 pub struct WaitQueue {
@@ -31,18 +34,24 @@ impl WaitQueue {
         }
 
         let mut defer = true;
-        poll_fn(|cx| if defer {
-            defer = false;
-            Poll::Pending
-        } else {
-            Poll::Ready(())
-        }).await;
+        poll_fn(|cx| {
+            if defer {
+                defer = false;
+                Poll::Pending
+            } else {
+                Poll::Ready(())
+            }
+        })
+        .await;
 
         // Wait for us to be first in line
-        poll_fn(|_| if self.waiters.borrow().get(0).unwrap().0 == id {
-            Poll::Ready(())
-        } else {
-            Poll::Pending
-        }).await;
+        poll_fn(|_| {
+            if self.waiters.borrow().first().unwrap().0 == id {
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
+        })
+        .await;
     }
 }

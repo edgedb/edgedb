@@ -1,7 +1,13 @@
-use std::{borrow::Cow, cell::{Cell, RefCell, UnsafeCell}, collections::HashMap, future::{poll_fn, Future}, marker::PhantomData, pin::Pin, process::Output, rc::Rc, task::{ready, Poll}};
-use futures::{lock, FutureExt};
-use scopeguard::defer;
 use crate::waitqueue::WaitQueue;
+use futures::FutureExt;
+use std::{
+    borrow::Cow,
+    cell::{Cell, RefCell},
+    future::Future,
+    pin::Pin,
+    rc::Rc,
+    task::{ready, Poll},
+};
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, derive_more::Add)]
 pub struct BlockStats {
@@ -22,10 +28,30 @@ impl BlockStats {
         }
     }
 
-    pub fn connected(connected: usize) -> Self { Self { connected, ..Default::default() } }
-    pub fn connecting(connecting: usize) -> Self { Self { connecting, ..Default::default() } }
-    pub fn disconnecting(disconnecting: usize) -> Self { Self { disconnecting, ..Default::default() } }
-    pub fn failed(failed: usize) -> Self { Self { failed, ..Default::default() } }
+    pub fn connected(connected: usize) -> Self {
+        Self {
+            connected,
+            ..Default::default()
+        }
+    }
+    pub fn connecting(connecting: usize) -> Self {
+        Self {
+            connecting,
+            ..Default::default()
+        }
+    }
+    pub fn disconnecting(disconnecting: usize) -> Self {
+        Self {
+            disconnecting,
+            ..Default::default()
+        }
+    }
+    pub fn failed(failed: usize) -> Self {
+        Self {
+            failed,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -39,27 +65,39 @@ pub type BlockResult<T> = Result<T, BlockError>;
 pub trait Connector: std::fmt::Debug {
     type Conn;
     fn connect(&self, db: &str) -> impl Future<Output = BlockResult<Self::Conn>> + 'static;
-    fn reconnect(&self, conn: Self::Conn, db: &str) -> impl Future<Output = BlockResult<Self::Conn>> + 'static;
+    fn reconnect(
+        &self,
+        conn: Self::Conn,
+        db: &str,
+    ) -> impl Future<Output = BlockResult<Self::Conn>> + 'static;
     fn disconnect(&self, conn: Self::Conn) -> impl Future<Output = BlockResult<()>> + 'static;
 }
 
 #[derive(Debug)]
 pub struct Conn<C: Connector> {
-    inner: Rc<RefCell<ConnInner<C>>>
+    inner: Rc<RefCell<ConnInner<C>>>,
 }
 
-impl <C: Connector> Clone for Conn<C> {
+impl<C: Connector> PartialEq for Conn<C> {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
+impl<C: Connector> Eq for Conn<C> {}
+
+impl<C: Connector> Clone for Conn<C> {
     fn clone(&self) -> Self {
         Self {
-            inner: self.inner.clone()
+            inner: self.inner.clone(),
         }
     }
 }
 
-impl <C: Connector> Conn<C> {
-    pub fn new(f: impl Future<Output = BlockResult<C::Conn>> + 'static, waiters: Rc<WaitQueue>) -> Self {
+impl<C: Connector> Conn<C> {
+    pub fn new(f: impl Future<Output = BlockResult<C::Conn>> + 'static) -> Self {
         Self {
-            inner: Rc::new(RefCell::new(ConnInner::Connecting(f.boxed_local(), waiters)))
+            inner: Rc::new(RefCell::new(ConnInner::Connecting(f.boxed_local()))),
         }
     }
 
@@ -70,18 +108,18 @@ impl <C: Connector> Conn<C> {
                 let f = connector.disconnect(conn).boxed_local();
                 *lock = ConnInner::Disconnecting(f);
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
-    pub fn reopen(&self, connector: &C, db: &str, waiters: Rc<WaitQueue>) {
+    pub fn reopen(&self, connector: &C, db: &str) {
         let mut lock = self.inner.borrow_mut();
         match std::mem::replace(&mut *lock, ConnInner::Closed) {
             ConnInner::Connected(conn, ..) => {
                 let f = connector.reconnect(conn, db).boxed_local();
-                *lock = ConnInner::Connecting(f, waiters);
+                *lock = ConnInner::Connecting(f);
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -89,38 +127,34 @@ impl <C: Connector> Conn<C> {
         let mut lock = self.inner.borrow_mut();
         match &mut *lock {
             ConnInner::Connected(c, ..) => Poll::Ready(Ok(())),
-            ConnInner::Connecting(f, waiters) => {
-                Poll::Ready(match ready!(f.poll_unpin(cx)) {
-                    Ok(c) => {
-                        *lock = ConnInner::Connected(c, Cell::new(true), waiters.clone());
-                        Ok(())
-                    }
-                    Err(err) => {
-                        *lock = ConnInner::Failed;
-                        Err(err)
-                    }
-                })
-            },
-            ConnInner::Disconnecting(f) => {
-                Poll::Ready(match ready!(f.poll_unpin(cx)) {
-                    Ok(c) => {
-                        *lock = ConnInner::Closed;
-                        Ok(())
-                    }
-                    Err(err) => {
-                        *lock = ConnInner::Failed;
-                        Err(err)
-                    }
-                })
-            },
+            ConnInner::Connecting(f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
+                Ok(c) => {
+                    *lock = ConnInner::Connected(c, Cell::new(true));
+                    Ok(())
+                }
+                Err(err) => {
+                    *lock = ConnInner::Failed;
+                    Err(err)
+                }
+            }),
+            ConnInner::Disconnecting(f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
+                Ok(c) => {
+                    *lock = ConnInner::Closed;
+                    Ok(())
+                }
+                Err(err) => {
+                    *lock = ConnInner::Failed;
+                    Err(err)
+                }
+            }),
             ConnInner::Failed => Poll::Ready(Err(BlockError::Other("Failed".into()))),
-            ConnInner::Closed => unreachable!()
+            ConnInner::Closed => unreachable!(),
         }
     }
 
     pub fn try_lock(&self) -> bool {
         match &*self.inner.borrow() {
-            ConnInner::Connected(_, locked, _) => {
+            ConnInner::Connected(_, locked) => {
                 if !locked.get() {
                     eprintln!("try_lock success");
                     locked.set(true);
@@ -130,41 +164,43 @@ impl <C: Connector> Conn<C> {
                     false
                 }
             }
-            _ => false
+            _ => false,
         }
     }
 }
 
 enum ConnInner<C: Connector> {
-    Connecting(Pin<Box<dyn Future<Output = BlockResult<C::Conn>>>>, Rc<WaitQueue>),
+    Connecting(Pin<Box<dyn Future<Output = BlockResult<C::Conn>>>>),
     Disconnecting(Pin<Box<dyn Future<Output = BlockResult<()>>>>),
-    Connected(C::Conn, Cell<bool>, Rc<WaitQueue>),
+    Connected(C::Conn, Cell<bool>),
     Failed,
     Closed,
 }
 
-impl <C: Connector> std::fmt::Debug for ConnInner<C> {
+impl<C: Connector> std::fmt::Debug for ConnInner<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ConnInner")
     }
 }
 
-#[derive(Debug)]
+#[derive(derive_more::Debug)]
 pub struct ConnHandle<C: Connector> {
-    pub(crate) conn: Conn<C>
+    #[debug("{conn}")]
+    pub(crate) conn: Conn<C>,
+    #[debug(skip)]
+    pub(crate) waiters: Rc<WaitQueue>,
 }
 
-impl <C: Connector> ConnHandle<C> {
-}
+impl<C: Connector> ConnHandle<C> {}
 
-impl <C: Connector> Drop for ConnHandle<C> {
+impl<C: Connector> Drop for ConnHandle<C> {
     fn drop(&mut self) {
         match &*self.conn.inner.borrow() {
-            ConnInner::Connected(c, locked, waiters) => {
+            ConnInner::Connected(c, locked) => {
                 debug_assert!(locked.get());
                 locked.set(false);
-                waiters.trigger();
-            },
+                self.waiters.trigger();
+            }
             ConnInner::Closed => {}
             _ => {
                 unreachable!()
