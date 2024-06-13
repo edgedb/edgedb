@@ -19,7 +19,7 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, cast
 
 from edb import errors
 from edb.server.pgcon import errors as pgerror
@@ -87,8 +87,8 @@ def resolve_SelectStmt(
             )
 
         relation = pgast.SelectStmt(
-            larg=larg,
-            rarg=rarg,
+            larg=cast(pgast.Query, larg),
+            rarg=cast(pgast.Query, rarg),
             op=stmt.op,
             all=stmt.all,
         )

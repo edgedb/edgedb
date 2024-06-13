@@ -32,22 +32,22 @@ BaseRelation_T = typing.TypeVar('BaseRelation_T', bound=pgast.BaseRelation)
 
 @functools.singledispatch
 def _resolve(
-    ir: pgast.Base, *, ctx: context.ResolverContextLevel
+    expr: pgast.Base, *, ctx: context.ResolverContextLevel
 ) -> pgast.Base:
-    raise ValueError(f'no SQL resolve handler for {ir.__class__}')
+    raise ValueError(f'no SQL resolve handler for {expr.__class__}')
 
 
-def resolve(ir: Base_T, *, ctx: context.ResolverContextLevel) -> Base_T:
-    res = _resolve(ir, ctx=ctx)
-    return typing.cast(Base_T, res.replace(span=ir.span))
+def resolve(expr: Base_T, *, ctx: context.ResolverContextLevel) -> Base_T:
+    res = _resolve(expr, ctx=ctx)
+    return typing.cast(Base_T, res.replace(span=expr.span))
 
 
 def resolve_opt(
-    ir: typing.Optional[Base_T], *, ctx: context.ResolverContextLevel
+    node: typing.Optional[Base_T], *, ctx: context.ResolverContextLevel
 ) -> typing.Optional[Base_T]:
-    if not ir:
+    if not node:
         return None
-    return resolve(ir, ctx=ctx)
+    return resolve(node, ctx=ctx)
 
 
 def resolve_list(
@@ -66,23 +66,25 @@ def resolve_opt_list(
     return resolve_list(exprs, ctx=ctx)
 
 
+def resolve_relation(
+    rel: pgast.BaseRelation, *, ctx: context.ResolverContextLevel
+) -> typing.Tuple[pgast.BaseRelation, context.Table]:
+    rel, tab = _resolve_relation(rel, ctx=ctx)
+    return rel.replace(span=rel.span), tab
+
+
 @functools.singledispatch
 def _resolve_relation(
-    ir: pgast.BaseRelation, *, ctx: context.ResolverContextLevel
+    rel: pgast.BaseRelation, *, ctx: context.ResolverContextLevel
 ) -> typing.Tuple[pgast.BaseRelation, context.Table]:
-    raise ValueError(f'no SQL resolve handler for {ir.__class__}')
-
-
-def resolve_relation(
-    ir: BaseRelation_T, *, ctx: context.ResolverContextLevel
-) -> typing.Tuple[BaseRelation_T, context.Table]:
-    res, tab = _resolve_relation(ir, ctx=ctx)
-    return typing.cast(BaseRelation_T, res.replace(span=ir.span)), tab
+    raise ValueError(f'no SQL resolve handler for {rel.__class__}')
 
 
 @_resolve.register
 def _resolve_BaseRelation(
     rel: pgast.BaseRelation, *, ctx: context.ResolverContextLevel
 ) -> pgast.BaseRelation:
+    # use _resolve_BaseRelation in normal _resolve dispatch
+
     rel, _ = resolve_relation(rel, ctx=ctx)
     return rel

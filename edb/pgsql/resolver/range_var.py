@@ -151,7 +151,9 @@ def _resolve_RangeSubselect(
         )
 
     node = pgast.RangeSubselect(
-        subquery=subquery, alias=alias, lateral=range_var.lateral
+        subquery=cast(pgast.Query, subquery),
+        alias=alias,
+        lateral=range_var.lateral,
     )
     return node, result
 
@@ -263,7 +265,7 @@ def resolve_CommonTableExpr(
         name=cte.name,
         span=cte.span,
         aliascolnames=reference_as,
-        query=query,
+        query=cast(pgast.Query, query),
         recursive=cte.recursive,
         materialized=cte.materialized,
     )
