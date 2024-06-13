@@ -5982,7 +5982,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ctid
         FROM pg_namespace
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
-                          'edgedb', 'edgedbstd')
+                          'edgedb', 'edgedbstd', 'edgedb_VER', 'edgedbstd_VER')
         UNION ALL
 
         -- virtual schemas
@@ -6034,7 +6034,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN pg_namespace pn ON pt.typnamespace = pn.oid
         WHERE
             nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
-                        'edgedb', 'edgedbstd', 'edgedbpub')
+                        'edgedb', 'edgedbstd', 'edgedb_VER', 'edgedbstd_VER',
+                        'edgedbpub')
         """.format(
                 ",".join(
                     f"pt.{col}"
