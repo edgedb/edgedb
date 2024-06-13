@@ -32,6 +32,7 @@ from typing import (
     List,
     Set,
     NamedTuple,
+    cast,
 )
 
 import uuid
@@ -1946,17 +1947,13 @@ def range_for_ptrref(
         refs = {ptrref.computed_link_alias}
     else:
         refs = {ptrref}
-        assert isinstance(ptrref, irast.PointerRef), \
-            "expected regular PointerRef"
-        overlays = get_ptr_rel_overlays(
-            ptrref, dml_source=dml_source, ctx=ctx)
 
     include_descendants = not ptrref.union_is_exhaustive
 
     assert isinstance(ptrref.out_source.name_hint, sn.QualName)
     # expand_inhviews helps support EXPLAIN. see
     # range_for_material_objtype for details.
-    lrefs: List[irast.BasePointerRef]
+    lrefs: dict[irast.PointerRef, list[irast.PointerRef]]
     if (
         ctx.env.expand_inhviews
         and include_descendants
@@ -1966,78 +1963,91 @@ def range_for_ptrref(
         and ptrref.out_source.name_hint.module not in {'sys', 'cfg'}
     ):
         include_descendants = False
-        lrefs = []
+        lrefs = {}
         for ref in list(refs):
-            lrefs.extend(ref.descendants())
-            lrefs.append(ref)
-        concrete_lrefs = [
-            ref for ref in lrefs if not ref.out_source.is_abstract
-        ]
-        # If there aren't any concrete types, we still need to
-        # generate *something*, so just do all the abstract ones.
-        if concrete_lrefs:
-            lrefs = concrete_lrefs
-    else:
-        lrefs = list(refs)
-
-    for src_ptrref in lrefs:
-        assert isinstance(src_ptrref, irast.PointerRef), \
-            "expected regular PointerRef"
-
-        # Most references to inline links are dispatched to a separate
-        # code path (_new_inline_pointer_rvar) by new_pointer_rvar,
-        # but when we have union pointers, some might be inline.  We
-        # always use the link table if it exists (because this range
-        # needs to contain any link properties, for one reason.)
-        ptr_info = pg_types.get_ptrref_storage_info(
-            src_ptrref, resolve_type=False, link_bias=True,
-        )
-        if not ptr_info:
-            assert ptrref.union_components
-
-            ptr_info = pg_types.get_ptrref_storage_info(
-                src_ptrref, resolve_type=False, link_bias=False,
+            assert isinstance(ref, irast.PointerRef), \
+                "expected regular PointerRef"
+            lref_entries: list[irast.PointerRef] = []
+            lref_entries.extend(
+                cast(Iterable[irast.PointerRef], ref.descendants())
             )
+            lref_entries.append(ref)
+            assert isinstance(ref, irast.PointerRef)
 
-        cols = [
-            'source' if ptr_info.table_type == 'link' else 'id',
-            ptr_info.column_name,
-        ]
+            # Try to only select from actual concrete types.
+            concrete_lrefs = [
+                ref for ref in lref_entries if not ref.out_source.is_abstract
+            ]
+            # If there aren't any concrete types, we still need to
+            # generate *something*, so just do all the abstract ones.
+            if concrete_lrefs:
+                lrefs[ref] = concrete_lrefs
+            else:
+                lrefs[ref] = lref_entries
 
-        table = table_from_ptrref(
-            src_ptrref,
-            ptr_info,
-            include_descendants=include_descendants,
-            for_mutation=for_mutation,
-            ctx=ctx,
-        )
-        table.query.path_id = path_id
+    else:
+        lrefs = {}
+        for ref in list(refs):
+            assert isinstance(ref, irast.PointerRef), \
+                "expected regular PointerRef"
+            lrefs[ref] = [ref]
 
-        qry = pgast.SelectStmt()
-        qry.from_clause.append(table)
+    for orig_ptrref, src_ptrrefs in lrefs.items():
+        for src_ptrref in src_ptrrefs:
+            # Most references to inline links are dispatched to a separate
+            # code path (_new_inline_pointer_rvar) by new_pointer_rvar,
+            # but when we have union pointers, some might be inline.  We
+            # always use the link table if it exists (because this range
+            # needs to contain any link properties, for one reason.)
+            ptr_info = pg_types.get_ptrref_storage_info(
+                src_ptrref, resolve_type=False, link_bias=True,
+            )
+            if not ptr_info:
+                assert ptrref.union_components
 
-        # Make sure all property references are pulled up properly
-        for colname, output_colname in zip(cols, output_cols):
-            selexpr = pgast.ColumnRef(
-                name=[table.alias.aliasname, colname])
-            qry.target_list.append(
-                pgast.ResTarget(val=selexpr, name=output_colname))
+                ptr_info = pg_types.get_ptrref_storage_info(
+                    src_ptrref, resolve_type=False, link_bias=False,
+                )
 
-        set_ops.append(('union', qry))
+            cols = [
+                'source' if ptr_info.table_type == 'link' else 'id',
+                ptr_info.column_name,
+            ]
 
-        # We need the identity var for semi_join to work and
-        # the source rvar so that linkprops can be found here.
-        if path_id:
-            target_ref = qry.target_list[1].val
-            pathctx.put_path_identity_var(qry, path_id, var=target_ref)
-            pathctx.put_path_source_rvar(qry, path_id, table)
+            table = table_from_ptrref(
+                src_ptrref,
+                ptr_info,
+                include_descendants=include_descendants,
+                for_mutation=for_mutation,
+                ctx=ctx,
+            )
+            table.query.path_id = path_id
+
+            qry = pgast.SelectStmt()
+            qry.from_clause.append(table)
+
+            # Make sure all property references are pulled up properly
+            for colname, output_colname in zip(cols, output_cols):
+                selexpr = pgast.ColumnRef(
+                    name=[table.alias.aliasname, colname])
+                qry.target_list.append(
+                    pgast.ResTarget(val=selexpr, name=output_colname))
+
+            set_ops.append(('union', qry))
+
+            # We need the identity var for semi_join to work and
+            # the source rvar so that linkprops can be found here.
+            if path_id:
+                target_ref = qry.target_list[1].val
+                pathctx.put_path_identity_var(qry, path_id, var=target_ref)
+                pathctx.put_path_source_rvar(qry, path_id, table)
 
         # Only fire off the overlays at the end of each expanded inhview.
         # This only matters when we are doing expand_inhviews, and prevents
         # us from repeating the overlays many times in that case.
-        if src_ptrref in refs and not for_mutation:
+        if orig_ptrref in refs and not for_mutation:
             overlays = get_ptr_rel_overlays(
-                src_ptrref, dml_source=dml_source, ctx=ctx)
+                orig_ptrref, dml_source=dml_source, ctx=ctx)
 
             for op, cte, cte_path_id in overlays:
                 rvar = rvar_for_rel(cte, ctx=ctx)

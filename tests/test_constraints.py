@@ -2065,6 +2065,14 @@ class TestConstraintsDDL(tb.DDLTestCase):
             "messages violates exclusivity constraint"
         ):
             await self.con.execute("""
+                analyze
+                update ChatBase set { messages += 'hello world' };
+            """)
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "messages violates exclusivity constraint"
+        ):
+            await self.con.execute("""
                 update ChatBase set { messages := 'hello world' };
             """)
 
