@@ -122,23 +122,21 @@ impl<C: Connector> Blocks<C> {
             .unwrap_or_default()
     }
 
-    async fn acquire(&self, connector: &C, db: &str, new: bool) -> ConnResult<ConnHandle<C>> {
-        let block = self
-            .0
+    fn block(&self, db: &str) -> Rc<Block<C>> {
+        self.0
             .borrow_mut()
             .entry(db.to_owned())
             .or_insert_with(|| Rc::new(Block::new(db)))
-            .clone();
+            .clone()
+    }
+
+    async fn acquire(&self, connector: &C, db: &str, new: bool) -> ConnResult<ConnHandle<C>> {
+        let block = self.block(db);
         block.acquire(connector, new).await
     }
 
     async fn close_one(&self, connector: &C, db: &str) -> ConnResult<()> {
-        let block = self
-            .0
-            .borrow_mut()
-            .entry(db.to_owned())
-            .or_insert_with(|| Rc::new(Block::new(db)))
-            .clone();
+        let block = self.block(db);
         block.close_one(connector).await?;
         if block.is_empty() {
             self.0.borrow_mut().remove(db);
@@ -147,24 +145,14 @@ impl<C: Connector> Blocks<C> {
     }
 
     async fn steal(&self, connector: &C, db: &str, from: &str) -> ConnResult<ConnHandle<C>> {
-        let block = self
-            .0
-            .borrow_mut()
-            .entry(from.to_owned())
-            .or_insert_with(|| Rc::new(Block::new(from)))
-            .clone();
+        let block = self.block(from);
         let conn = block
             .try_take_used()
             .expect("Could not acquire a connection");
         if block.is_empty() {
             self.0.borrow_mut().remove(from);
         }
-        let block = self
-            .0
-            .borrow_mut()
-            .entry(db.to_owned())
-            .or_insert_with(|| Rc::new(Block::new(db)))
-            .clone();
+        let block = self.block(db);
         block.reconnect(connector, conn).await
     }
 }
