@@ -3,8 +3,8 @@ use futures::FutureExt;
 use std::future::Future;
 use std::{cell::RefCell, collections::HashMap, future::poll_fn, rc::Rc};
 
-struct Block<C: Connector> {
-    db_name: String,
+pub struct Block<C: Connector> {
+    pub db_name: String,
     conns: RefCell<Vec<Conn<C>>>,
     waiters: Rc<WaitQueue>,
 }
@@ -22,8 +22,8 @@ impl<C: Connector> Block<C> {
         self.conns.borrow().is_empty()
     }
 
-    pub fn stats(&self) -> BlockStats {
-        let mut stats = BlockStats::default();
+    pub fn stats(&self) -> ConnStats {
+        let mut stats = ConnStats::default();
         for conn in &*self.conns.borrow() {
             stats.count(conn);
         }
@@ -49,7 +49,7 @@ impl<C: Connector> Block<C> {
         None
     }
 
-    async fn reconnect(&self, connector: &C, conn: Conn<C>) -> BlockResult<ConnHandle<C>> {
+    async fn reconnect(&self, connector: &C, conn: Conn<C>) -> ConnResult<ConnHandle<C>> {
         self.conns.borrow_mut().push(conn.clone());
         conn.reopen(connector, &self.db_name);
         poll_fn(|cx| conn.poll_ready(cx)).await?;
@@ -60,7 +60,7 @@ impl<C: Connector> Block<C> {
     }
 
     /// Creates or awaits a connection from this block.
-    async fn acquire(&self, connector: &C, new: bool) -> BlockResult<ConnHandle<C>> {
+    async fn acquire(&self, connector: &C, new: bool) -> ConnResult<ConnHandle<C>> {
         eprintln!("acquire {new}");
         if new {
             let conn = Conn::new(connector.connect(&self.db_name));
@@ -84,7 +84,7 @@ impl<C: Connector> Block<C> {
         }
     }
 
-    async fn close_one(&self, connector: &C) -> BlockResult<()> {
+    async fn close_one(&self, connector: &C) -> ConnResult<()> {
         let conn = self
             .try_acquire_used()
             .expect("Could not acquire a connection");
@@ -95,7 +95,7 @@ impl<C: Connector> Block<C> {
     }
 }
 
-struct Blocks<C: Connector>(RefCell<HashMap<String, Rc<Block<C>>>>);
+pub struct Blocks<C: Connector>(RefCell<HashMap<String, Rc<Block<C>>>>);
 
 impl<C: Connector> Default for Blocks<C> {
     fn default() -> Self {
@@ -104,7 +104,7 @@ impl<C: Connector> Default for Blocks<C> {
 }
 
 impl<C: Connector> Blocks<C> {
-    fn new(block: Block<C>) -> Self {
+    pub fn new(block: Block<C>) -> Self {
         let mut map = HashMap::new();
         map.insert(block.db_name.clone(), Rc::new(block));
         Self(RefCell::new(map))
@@ -114,7 +114,7 @@ impl<C: Connector> Blocks<C> {
         self.0.borrow().len()
     }
 
-    fn stats(&self, db: &str) -> BlockStats {
+    fn stats(&self, db: &str) -> ConnStats {
         self.0
             .borrow_mut()
             .get(db)
@@ -122,7 +122,7 @@ impl<C: Connector> Blocks<C> {
             .unwrap_or_default()
     }
 
-    async fn acquire(&self, connector: &C, db: &str, new: bool) -> BlockResult<ConnHandle<C>> {
+    async fn acquire(&self, connector: &C, db: &str, new: bool) -> ConnResult<ConnHandle<C>> {
         let block = self
             .0
             .borrow_mut()
@@ -132,7 +132,7 @@ impl<C: Connector> Blocks<C> {
         block.acquire(connector, new).await
     }
 
-    async fn close_one(&self, connector: &C, db: &str) -> BlockResult<()> {
+    async fn close_one(&self, connector: &C, db: &str) -> ConnResult<()> {
         let block = self
             .0
             .borrow_mut()
@@ -146,7 +146,7 @@ impl<C: Connector> Blocks<C> {
         Ok(())
     }
 
-    async fn steal(&self, connector: &C, db: &str, from: &str) -> BlockResult<ConnHandle<C>> {
+    async fn steal(&self, connector: &C, db: &str, from: &str) -> ConnResult<ConnHandle<C>> {
         let block = self
             .0
             .borrow_mut()
@@ -188,7 +188,7 @@ mod tests {
 
     impl Connector for BasicConnector {
         type Conn = ();
-        fn connect(&self, db: &str) -> impl Future<Output = BlockResult<Self::Conn>> + 'static {
+        fn connect(&self, db: &str) -> impl Future<Output = ConnResult<Self::Conn>> + 'static {
             let delay = self.delay;
             async move {
                 if delay {
@@ -201,7 +201,7 @@ mod tests {
             &self,
             conn: Self::Conn,
             db: &str,
-        ) -> impl Future<Output = BlockResult<Self::Conn>> + 'static {
+        ) -> impl Future<Output = ConnResult<Self::Conn>> + 'static {
             let delay = self.delay;
             async move {
                 if delay {
@@ -210,7 +210,7 @@ mod tests {
                 Ok(conn)
             }
         }
-        fn disconnect(&self, conn: Self::Conn) -> impl Future<Output = BlockResult<()>> + 'static {
+        fn disconnect(&self, conn: Self::Conn) -> impl Future<Output = ConnResult<()>> + 'static {
             let delay = self.delay;
             async move {
                 if delay {
@@ -229,24 +229,24 @@ mod tests {
             .acquire(&connector, true)
             .await
             .expect("Expected a connection");
-        assert_eq!(block.stats(), BlockStats::connected(1));
+        assert_eq!(block.stats(), ConnStats::connected(1));
         let local = LocalSet::new();
         let block2 = block.clone();
         local.spawn_local(async move {
             let connector = BasicConnector::no_delay();
-            assert_eq!(block2.stats(), BlockStats::connected(1));
+            assert_eq!(block2.stats(), ConnStats::connected(1));
             block2
                 .acquire(&connector, false)
                 .await
                 .expect("Expected a connection");
-            assert_eq!(block2.stats(), BlockStats::connected(1));
+            assert_eq!(block2.stats(), ConnStats::connected(1));
         });
         local.spawn_local(async move {
             tokio::task::yield_now().await;
             drop(conn);
         });
         local.await;
-        assert_eq!(block.stats(), BlockStats::connected(1));
+        assert_eq!(block.stats(), ConnStats::connected(1));
     }
 
     #[tokio::test]
@@ -265,7 +265,7 @@ mod tests {
             .acquire(&connector, true)
             .await
             .expect("Expected a connection");
-        assert_eq!(block.stats(), BlockStats::connected(3));
+        assert_eq!(block.stats(), ConnStats::connected(3));
 
         let local = LocalSet::new();
         for i in 0..100 {
@@ -282,7 +282,7 @@ mod tests {
             });
         }
         local.await;
-        assert_eq!(block.stats(), BlockStats::connected(3));
+        assert_eq!(block.stats(), ConnStats::connected(3));
     }
 
     #[tokio::test]
@@ -303,8 +303,8 @@ mod tests {
             .await
             .expect("Expected a connection");
         assert_eq!(1, blocks.block_count());
-        assert_eq!(blocks.stats("db"), BlockStats::connected(3));
-        assert_eq!(blocks.stats("db2"), BlockStats::connected(0));
+        assert_eq!(blocks.stats("db"), ConnStats::connected(3));
+        assert_eq!(blocks.stats("db2"), ConnStats::connected(0));
         blocks
             .steal(&connector, "db2", "db")
             .await
@@ -318,8 +318,8 @@ mod tests {
             .await
             .expect("Expected a connection");
         assert_eq!(1, blocks.block_count());
-        assert_eq!(blocks.stats("db"), BlockStats::connected(0));
-        assert_eq!(blocks.stats("db2"), BlockStats::connected(3));
+        assert_eq!(blocks.stats("db"), ConnStats::connected(0));
+        assert_eq!(blocks.stats("db2"), ConnStats::connected(3));
     }
 
     #[tokio::test]
@@ -336,10 +336,10 @@ mod tests {
             .await
             .expect("Expected a connection");
         assert_eq!(1, blocks.block_count());
-        assert_eq!(blocks.stats("db"), BlockStats::connected(2));
+        assert_eq!(blocks.stats("db"), ConnStats::connected(2));
         blocks.close_one(&connector, "db").await.unwrap();
         blocks.close_one(&connector, "db").await.unwrap();
-        assert_eq!(blocks.stats("db"), BlockStats::connected(0));
+        assert_eq!(blocks.stats("db"), ConnStats::connected(0));
         assert_eq!(0, blocks.block_count());
     }
 }

@@ -1,7 +1,7 @@
 pub(crate) mod block;
 pub(crate) mod conn;
+pub(crate) mod pool;
 pub(crate) mod waitqueue;
-// mod pool;
 
 // #[cfg(not(test))]
 // #[pymodule]

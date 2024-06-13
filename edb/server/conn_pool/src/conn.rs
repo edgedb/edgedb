@@ -10,14 +10,14 @@ use std::{
 };
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, derive_more::Add)]
-pub struct BlockStats {
+pub struct ConnStats {
     connected: usize,
     connecting: usize,
     disconnecting: usize,
     failed: usize,
 }
 
-impl BlockStats {
+impl ConnStats {
     pub fn count<C: Connector>(&mut self, conn: &Conn<C>) {
         match &*conn.inner.borrow() {
             ConnInner::Closed => unreachable!(),
@@ -55,22 +55,22 @@ impl BlockStats {
 }
 
 #[derive(Debug)]
-pub enum BlockError {
+pub enum ConnError {
     ConnectionIdentityIncorrect,
     Other(Cow<'static, str>),
 }
 
-pub type BlockResult<T> = Result<T, BlockError>;
+pub type ConnResult<T> = Result<T, ConnError>;
 
 pub trait Connector: std::fmt::Debug {
     type Conn;
-    fn connect(&self, db: &str) -> impl Future<Output = BlockResult<Self::Conn>> + 'static;
+    fn connect(&self, db: &str) -> impl Future<Output = ConnResult<Self::Conn>> + 'static;
     fn reconnect(
         &self,
         conn: Self::Conn,
         db: &str,
-    ) -> impl Future<Output = BlockResult<Self::Conn>> + 'static;
-    fn disconnect(&self, conn: Self::Conn) -> impl Future<Output = BlockResult<()>> + 'static;
+    ) -> impl Future<Output = ConnResult<Self::Conn>> + 'static;
+    fn disconnect(&self, conn: Self::Conn) -> impl Future<Output = ConnResult<()>> + 'static;
 }
 
 #[derive(Debug)]
@@ -95,7 +95,7 @@ impl<C: Connector> Clone for Conn<C> {
 }
 
 impl<C: Connector> Conn<C> {
-    pub fn new(f: impl Future<Output = BlockResult<C::Conn>> + 'static) -> Self {
+    pub fn new(f: impl Future<Output = ConnResult<C::Conn>> + 'static) -> Self {
         Self {
             inner: Rc::new(RefCell::new(ConnInner::Connecting(f.boxed_local()))),
         }
@@ -123,7 +123,7 @@ impl<C: Connector> Conn<C> {
         }
     }
 
-    pub fn poll_ready(&self, cx: &mut std::task::Context) -> Poll<BlockResult<()>> {
+    pub fn poll_ready(&self, cx: &mut std::task::Context) -> Poll<ConnResult<()>> {
         let mut lock = self.inner.borrow_mut();
         match &mut *lock {
             ConnInner::Connected(c, ..) => Poll::Ready(Ok(())),
@@ -147,7 +147,7 @@ impl<C: Connector> Conn<C> {
                     Err(err)
                 }
             }),
-            ConnInner::Failed => Poll::Ready(Err(BlockError::Other("Failed".into()))),
+            ConnInner::Failed => Poll::Ready(Err(ConnError::Other("Failed".into()))),
             ConnInner::Closed => unreachable!(),
         }
     }
@@ -170,8 +170,8 @@ impl<C: Connector> Conn<C> {
 }
 
 enum ConnInner<C: Connector> {
-    Connecting(Pin<Box<dyn Future<Output = BlockResult<C::Conn>>>>),
-    Disconnecting(Pin<Box<dyn Future<Output = BlockResult<()>>>>),
+    Connecting(Pin<Box<dyn Future<Output = ConnResult<C::Conn>>>>),
+    Disconnecting(Pin<Box<dyn Future<Output = ConnResult<()>>>>),
     Connected(C::Conn, Cell<bool>),
     Failed,
     Closed,
