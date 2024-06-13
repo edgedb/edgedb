@@ -327,6 +327,31 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         assert isinstance(ctx.op, CompositeMetaCommand)
         ctx.op.post_inhview_update_commands.append(cmd)
 
+    @staticmethod
+    def get_function_type(
+        name: tuple[str, str]
+    ) -> Type[dbops.Function] | Type[trampoline.VersionedFunction]:
+        return (
+            trampoline.VersionedFunction if name[0] == 'edgedbstd'
+            else dbops.Function
+        )
+
+    @staticmethod
+    def maybe_trampoline_inline(
+        f: Optional[dbops.Function]
+    ) -> dbops.Command:
+        if isinstance(f, trampoline.VersionedFunction):
+            return dbops.CreateFunction(
+                trampoline.make_trampoline(f), or_replace=True
+            )
+        else:
+            return dbops.CommandGroup()
+
+    def maybe_trampoline(self, f: Optional[dbops.Function]) -> None:
+        # XXX: TRAMPOLINE: Is this where we want to do this???
+        if isinstance(f, trampoline.VersionedFunction):
+            self.pgops.add(self.maybe_trampoline_inline(f))
+
 
 class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
     pass
@@ -1102,8 +1127,9 @@ class AlterParameter(
 
 
 class FunctionCommand(MetaCommand):
-    def get_pgname(self, func: s_funcs.Function, schema):
-        return common.get_backend_name(schema, func, catenate=False)
+    def get_pgname(self, func: s_funcs.Function, schema, versioned: bool=False):
+        return common.get_backend_name(
+            schema, func, catenate=False, versioned=versioned)
 
     def get_pgtype(self, func: s_funcs.CallableObject, obj, schema):
         if obj.is_any(schema):
@@ -1180,12 +1206,8 @@ class FunctionCommand(MetaCommand):
         func_return_typemod = func.get_return_typemod(schema)
         func_params = func.get_params(schema)
 
-        name = self.get_pgname(func, schema)
-        cls = (
-            trampoline.VersionedFunction if name[0] == 'edgedbstd'
-            else dbops.Function
-        )
-        return cls(
+        name = self.get_pgname(func, schema, versioned=False)
+        return self.get_function_type(name)(
             name=name,
             args=self.compile_args(func, schema),
             has_variadic=func_params.find_variadic(schema) is not None,
@@ -1573,16 +1595,10 @@ class FunctionCommand(MetaCommand):
                     f'unsupported language {func_language}',
                     span=self.span)
 
-            ops = []
+            ops: list[dbops.Command] = []
 
             ops.append(dbops.CreateFunction(dbf, or_replace=or_replace))
-            # XXX: TRAMPOLINE: Is this where we want to do this???
-            if isinstance(dbf, trampoline.VersionedFunction):
-                ops.append(
-                    dbops.CreateFunction(
-                        trampoline.make_trampoline(dbf), or_replace=True
-                    )
-                )
+            ops.append(self.maybe_trampoline_inline(dbf))
             return ops
 
 
@@ -1596,7 +1612,8 @@ class CreateFunction(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = super().apply(schema, context)
-        self.pgops.update(self.make_op(self.scls, schema, context))
+        ops = self.make_op(self.scls, schema, context)
+        self.pgops.update(ops)
         return schema
 
 
@@ -1711,13 +1728,8 @@ class OperatorCommand(FunctionCommand):
 
     def make_operator_function(self, oper: s_opers.Operator, schema):
         name = common.get_backend_name(
-            schema, oper, catenate=False, aspect='function')
-        cls = (
-            trampoline.VersionedFunction if name[0] == 'edgedbstd'
-            else dbops.Function
-        )
-
-        return cls(
+            schema, oper, catenate=False, versioned=False, aspect='function')
+        return self.get_function_type(name)(
             name=name,
             args=self.compile_args(oper, schema),
             volatility=oper.get_volatility(schema),
@@ -1803,13 +1815,7 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
             oper_func = self.make_operator_function(oper, schema)
             self.pgops.add(dbops.CreateFunction(oper_func))
 
-            # XXX: TRAMPOLINE: Is this where we want to do this???
-            if isinstance(oper_func, trampoline.VersionedFunction):
-                self.pgops.add(
-                    dbops.CreateFunction(
-                        trampoline.make_trampoline(oper_func), or_replace=True
-                    )
-                )
+            self.maybe_trampoline(oper_func)
 
             if not params.has_polymorphic(schema):
                 cexpr = self.get_dummy_func_call(
@@ -1866,7 +1872,7 @@ class DeleteOperator(OperatorCommand, adapts=s_opers.DeleteOperator):
 class CastCommand(MetaCommand):
     def make_cast_function(self, cast: s_casts.Cast, schema):
         name = common.get_backend_name(
-            schema, cast, catenate=False, aspect='function')
+            schema, cast, catenate=False, versioned=False, aspect='function')
 
         args: Sequence[dbops.FunctionArg] = [
             (
@@ -1885,7 +1891,7 @@ class CastCommand(MetaCommand):
         # is heavy on json casts), so instead we just need to make sure
         # to write cast code that is naturally strict (this is enforced
         # by test_edgeql_casts_all_null).
-        return dbops.Function(
+        return self.get_function_type(name)(
             name=name,
             args=args,
             returns=returns,
@@ -1910,6 +1916,7 @@ class CreateCast(CastCommand, adapts=s_casts.CreateCast):
         if cast_language is ql_ast.Language.SQL and cast_code:
             cast_func = self.make_cast_function(cast, schema)
             self.pgops.add(dbops.CreateFunction(cast_func))
+            self.maybe_trampoline(cast_func)
 
         elif from_cast is not None or from_expr is not None:
             # This operator is handled by the compiler and does not
@@ -2405,13 +2412,15 @@ class CreateScalarType(ScalarTypeMetaCommand,
             dbops.CreateEnum(dbops.Enum(name=new_enum_name, values=values))
         )
 
+        fcls = cls.get_function_type(new_enum_name)
+
         # Cast wrapper function is needed for immutable casts, which are
         # needed for casting within indexes/constraints.
         # (Postgres casts are only stable)
         cast_func_name = common.get_backend_name(
             schema, scalar, catenate=False, aspect="enum-cast-from-str"
         )
-        cast_func = dbops.Function(
+        cast_func = fcls(
             name=cast_func_name,
             args=[("value", ("anyelement",))],
             volatility="immutable",
@@ -2419,12 +2428,13 @@ class CreateScalarType(ScalarTypeMetaCommand,
             text=f"SELECT value::{qt(new_enum_name)}",
         )
         ops.add_command(dbops.CreateFunction(cast_func))
+        ops.add_command(cls.maybe_trampoline_inline(cast_func))
 
         # Simialry, uncast from enum to str
         uncast_func_name = common.get_backend_name(
             schema, scalar, catenate=False, aspect="enum-cast-into-str"
         )
-        uncast_func = dbops.Function(
+        uncast_func = fcls(
             name=uncast_func_name,
             args=[("value", ("anyelement",))],
             volatility="immutable",
@@ -2432,6 +2442,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
             text=f"SELECT value::text",
         )
         ops.add_command(dbops.CreateFunction(uncast_func))
+        ops.add_command(cls.maybe_trampoline_inline(uncast_func))
         return ops
 
     def _create_begin(

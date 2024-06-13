@@ -273,7 +273,9 @@ def update_aspect(name, aspect):
         return (name[0], stripped)
 
 
-def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
+def get_scalar_backend_name(
+    id, module_name, catenate=True, *, versioned=True, aspect=None
+):
     if aspect is None:
         aspect = 'domain'
     if aspect not in (
@@ -289,12 +291,14 @@ def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
             f'unexpected aspect for scalar backend name: {aspect!r}')
     name = s_name.QualName(module=module_name, name=str(id))
 
+    # XXX: TRAMPOLINE: VERSIONING???
     if aspect.startswith("enum-cast-"):
         suffix = "_into_str" if aspect == "enum-cast-into-str" else "_from_str"
         name = s_name.QualName(name.module, name.name + suffix)
-        return get_cast_backend_name(name, catenate, aspect="function")
+        return get_cast_backend_name(
+            name, catenate, versioned=versioned, aspect="function")
 
-    return convert_name(name, aspect, catenate)
+    return convert_name(name, aspect, catenate, versioned=False)
 
 
 def get_aspect_suffix(aspect):
@@ -398,11 +402,11 @@ def get_operator_backend_name(
 
 
 def get_cast_backend_name(
-    fullname: s_name.QualName, catenate=False, *, aspect=None
+    fullname: s_name.QualName, catenate=False, *, versioned=True, aspect=None
 ):
-    # XXX: VERSIONS
     if aspect == "function":
-        return convert_name(fullname, "f", catenate=catenate)
+        return convert_name(
+            fullname, "f", catenate=catenate, versioned=versioned)
     else:
         raise ValueError(
             f'unexpected aspect for cast backend name: {aspect!r}')
@@ -514,6 +518,7 @@ def get_backend_name(
     elif isinstance(obj, s_scalars.ScalarType):
         name = obj.get_name(schema)
         return get_scalar_backend_name(obj.id, name.module, catenate=catenate,
+                                       versioned=versioned,
                                        aspect=aspect)
 
     elif isinstance(obj, s_opers.Operator):
@@ -523,9 +528,8 @@ def get_backend_name(
 
     elif isinstance(obj, s_casts.Cast):
         name = obj.get_name(schema)
-        # XXX: TRAMPOLINE: VERSIONED
         return get_cast_backend_name(
-            name, catenate, aspect=aspect)
+            name, catenate, versioned=versioned, aspect=aspect)
 
     elif isinstance(obj, s_func.Function):
         name = obj.get_shortname(schema)

@@ -531,6 +531,7 @@ class Environment:
             Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
         ] = None,
         backend_runtime_params: pgparams.BackendRuntimeParams,
+        # XXX: TRAMPOLINE: THIS IS WRONG
         versioned_stdlib: bool = True,
     ) -> None:
         self.aliases = aliases.AliasGenerator()
@@ -549,8 +550,7 @@ class Environment:
         self.materialized_views = {}
         self.check_ctes = []
         self.backend_runtime_params = backend_runtime_params
-        # XXX: TRAMPOLINE: THIS IS WRONG
-        self.versioned_stdlib = True
+        self.versioned_stdlib = versioned_stdlib
 
 
 # XXX: this context hack is necessary until pathctx is converted
