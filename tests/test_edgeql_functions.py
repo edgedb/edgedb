@@ -996,6 +996,238 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [2],
         )
 
+    async def test_edgeql_functions_array_set_01(self):
+        # Positive indexes
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], 0, 9);''',
+            [[9, 2, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], 1, 9);''',
+            [[1, 9, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], 2, 9);''',
+            [[1, 2, 9, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], 3, 9);''',
+            [[1, 2, 3, 9]],
+        )
+
+        # Negative indexes
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], -1, 9);''',
+            [[1, 2, 3, 9]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], -2, 9);''',
+            [[1, 2, 9, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], -3, 9);''',
+            [[1, 9, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1, 2, 3, 4], -4, 9);''',
+            [[9, 2, 3, 4]],
+        )
+
+        # Size 1 array
+        await self.assert_query_result(
+            r'''SELECT array_set([1], 0, 9);''',
+            [[9]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_set([1], -1, 9);''',
+            [[9]],
+        )
+
+    async def test_edgeql_functions_array_set_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index 4 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_set([1, 2, 3, 4], 4, 9);''',
+            )
+
+    async def test_edgeql_functions_array_set_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index -5 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_set([1, 2, 3, 4], -5, 9);''',
+            )
+
+    async def test_edgeql_functions_array_set_04(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index 1 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_set([1], 1, 9);''',
+            )
+
+    async def test_edgeql_functions_array_set_05(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index -2 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_set([1], -2, 9);''',
+            )
+
+    async def test_edgeql_functions_array_set_06(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index 0 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_set(<array<int64>>[], 0, 9);''',
+            )
+
+    async def test_edgeql_functions_array_set_07(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index -1 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_set(<array<int64>>[], -1, 9);''',
+            )
+
+    async def test_edgeql_functions_array_insert_01(self):
+        # Positive indexes
+        await self.assert_query_result(
+            r'''SELECT array_insert([1, 2, 3, 4], 0, 9);''',
+            [[9, 1, 2, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_insert([1, 2, 3, 4], 1, 9);''',
+            [[1, 9, 2, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_insert([1, 2, 3, 4], 2, 9);''',
+            [[1, 2, 9, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_insert([1, 2, 3, 4], 3, 9);''',
+            [[1, 2, 3, 9, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_insert([1, 2, 3, 4], 4, 9);''',
+            [[1, 2, 3, 4, 9]],
+        )
+
+        # Negative indexes
+        await self.assert_query_result(
+            r'''SELECT array_insert([1, 2, 3, 4], -1, 9);''',
+            [[1, 2, 3, 9, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_insert([1, 2, 3, 4], -2, 9);''',
+            [[1, 2, 9, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_insert([1, 2, 3, 4], -3, 9);''',
+            [[1, 9, 2, 3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_insert([1, 2, 3, 4], -4, 9);''',
+            [[9, 1, 2, 3, 4]],
+        )
+
+        # Size 1 array
+        await self.assert_query_result(
+            r'''SELECT array_insert([1], 0, 9);''',
+            [[9, 1]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_insert([1], 1, 9);''',
+            [[1, 9]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT array_insert([1], -1, 9);''',
+            [[9, 1]],
+        )
+
+        # Size 0 array
+        await self.assert_query_result(
+            r'''SELECT array_insert(<array<int64>>[], 0, 9);''',
+            [[9]],
+        )
+
+    async def test_edgeql_functions_array_insert_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index 5 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_insert([1, 2, 3, 4], 5, 9);''',
+            )
+
+    async def test_edgeql_functions_array_insert_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index -5 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_insert([1, 2, 3, 4], -5, 9);''',
+            )
+
+    async def test_edgeql_functions_array_insert_04(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index 2 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_insert([1], 2, 9);''',
+            )
+
+    async def test_edgeql_functions_array_insert_05(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index -2 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_insert([1], -2, 9);''',
+            )
+
+    async def test_edgeql_functions_array_insert_06(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index 1 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_insert(<array<int64>>[], 1, 9);''',
+            )
+
+    async def test_edgeql_functions_array_insert_07(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'array index -1 is out of bounds'
+        ):
+            await self.con.query(
+                r'''SELECT array_insert(<array<int64>>[], -1, 9);''',
+            )
+
     @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
