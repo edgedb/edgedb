@@ -209,6 +209,17 @@ class TestExtAI(tb.BaseHttpExtensionTest):
             variables=dict(qv=qv),
         )
 
+        await self.assert_query_result(
+            '''
+            select _ := ext::ai::to_context((select Stuff))
+            order by _
+            ''',
+            [
+                'Skies on Earth are blue',
+                'Skies on Mars are red',
+            ],
+        )
+
         async for tr in self.try_until_succeeds(
             ignore=(AssertionError,),
             timeout=10.0,
@@ -259,6 +270,17 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 content := 'Skies on Earth are blue'
             };
             """,
+        )
+
+        await self.assert_query_result(
+            '''
+            select _ := ext::ai::to_context((select Star))
+            order by _
+            ''',
+            [
+                'Skies on Earth are blue',
+                'Skies on Mars are red',
+            ],
         )
 
         async for tr in self.try_until_succeeds(
