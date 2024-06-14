@@ -262,7 +262,7 @@ class AST:
 
     def __copy__(self):
         copied = self.__class__()
-        for field, value in iter_fields(self, include_meta=False):
+        for field, value in iter_fields(self, include_meta=True):
             try:
                 object.__setattr__(copied, field, value)
             except AttributeError:
@@ -272,7 +272,7 @@ class AST:
 
     def __deepcopy__(self, memo):
         copied = self.__class__()
-        for field, value in iter_fields(self, include_meta=False):
+        for field, value in iter_fields(self, include_meta=True):
             object.__setattr__(copied, field, copy.deepcopy(value, memo))
         return copied
 
