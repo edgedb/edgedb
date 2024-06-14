@@ -37,12 +37,14 @@ from . import referencing
 from . import schema as s_schema
 from . import sources as s_sources
 from . import types as s_types
+from .generated import policies as sg_policies
 
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
 
 
 class AccessPolicy(
+    sg_policies.AccessPolicyMixin,
     referencing.NamedReferencedInheritingObject,
     so.InheritingObject,  # Help reflection figure out the right db MRO
     s_anno.AnnotationSubject,

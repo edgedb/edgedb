@@ -39,12 +39,14 @@ from . import sources
 from . import types as s_types
 from . import utils
 from . import expr as s_expr
+from .generated import properties as sg_properties
 
 if TYPE_CHECKING:
     from . import schema as s_schema
 
 
 class Property(
+    sg_properties.PropertyMixin,
     pointers.Pointer,
     s_abc.Property,
     qlkind=qltypes.SchemaObjectClass.PROPERTY,

@@ -57,6 +57,7 @@ from . import types as s_types
 from . import pseudo as s_pseudo
 from . import referencing
 from . import utils
+from .generated import constraints as sg_constraints
 
 
 if TYPE_CHECKING:
@@ -122,8 +123,10 @@ class ObjectIndexByConstraintName(
 
 
 class Constraint(
+    sg_constraints.ConstraintMixin,
     referencing.ReferencedInheritingObject,
-    s_func.CallableObject, s_abc.Constraint,
+    s_func.CallableObject,
+    s_abc.Constraint,
     qlkind=ft.SchemaObjectClass.CONSTRAINT,
     data_safe=True,
 ):
@@ -364,6 +367,7 @@ class Constraint(
 
 
 class ConsistencySubject(
+    sg_constraints.ConsistencySubjectMixin,
     so.QualifiedObject,
     so.InheritingObject,
     s_anno.AnnotationSubject,

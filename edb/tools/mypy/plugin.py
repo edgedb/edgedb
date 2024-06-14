@@ -68,18 +68,7 @@ class EDBPlugin(mypy_plugin.Plugin):
         transformers: List[BaseTransformer] = []
 
         if any(c.fullname in SCHEMA_BASE_METACLASSES for c in mcls_mro):
-            transformers.append(
-                SchemaClassTransformer(
-                    ctx,
-                    field_makers={'edb.schema.objects.SchemaField'},
-                )
-            )
-            transformers.append(
-                StructTransformer(
-                    ctx,
-                    field_makers={'edb.schema.objects.Field'},
-                )
-            )
+            pass
 
         elif any(c.fullname in STRUCT_BASE_METACLASSES for c in mcls_mro):
             transformers.append(
@@ -488,37 +477,6 @@ class StructTransformer(BaseStructTransformer):
                 stmt.rvalue.column = rhs.column
 
             return field
-
-
-class SchemaClassTransformer(BaseStructTransformer):
-
-    def _transform(self) -> List[Field]:
-        ctx = self._ctx
-        fields = self._collect_fields()
-        schema_t = self._lookup_type('edb.schema.schema.Schema')
-
-        for f in fields:
-            if f.has_explicit_accessor:
-                continue
-
-            mypy_helpers.add_method(
-                ctx,
-                name=f'get_{f.name}',
-                args=[
-                    nodes.Argument(
-                        variable=nodes.Var(
-                            name='schema',
-                            type=schema_t,
-                        ),
-                        type_annotation=schema_t,
-                        initializer=None,
-                        kind=nodes.ARG_POS,
-                    ),
-                ],
-                return_type=f.type,
-            )
-
-        return fields
 
 
 class ASTClassTransformer(BaseTransformer):

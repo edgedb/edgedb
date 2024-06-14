@@ -41,9 +41,11 @@ from . import objects as so
 from . import schema as s_schema
 from . import types as s_types
 from . import utils as s_utils
+from .generated import scalars as sg_scalars
 
 
 class ScalarType(
+    sg_scalars.ScalarTypeMixin,
     s_types.InheritingType,
     constraints.ConsistencySubject,
     s_abc.ScalarType,

@@ -67,6 +67,7 @@ from edb.common import uuidgen
 from . import abc as s_abc
 from . import name as sn
 from . import _types
+from .generated import objects as sg_obj
 
 
 if TYPE_CHECKING:
@@ -721,89 +722,6 @@ class ObjectMeta(type):
 
         for findex, field in enumerate(cls._schema_fields.values()):
             field.index = findex
-            getter_name = f'get_{field.name}'
-            if getter_name in clsdict:
-                # The getter was defined explicitly, move on.
-                continue
-
-            ftype = field.type
-            # The field getters are hot code as they're essentially
-            # attribute access, so be mindful about what you are adding
-            # into the callables below.
-            if issubclass(ftype, s_abc.Reducible):
-                def reducible_getter(
-                    self: Any,
-                    schema: s_schema.Schema,
-                    *,
-                    _fn: str = field.name,
-                    _fi: int = findex,
-                    _sr: Callable[[Any], s_abc.Reducible] = (
-                        ftype.schema_restore
-                    ),
-                    _fd: Callable[[], Any] = field.get_default,
-                ) -> Any:
-                    data = schema.get_obj_data_raw(self)
-                    v = data[_fi]
-                    if v is not None:
-                        return _sr(v)
-                    else:
-                        try:
-                            return _fd()
-                        except ValueError:
-                            pass
-
-                        raise FieldValueNotFoundError(
-                            f'{self!r} object has no value '
-                            f'for field {_fn!r}'
-                        )
-
-                setattr(cls, getter_name, reducible_getter)
-
-            elif (
-                field.default is not NoDefault
-                and field.default is not DEFAULT_CONSTRUCTOR
-            ):
-                def regular_default_getter(
-                    self: Any,
-                    schema: s_schema.Schema,
-                    *,
-                    _fi: int = findex,
-                    _fd: Any = field.default,
-                ) -> Any:
-                    data = schema.get_obj_data_raw(self)
-                    v = data[_fi]
-                    if v is not None:
-                        return v
-                    else:
-                        return _fd
-
-                setattr(cls, getter_name, regular_default_getter)
-
-            else:
-                def regular_getter(
-                    self: Any,
-                    schema: s_schema.Schema,
-                    *,
-                    _fn: str = field.name,
-                    _fi: int = findex,
-                    _fd: Callable[[], Any] = field.get_default,
-                ) -> Any:
-                    data = schema.get_obj_data_raw(self)
-                    v = data[_fi]
-                    if v is not None:
-                        return v
-                    else:
-                        try:
-                            return _fd()
-                        except ValueError:
-                            pass
-
-                        raise FieldValueNotFoundError(
-                            f'{self!r} object has no value '
-                            f'for field {_fn!r}'
-                        )
-
-                setattr(cls, getter_name, regular_getter)
 
         non_schema_fields = {field.name for field in fields.values()
                              if not field.is_schema_field}
@@ -994,7 +912,9 @@ class FieldValueNotFoundError(Exception):
     pass
 
 
-class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
+class Object(
+    sg_obj.ObjectMixin, s_abc.Object, ObjectContainer, metaclass=ObjectMeta
+):
     """Base schema item class."""
 
     __slots__ = ('id',)
@@ -1002,7 +922,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     is_global_object = False
 
     # Unique ID for this schema item.
-    id = Field(
+    id: uuid.UUID = Field(
         uuid.UUID,
         inheritable=False,
         simpledelta=False,
@@ -2078,7 +1998,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         return f'<{type(self).__name__} {self.id} at 0x{id(self):#x}>'
 
 
-class InternalObject(Object):
+class InternalObject(sg_obj.InternalObjectMixin, Object):
     """A schema object that is used by the system internally.
 
     Instances of InternalObject should not appear in schema dumps.
@@ -2091,7 +2011,7 @@ class InternalObject(Object):
         return cls is InternalObject
 
 
-class QualifiedObject(Object):
+class QualifiedObject(sg_obj.QualifiedObjectMixin, Object):
 
     name = SchemaField(
         # ignore below because Mypy doesn't understand fields which are not
@@ -2116,18 +2036,18 @@ class QualifiedObject(Object):
 QualifiedObject_T = TypeVar('QualifiedObject_T', bound='QualifiedObject')
 
 
-class ObjectFragment(QualifiedObject):
+class ObjectFragment(sg_obj.ObjectFragmentMixin, QualifiedObject):
     """A part of another object that cannot exist independently."""
 
 
-class GlobalObject(Object):
+class GlobalObject(sg_obj.GlobalObjectMixin, Object):
     is_global_object = True
 
 
 GlobalObject_T = TypeVar('GlobalObject_T', bound='GlobalObject')
 
 
-class ExternalObject(GlobalObject):
+class ExternalObject(sg_obj.ExternalObjectMixin, GlobalObject):
     """An object that is not tracked in a schema, but some external state."""
     pass
 
@@ -2135,7 +2055,7 @@ class ExternalObject(GlobalObject):
 ExternalObject_T = TypeVar('ExternalObject_T', bound='ExternalObject')
 
 
-class DerivableObject(QualifiedObject):
+class DerivableObject(sg_obj.DerivableObjectMixin, QualifiedObject):
 
     def derive_name(
         self,
@@ -3014,7 +2934,7 @@ class ObjectList(
         return super().create(schema, data, **kwargs)  # type: ignore
 
 
-class SubclassableObject(Object):
+class SubclassableObject(sg_obj.SubclassableObjectMixin, Object):
 
     abstract = SchemaField(
         bool,
@@ -3053,7 +2973,7 @@ class SubclassableObject(Object):
 InheritingObjectT = TypeVar('InheritingObjectT', bound='InheritingObject')
 
 
-class InheritingObject(SubclassableObject):
+class InheritingObject(sg_obj.InheritingObjectMixin, SubclassableObject):
 
     bases = SchemaField(
         ObjectList['InheritingObject'],
@@ -3415,7 +3335,9 @@ DerivableInheritingObjectT = TypeVar(
 )
 
 
-class DerivableInheritingObject(DerivableObject, InheritingObject):
+class DerivableInheritingObject(
+    sg_obj.DerivableInheritingObjectMixin, DerivableObject, InheritingObject
+):
 
     def get_nearest_non_derived_parent(
         self: DerivableInheritingObjectT,
