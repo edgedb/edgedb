@@ -32,6 +32,7 @@ Linux or macOS.  Windows is not currently supported.
 * Bison 1.875 or later;
 * Flex 2.5.31 or later;
 * Perl 5.8.3 or later;
+* icu4c 4.6 or later;
 * Zlib (zlibg1-dev on Ubuntu);
 * Readline dev package;
 * Libuuid dev package;
@@ -50,6 +51,20 @@ On Ubuntu 24.04, these can be installed by running:
      uuid-dev nodejs npm
    $ npm i -g corepack
    $ corepack enable && corepack prepare yarn@stable --activate
+
+On macOS, these can be installed by running:
+
+.. code-block:: bash
+
+   $ brew install rustup autoconf libtool python@3.12 readline zlib nodejs icu4c
+
+To build Postgres on macOS, you'll need to set ``PKG_CONFIG_PATH`` so it can find
+the ``icu4c`` libraries. This can be done manually each time you rebuild Postgres,
+or set in your ``.profile`` or virtual environment.
+
+.. code-block:: bash
+
+   $ export PKG_CONFIG_PATH="$(brew --prefix icu4c)/lib/pkgconfig"
 
 A Nix shell with all dependencies and a Python virtual environment can
 be built with the following ``shell.nix`` file.
