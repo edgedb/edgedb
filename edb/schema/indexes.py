@@ -91,14 +91,35 @@ def is_index_valid_for_type(
         case 'fts::index':
             return is_subclass_or_tuple(expr_type, 'fts::document', schema)
         case 'pg::gist':
-            return expr_type.is_range() or expr_type.is_multirange()
+            return (
+                expr_type.is_range()
+                or
+                expr_type.is_multirange()
+                or
+                expr_type.issubclass(
+                    schema,
+                    (
+                        schema.get('ext::postgis::geometry',
+                                   type=s_scalars.ScalarType),
+                        schema.get('ext::postgis::geography',
+                                   type=s_scalars.ScalarType),
+                    )
+                )
+            )
         case 'pg::spgist':
             return (
                 expr_type.is_range()
                 or
                 expr_type.issubclass(
                     schema,
-                    schema.get('std::str', type=s_scalars.ScalarType),
+                    (
+                        schema.get('std::str',
+                                   type=s_scalars.ScalarType),
+                        schema.get('ext::postgis::geometry',
+                                   type=s_scalars.ScalarType),
+                        schema.get('ext::postgis::geography',
+                                   type=s_scalars.ScalarType),
+                    )
                 )
             )
         case 'pg::brin':
@@ -129,6 +150,10 @@ def is_index_valid_for_type(
                         schema.get('cal::relative_duration',
                                    type=s_scalars.ScalarType),
                         schema.get('cal::date_duration',
+                                   type=s_scalars.ScalarType),
+                        schema.get('ext::postgis::geometry',
+                                   type=s_scalars.ScalarType),
+                        schema.get('ext::postgis::geography',
                                    type=s_scalars.ScalarType),
                     )
                 )
