@@ -1235,6 +1235,7 @@ class FunctionCommand(MetaCommand):
                 schema, func.get_return_type(schema), cache=None),
             output_format=compiler.OutputFormat.NATIVE,
             named_param_prefix=self.get_pgname(func, schema)[-1:],
+            versioned_stdlib=context.stdmode,
         )
 
         return codegen.generate_source(sql_res.ast)
