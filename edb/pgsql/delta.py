@@ -7166,12 +7166,12 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
             lclauses.append(f'v.split {op} {pver}')
         cond = ' and '.join(lclauses) if lclauses else 'true'
 
-        qry = textwrap.dedent(f'''\
+        qry = textwrap.dedent(fR'''\
             with v as (
                select name, version,
                string_to_array(version, '.')::int8[] as split
                from pg_available_extension_versions
-               where name = {ql(ext)}
+               where name = {ql(ext)} and version ~ '^\d+(\.\d+)+$'
             )
             select edgedb_VER.raise_on_null(
               (
