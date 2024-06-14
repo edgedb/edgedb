@@ -1930,8 +1930,6 @@ def range_for_ptrref(
 
     output_cols = ('source', 'target')
 
-    set_ops = []
-
     if ptrref.union_components:
         refs = ptrref.union_components
         if only_self and len(refs) > 1:
@@ -1992,7 +1990,20 @@ def range_for_ptrref(
                 "expected regular PointerRef"
             lrefs[ref] = [ref]
 
+    def prep_filter(larg: pgast.SelectStmt, rarg: pgast.SelectStmt) -> None:
+        # Set up the proper join on the source field and clear the target list
+        # of the rhs of a filter overlay.
+        assert isinstance(larg.target_list[0].val, pgast.ColumnRef)
+        assert isinstance(rarg.target_list[0].val, pgast.ColumnRef)
+        rarg.where_clause = astutils.join_condition(
+            larg.target_list[0].val, rarg.target_list[0].val)
+        rarg.target_list.clear()
+
+    set_ops = []
+
     for orig_ptrref, src_ptrrefs in lrefs.items():
+        sub_set_ops = []
+
         for src_ptrref in src_ptrrefs:
             # Most references to inline links are dispatched to a separate
             # code path (_new_inline_pointer_rvar) by new_pointer_rvar,
@@ -2033,7 +2044,7 @@ def range_for_ptrref(
                 qry.target_list.append(
                     pgast.ResTarget(val=selexpr, name=output_colname))
 
-            set_ops.append(('union', qry))
+            sub_set_ops.append(('union', qry))
 
             # We need the identity var for semi_join to work and
             # the source rvar so that linkprops can be found here.
@@ -2041,6 +2052,30 @@ def range_for_ptrref(
                 target_ref = qry.target_list[1].val
                 pathctx.put_path_identity_var(qry, path_id, var=target_ref)
                 pathctx.put_path_source_rvar(qry, path_id, table)
+
+        sub_rvar = range_from_queryset(
+            sub_set_ops, ptrref.shortname,
+            prep_filter=prep_filter, path_id=path_id, ctx=ctx)
+        sub_qry = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(
+                        name=[colname]
+                    ),
+                    name=output_colname
+                )
+                for colname, output_colname in zip(cols, output_cols)
+            ],
+            from_clause=[sub_rvar]
+        )
+        if path_id:
+            target_ref = pgast.ColumnRef(
+                name=[sub_rvar.alias.aliasname, output_cols[1]]
+            )
+            pathctx.put_path_identity_var(sub_qry, path_id, var=target_ref)
+            pathctx.put_path_source_rvar(sub_qry, path_id, sub_rvar)
+
+        set_ops.append(('union', sub_qry))
 
         # Only fire off the overlays at the end of each expanded inhview.
         # This only matters when we are doing expand_inhviews, and prevents
@@ -2074,15 +2109,6 @@ def range_for_ptrref(
                     pathctx.put_path_id_map(qry, path_id, cte_path_id)
 
                 set_ops.append((op, qry))
-
-    def prep_filter(larg: pgast.SelectStmt, rarg: pgast.SelectStmt) -> None:
-        # Set up the proper join on the source field and clear the target list
-        # of the rhs of a filter overlay.
-        assert isinstance(larg.target_list[0].val, pgast.ColumnRef)
-        assert isinstance(rarg.target_list[0].val, pgast.ColumnRef)
-        rarg.where_clause = astutils.join_condition(
-            larg.target_list[0].val, rarg.target_list[0].val)
-        rarg.target_list.clear()
 
     return range_from_queryset(
         set_ops, ptrref.shortname,
