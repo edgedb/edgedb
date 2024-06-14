@@ -1838,15 +1838,7 @@ def range_from_queryset(
         # Just one class table, so return it directly
         from_rvar = set_ops[0][1].from_clause[0]
         assert isinstance(from_rvar, pgast.PathRangeVar)
-        from_rvar = from_rvar.replace(
-            typeref=typeref,
-
-            # If this is a link property, ensure that the schema_obj_id is set.
-            # This allows the correct rvar to be found when compiling link
-            # property refs to a link union on a type intersection.
-            # See: process_set_as_link_property_ref
-            schema_object_id=from_rvar.schema_object_id,
-        )
+        from_rvar = from_rvar.replace(typeref=typeref)
         rvar = from_rvar
 
     return rvar
