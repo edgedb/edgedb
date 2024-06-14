@@ -27,7 +27,6 @@ from edb.server.pgcon import errors as pgerror
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pgcommon
 from edb.pgsql import codegen as pgcodegen
-from edb.pgsql import trampoline
 
 from edb.schema import objtypes as s_objtypes
 from edb.schema import links as s_links
@@ -226,12 +225,12 @@ def resolve_relation(
     if relation.schemaname == 'information_schema':
         preset_tables = (
             sql_introspection.INFORMATION_SCHEMA,
-            trampoline.versioned_schema('edgedbsql'),
+            pgcommon.versioned_schema('edgedbsql'),
         )
     elif not relation.schemaname or relation.schemaname == 'pg_catalog':
         preset_tables = (
             sql_introspection.PG_CATALOG,
-            trampoline.versioned_schema('edgedbsql'),
+            pgcommon.versioned_schema('edgedbsql'),
         )
     elif relation.schemaname == 'pg_toast':
         preset_tables = ({relation.name: PG_TOAST_TABLE}, 'pg_toast')

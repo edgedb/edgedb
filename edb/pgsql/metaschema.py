@@ -79,8 +79,7 @@ q = common.qname
 qi = common.quote_ident
 ql = common.quote_literal
 qt = common.quote_type
-
-V = trampoline.versioned_schema
+V = common.versioned_schema
 
 
 DATABASE_ID_NAMESPACE = uuidgen.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
@@ -4872,6 +4871,7 @@ def tabname(
         obj,
         aspect='table',
         catenate=False,
+        versioned=True,
     )
 
 
@@ -4883,6 +4883,7 @@ def inhviewname(
         obj,
         aspect='inhview',
         catenate=False,
+        versioned=True,
     )
 
 
@@ -5577,6 +5578,7 @@ def _generate_schema_alias_view(
         obj,
         aspect='inhview',
         catenate=False,
+        versioned=True,
     )
 
     targets = []
@@ -5980,7 +5982,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ctid
         FROM pg_namespace
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
-                          'edgedb', 'edgedbstd')
+                          'edgedb', 'edgedbstd', 'edgedb_VER', 'edgedbstd_VER')
         UNION ALL
 
         -- virtual schemas
@@ -6032,7 +6034,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN pg_namespace pn ON pt.typnamespace = pn.oid
         WHERE
             nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
-                        'edgedb', 'edgedbstd', 'edgedbpub')
+                        'edgedb', 'edgedbstd', 'edgedb_VER', 'edgedbstd_VER',
+                        'edgedbpub')
         """.format(
                 ",".join(
                     f"pt.{col}"
@@ -6889,6 +6892,36 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     )
 
 
+class ObjectAncestorsView(trampoline.VersionedView):
+    """A trampolined and explicit version of _SchemaObjectType__ancestors"""
+
+    query = r'''
+        SELECT source, target, index
+        FROM edgedb_VER."_SchemaObjectType__ancestors"
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_object_ancestors'),
+            query=self.query,
+        )
+
+
+class LinksView(trampoline.VersionedView):
+    """A trampolined and explicit version of _SchemaLink"""
+
+    query = r'''
+        SELECT id, name, source, target
+        FROM edgedb_VER."_SchemaLink"
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_schema_links'),
+            query=self.query,
+        )
+
+
 def get_config_type_views(
     schema: s_schema.Schema,
     conf: s_objtypes.ObjectType,
@@ -6951,6 +6984,33 @@ def get_config_views(
     return commands
 
 
+def get_synthetic_type_views(
+    schema: s_schema.Schema,
+    backend_params: params.BackendRuntimeParams,
+) -> dbops.CommandGroup:
+    commands = dbops.CommandGroup()
+
+    commands.add_command(get_config_views(schema))
+
+    for dbview in _generate_database_views(schema):
+        commands.add_command(dbops.CreateView(dbview, or_replace=True))
+
+    for extview in _generate_extension_views(schema):
+        commands.add_command(dbops.CreateView(extview, or_replace=True))
+
+    if backend_params.has_create_role:
+        role_views = _generate_role_views(schema)
+    else:
+        role_views = _generate_single_role_views(schema)
+    for roleview in role_views:
+        commands.add_command(dbops.CreateView(roleview, or_replace=True))
+
+    for verview in _generate_schema_ver_views(schema):
+        commands.add_command(dbops.CreateView(verview, or_replace=True))
+
+    return commands
+
+
 def get_support_views(
     schema: s_schema.Schema,
     backend_params: params.BackendRuntimeParams,
@@ -6977,37 +7037,28 @@ def get_support_views(
     for alias_view in schema_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
-    commands.add_command(get_config_views(schema))
+    synthetic_types = get_synthetic_type_views(schema, backend_params)
+    commands.add_command(synthetic_types)
 
-    for dbview in _generate_database_views(schema):
-        commands.add_command(dbops.CreateView(dbview, or_replace=True))
-
-    for extview in _generate_extension_views(schema):
-        commands.add_command(dbops.CreateView(extview, or_replace=True))
-
-    if backend_params.has_create_role:
-        role_views = _generate_role_views(schema)
-    else:
-        role_views = _generate_single_role_views(schema)
-    for roleview in role_views:
-        commands.add_command(dbops.CreateView(roleview, or_replace=True))
-
-    for verview in _generate_schema_ver_views(schema):
-        commands.add_command(dbops.CreateView(verview, or_replace=True))
+    # Create some trampolined wrapper views around _Schema types we need
+    # to reference from functions.
+    wrapper_commands = dbops.CommandGroup()
+    wrapper_commands.add_command(
+        dbops.CreateView(ObjectAncestorsView(), or_replace=True))
+    wrapper_commands.add_command(
+        dbops.CreateView(LinksView(), or_replace=True))
+    commands.add_command(wrapper_commands)
 
     sys_alias_views = _generate_schema_alias_views(
         schema, s_name.UnqualName('sys'))
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
-    # TODO: XXX: We still want to trampoline fewer of these.
-    # Currently we only skip the information schema stuff.
-    trampolines = []
-    trampolines.extend(trampoline_command(commands))
-
     commands.add_commands(_generate_sql_information_schema())
 
-    commands.add_commands(trampolines)
+    # The synthetic type views (cfg::, sys::) need to be trampolined
+    commands.add_commands(trampoline_command(synthetic_types))
+    commands.add_commands(trampoline_command(wrapper_commands))
 
     return commands
 

@@ -1152,6 +1152,7 @@ async def create_branch(
     dump_args = [
         '--data-only',
         '--table=edgedbstd.*',
+        f'--table={pg_common.versioned_schema("edgedbstd")}.*',
         '--table=edgedb._db_config',
         '--table=edgedbinstdata.instdata',
         *data_arg,

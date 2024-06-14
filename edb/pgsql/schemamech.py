@@ -300,7 +300,7 @@ def compile_constraint(
 
         assert subject_table
         subject_db_name = common.get_backend_name(
-            schema, subject_table, catenate=False
+            schema, subject_table, catenate=False,
         )
         table_type = 'ObjectType'
 
@@ -519,6 +519,7 @@ class SchemaTableConstraint:
         table_name = pg_c.subject_db_name
         expressions = pg_c.expressions
         origin_expressions = pg_c.origin_expressions
+        assert table_name
 
         return deltadbops.SchemaConstraintTableConstraint(
             table_name,
@@ -537,7 +538,9 @@ class SchemaTableConstraint:
 
         tabconstr = self._table_constraint(self)
         add_constr = deltadbops.AlterTableAddConstraint(
-            name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
+            name=tabconstr.get_subject_name(quote=False),
+            constraint=tabconstr,
+        )
 
         ops.add_command(add_constr)
 
@@ -565,7 +568,9 @@ class SchemaTableConstraint:
 
         tabconstr = self._table_constraint(self)
         add_constr = deltadbops.AlterTableDropConstraint(
-            name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
+            name=tabconstr.get_subject_name(quote=False),
+            constraint=tabconstr,
+        )
 
         ops.add_command(add_constr)
 

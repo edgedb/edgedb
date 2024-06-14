@@ -27,6 +27,7 @@ import re
 from typing import Literal, Optional, Tuple, Union, overload
 import uuid
 
+from edb import buildmeta
 from edb.common import uuidgen
 from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
@@ -164,6 +165,33 @@ def get_unique_random_name() -> str:
     return base64.b64encode(uuidgen.uuid1mc().bytes).rstrip(b'=').decode()
 
 
+VERSIONED_SCHEMAS = ('edgedb', 'edgedbstd', 'edgedbsql')
+
+
+def versioned_schema(s: str, version: Optional[int]=None) -> str:
+    if version is None:
+        # ... get_version_dict() is cached, so we use it instead of
+        # get_version(). We might change this to use catalog version at
+        # some point?
+        version = buildmeta.get_version_dict()['major']
+    # N.B: We don't bother quoting the schema name, so make sure it is
+    # lower case and doesn't have weird characters.
+    return f'{s}_v{version}'
+
+
+def maybe_versioned_schema(s: str, version: Optional[int]=None) -> str:
+    return versioned_schema(s, version=version) if s in VERSIONED_SCHEMAS else s
+
+
+def versioned_name(
+    s: tuple[str, ...], version: Optional[int]=None
+) -> tuple[str, ...]:
+    if len(s) > 1:
+        return (maybe_versioned_schema(s[0], version), *s[1:])
+    else:
+        return s
+
+
 @functools.lru_cache()
 def _edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     # Note: PostgreSQL doesn't have a sha1 implementation as a
@@ -203,7 +231,11 @@ def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     return _edgedb_name_to_pg_name(name, prefix_length)
 
 
-def convert_name(name: s_name.QualName, suffix='', catenate=True):
+def convert_name(
+    name: s_name.QualName, suffix='', catenate=True,
+    *,
+    versioned=True,
+):
     schema = get_module_backend_name(name.get_module_name())
     if suffix:
         sname = f'{name.name}_{suffix}'
@@ -211,6 +243,9 @@ def convert_name(name: s_name.QualName, suffix='', catenate=True):
         sname = name.name
 
     dbname = edgedb_name_to_pg_name(sname)
+
+    if versioned:
+        schema = maybe_versioned_schema(schema)
 
     if catenate:
         return qname(schema, dbname)
@@ -238,7 +273,9 @@ def update_aspect(name, aspect):
         return (name[0], stripped)
 
 
-def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
+def get_scalar_backend_name(
+    id, module_name, catenate=True, *, versioned=True, aspect=None
+):
     if aspect is None:
         aspect = 'domain'
     if aspect not in (
@@ -254,12 +291,14 @@ def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
             f'unexpected aspect for scalar backend name: {aspect!r}')
     name = s_name.QualName(module=module_name, name=str(id))
 
+    # XXX: TRAMPOLINE: VERSIONING???
     if aspect.startswith("enum-cast-"):
         suffix = "_into_str" if aspect == "enum-cast-into-str" else "_from_str"
         name = s_name.QualName(name.module, name.name + suffix)
-        return get_cast_backend_name(name, catenate, aspect="function")
+        return get_cast_backend_name(
+            name, catenate, versioned=versioned, aspect="function")
 
-    return convert_name(name, aspect, catenate)
+    return convert_name(name, aspect, catenate, versioned=False)
 
 
 def get_aspect_suffix(aspect):
@@ -280,6 +319,7 @@ def get_objtype_backend_name(
     module_name: str,
     *,
     catenate: bool = True,
+    versioned: bool = False,
     aspect: Optional[str] = None,
 ):
     if aspect is None:
@@ -296,10 +336,13 @@ def get_objtype_backend_name(
     name = s_name.QualName(module=module_name, name=str(id))
 
     suffix = get_aspect_suffix(aspect)
-    return convert_name(name, suffix=suffix, catenate=catenate)
+    return convert_name(
+        name, suffix=suffix, catenate=catenate, versioned=versioned)
 
 
-def get_pointer_backend_name(id, module_name, *, catenate=False, aspect=None):
+def get_pointer_backend_name(
+    id, module_name, *, catenate=False, aspect=None, versioned=True
+):
     if aspect is None:
         aspect = 'table'
 
@@ -310,7 +353,9 @@ def get_pointer_backend_name(id, module_name, *, catenate=False, aspect=None):
     name = s_name.QualName(module=module_name, name=str(id))
 
     suffix = get_aspect_suffix(aspect)
-    return convert_name(name, suffix=suffix, catenate=catenate)
+    return convert_name(
+        name, suffix=suffix, catenate=catenate, versioned=versioned
+    )
 
 
 operator_map = {
@@ -326,12 +371,14 @@ operator_map = {
 }
 
 
-def get_operator_backend_name(name, catenate=False, *, aspect=None):
+def get_operator_backend_name(
+    name, catenate=False, *, versioned=True, aspect=None
+):
     if aspect is None:
         aspect = 'operator'
 
     if aspect == 'function':
-        return convert_name(name, 'f', catenate=catenate)
+        return convert_name(name, 'f', catenate=catenate, versioned=versioned)
     elif aspect != 'operator':
         raise ValueError(
             f'unexpected aspect for operator backend name: {aspect!r}')
@@ -355,20 +402,24 @@ def get_operator_backend_name(name, catenate=False, *, aspect=None):
 
 
 def get_cast_backend_name(
-    fullname: s_name.QualName, catenate=False, *, aspect=None
+    fullname: s_name.QualName, catenate=False, *, versioned=True, aspect=None
 ):
     if aspect == "function":
-        return convert_name(fullname, "f", catenate=catenate)
+        return convert_name(
+            fullname, "f", catenate=catenate, versioned=versioned)
     else:
         raise ValueError(
             f'unexpected aspect for cast backend name: {aspect!r}')
 
 
-def get_function_backend_name(name, backend_name, catenate=False):
+def get_function_backend_name(
+    name, backend_name, catenate=False, versioned=True,
+):
     real_name = backend_name or name.name
 
     fullname = s_name.QualName(module=name.module, name=real_name)
-    schema, func_name = convert_name(fullname, catenate=False)
+    schema, func_name = convert_name(
+        fullname, catenate=False, versioned=versioned)
     if catenate:
         return qname(schema, func_name)
     else:
@@ -424,6 +475,7 @@ def get_backend_name(
     obj: so.Object,
     catenate: Literal[True]=True,
     *,
+    versioned: bool=True,
     aspect: Optional[str]=None
 ) -> str:
     ...
@@ -435,6 +487,7 @@ def get_backend_name(
     obj: so.Object,
     catenate: Literal[False],
     *,
+    versioned: bool=True,
     aspect: Optional[str]=None
 ) -> tuple[str, str]:
     ...
@@ -445,39 +498,44 @@ def get_backend_name(
     obj: so.Object,
     catenate: bool=True,
     *,
-    aspect: Optional[str]=None
+    aspect: Optional[str]=None,
+    versioned: bool=True,
 ) -> Union[str, tuple[str, str]]:
     name: Union[s_name.QualName, s_name.Name]
     if isinstance(obj, s_objtypes.ObjectType):
         name = obj.get_name(schema)
         return get_objtype_backend_name(
-            obj.id, name.module, catenate=catenate, aspect=aspect)
+            obj.id, name.module, catenate=catenate,
+            aspect=aspect, versioned=versioned,
+        )
 
     elif isinstance(obj, s_pointers.Pointer):
         name = obj.get_name(schema)
         return get_pointer_backend_name(obj.id, name.module, catenate=catenate,
+                                        versioned=versioned,
                                         aspect=aspect)
 
     elif isinstance(obj, s_scalars.ScalarType):
         name = obj.get_name(schema)
         return get_scalar_backend_name(obj.id, name.module, catenate=catenate,
+                                       versioned=versioned,
                                        aspect=aspect)
 
     elif isinstance(obj, s_opers.Operator):
         name = obj.get_shortname(schema)
         return get_operator_backend_name(
-            name, catenate, aspect=aspect)
+            name, catenate, versioned=versioned, aspect=aspect)
 
     elif isinstance(obj, s_casts.Cast):
         name = obj.get_name(schema)
         return get_cast_backend_name(
-            name, catenate, aspect=aspect)
+            name, catenate, versioned=versioned, aspect=aspect)
 
     elif isinstance(obj, s_func.Function):
         name = obj.get_shortname(schema)
         backend_name = obj.get_backend_name(schema)
         return get_function_backend_name(
-            name, backend_name, catenate)
+            name, backend_name, catenate, versioned=versioned)
 
     elif isinstance(obj, s_constr.Constraint):
         name = obj.get_name(schema)
@@ -490,6 +548,7 @@ def get_backend_name(
             obj.id, name.module, catenate, aspect=aspect)
 
     elif isinstance(obj, s_types.Tuple):
+        # XXX: TRAMPOLINE: VERSIONED?
         return get_tuple_backend_name(
             obj.id, catenate, aspect=aspect)
 

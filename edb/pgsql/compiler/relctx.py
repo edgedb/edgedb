@@ -1586,6 +1586,7 @@ def range_for_material_objtype(
                 'inhview'
             ),
             catenate=False,
+            versioned=ctx.env.versioned_stdlib,
         )
 
         relation = pgast.Relation(

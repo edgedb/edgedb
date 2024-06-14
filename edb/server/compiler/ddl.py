@@ -48,6 +48,7 @@ from edb.schema import version as s_ver
 from edb.pgsql import common as pg_common
 from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
+from edb.pgsql import trampoline
 
 from . import dbstate
 from . import compiler
@@ -207,7 +208,7 @@ def compile_and_apply_ddl_stmt(
                 f'{pg_common.quote_literal(tid)}::uuid' for tid in new_types
             ]
             sql = sql + (
-                textwrap.dedent(
+                trampoline.fixup_query(textwrap.dedent(
                     f'''\
                 SELECT
                     json_build_object(
@@ -220,7 +221,7 @@ def compile_and_apply_ddl_stmt(
                                 "backend_id"
                             )
                             FROM
-                            edgedb."_SchemaType"
+                            edgedb_VER."_SchemaType"
                             WHERE
                                 "id" = any(ARRAY[
                                     {', '.join(new_type_ids)}
@@ -228,7 +229,7 @@ def compile_and_apply_ddl_stmt(
                         )
                     )::text;
             '''
-                ).encode('utf-8'),
+                )).encode('utf-8'),
             )
 
     create_db = None

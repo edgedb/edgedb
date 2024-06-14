@@ -35,14 +35,11 @@ namespaced. Standard library schema object tables aren't yet.
 
 from __future__ import annotations
 from typing import (
-    Optional,
     TYPE_CHECKING,
 )
 
 import copy
 
-
-from edb import buildmeta
 
 from . import common
 from . import dbops
@@ -52,24 +49,11 @@ q = common.qname
 qi = common.quote_ident
 
 
-def versioned_schema(s: str, version: Optional[int]=None) -> str:
-    if version is None:
-        # ... get_version_dict() is cached, so we use it instead of
-        # get_version(). We might change this to use catalog version at
-        # some point?
-        version = buildmeta.get_version_dict()['major']
-    # N.B: We don't bother quoting the schema name, so make sure it is
-    # lower case and doesn't have weird characters.
-    return f'{s}_v{version}'
-
-
-V = versioned_schema
-
-SCHEMAS = ('edgedb', 'edgedbstd', 'edgedbsql')
+V = common.versioned_schema
 
 
 def fixup_query(query: str) -> str:
-    for s in SCHEMAS:
+    for s in common.VERSIONED_SCHEMAS:
         query = query.replace(f"{s}_VER", V(s))
     return query
 
@@ -78,7 +62,8 @@ class VersionedFunction(dbops.Function):
     if not TYPE_CHECKING:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.name = (V(self.name[0]), *self.name[1:])
+            self.name = (
+                common.maybe_versioned_schema(self.name[0]), *self.name[1:])
             self.text = fixup_query(self.text)
 
             if self.args:
@@ -96,7 +81,8 @@ class VersionedView(dbops.View):
     if not TYPE_CHECKING:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.name = (V(self.name[0]), *self.name[1:])
+            self.name = (
+                common.maybe_versioned_schema(self.name[0]), *self.name[1:])
             self.query = fixup_query(self.query)
 
 
