@@ -19,7 +19,7 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Iterable
 
 from edb import errors
 from edb.pgsql import ast as pgast
@@ -29,6 +29,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 
 from edb.ir import ast as irast
+from edb.ir import typeutils as irtypeutils
 
 from edb.schema import objtypes as s_objtypes
 from edb.schema import name as sn
@@ -55,14 +56,10 @@ def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
         relation, table = dispatch.resolve_relation(stmt.relation, ctx=ctx)
         table.reference_as = ctx.names.get('rel')
 
-        if stmt.colnames:
-            col_map: Dict[str, context.Column] = {
-                col.name: col for col in table.columns
-            }
-            # TODO: handle error from unknown column name
-            selected_columns = (col_map[name] for name in stmt.colnames)
-        else:
-            selected_columns = (c for c in table.columns if not c.hidden)
+        selected_columns = _pull_columns_from_table(
+            table,
+            ((c, stmt.span) for c in stmt.colnames) if stmt.colnames else None,
+        )
 
         # The relation being copied is potentially a view and views cannot be
         # copied if referenced by name, so we just always wrap it into a SELECT.
@@ -106,6 +103,29 @@ def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
     )
 
 
+def _pull_columns_from_table(
+    table: context.Table,
+    col_names: Optional[Iterable[Tuple[str, pgast.Span | None]]],
+) -> List[context.Column]:
+    if not col_names:
+        return [c for c in table.columns if not c.hidden]
+
+    col_map: Dict[str, context.Column] = {
+        col.name: col for col in table.columns
+    }
+
+    res = []
+    for name, span in col_names:
+        col = col_map.get(name, None)
+        if not col:
+            raise errors.QueryError(
+                f'column {name} does not exist',
+                span=span,
+            )
+        res.append(col)
+    return res
+
+
 @dispatch._resolve_relation.register
 def resolve_InsertStmt(
     stmt: pgast.InsertStmt, *, ctx: Context
@@ -125,27 +145,29 @@ def resolve_InsertStmt(
     if not isinstance(sub, s_objtypes.ObjectType):
         raise NotImplementedError('DML supported for object type tables only')
 
-    expected_columns: List[context.Column]
-    if stmt.cols:
-        col_map: Dict[str, context.Column] = {
-            col.name: col for col in sub_table.columns
-        }
-        # TODO: handle error from unknown column name
-        expected_columns = [
-            col_map[ins_target.name] for ins_target in stmt.cols
-        ]
-    else:
-        expected_columns = [c for c in sub_table.columns if not c.hidden]
+    expected_columns = _pull_columns_from_table(
+        sub_table,
+        ((c.name, c.span) for c in stmt.cols) if stmt.cols else None,
+    )
 
     # compile value that is to be inserted normally
-    assert stmt.select_stmt  # TODO: INSERT DEFAULT VALUES
-    val_rel, val_table = dispatch.resolve_relation(stmt.select_stmt, ctx=ctx)
+    val_rel: pgast.BaseRelation
+    if stmt.select_stmt:
+        val_rel = stmt.select_stmt
+    else:
+        # INSERT INTO x DEFAULT VALUES
+        val_rel = pgast.SelectStmt(values=[])
+
+        # edgeql compiler will provide default values
+        # (and complain about missing ones)
+        expected_columns = []
+    val_rel, val_table = dispatch.resolve_relation(val_rel, ctx=ctx)
 
     if len(expected_columns) != len(val_table.columns):
         raise errors.QueryError(
             f'INSERT expected {len(expected_columns)} columns, '
-            'but got {len(val_table.columns)}',
-            span=stmt.select_stmt.span,
+            f'but got {len(val_table.columns)}',
+            span=val_rel.span,
         )
 
     # construct the CTE that produces the value to be inserted
@@ -159,31 +181,89 @@ def resolve_InsertStmt(
         columns=list(val_table.columns),
     )
 
+    # if we are sure that we are inserting a single row,
+    # we can skip for loops and the iterator, so we generate better SQL
+    is_single_row = isinstance(val_rel, pgast.SelectStmt) and (
+        (val_rel.values and len(val_rel.values) == 1)
+        or (
+            isinstance(val_rel.limit_count, pgast.NumericConstant)
+            and val_rel.limit_count.val == '1'
+        )
+    )
+
     # prepare anchors for inserted value columns
-    anchor_name = '__sql_source__'
-    sub_id = irast.PathId.from_type(
+    source_name = '__sql_source__'
+    iterator_name = '__sql_iterator__'
+    source_id = irast.PathId.from_type(
         ctx.schema,
         sub,
-        typename=sn.QualName('__derived__', anchor_name),
+        typename=sn.QualName('__derived__', source_name),
         env=None,
     )
 
+    # source needs an identity column, so we need to invent one
+    if isinstance(val_rel, pgast.SelectStmt) and not val_rel.values:
+        source_identity = ctx.names.get('identity')
+        val_rel.target_list.append(
+            pgast.ResTarget(
+                name=source_identity,
+                val=pgast.FuncCall(
+                    name=('row_number',), args=(), over=pgast.WindowDef()
+                ),
+            )
+        )
+
+        val_rel.path_outputs[(source_id, 'value')] = pgast.ColumnRef(
+            name=(source_identity,)
+        )
+
     insert_shape = []
     for expected_col, val_col in zip(expected_columns, val_table.columns):
-        # TODO: handle pointer not existing
-        # TODO: handle link_ids
-        ptr = sub.getptr(ctx.schema, sn.UnqualName(expected_col.name))
-        ptr_id = irast.PathId.from_pointer(ctx.schema, ptr, env=None)
+        is_link = False
+        if expected_col.name.endswith('_id'):
+            # this if prevents *properties* that and with _id
+            # I'm not sure if this is a problem
+            ptr_name = expected_col.name[0:-3]
+            is_link = True
+        else:
+            ptr_name = expected_col.name
 
+        # TODO: handle link_ids
+        ptr = sub.getptr(ctx.schema, sn.UnqualName(ptr_name))
+
+        ptrref = irtypeutils.ptrref_from_ptrcls(
+            schema=ctx.schema, ptrcls=ptr, cache=None, typeref_cache=None
+        )
+        ptr_id = source_id.extend(ptrref=ptrref)
+
+        ptr_ql: qlast.Expr = qlast.Path(
+            steps=[
+                (
+                    qlast.IRAnchor(name=source_name)
+                    if is_single_row
+                    else qlast.ObjectRef(name=iterator_name)
+                ),
+                qlast.Ptr(name=ptr_name),
+            ]
+        )
+        if is_link:
+            ptr_target = ptr.get_target(ctx.schema)
+            assert ptr_target
+            ptr_target_name: sn.Name = ptr_target.get_name(ctx.schema)
+            assert isinstance(ptr_target_name, sn.QualName)
+            ptr_ql = qlast.TypeCast(
+                type=qlast.TypeName(
+                    maintype=qlast.ObjectRef(
+                        module=ptr_target_name.module,
+                        name=ptr_target_name.name,
+                    )
+                ),
+                expr=ptr_ql,
+            )
         insert_shape.append(
             qlast.ShapeElement(
-                expr=qlast.Path(steps=[qlast.Ptr(name=expected_col.name)]),
-                compexpr=qlast.Path(
-                    steps=[
-                        qlast.IRAnchor(name=anchor_name),
-                        qlast.Ptr(name=expected_col.name),
-                    ]
-                ),
+                expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
+                compexpr=ptr_ql,
             )
         )
 
@@ -191,24 +271,38 @@ def resolve_InsertStmt(
         val_col_pg = pg_res_expr.resolve_column_kind(
             source_cte_table, val_col.kind, ctx=ctx
         )
-        source_cte.query.path_outputs[(ptr_id, 'value')] = pgast.ExprOutputVar(
-            expr=val_col_pg
-        )
+        if is_link:
+            # val_col_pg = pgast.TypeCast(
+                # arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
+            # )
+            #   pgast.ExprOutputVar(expr=val_col_pg)
+            val_rel.path_outputs[(ptr_id, 'identity')] = val_col_pg
+            val_rel.path_outputs[(ptr_id, 'value')] = val_col_pg
+        else:
+            val_rel.path_outputs[(ptr_id, 'value')] = val_col_pg
+        
 
-    ql_stmt = qlast.InsertQuery(
+    ql_stmt: qlast.Expr = qlast.InsertQuery(
         subject=qlast.ObjectRef(
             name=sub_name.name,
             module=sub_name.module,
         ),
         shape=insert_shape,
     )
+    if not is_single_row:
+        ql_stmt = qlast.ForQuery(
+            iterator=qlast.Path(steps=[qlast.IRAnchor(name=source_name)]),
+            iterator_alias=iterator_name,
+            result=ql_stmt,
+        )
 
     # compile synthetic ql statement into SQL
     options = qlcompiler.CompilerOptions(
         modaliases={None: 'default'},
         make_globals_empty=True,  # TODO: globals in SQL
-        singletons={sub_id},
-        anchors={'__sql_source__': sub_id},
+        singletons={source_id},
+        anchors={'__sql_source__': source_id},
+        allow_user_specified_id=True,  # TODO: should this be enabled?
     )
     ir_stmt = qlcompiler.compile_ast_to_ir(
         ql_stmt,
@@ -217,7 +311,7 @@ def resolve_InsertStmt(
     )
     sql_result = pgcompiler.compile_ir_to_sql_tree(
         ir_stmt,
-        external_rels={sub_id: (source_cte, ('source', 'identity'))},
+        external_rels={source_id: (source_cte, ('source', 'identity'))},
         output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
     )
     assert isinstance(sql_result.ast, pgast.Query)

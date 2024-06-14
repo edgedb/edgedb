@@ -45,12 +45,6 @@ from . import sql_introspection
 Context = context.ResolverContextLevel
 
 
-def column_of_name(name: str) -> context.Column:
-    return context.Column(
-        name=name, kind=context.ColumnByName(reference_as=name)
-    )
-
-
 @dispatch._resolve_relation.register
 def resolve_SelectStmt(
     stmt: pgast.SelectStmt, *, include_inherited: bool, ctx: Context
@@ -66,7 +60,11 @@ def resolve_SelectStmt(
         assert isinstance(first_val, pgast.ImplicitRowExpr)
         table = context.Table(
             columns=[
-                column_of_name(ctx.names.get('col')) for _ in first_val.args
+                context.Column(
+                    name=f'column{index + 1}',
+                    kind=context.ColumnByName(reference_as=f'column{index + 1}'),
+                )
+                for index, _ in enumerate(first_val.args)
             ]
         )
         return relation, table
@@ -304,10 +302,7 @@ def resolve_relation(
         )
 
     # extract table name
-    table = context.Table(
-        schema_id=obj.id,
-        name=relation.name
-    )
+    table = context.Table(schema_id=obj.id, name=relation.name)
 
     # extract table columns
     # when changing this, make sure to update sql information_schema
