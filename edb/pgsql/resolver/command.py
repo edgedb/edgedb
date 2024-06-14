@@ -271,16 +271,19 @@ def resolve_InsertStmt(
         val_col_pg = pg_res_expr.resolve_column_kind(
             source_cte_table, val_col.kind, ctx=ctx
         )
+        
+        # TODO: an exhaustive consideration if this assertion is actually true
+        assert isinstance(val_col_pg, pgast.ColumnRef)
+
         if is_link:
             # val_col_pg = pgast.TypeCast(
-                # arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
+            #     arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
             # )
             #   pgast.ExprOutputVar(expr=val_col_pg)
             val_rel.path_outputs[(ptr_id, 'identity')] = val_col_pg
             val_rel.path_outputs[(ptr_id, 'value')] = val_col_pg
         else:
             val_rel.path_outputs[(ptr_id, 'value')] = val_col_pg
-        
 
     ql_stmt: qlast.Expr = qlast.InsertQuery(
         subject=qlast.ObjectRef(

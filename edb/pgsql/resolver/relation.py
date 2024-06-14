@@ -62,7 +62,9 @@ def resolve_SelectStmt(
             columns=[
                 context.Column(
                     name=f'column{index + 1}',
-                    kind=context.ColumnByName(reference_as=f'column{index + 1}'),
+                    kind=context.ColumnByName(
+                        reference_as=f'column{index + 1}'
+                    ),
                 )
                 for index, _ in enumerate(first_val.args)
             ]
