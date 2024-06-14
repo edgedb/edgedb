@@ -16,15 +16,9 @@
 # limitations under the License.
 #
 
-import uuid
 
 from edb.tools import test
 from edb.testbase import server as tb
-
-try:
-    import asyncpg
-except ImportError:
-    pass
 
 
 class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
@@ -43,7 +37,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
     SETUP = [
         """
         create type User;
-        
+
         create type Document {
           create property title: str {
             create rewrite insert using (.title ++ ' (new)');
@@ -78,7 +72,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         # id, __title__, keywords, owner, shared_with, title
         await self.scon.execute(
             '''
-            INSERT INTO "Document" VALUES 
+            INSERT INTO "Document" VALUES
                 (NULL, NULL, NULL, NULL, NULL, 'Report')
             '''
         )
