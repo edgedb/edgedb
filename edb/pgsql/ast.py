@@ -211,7 +211,7 @@ class BaseRangeVar(ImmutableBaseExpr):
     This can be though as a specific instance of a table within a query.
     """
 
-    __ast_meta__ = {'tag', 'ir_origins'}
+    __ast_meta__ = {'schema_object_id', 'tag', 'ir_origins'}
     __ast_mutable_fields__ = frozenset(['ir_origins'])
 
     # This is a hack, since there is some code that relies on not
