@@ -36,7 +36,7 @@ type Astronomy {
 type Stuff extending Astronomy {
     content2: str;
     deferred index ext::ai::index(embedding_model := 'text-embedding-test')
-        on (.content ++ .content2);
+        on ({.content} ++ {.content2});
 };
 
 type Star extending Astronomy;

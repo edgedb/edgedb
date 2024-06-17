@@ -329,6 +329,18 @@ def compile_FunctionCall(
     else:
         res = fcall
 
+    if isinstance(res, irast.FunctionCall) and res.body:
+        # If we are generating a special-cased inlined function call,
+        # make sure to register all the arguments in the scope tree
+        # to ensure that the compiled arguments get picked up when
+        # compiling the body.
+        for arg in res.args.values():
+            pathctx.register_set_in_scope(
+                arg.expr,
+                optional=arg.param_typemod == ft.TypeModifier.OptionalType,
+                ctx=ctx,
+            )
+
     ir_set = setgen.ensure_set(res, typehint=rtype, path_id=path_id, ctx=ctx)
     return stmt.maybe_add_view(ir_set, ctx=ctx)
 
