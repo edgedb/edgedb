@@ -21,9 +21,10 @@ from typing import (
     Any,
     AsyncIterator,
     ClassVar,
+    Final,
+    NamedTuple,
     NoReturn,
     Optional,
-    NamedTuple,
     TYPE_CHECKING,
 )
 
@@ -286,6 +287,35 @@ class EmbeddingsTaskParams(NamedTuple):
     entries: list[tuple[bytes, ...]]
 
 
+class EmbeddingsTaskResult(NamedTuple):
+    data: bytes | RequestError
+
+    # The API may information about its rate limits
+    request_limits: RequestLimits
+
+
+class RequestError(NamedTuple):
+    """Represents an error from an http request."""
+
+    message: str
+
+    # If there was an error, it may be possible to retry the request
+    # Eg. 429 too many requests
+    retry: bool
+
+
+class RequestLimits(NamedTuple):
+    """Information about an AI provider's rate limits.
+
+    For OpenAI, this is returned as part of the header of any request.
+    """
+
+    # Total request limit for the provider
+    limit: Optional[int]
+    # Remaining requests allowed for the provider
+    remaining: Optional[int]
+
+
 async def _generate_embeddings_task_params(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
@@ -373,28 +403,67 @@ async def _execute_embeddings_tasks(
     pgconn: pgcon.PGConnection,
     task_params: list[EmbeddingsTaskParams],
 ) -> int:
-
-    tasks = []
+    task_name = _task_name.get()
 
     error_count = 0
 
-    async with asyncio.TaskGroup() as g:
-        for tp in task_params:
-            tasks.append(g.create_task(_generate_embeddings_task(tp)))
+    # If any tasks fail and can be retried, retry them up to a maximum number
+    # of times.
+    max_retry_count: Final[int] = 4
+    retry_count: int = 0
+    active_task_indexes: set[int] = set(range(len(task_params)))
 
-    for task, tp in zip(tasks, task_params):
-        embeddings = task.result()
-        if embeddings is None:
-            # error
-            error_count += 1
-        else:
-            groups = itertools.groupby(tp.entries, key=lambda e: e[2:])
-            offset = 0
-            for (rel, attr, *_), items in groups:
-                ids = [item[0] for item in items]
-                await _update_embeddings_in_db(
-                    pgconn, rel, attr, ids, embeddings, offset)
-                offset += len(ids)
+    while active_task_indexes and retry_count < max_retry_count:
+        retry_task_indexes: set[int] = set()
+
+        # Run tasks
+        tasks = {}
+        async with asyncio.TaskGroup() as g:
+            for task_index in active_task_indexes:
+                tasks[task_index] = g.create_task(
+                    _generate_embeddings_task(task_params[task_index])
+                )
+
+        # Check task results
+        for task_index in active_task_indexes:
+            task = tasks[task_index]
+            curr_params = task_params[task_index]
+
+            task_result = task.result()
+            if task_result is None:
+                # error
+                error_count += 1
+                continue
+
+            assert isinstance(task_result, EmbeddingsTaskResult)
+            if isinstance(task_result.data, RequestError):
+                if task_result.data.retry:
+                    # Task can be retried
+                    retry_task_indexes.add(task_index)
+
+                else:
+                    # Unrecoverable error
+                    logger.error(f"{task_name}: {task_result.data.message}")
+                    error_count += 1
+
+            else:
+                # Valid response, update embeddings
+                groups = itertools.groupby(
+                    curr_params.entries, key=lambda e: e[2:],
+                )
+                offset = 0
+                for (rel, attr, *_), items in groups:
+                    ids = [item[0] for item in items]
+                    await _update_embeddings_in_db(
+                        pgconn, rel, attr, ids, task_result.data, offset
+                    )
+                    offset += len(ids)
+
+        retry_count += 1
+        active_task_indexes = retry_task_indexes
+
+    # If any tasks couldn't be retried, add them to the error count
+    error_count += len(retry_task_indexes)
 
     return error_count
 
@@ -450,7 +519,7 @@ async def _update_embeddings_in_db(
 
 async def _generate_embeddings_task(
     params: EmbeddingsTaskParams
-) -> Optional[bytes]:
+) -> Optional[EmbeddingsTaskResult]:
     task_name = _task_name.get()
 
     try:
@@ -476,7 +545,7 @@ async def _generate_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
-) -> bytes:
+) -> EmbeddingsTaskResult:
     task_name = _task_name.get()
     count = len(inputs)
     suf = "s" if count > 1 else ""
@@ -500,7 +569,7 @@ async def _generate_openai_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
-) -> bytes:
+) -> EmbeddingsTaskResult:
     headers = {
         "Authorization": f"Bearer {provider.secret}",
     }
@@ -524,13 +593,44 @@ async def _generate_openai_embeddings(
         json=params,
     )
 
+    error = None
     if result.status_code >= 400:
-        raise AIProviderError(
-            f"API call to generate embeddings failed with status "
-            f"{result.status_code}: {result.text}"
+        error = RequestError(
+            message=(
+                f"API call to generate embeddings failed with status "
+                f"{result.status_code}: {result.text}"
+            ),
+            retry=(result.status_code == 429),
         )
-    else:
-        return result.content
+
+    try:
+        header = (
+            result.headers['x-ratelimit-limit-project-requests']
+            if 'x-ratelimit-limit-project-requests' in result.headers else
+            result.headers['x-ratelimit-limit-requests']
+            if 'x-ratelimit-limit-requests' in result.headers else
+            None
+        )
+        request_limit = int(header) if header is not None else None
+    except Exception:
+        request_limit = None
+
+    try:
+        header = (
+            result.headers['x-ratelimit-remaining-project-requests']
+            if 'x-ratelimit-remaining-project-requests' in result.headers else
+            result.headers['x-ratelimit-remaining-requests']
+            if 'x-ratelimit-remaining-requests' in result.headers else
+            None
+        )
+        request_remaining = int(header) if header is not None else None
+    except Exception:
+        request_remaining = None
+
+    return EmbeddingsTaskResult(
+        data=(error if error else result.content),
+        request_limits=RequestLimits(request_limit, request_remaining),
+    )
 
 
 async def _start_chat(
@@ -1187,10 +1287,12 @@ async def _handle_embeddings_request(
         inputs,
         shortening=None,
     )
+    if isinstance(result.data, RequestError):
+        raise AIProviderError(result.data.message)
 
     response.status = http.HTTPStatus.OK
     response.content_type = b'application/json'
-    response.body = result
+    response.body = result.data
 
 
 async def _edgeql_query_json(
@@ -1403,5 +1505,8 @@ async def _generate_embeddings_for_type(
         shortening = index["index_embedding_dimensions"]
     else:
         shortening = None
-    return await _generate_embeddings(
+    result = await _generate_embeddings(
         provider, index["model"], [content], shortening=shortening)
+    if isinstance(result.data, RequestError):
+        raise AIProviderError(result.data.message)
+    return result.data
