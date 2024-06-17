@@ -67,6 +67,7 @@ class BoundArg(NamedTuple):
     cast_distance: int
     arg_id: Optional[Union[int, str]]
     is_default: bool = False
+    polymorphism: ft.Polymorphism = ft.Polymorphism.NotUsed
 
 
 class MissingArg(NamedTuple):
@@ -82,6 +83,7 @@ class BoundCall(NamedTuple):
     null_args: Set[str]
     return_type: s_types.Type
     has_empty_variadic: bool
+    return_polymorphism: ft.Polymorphism = ft.Polymorphism.NotUsed
 
 
 _VARIADIC = ft.ParameterKind.VariadicParam
@@ -568,7 +570,16 @@ def try_bind_call_args(
         bound_param_args.insert(
             0, BoundArg(None, bytes_t, bm_set, bytes_t, 0, None))
 
+    return_polymorphism = ft.Polymorphism.NotUsed
     if return_type.is_polymorphic(schema):
+        return_polymorphism = (
+            ft.Polymorphism.Simple
+            if not return_type.is_collection() else
+            ft.Polymorphism.Array
+            if return_type.is_array() else
+            ft.Polymorphism.Collection
+        )
+
         if resolved_poly_base_type is not None:
             ctx.env.schema, return_type = return_type.to_nonpolymorphic(
                 ctx.env.schema, resolved_poly_base_type)
@@ -582,6 +593,13 @@ def try_bind_call_args(
             if barg.param_type.is_polymorphic(schema):
                 ctx.env.schema, ptype = barg.param_type.to_nonpolymorphic(
                     ctx.env.schema, resolved_poly_base_type)
+                polymorphism = (
+                    ft.Polymorphism.Simple
+                    if not barg.param_type.is_collection() else
+                    ft.Polymorphism.Array
+                    if barg.param_type.is_array() else
+                    ft.Polymorphism.Collection
+                )
                 bound_param_args[i] = BoundArg(
                     barg.param,
                     ptype,
@@ -589,10 +607,17 @@ def try_bind_call_args(
                     barg.valtype,
                     barg.cast_distance,
                     barg.arg_id,
+                    polymorphism=polymorphism
                 )
 
     return BoundCall(
-        func, bound_param_args, null_args, return_type, has_empty_variadic)
+        func,
+        bound_param_args,
+        null_args,
+        return_type,
+        has_empty_variadic,
+        return_polymorphism
+    )
 
 
 def compile_arg(

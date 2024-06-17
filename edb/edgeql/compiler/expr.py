@@ -298,13 +298,6 @@ def compile_Tuple(expr: qlast.Tuple, *, ctx: context.ContextLevel) -> irast.Set:
 @dispatch.compile.register(qlast.Array)
 def compile_Array(expr: qlast.Array, *, ctx: context.ContextLevel) -> irast.Set:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
-    # check that none of the elements are themselves arrays
-    for el, expr_el in zip(elements, expr.elements):
-        if isinstance(setgen.get_set_type(el, ctx=ctx), s_abc.Array):
-            raise errors.QueryError(
-                f'nested arrays are not supported',
-                span=expr_el.span)
-
     return setgen.new_array_set(elements, ctx=ctx, span=expr.span)
 
 
