@@ -160,8 +160,8 @@ class ResolverContextLevel(compiler.ContextLevel):
     # and so on for all subqueries.
     subquery_depth: int
 
-    # 0 for top-level statement, 1 for its CTEs/sub-relations/links, similarly for
-    # their subqueries.
+    # 0 for top-level statement, 1 for its CTEs/sub-relations/links, similarly
+    # for their subqueries.
     subquery_depth: int
 
     # List of CTEs to add the top-level statement.

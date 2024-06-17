@@ -21,6 +21,8 @@ in our internal Postgres instance."""
 
 from typing import List, Optional, Dict, Tuple, Iterable
 
+from edb.server.pgcon import errors as pgerror
+
 from edb import errors
 from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pgcompiler
@@ -132,10 +134,12 @@ def resolve_InsertStmt(
 ) -> Tuple[pgast.Query, context.Table]:
 
     if ctx.subquery_depth >= 2:
+        print(stmt.span)
         raise errors.QueryError(
             'WITH clause containing a data-modifying statement must be at '
             'the top level',
             span=stmt.span,
+            pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
         )
 
     # determine the subject object we are inserting into
@@ -150,7 +154,11 @@ def resolve_InsertStmt(
     assert isinstance(sub_name, sn.QualName)
 
     if not isinstance(sub, s_objtypes.ObjectType):
-        raise NotImplementedError('DML supported for object type tables only')
+        raise errors.QueryError(
+            'DML supported for object type tables only',
+            span=stmt.span,
+            pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+        )
 
     expected_columns = _pull_columns_from_table(
         sub_table,
@@ -307,24 +315,34 @@ def resolve_InsertStmt(
             result=ql_stmt,
         )
 
-    # compile synthetic ql statement into SQL
-    options = qlcompiler.CompilerOptions(
-        modaliases={None: 'default'},
-        make_globals_empty=True,  # TODO: globals in SQL
-        singletons={source_id},
-        anchors={'__sql_source__': source_id},
-        allow_user_specified_id=True,  # TODO: should this be enabled?
-    )
-    ir_stmt = qlcompiler.compile_ast_to_ir(
-        ql_stmt,
-        schema=ctx.schema,
-        options=options,
-    )
-    sql_result = pgcompiler.compile_ir_to_sql_tree(
-        ir_stmt,
-        external_rels={source_id: (source_cte, ('source', 'identity'))},
-        output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
-    )
+    try:
+        # compile synthetic ql statement into SQL
+        options = qlcompiler.CompilerOptions(
+            modaliases={None: 'default'},
+            make_globals_empty=True,  # TODO: globals in SQL
+            singletons={source_id},
+            anchors={'__sql_source__': source_id},
+            allow_user_specified_id=True,  # TODO: should this be enabled?
+        )
+        ir_stmt = qlcompiler.compile_ast_to_ir(
+            ql_stmt,
+            schema=ctx.schema,
+            options=options,
+        )
+        sql_result = pgcompiler.compile_ir_to_sql_tree(
+            ir_stmt,
+            external_rels={source_id: (source_cte, ('source', 'identity'))},
+            output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+        )
+    except errors.QueryError as e:
+        raise errors.QueryError(
+            msg=e.args[0],
+            span=stmt.span,
+            # not sure if this is ok, but it is better than InternalServerError,
+            # which is the default
+            pgext_code=pgerror.ERROR_DATA_EXCEPTION,
+        )
+
     assert isinstance(sql_result.ast, pgast.Query)
     assert sql_result.ast.ctes
     ctes = [source_cte] + sql_result.ast.ctes
