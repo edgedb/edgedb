@@ -978,6 +978,9 @@ class Call(ImmutableExpr):
     # See comment in schema/functions.py for more discussion.
     prefer_subquery_args: bool = False
 
+    # If this is a set of call but is allowed in singleton expressions.
+    is_singleton_set_of: typing.Optional[bool] = None
+
 
 class FunctionCall(Call):
 

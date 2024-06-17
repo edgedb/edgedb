@@ -48,7 +48,6 @@ from edb.common import ast
 from edb.common import ordered
 
 from edb.edgeql import qltypes as ft
-from edb.schema import name as sn
 
 from . import ast as irast
 from . import typeutils
@@ -496,13 +495,7 @@ def is_singleton_set_of_call(
     # Some set functions and operators are allowed in singleton mode
     # as long as their inputs are singletons
 
-    return call.func_shortname in {
-        sn.QualName('std', 'IN'),
-        sn.QualName('std', 'NOT IN'),
-        sn.QualName('std', 'EXISTS'),
-        sn.QualName('std', '??'),
-        sn.QualName('std', 'IF'),
-    }
+    return bool(call.is_singleton_set_of)
 
 
 def has_set_of_param(
