@@ -23,6 +23,7 @@ from typing import (
     ClassVar,
     NoReturn,
     Optional,
+    NamedTuple,
     TYPE_CHECKING,
 )
 
@@ -237,8 +238,6 @@ async def _ext_ai_index_builder_work(
     pgconn: pgcon.PGConnection,
     models: list[tuple[int, str, str]],
 ) -> tuple[int, int]:
-    task_name = _task_name.get()
-
     models_by_provider: dict[str, list[str]] = {}
     for entry in models:
         model_name = entry[1]
@@ -249,111 +248,155 @@ async def _ext_ai_index_builder_work(
             m = models_by_provider[provider_name] = []
             m.append(model_name)
 
-    submit_list: dict[str, dict[str, list[tuple[bytes, ...]]]] = {}
+    error_count = 0
 
+    provider_task_params: dict[str, list[EmbeddingsTaskParams]] = {}
     for provider_name, provider_models in models_by_provider.items():
-        for model_name in provider_models:
-            logger.debug(
-                f"{task_name} considering {model_name!r} "
-                f"indexes via {provider_name!r}"
-            )
+        task_params = await _generate_embeddings_task_params(
+            db, pgconn, provider_name, provider_models,
+        )
 
-            entries = await pgconn.sql_fetch(
-                f"""
-                SELECT
-                    *
-                FROM
-                    (
-                        SELECT
-                            "id",
-                            "text",
-                            "target_rel",
-                            "target_attr",
-                            "target_dims_shortening"
-                        FROM
-                            edgedbext."ai_pending_embeddings_{model_name}"
-                        LIMIT
-                            500
-                    ) AS q
-                ORDER BY
-                    q."target_dims_shortening",
-                    q."target_rel"
-                """.encode()
-            )
+        if task_params is None:
+            error_count += 1
+            continue
+        if len(task_params) == 0:
+            continue
 
-            if not entries:
-                continue
+        provider_task_params[provider_name] = task_params
 
-            logger.debug(f"{task_name} found {len(entries)} entries to index")
+    provider_tasks = []
+    async with asyncio.TaskGroup() as g:
+        for _, task_params in provider_task_params.items():
+            provider_tasks.append(g.create_task(
+                _execute_embeddings_tasks(pgconn, task_params)
+            ))
 
-            try:
-                provider_list = submit_list[provider_name]
-            except KeyError:
-                provider_list = submit_list[provider_name] = {}
+    for provider_task in provider_tasks:
+        error_count += provider_task.result()
 
-            try:
-                model_list = provider_list[model_name]
-            except KeyError:
-                model_list = provider_list[model_name] = []
+    return len(provider_tasks), error_count
 
-            model_list.extend(entries)
 
-    errors = 0
-    if submit_list:
-        cfg = db.lookup_config("ext::ai::Config::providers")
+class EmbeddingsTaskParams(NamedTuple):
+    provider: Any
+    model_name: str
+    inputs: list[str]
+    shortening: Optional[int]
 
-        providers_cfg = {}
-        for provider in cfg:
-            providers_cfg[provider.name] = provider
+    entries: list[tuple[bytes, ...]]
 
-        tasks = {}
-        async with asyncio.TaskGroup() as g:
-            for provider_name, provider_list in submit_list.items():
-                try:
-                    provider_cfg = _get_provider_config(
-                        db=db, provider_name=provider_name)
-                except LookupError as e:
-                    logger.error(f"{task_name}: {e}")
-                    errors += 1
-                    continue
 
-                for model_name, entries in provider_list.items():
-                    groups = itertools.groupby(entries, key=lambda e: e[4])
-                    for shortening_datum, part_iter in groups:
-                        if shortening_datum is not None:
-                            shortening = int.from_bytes(
-                                shortening_datum,
-                                byteorder="big",
-                                signed=False,
-                            )
-                        else:
-                            shortening = None
-                        part = list(part_iter)
-                        task = g.create_task(
-                            _generate_embeddings_task(
-                                provider_cfg,
-                                model_name,
-                                [entry[1].decode("utf-8") for entry in part],
-                                shortening,
-                            ),
-                        )
-                        tasks[task] = part
+async def _generate_embeddings_task_params(
+    db: dbview.Database,
+    pgconn: pgcon.PGConnection,
+    provider_name: str,
+    provider_models: list[str],
+) -> Optional[list[EmbeddingsTaskParams]]:
+    task_name = _task_name.get()
 
-        for task, entries in tasks.items():
-            embeddings = task.result()
-            if embeddings is None:
-                # error
-                errors += 1
+    try:
+        provider_cfg = _get_provider_config(
+            db=db, provider_name=provider_name)
+    except LookupError as e:
+        logger.error(f"{task_name}: {e}")
+        return None
+
+    model_entries: dict[str, list[tuple[bytes, ...]]] = {}
+
+    for model_name in provider_models:
+        logger.debug(
+            f"{task_name} considering {model_name!r} "
+            f"indexes via {provider_name!r}"
+        )
+
+        entries = await pgconn.sql_fetch(
+            f"""
+            SELECT
+                *
+            FROM
+                (
+                    SELECT
+                        "id",
+                        "text",
+                        "target_rel",
+                        "target_attr",
+                        "target_dims_shortening"
+                    FROM
+                        edgedbext."ai_pending_embeddings_{model_name}"
+                    LIMIT
+                        500
+                ) AS q
+            ORDER BY
+                q."target_dims_shortening",
+                q."target_rel"
+            """.encode()
+        )
+
+        if not entries:
+            continue
+
+        logger.debug(f"{task_name} found {len(entries)} entries to index")
+
+        try:
+            model_list = model_entries[model_name]
+        except KeyError:
+            model_list = model_entries[model_name] = []
+
+        model_list.extend(entries)
+
+    task_params: list[EmbeddingsTaskParams] = []
+
+    for model_name, entries in model_entries.items():
+        groups = itertools.groupby(entries, key=lambda e: e[4])
+        for shortening_datum, part_iter in groups:
+            if shortening_datum is not None:
+                shortening = int.from_bytes(
+                    shortening_datum,
+                    byteorder="big",
+                    signed=False,
+                )
             else:
-                groups = itertools.groupby(entries, key=lambda e: e[2:])
-                offset = 0
-                for (rel, attr, *_), items in groups:
-                    ids = [item[0] for item in items]
-                    await _update_embeddings_in_db(
-                        pgconn, rel, attr, ids, embeddings, offset)
-                    offset += len(ids)
+                shortening = None
+            part = list(part_iter)
+            task_params.append(EmbeddingsTaskParams(
+                provider_cfg,
+                model_name,
+                [entry[1].decode("utf-8") for entry in part],
+                shortening,
+                part,
+            ))
 
-    return len(submit_list), errors
+    return task_params
+
+
+async def _execute_embeddings_tasks(
+    pgconn: pgcon.PGConnection,
+    task_params: list[EmbeddingsTaskParams],
+) -> int:
+
+    tasks = []
+
+    error_count = 0
+
+    async with asyncio.TaskGroup() as g:
+        for tp in task_params:
+            tasks.append(g.create_task(_generate_embeddings_task(tp)))
+
+    for task, tp in zip(tasks, task_params):
+        embeddings = task.result()
+        if embeddings is None:
+            # error
+            error_count += 1
+        else:
+            groups = itertools.groupby(tp.entries, key=lambda e: e[2:])
+            offset = 0
+            for (rel, attr, *_), items in groups:
+                ids = [item[0] for item in items]
+                await _update_embeddings_in_db(
+                    pgconn, rel, attr, ids, embeddings, offset)
+                offset += len(ids)
+
+    return error_count
 
 
 async def _update_embeddings_in_db(
@@ -406,16 +449,16 @@ async def _update_embeddings_in_db(
 
 
 async def _generate_embeddings_task(
-    provider,
-    model_name: str,
-    inputs: list[str],
-    shortening: Optional[int],
+    params: EmbeddingsTaskParams
 ) -> Optional[bytes]:
     task_name = _task_name.get()
 
     try:
         return await _generate_embeddings(
-            provider, model_name, inputs, shortening,
+            params.provider,
+            params.model_name,
+            params.inputs,
+            params.shortening,
         )
     except AIExtError as e:
         logger.error(f"{task_name}: {e}")
