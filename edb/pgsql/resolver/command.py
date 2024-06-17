@@ -271,7 +271,7 @@ def resolve_InsertStmt(
         val_col_pg = pg_res_expr.resolve_column_kind(
             source_cte_table, val_col.kind, ctx=ctx
         )
-        
+
         # TODO: an exhaustive consideration if this assertion is actually true
         assert isinstance(val_col_pg, pgast.ColumnRef)
 
