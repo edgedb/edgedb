@@ -9,6 +9,12 @@ use std::{
     task::{ready, Poll},
 };
 
+#[derive(Default)]
+pub struct ConnState {
+    pub waiters: WaitQueue,
+    active: Cell<usize>,
+}
+
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, derive_more::Add)]
 pub struct ConnStats {
     connected: usize,
@@ -188,10 +194,15 @@ pub struct ConnHandle<C: Connector> {
     #[debug("{conn}")]
     pub(crate) conn: Conn<C>,
     #[debug(skip)]
-    pub(crate) waiters: Rc<WaitQueue>,
+    pub(crate) state: Rc<ConnState>,
 }
 
-impl<C: Connector> ConnHandle<C> {}
+impl<C: Connector> ConnHandle<C> {
+    pub fn new(conn: Conn<C>, state: Rc<ConnState>) -> Self {
+        state.active.set(state.active.get() + 1);
+        Self { conn, state }
+    }
+}
 
 impl<C: Connector> Drop for ConnHandle<C> {
     fn drop(&mut self) {
@@ -199,7 +210,8 @@ impl<C: Connector> Drop for ConnHandle<C> {
             ConnInner::Connected(c, locked) => {
                 debug_assert!(locked.get());
                 locked.set(false);
-                self.waiters.trigger();
+                self.state.active.set(self.state.active.get() - 1);
+                self.state.waiters.trigger();
             }
             ConnInner::Closed => {}
             _ => {
