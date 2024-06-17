@@ -156,8 +156,14 @@ class ResolverContextLevel(compiler.ContextLevel):
     # child objects.
     include_inherited: bool
 
-    # List of CTEs to append to the current SELECT statement
-    cte_to_append: List[pgast.CommonTableExpr]
+    # 0 for top-level statement, 1 for its CTEs/sub-relations/links, similarly for
+    # their subqueries.
+    subquery_depth: int
+
+    # List of CTEs to add the top-level statement.
+    # This is currently only used by DML compilation to ensure that all DML is
+    # in the top-level WITH binding.
+    ctes_buffer: List[pgast.CommonTableExpr]
 
     options: Options
 
@@ -169,6 +175,8 @@ class ResolverContextLevel(compiler.ContextLevel):
         schema: Optional[s_schema.Schema] = None,
         options: Optional[Options] = None,
     ) -> None:
+        self.include_inherited = True
+
         if prevlevel is None:
             assert schema
             assert options
@@ -176,15 +184,17 @@ class ResolverContextLevel(compiler.ContextLevel):
             self.schema = schema
             self.options = options
             self.scope = Scope()
-            self.include_inherited = True
             self.names = compiler.AliasGenerator()
+            self.subquery_depth = 0
+            self.ctes_buffer = []
 
         else:
             self.schema = prevlevel.schema
             self.options = prevlevel.options
             self.names = prevlevel.names
 
-            self.include_inherited = True
+            self.subquery_depth = prevlevel.subquery_depth + 1
+            self.ctes_buffer = prevlevel.ctes_buffer
 
             if mode == ContextSwitchMode.EMPTY:
                 self.scope = Scope(ctes=prevlevel.scope.ctes)
