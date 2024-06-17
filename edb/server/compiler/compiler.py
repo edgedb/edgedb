@@ -615,7 +615,7 @@ class Compiler:
             'server_version': False,
             'server_version_num': False,
         }
-        stmts = pg_parser.parse(query_str)
+        stmts = pg_parser.parse(query_str, propagate_spans=True)
         sql_units = []
         for stmt in stmts:
             orig_text = pg_gen_source(stmt)

@@ -383,13 +383,13 @@ class TestSQL(tb.SQLQueryTestCase):
         await self.scon.fetch('SELECT title FROM "novel" ORDER BY title')
 
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table"
+            asyncpg.UndefinedTableError, "unknown table", position="19",
         ):
             await self.scon.fetch('SELECT title FROM "Novel" ORDER BY title')
 
     async def test_sql_query_26(self):
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table"
+            asyncpg.UndefinedTableError, "unknown table", position="19",
         ):
             await self.scon.fetch('SELECT title FROM Movie ORDER BY title')
 
@@ -446,7 +446,10 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assert_shape(res, 2, ['c', 'd'])
 
         with self.assertRaisesRegex(
-            asyncpg.InvalidColumnReferenceError, "query resolves to 2"
+            asyncpg.InvalidColumnReferenceError,
+            ", but the query resolves to 2 columns",
+            # this points to `1`, because libpg_query does not give better info
+            position="41",
         ):
             await self.scon.fetch(
                 '''
@@ -838,13 +841,13 @@ class TestSQL(tb.SQLQueryTestCase):
 
         await self.scon.execute('SET search_path TO public;')
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table"
+            asyncpg.UndefinedTableError, "unknown table", position="16",
         ):
             await self.squery_values('SELECT id FROM "Item"')
 
         await self.scon.execute('SET search_path TO inventory;')
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table"
+            asyncpg.UndefinedTableError, "unknown table", position="17",
         ):
             await self.scon.fetch('SELECT id FROM "Person";')
 
@@ -1354,3 +1357,13 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT similar_to FROM "Movie"
             """
         )
+
+    async def test_sql_dml_insert(self):
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError, "DML", position="30",
+        ):
+            await self.scon.fetch(
+                """
+                INSERT INTO "Movie" (title) VALUES ('A man called Ove')
+                """
+            )

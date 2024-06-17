@@ -57,11 +57,7 @@ class Base(ast.AST):
         dump_sql(self, reordered=True, pretty=True)
 
 
-class ImmutableBase(ast.ImmutableASTMixin, Base):
-    pass
-
-
-class Alias(ImmutableBase):
+class Alias(Base):
     """Alias for a range variable."""
 
     # aliased relation name
@@ -70,7 +66,7 @@ class Alias(ImmutableBase):
     colnames: typing.Optional[typing.List[str]] = None
 
 
-class Keyword(ImmutableBase):
+class Keyword(Base):
     """An SQL keyword that must be output without quoting."""
 
     name: str                   # Keyword name
@@ -121,7 +117,7 @@ class BaseExpr(Base):
         return nullable
 
 
-class ImmutableBaseExpr(BaseExpr, ImmutableBase):
+class ImmutableBaseExpr(BaseExpr):
     pass
 
 
@@ -362,7 +358,7 @@ class DynamicRangeVar(PathRangeVar):
         self.dynamic_get_path = None  # type: ignore
 
 
-class TypeName(ImmutableBase):
+class TypeName(Base):
     """Type in definitions and casts."""
 
     name: typing.Tuple[str, ...]                # Type name
@@ -389,7 +385,7 @@ class ColumnRef(OutputVar):
             return super().__repr__()
 
 
-class TupleElementBase(ImmutableBase):
+class TupleElementBase(Base):
 
     path_id: irast.PathId
     name: typing.Optional[typing.Union[OutputVar, str]]
@@ -768,7 +764,7 @@ class VariadicArgument(ImmutableBaseExpr):
     nullable: bool = False
 
 
-class TableElement(ImmutableBase):
+class TableElement(Base):
     pass
 
 
@@ -848,7 +844,7 @@ class Slice(ImmutableBaseExpr):
     ridx: typing.Optional[BaseExpr]
 
 
-class RecordIndirectionOp(ImmutableBase):
+class RecordIndirectionOp(Base):
     name: str
 
 
@@ -876,7 +872,7 @@ class ArrayDimension(ImmutableBaseExpr):
     elements: typing.List[BaseExpr]
 
 
-class MultiAssignRef(ImmutableBase):
+class MultiAssignRef(Base):
     """UPDATE (a, b, c) = row-valued-expr."""
 
     # row-valued expression
@@ -885,7 +881,7 @@ class MultiAssignRef(ImmutableBase):
     columns: typing.List[ColumnRef]
 
 
-class SortBy(ImmutableBase):
+class SortBy(Base):
     """ORDER BY clause element."""
 
     # expression to sort on
@@ -896,7 +892,7 @@ class SortBy(ImmutableBase):
     nulls: typing.Optional[qlast.NonesOrder] = None
 
 
-class WindowDef(ImmutableBase):
+class WindowDef(Base):
     """WINDOW and OVER clauses."""
 
     # window name
@@ -1041,7 +1037,7 @@ class BooleanTest(ImmutableBaseExpr):
     nullable: bool = False
 
 
-class CaseWhen(ImmutableBase):
+class CaseWhen(Base):
 
     # Condition expression
     expr: BaseExpr
@@ -1084,14 +1080,14 @@ class Set(ImmutableBaseExpr):
     value: BaseExpr
 
 
-class ConfigureDatabase(ImmutableBase):
+class ConfigureDatabase(Base):
 
     database_name: str
     parameter_name: str
     value: BaseExpr
 
 
-class IteratorCTE(ImmutableBase):
+class IteratorCTE(Base):
     path_id: irast.PathId
     cte: CommonTableExpr
     parent: typing.Optional[IteratorCTE]

@@ -26,7 +26,9 @@ from .parser import pg_parse
 from .ast_builder import build_stmts
 
 
-def parse(sql_query: str) -> List[pgast.Query | pgast.Statement]:
+def parse(
+    sql_query: str, propagate_spans: bool = False
+) -> List[pgast.Query | pgast.Statement]:
     ast_json = pg_parse(bytes(sql_query, encoding="UTF8"))
 
-    return build_stmts(json.loads(ast_json), sql_query)
+    return build_stmts(json.loads(ast_json), sql_query, propagate_spans)
