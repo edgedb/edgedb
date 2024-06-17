@@ -57,7 +57,11 @@ class Base(ast.AST):
         dump_sql(self, reordered=True, pretty=True)
 
 
-class Alias(Base):
+class ImmutableBase(ast.ImmutableASTMixin, Base):
+    __ast_mutable_fields__ = frozenset(['span'])
+
+
+class Alias(ImmutableBase):
     """Alias for a range variable."""
 
     # aliased relation name
@@ -66,7 +70,7 @@ class Alias(Base):
     colnames: typing.Optional[typing.List[str]] = None
 
 
-class Keyword(Base):
+class Keyword(ImmutableBase):
     """An SQL keyword that must be output without quoting."""
 
     name: str                   # Keyword name
@@ -117,7 +121,7 @@ class BaseExpr(Base):
         return nullable
 
 
-class ImmutableBaseExpr(BaseExpr):
+class ImmutableBaseExpr(BaseExpr, ImmutableBase):
     pass
 
 
@@ -208,7 +212,7 @@ class BaseRangeVar(ImmutableBaseExpr):
     """
 
     __ast_meta__ = {'schema_object_id', 'tag', 'ir_origins'}
-    __ast_mutable_fields__ = frozenset(['ir_origins'])
+    __ast_mutable_fields__ = frozenset(['ir_origins', 'span'])
 
     # This is a hack, since there is some code that relies on not
     # having an alias on a range var (to refer to a CTE directly, for
@@ -358,7 +362,7 @@ class DynamicRangeVar(PathRangeVar):
         self.dynamic_get_path = None  # type: ignore
 
 
-class TypeName(Base):
+class TypeName(ImmutableBase):
     """Type in definitions and casts."""
 
     name: typing.Tuple[str, ...]                # Type name
@@ -385,7 +389,7 @@ class ColumnRef(OutputVar):
             return super().__repr__()
 
 
-class TupleElementBase(Base):
+class TupleElementBase(ImmutableBase):
 
     path_id: irast.PathId
     name: typing.Optional[typing.Union[OutputVar, str]]
@@ -764,7 +768,7 @@ class VariadicArgument(ImmutableBaseExpr):
     nullable: bool = False
 
 
-class TableElement(Base):
+class TableElement(ImmutableBase):
     pass
 
 
@@ -844,7 +848,7 @@ class Slice(ImmutableBaseExpr):
     ridx: typing.Optional[BaseExpr]
 
 
-class RecordIndirectionOp(Base):
+class RecordIndirectionOp(ImmutableBase):
     name: str
 
 
@@ -872,7 +876,7 @@ class ArrayDimension(ImmutableBaseExpr):
     elements: typing.List[BaseExpr]
 
 
-class MultiAssignRef(Base):
+class MultiAssignRef(ImmutableBase):
     """UPDATE (a, b, c) = row-valued-expr."""
 
     # row-valued expression
@@ -881,7 +885,7 @@ class MultiAssignRef(Base):
     columns: typing.List[ColumnRef]
 
 
-class SortBy(Base):
+class SortBy(ImmutableBase):
     """ORDER BY clause element."""
 
     # expression to sort on
@@ -892,7 +896,7 @@ class SortBy(Base):
     nulls: typing.Optional[qlast.NonesOrder] = None
 
 
-class WindowDef(Base):
+class WindowDef(ImmutableBase):
     """WINDOW and OVER clauses."""
 
     # window name
@@ -1037,7 +1041,7 @@ class BooleanTest(ImmutableBaseExpr):
     nullable: bool = False
 
 
-class CaseWhen(Base):
+class CaseWhen(ImmutableBase):
 
     # Condition expression
     expr: BaseExpr
@@ -1080,14 +1084,14 @@ class Set(ImmutableBaseExpr):
     value: BaseExpr
 
 
-class ConfigureDatabase(Base):
+class ConfigureDatabase(ImmutableBase):
 
     database_name: str
     parameter_name: str
     value: BaseExpr
 
 
-class IteratorCTE(Base):
+class IteratorCTE(ImmutableBase):
     path_id: irast.PathId
     cte: CommonTableExpr
     parent: typing.Optional[IteratorCTE]

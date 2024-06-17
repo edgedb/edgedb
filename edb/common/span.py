@@ -264,7 +264,7 @@ class SpanPropagator(ast.NodeVisitor):
                     span_list.append(span)
         return span_list
 
-    def generic_visit(self, node) -> Span | None:
+    def generic_visit(self, node):
         # base case: we already have span
         if not self._full_pass and getattr(node, 'span', None) is not None:
             return node.span
