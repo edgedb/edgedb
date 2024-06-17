@@ -158,8 +158,8 @@ class ResolverContextLevel(compiler.ContextLevel):
     # child objects.
     include_inherited: bool
 
-    # 0 for top-level statement, 1 for its CTEs/sub-relations/links, similarly for
-    # their subqueries.
+    # 0 for top-level statement, 1 for its CTEs/sub-relations/links, similarly
+    # for their subqueries.
     subquery_depth: int
 
     # List of CTEs to add the top-level statement.

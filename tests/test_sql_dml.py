@@ -17,12 +17,10 @@
 #
 
 
-from edb.tools import test
 from edb.testbase import server as tb
 
 try:
     import asyncpg
-    from asyncpg import serverversion
 except ImportError:
     pass
 
@@ -76,8 +74,9 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         # in alphabetical order:
         # id, __type__, owner, title
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError,
+            asyncpg.DataError,
             "cannot assign to link '__type__': it is protected",
+            position="30",
         ):
             await self.scon.execute(
                 '''
@@ -125,7 +124,9 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
     async def test_sql_dml_insert_06(self):
         # insert in a subquery: syntax error
         with self.assertRaisesRegex(
-            asyncpg.PostgresSyntaxError, 'syntax error at or near "INTO"'
+            asyncpg.PostgresSyntaxError,
+            'syntax error at or near "INTO"',
+            position="61",
         ):
             await self.scon.execute(
                 '''
@@ -152,6 +153,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             asyncpg.FeatureNotSupportedError,
             'WITH clause containing a data-modifying statement must be at '
             'the top level',
+            position="98",
         ):
             await self.scon.execute(
                 '''
