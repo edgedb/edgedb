@@ -20,6 +20,12 @@
 from edb.tools import test
 from edb.testbase import server as tb
 
+try:
+    import asyncpg
+    from asyncpg import serverversion
+except ImportError:
+    pass
+
 
 class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
 
@@ -65,19 +71,21 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT title FROM "Document"')
         self.assertEqual(res, [['Meeting report (new)']])
 
-    @test.xerror('cannot insert into id and __type__')
     async def test_sql_dml_insert_02(self):
         # when columns are not specified, all columns are expected,
         # in alphabetical order:
-        # id, __title__, keywords, owner, shared_with, title
-        await self.scon.execute(
-            '''
-            INSERT INTO "Document" VALUES
-                (NULL, NULL, NULL, NULL, NULL, 'Report')
-            '''
-        )
-        res = await self.squery_values('SELECT title FROM "Document"')
-        self.assertEqual(res, [['Report (new)']])
+        # id, __type__, owner, title
+        with self.assertRaisesRegex(
+            asyncpg.UndefinedTableError,
+            "cannot assign to link '__type__': it is protected",
+        ):
+            await self.scon.execute(
+                '''
+                INSERT INTO "Document" VALUES (NULL, NULL, NULL, 'Report')
+                '''
+            )
+            res = await self.squery_values('SELECT title FROM "Document"')
+            self.assertEqual(res, [['Report (new)']])
 
     async def test_sql_dml_insert_03(self):
         # multiple rows at once
@@ -113,3 +121,46 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
         res = await self.squery_values('SELECT owner_id FROM "Document"')
         self.assert_shape(res, rows=1, columns=1)
+
+    async def test_sql_dml_insert_06(self):
+        # insert in a subquery: syntax error
+        with self.assertRaisesRegex(
+            asyncpg.PostgresSyntaxError, 'syntax error at or near "INTO"'
+        ):
+            await self.scon.execute(
+                '''
+                SELECT * FROM (
+                    INSERT INTO "Document" (title) VALUES ('Meeting report')
+                )
+                '''
+            )
+
+    async def test_sql_dml_insert_07(self):
+        # insert in a CTE
+        await self.scon.execute(
+            '''
+            WITH a AS (
+                INSERT INTO "Document" (title) VALUES ('Meeting report')
+            )
+            SELECT * FROM a
+            '''
+        )
+
+    async def test_sql_dml_insert_08(self):
+        # insert in a CTE: invalid PostgreSQL
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            'WITH clause containing a data-modifying statement must be at '
+            'the top level',
+        ):
+            await self.scon.execute(
+                '''
+                WITH a AS (
+                    WITH b AS (
+                        INSERT INTO "Document" (title) VALUES ('Meeting report')
+                    )
+                    SELECT * FROM b
+                )
+                SELECT * FROM a
+                '''
+            )

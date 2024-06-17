@@ -131,6 +131,13 @@ def resolve_InsertStmt(
     stmt: pgast.InsertStmt, *, ctx: Context
 ) -> Tuple[pgast.Query, context.Table]:
 
+    if ctx.subquery_depth >= 2:
+        raise errors.QueryError(
+            'WITH clause containing a data-modifying statement must be at '
+            'the top level',
+            span=stmt.span,
+        )
+
     # determine the subject object we are inserting into
     assert isinstance(stmt.relation, pgast.RelRangeVar)
     assert isinstance(stmt.relation.relation, pgast.Relation)
@@ -164,9 +171,10 @@ def resolve_InsertStmt(
     val_rel, val_table = dispatch.resolve_relation(val_rel, ctx=ctx)
 
     if len(expected_columns) != len(val_table.columns):
+        col_names = ', '.join(c.name for c in expected_columns)
         raise errors.QueryError(
             f'INSERT expected {len(expected_columns)} columns, '
-            f'but got {len(val_table.columns)}',
+            f'but got {len(val_table.columns)} (expecting {col_names})',
             span=val_rel.span,
         )
 
@@ -318,13 +326,21 @@ def resolve_InsertStmt(
         output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
     )
     assert isinstance(sql_result.ast, pgast.Query)
-
-    # inject the value CTE
     assert sql_result.ast.ctes
-    sql_result.ast.ctes.insert(0, source_cte)
+    ctes = [source_cte] + sql_result.ast.ctes
+    sql_result.ast.ctes.clear()
+
+    if ctx.subquery_depth == 0:
+        # this is top-level, this SELECT must contain all CTEs
+        sql_result.ast.ctes = ctes
+    elif ctx.subquery_depth == 1:
+        # parent is top-level, add CTEs to it
+        ctx.ctes_buffer.extend(ctes)
+    else:
+        # this case is caught earlier
+        raise AssertionError()
 
     result_table = context.Table(columns=[])  # TODO
-
     return sql_result.ast, result_table
 
 
