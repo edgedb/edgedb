@@ -1,11 +1,6 @@
-use pyo3::{
-    exceptions::PyException,
-    prelude::*,
-    types::{PyFunction, PyString},
-};
+use pyo3::{exceptions::PyException, prelude::*, types::PyString};
 use std::{
     collections::HashMap,
-    fmt::{DebugMap, Formatter},
     rc::Rc,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -13,13 +8,12 @@ use std::{
     },
 };
 use tokio::task::LocalSet;
-use tracing::{enabled, error, trace, Subscriber};
+use tracing::{error, trace};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
 use crate::{
     algo::PoolConstraints,
     conn::Connector,
-    pool::{Pool, PoolConfig, PoolHandle},
+    pool::{Pool, PoolConfig},
 };
 
 pyo3::create_exception!(_conn_pool, InternalError, PyException);
