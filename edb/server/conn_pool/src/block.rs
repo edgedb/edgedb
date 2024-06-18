@@ -1,8 +1,8 @@
 use crate::{
-    algo::{HasPoolAlgorithmData, PoolAlgoTargetData, PoolAlgorithmData, VisitPoolAlgoData},
-    conn::{self, *},
+    algo::{HasPoolAlgorithmData, PoolAlgorithmData, VisitPoolAlgoData},
+    conn::*,
 };
-use std::{cell::RefCell, collections::HashMap, future::poll_fn, iter::Map, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, future::poll_fn, rc::Rc};
 use tracing::trace;
 
 /// Manages the connection state for a single backend database. This is only a
@@ -112,7 +112,7 @@ impl<C: Connector, D: Default> Block<C, D> {
     }
 
     #[inline(always)]
-    fn with_data<T>(&self, mut f: impl FnOnce(&mut D) -> T) -> T {
+    fn with_data<T>(&self, f: impl FnOnce(&mut D) -> T) -> T {
         f(&mut *self.data.borrow_mut())
     }
 }

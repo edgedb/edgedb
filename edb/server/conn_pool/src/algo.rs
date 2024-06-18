@@ -1,8 +1,4 @@
-use std::{
-    cell::{Cell, RefCell},
-    collections::HashMap,
-    hash::Hash,
-};
+use std::cell::{Cell, RefCell};
 use tracing::trace;
 
 pub trait HasPoolAlgorithmData: std::fmt::Debug {
@@ -38,7 +34,7 @@ pub struct PoolAlgoTargetData {
 
 impl HasPoolAlgorithmData for PoolAlgoTargetData {
     fn with_algo_data<T>(&self, f: impl FnOnce(&PoolAlgorithmData) -> T) -> T {
-        f(&*self.data.borrow())
+        f(&self.data.borrow())
     }
     fn set_target(&self, target: usize) {
         self.target_size.set(target);
@@ -108,7 +104,6 @@ impl PoolConstraints {
 
 #[cfg(test)]
 mod tests {
-    use super::{PoolAlgoTargetData, PoolAlgorithmData};
 
     #[test]
     fn test_one_block() {}

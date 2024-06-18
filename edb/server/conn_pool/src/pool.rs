@@ -1,10 +1,10 @@
-use std::{marker::PhantomData, time::Duration};
+use std::time::Duration;
 
 use tracing::trace;
 
 use crate::{
     algo::{PoolAlgoTargetData, PoolConstraints},
-    block::{Block, Blocks},
+    block::Blocks,
     conn::{ConnHandle, ConnResult, Connector},
 };
 

@@ -1,3 +1,8 @@
+use pyo3::{
+    exceptions::PyException,
+    prelude::*,
+    types::{PyFunction, PyString},
+};
 use std::{
     collections::HashMap,
     fmt::{DebugMap, Formatter},
@@ -7,13 +12,8 @@ use std::{
         Arc, RwLock,
     },
 };
-
-use pyo3::{
-    prelude::*,
-    types::{PyFunction, PyString},
-};
 use tokio::task::LocalSet;
-use tracing::{enabled, trace, Subscriber};
+use tracing::{enabled, error, trace, Subscriber};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
@@ -21,6 +21,8 @@ use crate::{
     conn::Connector,
     pool::{Pool, PoolConfig, PoolHandle},
 };
+
+pyo3::create_exception!(_conn_pool, InternalError, PyException);
 
 /// Implementation of the [`Connector`] interface. We don't pass the pool or Python objects
 /// between threads, but rather use a usize ID that allows us to keep two maps in sync on
@@ -108,6 +110,11 @@ struct ConnPool {
     conns: Arc<RwLock<HashMap<usize, PyObject>>>,
 }
 
+fn internal_error(py: Python, message: &str) {
+    error!("{message}");
+    InternalError::new_err(()).restore(py);
+}
+
 #[pymethods]
 impl ConnPool {
     #[new]
@@ -123,13 +130,13 @@ impl ConnPool {
         }
     }
 
-    fn _respond(&self, _py: Python, response_id: usize, object: PyObject) {
+    fn _respond(&self, py: Python, response_id: usize, object: PyObject) {
         trace!("_respond({response_id}, {object})");
         let response = self.responses.write().unwrap().remove(&response_id);
         if let Some(response) = response {
             response.send(object).unwrap();
         } else {
-            println!("Missing?");
+            internal_error(py, "Missing response sender");
         }
     }
 
@@ -193,20 +200,17 @@ impl ConnPool {
 
 #[pymodule]
 fn _conn_pool(py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<ConnPool>().unwrap();
-    let logging = py.import("logging").unwrap();
+    m.add_class::<ConnPool>()?;
+    m.add("InternalError", py.get_type::<InternalError>())?;
+
+    let logging = py.import("logging")?;
     let logger = logging
-        .getattr("getLogger")
-        .unwrap()
-        .call(("edb.server.connpool",), None)
-        .unwrap();
+        .getattr("getLogger")?
+        .call(("edb.server.connpool",), None)?;
     let level = logger
-        .getattr("getEffectiveLevel")
-        .unwrap()
-        .call((), None)
-        .unwrap()
-        .extract::<i32>()
-        .unwrap();
+        .getattr("getEffectiveLevel")?
+        .call((), None)?
+        .extract::<i32>()?;
     let logger = logger.to_object(py);
 
     struct PythonSubscriber {
