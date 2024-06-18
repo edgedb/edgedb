@@ -26,6 +26,7 @@ from edb.server.pgcon import errors as pgerror
 from edb import errors
 from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pgcompiler
+from edb.pgsql.compiler import pathctx as pgpathctx
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -34,9 +35,9 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtypeutils
 
 from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
 from edb.schema import name as sn
 
-from edb.server.pgcon import errors as pgerror
 
 from . import dispatch
 from . import context
@@ -224,7 +225,11 @@ def resolve_InsertStmt(
             pgast.ResTarget(
                 name=source_identity,
                 val=pgast.FuncCall(
-                    name=('row_number',), args=(), over=pgast.WindowDef()
+                    name=(
+                        'edgedb',
+                        'uuid_generate_v1mc',
+                    ),
+                    args=(),
                 ),
             )
         )
@@ -232,54 +237,23 @@ def resolve_InsertStmt(
         val_rel.path_outputs[(source_id, 'value')] = pgast.ColumnRef(
             name=(source_identity,)
         )
+    source_ql: qlast.PathElement = (
+        qlast.IRAnchor(name=source_name)
+        if is_single_row
+        else qlast.ObjectRef(name=iterator_name)
+    )
 
     insert_shape = []
     for expected_col, val_col in zip(expected_columns, val_table.columns):
-        is_link = False
-        if expected_col.name.endswith('_id'):
-            # this if prevents *properties* that and with _id
-            # I'm not sure if this is a problem
-            ptr_name = expected_col.name[0:-3]
-            is_link = True
-        else:
-            ptr_name = expected_col.name
+        ptr, ptr_name, is_link = get_pointer_for_column(expected_col, sub, ctx)
 
-        # TODO: handle link_ids
-        ptr = sub.getptr(ctx.schema, sn.UnqualName(ptr_name))
-
-        ptrref = irtypeutils.ptrref_from_ptrcls(
-            schema=ctx.schema, ptrcls=ptr, cache=None, typeref_cache=None
-        )
-        ptr_id = source_id.extend(ptrref=ptrref)
-
-        ptr_ql: qlast.Expr = qlast.Path(
-            steps=[
-                (
-                    qlast.IRAnchor(name=source_name)
-                    if is_single_row
-                    else qlast.ObjectRef(name=iterator_name)
-                ),
-                qlast.Ptr(name=ptr_name),
-            ]
-        )
-        if is_link:
-            ptr_target = ptr.get_target(ctx.schema)
-            assert ptr_target
-            ptr_target_name: sn.Name = ptr_target.get_name(ctx.schema)
-            assert isinstance(ptr_target_name, sn.QualName)
-            ptr_ql = qlast.TypeCast(
-                type=qlast.TypeName(
-                    maintype=qlast.ObjectRef(
-                        module=ptr_target_name.module,
-                        name=ptr_target_name.name,
-                    )
-                ),
-                expr=ptr_ql,
-            )
         insert_shape.append(
-            qlast.ShapeElement(
-                expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
-                compexpr=ptr_ql,
+            get_insert_element_for_pointer(
+                source_ql,
+                ptr_name,
+                ptr,
+                is_link,
+                ctx,
             )
         )
 
@@ -287,20 +261,23 @@ def resolve_InsertStmt(
         val_col_pg = pg_res_expr.resolve_column_kind(
             source_cte_table, val_col.kind, ctx=ctx
         )
+        val_col_pg = val_col_pg.replace(nullable=True)
 
-        # TODO: an exhaustive consideration if this assertion is actually true
+        # TODO: think long and hard if this assertion is actually true
         assert isinstance(val_col_pg, pgast.ColumnRef)
 
+        ptr_id = get_ptr_id(source_id, ptr, ctx)
         if is_link:
             # val_col_pg = pgast.TypeCast(
             #     arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
             # )
-            #   pgast.ExprOutputVar(expr=val_col_pg)
+            # output_var = pgast.ExprOutputVar(expr=val_col_pg)
             val_rel.path_outputs[(ptr_id, 'identity')] = val_col_pg
             val_rel.path_outputs[(ptr_id, 'value')] = val_col_pg
         else:
             val_rel.path_outputs[(ptr_id, 'value')] = val_col_pg
 
+    # the core thing
     ql_stmt: qlast.Expr = qlast.InsertQuery(
         subject=qlast.ObjectRef(
             name=sub_name.name,
@@ -315,6 +292,28 @@ def resolve_InsertStmt(
             result=ql_stmt,
         )
 
+    subject_pointers: List[Tuple[str, s_pointers.Pointer]] = []
+    if stmt.returning_list:
+        # wrap into a select shape that selects all pointers
+        # (because they might be be used by RETURNING clause)
+        select_shape: List[qlast.ShapeElement] = []
+        for column in sub_table.columns:
+            if column.hidden:
+                continue
+
+            ptr, ptr_name, is_link = get_pointer_for_column(column, sub, ctx)
+            select_shape.append(
+                qlast.ShapeElement(
+                    expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
+                )
+            )
+            subject_pointers.append((column.name, ptr))
+
+        ql_stmt = qlast.SelectQuery(
+            result=qlast.Shape(expr=ql_stmt, elements=select_shape)
+        )
+
+    ir_stmt: irast.Statement
     try:
         # compile synthetic ql statement into SQL
         options = qlcompiler.CompilerOptions(
@@ -358,8 +357,137 @@ def resolve_InsertStmt(
         # this case is caught earlier
         raise AssertionError()
 
-    result_table = context.Table(columns=[])  # TODO
-    return sql_result.ast, result_table
+    result_table = context.Table(columns=[])
+    result_query = sql_result.ast
+
+    # extract pointers to be used in returning columns
+    if stmt.returning_list:
+        result_table.alias = stmt.relation.alias.aliasname
+
+        # TODO: this target list is [ROW(...)] that contains all pointers.
+        # This is really inconvenient to use onwards, so I'm discarding it here.
+        # I'm not sure it will always have this form (or why it has it).
+        result_query.target_list.clear()
+
+        assert isinstance(ir_stmt.expr, irast.SetE)
+        assert isinstance(ir_stmt.expr.expr, irast.SelectStmt)
+        result_id = ir_stmt.expr.expr.result.path_id
+        result_rvar_source = result_query.path_rvar_map[result_id, 'source']
+        result_path_outputs = result_rvar_source.query.path_outputs
+
+        if map := getattr(result_rvar_source.query, 'view_path_id_map', None):
+            result_id = pgpathctx.map_path_id(result_id, map)
+
+        for col_name, ptr in subject_pointers:
+            ptr_id = get_ptr_id(result_id, ptr, ctx)
+
+            output_var = result_path_outputs.get((ptr_id, 'value'), None)
+            if not output_var:
+                output_var = result_path_outputs.get((ptr_id, 'serialized'))
+            assert output_var
+
+            result_query.target_list.append(
+                pgast.ResTarget(
+                    name=col_name,
+                    val=output_var,
+                )
+            )
+            result_table.columns.append(
+                context.Column(
+                    name=col_name,
+                    kind=context.ColumnByName(reference_as=col_name),
+                )
+            )
+
+        with ctx.empty() as sctx:
+            sctx.scope.tables.append(result_table)
+
+            tmp_ctes = result_query.ctes
+            result_query.ctes = None
+            result_query = pgast.SelectStmt(
+                from_clause=[
+                    pgast.RangeSubselect(
+                        subquery=result_query,
+                    )
+                ],
+                target_list=[],
+            )
+            result_query.ctes = tmp_ctes
+            result_table = context.Table()
+
+            for t in stmt.returning_list:
+                targets, columns = pg_res_expr.resolve_ResTarget(t, ctx=sctx)
+                result_query.target_list.extend(targets)
+                result_table.columns.extend(columns)
+
+    else:
+        result_query.target_list.clear()
+
+    return result_query, result_table
+
+
+def get_insert_element_for_pointer(
+    source_ql: qlast.PathElement,
+    ptr_name: str,
+    ptr: s_pointers.Pointer,
+    is_link: bool,
+    ctx: context.ResolverContextLevel,
+):
+    ptr_ql: qlast.Expr = qlast.Path(
+        steps=[
+            source_ql,
+            qlast.Ptr(name=ptr_name),
+        ]
+    )
+    if is_link:
+        ptr_target = ptr.get_target(ctx.schema)
+        assert ptr_target
+        ptr_target_name: sn.Name = ptr_target.get_name(ctx.schema)
+        assert isinstance(ptr_target_name, sn.QualName)
+        ptr_ql = qlast.TypeCast(
+            type=qlast.TypeName(
+                maintype=qlast.ObjectRef(
+                    module=ptr_target_name.module,
+                    name=ptr_target_name.name,
+                )
+            ),
+            expr=ptr_ql,
+        )
+    return qlast.ShapeElement(
+        expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
+        operation=qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN),
+        compexpr=ptr_ql,
+    )
+
+
+def get_pointer_for_column(
+    col: context.Column,
+    subject_stype: s_objtypes.ObjectType,
+    ctx: context.ResolverContextLevel,
+) -> Tuple[s_pointers.Pointer, str, bool]:
+    is_link = False
+    if col.name.endswith('_id'):
+        # this if prevents *properties* that and with _id
+        # I'm not sure if this is a problem
+        ptr_name = col.name[0:-3]
+        is_link = True
+    else:
+        ptr_name = col.name
+
+    ptr = subject_stype.getptr(ctx.schema, sn.UnqualName(ptr_name))
+
+    return ptr, ptr_name, is_link
+
+
+def get_ptr_id(
+    subject_id: irast.PathId,
+    ptr: s_pointers.Pointer,
+    ctx: context.ResolverContextLevel,
+) -> irast.PathId:
+    ptrref = irtypeutils.ptrref_from_ptrcls(
+        schema=ctx.schema, ptrcls=ptr, cache=None, typeref_cache=None
+    )
+    return subject_id.extend(ptrref=ptrref)
 
 
 @dispatch._resolve_relation.register

@@ -1442,7 +1442,7 @@ def _plain_join(
         rref = pathctx.get_rvar_path_var(
             right_rvar, path_id, aspect=aspect, env=ctx.env)
 
-        assert isinstance(lref, pgast.ColumnRef), lref
+        assert isinstance(lref, pgast.ColumnRef)
         assert isinstance(rref, pgast.ColumnRef)
         path_cond = astutils.join_condition(lref, rref)
         condition = astutils.extend_binop(condition, path_cond)
