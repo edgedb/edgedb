@@ -17,12 +17,12 @@
 #
 
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import (
     Any,
     AsyncIterator,
     ClassVar,
     Final,
-    NamedTuple,
     NoReturn,
     Optional,
     TYPE_CHECKING,
@@ -35,6 +35,7 @@ import http
 import itertools
 import json
 import logging
+import random
 
 import httpx
 import httpx_sse
@@ -278,7 +279,8 @@ async def _ext_ai_index_builder_work(
     return len(provider_tasks), error_count
 
 
-class EmbeddingsTaskParams(NamedTuple):
+@dataclass(frozen=True)
+class EmbeddingsTaskParams:
     provider: Any
     model_name: str
     inputs: list[str]
@@ -287,14 +289,16 @@ class EmbeddingsTaskParams(NamedTuple):
     entries: list[tuple[bytes, ...]]
 
 
-class EmbeddingsTaskResult(NamedTuple):
+@dataclass(frozen=True)
+class EmbeddingsTaskResult:
     data: bytes | RequestError
 
     # The API may information about its rate limits
     request_limits: RequestLimits
 
 
-class RequestError(NamedTuple):
+@dataclass(frozen=True)
+class RequestError:
     """Represents an error from an http request."""
 
     message: str
@@ -304,16 +308,21 @@ class RequestError(NamedTuple):
     retry: bool
 
 
-class RequestLimits(NamedTuple):
+@dataclass
+class RequestLimits:
     """Information about an AI provider's rate limits.
 
     For OpenAI, this is returned as part of the header of any request.
     """
 
-    # Total request limit for the provider
-    limit: Optional[int]
-    # Remaining requests allowed for the provider
-    remaining: Optional[int]
+    # Total request limit per minute for the provider
+    total_per_minute: Optional[int] = None
+
+    # Remaining requests allowed before the rate limit is hit
+    remaining: Optional[int] = None
+
+    # A guess about the delay in seconds needed between requests
+    guess_delay: Optional[float] = None
 
 
 async def _generate_embeddings_task_params(
@@ -402,10 +411,21 @@ async def _generate_embeddings_task_params(
 async def _execute_embeddings_tasks(
     pgconn: pgcon.PGConnection,
     task_params: list[EmbeddingsTaskParams],
+    *,
+    request_limits: Optional[RequestLimits] = None,
 ) -> int:
     task_name = _task_name.get()
 
     error_count = 0
+
+    # Set up request limits
+    first_guess_delay: Final[float] = 0.001
+
+    if request_limits is None:
+        request_limits = RequestLimits()
+        has_previous_limits = False
+    else:
+        has_previous_limits = True
 
     # If any tasks fail and can be retried, retry them up to a maximum number
     # of times.
@@ -417,14 +437,73 @@ async def _execute_embeddings_tasks(
         retry_task_indexes: set[int] = set()
 
         # Run tasks
+        #
+        # Choose a strategy based on the rate limit information available.
+        #
+        # Note: Regardless of the strategy used, it is always possible to fail
+        # a request from rate limits as the provider may be accessed by multiple
+        # users.
         tasks = {}
-        async with asyncio.TaskGroup() as g:
+
+        if (
+            request_limits.remaining is not None
+            and len(retry_task_indexes) < request_limits.remaining
+        ) or not has_previous_limits:
+            # Send all requests at once.
+            # We are confident that all requests can be handled right away.
+            #
+            # Also use this approach the very first time, in the absence of any
+            # other limit info. OpenAI returns rate limit information as part
+            # of its response to requests and we can use it in a retry.
+            async with asyncio.TaskGroup() as g:
+                for task_index in active_task_indexes:
+                    tasks[task_index] = g.create_task(
+                        _generate_embeddings_task(task_params[task_index])
+                    )
+
+        elif request_limits.total_per_minute is not None:
+            # Send requests one at a time at a rate corresponding to the
+            # provider's rate limit.
             for task_index in active_task_indexes:
-                tasks[task_index] = g.create_task(
+                await asyncio.sleep(1.1 / request_limits.total_per_minute)
+
+                task = asyncio.create_task(
                     _generate_embeddings_task(task_params[task_index])
                 )
+                await task
+                tasks[task_index] = task
+
+        else:
+            # Otherwise, send requests one at a time, but try to guess the rate
+            # limit by reducing it if a request fails due to too many requests.
+            if request_limits.guess_delay is None:
+                request_limits.guess_delay = first_guess_delay
+
+            for task_index in active_task_indexes:
+                await asyncio.sleep(request_limits.guess_delay)
+
+                task = asyncio.create_task(
+                    _generate_embeddings_task(task_params[task_index])
+                )
+                await task
+                tasks[task_index] = task
+
+                # If the task failed but allows retry, increase the delay before
+                # the next attempt.
+                task_result = task.result()
+                assert isinstance(task_result, EmbeddingsTaskResult)
+                if (
+                    isinstance(task_result.data, RequestError)
+                    and task_result.data.retry
+                ):
+                    request_limits.guess_delay = min(
+                        request_limits.guess_delay * (1.0 + random.random()),
+                        60.0,
+                    )
 
         # Check task results
+        request_limits.remaining = None
+
         for task_index in active_task_indexes:
             task = tasks[task_index]
             curr_params = task_params[task_index]
@@ -459,11 +538,38 @@ async def _execute_embeddings_tasks(
                     )
                     offset += len(ids)
 
+            # Update request limits
+
+            # The total rate will change rarely. Always take the latest value.
+            if task_result.request_limits.total_per_minute is not None:
+                request_limits.total_per_minute = (
+                    task_result.request_limits.total_per_minute
+                )
+
+            # The remaining amount can fluctuate quite a bit, take the smallest
+            # value from all the active tasks
+            if request_limits.remaining is None:
+                request_limits.remaining = task_result.request_limits.remaining
+            elif task_result.request_limits.remaining is not None:
+                request_limits.remaining = min(
+                    request_limits.remaining,
+                    task_result.request_limits.remaining,
+                )
+
         retry_count += 1
         active_task_indexes = retry_task_indexes
 
     # If any tasks couldn't be retried, add them to the error count
     error_count += len(retry_task_indexes)
+
+    # If there is a guess rate, decrease it. If it is reused in the future,
+    # this allows the guess to gradually decrease over time, approaching the
+    # actual rate limit
+    if request_limits.guess_delay is not None:
+        request_limits.guess_delay = max(
+            0.95 * request_limits.guess_delay,
+            first_guess_delay,
+        )
 
     return error_count
 
@@ -600,7 +706,11 @@ async def _generate_openai_embeddings(
                 f"API call to generate embeddings failed with status "
                 f"{result.status_code}: {result.text}"
             ),
-            retry=(result.status_code == 429),
+            retry=(
+                # If the request fails with 429 - too many requests, it can be
+                # retried
+                result.status_code == 429
+            ),
         )
 
     try:
@@ -629,7 +739,10 @@ async def _generate_openai_embeddings(
 
     return EmbeddingsTaskResult(
         data=(error if error else result.content),
-        request_limits=RequestLimits(request_limit, request_remaining),
+        request_limits=RequestLimits(
+            total_per_minute=request_limit,
+            remaining=request_remaining
+        ),
     )
 
 
