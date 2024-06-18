@@ -58,7 +58,7 @@ class Base(ast.AST):
 
 
 class ImmutableBase(ast.ImmutableASTMixin, Base):
-    pass
+    __ast_mutable_fields__ = frozenset(['span'])
 
 
 class Alias(ImmutableBase):
@@ -212,7 +212,7 @@ class BaseRangeVar(ImmutableBaseExpr):
     """
 
     __ast_meta__ = {'schema_object_id', 'tag', 'ir_origins'}
-    __ast_mutable_fields__ = frozenset(['ir_origins'])
+    __ast_mutable_fields__ = frozenset(['ir_origins', 'span'])
 
     # This is a hack, since there is some code that relies on not
     # having an alias on a range var (to refer to a CTE directly, for

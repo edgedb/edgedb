@@ -193,9 +193,10 @@ def register_projections(target_list: List[pgast.ResTarget], *, ctx: Context):
 def resolve_DMLQuery(
     query: pgast.DMLQuery, *, ctx: Context
 ) -> Tuple[pgast.DMLQuery, context.Table]:
-    raise errors.UnsupportedFeatureError(
+    raise errors.QueryError(
         'DML queries (INSERT/UPDATE/DELETE) are not supported',
         span=query.span,
+        pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
     )
 
 

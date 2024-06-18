@@ -33,7 +33,7 @@ contexts through the AST structure.
 
 from __future__ import annotations
 
-from typing import List
+from typing import Iterable, List
 import re
 import bisect
 
@@ -176,16 +176,20 @@ def get_span(*kids: List[ast.AST]):
     )
 
 
-def merge_spans(spans: List[Span]) -> Span:
-    spans.sort(key=lambda x: (x.start, x.end))
+def merge_spans(spans: Iterable[Span]) -> Span | None:
+    span_list = list(spans)
+    if not span_list:
+        return None
+
+    span_list.sort(key=lambda x: (x.start, x.end))
 
     # assume same name and buffer apply to all
     #
     return Span(
-        name=spans[0].name,
-        buffer=spans[0].buffer,
-        start=spans[0].start,
-        end=spans[-1].end,
+        name=span_list[0].name,
+        buffer=span_list[0].buffer,
+        start=span_list[0].start,
+        end=span_list[-1].end,
     )
 
 
@@ -233,19 +237,28 @@ class SpanPropagator(ast.NodeVisitor):
     also have correct span. For a node that has no span, its
     span is derived as a superset of all of the spans of its
     descendants.
+
+    If full_pass is True, nodes with span will still recurse into
+    children and their new span will also be superset of the existing span.
     """
 
-    def __init__(self, default=None):
+    def __init__(self, default=None, full_pass=False):
         super().__init__()
         self._default = default
+        self._full_pass = full_pass
 
-    def container_visit(self, node):
+    def repeated_node_visit(self, node):
+        return self.memo[node]
+
+    def container_visit(self, node) -> List[Span | None]:
         span_list = []
         for el in node:
             if isinstance(el, ast.AST) or typeutils.is_container(el):
                 span = self.visit(el)
 
-                if isinstance(span, list):
+                if not span:
+                    pass
+                elif isinstance(span, list):
                     span_list.extend(span)
                 else:
                     span_list.append(span)
@@ -253,23 +266,18 @@ class SpanPropagator(ast.NodeVisitor):
 
     def generic_visit(self, node):
         # base case: we already have span
-        if getattr(node, 'span', None) is not None:
+        if not self._full_pass and getattr(node, 'span', None) is not None:
             return node.span
 
-        # we need to derive span based on the children
+        # recurse into children fields
         span_list = self.container_visit(v for _, v in ast.iter_fields(node))
 
-        if None in span_list:
-            node.dump()
-            print(list(ast.iter_fields(node)))
+        # also include own span (this can only happen in full_pass)
+        if existing := getattr(node, 'span', None):
+            span_list.append(existing)
 
-        # now that we have all of the children spans, let's merge
-        # them into one
-        #
-        if span_list:
-            node.span = merge_spans(span_list)
-        else:
-            node.span = self._default
+        # merge spans into one
+        node.span = merge_spans(s for s in span_list if s) or self._default
 
         return node.span
 

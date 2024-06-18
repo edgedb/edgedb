@@ -41,7 +41,7 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         else:
             expected = source
 
-        ast = parser.parse(source)
+        ast = parser.parse(source, propagate_spans=True)
         sql_stmts = [
             codegen.generate_source(stmt, pretty=False) for stmt in ast
         ]

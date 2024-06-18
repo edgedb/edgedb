@@ -31,6 +31,7 @@ from typing import (
     cast,
 )
 
+from edb.common import span
 from edb.common.parsing import Span
 
 from edb.pgsql import ast as pgast
@@ -52,12 +53,12 @@ Builder = Callable[[Node, Context], T]
 
 
 def build_stmts(
-    node: Node, source_sql: str
+    node: Node, source_sql: str, propagate_spans: bool
 ) -> List[pgast.Query | pgast.Statement]:
     ctx = Context(source_sql=source_sql)
 
     try:
-        return [_build_stmt(node["stmt"], ctx) for node in node["stmts"]]
+        res = [_build_stmt(node["stmt"], ctx) for node in node["stmts"]]
     except IndexError:
         raise PSqlUnsupportedError()
     except PSqlUnsupportedError as e:
@@ -67,6 +68,13 @@ def build_stmts(
             e.message += f" near location {e.location}:"
             e.message += source_sql[e.location : (e.location + 50)]
         raise
+
+    if propagate_spans:
+        # we need to do a full pass of span propagation, because some
+        # nodes (CommonTableExpr) have span, but their children don't (Insert).
+        span.SpanPropagator(full_pass=True).container_visit(res)
+
+    return res
 
 
 def _maybe(
