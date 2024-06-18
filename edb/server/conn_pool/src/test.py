@@ -19,12 +19,14 @@ class ConnPool(typing.Generic[C]):
     pool: edb.server._conn_pool.ConnPool
     loop: asyncio.BaseEventLoop
     completion: asyncio.Future
+    _ready: asyncio.Future
 
     def __init__(self, connection_factory: C):
         self.connection_factory = connection_factory
-        self.loop = None
+        self.loop = asyncio.get_event_loop()
         self.pool = None
         self.completion = None
+        self._ready = self.loop.create_future()
 
     def _callback(self, kind: int, response_id: int, *args):
         """Receives the callback from the Rust connection pool.
@@ -47,7 +49,8 @@ class ConnPool(typing.Generic[C]):
         self.pool._respond(response_id, response)
 
     def _thread_main(self):
-        self.pool.run()
+        self.loop.call_soon_threadsafe(self._ready.set_result, True)
+        self.pool.run_and_block()
         if not self.loop.is_closed():
             self.loop.call_soon_threadsafe(self.completion.set_result, True)
 
@@ -57,7 +60,6 @@ class ConnPool(typing.Generic[C]):
                 f'pool already started'
             ) from None
 
-        self.loop = asyncio.get_event_loop()
         self.pool = edb.server._conn_pool.ConnPool(self._callback)
         self.completion = self.loop.create_future()
         threading.Thread(target = self._thread_main).start()
@@ -66,6 +68,12 @@ class ConnPool(typing.Generic[C]):
         except asyncio.exceptions.CancelledError:
             self.pool.halt()
         self.pool = None
+
+    async def acquire(self, db):
+        await self._ready
+        future = self.loop.create_future()
+        self.pool.acquire(db, lambda res: self.loop.call_soon_threadsafe(future.set_result, res))
+        return (await future)
 
 async def main():
     class Factory:
@@ -80,6 +88,7 @@ async def main():
             return f"Connection '{db}'"
 
     pool = ConnPool(Factory())
-    await pool.run()
+    asyncio.create_task(pool.run())
+    print("Acquired", await pool.acquire("test"))
 
 asyncio.run(main(), debug=True)

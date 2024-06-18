@@ -107,6 +107,13 @@ impl<C: Connector> Conn<C> {
         }
     }
 
+    pub fn with_handle<T>(&self, f: impl Fn(&C::Conn) -> T) -> Option<T> {
+        match &*self.inner.borrow() {
+            ConnInner::Connected(conn, ..) => Some(f(conn)),
+            _ => None,
+        }
+    }
+
     pub fn close(&self, connector: &C) {
         let mut lock = self.inner.borrow_mut();
         match std::mem::replace(&mut *lock, ConnInner::Closed) {
