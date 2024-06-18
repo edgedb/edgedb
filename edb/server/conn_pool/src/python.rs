@@ -1,4 +1,14 @@
-use pyo3::{exceptions::PyException, prelude::*, types::PyString};
+use crate::{
+    algo::PoolConstraints,
+    conn::Connector,
+    pool::{Pool, PoolConfig},
+};
+use futures::{FutureExt, TryFutureExt};
+use pyo3::{
+    exceptions::PyException,
+    prelude::*,
+    types::{PyString, PyTuple},
+};
 use std::{
     collections::HashMap,
     rc::Rc,
@@ -10,11 +20,6 @@ use std::{
 use tokio::task::LocalSet;
 use tracing::{error, trace};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use crate::{
-    algo::PoolConstraints,
-    conn::Connector,
-    pool::{Pool, PoolConfig},
-};
 
 pyo3::create_exception!(_conn_pool, InternalError, PyException);
 
@@ -34,19 +39,20 @@ struct PythonConnectionFactory {
     conns: Arc<RwLock<HashMap<usize, PyObject>>>,
 }
 
-impl Connector for PythonConnectionFactory {
-    type Conn = usize;
-
-    fn connect(
+impl PythonConnectionFactory {
+    fn send(
         &self,
-        db: &str,
-    ) -> impl futures::Future<Output = crate::conn::ConnResult<Self::Conn>> + 'static {
+        message: u8,
+        args: impl IntoPy<Py<PyTuple>>,
+    ) -> impl futures::Future<Output = crate::conn::ConnResult<usize>> + 'static {
         let (sender, receiver) = tokio::sync::oneshot::channel::<PyObject>();
         let response_id = self.id.fetch_add(1, Ordering::SeqCst);
         self.responses.write().unwrap().insert(response_id, sender);
         Python::with_gil(|py| {
-            let db = PyString::new(py, db);
-            let Ok(result) = self.callback.call(py, (0, response_id, 1), None) else {
+            let args0: Py<PyTuple> = (message, response_id).into_py(py);
+            let args = args.into_py(py);
+
+            let Ok(result) = self.callback.call(py, (args0, args), None) else {
                 println!("Error?");
                 return false;
             };
@@ -68,12 +74,23 @@ impl Connector for PythonConnectionFactory {
             Ok(response_id)
         }
     }
+}
+
+impl Connector for PythonConnectionFactory {
+    type Conn = usize;
+
+    fn connect(
+        &self,
+        db: &str,
+    ) -> impl futures::Future<Output = crate::conn::ConnResult<Self::Conn>> + 'static {
+        self.send(0, (db,))
+    }
 
     fn disconnect(
         &self,
         conn: Self::Conn,
     ) -> impl futures::Future<Output = crate::conn::ConnResult<()>> + 'static {
-        async { todo!() }
+        self.send(0, (conn,)).map_ok(|_| ())
     }
 
     fn reconnect(
@@ -81,7 +98,7 @@ impl Connector for PythonConnectionFactory {
         conn: Self::Conn,
         db: &str,
     ) -> impl futures::Future<Output = crate::conn::ConnResult<Self::Conn>> + 'static {
-        async { todo!() }
+        self.send(0, (conn, db))
     }
 }
 

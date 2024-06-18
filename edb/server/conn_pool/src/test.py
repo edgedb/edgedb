@@ -51,11 +51,12 @@ class ConnPool(typing.Generic[CF, C]):
         self._completion = self._loop.create_future()
         self._ready = self._loop.create_future()
 
-    def _callback(self, kind: int, response_id: int, *args) -> bool:
+    def _callback(self, args0, args) -> bool:
         """Receives the callback from the Rust connection pool.
 
         Required to call pool._respond with the result of this callback
         """
+        (kind, response_id) = args0
         if self._loop.is_closed():
             return False
         else:
@@ -110,12 +111,15 @@ class ConnPool(typing.Generic[CF, C]):
 async def main():
     class Factory:
         async def connect(self, db):
+            print(f"Python Factory.connect db={db}")
             await asyncio.sleep(0.2)
             return f"Connection '{db}'"
         async def disconnect(self, conn):
+            print(f"Python Factory.disconnect conn={conn}")
             await asyncio.sleep(0.2)
             return
         async def reconnect(self, conn, db):
+            print(f"Python Factory.reconnect conn={conn} db={db}")
             await asyncio.sleep(0.2)
             return f"Connection '{db}'"
 
