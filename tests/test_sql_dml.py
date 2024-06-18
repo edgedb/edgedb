@@ -121,6 +121,28 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT owner_id FROM "Document"')
         self.assert_shape(res, rows=1, columns=1)
 
+        # insert multiple
+        await self.scon.execute('INSERT INTO "User" DEFAULT VALUES;')
+        await self.scon.execute(
+            'INSERT INTO "Document" (owner_id) SELECT id FROM "User"'
+        )
+        res = await self.squery_values('SELECT owner_id FROM "Document"')
+        self.assert_shape(res, rows=3, columns=1)
+
+        # insert a null link
+        await self.scon.execute(
+            'INSERT INTO "Document" (owner_id) VALUES (NULL)'
+        )
+
+        # insert multiple, with nulls
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (owner_id) VALUES
+                ((SELECT id from "User" LIMIT 1)),
+                (NULL)
+            '''
+        )
+
     async def test_sql_dml_insert_06(self):
         # insert in a subquery: syntax error
         with self.assertRaisesRegex(
@@ -166,3 +188,53 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 SELECT * FROM a
                 '''
             )
+
+    async def test_sql_dml_insert_09(self):
+        # returning
+        await self.scon.execute('INSERT INTO "User" DEFAULT VALUES;')
+        res = await self.scon.fetch(
+            '''
+            INSERT INTO "Document" (title, owner_id)
+            SELECT 'Meeting Report', id FROM "User" LIMIT 1
+            RETURNING id, owner_id, LOWER(title) as my_title
+            '''
+        )
+        self.assert_shape(res, rows=1, columns=["id", "owner_id", "my_title"])
+        first = res[0]
+        self.assertEqual(first[2], 'meeting report (new)')
+
+    async def test_sql_dml_insert_10(self):
+        # returning sublink
+        await self.scon.execute('INSERT INTO "User" DEFAULT VALUES;')
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title, owner_id)
+            SELECT 'Report', id FROM "User" LIMIT 1
+            '''
+        )
+
+        res = await self.squery_values(
+            '''
+            INSERT INTO "Document" as subject (title, owner_id)
+            VALUES ('Report', NULL), ('Briefing', (SELECT id FROM "User"))
+            RETURNING (
+                SELECT COUNT(*) FROM "User" WHERE "User".id = owner_id
+            ),
+            (
+                SELECT COUNT(*) FROM "User"
+            ),
+            (
+                SELECT COUNT(*) FROM "Document" AS d
+                WHERE subject.title = d.title
+            )
+            '''
+        )
+        self.assertEqual(
+            res,
+            tb.bag(
+                [
+                    [0, 1, 1],
+                    [1, 1, 0],
+                ]
+            ),
+        )
