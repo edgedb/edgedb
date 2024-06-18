@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
     hash::Hash,
 };
+use tracing::trace;
 
 pub trait HasPoolAlgorithmData: std::fmt::Debug {
     fn with_algo_data<T>(&self, f: impl FnOnce(&PoolAlgorithmData) -> T) -> T;
@@ -73,7 +74,7 @@ impl PoolConstraints {
             if count > 0 {
                 total_target += 1;
             }
-            eprintln!("{data:?}");
+            trace!("{data:?}");
         });
 
         // If we are unconstrained, it's easy.
@@ -89,7 +90,7 @@ impl PoolConstraints {
                     .min(2.0) as usize;
                 data.set_target(target_size + spare_for_target);
                 allocated += target_size + spare_for_target;
-                eprintln!("{}", target_size + spare_for_target);
+                trace!("Target pool size: {}", target_size + spare_for_target);
             });
 
             debug_assert!(allocated <= self.max);

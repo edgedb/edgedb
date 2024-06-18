@@ -1,3 +1,7 @@
+import logging
+logging.basicConfig(level=logging.INFO)
+logging.getLogger('edb.server.connpool').setLevel(1)
+
 import edb.server._conn_pool
 import asyncio
 import threading
@@ -6,7 +10,10 @@ import typing
 C = typing.TypeVar('C')
 
 class ConnectionFactory(typing.Protocol[C]):
-    """The async interface to create and destroy database connections."""
+    """The async interface to create and destroy database connections.
+
+    All connections returned from successful calls to `connect` or reconnect
+    are guaranteed to be `disconnect`ed or `reconnect`ed."""
     async def connect(self, db: str) -> C:
         """Create a new connection asynchronously.
 
@@ -22,7 +29,7 @@ class ConnectionFactory(typing.Protocol[C]):
     async def reconnect(self, conn: C, db: str) -> C:
         """Reconnects a connection to the given database. If this is not possible,
         it is permissable to return a new connection and gracefully disconnect
-        the other connection.
+        the other connection in parallel or in the background.
 
         This method must retry exceptions internally. If an exception is thrown
         from this method, the database is considered to be failed."""
@@ -114,6 +121,6 @@ async def main():
 
     pool = ConnPool(Factory())
     asyncio.create_task(pool.run())
-    print("Acquired", await pool.acquire("test"))
+    print("Python main acquired a connection:", await pool.acquire("test"))
 
 asyncio.run(main(), debug=True)

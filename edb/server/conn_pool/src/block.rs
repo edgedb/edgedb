@@ -3,6 +3,7 @@ use crate::{
     conn::{self, *},
 };
 use std::{cell::RefCell, collections::HashMap, future::poll_fn, iter::Map, rc::Rc};
+use tracing::trace;
 
 /// Manages the connection state for a single backend database. This is only a
 /// set of connections, and does not understand policy, balancing or anything
@@ -83,7 +84,7 @@ impl<C: Connector, D: Default> Block<C, D> {
     /// Awaits a connection from this block.
     async fn queue(&self) -> ConnResult<ConnHandle<C>> {
         loop {
-            eprintln!("loop");
+            trace!("loop");
             if let Some(conn) = self.try_acquire_used() {
                 return Ok(ConnHandle::new(conn, self.state.clone()));
             }

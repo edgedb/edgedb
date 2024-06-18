@@ -5,6 +5,7 @@ use std::{
     marker::PhantomData,
     task::Poll,
 };
+use tracing::trace;
 
 trait Time {
     type Instant;
@@ -42,16 +43,17 @@ impl Default for WaitQueue {
 
 impl<T: Time> WaitQueue<T> {
     pub fn trigger(&self) {
-        eprintln!("trigger");
         if let Some((_, _, waker)) = self.waiters.borrow().first() {
-            eprintln!("triggered");
+            trace!("Triggered a waiter");
             waker.wake_by_ref()
+        } else {
+            trace!("No waiters to trigger");
         }
     }
 
     pub async fn queue(&self) {
         // TODO: messy
-        eprintln!("queue");
+        trace!("queue");
         let id = self.id.get() + 1;
         self.id.set(id);
         let waker = poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;

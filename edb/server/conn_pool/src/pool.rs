@@ -1,5 +1,7 @@
 use std::{marker::PhantomData, time::Duration};
 
+use tracing::trace;
+
 use crate::{
     algo::{PoolAlgoTargetData, PoolConstraints},
     block::{Block, Blocks},
@@ -74,7 +76,7 @@ impl<C: Connector> Pool<C> {
         self.config.constraints.adjust(&self.blocks);
         let target = self.blocks.target(db);
         let current = self.blocks.block_size(db);
-        eprintln!("{target} {current}");
+        trace!("Target pool size={target} Current size={current}");
         let conn = if target > current {
             // If we've got room in the quota for this block, we can acquire a new connection
             self.blocks.create_if_needed(&self.connector, db).await

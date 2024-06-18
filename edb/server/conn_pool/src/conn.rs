@@ -8,6 +8,7 @@ use std::{
     rc::Rc,
     task::{ready, Poll},
 };
+use tracing::trace;
 
 #[derive(Default)]
 pub struct ConnState {
@@ -169,11 +170,11 @@ impl<C: Connector> Conn<C> {
         match &*self.inner.borrow() {
             ConnInner::Connected(_, locked) => {
                 if !locked.get() {
-                    eprintln!("try_lock success");
+                    trace!("try_lock success");
                     locked.set(true);
                     true
                 } else {
-                    eprintln!("try_lock fail");
+                    trace!("try_lock fail");
                     false
                 }
             }

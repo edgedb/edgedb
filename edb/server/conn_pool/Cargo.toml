@@ -14,6 +14,9 @@ futures = "0"
 scopeguard = "1"
 pyo3 = "0"
 itertools = "0"
+thiserror = "1"
+tracing = "0"
+tracing-subscriber = "0"
 
 [dependencies.tokio]
 version = "1"

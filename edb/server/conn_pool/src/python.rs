@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::{DebugMap, Formatter},
     rc::Rc,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -12,6 +13,8 @@ use pyo3::{
     types::{PyFunction, PyString},
 };
 use tokio::task::LocalSet;
+use tracing::{enabled, trace, Subscriber};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
     algo::PoolConstraints,
@@ -64,7 +67,7 @@ impl Connector for PythonConnectionFactory {
         async move {
             let conn = receiver.await.unwrap();
             let conn = Python::with_gil(|py| conn.to_object(py));
-            eprintln!("Received {response_id} {}", conn);
+            trace!("Thread received {response_id} {}", conn);
             conns.write().unwrap().insert(response_id, conn);
             Ok(response_id)
         }
@@ -121,14 +124,13 @@ impl ConnPool {
     }
 
     fn _respond(&self, _py: Python, response_id: usize, object: PyObject) {
-        println!(" - Sending!");
+        trace!("_respond({response_id}, {object})");
         let response = self.responses.write().unwrap().remove(&response_id);
         if let Some(response) = response {
             response.send(object).unwrap();
         } else {
             println!("Missing?");
         }
-        println!(" - Sent!");
     }
 
     fn halt(&self, py: Python) {}
@@ -175,9 +177,8 @@ impl ConnPool {
                     let pool = pool.clone();
                     let conns = conns.clone();
                     tokio::task::spawn_local(async move {
-                        eprintln!("task");
                         let conn = pool.acquire(&db).await.unwrap();
-                        eprintln!("acq'd");
+                        trace!("Acquired a handle to return to Python!");
                         let handle = conn.handle();
                         Python::with_gil(|py| {
                             let conn = conns.read().unwrap().get(&handle).unwrap().clone();
@@ -193,5 +194,83 @@ impl ConnPool {
 #[pymodule]
 fn _conn_pool(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<ConnPool>().unwrap();
+    let logging = py.import("logging").unwrap();
+    let logger = logging
+        .getattr("getLogger")
+        .unwrap()
+        .call(("edb.server.connpool",), None)
+        .unwrap();
+    let level = logger
+        .getattr("getEffectiveLevel")
+        .unwrap()
+        .call((), None)
+        .unwrap()
+        .extract::<i32>()
+        .unwrap();
+    let logger = logger.to_object(py);
+
+    struct PythonSubscriber {
+        logger: Py<PyAny>,
+    }
+
+    impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for PythonSubscriber {
+        fn on_event(&self, event: &tracing::Event, _ctx: tracing_subscriber::layer::Context<S>) {
+            let mut message = format!("[{}] ", event.metadata().target());
+
+            #[derive(Default)]
+            struct Visitor(String);
+            impl tracing::field::Visit for Visitor {
+                fn record_debug(
+                    &mut self,
+                    field: &tracing::field::Field,
+                    value: &dyn std::fmt::Debug,
+                ) {
+                    if field.name() == "message" {
+                        self.0 += &format!("{value:?} ");
+                    } else {
+                        self.0 += &format!("{}={:?} ", field.name(), value)
+                    }
+                }
+            }
+
+            let mut visitor = Visitor::default();
+            event.record(&mut visitor);
+            message += &visitor.0;
+
+            Python::with_gil(|py| {
+                let log = match event.metadata().level() {
+                    &tracing::Level::TRACE => self.logger.getattr(py, "debug").unwrap(),
+                    &tracing::Level::DEBUG => self.logger.getattr(py, "warning").unwrap(),
+                    &tracing::Level::INFO => self.logger.getattr(py, "info").unwrap(),
+                    &tracing::Level::WARN => self.logger.getattr(py, "warning").unwrap(),
+                    &tracing::Level::ERROR => self.logger.getattr(py, "error").unwrap(),
+                };
+                log.call1(py, (message,)).unwrap();
+            })
+        }
+    }
+
+    let level = if level < 10 {
+        tracing_subscriber::filter::LevelFilter::TRACE
+    } else if level <= 10 {
+        tracing_subscriber::filter::LevelFilter::DEBUG
+    } else if level <= 20 {
+        tracing_subscriber::filter::LevelFilter::INFO
+    } else if level <= 30 {
+        tracing_subscriber::filter::LevelFilter::WARN
+    } else if level <= 40 {
+        tracing_subscriber::filter::LevelFilter::ERROR
+    } else {
+        tracing_subscriber::filter::LevelFilter::OFF
+    };
+
+    let subscriber = PythonSubscriber { logger };
+    tracing_subscriber::registry()
+        .with(level)
+        .with(subscriber)
+        .init();
+
+    tracing::info!("ConnPool initialized (level = {level})");
+
     Ok(())
 }
