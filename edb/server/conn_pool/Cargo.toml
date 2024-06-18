@@ -28,6 +28,7 @@ features = ["full"]
 
 [dev-dependencies]
 pretty_assertions = "1.2.0"
+test-log = { version = "0", features = ["trace"] }
 
 [dev-dependencies.tokio]
 version = "1"

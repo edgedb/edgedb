@@ -7,7 +7,9 @@ import asyncio
 import threading
 import typing
 
-C = typing.TypeVar('C')
+# Connections must be hashable because we use them to reverse-lookup
+# an internal ID.
+C = typing.TypeVar('C', bound=typing.Hashable)
 
 class ConnectionFactory(typing.Protocol[C]):
     """The async interface to create and destroy database connections.
@@ -35,26 +37,26 @@ class ConnectionFactory(typing.Protocol[C]):
         from this method, the database is considered to be failed."""
         ...
 
-CF = typing.TypeVar('CF', bound=ConnectionFactory[typing.Any])
-
-class ConnPool(typing.Generic[CF, C]):
-    _connection_factory: ConnectionFactory
+class ConnPool(ConnectionFactory[C]):
+    _connection_factory: ConnectionFactory[C]
     _pool: edb.server._conn_pool.ConnPool
     _loop: asyncio.AbstractEventLoop
     _completion: asyncio.Future[bool]
     _ready: asyncio.Future[bool]
+    _active_conns: set[C]
 
-    def __init__(self, connection_factory: CF):
+    def __init__(self, connection_factory: ConnectionFactory[C]):
         self._connection_factory = connection_factory
         self._loop = asyncio.get_event_loop()
         self._pool = None
         self._completion = self._loop.create_future()
         self._ready = self._loop.create_future()
+        self._active_conns = set()
 
     def _callback(self, args0, args) -> bool:
         """Receives the callback from the Rust connection pool.
 
-        Required to call pool._respond with the result of this callback
+        Required to call pool._respond on the main thread with the result of this callback
         """
         (kind, response_id) = args0
         if self._loop.is_closed():
@@ -100,20 +102,27 @@ class ConnPool(typing.Generic[CF, C]):
         """Acquire a connection from the database. This connection must be released."""
         await self._ready
         future = self._loop.create_future()
+        # Note that this callback is called on the internal pool's thread
         self._pool.acquire(db, lambda res: self._loop.call_soon_threadsafe(future.set_result, res))
-        return (await future)
+        conn = (await future)
+        self._active_conns.add(conn)
+        return conn
 
-    async def release(self, db, conn, discard=False):
-        """Releases a connection back into the pool."""
+    def release(self, _db, conn, discard=False):
+        """Releases a connection back into the pool, discarding or returning it in the background."""
+        self._active_conns.remove(conn)
+        self._pool.release(conn, discard)
         pass
-
 
 async def main():
     class Factory:
+        def __init__(self) -> None:
+            self.id = 0
         async def connect(self, db):
             print(f"Python Factory.connect db={db}")
             await asyncio.sleep(0.2)
-            return f"Connection '{db}'"
+            self.id += 1
+            return f"Connection '{db}' #{self.id}"
         async def disconnect(self, conn):
             print(f"Python Factory.disconnect conn={conn}")
             await asyncio.sleep(0.2)
@@ -121,10 +130,15 @@ async def main():
         async def reconnect(self, conn, db):
             print(f"Python Factory.reconnect conn={conn} db={db}")
             await asyncio.sleep(0.2)
-            return f"Connection '{db}'"
+            return f"Connection '{db}' (was {conn})"
 
     pool = ConnPool(Factory())
     asyncio.create_task(pool.run())
-    print("Python main acquired a connection:", await pool.acquire("test"))
+    conn = await pool.acquire("test")
+    print("Python main acquired a connection:", conn)
+    pool.release("test", conn)
+    conn = await pool.acquire("test")
+    print("Python main acquired a connection:", conn)
+    pool.release("test", conn)
 
 asyncio.run(main(), debug=True)

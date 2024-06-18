@@ -64,6 +64,7 @@ impl ConnStats {
 #[derive(Debug)]
 pub enum ConnError {
     ConnectionIdentityIncorrect,
+    Shutdown,
     Other(Cow<'static, str>),
 }
 
@@ -108,6 +109,7 @@ impl<C: Connector> Conn<C> {
         }
     }
 
+    #[inline(always)]
     pub fn with_handle<T>(&self, f: impl Fn(&C::Conn) -> T) -> Option<T> {
         match &*self.inner.borrow() {
             ConnInner::Connected(conn, ..) => Some(f(conn)),
@@ -143,7 +145,7 @@ impl<C: Connector> Conn<C> {
             ConnInner::Connected(c, ..) => Poll::Ready(Ok(())),
             ConnInner::Connecting(f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
                 Ok(c) => {
-                    *lock = ConnInner::Connected(c, Cell::new(true));
+                    *lock = ConnInner::Connected(c, Cell::new(LockState::Unlocked));
                     Ok(())
                 }
                 Err(err) => {
@@ -168,25 +170,35 @@ impl<C: Connector> Conn<C> {
 
     pub fn try_lock(&self) -> bool {
         match &*self.inner.borrow() {
-            ConnInner::Connected(_, locked) => {
-                if !locked.get() {
-                    trace!("try_lock success");
-                    locked.set(true);
-                    true
-                } else {
+            ConnInner::Connected(_, locked) => match locked.get() {
+                LockState::Locked | LockState::Poisoned => {
                     trace!("try_lock fail");
                     false
                 }
-            }
+                LockState::Unlocked => {
+                    trace!("try_lock success");
+                    locked.set(LockState::Locked);
+                    true
+                }
+            },
             _ => false,
         }
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum LockState {
+    Locked,
+    Unlocked,
+    Poisoned,
+}
+
 enum ConnInner<C: Connector> {
+    /// Connecting connections hold a spot in the pool as they count towards quotas
     Connecting(Pin<Box<dyn Future<Output = ConnResult<C::Conn>>>>),
+    /// Disconnecting connections hold a spot in the pool as they count towards quotas
     Disconnecting(Pin<Box<dyn Future<Output = ConnResult<()>>>>),
-    Connected(C::Conn, Cell<bool>),
+    Connected(C::Conn, Cell<LockState>),
     Failed,
     Closed,
 }
@@ -199,16 +211,25 @@ impl<C: Connector> std::fmt::Debug for ConnInner<C> {
 
 #[derive(derive_more::Debug)]
 pub struct ConnHandle<C: Connector> {
-    #[debug("{conn}")]
+    #[debug("{conn:?}")]
     pub(crate) conn: Conn<C>,
     #[debug(skip)]
     pub(crate) state: Rc<ConnState>,
+    poison: Cell<bool>,
 }
 
 impl<C: Connector> ConnHandle<C> {
     pub fn new(conn: Conn<C>, state: Rc<ConnState>) -> Self {
         state.active.set(state.active.get() + 1);
-        Self { conn, state }
+        Self {
+            conn,
+            state,
+            poison: Cell::new(false),
+        }
+    }
+
+    pub fn poison(&self) {
+        self.poison.set(true)
     }
 }
 
@@ -216,12 +237,15 @@ impl<C: Connector> Drop for ConnHandle<C> {
     fn drop(&mut self) {
         match &*self.conn.inner.borrow() {
             ConnInner::Connected(c, locked) => {
-                debug_assert!(locked.get());
-                locked.set(false);
+                debug_assert_eq!(locked.get(), LockState::Unlocked);
+                locked.set(if self.poison.get() {
+                    LockState::Poisoned
+                } else {
+                    LockState::Unlocked
+                });
                 self.state.active.set(self.state.active.get() - 1);
                 self.state.waiters.trigger();
             }
-            ConnInner::Closed => {}
             _ => {
                 unreachable!()
             }

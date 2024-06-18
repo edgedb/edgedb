@@ -3,7 +3,7 @@ use crate::{
     conn::*,
 };
 use std::{cell::RefCell, collections::HashMap, future::poll_fn, rc::Rc};
-use tracing::trace;
+use tracing::{info, trace};
 
 /// Manages the connection state for a single backend database. This is only a
 /// set of connections, and does not understand policy, balancing or anything
@@ -84,10 +84,11 @@ impl<C: Connector, D: Default> Block<C, D> {
     /// Awaits a connection from this block.
     async fn queue(&self) -> ConnResult<ConnHandle<C>> {
         loop {
-            trace!("loop");
             if let Some(conn) = self.try_acquire_used() {
+                trace!("Got a connection");
                 return Ok(ConnHandle::new(conn, self.state.clone()));
             }
+            trace!("Queueing for a connection");
             self.state.waiters.queue().await;
         }
     }
@@ -228,11 +229,13 @@ impl<C: Connector, D: Default> Blocks<C, D> {
 #[cfg(test)]
 mod tests {
     use crate::test::*;
+    use pretty_assertions::assert_eq;
+    use test_log::test;
     use tokio::task::LocalSet;
 
     use super::*;
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn test_block() {
         let connector = BasicConnector::no_delay();
         let block = Rc::new(Block::<BasicConnector>::new("db"));
@@ -257,7 +260,7 @@ mod tests {
         assert_eq!(block.stats(), ConnStats::connected(1));
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn test_block_parallel_acquire() {
         let connector = BasicConnector::no_delay();
         let block = Rc::new(Block::<BasicConnector>::new("db"));
@@ -290,7 +293,7 @@ mod tests {
         assert_eq!(block.stats(), ConnStats::connected(3));
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn test_steal() {
         let connector = BasicConnector::no_delay();
         let blocks = Blocks::<_, ()>::default();
@@ -327,7 +330,7 @@ mod tests {
         assert_eq!(blocks.stats("db2"), ConnStats::connected(3));
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn test_close() {
         let connector = BasicConnector::no_delay();
         let blocks = Blocks::<_, ()>::default();

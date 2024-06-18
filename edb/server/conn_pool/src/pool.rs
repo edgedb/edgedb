@@ -1,32 +1,40 @@
-use std::time::Duration;
-
-use tracing::trace;
-
 use crate::{
     algo::{PoolAlgoTargetData, PoolConstraints},
     block::Blocks,
     conn::{ConnHandle, ConnResult, Connector},
 };
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum PoolResult {
-    RequiresPromotion,
-    Uninitialized,
-    Initialized,
-}
+use std::time::Duration;
+use tracing::trace;
 
 pub struct PoolConfig {
     pub constraints: PoolConstraints,
 }
 
+#[derive(Debug)]
 pub struct PoolHandle<C: Connector> {
     conn: ConnHandle<C>,
+}
+
+impl<C: Connector> PoolHandle<C> {
+    /// Marks this handle as poisoned, which will not allow it to be reused in the pool. The
+    /// most likely case for this is that the underlying connection's stream has closed, or
+    /// the remote end is no longer valid for some reason.
+    pub fn poison(&self) {
+        self.conn.poison()
+    }
+
+    #[inline(always)]
+    pub fn with_handle<T>(&self, f: impl Fn(&C::Conn) -> T) -> T {
+        self.conn.conn.with_handle(f).unwrap()
+    }
 }
 
 impl<C: Connector> PoolHandle<C>
 where
     C::Conn: Copy,
 {
+    /// If the handle is `Copy`, copies this handle.
+    #[inline(always)]
     pub fn handle(&self) -> C::Conn {
         self.conn.conn.with_handle(|c| *c).unwrap()
     }
@@ -36,6 +44,8 @@ impl<C: Connector> PoolHandle<C>
 where
     C::Conn: Clone,
 {
+    /// If the handle is `Clone`, clones this handle.
+    #[inline(always)]
     pub fn handle_clone(&self) -> C::Conn {
         self.conn.conn.with_handle(|c| c.clone()).unwrap()
     }
@@ -60,6 +70,8 @@ impl<C: Connector> Pool<C> {
         }
     }
 
+    /// Runs the required async task that takes care of quota management, garbage collection,
+    /// and other important async tasks.
     pub async fn run(&self) {
         loop {
             tokio::time::sleep(Duration::from_millis(25)).await;

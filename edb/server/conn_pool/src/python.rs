@@ -1,15 +1,17 @@
 use crate::{
     algo::PoolConstraints,
-    conn::Connector,
+    conn::{ConnError, Connector},
     pool::{Pool, PoolConfig},
+    PoolHandle,
 };
-use futures::{FutureExt, TryFutureExt};
+use futures::TryFutureExt;
 use pyo3::{
     exceptions::PyException,
     prelude::*,
-    types::{PyString, PyTuple},
+    types::{PyDict, PyTuple},
 };
 use std::{
+    cell::RefCell,
     collections::HashMap,
     rc::Rc,
     sync::{
@@ -23,41 +25,82 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 pyo3::create_exception!(_conn_pool, InternalError, PyException);
 
+#[derive(Debug)]
+#[repr(u8)]
+enum ConnectOp {
+    Connect,
+    Disconnect,
+    Reconnect,
+}
+
+#[derive(Debug, Default)]
+struct PythonConnectionMap {
+    /// Connection : [`PoolHandle`] (to keep the handle alive)
+    handle: HashMap<usize, PoolHandle<PythonConnectionFactory>>,
+    py_dict: Option<Py<PyDict>>,
+    next_id: usize,
+}
+
+impl PythonConnectionMap {
+    pub fn insert(&mut self, py: Python, handle: PoolHandle<PythonConnectionFactory>) {
+        let py_dict = self
+            .py_dict
+            .get_or_insert_with(|| PyDict::new(py).into())
+            .as_ref(py);
+        _ = handle.with_handle(|conn| py_dict.set_item(conn, self.next_id));
+        self.handle.insert(self.next_id, handle);
+        self.next_id += 1;
+    }
+
+    pub fn remove(
+        &mut self,
+        py: Python,
+        conn: PyObject,
+    ) -> Option<PoolHandle<PythonConnectionFactory>> {
+        let Some(py_dict) = &mut self.py_dict else {
+            return None;
+        };
+        let py_dict = py_dict.as_ref(py);
+        let item = py_dict.get_item(conn.clone_ref(py)).ok()??;
+        _ = py_dict.del_item(conn);
+        let key = item.extract::<usize>().ok()?;
+        self.handle.remove(&key)
+    }
+}
+
 /// Implementation of the [`Connector`] interface. We don't pass the pool or Python objects
 /// between threads, but rather use a usize ID that allows us to keep two maps in sync on
 /// both sides of this interface.
 #[derive(Debug)]
 struct PythonConnectionFactory {
+    /// The _callback method that triggers the correctly-threaded task for the
+    /// connection operation.
     callback: PyObject,
-
-    /// Our RPC-like response callbacks.
+    /// RPC callbacks.
     responses: Arc<RwLock<HashMap<usize, tokio::sync::oneshot::Sender<PyObject>>>>,
-
-    id: Arc<AtomicUsize>,
-
-    /// Python connections
-    conns: Arc<RwLock<HashMap<usize, PyObject>>>,
+    /// Next RPC ID.
+    next_response_id: Arc<AtomicUsize>,
 }
 
 impl PythonConnectionFactory {
     fn send(
         &self,
-        message: u8,
+        op: ConnectOp,
         args: impl IntoPy<Py<PyTuple>>,
-    ) -> impl futures::Future<Output = crate::conn::ConnResult<usize>> + 'static {
+    ) -> impl futures::Future<Output = crate::conn::ConnResult<PyObject>> + 'static {
         let (sender, receiver) = tokio::sync::oneshot::channel::<PyObject>();
-        let response_id = self.id.fetch_add(1, Ordering::SeqCst);
+        let response_id = self.next_response_id.fetch_add(1, Ordering::SeqCst);
         self.responses.write().unwrap().insert(response_id, sender);
-        Python::with_gil(|py| {
-            let args0: Py<PyTuple> = (message, response_id).into_py(py);
+        let success = Python::with_gil(|py| {
+            let args0: Py<PyTuple> = (op as u8, response_id).into_py(py);
             let args = args.into_py(py);
 
             let Ok(result) = self.callback.call(py, (args0, args), None) else {
-                println!("Error?");
+                error!("Unexpected failure in _callback");
                 return false;
             };
             let Ok(result) = result.is_true(py) else {
-                println!("Error?");
+                error!("Unexpected return value from _callback");
                 return false;
             };
             if !result {
@@ -65,32 +108,34 @@ impl PythonConnectionFactory {
             }
             true
         });
-        let conns = self.conns.clone();
         async move {
-            let conn = receiver.await.unwrap();
-            let conn = Python::with_gil(|py| conn.to_object(py));
-            trace!("Thread received {response_id} {}", conn);
-            conns.write().unwrap().insert(response_id, conn);
-            Ok(response_id)
+            if success {
+                let conn = receiver.await.unwrap();
+                let conn = Python::with_gil(|py| conn.to_object(py));
+                trace!("Thread received {response_id} {}", conn);
+                Ok(conn)
+            } else {
+                Err(ConnError::Shutdown)
+            }
         }
     }
 }
 
 impl Connector for PythonConnectionFactory {
-    type Conn = usize;
+    type Conn = PyObject;
 
     fn connect(
         &self,
         db: &str,
     ) -> impl futures::Future<Output = crate::conn::ConnResult<Self::Conn>> + 'static {
-        self.send(0, (db,))
+        self.send(ConnectOp::Connect, (db,))
     }
 
     fn disconnect(
         &self,
         conn: Self::Conn,
     ) -> impl futures::Future<Output = crate::conn::ConnResult<()>> + 'static {
-        self.send(0, (conn,)).map_ok(|_| ())
+        self.send(ConnectOp::Disconnect, (conn,)).map_ok(|_| ())
     }
 
     fn reconnect(
@@ -98,7 +143,7 @@ impl Connector for PythonConnectionFactory {
         conn: Self::Conn,
         db: &str,
     ) -> impl futures::Future<Output = crate::conn::ConnResult<Self::Conn>> + 'static {
-        self.send(0, (conn, db))
+        self.send(ConnectOp::Reconnect, (conn, db))
     }
 }
 
@@ -107,23 +152,78 @@ impl PythonConnectionFactory {
         Self {
             callback,
             responses: Default::default(),
-            id: Default::default(),
-            conns: Default::default(),
+            next_response_id: Default::default(),
         }
     }
+}
+
+#[derive(Debug)]
+enum PoolRPC {
+    Acquire(String, PyObject),
+    Release(PyObject, bool),
 }
 
 #[pyclass]
 struct ConnPool {
     connector: RwLock<Option<PythonConnectionFactory>>,
     responses: Arc<RwLock<HashMap<usize, tokio::sync::oneshot::Sender<PyObject>>>>,
-    rpc_tx: RwLock<Option<tokio::sync::mpsc::UnboundedSender<(String, PyObject)>>>,
-    conns: Arc<RwLock<HashMap<usize, PyObject>>>,
+    rpc_tx: RwLock<Option<tokio::sync::mpsc::UnboundedSender<PoolRPC>>>,
 }
 
 fn internal_error(py: Python, message: &str) {
     error!("{message}");
     InternalError::new_err(()).restore(py);
+}
+
+async fn run_and_block(
+    connector: PythonConnectionFactory,
+    mut rpc_rx: tokio::sync::mpsc::UnboundedReceiver<PoolRPC>,
+) {
+    let pool = Rc::new(Pool::<PythonConnectionFactory>::new(
+        PoolConfig {
+            constraints: PoolConstraints {
+                max: 10,
+                max_per_target: 10,
+            },
+        },
+        connector,
+    ));
+    let conns = Rc::new(RefCell::new(PythonConnectionMap::default()));
+    loop {
+        let Some(rpc) = rpc_rx.recv().await else {
+            break;
+        };
+        let pool = pool.clone();
+        let conns = conns.clone();
+        trace!("Received RPC: {rpc:?}");
+        tokio::task::spawn_local(async move {
+            match rpc {
+                PoolRPC::Acquire(db, callback) => {
+                    let conn = pool.acquire(&db).await.unwrap();
+                    trace!("Acquired a handle to return to Python!");
+                    Python::with_gil(|py| {
+                        let handle = conn.handle_clone();
+                        conns.borrow_mut().insert(py, conn);
+                        callback.call1(py, (handle,)).unwrap();
+                    });
+                }
+                PoolRPC::Release(conn, dispose) => {
+                    Python::with_gil(|py| {
+                        let Some(conn) = conns.borrow_mut().remove(py, conn) else {
+                            error!("Attempted to dispose a connection that does not exist");
+                            return;
+                        };
+
+                        if dispose {
+                            conn.poison();
+                        }
+
+                        drop(conn);
+                    });
+                }
+            }
+        });
+    }
 }
 
 #[pymethods]
@@ -132,12 +232,10 @@ impl ConnPool {
     fn new(callback: PyObject) -> Self {
         let connector = PythonConnectionFactory::new(callback);
         let responses = connector.responses.clone();
-        let conns = connector.conns.clone();
         ConnPool {
             connector: RwLock::new(Some(connector)),
             responses,
             rpc_tx: Default::default(),
-            conns,
         }
     }
 
@@ -154,23 +252,31 @@ impl ConnPool {
     fn halt(&self, py: Python) {}
 
     /// Asynchronously acquires a connection, returning it to the callback
-    fn acquire(&self, py: Python, db: &str, callback: PyObject) {
+    fn acquire(&self, db: &str, callback: PyObject) {
         self.rpc_tx
             .read()
             .unwrap()
             .as_ref()
             .unwrap()
-            .send((db.to_owned(), callback));
+            .send(PoolRPC::Acquire(db.to_owned(), callback))
+            .unwrap();
     }
 
     /// Releases a connection when possible, potentially discarding it
-    fn release(&self, py: Python, conn: usize, discard: bool) {}
+    fn release(&self, conn: PyObject, discard: bool) {
+        self.rpc_tx
+            .read()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .send(PoolRPC::Release(conn, discard))
+            .unwrap();
+    }
 
     /// Boot the connection pool on this thread.
     fn run_and_block(&self, py: Python) {
         let connector = self.connector.write().unwrap().take().unwrap();
-        let conns = self.conns.clone();
-        let (rpc_tx, mut rpc_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (rpc_tx, rpc_rx) = tokio::sync::mpsc::unbounded_channel();
         *self.rpc_tx.write().unwrap() = Some(rpc_tx);
         py.allow_threads(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
@@ -178,33 +284,7 @@ impl ConnPool {
                 .build()
                 .unwrap();
             let local = LocalSet::new();
-            local.block_on(&rt, async {
-                let pool = Rc::new(Pool::<PythonConnectionFactory>::new(
-                    PoolConfig {
-                        constraints: PoolConstraints {
-                            max: 10,
-                            max_per_target: 10,
-                        },
-                    },
-                    connector,
-                ));
-                loop {
-                    let Some((db, callback)) = rpc_rx.recv().await else {
-                        break;
-                    };
-                    let pool = pool.clone();
-                    let conns = conns.clone();
-                    tokio::task::spawn_local(async move {
-                        let conn = pool.acquire(&db).await.unwrap();
-                        trace!("Acquired a handle to return to Python!");
-                        let handle = conn.handle();
-                        Python::with_gil(|py| {
-                            let conn = conns.read().unwrap().get(&handle).unwrap().clone();
-                            callback.call1(py, (conn,)).unwrap();
-                        });
-                    });
-                }
-            });
+            local.block_on(&rt, run_and_block(connector, rpc_rx));
         })
     }
 }
