@@ -274,6 +274,13 @@ and ``*_ENV`` variants are also supported.
 .. _URI format:
    https://www.postgresql.org/docs/13/libpq-connect.html#id-1.7.3.8.3.6
 
+EDGEDB_SERVER_MAX_BACKEND_CONNECTIONS
+.....................................
+
+The maximum NUM of connections this EdgeDB instance could make to the backend
+PostgreSQL cluster. If not set, EdgeDB will detect and calculate the NUM:
+RAM/100MiB for local Postgres, or pg_settings.max_connections for remote
+Postgres minus the NUM of ``--reserved-pg-connections``.
 
 EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY
 ......................................
