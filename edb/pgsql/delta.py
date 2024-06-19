@@ -1231,6 +1231,19 @@ class FunctionCommand(MetaCommand):
     ) -> s_expr.CompiledExpression:
         if isinstance(body, s_expr.CompiledExpression):
             return body
+
+        # HACK: When an object type selected by a function (via
+        # inheritance) is dropped, the function gets
+        # recompiled. Unfortunately, 'caused' subcommands run *before*
+        # the object is actually deleted, and so we would ordinarily
+        # still try to select from the deleted object. To avoid
+        # needing to add *another* type of subcommand, we work around
+        # this by temporarily stripping all objects that are about to
+        # be deleted from the schema.
+        for ctx in context.stack:
+            if isinstance(ctx.op, s_objtypes.DeleteObjectType):
+                schema = schema.delete(ctx.op.scls)
+
         return s_funcs.compile_function(
             schema,
             context,
