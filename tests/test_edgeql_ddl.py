@@ -5139,6 +5139,78 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             );
         ''')
 
+    async def test_edgeql_ddl_function_inh_01(self):
+        await self.con.execute("""
+            create abstract type T;
+            create function countall() -> int64 USING (count(T));
+        """)
+
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [0],
+        )
+        await self.con.execute("""
+            create type S1 extending T;
+            insert S1;
+        """)
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [1],
+        )
+        await self.con.execute("""
+            create type S2 extending T;
+            insert S2;
+            insert S2;
+        """)
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [3],
+        )
+        await self.con.execute("""
+            drop type S2;
+        """)
+
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [1],
+        )
+
+    async def test_edgeql_ddl_function_inh_02(self):
+        await self.con.execute("""
+            create abstract type T { create multi property n -> int64 };
+            create function countall() -> int64 USING (sum(T.n));
+        """)
+
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [0],
+        )
+        await self.con.execute("""
+            create type S1 extending T;
+            insert S1 { n := {3, 4} };
+        """)
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [7],
+        )
+        await self.con.execute("""
+            create type S2 extending T;
+            insert S2 { n := 1 };
+            insert S2 { n := {2, 2, 2} };
+        """)
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [14],
+        )
+        await self.con.execute("""
+            drop type S2;
+        """)
+
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [7],
+        )
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {
