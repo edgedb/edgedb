@@ -187,17 +187,6 @@ def resolve_InsertStmt(
             span=val_rel.span,
         )
 
-    # construct the CTE that produces the value to be inserted
-    assert isinstance(val_rel, pgast.Query)  # TODO: ensure query
-    source_cte = pgast.CommonTableExpr(
-        name=ctx.names.get('cte'),
-        query=val_rel,  # TODO: ensure query
-    )
-    source_cte_table = context.Table(
-        reference_as=source_cte.name,
-        columns=list(val_table.columns),
-    )
-
     # if we are sure that we are inserting a single row,
     # we can skip for loops and the iterator, so we generate better SQL
     is_single_row = isinstance(val_rel, pgast.SelectStmt) and (
@@ -218,37 +207,42 @@ def resolve_InsertStmt(
         env=None,
     )
 
-    # source needs an identity column, so we need to invent one
-    if isinstance(val_rel, pgast.SelectStmt) and not val_rel.values:
-        source_identity = ctx.names.get('identity')
-        val_rel.target_list.append(
-            pgast.ResTarget(
-                name=source_identity,
-                val=pgast.FuncCall(
-                    name=(
-                        'edgedb',
-                        'uuid_generate_v1mc',
-                    ),
-                    args=(),
-                ),
-            )
-        )
-
-        val_rel.path_outputs[(source_id, 'value')] = pgast.ColumnRef(
-            name=(source_identity,)
-        )
     source_ql: qlast.PathElement = (
         qlast.IRAnchor(name=source_name)
         if is_single_row
         else qlast.ObjectRef(name=iterator_name)
     )
 
+    pre_projection: List[pgast.ResTarget] = []
+    source_outputs: Dict[Tuple[irast.PathId, str], pgast.OutputVar] = {}
     insert_shape = []
     for expected_col, val_col in zip(expected_columns, val_table.columns):
         ptr, ptr_name, is_link = get_pointer_for_column(expected_col, sub, ctx)
 
+        # prepare pre-projection of this pointer value
+        val_col_pg = pg_res_expr.resolve_column_kind(
+            val_table, val_col.kind, ctx=ctx
+        )
+        if is_link:
+            val_col_pg = pgast.TypeCast(
+                arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
+            )
+        pre_projection.append(pgast.ResTarget(name=ptr_name, val=val_col_pg))
+
+        # prepare the outputs of the source CTE
+        ptr_id = get_ptr_id(source_id, ptr, ctx)
+        output_var: pgast.OutputVar = pgast.ColumnRef(
+            name=(ptr_name,), nullable=True
+        )
+        if is_link:
+            source_outputs[(ptr_id, 'identity')] = output_var
+            source_outputs[(ptr_id, 'value')] = output_var
+        else:
+            source_outputs[(ptr_id, 'value')] = output_var
+
+        # prepare insert shape that will use the paths from source_outputs
         insert_shape.append(
-            get_insert_element_for_pointer(
+            construct_insert_element_for_ptr(
                 source_ql,
                 ptr_name,
                 ptr,
@@ -257,25 +251,37 @@ def resolve_InsertStmt(
             )
         )
 
-        # prepare pg node that provides value for this pointer
-        val_col_pg = pg_res_expr.resolve_column_kind(
-            source_cte_table, val_col.kind, ctx=ctx
+    # construct the CTE that produces the value to be inserted
+    # The original value query must be wrapped so we can add type casts
+    # for link ids.
+    assert isinstance(val_rel, pgast.Query)
+    source_cte = pgast.CommonTableExpr(
+        name=ctx.names.get('ins_source'),
+        query=pgast.SelectStmt(
+            from_clause=[pgast.RangeSubselect(subquery=val_rel)],
+            target_list=pre_projection,
+            path_outputs=source_outputs,
+        ),
+    )
+
+    # source needs an identity column, so we need to invent one
+    source_identity = ctx.names.get('identity')
+    source_cte.query.target_list.append(
+        pgast.ResTarget(
+            name=source_identity,
+            val=pgast.FuncCall(
+                name=(
+                    'edgedb',
+                    'uuid_generate_v4',
+                ),
+                args=(),
+            ),
         )
-        val_col_pg = val_col_pg.replace(nullable=True)
-
-        # TODO: think long and hard if this assertion is actually true
-        assert isinstance(val_col_pg, pgast.ColumnRef)
-
-        ptr_id = get_ptr_id(source_id, ptr, ctx)
-        if is_link:
-            # val_col_pg = pgast.TypeCast(
-            #     arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
-            # )
-            # output_var = pgast.ExprOutputVar(expr=val_col_pg)
-            val_rel.path_outputs[(ptr_id, 'identity')] = val_col_pg
-            val_rel.path_outputs[(ptr_id, 'value')] = val_col_pg
-        else:
-            val_rel.path_outputs[(ptr_id, 'value')] = val_col_pg
+    )
+    output_var = pgast.ColumnRef(name=(source_identity,))
+    source_cte.query.path_outputs[(source_id, 'identity')] = output_var
+    source_cte.query.path_outputs[(source_id, 'iterator')] = output_var
+    source_cte.query.path_outputs[(source_id, 'value')] = output_var
 
     # the core thing
     ql_stmt: qlast.Expr = qlast.InsertQuery(
@@ -328,6 +334,7 @@ def resolve_InsertStmt(
             schema=ctx.schema,
             options=options,
         )
+        assert isinstance(ir_stmt.expr, irast.SetE)
         sql_result = pgcompiler.compile_ir_to_sql_tree(
             ir_stmt,
             external_rels={source_id: (source_cte, ('source', 'identity'))},
@@ -357,76 +364,93 @@ def resolve_InsertStmt(
         # this case is caught earlier
         raise AssertionError()
 
-    result_table = context.Table(columns=[])
+    result_table = context.Table(
+        alias=stmt.relation.alias.aliasname, columns=[]
+    )
     result_query = sql_result.ast
 
-    # extract pointers to be used in returning columns
     if stmt.returning_list:
-        result_table.alias = stmt.relation.alias.aliasname
-
-        # TODO: this target list is [ROW(...)] that contains all pointers.
-        # This is really inconvenient to use onwards, so I'm discarding it here.
-        # I'm not sure it will always have this form (or why it has it).
-        result_query.target_list.clear()
-
-        assert isinstance(ir_stmt.expr, irast.SetE)
-        assert isinstance(ir_stmt.expr.expr, irast.SelectStmt)
-        result_id = ir_stmt.expr.expr.result.path_id
-        result_rvar_source = result_query.path_rvar_map[result_id, 'source']
-        result_path_outputs = result_rvar_source.query.path_outputs
-
-        if map := getattr(result_rvar_source.query, 'view_path_id_map', None):
-            result_id = pgpathctx.map_path_id(result_id, map)
-
-        for col_name, ptr in subject_pointers:
-            ptr_id = get_ptr_id(result_id, ptr, ctx)
-
-            output_var = result_path_outputs.get((ptr_id, 'value'), None)
-            if not output_var:
-                output_var = result_path_outputs.get((ptr_id, 'serialized'))
-            assert output_var
-
-            result_query.target_list.append(
-                pgast.ResTarget(
-                    name=col_name,
-                    val=output_var,
-                )
-            )
-            result_table.columns.append(
-                context.Column(
-                    name=col_name,
-                    kind=context.ColumnByName(reference_as=col_name),
-                )
-            )
-
-        with ctx.empty() as sctx:
-            sctx.scope.tables.append(result_table)
-
-            tmp_ctes = result_query.ctes
-            result_query.ctes = None
-            result_query = pgast.SelectStmt(
-                from_clause=[
-                    pgast.RangeSubselect(
-                        subquery=result_query,
-                    )
-                ],
-                target_list=[],
-            )
-            result_query.ctes = tmp_ctes
-            result_table = context.Table()
-
-            for t in stmt.returning_list:
-                targets, columns = pg_res_expr.resolve_ResTarget(t, ctx=sctx)
-                result_query.target_list.extend(targets)
-                result_table.columns.extend(columns)
-
+        return returning_rows(
+            stmt.returning_list,
+            subject_pointers,
+            ir_stmt.expr,
+            result_query,
+            result_table,
+            ctx,
+        )
     else:
         result_query.target_list.clear()
+        return result_query, result_table
 
-    return result_query, result_table
+
+def returning_rows(
+    returning_list: List[pgast.ResTarget],
+    subject_pointers: List[Tuple[str, s_pointers.Pointer]],
+    ir_expr: irast.SetE,
+    inserted_query: pgast.Query,
+    inserted_table: context.Table,
+    ctx: context.ResolverContextLevel,
+) -> Tuple[pgast.Query, context.Table]:
+    # extract pointers to be used in returning columns
+
+    # TODO: this target list is [ROW(...)] that contains all pointers.
+    # This is really inconvenient to use onwards, so I'm discarding it here.
+    # I'm not sure it will always have this form (or why it has it).
+    inserted_query.target_list.clear()
+
+    assert isinstance(ir_expr.expr, irast.SelectStmt)
+    result_id = ir_expr.expr.result.path_id
+    result_rvar_source = inserted_query.path_rvar_map[result_id, 'source']
+    result_path_outputs = result_rvar_source.query.path_outputs
+
+    if map := getattr(result_rvar_source.query, 'view_path_id_map', None):
+        result_id = pgpathctx.map_path_id(result_id, map)
+
+    for col_name, ptr in subject_pointers:
+        ptr_id = get_ptr_id(result_id, ptr, ctx)
+
+        output_var = result_path_outputs.get((ptr_id, 'value'), None)
+        if not output_var:
+            output_var = result_path_outputs.get((ptr_id, 'serialized'))
+        assert output_var
+
+        inserted_query.target_list.append(
+            pgast.ResTarget(
+                name=col_name,
+                val=output_var,
+            )
+        )
+        inserted_table.columns.append(
+            context.Column(
+                name=col_name,
+                kind=context.ColumnByName(reference_as=col_name),
+            )
+        )
+
+    with ctx.empty() as sctx:
+        sctx.scope.tables.append(inserted_table)
+
+        tmp_ctes = inserted_query.ctes
+        inserted_query.ctes = None
+        inserted_query = pgast.SelectStmt(
+            from_clause=[
+                pgast.RangeSubselect(
+                    subquery=inserted_query,
+                )
+            ],
+            target_list=[],
+        )
+        inserted_query.ctes = tmp_ctes
+        inserted_table = context.Table()
+
+        for t in returning_list:
+            targets, columns = pg_res_expr.resolve_ResTarget(t, ctx=sctx)
+            inserted_query.target_list.extend(targets)
+            inserted_table.columns.extend(columns)
+    return inserted_query, inserted_table
 
 
-def get_insert_element_for_pointer(
+def construct_insert_element_for_ptr(
     source_ql: qlast.PathElement,
     ptr_name: str,
     ptr: s_pointers.Pointer,
