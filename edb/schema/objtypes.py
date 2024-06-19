@@ -32,6 +32,7 @@ from . import abc as s_abc
 from . import annos as s_anno
 from . import constraints
 from . import delta as sd
+from . import functions as s_func
 from . import inheriting
 from . import links
 from . import properties
@@ -560,6 +561,28 @@ class CreateObjectType(
         else:
             return super()._get_ast_node(schema, context)
 
+    def _create_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if (
+            not context.canonical
+            and self.scls.is_material_object_type(schema)
+        ):
+            # Propagate changes to any functions that depend on
+            # ancestor types in order to recompute the inheritance
+            # situation.
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action='creating an object type',
+                include_ancestors=True,
+                filter=s_func.Function,
+            )
+
+        return super()._create_finalize(schema, context)
+
 
 class RenameObjectType(
     ObjectTypeCommand,
@@ -701,3 +724,26 @@ class DeleteObjectType(
             return None
         else:
             return super()._get_ast(schema, context, parent_node=parent_node)
+
+    def _delete_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if (
+            not context.canonical
+            and self.scls.is_material_object_type(schema)
+        ):
+            # Propagate changes to any functions that depend on
+            # ancestor types in order to recompute the inheritance
+            # situation.
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action='deleting an object type',
+                include_self=False,
+                include_ancestors=True,
+                filter=s_func.Function,
+            )
+
+        return super()._delete_finalize(schema, context)
