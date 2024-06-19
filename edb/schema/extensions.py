@@ -74,6 +74,12 @@ class ExtensionPackage(
         compcoef=0.9,
     )
 
+    sql_setup_script = so.SchemaField(
+        str, default=None, compcoef=0.9)
+
+    sql_teardown_script = so.SchemaField(
+        str, default=None, compcoef=0.9)
+
     ext_module = so.SchemaField(
         str, default=None, compcoef=0.9)
 

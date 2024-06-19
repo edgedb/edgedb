@@ -914,7 +914,8 @@ class CreateExtensionPackageBodyBlock(NestedQLBlock):
     @property
     def allowed_fields(self) -> typing.FrozenSet[str]:
         return frozenset(
-            {'internal', 'ext_module', 'sql_extensions', 'dependencies'}
+            {'internal', 'ext_module', 'sql_extensions', 'dependencies',
+             'sql_setup_script', 'sql_teardown_script'}
         )
 
     @property

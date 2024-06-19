@@ -42,10 +42,29 @@ class TestDDLExtensions(tb.DDLTestCase):
         )
         await self.assert_query_result(
             '''
+                select ltree::asdf(
+                  <ltree::ltree><json><ltree::ltree>'foo.bar');
+            ''',
+            [3],
+        )
+        await self.assert_query_result(
+            '''
                 select <str>(
                   <ltree::ltree><json><ltree::ltree>'foo.bar');
             ''',
             ['foo.bar'],
+        )
+        await self.assert_query_result(
+            '''
+                select <ltree::ltree>'foo.bar' = <ltree::ltree>'foo.baz';
+            ''',
+            [False],
+        )
+        await self.assert_query_result(
+            '''
+                select <ltree::ltree>'foo.bar' != <ltree::ltree>'foo.baz';
+            ''',
+            [True],
         )
         await self.assert_query_result(
             '''
@@ -79,8 +98,23 @@ class TestDDLExtensions(tb.DDLTestCase):
         create extension package ltree VERSION '1.0' {
           set ext_module := "ltree";
           set sql_extensions := ["ltree >=1.0,<10.0"];
+
+          set sql_setup_script := $$
+            CREATE FUNCTION edgedb.asdf(val edgedb.ltree) RETURNS int4
+             LANGUAGE sql
+             STRICT
+             IMMUTABLE
+            AS $function$
+            SELECT edgedb.nlevel(val) + 1
+            $function$;
+          $$;
+
+          set sql_teardown_script := $$
+            DROP FUNCTION edgedb.asdf(edgedb.ltree);
+          $$;
+
           create module ltree;
-          create scalar type ltree::ltree {
+          create scalar type ltree::ltree extending anyscalar {
             set sql_type := "ltree";
           };
           create cast from ltree::ltree to std::str {
@@ -113,6 +147,9 @@ class TestDDLExtensions(tb.DDLTestCase):
           };
           create function ltree::nlevel(v: ltree::ltree) -> std::int32 {
             using sql function 'edgedb.nlevel';
+          };
+          create function ltree::asdf(v: ltree::ltree) -> std::int32 {
+            using sql function 'edgedb.asdf';
           };
         };
         ''')
