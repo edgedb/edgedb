@@ -237,7 +237,7 @@ impl<C: Connector> Drop for ConnHandle<C> {
     fn drop(&mut self) {
         match &*self.conn.inner.borrow() {
             ConnInner::Connected(c, locked) => {
-                debug_assert_eq!(locked.get(), LockState::Unlocked);
+                debug_assert_eq!(locked.get(), LockState::Locked);
                 locked.set(if self.poison.get() {
                     LockState::Poisoned
                 } else {
