@@ -7333,6 +7333,10 @@ class CreateExtensionPackage(
                 'internal': self.scls.get_internal(schema),
                 'ext_module': ext_module and str(ext_module),
                 'sql_extensions': list(self.scls.get_sql_extensions(schema)),
+                'sql_setup_script': self.scls.get_sql_setup_script(schema),
+                'sql_teardown_script': (
+                    self.scls.get_sql_teardown_script(schema)
+                ),
                 'dependencies': list(self.scls.get_dependencies(schema)),
             }
         }
@@ -7500,6 +7504,9 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
         for ext_spec in package.get_sql_extensions(schema):
             self._create_extension(ext_spec)
 
+        if script := package.get_sql_setup_script(schema):
+            self.pgops.add(dbops.Query(script))
+
         return schema
 
     def _create_innards(
@@ -7534,6 +7541,9 @@ class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
             )
 
         schema = super().apply(schema, context)
+
+        if script := package.get_sql_teardown_script(schema):
+            self.pgops.add(dbops.Query(script))
 
         for ext_spec in package.get_sql_extensions(schema):
             ext, _ = _parse_spec(ext_spec)

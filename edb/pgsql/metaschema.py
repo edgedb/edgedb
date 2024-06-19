@@ -5080,6 +5080,8 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
             )
         ''',
         'ext_module': "(e.value->>'ext_module')",
+        'sql_setup_script': "(e.value->>'sql_setup_script')",
+        'sql_teardown_script': "(e.value->>'sql_teardown_script')",
         'computed_fields': 'ARRAY[]::text[]',
         'builtin': "(e.value->>'builtin')::bool",
         'internal': "(e.value->>'internal')::bool",
