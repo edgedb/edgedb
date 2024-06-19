@@ -18,6 +18,7 @@
 
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 try:
     import asyncpg
@@ -238,3 +239,44 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 ]
             ),
         )
+
+    async def test_sql_dml_insert_11(self):
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            'invalid input syntax for type uuid',
+        ):
+            await self.scon.execute(
+                '''
+                INSERT INTO "Document" (title, owner_id)
+                VALUES
+                    ('Briefing', 'bad uuid')
+                '''
+            )
+        print(self.scon.is_closed())
+        print('\n\n\n\n\n\n\n\n')
+
+    @test.xfail('unimplemented')
+    async def test_sql_dml_insert_12(self):
+        with self.assertRaisesRegex(
+            asyncpg.InternalServerError,
+            'constraint error? foreign key error?',
+        ):
+            await self.scon.execute(
+                '''
+                INSERT INTO "Document" (title, owner_id)
+                VALUES
+                    ('Report', '343a6c20-2e3b-11ef-8798-ebce402e7d3f')
+                '''
+            )
+
+    async def test_sql_dml_insert_13(self):
+        with self.assertRaisesRegex(
+            asyncpg.exceptions.CannotCoerceError,
+            'cannot cast type boolean to uuid',
+        ):
+            await self.scon.execute(
+                '''
+                INSERT INTO "Document" (title, owner_id)
+                VALUES ('Briefing', FALSE)
+                '''
+            )
