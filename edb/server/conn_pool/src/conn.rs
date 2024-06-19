@@ -145,7 +145,7 @@ impl<C: Connector> Conn<C> {
             ConnInner::Connected(c, ..) => Poll::Ready(Ok(())),
             ConnInner::Connecting(f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
                 Ok(c) => {
-                    *lock = ConnInner::Connected(c, Cell::new(LockState::Unlocked));
+                    *lock = ConnInner::Connected(c, Cell::new(LockState::Locked));
                     Ok(())
                 }
                 Err(err) => {
