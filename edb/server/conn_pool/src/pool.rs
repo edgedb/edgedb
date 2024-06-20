@@ -1,10 +1,9 @@
 use crate::{
     algo::{HasPoolAlgorithmData, PoolAlgoTargetData, PoolConstraints, VisitPoolAlgoData},
     block::Blocks,
-    conn::{self, ConnHandle, ConnResult, Connector},
+    conn::{ConnHandle, ConnResult, Connector},
 };
-use std::{cell::Cell, cmp::Ordering, time::Duration};
-use tracing::trace;
+use std::{cell::Cell, time::Duration};
 
 #[cfg(test)]
 use mock_instant::thread_local::Instant;

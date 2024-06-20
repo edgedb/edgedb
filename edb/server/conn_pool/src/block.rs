@@ -1,7 +1,6 @@
 use crate::{
-    algo::{HasPoolAlgorithmData, PoolAlgoTargetData, PoolAlgorithmData, VisitPoolAlgoData},
+    algo::{HasPoolAlgorithmData, VisitPoolAlgoData},
     conn::*,
-    Pool,
 };
 use scopeguard::defer;
 use std::{
