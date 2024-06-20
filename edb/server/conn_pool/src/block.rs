@@ -220,7 +220,6 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         if cfg!(debug_assertions) {
             let mut total = 0;
             for block in self.map.borrow().values() {
-                eprintln!("{} {}", block.db_name, block.count.get());
                 block.check_consistency();
                 total += block.conn_count();
             }

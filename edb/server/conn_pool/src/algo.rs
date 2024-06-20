@@ -76,43 +76,54 @@ impl PoolConstraints {
         it.with_algo_data_all(|name, data| {
             let count = data.with_algo_data(|data| data.max_concurrent + data.max_waiters);
             total_requested += count;
-            if count > 0 {
-                total_target += 1;
-            }
+            total_target += 1;
             trace!("{name}: {data:?}");
         });
 
+        // Empty pool, no math
+        if total_target == 0 {
+            return;
+        }
+
         // If we are unconstrained, it's easy.
         if total_requested <= self.max {
+            // The "fair share" and "spare share"
+
             let spare = self.max - total_requested;
             let mut allocated = 0;
 
             it.with_algo_data_all(|name, data| {
                 let target_size =
                     data.with_algo_data(|data| data.max_concurrent + data.max_waiters);
-                let spare_for_target = (spare as f32
-                    * (target_size as f32 / total_requested as f32))
-                    .min(2.0) as usize;
+
+                // Give everyone what they requested, plus a share of the spare capacity
+                // TODO: there will be some leftover capacity here
+                let spare_for_target = spare as f32 / total_target as f32;
+                let spare_for_target = (spare_for_target as usize).min(2);
                 data.set_target(target_size + spare_for_target);
                 allocated += target_size + spare_for_target;
+
                 trace!(
-                    "{name}: Target pool size: {}",
+                    "{name}: Target pool size: {} target={target_size} spare={spare_for_target}",
                     target_size + spare_for_target
                 );
             });
 
-            debug_assert!(allocated <= self.max);
+            debug_assert!(allocated <= self.max, "Attempted to allocate more than we were allowed: {allocated} > {} (req={total_requested}, target={total_target}, spare={spare})", self.max);
             return;
         }
 
         // Once we start getting constrained, connections will compete for resources and require
         // us to use the various stats to determine which one is "more important".
         let min = total_target / self.max;
+        it.with_algo_data_all(|name, data| {
+            data.set_target(min);
+        });
 
-        // No starvation
-        if total_target <= self.max {}
+        // // No starvation
+        // if total_target <= self.max {}
 
-        // Starvation
+        // // Starvation
     }
 
     /// Identify the most appealing victim for pool theft.

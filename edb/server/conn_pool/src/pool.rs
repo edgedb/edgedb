@@ -173,12 +173,16 @@ impl<C: Connector> Pool<C> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test::BasicConnector;
+    use std::rc::Rc;
 
     use super::*;
+    use crate::test::BasicConnector;
+    use test_log::test;
+    use tokio::task::LocalSet;
+    use tracing::trace;
 
-    #[tokio::test]
-    async fn test_pool() {
+    #[test(tokio::test)]
+    async fn test_pool_basic() {
         let config = PoolConfig::suggested_default_for(10);
 
         let pool = Pool::new(config, BasicConnector::no_delay());
@@ -187,5 +191,31 @@ mod tests {
 
         drop(conn1);
         drop(conn2);
+    }
+
+    #[test(tokio::test)]
+    async fn test_pool_large() {
+        let config = PoolConfig::suggested_default_for(10);
+
+        let local = LocalSet::new();
+        local
+            .run_until(async {
+                let mut tasks = vec![];
+                let pool = Rc::new(Pool::new(config, BasicConnector::no_delay()));
+                for i in 0..100 {
+                    let pool = pool.clone();
+                    tasks.push(tokio::task::spawn_local(async move {
+                        trace!("In local task");
+                        let db = format!("db-{}", i % 10);
+                        let conn = pool.acquire(&db).await.unwrap();
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                        drop(conn);
+                    }));
+                }
+                for task in tasks {
+                    task.await.unwrap();
+                }
+            })
+            .await;
     }
 }
