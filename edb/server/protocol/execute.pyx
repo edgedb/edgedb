@@ -259,6 +259,7 @@ async def execute(
             await tenant.on_before_create_db_from_template(
                 query_unit.create_db_template,
                 dbv.dbname,
+                query_unit.create_db_mode,
             )
         if query_unit.drop_db:
             await tenant.on_before_drop_db(

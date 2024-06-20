@@ -1224,9 +1224,13 @@ class DatabaseTestCase(ConnectedTestCase):
             base_db_name, _, _ = dbname.rpartition('_')
 
             if cls.get_setup_script():
+                await admin_conn.execute('''
+                    configure session set __internal_testmode := true;
+                ''')
+
                 create_command = (
-                    f'CREATE DATA BRANCH {qlquote.quote_ident(dbname)}'
-                    f' FROM {qlquote.quote_ident(base_db_name)}'
+                    f'CREATE TEMPLATE BRANCH {qlquote.quote_ident(dbname)}'
+                    f' FROM {qlquote.quote_ident(base_db_name)};'
                 )
             else:
                 create_command = (
