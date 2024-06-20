@@ -29,7 +29,7 @@ impl ConnMetrics {
         Self { counts }
     }
 
-    fn set(&self, to: ConnStateVariant) {
+    pub fn set(&self, to: ConnStateVariant) {
         let mut lock = self.counts.borrow_mut();
         lock[to as usize] += 1;
         trace!("None->{to:?} ({})", lock[to as usize]);
@@ -48,6 +48,12 @@ impl ConnMetrics {
         let mut lock = self.counts.borrow_mut();
         lock[from as usize] -= 1;
         trace!("{from:?}->None ({time:?})");
+    }
+
+    fn remove_final(&self, from: ConnStateVariant) {
+        let mut lock = self.counts.borrow_mut();
+        lock[from as usize] -= 1;
+        trace!("{from:?}->None");
     }
 }
 
@@ -146,10 +152,9 @@ impl<C: Connector> Conn<C> {
         });
     }
 
-    pub fn reopen(&self, connector: &C, from: &ConnMetrics, to: &ConnMetrics, db: &str) {
+    pub fn reopen(&self, connector: &C, to: &ConnMetrics, db: &str) {
         self.transition(|inner| match inner {
             ConnInner::Active(t, conn, ..) => {
-                from.remove(ConnStateVariant::Active, t.elapsed());
                 to.set(ConnStateVariant::Connecting);
                 let f = connector.reconnect(conn, db).boxed_local();
                 ConnInner::Connecting(Instant::now(), f)
@@ -228,6 +233,21 @@ impl<C: Connector> Conn<C> {
             other => (other, false),
         };
         res
+    }
+
+    pub fn variant(&self) -> ConnStateVariant {
+        (&*self.inner.borrow()).into()
+    }
+
+    pub fn untrack(&self, metrics: &ConnMetrics) {
+        match &*self.inner.borrow() {
+            ConnInner::Active(t, _)
+            | ConnInner::Idle(t, _)
+            | ConnInner::Poisoned(t, _)
+            | ConnInner::Connecting(t, _)
+            | ConnInner::Disconnecting(t, _) => metrics.remove(self.variant(), t.elapsed()),
+            other => metrics.remove_final(other.into()),
+        }
     }
 }
 

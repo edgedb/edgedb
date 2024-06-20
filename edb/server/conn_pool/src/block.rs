@@ -91,7 +91,12 @@ impl<C: Connector, D: Default> Block<C, D> {
                 self.conn_count(),
                 self.conns.borrow().len(),
                 "Blocks failed consistency check. Total connection count was wrong."
-            )
+            );
+            let conn_metrics = ConnMetrics::default();
+            for conn in &*self.conns.borrow() {
+                conn_metrics.set(conn.variant())
+            }
+            assert_eq!(self.metrics(), conn_metrics.into());
         }
     }
 
@@ -116,6 +121,7 @@ impl<C: Connector, D: Default> Block<C, D> {
             .position(|conn| conn.try_lock(&self.state.metrics));
         if let Some(index) = pos {
             let conn = lock.remove(index);
+            conn.untrack(&self.state.metrics);
             self.count.dec();
             return Some(conn);
         }
@@ -163,6 +169,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         conn.close(connector, &self.state.metrics);
         poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics)).await?;
         self.conns.borrow_mut().retain(|other| other != &conn);
+        conn.untrack(&self.metrics());
         self.count.dec();
         Ok(())
     }
@@ -180,12 +187,7 @@ impl<C: Connector, D: Default> Block<C, D> {
             .expect("Could not acquire a connection");
         to.conns.borrow_mut().push(conn.clone());
         to.count.inc();
-        conn.reopen(
-            connector,
-            &from.state.metrics,
-            &to.state.metrics,
-            &to.db_name,
-        );
+        conn.reopen(connector, &to.state.metrics, &to.db_name);
         poll_fn(|cx| conn.poll_ready(cx, &to.state.metrics)).await?;
         Ok(to.conn(conn))
     }
@@ -442,10 +444,7 @@ mod tests {
         );
         blocks.close_one(&connector, "db").await?;
         blocks.close_one(&connector, "db").await?;
-        assert_eq!(
-            blocks.metrics("db"),
-            ConnMetrics::with(ConnStateVariant::Idle, 0).into()
-        );
+        assert_eq!(blocks.metrics("db"), ConnMetrics::default().into());
         assert_eq!(0, blocks.block_count());
         Ok(())
     }
