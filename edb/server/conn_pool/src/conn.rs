@@ -1,5 +1,4 @@
 use crate::waitqueue::WaitQueue;
-use derive_more::Display;
 use futures::FutureExt;
 use std::{
     borrow::Cow,
