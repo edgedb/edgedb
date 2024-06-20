@@ -246,7 +246,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
             assert_eq!(
                 total,
                 self.count.get(),
-                "Blocks failed consistency check. Total connection count ({total}) was wrong."
+                "Blocks failed consistency check. Total connection count was wrong."
             );
         }
     }
@@ -289,7 +289,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
 
     pub async fn create(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
         consistency_check!(self);
-        defer!(self.count.inc());
+        self.count.inc();
         let block = self.block(db);
         block.create(connector).await
     }
@@ -303,9 +303,12 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     pub async fn create_if_needed(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
         consistency_check!(self);
         let block = self.block(db);
+        // Hack -- this ensures we don't lose the count
+        // while we are off in the async creation.
+        self.count.inc();
         let (new, c) = block.create_if_needed(connector).await?;
-        if new {
-            self.count.inc()
+        if !new {
+            self.count.dec()
         }
         Ok(c)
     }
@@ -420,13 +423,19 @@ mod tests {
             blocks.metrics("db").summary(),
             ConnMetricsSummary::with(ConnStateVariant::Idle, 3).into()
         );
-        assert_eq!(blocks.metrics("db2").summary(), ConnMetricsSummary::default());
+        assert_eq!(
+            blocks.metrics("db2").summary(),
+            ConnMetricsSummary::default()
+        );
         blocks.steal(&connector, "db2", "db").await?;
         blocks.steal(&connector, "db2", "db").await?;
         blocks.steal(&connector, "db2", "db").await?;
         // Block hasn't been GC'd yet
         assert_eq!(2, blocks.block_count());
-        assert_eq!(blocks.metrics("db").summary(), ConnMetricsSummary::default());
+        assert_eq!(
+            blocks.metrics("db").summary(),
+            ConnMetricsSummary::default()
+        );
         assert_eq!(
             blocks.metrics("db2").summary(),
             ConnMetricsSummary::with(ConnStateVariant::Idle, 3).into()
@@ -448,7 +457,10 @@ mod tests {
         );
         blocks.close_one(&connector, "db").await?;
         blocks.close_one(&connector, "db").await?;
-        assert_eq!(blocks.metrics("db").summary(), ConnMetricsSummary::default());
+        assert_eq!(
+            blocks.metrics("db").summary(),
+            ConnMetricsSummary::default()
+        );
         assert_eq!(0, blocks.block_count());
         Ok(())
     }

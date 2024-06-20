@@ -202,14 +202,15 @@ mod tests {
         local
             .run_until(async {
                 let mut tasks = vec![];
-                let pool = Rc::new(Pool::new(config, BasicConnector::no_delay()));
+                let pool = Rc::new(Pool::new(config, BasicConnector::delay()));
                 for i in 0..100 {
                     let pool = pool.clone();
                     let task = tokio::task::spawn_local(async move {
                         trace!("In local task");
                         let db = format!("db-{}", i % 10);
                         let conn = pool.acquire(&db).await?;
-                        tokio::time::sleep(Duration::from_millis(10)).await;
+                        tokio::task::yield_now().await;
+                        mock_instant::thread_local::MockClock::advance(Duration::from_millis(500));
                         drop(conn);
                         Ok(())
                     });

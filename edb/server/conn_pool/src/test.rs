@@ -1,5 +1,7 @@
 //! Test utilities.
-use std::future::Future;
+use std::{future::Future, time::Duration};
+
+use mock_instant::thread_local::MockClock;
 
 use crate::conn::{ConnResult, Connector};
 
@@ -12,6 +14,9 @@ impl BasicConnector {
     pub fn no_delay() -> Self {
         BasicConnector { delay: false }
     }
+    pub fn delay() -> Self {
+        BasicConnector { delay: true }
+    }
 }
 
 impl Connector for BasicConnector {
@@ -20,7 +25,8 @@ impl Connector for BasicConnector {
         let delay = self.delay;
         async move {
             if delay {
-                tokio::task::yield_now().await
+                tokio::task::yield_now().await;
+                MockClock::advance(Duration::from_millis(100));
             }
             Ok(())
         }

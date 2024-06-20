@@ -31,7 +31,7 @@ impl RollingAverage {
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct ConnMetricsSummary {
-    summary: [usize; 8]
+    summary: [usize; 8],
 }
 
 impl ConnMetricsSummary {
@@ -45,18 +45,20 @@ impl ConnMetricsSummary {
 #[derive(Debug, Default)]
 pub struct ConnMetrics {
     counts: RefCell<[usize; 8]>,
-    times: RefCell<[RollingAverage; 8]>
+    times: RefCell<[RollingAverage; 8]>,
 }
 
 impl ConnMetrics {
     pub fn summary(&self) -> ConnMetricsSummary {
-        ConnMetricsSummary { summary: *self.counts.borrow() }
+        ConnMetricsSummary {
+            summary: *self.counts.borrow(),
+        }
     }
 
     pub fn set(&self, to: ConnStateVariant) {
         let mut lock = self.counts.borrow_mut();
         lock[to as usize] += 1;
-        trace!("None->{to:?} ({})", lock[to as usize]);
+        // trace!("None->{to:?} ({})", lock[to as usize]);
     }
 
     fn transition(&self, from: ConnStateVariant, to: ConnStateVariant, time: Duration) {
@@ -71,13 +73,13 @@ impl ConnMetrics {
         let mut lock = self.counts.borrow_mut();
         lock[from as usize] -= 1;
         self.times.borrow_mut()[from as usize].accum(time.as_millis() as _);
-        trace!("{from:?}->None ({time:?})");
+        // trace!("{from:?}->None ({time:?})");
     }
 
     fn remove_final(&self, from: ConnStateVariant) {
         let mut lock = self.counts.borrow_mut();
         lock[from as usize] -= 1;
-        trace!("{from:?}->None");
+        // trace!("{from:?}->None");
     }
 }
 
@@ -177,7 +179,7 @@ impl<C: Connector> Conn<C> {
 
     pub fn reopen(&self, connector: &C, to: &ConnMetrics, db: &str) {
         self.transition(|inner| match inner {
-            ConnInner::Active(t, conn, ..) => {
+            ConnInner::Active(_, conn, ..) => {
                 to.set(ConnStateVariant::Connecting);
                 let f = connector.reconnect(conn, db).boxed_local();
                 ConnInner::Connecting(Instant::now(), f)
@@ -193,7 +195,7 @@ impl<C: Connector> Conn<C> {
     ) -> Poll<ConnResult<()>> {
         let mut lock = self.inner.borrow_mut();
         match &mut *lock {
-            ConnInner::Idle(c, ..) => Poll::Ready(Ok(())),
+            ConnInner::Idle(_, ..) => Poll::Ready(Ok(())),
             ConnInner::Connecting(t, f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
                 Ok(c) => {
                     metrics.transition(
