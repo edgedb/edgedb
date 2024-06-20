@@ -105,7 +105,7 @@ impl<C: Connector, D: Default> Block<C, D> {
 
     fn try_acquire_used(&self) -> Option<Conn<C>> {
         for conn in &*self.conns.borrow() {
-            if conn.try_lock() {
+            if conn.try_lock(&self.state.metrics) {
                 return Some(conn.clone());
             }
         }
@@ -115,7 +115,9 @@ impl<C: Connector, D: Default> Block<C, D> {
     fn try_take_used(&self) -> Option<Conn<C>> {
         consistency_check!(self);
         let mut lock = self.conns.borrow_mut();
-        let pos = lock.iter().position(|conn| conn.try_lock());
+        let pos = lock
+            .iter()
+            .position(|conn| conn.try_lock(&self.state.metrics));
         if let Some(index) = pos {
             let conn = lock.remove(index);
             self.count.dec();
@@ -124,22 +126,13 @@ impl<C: Connector, D: Default> Block<C, D> {
         None
     }
 
-    async fn reconnect(&self, connector: &C, conn: Conn<C>) -> ConnResult<ConnHandle<C>> {
-        consistency_check!(self);
-        self.conns.borrow_mut().push(conn.clone());
-        self.count.inc();
-        conn.reopen(connector, &self.db_name);
-        poll_fn(|cx| conn.poll_ready(cx)).await?;
-        Ok(self.conn(conn))
-    }
-
     /// Creates a connection from this block.
     async fn create(&self, connector: &C) -> ConnResult<ConnHandle<C>> {
         consistency_check!(self);
-        let conn = Conn::new(connector.connect(&self.db_name));
+        let conn = Conn::new(connector.connect(&self.db_name), &self.state.metrics);
         self.conns.borrow_mut().push(conn.clone());
         self.count.inc();
-        poll_fn(|cx| conn.poll_ready(cx)).await?;
+        poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics)).await?;
         Ok(self.conn(conn))
     }
 
@@ -171,11 +164,34 @@ impl<C: Connector, D: Default> Block<C, D> {
         let conn = self
             .try_acquire_used()
             .expect("Could not acquire a connection");
-        conn.close(connector);
-        poll_fn(|cx| conn.poll_ready(cx)).await?;
+        conn.close(connector, &self.state.metrics);
+        poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics)).await?;
         self.conns.borrow_mut().retain(|other| other != &conn);
         self.count.dec();
         Ok(())
+    }
+
+    async fn reconnect(
+        from: &Block<C, D>,
+        to: &Block<C, D>,
+        connector: &C,
+    ) -> ConnResult<ConnHandle<C>> {
+        consistency_check!(from);
+        consistency_check!(to);
+
+        let conn = from
+            .try_take_used()
+            .expect("Could not acquire a connection");
+        to.conns.borrow_mut().push(conn.clone());
+        to.count.inc();
+        conn.reopen(
+            connector,
+            &from.state.metrics,
+            &to.state.metrics,
+            &to.db_name,
+        );
+        poll_fn(|cx| conn.poll_ready(cx, &to.state.metrics)).await?;
+        Ok(to.conn(conn))
     }
 }
 
@@ -210,15 +226,6 @@ impl<C: Connector, D: HasPoolAlgorithmData + Default> VisitPoolAlgoData<D> for B
 }
 
 impl<C: Connector, D: Default> Blocks<C, D> {
-    pub fn new(block: Block<C, D>) -> Self {
-        let mut map = HashMap::new();
-        map.insert(block.db_name.clone(), Rc::new(block));
-        Self {
-            map: RefCell::new(map),
-            count: Cell::default(),
-        }
-    }
-
     #[track_caller]
     pub fn check_consistency(&self) {
         if cfg!(debug_assertions) {
@@ -226,6 +233,13 @@ impl<C: Connector, D: Default> Blocks<C, D> {
             for block in self.map.borrow().values() {
                 block.check_consistency();
                 total += block.conn_count();
+            }
+            if total != self.count.get() {
+                if tracing::enabled!(tracing::Level::TRACE) {
+                    for block in self.map.borrow().values() {
+                        trace!("{}: {}", block.db_name, block.conn_count());
+                    }
+                }
             }
             assert_eq!(
                 total,
@@ -306,16 +320,9 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     }
 
     pub async fn steal(&self, connector: &C, db: &str, from: &str) -> ConnResult<ConnHandle<C>> {
-        consistency_check!(self);
-        let block = self.block(from);
-        let conn = block
-            .try_take_used()
-            .expect("Could not acquire a connection");
-        if block.is_empty() {
-            self.map.borrow_mut().remove(from);
-        }
-        let block = self.block(db);
-        block.reconnect(connector, conn).await
+        let from_block = self.block(from);
+        let to_block = self.block(db);
+        Block::reconnect(&from_block, &to_block, connector).await
     }
 }
 
@@ -394,7 +401,8 @@ mod tests {
         blocks.steal(&connector, "db2", "db").await?;
         blocks.steal(&connector, "db2", "db").await?;
         blocks.steal(&connector, "db2", "db").await?;
-        assert_eq!(1, blocks.block_count());
+        // Block hasn't been GC'd yet
+        assert_eq!(2, blocks.block_count());
         assert_eq!(blocks.stats("db"), ConnStats::connected(0));
         assert_eq!(blocks.stats("db2"), ConnStats::connected(3));
         Ok(())

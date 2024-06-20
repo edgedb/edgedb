@@ -17,6 +17,7 @@ itertools = "0"
 thiserror = "1"
 tracing = "0"
 tracing-subscriber = "0"
+strum = { version = "0.26", features = ["derive"] }
 
 [dependencies.tokio]
 version = "1"
