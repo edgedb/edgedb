@@ -30,6 +30,7 @@ features = ["full"]
 pretty_assertions = "1.2.0"
 test-log = { version = "0", features = ["trace"] }
 mock_instant = "0"
+anyhow = "1"
 
 [dev-dependencies.tokio]
 version = "1"

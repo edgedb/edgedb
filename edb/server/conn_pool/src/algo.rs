@@ -24,6 +24,8 @@ pub trait VisitPoolAlgoData<D: HasPoolAlgorithmData> {
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct PoolAlgorithmData {
+    active: usize,
+    idle: usize,
     waiters: usize,
     max_waiters: usize,
     oldest_waiter_ms: usize,

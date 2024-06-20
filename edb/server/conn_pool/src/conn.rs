@@ -1,4 +1,5 @@
 use crate::waitqueue::WaitQueue;
+use derive_more::Display;
 use futures::FutureExt;
 use std::{
     borrow::Cow,
@@ -61,10 +62,13 @@ impl ConnStats {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ConnError {
+    #[error("ConnectionIdentityIncorrect")]
     ConnectionIdentityIncorrect,
+    #[error("Shutdown")]
     Shutdown,
+    #[error("{0}")]
     Other(Cow<'static, str>),
 }
 

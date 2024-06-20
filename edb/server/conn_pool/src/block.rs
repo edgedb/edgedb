@@ -321,11 +321,11 @@ mod tests {
     use pretty_assertions::assert_eq;
     use test_log::test;
     use tokio::task::LocalSet;
-
     use super::*;
+    use anyhow::{Ok, Result};
 
     #[test(tokio::test)]
-    async fn test_block() {
+    async fn test_block() -> Result<()> {
         let connector = BasicConnector::no_delay();
         let block = Rc::new(Block::<BasicConnector>::new("db"));
         let conn = block
@@ -338,8 +338,9 @@ mod tests {
         local.spawn_local(async move {
             let connector = BasicConnector::no_delay();
             assert_eq!(block2.stats(), ConnStats::connected(1));
-            block2.queue().await.expect("Expected a connection");
+            block2.queue().await?;
             assert_eq!(block2.stats(), ConnStats::connected(1));
+            anyhow::Ok(())
         });
         local.spawn_local(async move {
             tokio::task::yield_now().await;
@@ -347,24 +348,16 @@ mod tests {
         });
         local.await;
         assert_eq!(block.stats(), ConnStats::connected(1));
+        Ok(())
     }
 
     #[test(tokio::test)]
-    async fn test_block_parallel_acquire() {
+    async fn test_block_parallel_acquire() -> Result<()> {
         let connector = BasicConnector::no_delay();
         let block = Rc::new(Block::<BasicConnector>::new("db"));
-        block
-            .create(&connector)
-            .await
-            .expect("Expected a connection");
-        block
-            .create(&connector)
-            .await
-            .expect("Expected a connection");
-        block
-            .create(&connector)
-            .await
-            .expect("Expected a connection");
+        block.create(&connector).await?;
+        block.create(&connector).await?;
+        block.create(&connector).await?;
         assert_eq!(block.stats(), ConnStats::connected(3));
 
         let local = LocalSet::new();
@@ -375,68 +368,47 @@ mod tests {
                 for j in 0..i % 10 {
                     tokio::task::yield_now().await;
                 }
-                block2.queue().await.expect("Expected a connection");
+                block2.queue().await
             });
         }
         local.await;
         assert_eq!(block.stats(), ConnStats::connected(3));
+        Ok(())
     }
 
     #[test(tokio::test)]
-    async fn test_steal() {
+    async fn test_steal() -> Result<()> {
         let connector = BasicConnector::no_delay();
         let blocks = Blocks::<_, ()>::default();
         assert_eq!(0, blocks.block_count());
-        blocks
-            .create(&connector, "db")
-            .await
-            .expect("Expected a connection");
-        blocks
-            .create(&connector, "db")
-            .await
-            .expect("Expected a connection");
-        blocks
-            .create(&connector, "db")
-            .await
-            .expect("Expected a connection");
+        blocks.create(&connector, "db").await?;
+        blocks.create(&connector, "db").await?;
+        blocks.create(&connector, "db").await?;
         assert_eq!(1, blocks.block_count());
         assert_eq!(blocks.stats("db"), ConnStats::connected(3));
         assert_eq!(blocks.stats("db2"), ConnStats::connected(0));
-        blocks
-            .steal(&connector, "db2", "db")
-            .await
-            .expect("Expected a connection");
-        blocks
-            .steal(&connector, "db2", "db")
-            .await
-            .expect("Expected a connection");
-        blocks
-            .steal(&connector, "db2", "db")
-            .await
-            .expect("Expected a connection");
+        blocks.steal(&connector, "db2", "db").await?;
+        blocks.steal(&connector, "db2", "db").await?;
+        blocks.steal(&connector, "db2", "db").await?;
         assert_eq!(1, blocks.block_count());
         assert_eq!(blocks.stats("db"), ConnStats::connected(0));
         assert_eq!(blocks.stats("db2"), ConnStats::connected(3));
+        Ok(())
     }
 
     #[test(tokio::test)]
-    async fn test_close() {
+    async fn test_close() -> Result<()> {
         let connector = BasicConnector::no_delay();
         let blocks = Blocks::<_, ()>::default();
         assert_eq!(0, blocks.block_count());
-        blocks
-            .create(&connector, "db")
-            .await
-            .expect("Expected a connection");
-        blocks
-            .create(&connector, "db")
-            .await
-            .expect("Expected a connection");
+        blocks.create(&connector, "db").await?;
+        blocks.create(&connector, "db").await?;
         assert_eq!(1, blocks.block_count());
         assert_eq!(blocks.stats("db"), ConnStats::connected(2));
-        blocks.close_one(&connector, "db").await.unwrap();
-        blocks.close_one(&connector, "db").await.unwrap();
+        blocks.close_one(&connector, "db").await?;
+        blocks.close_one(&connector, "db").await?;
         assert_eq!(blocks.stats("db"), ConnStats::connected(0));
         assert_eq!(0, blocks.block_count());
+        Ok(())
     }
 }

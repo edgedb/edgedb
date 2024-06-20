@@ -1,5 +1,5 @@
 use crate::{
-    algo::{HasPoolAlgorithmData, PoolAlgoTargetData, PoolConstraints, VisitPoolAlgoData},
+    algo::{PoolAlgoTargetData, PoolConstraints, VisitPoolAlgoData},
     block::Blocks,
     conn::{ConnHandle, ConnResult, Connector},
 };
@@ -174,27 +174,28 @@ impl<C: Connector> Pool<C> {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
-
     use super::*;
     use crate::test::BasicConnector;
     use test_log::test;
     use tokio::task::LocalSet;
     use tracing::trace;
-
+    use anyhow::{Ok, Result};
+    
     #[test(tokio::test)]
-    async fn test_pool_basic() {
+    async fn test_pool_basic() -> Result<()> {
         let config = PoolConfig::suggested_default_for(10);
 
         let pool = Pool::new(config, BasicConnector::no_delay());
-        let conn1 = pool.acquire("1").await.unwrap();
-        let conn2 = pool.acquire("1").await.unwrap();
+        let conn1 = pool.acquire("1").await?;
+        let conn2 = pool.acquire("1").await?;
 
         drop(conn1);
         drop(conn2);
+        Ok(())
     }
 
     #[test(tokio::test)]
-    async fn test_pool_large() {
+    async fn test_pool_large() -> Result<()> {
         let config = PoolConfig::suggested_default_for(10);
 
         let local = LocalSet::new();
@@ -204,18 +205,21 @@ mod tests {
                 let pool = Rc::new(Pool::new(config, BasicConnector::no_delay()));
                 for i in 0..100 {
                     let pool = pool.clone();
-                    tasks.push(tokio::task::spawn_local(async move {
+                    let task = tokio::task::spawn_local(async move {
                         trace!("In local task");
                         let db = format!("db-{}", i % 10);
-                        let conn = pool.acquire(&db).await.unwrap();
+                        let conn = pool.acquire(&db).await?;
                         tokio::time::sleep(Duration::from_millis(10)).await;
                         drop(conn);
-                    }));
+                        Ok(())
+                    });
+                    tasks.push(task);
                 }
                 for task in tasks {
-                    task.await.unwrap();
+                    task.await??;
                 }
+                Ok(())
             })
-            .await;
+            .await
     }
 }
