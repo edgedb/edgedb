@@ -65,6 +65,7 @@ impl PoolConstraints {
         T: 'b,
         T: HasPoolAlgorithmData,
     {
+        // First, compute the overall request load and number of backend targets
         let mut total_requested = 0;
         let mut total_target = 0;
         it.with_algo_data_all(|data| {
@@ -96,6 +97,8 @@ impl PoolConstraints {
             return;
         }
 
+        // Once we start getting constrained, connections will compete for resources and require
+        // us to use the various stats to determine which one is "more important".
         let min = total_target / self.max;
 
         // No starvation
