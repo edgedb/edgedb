@@ -221,6 +221,7 @@ dependencies = [
  "derive_more",
  "futures",
  "itertools",
+ "mock_instant",
  "pretty_assertions",
  "pyo3",
  "scopeguard",
@@ -664,6 +665,12 @@ checksum = "87dfd01fe195c66b572b37921ad8803d010623c0aca821bea2302239d155cdae"
 dependencies = [
  "adler",
 ]
+
+[[package]]
+name = "mock_instant"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdcebb6db83796481097dedc7747809243cc81d9ed83e6a938b76d4ea0b249cf"
 
 [[package]]
 name = "nu-ansi-term"

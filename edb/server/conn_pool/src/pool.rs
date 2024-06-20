@@ -17,6 +17,13 @@ pub struct PoolConfig {
 }
 
 impl PoolConfig {
+    pub fn assert_valid(&self) {
+        assert!(
+            self.constraints.max > 0 && self.constraints.max >= self.constraints.max_per_target
+        );
+        assert!(self.constraints.max_per_target > 0);
+    }
+
     /// Generate suggested default configurations for the expected number of connections with an
     /// unknown number of databases.
     pub fn suggested_default_for(connections: usize) -> Self {
@@ -101,6 +108,7 @@ pub struct Pool<C: Connector> {
 
 impl<C: Connector> Pool<C> {
     pub fn new(config: PoolConfig, connector: C) -> Self {
+        config.assert_valid();
         Self {
             config,
             blocks: Default::default(),
@@ -110,10 +118,11 @@ impl<C: Connector> Pool<C> {
     }
 
     /// Runs the required async task that takes care of quota management, garbage collection,
-    /// and other important async tasks.
+    /// and other important async tasks. This should happen only if something has changed in
+    /// the pool.
     pub async fn run(&self) {
         loop {
-            tokio::time::sleep(Duration::from_millis(25)).await;
+            tokio::time::sleep(self.config.adjustment_interval).await;
             self.config.constraints.adjust(&self.blocks);
         }
     }
@@ -138,15 +147,24 @@ impl<C: Connector> Pool<C> {
             self.config.constraints.adjust(&self.blocks);
         }
 
-        let target = self.blocks.target(db);
-        let current = self.blocks.block_size(db);
-        trace!("Target pool size={target} Current size={current}");
-        let conn = if target.cmp(&current) == Ordering::Greater {
-            // If we've got room in the quota for this block, we can acquire a new connection
+        let target_block_size = self.blocks.target(db);
+        let current_block_size = self.blocks.block_conn_count(db);
+        let current_pool_size = self.blocks.conn_count();
+        let max_pool_size = self.config.constraints.max;
+
+        let pool_is_full = current_pool_size >= max_pool_size;
+        let block_has_room = current_block_size < target_block_size;
+
+        let conn = if pool_is_full && block_has_room {
+            // We need to try to steal a connection
+            self.config.constraints.identify_victim();
+            todo!()
+        } else if block_has_room {
             self.blocks.create_if_needed(&self.connector, db).await
         } else {
             self.blocks.queue(db).await
         }?;
+
         Ok(PoolHandle { conn })
     }
 }

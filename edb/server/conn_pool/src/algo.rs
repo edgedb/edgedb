@@ -1,6 +1,5 @@
 use std::{
     cell::{Cell, RefCell},
-    time::Duration,
 };
 use tracing::trace;
 
@@ -59,6 +58,7 @@ pub struct PoolConstraints {
 }
 
 impl PoolConstraints {
+    /// Adjust the quota targets for each block within the pool
     pub fn adjust<'a, 'b, T, U>(&self, it: &'a U)
     where
         &'a U: VisitPoolAlgoData<T>,
@@ -102,6 +102,11 @@ impl PoolConstraints {
         if total_target <= self.max {}
 
         // Starvation
+    }
+
+    /// Identify the most appealing victim for pool theft.
+    pub fn identify_victim(&self) {
+
     }
 }
 

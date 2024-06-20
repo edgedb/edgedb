@@ -261,8 +261,12 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         self.map.borrow().len()
     }
 
-    pub fn block_size(&self, db: &str) -> usize {
-        self.block(db).conns.borrow().len()
+    pub fn conn_count(&self) -> usize {
+        self.count.get()
+    }
+
+    pub fn block_conn_count(&self, db: &str) -> usize {
+        self.block(db).conn_count()
     }
 
     fn stats(&self, db: &str) -> ConnStats {
