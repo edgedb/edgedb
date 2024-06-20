@@ -10,10 +10,19 @@ use std::{
 };
 use tracing::trace;
 
+#[cfg(test)]
+use mock_instant::thread_local::Instant;
+#[cfg(not(test))]
+use std::time::Instant;
+
+#[derive(Default)]
+struct ConnMetrics {}
+
 #[derive(Default)]
 pub struct ConnState {
     pub waiters: WaitQueue,
     active: Cell<usize>,
+    metrics: Rc<ConnMetrics>,
 }
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, derive_more::Add)]
@@ -108,14 +117,17 @@ impl<C: Connector> Clone for Conn<C> {
 impl<C: Connector> Conn<C> {
     pub fn new(f: impl Future<Output = ConnResult<C::Conn>> + 'static) -> Self {
         Self {
-            inner: Rc::new(RefCell::new(ConnInner::Connecting(f.boxed_local()))),
+            inner: Rc::new(RefCell::new(ConnInner::Connecting(
+                Instant::now(),
+                f.boxed_local(),
+            ))),
         }
     }
 
     #[inline(always)]
     pub fn with_handle<T>(&self, f: impl Fn(&C::Conn) -> T) -> Option<T> {
         match &*self.inner.borrow() {
-            ConnInner::Connected(conn, ..) => Some(f(conn)),
+            ConnInner::Connected(_, conn, ..) => Some(f(conn)),
             _ => None,
         }
     }
@@ -123,9 +135,9 @@ impl<C: Connector> Conn<C> {
     pub fn close(&self, connector: &C) {
         let mut lock = self.inner.borrow_mut();
         match std::mem::replace(&mut *lock, ConnInner::Closed) {
-            ConnInner::Connected(conn, ..) => {
+            ConnInner::Connected(t, conn, ..) => {
                 let f = connector.disconnect(conn).boxed_local();
-                *lock = ConnInner::Disconnecting(f);
+                *lock = ConnInner::Disconnecting(Instant::now(), f);
             }
             _ => unreachable!(),
         }
@@ -134,9 +146,9 @@ impl<C: Connector> Conn<C> {
     pub fn reopen(&self, connector: &C, db: &str) {
         let mut lock = self.inner.borrow_mut();
         match std::mem::replace(&mut *lock, ConnInner::Closed) {
-            ConnInner::Connected(conn, ..) => {
+            ConnInner::Connected(t, conn, ..) => {
                 let f = connector.reconnect(conn, db).boxed_local();
-                *lock = ConnInner::Connecting(f);
+                *lock = ConnInner::Connecting(Instant::now(), f);
             }
             _ => unreachable!(),
         }
@@ -146,9 +158,9 @@ impl<C: Connector> Conn<C> {
         let mut lock = self.inner.borrow_mut();
         match &mut *lock {
             ConnInner::Connected(c, ..) => Poll::Ready(Ok(())),
-            ConnInner::Connecting(f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
+            ConnInner::Connecting(t, f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
                 Ok(c) => {
-                    *lock = ConnInner::Connected(c, Cell::new(LockState::Locked));
+                    *lock = ConnInner::Connected(Instant::now(), c, Cell::new(LockState::Locked));
                     Ok(())
                 }
                 Err(err) => {
@@ -156,7 +168,7 @@ impl<C: Connector> Conn<C> {
                     Err(err)
                 }
             }),
-            ConnInner::Disconnecting(f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
+            ConnInner::Disconnecting(t, f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
                 Ok(c) => {
                     *lock = ConnInner::Closed;
                     Ok(())
@@ -173,7 +185,7 @@ impl<C: Connector> Conn<C> {
 
     pub fn try_lock(&self) -> bool {
         match &*self.inner.borrow() {
-            ConnInner::Connected(_, locked) => match locked.get() {
+            ConnInner::Connected(t, _, locked) => match locked.get() {
                 LockState::Locked | LockState::Poisoned => {
                     trace!("try_lock fail");
                     false
@@ -198,10 +210,10 @@ enum LockState {
 
 enum ConnInner<C: Connector> {
     /// Connecting connections hold a spot in the pool as they count towards quotas
-    Connecting(Pin<Box<dyn Future<Output = ConnResult<C::Conn>>>>),
+    Connecting(Instant, Pin<Box<dyn Future<Output = ConnResult<C::Conn>>>>),
     /// Disconnecting connections hold a spot in the pool as they count towards quotas
-    Disconnecting(Pin<Box<dyn Future<Output = ConnResult<()>>>>),
-    Connected(C::Conn, Cell<LockState>),
+    Disconnecting(Instant, Pin<Box<dyn Future<Output = ConnResult<()>>>>),
+    Connected(Instant, C::Conn, Cell<LockState>),
     Failed,
     Closed,
 }
@@ -239,7 +251,7 @@ impl<C: Connector> ConnHandle<C> {
 impl<C: Connector> Drop for ConnHandle<C> {
     fn drop(&mut self) {
         match &*self.conn.inner.borrow() {
-            ConnInner::Connected(c, locked) => {
+            ConnInner::Connected(t, c, locked) => {
                 debug_assert_eq!(locked.get(), LockState::Locked);
                 locked.set(if self.poison.get() {
                     LockState::Poisoned

@@ -157,7 +157,7 @@ impl<C: Connector> Pool<C> {
         let conn = if pool_is_full && block_has_room {
             // We need to try to steal a connection
             if let Some(from) = self.config.constraints.identify_victim(&self.blocks) {
-                self.blocks.steal(&self.connector, db, from).await
+                self.blocks.steal(&self.connector, db, &from).await
             } else {
                 self.blocks.queue(db).await
             }
@@ -173,14 +173,14 @@ impl<C: Connector> Pool<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
     use super::*;
     use crate::test::BasicConnector;
+    use anyhow::{Ok, Result};
+    use std::rc::Rc;
     use test_log::test;
     use tokio::task::LocalSet;
     use tracing::trace;
-    use anyhow::{Ok, Result};
-    
+
     #[test(tokio::test)]
     async fn test_pool_basic() -> Result<()> {
         let config = PoolConfig::suggested_default_for(10);

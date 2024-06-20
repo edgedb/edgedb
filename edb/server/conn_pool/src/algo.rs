@@ -129,16 +129,21 @@ impl PoolConstraints {
     }
 
     /// Identify the most appealing victim for pool theft.
-    pub fn identify_victim<'a, 'b, T, U>(&self, _it: &'a U) -> Option<&str>
+    pub fn identify_victim<'a, 'b, T, U>(&self, it: &'a U) -> Option<String>
     where
         U: VisitPoolAlgoData<T>,
         T: 'b,
         T: HasPoolAlgorithmData,
     {
-        // it.with_algo_data_all(|name, data| {
-        //     data.stealability()
-        // });
-        None
+        let mut stealable = 0;
+        let mut which = None;
+        it.with_algo_data_all(|name, data| {
+            if data.stealability() > stealable {
+                which = Some(name.to_owned());
+                stealable = data.stealability();
+            }
+        });
+        which
     }
 }
 

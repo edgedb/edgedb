@@ -80,6 +80,10 @@ impl<C: Connector, D: Default> Block<C, D> {
         self.count.get()
     }
 
+    fn conn(&self, conn: Conn<C>) -> ConnHandle<C> {
+        ConnHandle::new(conn, self.state.clone())
+    }
+
     #[track_caller]
     pub fn check_consistency(&self) {
         if cfg!(debug_assertions) {
@@ -126,7 +130,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         self.count.inc();
         conn.reopen(connector, &self.db_name);
         poll_fn(|cx| conn.poll_ready(cx)).await?;
-        Ok(ConnHandle::new(conn, self.state.clone()))
+        Ok(self.conn(conn))
     }
 
     /// Creates a connection from this block.
@@ -136,7 +140,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         self.conns.borrow_mut().push(conn.clone());
         self.count.inc();
         poll_fn(|cx| conn.poll_ready(cx)).await?;
-        Ok(ConnHandle::new(conn, self.state.clone()))
+        Ok(self.conn(conn))
     }
 
     /// Awaits a connection from this block.
@@ -145,7 +149,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         loop {
             if let Some(conn) = self.try_acquire_used() {
                 trace!("Got a connection");
-                return Ok(ConnHandle::new(conn, self.state.clone()));
+                return Ok(self.conn(conn));
             }
             trace!("Queueing for a connection");
             self.state.waiters.queue().await;
@@ -156,7 +160,7 @@ impl<C: Connector, D: Default> Block<C, D> {
     async fn create_if_needed(&self, connector: &C) -> ConnResult<(bool, ConnHandle<C>)> {
         consistency_check!(self);
         if let Some(conn) = self.try_acquire_used() {
-            return Ok((false, ConnHandle::new(conn, self.state.clone())));
+            return Ok((false, self.conn(conn)));
         }
         Ok((true, self.create(connector).await?))
     }
@@ -317,12 +321,12 @@ impl<C: Connector, D: Default> Blocks<C, D> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::test::*;
+    use anyhow::{Ok, Result};
     use pretty_assertions::assert_eq;
     use test_log::test;
     use tokio::task::LocalSet;
-    use super::*;
-    use anyhow::{Ok, Result};
 
     #[test(tokio::test)]
     async fn test_block() -> Result<()> {
