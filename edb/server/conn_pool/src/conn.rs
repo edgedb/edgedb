@@ -16,12 +16,19 @@ use mock_instant::thread_local::Instant;
 #[cfg(not(test))]
 use std::time::Instant;
 
-#[derive(Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct ConnMetrics {
     counts: RefCell<[usize; 8]>,
 }
 
 impl ConnMetrics {
+    pub const fn with(variant: ConnStateVariant, count: usize) -> Self {
+        let mut counts = [0; 8];
+        counts[variant as usize] = count;
+        let counts = RefCell::new(counts);
+        Self { counts }
+    }
+
     fn set(&self, to: ConnStateVariant) {
         let mut lock = self.counts.borrow_mut();
         lock[to as usize] += 1;
@@ -49,53 +56,6 @@ pub struct ConnState {
     pub waiters: WaitQueue,
     active: Cell<usize>,
     pub metrics: Rc<ConnMetrics>,
-}
-
-#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, derive_more::Add)]
-pub struct ConnStats {
-    connected: usize,
-    connecting: usize,
-    disconnecting: usize,
-    failed: usize,
-}
-
-impl ConnStats {
-    pub fn count<C: Connector>(&mut self, conn: &Conn<C>) {
-        match &*conn.inner.borrow() {
-            ConnInner::Closed | ConnInner::Transition => unreachable!(),
-            ConnInner::Active(..) | ConnInner::Idle(..) | ConnInner::Poisoned(..) => {
-                self.connected += 1
-            }
-            ConnInner::Connecting(..) => self.connecting += 1,
-            ConnInner::Disconnecting(..) => self.disconnecting += 1,
-            ConnInner::Failed => self.failed += 1,
-        }
-    }
-
-    pub fn connected(connected: usize) -> Self {
-        Self {
-            connected,
-            ..Default::default()
-        }
-    }
-    pub fn connecting(connecting: usize) -> Self {
-        Self {
-            connecting,
-            ..Default::default()
-        }
-    }
-    pub fn disconnecting(disconnecting: usize) -> Self {
-        Self {
-            disconnecting,
-            ..Default::default()
-        }
-    }
-    pub fn failed(failed: usize) -> Self {
-        Self {
-            failed,
-            ..Default::default()
-        }
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -272,6 +232,7 @@ impl<C: Connector> Conn<C> {
 }
 
 #[derive(strum::EnumDiscriminants)]
+#[strum_discriminants(vis(pub))]
 #[strum_discriminants(name(ConnStateVariant))]
 enum ConnInner<C: Connector> {
     /// Connecting connections hold a spot in the pool as they count towards quotas
