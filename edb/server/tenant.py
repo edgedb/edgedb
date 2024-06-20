@@ -1323,16 +1323,23 @@ class Tenant(ha_base.ClusterProtocol):
         )
 
     async def on_before_create_db_from_template(
-        self, dbname: str, current_dbname: str
+        self, dbname: str, current_dbname: str, mode: str
     ) -> None:
         # Make sure the database exists.
         # TODO: Is it worth producing a nicer error message if it
         # fails on the backside? (Because of a race?)
         self.get_db(dbname=dbname)
 
+        if mode == 'TEMPLATE':
+            await self.ensure_database_not_connected(dbname)
+
     async def on_after_create_db_from_template(
         self, tgt_dbname: str, src_dbname: str, mode: str
     ) -> None:
+        if mode == 'TEMPLATE':
+            self.allow_database_connections(tgt_dbname)
+            return
+
         logger.info('Starting copy from %s to %s', src_dbname, tgt_dbname)
         from edb.pgsql import common
         from . import bootstrap  # noqa: F402

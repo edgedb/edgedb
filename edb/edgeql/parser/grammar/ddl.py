@@ -833,6 +833,16 @@ class CreateBranchStmt(Nonterm):
             branch_type=qlast.BranchType.DATA,
         )
 
+    def reduce_create_template_branch(self, *kids):
+        """%reduce
+            CREATE TEMPLATE BRANCH DatabaseName FROM DatabaseName
+        """
+        self.val = qlast.CreateDatabase(
+            name=kids[3].val,
+            template=kids[5].val,
+            branch_type=qlast.BranchType.TEMPLATE,
+        )
+
 
 #
 # DROP BRANCH

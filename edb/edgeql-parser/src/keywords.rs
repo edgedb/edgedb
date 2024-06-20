@@ -95,6 +95,7 @@ pub const UNRESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "superuser",
     "system",
     "target",
+    "template",
     "ternary",
     "text",
     "then",

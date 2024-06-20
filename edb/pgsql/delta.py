@@ -7045,11 +7045,18 @@ class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
         tenant_id = self._get_tenant_id(context)
         db_name = common.get_database_backend_name(
             str(self.classname), tenant_id=tenant_id)
-        # We always use the base template, even for branches, since we
+        # We use the base template for SCHEMA and DATA branches, since we
         # implement branches ourselves using pg_dump in order to avoid
         # connection restrictions.
+        # For internal-only TEMPLATE branches, we use the source as
+        # the template.
+        template = (
+            self.template
+            if self.template and self.branch_type == ql_ast.BranchType.TEMPLATE
+            else edbdef.EDGEDB_TEMPLATE_DB
+        )
         tpl_name = common.get_database_backend_name(
-            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
+            template, tenant_id=tenant_id)
         self.pgops.add(
             dbops.CreateDatabase(
                 dbops.Database(
