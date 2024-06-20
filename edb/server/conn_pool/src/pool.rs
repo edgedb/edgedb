@@ -179,7 +179,7 @@ mod tests {
     use std::rc::Rc;
     use test_log::test;
     use tokio::task::LocalSet;
-    use tracing::trace;
+    use tracing::{info, trace};
 
     #[test(tokio::test)]
     async fn test_pool_basic() -> Result<()> {
@@ -199,15 +199,19 @@ mod tests {
         let config = PoolConfig::suggested_default_for(10);
 
         let local = LocalSet::new();
+        let start = Instant::now();
+        const CONNECTIONS: usize = 100;
+        const DATABASES: usize = 10;
+        info!("Starting tasks");
         local
             .run_until(async {
                 let mut tasks = vec![];
                 let pool = Rc::new(Pool::new(config, BasicConnector::delay()));
-                for i in 0..100 {
+                for i in 0..CONNECTIONS {
                     let pool = pool.clone();
                     let task = tokio::task::spawn_local(async move {
                         trace!("In local task");
-                        let db = format!("db-{}", i % 10);
+                        let db = format!("db-{}", i % DATABASES);
                         let conn = pool.acquire(&db).await?;
                         tokio::task::yield_now().await;
                         mock_instant::thread_local::MockClock::advance(Duration::from_millis(500));
@@ -221,6 +225,11 @@ mod tests {
                 }
                 Ok(())
             })
-            .await
+            .await?;
+        info!(
+            "Took {:?} of virtual time for {CONNECTIONS} connections to {DATABASES} databases",
+            start.elapsed()
+        );
+        Ok(())
     }
 }
