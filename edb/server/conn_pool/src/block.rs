@@ -2,8 +2,42 @@ use crate::{
     algo::{HasPoolAlgorithmData, PoolAlgorithmData, VisitPoolAlgoData},
     conn::*,
 };
-use std::{cell::RefCell, collections::HashMap, future::poll_fn, rc::Rc};
-use tracing::{info, trace};
+use scopeguard::defer;
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    future::poll_fn,
+    rc::Rc,
+};
+use tracing::trace;
+
+/// Perform a consistency check on entry and exit for this function
+macro_rules! consistency_check {
+    ($self:ident) => {
+        $self.check_consistency();
+        scopeguard::defer!($self.check_consistency());
+    };
+}
+
+trait Counter {
+    fn inc(&self);
+    fn dec(&self);
+}
+
+impl Counter for Cell<usize> {
+    fn inc(&self) {
+        #[cfg(debug_assertions)]
+        self.set(self.get().checked_add(1).unwrap());
+        #[cfg(not(debug_assertions))]
+        self.set(self.get() + 1);
+    }
+    fn dec(&self) {
+        #[cfg(debug_assertions)]
+        self.set(self.get().checked_sub(1).unwrap());
+        #[cfg(not(debug_assertions))]
+        self.set(self.get() - 1);
+    }
+}
 
 /// Manages the connection state for a single backend database. This is only a
 /// set of connections, and does not understand policy, balancing or anything
@@ -19,6 +53,7 @@ use tracing::{info, trace};
 pub struct Block<C: Connector, D: Default = ()> {
     pub db_name: String,
     conns: RefCell<Vec<Conn<C>>>,
+    count: Cell<usize>,
     state: Rc<ConnState>,
     /// Associated data for this block useful for statistics, quotas or other
     /// information.
@@ -32,11 +67,27 @@ impl<C: Connector, D: Default> Block<C, D> {
             conns: Vec::new().into(),
             state: Default::default(),
             data: Default::default(),
+            count: Default::default(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.conns.borrow().is_empty()
+        self.conn_count() == 0
+    }
+
+    pub fn conn_count(&self) -> usize {
+        self.count.get()
+    }
+
+    #[track_caller]
+    pub fn check_consistency(&self) {
+        if cfg!(debug_assertions) {
+            assert_eq!(
+                self.conn_count(),
+                self.conns.borrow().len(),
+                "Blocks failed consistency check. Total connection count was wrong."
+            )
+        }
     }
 
     pub fn stats(&self) -> ConnStats {
@@ -57,17 +108,21 @@ impl<C: Connector, D: Default> Block<C, D> {
     }
 
     fn try_take_used(&self) -> Option<Conn<C>> {
+        consistency_check!(self);
         let mut lock = self.conns.borrow_mut();
         let pos = lock.iter().position(|conn| conn.try_lock());
         if let Some(index) = pos {
             let conn = lock.remove(index);
+            self.count.dec();
             return Some(conn);
         }
         None
     }
 
     async fn reconnect(&self, connector: &C, conn: Conn<C>) -> ConnResult<ConnHandle<C>> {
+        consistency_check!(self);
         self.conns.borrow_mut().push(conn.clone());
+        self.count.inc();
         conn.reopen(connector, &self.db_name);
         poll_fn(|cx| conn.poll_ready(cx)).await?;
         Ok(ConnHandle::new(conn, self.state.clone()))
@@ -75,14 +130,17 @@ impl<C: Connector, D: Default> Block<C, D> {
 
     /// Creates a connection from this block.
     async fn create(&self, connector: &C) -> ConnResult<ConnHandle<C>> {
+        consistency_check!(self);
         let conn = Conn::new(connector.connect(&self.db_name));
         self.conns.borrow_mut().push(conn.clone());
+        self.count.inc();
         poll_fn(|cx| conn.poll_ready(cx)).await?;
         Ok(ConnHandle::new(conn, self.state.clone()))
     }
 
     /// Awaits a connection from this block.
     async fn queue(&self) -> ConnResult<ConnHandle<C>> {
+        consistency_check!(self);
         loop {
             if let Some(conn) = self.try_acquire_used() {
                 trace!("Got a connection");
@@ -94,21 +152,24 @@ impl<C: Connector, D: Default> Block<C, D> {
     }
 
     /// Awaits a connection from this block.
-    async fn create_if_needed(&self, connector: &C) -> ConnResult<ConnHandle<C>> {
+    async fn create_if_needed(&self, connector: &C) -> ConnResult<(bool, ConnHandle<C>)> {
+        consistency_check!(self);
         if let Some(conn) = self.try_acquire_used() {
-            return Ok(ConnHandle::new(conn, self.state.clone()));
+            return Ok((false, ConnHandle::new(conn, self.state.clone())));
         }
-        self.create(connector).await
+        Ok((true, self.create(connector).await?))
     }
 
     /// Close one of idle connections in this block
     async fn close_one(&self, connector: &C) -> ConnResult<()> {
+        consistency_check!(self);
         let conn = self
             .try_acquire_used()
             .expect("Could not acquire a connection");
         conn.close(connector);
         poll_fn(|cx| conn.poll_ready(cx)).await?;
         self.conns.borrow_mut().retain(|other| other != &conn);
+        self.count.dec();
         Ok(())
     }
 
@@ -120,17 +181,24 @@ impl<C: Connector, D: Default> Block<C, D> {
 
 /// Manages the connection state for a number of backend databases. See
 /// the notes on [`Block`] for the scope of responsibility of this struct.
-pub struct Blocks<C: Connector, D: Default = ()>(RefCell<HashMap<String, Rc<Block<C, D>>>>);
+pub struct Blocks<C: Connector, D: Default = ()> {
+    map: RefCell<HashMap<String, Rc<Block<C, D>>>>,
+    /// A cached count
+    count: Cell<usize>,
+}
 
 impl<C: Connector, D: Default> Default for Blocks<C, D> {
     fn default() -> Self {
-        Self(RefCell::new(HashMap::default()))
+        Self {
+            map: RefCell::new(HashMap::default()),
+            count: Cell::default(),
+        }
     }
 }
 
 impl<C: Connector, D: HasPoolAlgorithmData + Default> VisitPoolAlgoData<D> for &Blocks<C, D> {
     fn with_algo_data_all(&self, mut f: impl FnMut(&D)) {
-        for it in self.0.borrow().values() {
+        for it in self.map.borrow().values() {
             it.with_data(|data| f(data))
         }
     }
@@ -158,15 +226,39 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     pub fn new(block: Block<C, D>) -> Self {
         let mut map = HashMap::new();
         map.insert(block.db_name.clone(), Rc::new(block));
-        Self(RefCell::new(map))
+        Self {
+            map: RefCell::new(map),
+            count: Cell::default(),
+        }
+    }
+
+    #[track_caller]
+    pub fn check_consistency(&self) {
+        if cfg!(debug_assertions) {
+            let mut total = 0;
+            for block in self.map.borrow().values() {
+                eprintln!("{} {}", block.db_name, block.count.get());
+                block.check_consistency();
+                total += block.conn_count();
+            }
+            assert_eq!(
+                total,
+                self.count.get(),
+                "Blocks failed consistency check. Total connection count ({total}) was wrong."
+            );
+        }
     }
 
     pub fn prepare(&self, db: &str) {
         _ = self.block(db)
     }
 
+    pub fn contains(&self, db: &str) -> bool {
+        self.map.borrow().contains_key(db)
+    }
+
     pub fn block_count(&self) -> usize {
-        self.0.borrow().len()
+        self.map.borrow().len()
     }
 
     pub fn block_size(&self, db: &str) -> usize {
@@ -174,7 +266,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     }
 
     fn stats(&self, db: &str) -> ConnStats {
-        self.0
+        self.map
             .borrow_mut()
             .get(db)
             .map(|b| b.stats())
@@ -182,7 +274,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     }
 
     fn block(&self, db: &str) -> Rc<Block<C, D>> {
-        self.0
+        self.map
             .borrow_mut()
             .entry(db.to_owned())
             .or_insert_with(|| Rc::new(Block::new(db)))
@@ -190,36 +282,47 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     }
 
     pub async fn create(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
+        consistency_check!(self);
+        defer!(self.count.inc());
         let block = self.block(db);
         block.create(connector).await
     }
 
     pub async fn queue(&self, db: &str) -> ConnResult<ConnHandle<C>> {
+        consistency_check!(self);
         let block = self.block(db);
         block.queue().await
     }
 
     pub async fn create_if_needed(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
+        consistency_check!(self);
         let block = self.block(db);
-        block.create_if_needed(connector).await
+        let (new, c) = block.create_if_needed(connector).await?;
+        if new {
+            self.count.inc()
+        }
+        Ok(c)
     }
 
     pub async fn close_one(&self, connector: &C, db: &str) -> ConnResult<()> {
+        consistency_check!(self);
+        defer!(self.count.dec());
         let block = self.block(db);
         block.close_one(connector).await?;
         if block.is_empty() {
-            self.0.borrow_mut().remove(db);
+            self.map.borrow_mut().remove(db);
         }
         Ok(())
     }
 
     pub async fn steal(&self, connector: &C, db: &str, from: &str) -> ConnResult<ConnHandle<C>> {
+        consistency_check!(self);
         let block = self.block(from);
         let conn = block
             .try_take_used()
             .expect("Could not acquire a connection");
         if block.is_empty() {
-            self.0.borrow_mut().remove(from);
+            self.map.borrow_mut().remove(from);
         }
         let block = self.block(db);
         block.reconnect(connector, conn).await
