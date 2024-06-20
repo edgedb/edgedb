@@ -1,5 +1,5 @@
 use crate::{
-    algo::{PoolAlgoTargetData, PoolConstraints},
+    algo::{HasPoolAlgorithmData, PoolAlgoTargetData, PoolConstraints, VisitPoolAlgoData},
     block::Blocks,
     conn::{self, ConnHandle, ConnResult, Connector},
 };
@@ -157,8 +157,11 @@ impl<C: Connector> Pool<C> {
 
         let conn = if pool_is_full && block_has_room {
             // We need to try to steal a connection
-            self.config.constraints.identify_victim();
-            todo!()
+            if let Some(from) = self.config.constraints.identify_victim(&self.blocks) {
+                self.blocks.steal(&self.connector, db, from).await
+            } else {
+                self.blocks.queue(db).await
+            }
         } else if block_has_room {
             self.blocks.create_if_needed(&self.connector, db).await
         } else {

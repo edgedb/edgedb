@@ -1,6 +1,4 @@
-use std::{
-    cell::{Cell, RefCell},
-};
+use std::cell::{Cell, RefCell};
 use tracing::trace;
 
 pub trait HasPoolAlgorithmData: std::fmt::Debug {
@@ -13,8 +11,15 @@ pub trait HasPoolAlgorithmData: std::fmt::Debug {
     fn stealability(&self) -> usize;
 }
 
-pub trait VisitPoolAlgoData<T: HasPoolAlgorithmData> {
-    fn with_algo_data_all(&self, f: impl FnMut(&T));
+pub trait VisitPoolAlgoData<D: HasPoolAlgorithmData> {
+    fn with_algo_data_all(&self, f: impl FnMut(&str, &D));
+    fn with_algo_data<T>(&self, db: &str, f: impl Fn(&D) -> T) -> Option<T>;
+
+    #[inline]
+    fn target(&self, db: &str) -> usize {
+        self.with_algo_data(db, |data| data.target())
+            .unwrap_or_default()
+    }
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -61,20 +66,20 @@ impl PoolConstraints {
     /// Adjust the quota targets for each block within the pool
     pub fn adjust<'a, 'b, T, U>(&self, it: &'a U)
     where
-        &'a U: VisitPoolAlgoData<T>,
+        U: VisitPoolAlgoData<T>,
         T: 'b,
         T: HasPoolAlgorithmData,
     {
         // First, compute the overall request load and number of backend targets
         let mut total_requested = 0;
         let mut total_target = 0;
-        it.with_algo_data_all(|data| {
+        it.with_algo_data_all(|name, data| {
             let count = data.with_algo_data(|data| data.max_concurrent + data.max_waiters);
             total_requested += count;
             if count > 0 {
                 total_target += 1;
             }
-            trace!("{data:?}");
+            trace!("{name}: {data:?}");
         });
 
         // If we are unconstrained, it's easy.
@@ -82,7 +87,7 @@ impl PoolConstraints {
             let spare = self.max - total_requested;
             let mut allocated = 0;
 
-            it.with_algo_data_all(|data| {
+            it.with_algo_data_all(|name, data| {
                 let target_size =
                     data.with_algo_data(|data| data.max_concurrent + data.max_waiters);
                 let spare_for_target = (spare as f32
@@ -90,7 +95,10 @@ impl PoolConstraints {
                     .min(2.0) as usize;
                 data.set_target(target_size + spare_for_target);
                 allocated += target_size + spare_for_target;
-                trace!("Target pool size: {}", target_size + spare_for_target);
+                trace!(
+                    "{name}: Target pool size: {}",
+                    target_size + spare_for_target
+                );
             });
 
             debug_assert!(allocated <= self.max);
@@ -108,8 +116,16 @@ impl PoolConstraints {
     }
 
     /// Identify the most appealing victim for pool theft.
-    pub fn identify_victim(&self) {
-
+    pub fn identify_victim<'a, 'b, T, U>(&self, _it: &'a U) -> Option<&str>
+    where
+        U: VisitPoolAlgoData<T>,
+        T: 'b,
+        T: HasPoolAlgorithmData,
+    {
+        // it.with_algo_data_all(|name, data| {
+        //     data.stealability()
+        // });
+        None
     }
 }
 

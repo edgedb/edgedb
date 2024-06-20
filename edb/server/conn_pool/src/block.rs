@@ -1,6 +1,7 @@
 use crate::{
-    algo::{HasPoolAlgorithmData, PoolAlgorithmData, VisitPoolAlgoData},
+    algo::{HasPoolAlgorithmData, PoolAlgoTargetData, PoolAlgorithmData, VisitPoolAlgoData},
     conn::*,
+    Pool,
 };
 use scopeguard::defer;
 use std::{
@@ -11,7 +12,7 @@ use std::{
 };
 use tracing::trace;
 
-/// Perform a consistency check on entry and exit for this function
+/// Perform a consistency check on entry and exit for this function.
 macro_rules! consistency_check {
     ($self:ident) => {
         $self.check_consistency();
@@ -19,6 +20,7 @@ macro_rules! consistency_check {
     };
 }
 
+/// Helper trait for [`Cell<usize>`].
 trait Counter {
     fn inc(&self);
     fn dec(&self);
@@ -57,7 +59,7 @@ pub struct Block<C: Connector, D: Default = ()> {
     state: Rc<ConnState>,
     /// Associated data for this block useful for statistics, quotas or other
     /// information.
-    data: RefCell<D>,
+    data: D,
 }
 
 impl<C: Connector, D: Default> Block<C, D> {
@@ -172,11 +174,6 @@ impl<C: Connector, D: Default> Block<C, D> {
         self.count.dec();
         Ok(())
     }
-
-    #[inline(always)]
-    fn with_data<T>(&self, f: impl FnOnce(&mut D) -> T) -> T {
-        f(&mut *self.data.borrow_mut())
-    }
 }
 
 /// Manages the connection state for a number of backend databases. See
@@ -196,29 +193,16 @@ impl<C: Connector, D: Default> Default for Blocks<C, D> {
     }
 }
 
-impl<C: Connector, D: HasPoolAlgorithmData + Default> VisitPoolAlgoData<D> for &Blocks<C, D> {
-    fn with_algo_data_all(&self, mut f: impl FnMut(&D)) {
+impl<C: Connector, D: HasPoolAlgorithmData + Default> VisitPoolAlgoData<D> for Blocks<C, D> {
+    #[inline]
+    fn with_algo_data_all(&self, mut f: impl FnMut(&str, &D)) {
         for it in self.map.borrow().values() {
-            it.with_data(|data| f(data))
+            f(&it.db_name, &it.data)
         }
     }
-}
-
-/// Expose the pool algorithm data if the data supports it.
-impl<C: Connector, D: HasPoolAlgorithmData + Default> Blocks<C, D> {
-    #[inline(always)]
-    pub fn with_algo_data<T>(&self, db: &str, f: impl FnOnce(&PoolAlgorithmData) -> T) -> T {
-        self.block(db).with_data(move |data| data.with_algo_data(f))
-    }
-
-    #[inline(always)]
-    pub fn target(&self, db: &str) -> usize {
-        self.block(db).with_data(|data| data.target())
-    }
-
-    #[inline(always)]
-    pub fn stealability(&self, db: &str) -> usize {
-        self.block(db).with_data(|data| data.stealability())
+    #[inline]
+    fn with_algo_data<T>(&self, db: &str, f: impl Fn(&D) -> T) -> Option<T> {
+        self.map.borrow().get(db).map(|d| f(&d.data))
     }
 }
 
