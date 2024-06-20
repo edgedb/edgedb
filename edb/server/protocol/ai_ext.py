@@ -239,7 +239,6 @@ async def _ext_ai_index_builder_work(
     pgconn: pgcon.PGConnection,
     models: list[tuple[int, str, str]],
 ) -> tuple[int, int]:
-    task_name = _task_name.get()
 
     models_by_provider: dict[str, list[str]] = {}
     for entry in models:
@@ -251,43 +250,60 @@ async def _ext_ai_index_builder_work(
             m = models_by_provider[provider_name] = []
             m.append(model_name)
 
-    error_count = 0
-
-    provider_task_params: dict[str, list[EmbeddingsParams]] = {}
-    for provider_name, provider_models in models_by_provider.items():
-        task_params = await _generate_embeddings_task_params(
-            db, pgconn, provider_name, provider_models,
-        )
-
-        if task_params is None:
-            error_count += 1
-            continue
-        if len(task_params) == 0:
-            continue
-
-        provider_task_params[provider_name] = task_params
-
-    provider_task_reports = []
+    provider_tasks = []
     async with asyncio.TaskGroup() as g:
-        for _, task_params in provider_task_params.items():
-            provider_task_reports.append(g.create_task(
-                rq.execute_requests(task_params, ctx=rq.Context())
-            ))
-
-    for provider_task in provider_task_reports:
-        provider_report = provider_task.result()
-        assert isinstance(provider_report, rq.ExecutionReport)
-        for message in provider_report.known_error_messages:
-            logger.error(
-                f"{task_name}: could not generate embeddings "
-                f"due to an internal error: {message}"
+        for provider_name, provider_models in models_by_provider.items():
+            provider_tasks.append(
+                g.create_task(
+                    _ext_ai_index_builder_provider_work(
+                        db, pgconn, provider_name, provider_models
+                    )
+                )
             )
-        error_count += (
-            len(provider_report.known_error_messages)
-            + provider_report.unknown_error_count
+
+    error_count = 0
+    for provider_task in provider_tasks:
+        error_count += provider_task.result()
+
+    return len(provider_tasks), error_count
+
+
+async def _ext_ai_index_builder_provider_work(
+    db: dbview.Database,
+    pgconn: pgcon.PGConnection,
+    provider_name: str,
+    provider_models: list[str],
+) -> int:
+    task_name = _task_name.get()
+
+    task_params = await _generate_embeddings_task_params(
+        db, pgconn, provider_name, provider_models,
+    )
+
+    if task_params is None:
+        return 1
+    if len(task_params) == 0:
+        return 0
+
+    embeddings_task = asyncio.create_task(
+        rq.execute_requests(task_params, ctx=rq.Context())
+    )
+    await embeddings_task
+
+    embeddings_report = embeddings_task.result()
+    assert isinstance(embeddings_report, rq.ExecutionReport)
+    for message in embeddings_report.known_error_messages:
+        logger.error(
+            f"{task_name}: could not generate embeddings "
+            f"due to an internal error: {message}"
         )
 
-    return len(provider_task_reports), error_count
+    error_count = (
+        len(embeddings_report.known_error_messages)
+        + embeddings_report.unknown_error_count
+    )
+
+    return error_count
 
 
 @dataclass(frozen=True)
