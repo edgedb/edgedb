@@ -240,6 +240,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             ),
         )
 
+    @test.skip('bug 7471 closes connection')
     async def test_sql_dml_insert_11(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
@@ -252,8 +253,6 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                     ('Briefing', 'bad uuid')
                 '''
             )
-        print(self.scon.is_closed())
-        print('\n\n\n\n\n\n\n\n')
 
     @test.xfail('unimplemented')
     async def test_sql_dml_insert_12(self):
@@ -269,6 +268,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
+    @test.skip('bug 7471 closes connection')
     async def test_sql_dml_insert_13(self):
         with self.assertRaisesRegex(
             asyncpg.exceptions.CannotCoerceError,

@@ -26,7 +26,6 @@ from edb.server.pgcon import errors as pgerror
 from edb import errors
 from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pgcompiler
-from edb.pgsql.compiler import pathctx as pgpathctx
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -298,7 +297,7 @@ def resolve_InsertStmt(
             result=ql_stmt,
         )
 
-    subject_pointers: List[Tuple[str, s_pointers.Pointer]] = []
+    subject_pointers: List[Tuple[str, str]] = []
     if stmt.returning_list:
         # wrap into a select shape that selects all pointers
         # (because they might be be used by RETURNING clause)
@@ -313,7 +312,7 @@ def resolve_InsertStmt(
                     expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
                 )
             )
-            subject_pointers.append((column.name, ptr))
+            subject_pointers.append((column.name, ptr_name))
 
         ql_stmt = qlast.SelectQuery(
             result=qlast.Shape(expr=ql_stmt, elements=select_shape)
@@ -385,7 +384,7 @@ def resolve_InsertStmt(
 
 def returning_rows(
     returning_list: List[pgast.ResTarget],
-    subject_pointers: List[Tuple[str, s_pointers.Pointer]],
+    subject_pointers: List[Tuple[str, str]],
     ir_expr: irast.SetE,
     inserted_query: pgast.Query,
     inserted_table: context.Table,
@@ -393,31 +392,33 @@ def returning_rows(
 ) -> Tuple[pgast.Query, context.Table]:
     # extract pointers to be used in returning columns
 
-    # TODO: this target list is [ROW(...)] that contains all pointers.
-    # This is really inconvenient to use onwards, so I'm discarding it here.
+    # compiler output of an insert produces a SELECT whose target list is
+    # [ROW(...)] that contains all pointers.
+    # This is really inconvenient to use, so I'm discarding it here.
     # I'm not sure it will always have this form (or why it has it).
+    assert len(inserted_query.target_list) == 1
+    assert isinstance(inserted_query.target_list[0].val, pgast.ImplicitRowExpr)
     inserted_query.target_list.clear()
 
+    # prepare a map from pointer name into pgast
     assert isinstance(ir_expr.expr, irast.SelectStmt)
-    result_id = ir_expr.expr.result.path_id
-    result_rvar_source = inserted_query.path_rvar_map[result_id, 'source']
-    result_path_outputs = result_rvar_source.query.path_outputs
+    ptr_map: Dict[Tuple[str, str], pgast.BaseExpr] = {}
+    for (ptr_id, aspect), output_var in inserted_query.path_namespace.items():
+        qual_name = ptr_id.rptr_name()
+        if not qual_name:
+            continue
+        ptr_map[qual_name.name, aspect] = output_var
 
-    if map := getattr(result_rvar_source.query, 'view_path_id_map', None):
-        result_id = pgpathctx.map_path_id(result_id, map)
-
-    for col_name, ptr in subject_pointers:
-        ptr_id = get_ptr_id(result_id, ptr, ctx)
-
-        output_var = result_path_outputs.get((ptr_id, 'value'), None)
-        if not output_var:
-            output_var = result_path_outputs.get((ptr_id, 'serialized'))
-        assert output_var
+    for col_name, ptr_name in subject_pointers:
+        val = ptr_map.get((ptr_name, 'serialized'), None)
+        if not val:
+            val = ptr_map.get((ptr_name, 'value'), None)
+        assert val, 'ptr was in the shape, but is not in path_namespace'
 
         inserted_query.target_list.append(
             pgast.ResTarget(
                 name=col_name,
-                val=output_var,
+                val=val,
             )
         )
         inserted_table.columns.append(
@@ -504,14 +505,14 @@ def get_pointer_for_column(
 
 
 def get_ptr_id(
-    subject_id: irast.PathId,
+    source_id: irast.PathId,
     ptr: s_pointers.Pointer,
     ctx: context.ResolverContextLevel,
 ) -> irast.PathId:
     ptrref = irtypeutils.ptrref_from_ptrcls(
         schema=ctx.schema, ptrcls=ptr, cache=None, typeref_cache=None
     )
-    return subject_id.extend(ptrref=ptrref)
+    return source_id.extend(ptrref=ptrref)
 
 
 @dispatch._resolve_relation.register
