@@ -55,6 +55,7 @@ pub struct Block<C: Connector, D: Default = ()> {
     pub db_name: String,
     conns: RefCell<Vec<Conn<C>>>,
     count: Cell<usize>,
+    waiters: Cell<usize>,
     state: Rc<ConnState>,
     /// Associated data for this block useful for statistics, quotas or other
     /// information.
@@ -69,6 +70,7 @@ impl<C: Connector, D: Default> Block<C, D> {
             state: Default::default(),
             data: Default::default(),
             count: Default::default(),
+            waiters: Default::default(),
         }
     }
 
@@ -96,7 +98,7 @@ impl<C: Connector, D: Default> Block<C, D> {
             for conn in &*self.conns.borrow() {
                 conn_metrics.set(conn.variant())
             }
-            assert_eq!(self.metrics(), conn_metrics.into());
+            assert_eq!(self.metrics().summary(), conn_metrics.summary());
         }
     }
 
@@ -147,7 +149,9 @@ impl<C: Connector, D: Default> Block<C, D> {
                 return Ok(self.conn(conn));
             }
             trace!("Queueing for a connection");
+            self.waiters.inc();
             self.state.waiters.queue().await;
+            self.waiters.dec();
         }
     }
 
@@ -169,7 +173,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         conn.close(connector, &self.state.metrics);
         poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics)).await?;
         self.conns.borrow_mut().retain(|other| other != &conn);
-        conn.untrack(&self.metrics());
+        conn.untrack(&self.state.metrics);
         self.count.dec();
         Ok(())
     }
@@ -342,21 +346,21 @@ mod tests {
             .await
             .expect("Expected a connection");
         assert_eq!(
-            block.metrics(),
-            ConnMetrics::with(ConnStateVariant::Active, 1).into()
+            block.metrics().summary(),
+            ConnMetricsSummary::with(ConnStateVariant::Active, 1).into()
         );
         let local = LocalSet::new();
         let block2 = block.clone();
         local.spawn_local(async move {
             let connector = BasicConnector::no_delay();
             assert_eq!(
-                block2.metrics(),
-                ConnMetrics::with(ConnStateVariant::Active, 1).into()
+                block2.metrics().summary(),
+                ConnMetricsSummary::with(ConnStateVariant::Active, 1).into()
             );
             block2.queue().await?;
             assert_eq!(
-                block2.metrics(),
-                ConnMetrics::with(ConnStateVariant::Active, 1).into()
+                block2.metrics().summary(),
+                ConnMetricsSummary::with(ConnStateVariant::Active, 1).into()
             );
             anyhow::Ok(())
         });
@@ -366,8 +370,8 @@ mod tests {
         });
         local.await;
         assert_eq!(
-            block.metrics(),
-            ConnMetrics::with(ConnStateVariant::Idle, 1).into()
+            block.metrics().summary(),
+            ConnMetricsSummary::with(ConnStateVariant::Idle, 1).into()
         );
         Ok(())
     }
@@ -380,8 +384,8 @@ mod tests {
         block.create(&connector).await?;
         block.create(&connector).await?;
         assert_eq!(
-            block.metrics(),
-            ConnMetrics::with(ConnStateVariant::Idle, 3).into()
+            block.metrics().summary(),
+            ConnMetricsSummary::with(ConnStateVariant::Idle, 3).into()
         );
 
         let local = LocalSet::new();
@@ -397,8 +401,8 @@ mod tests {
         }
         local.await;
         assert_eq!(
-            block.metrics(),
-            ConnMetrics::with(ConnStateVariant::Idle, 3).into()
+            block.metrics().summary(),
+            ConnMetricsSummary::with(ConnStateVariant::Idle, 3).into()
         );
         Ok(())
     }
@@ -413,19 +417,19 @@ mod tests {
         blocks.create(&connector, "db").await?;
         assert_eq!(1, blocks.block_count());
         assert_eq!(
-            blocks.metrics("db"),
-            ConnMetrics::with(ConnStateVariant::Idle, 3).into()
+            blocks.metrics("db").summary(),
+            ConnMetricsSummary::with(ConnStateVariant::Idle, 3).into()
         );
-        assert_eq!(blocks.metrics("db2"), ConnMetrics::default().into());
+        assert_eq!(blocks.metrics("db2").summary(), ConnMetricsSummary::default());
         blocks.steal(&connector, "db2", "db").await?;
         blocks.steal(&connector, "db2", "db").await?;
         blocks.steal(&connector, "db2", "db").await?;
         // Block hasn't been GC'd yet
         assert_eq!(2, blocks.block_count());
-        assert_eq!(blocks.metrics("db"), ConnMetrics::default().into());
+        assert_eq!(blocks.metrics("db").summary(), ConnMetricsSummary::default());
         assert_eq!(
-            blocks.metrics("db2"),
-            ConnMetrics::with(ConnStateVariant::Idle, 3).into()
+            blocks.metrics("db2").summary(),
+            ConnMetricsSummary::with(ConnStateVariant::Idle, 3).into()
         );
         Ok(())
     }
@@ -439,12 +443,12 @@ mod tests {
         blocks.create(&connector, "db").await?;
         assert_eq!(1, blocks.block_count());
         assert_eq!(
-            blocks.metrics("db"),
-            ConnMetrics::with(ConnStateVariant::Idle, 2).into()
+            blocks.metrics("db").summary(),
+            ConnMetricsSummary::with(ConnStateVariant::Idle, 2).into()
         );
         blocks.close_one(&connector, "db").await?;
         blocks.close_one(&connector, "db").await?;
-        assert_eq!(blocks.metrics("db"), ConnMetrics::default().into());
+        assert_eq!(blocks.metrics("db").summary(), ConnMetricsSummary::default());
         assert_eq!(0, blocks.block_count());
         Ok(())
     }

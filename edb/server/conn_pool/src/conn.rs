@@ -17,16 +17,40 @@ use mock_instant::thread_local::Instant;
 use std::time::Instant;
 
 #[derive(Debug, Default, PartialEq, Eq)]
+struct RollingAverage {
+    values: [u32; 30],
+    ptr: u8,
+}
+
+impl RollingAverage {
+    fn accum(&mut self, as_millis: u32) {
+        self.values[self.ptr as usize] = as_millis;
+        self.ptr = (self.ptr + 1) % 30;
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct ConnMetricsSummary {
+    summary: [usize; 8]
+}
+
+impl ConnMetricsSummary {
+    pub fn with(variant: ConnStateVariant, count: usize) -> Self {
+        let mut summary = [0; 8];
+        summary[variant as usize] = count;
+        Self { summary }
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct ConnMetrics {
     counts: RefCell<[usize; 8]>,
+    times: RefCell<[RollingAverage; 8]>
 }
 
 impl ConnMetrics {
-    pub const fn with(variant: ConnStateVariant, count: usize) -> Self {
-        let mut counts = [0; 8];
-        counts[variant as usize] = count;
-        let counts = RefCell::new(counts);
-        Self { counts }
+    pub fn summary(&self) -> ConnMetricsSummary {
+        ConnMetricsSummary { summary: *self.counts.borrow() }
     }
 
     pub fn set(&self, to: ConnStateVariant) {
@@ -39,14 +63,14 @@ impl ConnMetrics {
         trace!("{from:?}->{to:?}: {time:?}");
         let mut lock = self.counts.borrow_mut();
         lock[from as usize] -= 1;
-        // if to != ConnStateVariant::Closed {
+        self.times.borrow_mut()[from as usize].accum(time.as_millis() as _);
         lock[to as usize] += 1;
-        // }
     }
 
     fn remove(&self, from: ConnStateVariant, time: Duration) {
         let mut lock = self.counts.borrow_mut();
         lock[from as usize] -= 1;
+        self.times.borrow_mut()[from as usize].accum(time.as_millis() as _);
         trace!("{from:?}->None ({time:?})");
     }
 
@@ -60,7 +84,6 @@ impl ConnMetrics {
 #[derive(Default)]
 pub struct ConnState {
     pub waiters: WaitQueue,
-    active: Cell<usize>,
     pub metrics: Rc<ConnMetrics>,
 }
 
@@ -285,7 +308,6 @@ pub struct ConnHandle<C: Connector> {
 
 impl<C: Connector> ConnHandle<C> {
     pub fn new(conn: Conn<C>, state: Rc<ConnState>) -> Self {
-        state.active.set(state.active.get() + 1);
         Self {
             conn,
             state,
@@ -317,7 +339,6 @@ impl<C: Connector> Drop for ConnHandle<C> {
                     );
                     ConnInner::Idle(Instant::now(), c)
                 };
-                self.state.active.set(self.state.active.get() - 1);
                 self.state.waiters.trigger();
                 next
             }
