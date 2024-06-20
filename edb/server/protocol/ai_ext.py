@@ -148,6 +148,8 @@ async def _ext_ai_index_builder_controller_loop(
     naptime_cfg = db.lookup_config("ext::ai::Config::indexer_naptime")
     naptime = naptime_cfg.to_microseconds() / 1000000
 
+    provider_contexts: dict[str, rq.Context] = {}
+
     try:
         while True:
             try:
@@ -164,7 +166,7 @@ async def _ext_ai_index_builder_controller_loop(
                             try:
                                 processed, errors = (
                                     await _ext_ai_index_builder_work(
-                                        db, pgconn, models))
+                                        db, pgconn, models, provider_contexts))
                             finally:
                                 if processed == 0 or errors != 0:
                                     await asyncutil.deferred_shield(
@@ -238,6 +240,7 @@ async def _ext_ai_index_builder_work(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
     models: list[tuple[int, str, str]],
+    provider_contexts: dict[str, rq.Context]
 ) -> tuple[int, int]:
 
     models_by_provider: dict[str, list[str]] = {}
@@ -253,19 +256,32 @@ async def _ext_ai_index_builder_work(
     provider_tasks = []
     async with asyncio.TaskGroup() as g:
         for provider_name, provider_models in models_by_provider.items():
+            if provider_name not in provider_contexts:
+                provider_contexts[provider_name] = rq.Context()
+
             provider_tasks.append(
                 g.create_task(
                     _ext_ai_index_builder_provider_work(
-                        db, pgconn, provider_name, provider_models
+                        db,
+                        pgconn,
+                        provider_name,
+                        provider_models,
+                        provider_contexts[provider_name],
                     )
                 )
             )
 
+    processed_count = 0
     error_count = 0
     for provider_task in provider_tasks:
-        error_count += provider_task.result()
+        provider_processed_count, provider_error_count = (
+            provider_task.result()
+        )
 
-    return len(provider_tasks), error_count
+        processed_count += provider_processed_count
+        error_count += provider_error_count
+
+    return processed_count, error_count
 
 
 async def _ext_ai_index_builder_provider_work(
@@ -273,7 +289,8 @@ async def _ext_ai_index_builder_provider_work(
     pgconn: pgcon.PGConnection,
     provider_name: str,
     provider_models: list[str],
-) -> int:
+    context: rq.Context,
+) -> tuple[int, int]:
     task_name = _task_name.get()
 
     task_params = await _generate_embeddings_task_params(
@@ -281,17 +298,26 @@ async def _ext_ai_index_builder_provider_work(
     )
 
     if task_params is None:
-        return 1
+        return 0, 1
     if len(task_params) == 0:
-        return 0
+        return 0, 0
+
+    # We don't know when the last time we worked on this provider so clear the
+    # remaining limit
+    if (
+        context.request_limits is not None
+        and context.request_limits.remaining is not None
+    ):
+        context.request_limits.remaining = None
 
     embeddings_task = asyncio.create_task(
-        rq.execute_requests(task_params, ctx=rq.Context())
+        rq.execute_requests(task_params, ctx=context)
     )
     await embeddings_task
 
     embeddings_report = embeddings_task.result()
     assert isinstance(embeddings_report, rq.ExecutionReport)
+
     for message in embeddings_report.known_error_messages:
         logger.error(
             f"{task_name}: could not generate embeddings "
@@ -303,7 +329,15 @@ async def _ext_ai_index_builder_provider_work(
         + embeddings_report.unknown_error_count
     )
 
-    return error_count
+    # Cache provider limits for next time
+    if embeddings_report.updated_limits is not None:
+        provider_limits = context.request_limits
+        if provider_limits is not None:
+            provider_limits.update(embeddings_report.updated_limits)
+        else:
+            context.request_limits = embeddings_report.updated_limits
+
+    return len(task_params), error_count
 
 
 @dataclass(frozen=True)
