@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-
 from edb.testbase import server as tb
 from edb.tools import test
 
@@ -278,5 +277,33 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
                 INSERT INTO "Document" (title, owner_id)
                 VALUES ('Briefing', FALSE)
+                '''
+            )
+
+    async def test_sql_dml_insert_14(self):
+        # default values
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" DEFAULT VALUES;
+            '''
+        )
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (id, title) VALUES (DEFAULT, 'Report');
+            '''
+        )
+        res = await self.squery_values('SELECT title FROM "Document"')
+        self.assert_data_shape(res, tb.bag([[None], ['Report (new)']]))
+
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            'DEFAULT keyword is supported only when '
+            'used for a column in all rows',
+        ):
+            await self.scon.execute(
+                '''
+                INSERT INTO "Document" (title) VALUES ('Report'), (DEFAULT);
                 '''
             )
