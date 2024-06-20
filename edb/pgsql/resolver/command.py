@@ -465,6 +465,10 @@ def construct_insert_element_for_ptr(
         ]
     )
     if is_link:
+        # add .id for links, which will figure out that it has uuid type.
+        # This will make type cast to the object type into "find_by_id".
+        ptr_ql.steps.append(qlast.Ptr(name='id'))
+
         ptr_target = ptr.get_target(ctx.schema)
         assert ptr_target
         ptr_target_name: sn.Name = ptr_target.get_name(ctx.schema)

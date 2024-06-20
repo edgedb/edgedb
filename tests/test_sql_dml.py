@@ -254,11 +254,11 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    @test.xfail('unimplemented')
+    @test.skip('bug 7471 closes connection')
     async def test_sql_dml_insert_12(self):
         with self.assertRaisesRegex(
-            asyncpg.InternalServerError,
-            'constraint error? foreign key error?',
+            asyncpg.exceptions.CardinalityViolationError,
+            "'default::User' with id '[0-9a-f-]+' does not exist",
         ):
             await self.scon.execute(
                 '''
