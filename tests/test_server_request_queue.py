@@ -201,6 +201,293 @@ class TestRequests(unittest.TestCase):
         )
         # Check total takes the "latest" value
 
+    def test_limits_base_delay_01(self):
+        # Unlimited limit has no delay.
+        self.assertEqual(
+            0,
+            rq.Limits(total=True).base_delay(1, guess=60),
+        )
+
+        # If number of requests is less than remaining limit, no delay needed.
+        self.assertEqual(
+            0,
+            rq.Limits(remaining=4).base_delay(1, guess=60),
+        )
+
+        # If total limit exists, rate is based on limit.
+        self.assertAlmostEqual(
+            11,
+            rq.Limits(total=6).base_delay(1, guess=60),
+        )
+        self.assertAlmostEqual(
+            11,
+            rq.Limits(total=6, remaining=4).base_delay(99, guess=60),
+        )
+
+        # Otherwise, just use the minimum guess
+        self.assertAlmostEqual(
+            20,
+            rq.Limits().base_delay(1, guess=20),
+        )
+        self.assertAlmostEqual(
+            20,
+            rq.Limits(remaining=4).base_delay(99, guess=20),
+        )
+
+    @with_fake_event_loop
+    async def test_execute_no_sleep_01(self):
+        # Unlimited total
+        request_limits = rq.Limits(total=True, delay_factor=2)
+
+        # All tasks return a valid result
+        finalize_target: dict[int, float] = {}
+
+        report = await rq.execute_no_sleep(
+            params=[
+                TestParams(
+                    _cost=1,
+                    _results=[
+                        TestResult(
+                            data=TestData(1),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=2,
+                    _results=[
+                        TestResult(
+                            data=TestData(2),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=3,
+                    _results=[
+                        TestResult(
+                            data=TestData(3),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=4,
+                    _results=[
+                        TestResult(
+                            data=TestData(4),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+            ],
+            ctx=rq.Context(jitter=False, request_limits=request_limits),
+        )
+
+        self.assertEqual(
+            {1: 0, 2: 0, 3: 0, 4: 0},
+            finalize_target
+        )
+
+        self.assertEqual(4, report.success_count)
+        self.assertEqual(0, report.unknown_error_count)
+        self.assertEqual([], report.known_error_messages)
+        self.assertEqual(0, report.deferred_requests)
+
+        # Delay factor is decreased if no retries are needed
+        self.assertEqual(1.9, report.updated_limits.delay_factor)
+
+    @with_fake_event_loop
+    async def test_execute_no_sleep_02(self):
+        # Unlimited total
+        request_limits = rq.Limits(total=True)
+
+        # A mix of successes and failures
+        finalize_target: dict[int, float] = {}
+
+        report = await rq.execute_requests(
+            params=[
+                TestParams(
+                    _cost=1,
+                    _results=[
+                        TestResult(
+                            data=TestData(1),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=2,
+                    _results=[
+                        # successful retry
+                        TestResult(data=rq.Error('B', True)),
+                        TestResult(
+                            data=TestData(2),
+                            finalize_target=finalize_target,
+                        ),
+                    ]
+                ),
+                TestParams(
+                    _cost=3
+                ),
+                TestParams(
+                    _cost=4, _results=[TestResult(data=rq.Error('D', False))]
+                ),
+                TestParams(
+                    _cost=2,
+                    _results=[
+                        # unsuccessful retry
+                        TestResult(data=rq.Error('E', True)),
+                        TestResult(data=rq.Error('E', True)),
+                        TestResult(data=rq.Error('E', True)),
+                        TestResult(data=rq.Error('E', True)),
+                        TestResult(data=rq.Error('E', True)),
+                    ]
+                ),
+            ],
+            ctx=rq.Context(jitter=False, request_limits=request_limits),
+        )
+
+        self.assertEqual(
+            {1: 0, 2: 0},
+            finalize_target
+        )
+
+        self.assertEqual(2, report.success_count)
+        self.assertEqual(1, report.unknown_error_count)
+        self.assertEqual(['D'], report.known_error_messages)
+        self.assertEqual(1, report.deferred_requests)
+
+        self.assertEqual(1, report.updated_limits.delay_factor)
+
+    @with_fake_event_loop
+    async def test_execute_no_sleep_03(self):
+        # The total limit is finite
+        request_limits = rq.Limits(total=6)
+
+        # Only the first task returns a valid result
+        finalize_target: dict[int, float] = {}
+
+        report = await rq.execute_no_sleep(
+            params=[
+                TestParams(
+                    _cost=1,
+                    _results=[
+                        TestResult(
+                            data=TestData(1),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=2,
+                    _results=[
+                        TestResult(
+                            data=TestData(2),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=3,
+                    _results=[
+                        TestResult(
+                            data=TestData(3),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=4,
+                    _results=[
+                        TestResult(
+                            data=TestData(4),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+            ],
+            ctx=rq.Context(jitter=False, request_limits=request_limits),
+        )
+
+        self.assertEqual(
+            {1: 0},
+            finalize_target
+        )
+
+        self.assertEqual(1, report.success_count)
+        self.assertEqual(0, report.unknown_error_count)
+        self.assertEqual([], report.known_error_messages)
+        self.assertEqual(3, report.deferred_requests)
+
+        self.assertEqual(2, report.updated_limits.delay_factor)
+
+    @with_fake_event_loop
+    async def test_execute_no_sleep_04(self):
+        # The total limit is finite
+        # But, a sufficient remaining limit is returned by some the result.
+        request_limits = rq.Limits(total=6)
+
+        # Only the first task returns a valid result
+        finalize_target: dict[int, float] = {}
+
+        report = await rq.execute_no_sleep(
+            params=[
+                TestParams(
+                    _cost=1,
+                    _results=[
+                        TestResult(
+                            data=TestData(1),
+                            finalize_target=finalize_target,
+                            request_limits=rq.Limits(remaining=3),
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=2,
+                    _results=[
+                        TestResult(
+                            data=TestData(2),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=3,
+                    _results=[
+                        TestResult(
+                            data=TestData(3),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=4,
+                    _results=[
+                        TestResult(
+                            data=TestData(4),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+            ],
+            ctx=rq.Context(jitter=False, request_limits=request_limits),
+        )
+
+        self.assertEqual(
+            {1: 0, 2: 0, 3: 0, 4: 0},
+            finalize_target
+        )
+
+        self.assertEqual(4, report.success_count)
+        self.assertEqual(0, report.unknown_error_count)
+        self.assertEqual([], report.known_error_messages)
+        self.assertEqual(0, report.deferred_requests)
+
+        self.assertEqual(1, report.updated_limits.delay_factor)
+        # remaining stays None
+        self.assertIsNone(report.updated_limits.remaining)
+
     @with_fake_event_loop
     async def test_execute_requests_01(self):
         # All tasks return a valid result
@@ -255,7 +542,7 @@ class TestRequests(unittest.TestCase):
 
         self.assertEqual(0, report.unknown_error_count)
         self.assertEqual([], report.known_error_messages)
-        self.assertEqual(0, report.remaining_retries)
+        self.assertEqual(0, report.deferred_requests)
 
     @with_fake_event_loop
     async def test_execute_requests_02(self):
@@ -312,7 +599,7 @@ class TestRequests(unittest.TestCase):
 
         self.assertEqual(1, report.unknown_error_count)
         self.assertEqual(['D'], report.known_error_messages)
-        self.assertEqual(1, report.remaining_retries)
+        self.assertEqual(1, report.deferred_requests)
 
     def test_choose_execution_strategy_01(self):
         params = [

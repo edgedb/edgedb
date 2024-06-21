@@ -54,7 +54,7 @@ class Context:
     jitter: bool = True
 
     # Initial and lower bound for guessing the delay
-    guess_delay_min: Final[float] = 0.001
+    guess_delay_min: Final[float] = 1.0
 
     # The upper bound for delays, both known and guessed
     delay_max: Final[float] = 60.0
@@ -64,9 +64,10 @@ class Context:
 class ExecutionReport:
     """Information about the tasks after they are complete"""
 
+    success_count: int = 0
     unknown_error_count: int = 0
     known_error_messages: list[str] = field(default_factory=list)
-    remaining_retries: int = 0
+    deferred_requests: int = 0
 
     updated_limits: Optional[Limits] = None
 
@@ -85,6 +86,27 @@ class Limits:
     # A guess about the delay in seconds needed between requests.
     # To be used if no other data is available.
     guess_delay: Optional[float] = None
+
+    # A delay factor to implement exponential backoff
+    delay_factor: float = 1
+
+    def base_delay(
+        self,
+        request_count: int,
+        *,
+        guess: float,
+    ) -> float:
+        if self.total is True:
+            return 0
+
+        if self.remaining is not None and request_count <= self.remaining:
+            return 0
+
+        if self.total is not None:
+            return 60.0 / self.total * 1.1  # 10% buffer just in case
+
+        # guess the delay
+        return guess
 
     def update(self, latest: Limits) -> Limits:
         """Update based on the latest information."""
@@ -185,6 +207,110 @@ class Error:
     retry: bool
 
 
+async def execute_no_sleep(
+    params: Sequence[Params[_T]],
+    *,
+    ctx: Context,
+) -> ExecutionReport:
+    report = ExecutionReport()
+
+    # Set up request limits
+    if ctx.request_limits is None:
+        # If no other information is available, for the first attempt assume
+        # there is no limit.
+        request_limits = Limits(total=True)
+
+    else:
+        request_limits = copy.copy(ctx.request_limits)
+
+    # If any tasks fail and can be retried, retry them up to a maximum number
+    # of times.
+    retry_count: int = 0
+    pending_task_indexes: list[int] = list(range(len(params)))
+
+    while pending_task_indexes and retry_count < ctx.max_retry_count:
+        base_delay = request_limits.base_delay(
+            len(pending_task_indexes), guess=ctx.guess_delay_min,
+        )
+
+        active_task_indexes: list[int]
+        inactive_task_indexes: list[int]
+        if base_delay == 0:
+            # Try to execute all tasks.
+            active_task_indexes = pending_task_indexes
+            inactive_task_indexes = []
+
+        elif retry_count == 0:
+            # If there is any delay, only execute one task.
+            # This may update the remaining limit, allowing the remaining tasks
+            # to run.
+            active_task_indexes = pending_task_indexes[:1]
+            inactive_task_indexes = pending_task_indexes[1:]
+
+        else:
+            break
+
+        results = await _execute_all(
+            params, active_task_indexes, request_limits, ctx,
+        )
+
+        # Check task results
+        retry_task_indexes: list[int] = []
+
+        request_limits.remaining = None
+
+        for task_index in active_task_indexes:
+            if task_index not in results:
+                report.unknown_error_count += 1
+                continue
+
+            task_result = results[task_index]
+
+            if isinstance(task_result.data, Error):
+                if task_result.data.retry:
+                    # task can be retried
+                    retry_task_indexes.append(task_index)
+
+                else:
+                    # error with message
+                    report.known_error_messages.append(task_result.data.message)
+            else:
+                report.success_count += 1
+
+            await task_result.finalize()
+
+            if task_result.request_limits is not None:
+                request_limits.update(task_result.request_limits)
+
+        retry_count += 1
+        pending_task_indexes = retry_task_indexes + inactive_task_indexes
+
+    # Note how many retries were left
+    report.deferred_requests = len(pending_task_indexes)
+
+    if report.deferred_requests == 0:
+        # If there are delayed Gradually decrease the delay factor over time.
+        request_limits.delay_factor = max(
+            0.95 * request_limits.delay_factor,
+            1,
+        )
+
+    else:
+        # If there are  Gradually decrease the delay factor over time.
+        request_limits.delay_factor *= (
+            1 + random.random() if ctx.jitter else 2
+        )
+
+    # We don't know when the service will be called again, so just clear the
+    # remaining value
+    request_limits.remaining = None
+
+    # Return the updated request limits limits
+    report.updated_limits = request_limits
+
+    return report
+
+
 async def execute_requests(
     params: Sequence[Params[_T]],
     *,
@@ -237,6 +363,8 @@ async def execute_requests(
                 else:
                     # error with message
                     report.known_error_messages.append(task_result.data.message)
+            else:
+                report.success_count += 1
 
             await task_result.finalize()
 
@@ -247,7 +375,7 @@ async def execute_requests(
         active_task_indexes = retry_task_indexes
 
     # Note how many retries were left
-    report.remaining_retries += len(retry_task_indexes)
+    report.deferred_requests += len(retry_task_indexes)
 
     # If there is a guess rate, decrease it. If it is reused in the future,
     # this allows the guess to gradually decrease over time, approaching the
