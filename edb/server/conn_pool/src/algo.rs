@@ -1,6 +1,8 @@
 use std::cell::{Cell, RefCell};
 use tracing::trace;
 
+use crate::block::Name;
+
 pub trait HasPoolAlgorithmData: std::fmt::Debug {
     fn with_algo_data<T>(&self, f: impl FnOnce(&PoolAlgorithmData) -> T) -> T;
 
@@ -14,7 +16,7 @@ pub trait HasPoolAlgorithmData: std::fmt::Debug {
 pub trait VisitPoolAlgoData<D: HasPoolAlgorithmData> {
     /// Materializes the algorithm data in preparation for computation.
     fn update_algo_data(&self);
-    fn with_algo_data_all(&self, f: impl FnMut(&str, &PoolAlgoTargetData));
+    fn with_algo_data_all(&self, f: impl FnMut(&Name, &PoolAlgoTargetData));
     fn with_algo_data<T>(&self, db: &str, f: impl Fn(&PoolAlgoTargetData) -> T) -> Option<T>;
 
     #[inline]
@@ -133,7 +135,7 @@ impl PoolConstraints {
     }
 
     /// Identify the most appealing victim for pool theft.
-    pub fn identify_victim<'a, 'b, T, U>(&self, it: &'a U) -> Option<String>
+    pub fn identify_victim<'a, 'b, T, U>(&self, it: &'a U) -> Option<Name>
     where
         U: VisitPoolAlgoData<T>,
         T: 'b,
@@ -143,7 +145,7 @@ impl PoolConstraints {
         let mut which = None;
         it.with_algo_data_all(|name, data| {
             if data.stealability() > stealable {
-                which = Some(name.to_owned());
+                which = Some(name.clone());
                 stealable = data.stealability();
             }
         });

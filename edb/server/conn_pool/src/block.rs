@@ -43,6 +43,35 @@ impl Counter for Cell<usize> {
     }
 }
 
+/// A cheaply cloneable name string.
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, derive_more::Debug, derive_more::Display)]
+pub struct Name(Rc<String>);
+
+impl From<&str> for Name {
+    fn from(value: &str) -> Self {
+        Name(Rc::new(String::from(value)))
+    }
+}
+
+impl AsRef<str> for Name {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl std::ops::Deref for Name {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.0.as_str()
+    }
+}
+
+impl std::borrow::Borrow<str> for Name {
+    fn borrow(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
 /// Manages the connection state for a single backend database. This is only a
 /// set of connections, and does not understand policy, balancing or anything
 /// outside of a request to make a new connection, or a request to disconnect
@@ -55,7 +84,7 @@ impl Counter for Cell<usize> {
 /// The block has an associated data generic parameter that may be provided where
 /// additional metadata for this block can live.
 pub struct Block<C: Connector, D: Default = ()> {
-    pub db_name: String,
+    pub db_name: Name,
     conns: RefCell<Vec<Conn<C>>>,
     count: Cell<usize>,
     waiters: Cell<usize>,
@@ -66,14 +95,14 @@ pub struct Block<C: Connector, D: Default = ()> {
 }
 
 impl<C: Connector, D: Default> Block<C, D> {
-    pub fn new(db: &str, parent_metrics: Option<Rc<MetricsAccum>>) -> Self {
+    pub fn new(db_name: Name, parent_metrics: Option<Rc<MetricsAccum>>) -> Self {
         let state = ConnState {
             metrics: Rc::new(MetricsAccum::new(parent_metrics)),
             ..Default::default()
         }
         .into();
         Self {
-            db_name: db.to_owned(),
+            db_name,
             conns: Vec::new().into(),
             state,
             data: Default::default(),
@@ -210,7 +239,7 @@ impl<C: Connector, D: Default> Block<C, D> {
 /// Manages the connection state for a number of backend databases. See
 /// the notes on [`Block`] for the scope of responsibility of this struct.
 pub struct Blocks<C: Connector, D: Default = ()> {
-    map: RefCell<HashMap<String, Rc<Block<C, D>>>>,
+    map: RefCell<HashMap<Name, Rc<Block<C, D>>>>,
     /// A cached count
     count: Cell<usize>,
     metrics: Rc<MetricsAccum>,
@@ -233,7 +262,7 @@ impl<C: Connector> VisitPoolAlgoData<PoolAlgoTargetData> for Blocks<C, PoolAlgoT
         }
     }
     #[inline]
-    fn with_algo_data_all(&self, mut f: impl FnMut(&str, &PoolAlgoTargetData)) {
+    fn with_algo_data_all(&self, mut f: impl FnMut(&Name, &PoolAlgoTargetData)) {
         for it in self.map.borrow().values() {
             f(&it.db_name, &it.data)
         }
@@ -311,11 +340,15 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     }
 
     fn block(&self, db: &str) -> Rc<Block<C, D>> {
-        self.map
-            .borrow_mut()
-            .entry(db.to_owned())
-            .or_insert_with(|| Rc::new(Block::new(db, Some(self.metrics.clone()))))
-            .clone()
+        let mut lock = self.map.borrow_mut();
+        if let Some(block) = lock.get(db) {
+            block.clone()
+        } else {
+            let db = Name(Rc::new(db.to_owned()));
+            let block = Rc::new(Block::new(db.clone(), Some(self.metrics.clone())));
+            lock.insert(db, block.clone());
+            block
+        }
     }
 
     pub async fn create(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
@@ -394,7 +427,7 @@ mod tests {
     #[test(tokio::test)]
     async fn test_block() -> Result<()> {
         let connector = BasicConnector::no_delay();
-        let block = Rc::new(Block::<BasicConnector>::new("db", None));
+        let block = Rc::new(Block::<BasicConnector>::new(Name::from("db"), None));
         let conn = block.create(&connector).await?;
         assert_block!(block has 1 Active);
         let local = LocalSet::new();
@@ -416,7 +449,7 @@ mod tests {
     #[test(tokio::test)]
     async fn test_block_parallel_acquire() -> Result<()> {
         let connector = BasicConnector::no_delay();
-        let block = Rc::new(Block::<BasicConnector>::new("db", None));
+        let block = Rc::new(Block::<BasicConnector>::new(Name::from("db"), None));
         block.create(&connector).await?;
         block.create(&connector).await?;
         block.create(&connector).await?;
