@@ -1,7 +1,8 @@
 use crate::{
     algo::{HasPoolAlgorithmData, PoolAlgoTargetData, VisitPoolAlgoData},
     conn::*,
-    metrics::{ConnMetrics, MetricsAccum, PoolMetrics},
+    metrics::{ConnMetrics, MetricVariant, MetricsAccum, PoolMetrics},
+    waitqueue::WaitQueue,
 };
 use scopeguard::defer;
 use std::{
@@ -96,9 +97,10 @@ pub struct Block<C: Connector, D: Default = ()> {
 
 impl<C: Connector, D: Default> Block<C, D> {
     pub fn new(db_name: Name, parent_metrics: Option<Rc<MetricsAccum>>) -> Self {
+        let metrics = Rc::new(MetricsAccum::new(parent_metrics));
         let state = ConnState {
-            metrics: Rc::new(MetricsAccum::new(parent_metrics)),
-            ..Default::default()
+            waiters: WaitQueue::new(metrics.clone()),
+            metrics,
         }
         .into();
         Self {
@@ -135,6 +137,7 @@ impl<C: Connector, D: Default> Block<C, D> {
             for conn in &*self.conns.borrow() {
                 conn_metrics.insert(conn.variant())
             }
+            conn_metrics.set_value(MetricVariant::Waiting, self.state.waiters.len());
             assert_eq!(self.metrics().summary(), conn_metrics.summary());
         }
     }

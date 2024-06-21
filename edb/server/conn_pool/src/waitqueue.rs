@@ -1,48 +1,34 @@
+use crate::metrics::{MetricVariant, MetricsAccum};
 use scopeguard::defer;
 use std::{
     cell::{Cell, RefCell},
     collections::VecDeque,
     future::poll_fn,
-    marker::PhantomData,
+    rc::Rc,
     task::Poll,
 };
 use tracing::trace;
 
-trait Time {
-    type Instant;
-    fn now() -> Self::Instant;
-    fn elapsed_ms(instant: &Self::Instant) -> u128;
-}
+#[cfg(test)]
+use mock_instant::thread_local::Instant;
+#[cfg(not(test))]
+use std::time::Instant;
 
-pub struct DefaultTime {}
-
-impl Time for DefaultTime {
-    type Instant = std::time::Instant;
-    fn now() -> Self::Instant {
-        std::time::Instant::now()
-    }
-    fn elapsed_ms(instant: &Self::Instant) -> u128 {
-        instant.elapsed().as_millis()
-    }
-}
-
-pub struct WaitQueue<T: Time = DefaultTime> {
+pub struct WaitQueue {
     id: Cell<usize>,
-    waiters: RefCell<VecDeque<(usize, T::Instant, std::task::Waker)>>,
-    _time: PhantomData<T>,
+    waiters: RefCell<VecDeque<(usize, Instant, std::task::Waker)>>,
+    metrics: Rc<MetricsAccum>,
 }
 
-impl Default for WaitQueue {
-    fn default() -> Self {
+impl WaitQueue {
+    pub fn new(metrics: Rc<MetricsAccum>) -> Self {
         Self {
-            id: Default::default(),
-            waiters: RefCell::new(Default::default()),
-            _time: PhantomData,
+            id: Cell::default(),
+            waiters: RefCell::default(),
+            metrics,
         }
     }
-}
 
-impl<T: Time> WaitQueue<T> {
     pub fn trigger(&self) {
         if let Some((_, _, waker)) = self.waiters.borrow().front() {
             trace!("Triggered a waiter");
@@ -58,16 +44,20 @@ impl<T: Time> WaitQueue<T> {
         let id = self.id.get() + 1;
         self.id.set(id);
         let waker = poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
-        self.waiters.borrow_mut().push_back((id, T::now(), waker));
+        self.waiters
+            .borrow_mut()
+            .push_back((id, Instant::now(), waker));
         let normal_exit = Cell::new(false);
 
         defer! {
             // Remove ourselves
             if !normal_exit.get() {
+                self.metrics.remove(MetricVariant::Waiting);
                 self.waiters.borrow_mut().retain(|(id_, _, _)| *id_ != id);
             }
         }
 
+        self.metrics.insert(MetricVariant::Waiting);
         let mut defer = true;
         poll_fn(|cx| {
             if defer {
@@ -91,9 +81,15 @@ impl<T: Time> WaitQueue<T> {
         })
         .await;
 
-        self.waiters.borrow_mut().pop_front();
+        let (_, t, _) = self.waiters.borrow_mut().pop_front().unwrap();
+        self.metrics
+            .remove_time(MetricVariant::Waiting, t.elapsed());
 
         // Prevent defer block
         normal_exit.set(true);
+    }
+
+    pub fn len(&self) -> usize {
+        self.waiters.borrow().len()
     }
 }

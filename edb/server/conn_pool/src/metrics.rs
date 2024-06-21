@@ -177,6 +177,12 @@ impl MetricsAccum {
         }
     }
 
+    pub fn set_value(&self, to: MetricVariant, len: usize) {
+        let mut lock = self.raw.borrow_mut();
+        lock.counts[to as usize] = len;
+        lock.max[to as usize] = lock.max[to as usize].max(lock.counts[to as usize]);
+    }
+
     pub fn transition(&self, from: MetricVariant, to: MetricVariant, time: Duration) {
         // trace!("{from:?}->{to:?}: {time:?}");
         let mut lock = self.raw.borrow_mut();

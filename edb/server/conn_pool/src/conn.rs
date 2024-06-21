@@ -17,7 +17,6 @@ use mock_instant::thread_local::Instant;
 #[cfg(not(test))]
 use std::time::Instant;
 
-#[derive(Default)]
 pub struct ConnState {
     pub waiters: WaitQueue,
     pub metrics: Rc<MetricsAccum>,
