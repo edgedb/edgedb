@@ -2,7 +2,6 @@ use crate::{
     metrics::{MetricVariant, MetricsAccum},
     waitqueue::WaitQueue,
 };
-use derive_more::AddAssign;
 use futures::FutureExt;
 use std::{
     borrow::Cow,
@@ -11,7 +10,6 @@ use std::{
     pin::Pin,
     rc::Rc,
     task::{ready, Poll},
-    time::Duration,
 };
 
 #[cfg(test)]
@@ -131,7 +129,7 @@ impl<C: Connector> Conn<C> {
     ) -> Poll<ConnResult<()>> {
         let mut lock = self.inner.borrow_mut();
         match &mut *lock {
-            ConnInner::Idle(_, ..) => Poll::Ready(Ok(())),
+            ConnInner::Idle(..) => Poll::Ready(Ok(())),
             ConnInner::Connecting(t, f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
                 Ok(c) => {
                     metrics.transition(
@@ -222,9 +220,9 @@ enum ConnInner<C: Connector> {
     Transition,
 }
 
-impl<C: Connector> Into<MetricVariant> for &ConnInner<C> {
-    fn into(self) -> MetricVariant {
-        match self {
+impl<C: Connector> From<&ConnInner<C>> for MetricVariant {
+    fn from(val: &ConnInner<C>) -> Self {
+        match val {
             ConnInner::Connecting(..) => MetricVariant::Connecting,
             ConnInner::Disconnecting(..) => MetricVariant::Disconnecting,
             ConnInner::Idle(..) => MetricVariant::Idle,

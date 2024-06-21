@@ -2,7 +2,7 @@ use crate::{
     algo::{PoolAlgoTargetData, PoolConstraints, VisitPoolAlgoData},
     block::Blocks,
     conn::{ConnHandle, ConnResult, Connector},
-    metrics::{ConnMetrics, PoolMetrics},
+    metrics::PoolMetrics,
 };
 use std::{cell::Cell, time::Duration};
 

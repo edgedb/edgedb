@@ -1,7 +1,7 @@
 use crate::{
     algo::{HasPoolAlgorithmData, VisitPoolAlgoData},
     conn::*,
-    metrics::{ConnMetrics, MetricsAccum, PoolMetrics},
+    metrics::{MetricsAccum, PoolMetrics},
 };
 use scopeguard::defer;
 use std::{
@@ -244,11 +244,9 @@ impl<C: Connector, D: Default> Blocks<C, D> {
                 block.check_consistency();
                 total += block.conn_count();
             }
-            if total != self.count.get() {
-                if tracing::enabled!(tracing::Level::TRACE) {
-                    for block in self.map.borrow().values() {
-                        trace!("{}: {}", block.db_name, block.conn_count());
-                    }
+            if total != self.count.get() && tracing::enabled!(tracing::Level::TRACE) {
+                for block in self.map.borrow().values() {
+                    trace!("{}: {}", block.db_name, block.conn_count());
                 }
             }
             assert_eq!(
@@ -381,10 +379,7 @@ mod tests {
     async fn test_block() -> Result<()> {
         let connector = BasicConnector::no_delay();
         let block = Rc::new(Block::<BasicConnector>::new("db"));
-        let conn = block
-            .create(&connector)
-            .await
-            .expect("Expected a connection");
+        let conn = block.create(&connector).await?;
         assert_block!(block has 1 Active);
         let local = LocalSet::new();
         let block2 = block.clone();
@@ -392,7 +387,7 @@ mod tests {
             assert_block!(block2 has 1 Active);
             block2.queue().await?;
             assert_block!(block2 has 1 Active);
-            anyhow::Ok(())
+            Ok(())
         });
         local.spawn_local(async move {
             tokio::task::yield_now().await;
