@@ -1,5 +1,4 @@
 use crate::{
-    algo::PoolConstraints,
     conn::{ConnError, Connector},
     pool::{Pool, PoolConfig},
     PoolHandle,
@@ -180,12 +179,7 @@ async fn run_and_block(
     mut rpc_rx: tokio::sync::mpsc::UnboundedReceiver<PoolRPC>,
 ) {
     let pool = Rc::new(Pool::<PythonConnectionFactory>::new(
-        PoolConfig {
-            constraints: PoolConstraints {
-                max: 10,
-                max_per_target: 10,
-            },
-        },
+        PoolConfig::suggested_default_for(10),
         connector,
     ));
     let conns = Rc::new(RefCell::new(PythonConnectionMap::default()));
@@ -333,12 +327,12 @@ fn _conn_pool(py: Python, m: &PyModule) -> PyResult<()> {
             message += &visitor.0;
 
             Python::with_gil(|py| {
-                let log = match event.metadata().level() {
-                    &tracing::Level::TRACE => self.logger.getattr(py, "debug").unwrap(),
-                    &tracing::Level::DEBUG => self.logger.getattr(py, "warning").unwrap(),
-                    &tracing::Level::INFO => self.logger.getattr(py, "info").unwrap(),
-                    &tracing::Level::WARN => self.logger.getattr(py, "warning").unwrap(),
-                    &tracing::Level::ERROR => self.logger.getattr(py, "error").unwrap(),
+                let log = match *event.metadata().level() {
+                    tracing::Level::TRACE => self.logger.getattr(py, "debug").unwrap(),
+                    tracing::Level::DEBUG => self.logger.getattr(py, "warning").unwrap(),
+                    tracing::Level::INFO => self.logger.getattr(py, "info").unwrap(),
+                    tracing::Level::WARN => self.logger.getattr(py, "warning").unwrap(),
+                    tracing::Level::ERROR => self.logger.getattr(py, "error").unwrap(),
                 };
                 log.call1(py, (message,)).unwrap();
             })

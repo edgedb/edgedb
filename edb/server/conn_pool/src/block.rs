@@ -349,7 +349,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::metrics::MetricVariant;
+    use crate::metrics::{ConnMetrics, MetricVariant};
     use crate::test::*;
     use anyhow::{Ok, Result};
     use pretty_assertions::assert_eq;

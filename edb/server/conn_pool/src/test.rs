@@ -2,7 +2,6 @@
 use std::{future::Future, time::Duration};
 
 use mock_instant::{thread_local::Instant, thread_local::MockClock};
-use tracing::{info, trace};
 
 use crate::conn::{ConnResult, Connector};
 
