@@ -1,6 +1,7 @@
 use scopeguard::defer;
 use std::{
     cell::{Cell, RefCell},
+    collections::VecDeque,
     future::poll_fn,
     marker::PhantomData,
     task::Poll,
@@ -27,7 +28,7 @@ impl Time for DefaultTime {
 
 pub struct WaitQueue<T: Time = DefaultTime> {
     id: Cell<usize>,
-    waiters: RefCell<Vec<(usize, T::Instant, std::task::Waker)>>,
+    waiters: RefCell<VecDeque<(usize, T::Instant, std::task::Waker)>>,
     _time: PhantomData<T>,
 }
 
@@ -35,7 +36,7 @@ impl Default for WaitQueue {
     fn default() -> Self {
         Self {
             id: Default::default(),
-            waiters: RefCell::new(vec![]),
+            waiters: RefCell::new(Default::default()),
             _time: PhantomData,
         }
     }
@@ -43,7 +44,7 @@ impl Default for WaitQueue {
 
 impl<T: Time> WaitQueue<T> {
     pub fn trigger(&self) {
-        if let Some((_, _, waker)) = self.waiters.borrow().first() {
+        if let Some((_, _, waker)) = self.waiters.borrow().front() {
             trace!("Triggered a waiter");
             waker.wake_by_ref()
         } else {
@@ -57,10 +58,14 @@ impl<T: Time> WaitQueue<T> {
         let id = self.id.get() + 1;
         self.id.set(id);
         let waker = poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
-        self.waiters.borrow_mut().push((id, T::now(), waker));
+        self.waiters.borrow_mut().push_back((id, T::now(), waker));
+        let normal_exit = Cell::new(false);
+
         defer! {
             // Remove ourselves
-            self.waiters.borrow_mut().retain(|(id_, _, _)| *id_ != id);
+            if !normal_exit.get() {
+                self.waiters.borrow_mut().retain(|(id_, _, _)| *id_ != id);
+            }
         }
 
         let mut defer = true;
@@ -76,7 +81,7 @@ impl<T: Time> WaitQueue<T> {
 
         // Wait for us to be first in line
         poll_fn(|_| {
-            if self.waiters.borrow().first().unwrap().0 == id {
+            if self.waiters.borrow().front().unwrap().0 == id {
                 Poll::Ready(())
             } else {
                 // Re-trigger whoever should be first
@@ -85,5 +90,10 @@ impl<T: Time> WaitQueue<T> {
             }
         })
         .await;
+
+        self.waiters.borrow_mut().pop_front();
+
+        // Prevent defer block
+        normal_exit.set(true);
     }
 }
