@@ -87,7 +87,6 @@ impl std::borrow::Borrow<str> for Name {
 pub struct Block<C: Connector, D: Default = ()> {
     pub db_name: Name,
     conns: RefCell<Vec<Conn<C>>>,
-    count: Cell<usize>,
     waiters: Cell<usize>,
     state: Rc<ConnState>,
     /// Associated data for this block useful for statistics, quotas or other
@@ -108,17 +107,16 @@ impl<C: Connector, D: Default> Block<C, D> {
             conns: Vec::new().into(),
             state,
             data: Default::default(),
-            count: Default::default(),
             waiters: Default::default(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.conn_count() == 0
+        self.state.metrics.total() == 0
     }
 
     pub fn conn_count(&self) -> usize {
-        self.count.get()
+        self.state.metrics.total()
     }
 
     fn conn(&self, conn: Conn<C>) -> ConnHandle<C> {
@@ -164,7 +162,6 @@ impl<C: Connector, D: Default> Block<C, D> {
         if let Some(index) = pos {
             let conn = lock.remove(index);
             conn.untrack(&self.state.metrics);
-            self.count.dec();
             return Some(conn);
         }
         None
@@ -175,7 +172,6 @@ impl<C: Connector, D: Default> Block<C, D> {
         consistency_check!(self);
         let conn = Conn::new(connector.connect(&self.db_name), &self.state.metrics);
         self.conns.borrow_mut().push(conn.clone());
-        self.count.inc();
         poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics)).await?;
         Ok(self.conn(conn))
     }
@@ -216,7 +212,6 @@ impl<C: Connector, D: Default> Block<C, D> {
         // empty spot to avoid reshuffling
         self.conns.borrow_mut().retain(|other| other != &conn);
         conn.untrack(&self.state.metrics);
-        self.count.dec();
         Ok(())
     }
 
@@ -232,7 +227,6 @@ impl<C: Connector, D: Default> Block<C, D> {
             .try_take_used()
             .expect("Could not acquire a connection");
         to.conns.borrow_mut().push(conn.clone());
-        to.count.inc();
         conn.reopen(connector, &to.state.metrics, &to.db_name);
         poll_fn(|cx| conn.poll_ready(cx, &to.state.metrics)).await?;
         Ok(to.conn(conn))

@@ -58,6 +58,8 @@ impl WaitQueue {
         }
 
         self.metrics.insert(MetricVariant::Waiting);
+
+        // Wait for a waker
         let mut defer = true;
         poll_fn(|cx| {
             if defer {

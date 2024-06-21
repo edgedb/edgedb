@@ -112,30 +112,48 @@ impl AddAssign for ConnMetrics {
 
 #[derive(Debug, Default)]
 struct RawMetrics {
+    /// The total number of non-waiting connections.
+    total: usize,
+    /// The max total number of non-waiting connections.
+    total_max: usize,
+    /// The number of connections per state.
     counts: [usize; MetricVariant::COUNT],
+    /// The max number of connections per state.
     max: [usize; MetricVariant::COUNT],
+    /// The time spent in each state.
     times: [RollingAverageU32<32>; MetricVariant::COUNT],
 }
 
-impl Into<PoolAlgorithmData> for &RawMetrics {
-    fn into(self) -> PoolAlgorithmData {
-        PoolAlgorithmData {
-            active: self.counts[MetricVariant::Active as usize] as _,
-            idle: self.counts[MetricVariant::Idle as usize],
-            avg_connect_time: self.times[MetricVariant::Connecting as usize].avg() as _,
-            avg_disconnect_time: self.times[MetricVariant::Disconnecting as usize].avg() as _,
-            max_concurrent: self.max[MetricVariant::Active as usize],
-            // TODO
-            max_waiters: 0,
-            waiters: 0,
-            oldest_waiter_ms: 0,
+impl RawMetrics {
+    #[inline(always)]
+    fn inc(&mut self, to: MetricVariant) {
+        self.counts[to as usize] += 1;
+        self.max[to as usize] = self.max[to as usize].max(self.counts[to as usize]);
+    }
+
+    #[inline(always)]
+    fn inc_total(&mut self, to: MetricVariant) {
+        if to != MetricVariant::Waiting {
+            self.total += 1;
+            self.total_max = self.total_max.max(self.total);
         }
     }
-}
 
-impl Into<PoolAlgorithmData> for &MetricsAccum {
-    fn into(self) -> PoolAlgorithmData {
-        (&*self.raw.borrow()).into()
+    #[inline(always)]
+    fn dec(&mut self, from: MetricVariant) {
+        self.counts[from as usize] -= 1;
+    }
+
+    #[inline(always)]
+    fn time(&mut self, from: MetricVariant, time: Duration) {
+        self.times[from as usize].accum(time.as_millis() as _);
+    }
+
+    #[inline(always)]
+    fn dec_total(&mut self, from: MetricVariant) {
+        if from != MetricVariant::Waiting {
+            self.total -= 1;
+        }
     }
 }
 
@@ -154,6 +172,11 @@ impl MetricsAccum {
         }
     }
 
+    #[inline]
+    pub fn total(&self) -> usize {
+        self.raw.borrow().total
+    }
+
     pub fn summary(&self) -> ConnMetrics {
         let lock = self.raw.borrow_mut();
         let mut avg_time: [u32; MetricVariant::COUNT] = Default::default();
@@ -167,50 +190,80 @@ impl MetricsAccum {
         }
     }
 
+    #[inline]
     pub fn insert(&self, to: MetricVariant) {
         let mut lock = self.raw.borrow_mut();
-        lock.counts[to as usize] += 1;
-        lock.max[to as usize] = lock.max[to as usize].max(lock.counts[to as usize]);
+        lock.inc(to);
+        lock.inc_total(to);
         // trace!("None->{to:?} ({})", lock[to as usize]);
         if let Some(parent) = &self.parent {
             parent.insert(to);
         }
     }
 
+    #[inline]
     pub fn set_value(&self, to: MetricVariant, len: usize) {
         let mut lock = self.raw.borrow_mut();
+        debug_assert_eq!(lock.counts[to as usize], 0);
         lock.counts[to as usize] = len;
+        lock.total += len;
         lock.max[to as usize] = lock.max[to as usize].max(lock.counts[to as usize]);
     }
 
+    #[inline]
     pub fn transition(&self, from: MetricVariant, to: MetricVariant, time: Duration) {
         // trace!("{from:?}->{to:?}: {time:?}");
         let mut lock = self.raw.borrow_mut();
-        lock.counts[from as usize] -= 1;
-        lock.times[from as usize].accum(time.as_millis() as _);
-        lock.counts[to as usize] += 1;
-        lock.max[to as usize] = lock.max[to as usize].max(lock.counts[to as usize]);
+        lock.dec(from);
+        lock.time(from, time);
+        lock.inc(to);
         if let Some(parent) = &self.parent {
             parent.transition(from, to, time);
         }
     }
 
+    #[inline]
     pub fn remove_time(&self, from: MetricVariant, time: Duration) {
         let mut lock = self.raw.borrow_mut();
-        lock.counts[from as usize] -= 1;
-        lock.times[from as usize].accum(time.as_millis() as _);
+        lock.dec(from);
+        lock.time(from, time);
+        lock.dec_total(from);
         // trace!("{from:?}->None ({time:?})");
         if let Some(parent) = &self.parent {
             parent.remove_time(from, time);
         }
     }
 
+    #[inline]
     pub fn remove(&self, from: MetricVariant) {
         let mut lock = self.raw.borrow_mut();
-        lock.counts[from as usize] -= 1;
+        lock.dec(from);
+        lock.dec_total(from);
         // trace!("{from:?}->None");
         if let Some(parent) = &self.parent {
             parent.remove(from);
         }
+    }
+}
+
+impl Into<PoolAlgorithmData> for &RawMetrics {
+    fn into(self) -> PoolAlgorithmData {
+        PoolAlgorithmData {
+            active: self.counts[MetricVariant::Active as usize] as _,
+            idle: self.counts[MetricVariant::Idle as usize],
+            waiters: self.counts[MetricVariant::Waiting as usize],
+            avg_connect_time: self.times[MetricVariant::Connecting as usize].avg() as _,
+            avg_disconnect_time: self.times[MetricVariant::Disconnecting as usize].avg() as _,
+            max_concurrent: self.max[MetricVariant::Active as usize],
+            max_waiters: self.max[MetricVariant::Waiting as usize],
+            // TODO
+            oldest_waiter_ms: 0,
+        }
+    }
+}
+
+impl Into<PoolAlgorithmData> for &MetricsAccum {
+    fn into(self) -> PoolAlgorithmData {
+        (&*self.raw.borrow()).into()
     }
 }
