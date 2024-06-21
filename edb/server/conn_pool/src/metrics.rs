@@ -2,6 +2,8 @@ use derive_more::AddAssign;
 use std::{cell::RefCell, rc::Rc, time::Duration};
 use strum::EnumCount;
 
+use crate::algo::PoolAlgorithmData;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, strum::EnumCount)]
 pub enum MetricVariant {
     Connecting,
@@ -18,7 +20,7 @@ pub enum MetricVariant {
 #[derive(Debug, PartialEq, Eq)]
 struct RollingAverageU32<const SIZE: usize> {
     values: [u32; SIZE],
-    avg: u64,
+    cumulative: u64,
     ptr: u8,
     /// If we've never rolled over, we cannot divide the entire array by `SIZE`
     /// and have to use `ptr` instead.
@@ -31,7 +33,7 @@ impl<const SIZE: usize> Default for RollingAverageU32<SIZE> {
         Self {
             values: [0; SIZE],
             ptr: 0,
-            avg: 0,
+            cumulative: 0,
             rollover: false,
         }
     }
@@ -45,8 +47,8 @@ impl<const SIZE: usize> RollingAverageU32<SIZE> {
     fn accum(&mut self, new: u32) {
         let size = SIZE as u8;
         let old = std::mem::replace(&mut self.values[self.ptr as usize], new);
-        self.avg -= old as u64;
-        self.avg += new as u64;
+        self.cumulative -= old as u64;
+        self.cumulative += new as u64;
         self.ptr = (self.ptr + 1) % size;
         if self.ptr == 0 {
             self.rollover = true;
@@ -56,12 +58,12 @@ impl<const SIZE: usize> RollingAverageU32<SIZE> {
     #[inline]
     pub fn avg(&self) -> u32 {
         if self.rollover {
-            (self.avg / SIZE as u64) as u32
+            (self.cumulative / SIZE as u64) as u32
         } else {
             if self.ptr == 0 {
                 0
             } else {
-                (self.avg / self.ptr as u64) as u32
+                (self.cumulative / self.ptr as u64) as u32
             }
         }
     }
@@ -108,13 +110,39 @@ impl AddAssign for ConnMetrics {
     }
 }
 
+#[derive(Debug, Default)]
+struct RawMetrics {
+    counts: [usize; MetricVariant::COUNT],
+    max: [usize; MetricVariant::COUNT],
+    times: [RollingAverageU32<32>; MetricVariant::COUNT],
+}
+
+impl Into<PoolAlgorithmData> for &RawMetrics {
+    fn into(self) -> PoolAlgorithmData {
+        PoolAlgorithmData {
+            active: self.counts[MetricVariant::Active as usize] as _,
+            idle: self.counts[MetricVariant::Idle as usize],
+            avg_connect_time: self.times[MetricVariant::Connecting as usize].avg() as _,
+            avg_disconnect_time: self.times[MetricVariant::Disconnecting as usize].avg() as _,
+            max_concurrent: self.max[MetricVariant::Active as usize],
+            // TODO
+            max_waiters: 0,
+            waiters: 0,
+            oldest_waiter_ms: 0,
+        }
+    }
+}
+
+impl Into<PoolAlgorithmData> for &MetricsAccum {
+    fn into(self) -> PoolAlgorithmData {
+        (&*self.raw.borrow()).into()
+    }
+}
+
 /// Metrics accumulator. Designed to be updated without a lock.
 #[derive(Debug, Default)]
 pub struct MetricsAccum {
-    counts: RefCell<[usize; MetricVariant::COUNT]>,
-    max: RefCell<[usize; MetricVariant::COUNT]>,
-    times: RefCell<[RollingAverageU32<32>; MetricVariant::COUNT]>,
-
+    raw: RefCell<RawMetrics>,
     parent: Option<Rc<MetricsAccum>>,
 }
 
@@ -127,23 +155,22 @@ impl MetricsAccum {
     }
 
     pub fn summary(&self) -> ConnMetrics {
+        let lock = self.raw.borrow_mut();
         let mut avg_time: [u32; MetricVariant::COUNT] = Default::default();
-        let lock = self.times.borrow();
         for i in 0..MetricVariant::COUNT {
-            avg_time[i] = lock[i].avg();
+            avg_time[i] = lock.times[i].avg();
         }
         ConnMetrics {
-            value: *self.counts.borrow(),
-            max: *self.max.borrow(),
+            value: lock.counts,
+            max: lock.max,
             avg_time,
         }
     }
 
     pub fn insert(&self, to: MetricVariant) {
-        let mut lock = self.counts.borrow_mut();
-        lock[to as usize] += 1;
-        let mut max = self.max.borrow_mut();
-        max[to as usize] = max[to as usize].max(lock[to as usize]);
+        let mut lock = self.raw.borrow_mut();
+        lock.counts[to as usize] += 1;
+        lock.max[to as usize] = lock.max[to as usize].max(lock.counts[to as usize]);
         // trace!("None->{to:?} ({})", lock[to as usize]);
         if let Some(parent) = &self.parent {
             parent.insert(to);
@@ -152,21 +179,20 @@ impl MetricsAccum {
 
     pub fn transition(&self, from: MetricVariant, to: MetricVariant, time: Duration) {
         // trace!("{from:?}->{to:?}: {time:?}");
-        let mut lock = self.counts.borrow_mut();
-        lock[from as usize] -= 1;
-        self.times.borrow_mut()[from as usize].accum(time.as_millis() as _);
-        lock[to as usize] += 1;
-        let mut max = self.max.borrow_mut();
-        max[to as usize] = max[to as usize].max(lock[to as usize]);
+        let mut lock = self.raw.borrow_mut();
+        lock.counts[from as usize] -= 1;
+        lock.times[from as usize].accum(time.as_millis() as _);
+        lock.counts[to as usize] += 1;
+        lock.max[to as usize] = lock.max[to as usize].max(lock.counts[to as usize]);
         if let Some(parent) = &self.parent {
             parent.transition(from, to, time);
         }
     }
 
     pub fn remove_time(&self, from: MetricVariant, time: Duration) {
-        let mut lock = self.counts.borrow_mut();
-        lock[from as usize] -= 1;
-        self.times.borrow_mut()[from as usize].accum(time.as_millis() as _);
+        let mut lock = self.raw.borrow_mut();
+        lock.counts[from as usize] -= 1;
+        lock.times[from as usize].accum(time.as_millis() as _);
         // trace!("{from:?}->None ({time:?})");
         if let Some(parent) = &self.parent {
             parent.remove_time(from, time);
@@ -174,8 +200,8 @@ impl MetricsAccum {
     }
 
     pub fn remove(&self, from: MetricVariant) {
-        let mut lock = self.counts.borrow_mut();
-        lock[from as usize] -= 1;
+        let mut lock = self.raw.borrow_mut();
+        lock.counts[from as usize] -= 1;
         // trace!("{from:?}->None");
         if let Some(parent) = &self.parent {
             parent.remove(from);

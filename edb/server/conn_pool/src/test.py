@@ -162,32 +162,30 @@ async def main():
     print("Python main acquired a connection:", conn)
     pool.release("test", conn)
 
+uvloop.run(main(), debug=True)
 
+# class Factory:
+#     async def connect(self, x):
+#         return x
 
-# uvloop.run(main(), debug=True)
+#     async def disconnect(self, x):
+#         pass
 
-class Factory:
-    async def connect(self, x):
-        return x
+# async def conn(pool, x):
+#     conn = await pool.acquire(f"db{x%10}")
+#     pool.release(f"db{x%10}", conn=conn)
 
-    async def disconnect(self, x):
-        pass
+# async def main():
+#     pool = ConnPool(Factory())
+#     task = asyncio.create_task(pool.run())
+#     # pool = edb.server.connpool.Pool(connect=connect, disconnect=disconnect, max_capacity=10)
+#     print("Spawn")
+#     async with asyncio.TaskGroup() as g:
+#         for x in range(0, 10000):
+#             g.create_task(conn(pool, x))
+#     print("Done")
 
-async def conn(pool, x):
-    conn = await pool.acquire(f"db{x%10}")
-    pool.release(f"db{x%10}", conn=conn)
-
-async def main():
-    pool = ConnPool(Factory())
-    task = asyncio.create_task(pool.run())
-    # pool = edb.server.connpool.Pool(connect=connect, disconnect=disconnect, max_capacity=10)
-    print("Spawn")
-    async with asyncio.TaskGroup() as g:
-        for x in range(0, 10000):
-            g.create_task(conn(pool, x))
-    print("Done")
-
-start_time = time.perf_counter()
-loop = uvloop.run(main())
-end_time = time.perf_counter()
-print(f"{(end_time - start_time) * 1000}ms")
+# start_time = time.perf_counter()
+# loop = uvloop.run(main())
+# end_time = time.perf_counter()
+# print(f"{(end_time - start_time) * 1000}ms")

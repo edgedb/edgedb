@@ -12,8 +12,10 @@ pub trait HasPoolAlgorithmData: std::fmt::Debug {
 }
 
 pub trait VisitPoolAlgoData<D: HasPoolAlgorithmData> {
-    fn with_algo_data_all(&self, f: impl FnMut(&str, &D));
-    fn with_algo_data<T>(&self, db: &str, f: impl Fn(&D) -> T) -> Option<T>;
+    /// Materializes the algorithm data in preparation for computation.
+    fn update_algo_data(&self);
+    fn with_algo_data_all(&self, f: impl FnMut(&str, &PoolAlgoTargetData));
+    fn with_algo_data<T>(&self, db: &str, f: impl Fn(&PoolAlgoTargetData) -> T) -> Option<T>;
 
     #[inline]
     fn target(&self, db: &str) -> usize {
@@ -24,21 +26,21 @@ pub trait VisitPoolAlgoData<D: HasPoolAlgorithmData> {
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct PoolAlgorithmData {
-    active: usize,
-    idle: usize,
-    waiters: usize,
-    max_waiters: usize,
-    oldest_waiter_ms: usize,
-    max_concurrent: usize,
-    avg_connect_time: usize,
-    avg_disconnect_time: usize,
+    pub active: usize,
+    pub idle: usize,
+    pub waiters: usize,
+    pub max_waiters: usize,
+    pub oldest_waiter_ms: usize,
+    pub max_concurrent: usize,
+    pub avg_connect_time: usize,
+    pub avg_disconnect_time: usize,
 }
 
 #[derive(Default, Debug)]
 pub struct PoolAlgoTargetData {
     target_size: Cell<usize>,
     stealability: Cell<usize>,
-    data: RefCell<PoolAlgorithmData>,
+    pub data: RefCell<PoolAlgorithmData>,
 }
 
 impl HasPoolAlgorithmData for PoolAlgoTargetData {
@@ -72,6 +74,8 @@ impl PoolConstraints {
         T: 'b,
         T: HasPoolAlgorithmData,
     {
+        it.update_algo_data();
+
         // First, compute the overall request load and number of backend targets
         let mut total_requested = 0;
         let mut total_target = 0;

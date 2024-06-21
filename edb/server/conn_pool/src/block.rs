@@ -1,5 +1,5 @@
 use crate::{
-    algo::{HasPoolAlgorithmData, VisitPoolAlgoData},
+    algo::{HasPoolAlgorithmData, PoolAlgoTargetData, VisitPoolAlgoData},
     conn::*,
     metrics::{ConnMetrics, MetricsAccum, PoolMetrics},
 };
@@ -226,15 +226,20 @@ impl<C: Connector, D: Default> Default for Blocks<C, D> {
     }
 }
 
-impl<C: Connector, D: HasPoolAlgorithmData + Default> VisitPoolAlgoData<D> for Blocks<C, D> {
+impl<C: Connector> VisitPoolAlgoData<PoolAlgoTargetData> for Blocks<C, PoolAlgoTargetData> {
+    fn update_algo_data(&self) {
+        for it in self.map.borrow().values() {
+            *it.data.data.borrow_mut() = (&*it.metrics()).into();
+        }
+    }
     #[inline]
-    fn with_algo_data_all(&self, mut f: impl FnMut(&str, &D)) {
+    fn with_algo_data_all(&self, mut f: impl FnMut(&str, &PoolAlgoTargetData)) {
         for it in self.map.borrow().values() {
             f(&it.db_name, &it.data)
         }
     }
     #[inline]
-    fn with_algo_data<T>(&self, db: &str, f: impl Fn(&D) -> T) -> Option<T> {
+    fn with_algo_data<T>(&self, db: &str, f: impl Fn(&PoolAlgoTargetData) -> T) -> Option<T> {
         self.map.borrow().get(db).map(|d| f(&d.data))
     }
 }
