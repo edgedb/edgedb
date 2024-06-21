@@ -35,7 +35,7 @@ anyhow = "1"
 
 [dev-dependencies.tokio]
 version = "1"
-features = ["macros", "rt-multi-thread", "time"]
+features = ["macros", "rt-multi-thread", "time", "test-util"]
 
 [lib]
 crate-type = ["lib", "cdylib"]

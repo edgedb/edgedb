@@ -122,8 +122,8 @@ impl PoolConstraints {
             data.set_target(min);
         });
 
-        // // No starvation
-        // if total_target <= self.max {}
+        // No starvation
+        if total_target <= self.max {}
 
         // // Starvation
     }

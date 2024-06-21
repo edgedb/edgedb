@@ -2,6 +2,7 @@ use crate::{
     algo::{PoolAlgoTargetData, PoolConstraints, VisitPoolAlgoData},
     block::Blocks,
     conn::{ConnHandle, ConnResult, Connector},
+    metrics::{ConnMetrics, PoolMetrics},
 };
 use std::{cell::Cell, time::Duration};
 
@@ -169,12 +170,16 @@ impl<C: Connector> Pool<C> {
 
         Ok(PoolHandle { conn })
     }
+
+    pub fn metrics(&self) -> PoolMetrics {
+        self.blocks.summary()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::BasicConnector;
+    use crate::test::{virtual_sleep, BasicConnector};
     use anyhow::{Ok, Result};
     use std::rc::Rc;
     use test_log::test;
@@ -194,7 +199,7 @@ mod tests {
         Ok(())
     }
 
-    #[test(tokio::test)]
+    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
     async fn test_pool_large() -> Result<()> {
         let config = PoolConfig::suggested_default_for(10);
 
@@ -210,11 +215,10 @@ mod tests {
                 for i in 0..CONNECTIONS {
                     let pool = pool.clone();
                     let task = tokio::task::spawn_local(async move {
-                        trace!("In local task");
                         let db = format!("db-{}", i % DATABASES);
+                        trace!("In local task for connection {i} (using {db})");
                         let conn = pool.acquire(&db).await?;
-                        tokio::task::yield_now().await;
-                        mock_instant::thread_local::MockClock::advance(Duration::from_millis(500));
+                        virtual_sleep(Duration::from_millis(500)).await;
                         drop(conn);
                         Ok(())
                     });
@@ -223,6 +227,8 @@ mod tests {
                 for task in tasks {
                     task.await??;
                 }
+                let metrics = pool.metrics();
+                info!("{metrics:?}");
                 Ok(())
             })
             .await?;

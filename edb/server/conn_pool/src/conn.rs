@@ -1,4 +1,8 @@
-use crate::waitqueue::WaitQueue;
+use crate::{
+    metrics::{MetricVariant, MetricsAccum},
+    waitqueue::WaitQueue,
+};
+use derive_more::AddAssign;
 use futures::FutureExt;
 use std::{
     borrow::Cow,
@@ -9,84 +13,16 @@ use std::{
     task::{ready, Poll},
     time::Duration,
 };
-use tracing::trace;
 
 #[cfg(test)]
 use mock_instant::thread_local::Instant;
 #[cfg(not(test))]
 use std::time::Instant;
 
-#[derive(Debug, Default, PartialEq, Eq)]
-struct RollingAverage {
-    values: [u32; 30],
-    ptr: u8,
-}
-
-impl RollingAverage {
-    fn accum(&mut self, as_millis: u32) {
-        self.values[self.ptr as usize] = as_millis;
-        self.ptr = (self.ptr + 1) % 30;
-    }
-}
-
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct ConnMetricsSummary {
-    summary: [usize; 8],
-}
-
-impl ConnMetricsSummary {
-    pub fn with(variant: ConnStateVariant, count: usize) -> Self {
-        let mut summary = [0; 8];
-        summary[variant as usize] = count;
-        Self { summary }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct ConnMetrics {
-    counts: RefCell<[usize; 8]>,
-    times: RefCell<[RollingAverage; 8]>,
-}
-
-impl ConnMetrics {
-    pub fn summary(&self) -> ConnMetricsSummary {
-        ConnMetricsSummary {
-            summary: *self.counts.borrow(),
-        }
-    }
-
-    pub fn set(&self, to: ConnStateVariant) {
-        let mut lock = self.counts.borrow_mut();
-        lock[to as usize] += 1;
-        // trace!("None->{to:?} ({})", lock[to as usize]);
-    }
-
-    fn transition(&self, from: ConnStateVariant, to: ConnStateVariant, time: Duration) {
-        trace!("{from:?}->{to:?}: {time:?}");
-        let mut lock = self.counts.borrow_mut();
-        lock[from as usize] -= 1;
-        self.times.borrow_mut()[from as usize].accum(time.as_millis() as _);
-        lock[to as usize] += 1;
-    }
-
-    fn remove(&self, from: ConnStateVariant, time: Duration) {
-        let mut lock = self.counts.borrow_mut();
-        lock[from as usize] -= 1;
-        self.times.borrow_mut()[from as usize].accum(time.as_millis() as _);
-        // trace!("{from:?}->None ({time:?})");
-    }
-
-    fn remove_final(&self, from: ConnStateVariant) {
-        let mut lock = self.counts.borrow_mut();
-        lock[from as usize] -= 1;
-        // trace!("{from:?}->None");
-    }
-}
-
 #[derive(Default)]
 pub struct ConnState {
     pub waiters: WaitQueue,
-    pub metrics: Rc<ConnMetrics>,
+    pub metrics: Rc<MetricsAccum>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -136,9 +72,9 @@ impl<C: Connector> Clone for Conn<C> {
 impl<C: Connector> Conn<C> {
     pub fn new(
         f: impl Future<Output = ConnResult<C::Conn>> + 'static,
-        metrics: &ConnMetrics,
+        metrics: &MetricsAccum,
     ) -> Self {
-        metrics.set(ConnStateVariant::Connecting);
+        metrics.insert(MetricVariant::Connecting);
         Self {
             inner: Rc::new(RefCell::new(ConnInner::Connecting(
                 Instant::now(),
@@ -162,12 +98,12 @@ impl<C: Connector> Conn<C> {
         *lock = f(inner);
     }
 
-    pub fn close(&self, connector: &C, metrics: &ConnMetrics) {
+    pub fn close(&self, connector: &C, metrics: &MetricsAccum) {
         self.transition(|inner| match inner {
             ConnInner::Active(t, conn, ..) => {
                 metrics.transition(
-                    ConnStateVariant::Active,
-                    ConnStateVariant::Disconnecting,
+                    MetricVariant::Active,
+                    MetricVariant::Disconnecting,
                     t.elapsed(),
                 );
                 let f = connector.disconnect(conn).boxed_local();
@@ -177,10 +113,10 @@ impl<C: Connector> Conn<C> {
         });
     }
 
-    pub fn reopen(&self, connector: &C, to: &ConnMetrics, db: &str) {
+    pub fn reopen(&self, connector: &C, to: &MetricsAccum, db: &str) {
         self.transition(|inner| match inner {
             ConnInner::Active(_, conn, ..) => {
-                to.set(ConnStateVariant::Connecting);
+                to.insert(MetricVariant::Connecting);
                 let f = connector.reconnect(conn, db).boxed_local();
                 ConnInner::Connecting(Instant::now(), f)
             }
@@ -191,7 +127,7 @@ impl<C: Connector> Conn<C> {
     pub fn poll_ready(
         &self,
         cx: &mut std::task::Context,
-        metrics: &ConnMetrics,
+        metrics: &MetricsAccum,
     ) -> Poll<ConnResult<()>> {
         let mut lock = self.inner.borrow_mut();
         match &mut *lock {
@@ -199,8 +135,8 @@ impl<C: Connector> Conn<C> {
             ConnInner::Connecting(t, f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
                 Ok(c) => {
                     metrics.transition(
-                        ConnStateVariant::Connecting,
-                        ConnStateVariant::Active,
+                        MetricVariant::Connecting,
+                        MetricVariant::Active,
                         t.elapsed(),
                     );
                     *lock = ConnInner::Active(Instant::now(), c);
@@ -208,8 +144,8 @@ impl<C: Connector> Conn<C> {
                 }
                 Err(err) => {
                     metrics.transition(
-                        ConnStateVariant::Connecting,
-                        ConnStateVariant::Failed,
+                        MetricVariant::Connecting,
+                        MetricVariant::Failed,
                         t.elapsed(),
                     );
                     *lock = ConnInner::Failed;
@@ -219,8 +155,8 @@ impl<C: Connector> Conn<C> {
             ConnInner::Disconnecting(t, f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
                 Ok(c) => {
                     metrics.transition(
-                        ConnStateVariant::Disconnecting,
-                        ConnStateVariant::Closed,
+                        MetricVariant::Disconnecting,
+                        MetricVariant::Closed,
                         t.elapsed(),
                     );
                     *lock = ConnInner::Closed;
@@ -228,8 +164,8 @@ impl<C: Connector> Conn<C> {
                 }
                 Err(err) => {
                     metrics.transition(
-                        ConnStateVariant::Disconnecting,
-                        ConnStateVariant::Failed,
+                        MetricVariant::Disconnecting,
+                        MetricVariant::Failed,
                         t.elapsed(),
                     );
                     *lock = ConnInner::Failed;
@@ -241,18 +177,14 @@ impl<C: Connector> Conn<C> {
         }
     }
 
-    pub fn try_lock(&self, metrics: &ConnMetrics) -> bool {
+    pub fn try_lock(&self, metrics: &MetricsAccum) -> bool {
         let mut lock = self.inner.borrow_mut();
 
         let res: bool;
         let old = std::mem::replace(&mut *lock, ConnInner::Transition);
         (*lock, res) = match old {
             ConnInner::Idle(t, conn) => {
-                metrics.transition(
-                    ConnStateVariant::Idle,
-                    ConnStateVariant::Active,
-                    t.elapsed(),
-                );
+                metrics.transition(MetricVariant::Idle, MetricVariant::Active, t.elapsed());
                 (ConnInner::Active(Instant::now(), conn), true)
             }
             other => (other, false),
@@ -260,25 +192,22 @@ impl<C: Connector> Conn<C> {
         res
     }
 
-    pub fn variant(&self) -> ConnStateVariant {
+    pub fn variant(&self) -> MetricVariant {
         (&*self.inner.borrow()).into()
     }
 
-    pub fn untrack(&self, metrics: &ConnMetrics) {
+    pub fn untrack(&self, metrics: &MetricsAccum) {
         match &*self.inner.borrow() {
             ConnInner::Active(t, _)
             | ConnInner::Idle(t, _)
             | ConnInner::Poisoned(t, _)
             | ConnInner::Connecting(t, _)
-            | ConnInner::Disconnecting(t, _) => metrics.remove(self.variant(), t.elapsed()),
-            other => metrics.remove_final(other.into()),
+            | ConnInner::Disconnecting(t, _) => metrics.remove_time(self.variant(), t.elapsed()),
+            other => metrics.remove(other.into()),
         }
     }
 }
 
-#[derive(strum::EnumDiscriminants)]
-#[strum_discriminants(vis(pub))]
-#[strum_discriminants(name(ConnStateVariant))]
 enum ConnInner<C: Connector> {
     /// Connecting connections hold a spot in the pool as they count towards quotas
     Connecting(Instant, Pin<Box<dyn Future<Output = ConnResult<C::Conn>>>>),
@@ -291,6 +220,21 @@ enum ConnInner<C: Connector> {
     Closed,
     /// Transitioning
     Transition,
+}
+
+impl<C: Connector> Into<MetricVariant> for &ConnInner<C> {
+    fn into(self) -> MetricVariant {
+        match self {
+            ConnInner::Connecting(..) => MetricVariant::Connecting,
+            ConnInner::Disconnecting(..) => MetricVariant::Disconnecting,
+            ConnInner::Idle(..) => MetricVariant::Idle,
+            ConnInner::Active(..) => MetricVariant::Active,
+            ConnInner::Poisoned(..) => MetricVariant::Poisoned,
+            ConnInner::Failed => MetricVariant::Failed,
+            ConnInner::Closed => MetricVariant::Closed,
+            ConnInner::Transition => unreachable!(),
+        }
+    }
 }
 
 impl<C: Connector> std::fmt::Debug for ConnInner<C> {
@@ -328,15 +272,15 @@ impl<C: Connector> Drop for ConnHandle<C> {
             ConnInner::Active(t, c) => {
                 let next = if self.poison.get() {
                     self.state.metrics.transition(
-                        ConnStateVariant::Active,
-                        ConnStateVariant::Poisoned,
+                        MetricVariant::Active,
+                        MetricVariant::Poisoned,
                         t.elapsed(),
                     );
                     ConnInner::Poisoned(Instant::now(), c)
                 } else {
                     self.state.metrics.transition(
-                        ConnStateVariant::Active,
-                        ConnStateVariant::Idle,
+                        MetricVariant::Active,
+                        MetricVariant::Idle,
                         t.elapsed(),
                     );
                     ConnInner::Idle(Instant::now(), c)

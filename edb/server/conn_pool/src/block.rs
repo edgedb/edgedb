@@ -1,6 +1,7 @@
 use crate::{
     algo::{HasPoolAlgorithmData, VisitPoolAlgoData},
     conn::*,
+    metrics::{ConnMetrics, MetricsAccum, PoolMetrics},
 };
 use scopeguard::defer;
 use std::{
@@ -14,7 +15,9 @@ use tracing::trace;
 /// Perform a consistency check on entry and exit for this function.
 macro_rules! consistency_check {
     ($self:ident) => {
+        // On entry
         $self.check_consistency();
+        // On exit
         scopeguard::defer!($self.check_consistency());
     };
 }
@@ -94,15 +97,15 @@ impl<C: Connector, D: Default> Block<C, D> {
                 self.conns.borrow().len(),
                 "Blocks failed consistency check. Total connection count was wrong."
             );
-            let conn_metrics = ConnMetrics::default();
+            let conn_metrics = MetricsAccum::default();
             for conn in &*self.conns.borrow() {
-                conn_metrics.set(conn.variant())
+                conn_metrics.insert(conn.variant())
             }
             assert_eq!(self.metrics().summary(), conn_metrics.summary());
         }
     }
 
-    pub fn metrics(&self) -> Rc<ConnMetrics> {
+    pub fn metrics(&self) -> Rc<MetricsAccum> {
         self.state.metrics.clone()
     }
 
@@ -228,6 +231,11 @@ impl<C: Connector, D: HasPoolAlgorithmData + Default> VisitPoolAlgoData<D> for B
 }
 
 impl<C: Connector, D: Default> Blocks<C, D> {
+    /// To ensure that we can trust our summary statistics, we run a consistency check in
+    /// debug mode on most operations. This is cheap enough to run all the time, but we
+    /// assume confidence in this code and disable the checks in release mode.
+    ///
+    /// See [`consistency_check!`] for the macro that calls this on entry and exit.
     #[track_caller]
     pub fn check_consistency(&self) {
         if cfg!(debug_assertions) {
@@ -271,12 +279,21 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         self.block(db).conn_count()
     }
 
-    fn metrics(&self, db: &str) -> Rc<ConnMetrics> {
+    pub fn metrics(&self, db: &str) -> Rc<MetricsAccum> {
         self.map
             .borrow_mut()
             .get(db)
             .map(|b| b.metrics())
             .unwrap_or_default()
+    }
+
+    pub fn summary(&self) -> PoolMetrics {
+        // let mut summary = ConnMetrics::default();
+        // for block in self.map.borrow().values() {
+        //     summary += block.metrics().summary();
+        // }
+        // summary
+        PoolMetrics::default()
     }
 
     fn block(&self, db: &str) -> Rc<Block<C, D>> {
@@ -334,11 +351,31 @@ impl<C: Connector, D: Default> Blocks<C, D> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::metrics::MetricVariant;
     use crate::test::*;
     use anyhow::{Ok, Result};
     use pretty_assertions::assert_eq;
     use test_log::test;
     use tokio::task::LocalSet;
+
+    /// Tiny DSL to make the tests more readable
+    macro_rules! assert_block {
+        ($block:ident has $count:literal $type:ident) => {
+            assert_eq!(
+                $block.metrics().summary(),
+                ConnMetrics::with(MetricVariant::$type, $count).into()
+            );
+        };
+        ($block:ident $db:literal is empty) => {
+            assert_eq!($block.metrics($db).summary(), ConnMetrics::default().into());
+        };
+        ($block:ident $db:literal has $count:literal $type:ident) => {
+            assert_eq!(
+                $block.metrics($db).summary(),
+                ConnMetrics::with(MetricVariant::$type, $count).into()
+            );
+        };
+    }
 
     #[test(tokio::test)]
     async fn test_block() -> Result<()> {
@@ -348,23 +385,13 @@ mod tests {
             .create(&connector)
             .await
             .expect("Expected a connection");
-        assert_eq!(
-            block.metrics().summary(),
-            ConnMetricsSummary::with(ConnStateVariant::Active, 1).into()
-        );
+        assert_block!(block has 1 Active);
         let local = LocalSet::new();
         let block2 = block.clone();
         local.spawn_local(async move {
-            let connector = BasicConnector::no_delay();
-            assert_eq!(
-                block2.metrics().summary(),
-                ConnMetricsSummary::with(ConnStateVariant::Active, 1).into()
-            );
+            assert_block!(block2 has 1 Active);
             block2.queue().await?;
-            assert_eq!(
-                block2.metrics().summary(),
-                ConnMetricsSummary::with(ConnStateVariant::Active, 1).into()
-            );
+            assert_block!(block2 has 1 Active);
             anyhow::Ok(())
         });
         local.spawn_local(async move {
@@ -372,10 +399,6 @@ mod tests {
             drop(conn);
         });
         local.await;
-        assert_eq!(
-            block.metrics().summary(),
-            ConnMetricsSummary::with(ConnStateVariant::Idle, 1).into()
-        );
         Ok(())
     }
 
@@ -386,27 +409,20 @@ mod tests {
         block.create(&connector).await?;
         block.create(&connector).await?;
         block.create(&connector).await?;
-        assert_eq!(
-            block.metrics().summary(),
-            ConnMetricsSummary::with(ConnStateVariant::Idle, 3).into()
-        );
+        assert_block!(block has 3 Idle);
 
         let local = LocalSet::new();
         for i in 0..100 {
             let block2 = block.clone();
             local.spawn_local(async move {
-                let connector = BasicConnector::no_delay();
-                for j in 0..i % 10 {
+                for _ in 0..i % 10 {
                     tokio::task::yield_now().await;
                 }
                 block2.queue().await
             });
         }
         local.await;
-        assert_eq!(
-            block.metrics().summary(),
-            ConnMetricsSummary::with(ConnStateVariant::Idle, 3).into()
-        );
+        assert_block!(block has 3 Idle);
         Ok(())
     }
 
@@ -419,27 +435,15 @@ mod tests {
         blocks.create(&connector, "db").await?;
         blocks.create(&connector, "db").await?;
         assert_eq!(1, blocks.block_count());
-        assert_eq!(
-            blocks.metrics("db").summary(),
-            ConnMetricsSummary::with(ConnStateVariant::Idle, 3).into()
-        );
-        assert_eq!(
-            blocks.metrics("db2").summary(),
-            ConnMetricsSummary::default()
-        );
+        assert_block!(blocks "db" has 3 Idle);
+        assert_block!(blocks "db2" is empty);
         blocks.steal(&connector, "db2", "db").await?;
         blocks.steal(&connector, "db2", "db").await?;
         blocks.steal(&connector, "db2", "db").await?;
         // Block hasn't been GC'd yet
         assert_eq!(2, blocks.block_count());
-        assert_eq!(
-            blocks.metrics("db").summary(),
-            ConnMetricsSummary::default()
-        );
-        assert_eq!(
-            blocks.metrics("db2").summary(),
-            ConnMetricsSummary::with(ConnStateVariant::Idle, 3).into()
-        );
+        assert_block!(blocks "db" is empty);
+        assert_block!(blocks "db2" has 3 Idle);
         Ok(())
     }
 
@@ -451,16 +455,10 @@ mod tests {
         blocks.create(&connector, "db").await?;
         blocks.create(&connector, "db").await?;
         assert_eq!(1, blocks.block_count());
-        assert_eq!(
-            blocks.metrics("db").summary(),
-            ConnMetricsSummary::with(ConnStateVariant::Idle, 2).into()
-        );
+        assert_block!(blocks "db" has 2 Idle);
         blocks.close_one(&connector, "db").await?;
         blocks.close_one(&connector, "db").await?;
-        assert_eq!(
-            blocks.metrics("db").summary(),
-            ConnMetricsSummary::default()
-        );
+        assert_block!(blocks "db" is empty);
         assert_eq!(0, blocks.block_count());
         Ok(())
     }

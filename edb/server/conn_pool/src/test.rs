@@ -1,7 +1,8 @@
 //! Test utilities.
 use std::{future::Future, time::Duration};
 
-use mock_instant::thread_local::MockClock;
+use mock_instant::{thread_local::Instant, thread_local::MockClock};
+use tracing::{info, trace};
 
 use crate::conn::{ConnResult, Connector};
 
@@ -19,14 +20,25 @@ impl BasicConnector {
     }
 }
 
+/// Perform a virtual async sleep that advances all of the virtual clocks (`mock_instant` and `tokio`).
+pub async fn virtual_sleep(duration: Duration) {
+    // Old mock instant so we can detect simultaneous clock advances
+    let now = Instant::now();
+    // Perform the mock sleep, assumes that the tokio time is paused which will
+    // auto-advance the paused clock.
+    tokio::time::sleep(duration).await;
+    // Ensure the mock clock is advanced to the correct state when this tokio sleep completes. Note
+    // that other virtual sleeps may have occurred.
+    MockClock::advance(duration - now.elapsed());
+}
+
 impl Connector for BasicConnector {
     type Conn = ();
     fn connect(&self, db: &str) -> impl Future<Output = ConnResult<Self::Conn>> + 'static {
         let delay = self.delay;
         async move {
             if delay {
-                tokio::task::yield_now().await;
-                MockClock::advance(Duration::from_millis(100));
+                virtual_sleep(Duration::from_millis(100)).await;
             }
             Ok(())
         }
@@ -39,7 +51,7 @@ impl Connector for BasicConnector {
         let delay = self.delay;
         async move {
             if delay {
-                tokio::task::yield_now().await
+                virtual_sleep(Duration::from_millis(100)).await;
             }
             Ok(conn)
         }
@@ -48,7 +60,7 @@ impl Connector for BasicConnector {
         let delay = self.delay;
         async move {
             if delay {
-                tokio::task::yield_now().await
+                virtual_sleep(Duration::from_millis(100)).await;
             }
             Ok(())
         }
