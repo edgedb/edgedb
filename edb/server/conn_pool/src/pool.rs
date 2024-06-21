@@ -205,9 +205,10 @@ mod tests {
 
         let local = LocalSet::new();
         let start = Instant::now();
-        const CONNECTIONS: usize = 100;
+        const CONNECTIONS: usize = 10000;
         const DATABASES: usize = 10;
         info!("Starting tasks");
+        let real_time = std::time::Instant::now();
         local
             .run_until(async {
                 let mut tasks = vec![];
@@ -233,8 +234,8 @@ mod tests {
             })
             .await?;
         info!(
-            "Took {:?} of virtual time for {CONNECTIONS} connections to {DATABASES} databases",
-            start.elapsed()
+            "Took {:?} of virtual time ({:?} real time) for {CONNECTIONS} connections to {DATABASES} databases",
+            start.elapsed(), real_time.elapsed()
         );
         Ok(())
     }

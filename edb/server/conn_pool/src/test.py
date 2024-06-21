@@ -1,13 +1,16 @@
 import logging
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("edb.server.connpool").setLevel(1)
+# logging.basicConfig(level=logging.INFO)
+# logging.getLogger("edb.server.connpool").setLevel(1)
 
 # ruff: noqa: E402
 import edb.server._conn_pool
 import asyncio
+import uvloop
 import threading
 import typing
+import time
+import sys
 
 # Connections must be hashable because we use them to reverse-lookup
 # an internal ID.
@@ -100,7 +103,7 @@ class ConnPool(ConnectionFactory[C]):
             raise RuntimeError(f"pool already started") from None
 
         self._pool = edb.server._conn_pool.ConnPool(self._callback)
-        threading.Thread(target=self._thread_main).start()
+        threading.Thread(target=self._thread_main, daemon=True).start()
         try:
             await self._completion
         except asyncio.exceptions.CancelledError:
@@ -160,4 +163,31 @@ async def main():
     pool.release("test", conn)
 
 
-asyncio.run(main(), debug=True)
+
+# uvloop.run(main(), debug=True)
+
+class Factory:
+    async def connect(self, x):
+        return x
+
+    async def disconnect(self, x):
+        pass
+
+async def conn(pool, x):
+    conn = await pool.acquire(f"db{x%10}")
+    pool.release(f"db{x%10}", conn=conn)
+
+async def main():
+    pool = ConnPool(Factory())
+    task = asyncio.create_task(pool.run())
+    # pool = edb.server.connpool.Pool(connect=connect, disconnect=disconnect, max_capacity=10)
+    print("Spawn")
+    async with asyncio.TaskGroup() as g:
+        for x in range(0, 10000):
+            g.create_task(conn(pool, x))
+    print("Done")
+
+start_time = time.perf_counter()
+loop = uvloop.run(main())
+end_time = time.perf_counter()
+print(f"{(end_time - start_time) * 1000}ms")

@@ -1,7 +1,7 @@
 use crate::{
     algo::{HasPoolAlgorithmData, VisitPoolAlgoData},
     conn::*,
-    metrics::{MetricsAccum, PoolMetrics},
+    metrics::{ConnMetrics, MetricsAccum, PoolMetrics},
 };
 use scopeguard::defer;
 use std::{
@@ -66,11 +66,16 @@ pub struct Block<C: Connector, D: Default = ()> {
 }
 
 impl<C: Connector, D: Default> Block<C, D> {
-    pub fn new(db: &str) -> Self {
+    pub fn new(db: &str, parent_metrics: Option<Rc<MetricsAccum>>) -> Self {
+        let state = ConnState {
+            metrics: Rc::new(MetricsAccum::new(parent_metrics)),
+            ..Default::default()
+        }
+        .into();
         Self {
             db_name: db.to_owned(),
             conns: Vec::new().into(),
-            state: Default::default(),
+            state,
             data: Default::default(),
             count: Default::default(),
             waiters: Default::default(),
@@ -175,6 +180,8 @@ impl<C: Connector, D: Default> Block<C, D> {
             .expect("Could not acquire a connection");
         conn.close(connector, &self.state.metrics);
         poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics)).await?;
+        // TODO: this can be replaced by moving the final item of the list into the
+        // empty spot to avoid reshuffling
         self.conns.borrow_mut().retain(|other| other != &conn);
         conn.untrack(&self.state.metrics);
         self.count.dec();
@@ -206,6 +213,7 @@ pub struct Blocks<C: Connector, D: Default = ()> {
     map: RefCell<HashMap<String, Rc<Block<C, D>>>>,
     /// A cached count
     count: Cell<usize>,
+    metrics: Rc<MetricsAccum>,
 }
 
 impl<C: Connector, D: Default> Default for Blocks<C, D> {
@@ -213,6 +221,7 @@ impl<C: Connector, D: Default> Default for Blocks<C, D> {
         Self {
             map: RefCell::new(HashMap::default()),
             count: Cell::default(),
+            metrics: Rc::new(MetricsAccum::default()),
         }
     }
 }
@@ -286,19 +295,21 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     }
 
     pub fn summary(&self) -> PoolMetrics {
+        let mut metrics = PoolMetrics::default();
+        metrics.pool = self.metrics.summary();
         // let mut summary = ConnMetrics::default();
         // for block in self.map.borrow().values() {
         //     summary += block.metrics().summary();
         // }
         // summary
-        PoolMetrics::default()
+        metrics
     }
 
     fn block(&self, db: &str) -> Rc<Block<C, D>> {
         self.map
             .borrow_mut()
             .entry(db.to_owned())
-            .or_insert_with(|| Rc::new(Block::new(db)))
+            .or_insert_with(|| Rc::new(Block::new(db, Some(self.metrics.clone()))))
             .clone()
     }
 
@@ -378,7 +389,7 @@ mod tests {
     #[test(tokio::test)]
     async fn test_block() -> Result<()> {
         let connector = BasicConnector::no_delay();
-        let block = Rc::new(Block::<BasicConnector>::new("db"));
+        let block = Rc::new(Block::<BasicConnector>::new("db", None));
         let conn = block.create(&connector).await?;
         assert_block!(block has 1 Active);
         let local = LocalSet::new();
@@ -400,7 +411,7 @@ mod tests {
     #[test(tokio::test)]
     async fn test_block_parallel_acquire() -> Result<()> {
         let connector = BasicConnector::no_delay();
-        let block = Rc::new(Block::<BasicConnector>::new("db"));
+        let block = Rc::new(Block::<BasicConnector>::new("db", None));
         block.create(&connector).await?;
         block.create(&connector).await?;
         block.create(&connector).await?;
