@@ -4,12 +4,7 @@ use crate::{
     metrics::{MetricVariant, MetricsAccum, PoolMetrics},
     waitqueue::WaitQueue,
 };
-use std::{
-    cell::{Cell, RefCell},
-    collections::HashMap,
-    future::poll_fn,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, future::poll_fn, rc::Rc};
 use tracing::trace;
 
 /// Perform a consistency check on entry and exit for this function.
@@ -65,7 +60,6 @@ impl std::borrow::Borrow<str> for Name {
 pub struct Block<C: Connector, D: Default = ()> {
     pub db_name: Name,
     conns: RefCell<Vec<Conn<C>>>,
-    waiters: Cell<usize>,
     state: Rc<ConnState>,
     /// Associated data for this block useful for statistics, quotas or other
     /// information.
@@ -85,7 +79,6 @@ impl<C: Connector, D: Default> Block<C, D> {
             conns: Vec::new().into(),
             state,
             data: Default::default(),
-            waiters: Default::default(),
         }
     }
 
