@@ -1,10 +1,9 @@
 use crate::{
-    algo::{HasPoolAlgorithmData, PoolAlgoTargetData, VisitPoolAlgoData},
+    algo::{PoolAlgoTargetData, VisitPoolAlgoData},
     conn::*,
-    metrics::{ConnMetrics, MetricVariant, MetricsAccum, PoolMetrics},
+    metrics::{MetricVariant, MetricsAccum, PoolMetrics},
     waitqueue::WaitQueue,
 };
-use scopeguard::defer;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -21,27 +20,6 @@ macro_rules! consistency_check {
         // On exit
         scopeguard::defer!($self.check_consistency());
     };
-}
-
-/// Helper trait for [`Cell<usize>`].
-trait Counter {
-    fn inc(&self);
-    fn dec(&self);
-}
-
-impl Counter for Cell<usize> {
-    fn inc(&self) {
-        #[cfg(debug_assertions)]
-        self.set(self.get().checked_add(1).unwrap());
-        #[cfg(not(debug_assertions))]
-        self.set(self.get() + 1);
-    }
-    fn dec(&self) {
-        #[cfg(debug_assertions)]
-        self.set(self.get().checked_sub(1).unwrap());
-        #[cfg(not(debug_assertions))]
-        self.set(self.get() - 1);
-    }
 }
 
 /// A cheaply cloneable name string.
@@ -185,9 +163,7 @@ impl<C: Connector, D: Default> Block<C, D> {
                 return Ok(self.conn(conn));
             }
             trace!("Queueing for a connection");
-            self.waiters.inc();
             self.state.waiters.queue().await;
-            self.waiters.dec();
         }
     }
 
@@ -237,8 +213,6 @@ impl<C: Connector, D: Default> Block<C, D> {
 /// the notes on [`Block`] for the scope of responsibility of this struct.
 pub struct Blocks<C: Connector, D: Default = ()> {
     map: RefCell<HashMap<Name, Rc<Block<C, D>>>>,
-    /// A cached count
-    count: Cell<usize>,
     metrics: Rc<MetricsAccum>,
 }
 
@@ -246,7 +220,6 @@ impl<C: Connector, D: Default> Default for Blocks<C, D> {
     fn default() -> Self {
         Self {
             map: RefCell::new(HashMap::default()),
-            count: Cell::default(),
             metrics: Rc::new(MetricsAccum::default()),
         }
     }
@@ -284,14 +257,19 @@ impl<C: Connector, D: Default> Blocks<C, D> {
                 block.check_consistency();
                 total += block.conn_count();
             }
-            if total != self.count.get() && tracing::enabled!(tracing::Level::TRACE) {
+            if total != self.metrics.total() && tracing::enabled!(tracing::Level::TRACE) {
                 for block in self.map.borrow().values() {
-                    trace!("{}: {}", block.db_name, block.conn_count());
+                    trace!(
+                        "{}: {} {:?}",
+                        block.db_name,
+                        block.conn_count(),
+                        block.metrics().summary()
+                    );
                 }
             }
             assert_eq!(
                 total,
-                self.count.get(),
+                self.metrics.total(),
                 "Blocks failed consistency check. Total connection count was wrong."
             );
         }
@@ -310,7 +288,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     }
 
     pub fn conn_count(&self) -> usize {
-        self.count.get()
+        self.metrics.total()
     }
 
     pub fn block_conn_count(&self, db: &str) -> usize {
@@ -350,7 +328,6 @@ impl<C: Connector, D: Default> Blocks<C, D> {
 
     pub async fn create(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
         consistency_check!(self);
-        self.count.inc();
         let block = self.block(db);
         block.create(connector).await
     }
@@ -366,17 +343,12 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         let block = self.block(db);
         // Hack -- this ensures we don't lose the count
         // while we are off in the async creation.
-        self.count.inc();
         let (new, c) = block.create_if_needed(connector).await?;
-        if !new {
-            self.count.dec()
-        }
         Ok(c)
     }
 
     pub async fn close_one(&self, connector: &C, db: &str) -> ConnResult<()> {
         consistency_check!(self);
-        defer!(self.count.dec());
         let block = self.block(db);
         block.close_one(connector).await?;
         if block.is_empty() {

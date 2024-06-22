@@ -59,12 +59,10 @@ impl<const SIZE: usize> RollingAverageU32<SIZE> {
     pub fn avg(&self) -> u32 {
         if self.rollover {
             (self.cumulative / SIZE as u64) as u32
+        } else if self.ptr == 0 {
+            0
         } else {
-            if self.ptr == 0 {
-                0
-            } else {
-                (self.cumulative / self.ptr as u64) as u32
-            }
+            (self.cumulative / self.ptr as u64) as u32
         }
     }
 }
@@ -246,24 +244,24 @@ impl MetricsAccum {
     }
 }
 
-impl Into<PoolAlgorithmData> for &RawMetrics {
-    fn into(self) -> PoolAlgorithmData {
+impl From<&RawMetrics> for PoolAlgorithmData {
+    fn from(val: &RawMetrics) -> Self {
         PoolAlgorithmData {
-            active: self.counts[MetricVariant::Active as usize] as _,
-            idle: self.counts[MetricVariant::Idle as usize],
-            waiters: self.counts[MetricVariant::Waiting as usize],
-            avg_connect_time: self.times[MetricVariant::Connecting as usize].avg() as _,
-            avg_disconnect_time: self.times[MetricVariant::Disconnecting as usize].avg() as _,
-            max_concurrent: self.max[MetricVariant::Active as usize],
-            max_waiters: self.max[MetricVariant::Waiting as usize],
+            active: val.counts[MetricVariant::Active as usize] as _,
+            idle: val.counts[MetricVariant::Idle as usize],
+            waiters: val.counts[MetricVariant::Waiting as usize],
+            avg_connect_time: val.times[MetricVariant::Connecting as usize].avg() as _,
+            avg_disconnect_time: val.times[MetricVariant::Disconnecting as usize].avg() as _,
+            max_concurrent: val.max[MetricVariant::Active as usize],
+            max_waiters: val.max[MetricVariant::Waiting as usize],
             // TODO
             oldest_waiter_ms: 0,
         }
     }
 }
 
-impl Into<PoolAlgorithmData> for &MetricsAccum {
-    fn into(self) -> PoolAlgorithmData {
-        (&*self.raw.borrow()).into()
+impl From<&MetricsAccum> for PoolAlgorithmData {
+    fn from(val: &MetricsAccum) -> Self {
+        (&*val.raw.borrow()).into()
     }
 }

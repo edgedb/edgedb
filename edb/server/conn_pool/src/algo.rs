@@ -129,7 +129,7 @@ impl PoolConstraints {
         });
 
         // No starvation
-        if total_target <= self.max {}
+        total_target <= self.max;
 
         // // Starvation
         todo!()
