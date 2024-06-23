@@ -1,0 +1,14 @@
+<% from "build.inc.yml" import workflow -%>
+name: Build Test and Publish Debug Packages
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs: {}
+  push:
+    branches:
+      - debug-nightly-publish
+
+jobs:
+  <<- workflow(targets, publications, subdist="debug") ->>

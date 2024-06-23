@@ -1,0 +1,15 @@
+publications:
+    - name: prod
+      suffix: ""
+      server: sftp://uploader@package-upload.edgedb.net:22/
+
+targets:
+    linux:
+        - name: debian-buster-x86_64
+          arch: x86_64
+          platform: debian
+          platform_version: buster
+          family: debian
+          runs_on: [self-hosted, linux, x64]
+          docker_arch: linux/amd64
+    macos: []
