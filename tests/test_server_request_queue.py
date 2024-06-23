@@ -203,14 +203,12 @@ class TestRequests(unittest.TestCase):
 
     def test_limits_base_delay_01(self):
         # Unlimited limit has no delay.
-        self.assertEqual(
-            0,
+        self.assertIsNone(
             rq.Limits(total=True).base_delay(1, guess=60),
         )
 
         # If number of requests is less than remaining limit, no delay needed.
-        self.assertEqual(
-            0,
+        self.assertIsNone(
             rq.Limits(remaining=4).base_delay(1, guess=60),
         )
 
@@ -305,7 +303,7 @@ class TestRequests(unittest.TestCase):
         # A mix of successes and failures
         finalize_target: dict[int, float] = {}
 
-        report = await rq.execute_requests(
+        report = await rq.execute_no_sleep(
             params=[
                 TestParams(
                     _cost=1,
@@ -358,7 +356,7 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(['D'], report.known_error_messages)
         self.assertEqual(1, report.deferred_requests)
 
-        self.assertEqual(1, report.updated_limits.delay_factor)
+        self.assertEqual(2, report.updated_limits.delay_factor)
 
     @with_fake_event_loop
     async def test_execute_no_sleep_03(self):
@@ -489,194 +487,9 @@ class TestRequests(unittest.TestCase):
         self.assertIsNone(report.updated_limits.remaining)
 
     @with_fake_event_loop
-    async def test_execute_requests_01(self):
+    async def test_execute_specified_01(self):
         # All tasks return a valid result
-        finalize_target: dict[int, float] = {}
-
-        report = await rq.execute_requests(
-            params=[
-                TestParams(
-                    _cost=1,
-                    _results=[
-                        TestResult(
-                            data=TestData(1),
-                            finalize_target=finalize_target,
-                        )
-                    ]
-                ),
-                TestParams(
-                    _cost=2,
-                    _results=[
-                        TestResult(
-                            data=TestData(2),
-                            finalize_target=finalize_target,
-                        )
-                    ]
-                ),
-                TestParams(
-                    _cost=3,
-                    _results=[
-                        TestResult(
-                            data=TestData(3),
-                            finalize_target=finalize_target,
-                        )
-                    ]
-                ),
-                TestParams(
-                    _cost=4,
-                    _results=[
-                        TestResult(
-                            data=TestData(4),
-                            finalize_target=finalize_target,
-                        )
-                    ]
-                ),
-            ],
-            ctx=rq.Context(jitter=False, request_limits=rq.Limits(total=True)),
-        )
-
-        self.assertEqual(
-            {1: 0, 2: 0, 3: 0, 4: 0},
-            finalize_target
-        )
-
-        self.assertEqual(0, report.unknown_error_count)
-        self.assertEqual([], report.known_error_messages)
-        self.assertEqual(0, report.deferred_requests)
-
-    @with_fake_event_loop
-    async def test_execute_requests_02(self):
-        # A mix of successes and failures
-        finalize_target: dict[int, float] = {}
-
-        report = await rq.execute_requests(
-            params=[
-                TestParams(
-                    _cost=1,
-                    _results=[
-                        TestResult(
-                            data=TestData(1),
-                            finalize_target=finalize_target,
-                        )
-                    ]
-                ),
-                TestParams(
-                    _cost=2,
-                    _results=[
-                        # successful retry
-                        TestResult(data=rq.Error('B', True)),
-                        TestResult(
-                            data=TestData(2),
-                            finalize_target=finalize_target,
-                        ),
-                    ]
-                ),
-                TestParams(
-                    _cost=3
-                ),
-                TestParams(
-                    _cost=4, _results=[TestResult(data=rq.Error('D', False))]
-                ),
-                TestParams(
-                    _cost=2,
-                    _results=[
-                        # unsuccessful retry
-                        TestResult(data=rq.Error('E', True)),
-                        TestResult(data=rq.Error('E', True)),
-                        TestResult(data=rq.Error('E', True)),
-                        TestResult(data=rq.Error('E', True)),
-                        TestResult(data=rq.Error('E', True)),
-                    ]
-                ),
-            ],
-            ctx=rq.Context(jitter=False, request_limits=rq.Limits(total=True)),
-        )
-
-        self.assertEqual(
-            {1: 0, 2: 0},
-            finalize_target
-        )
-
-        self.assertEqual(1, report.unknown_error_count)
-        self.assertEqual(['D'], report.known_error_messages)
-        self.assertEqual(1, report.deferred_requests)
-
-    def test_choose_execution_strategy_01(self):
-        params = [
-            TestParams(_cost=1),
-            TestParams(_cost=2),
-            TestParams(_cost=3),
-            TestParams(_cost=4),
-        ]
-
-        indexes = [0, 1, 2, 3]
-
-        # If there is no rate limit, use _execute_all.
-        self.assertEqual(
-            rq._execute_all,
-            rq._choose_execution_strategy(
-                params, indexes, rq.Limits(total=True),
-            ),
-        )
-
-        # If there are enough remaining requests to cover the task indexes,
-        # use _execute_all.
-        self.assertEqual(
-            rq._execute_all,
-            rq._choose_execution_strategy(
-                params, indexes, rq.Limits(remaining=20),
-            ),
-        )
-
-        self.assertEqual(
-            rq._execute_all,
-            rq._choose_execution_strategy(
-                params, indexes, rq.Limits(remaining=10),
-            ),
-        )
-
-        # If there are not enough remaining requests, and the rate limit is
-        # known, use _execute_known_limit.
-        self.assertEqual(
-            rq._execute_known_limit,
-            rq._choose_execution_strategy(
-                params, indexes, rq.Limits(remaining=8, total=8),
-            ),
-        )
-
-        self.assertEqual(
-            rq._execute_known_limit,
-            rq._choose_execution_strategy(
-                params, indexes, rq.Limits(total=10),
-            ),
-        )
-
-        # Otherwise, use _execute_guess_limit
-        self.assertEqual(
-            rq._execute_guess_limit,
-            rq._choose_execution_strategy(
-                params, indexes, rq.Limits(remaining=8, guess_delay=10),
-            ),
-        )
-
-        self.assertEqual(
-            rq._execute_guess_limit,
-            rq._choose_execution_strategy(
-                params, indexes, rq.Limits(guess_delay=10),
-            ),
-        )
-
-        self.assertEqual(
-            rq._execute_guess_limit,
-            rq._choose_execution_strategy(
-                params, indexes, rq.Limits(),
-            ),
-        )
-
-    @with_fake_event_loop
-    async def test_execute_all_01(self):
-        # All tasks return a valid result
-        results = await rq._execute_all(
+        results = await rq._execute_specified(
             params=[
                 TestParams(_cost=1, _results=[TestResult(data=TestData(1))]),
                 TestParams(_cost=2, _results=[TestResult(data=TestData(2))]),
@@ -702,9 +515,9 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(times, [0, 0, 0, 0])
 
     @with_fake_event_loop
-    async def test_execute_all_02(self):
+    async def test_execute_specified_02(self):
         # A mix of successes and failures
-        results = await rq._execute_all(
+        results = await rq._execute_specified(
             params=[
                 TestParams(
                     _cost=1, _results=[TestResult(data=TestData(1))]
@@ -737,9 +550,9 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(times, [0, 0, 0])
 
     @with_fake_event_loop
-    async def test_execute_all_03(self):
+    async def test_execute_specified_03(self):
         # Run only some tasks
-        results = await rq._execute_all(
+        results = await rq._execute_specified(
             params=[
                 TestParams(_cost=1, _results=[TestResult(data=TestData(1))]),
                 TestParams(_cost=2, _results=[TestResult(data=TestData(2))]),
@@ -761,241 +574,3 @@ class TestRequests(unittest.TestCase):
 
         times = sorted(r.time for r in results.values())
         self.assertEqual(times, [0, 0])
-
-    @with_fake_event_loop
-    async def test_execute_known_limit_01(self):
-        # All tasks return a valid result
-        results = await rq._execute_known_limit(
-            params=[
-                TestParams(_cost=1, _results=[TestResult(data=TestData(1))]),
-                TestParams(_cost=2, _results=[TestResult(data=TestData(2))]),
-                TestParams(_cost=3, _results=[TestResult(data=TestData(3))]),
-                TestParams(_cost=4, _results=[TestResult(data=TestData(4))]),
-            ],
-            indexes=[0, 1, 2, 3],
-            limits=rq.Limits(total=6),
-            ctx=rq.Context(jitter=False),
-        )
-
-        self.assertEqual(
-            {
-                0: TestResult(data=TestData(1)),
-                1: TestResult(data=TestData(2)),
-                2: TestResult(data=TestData(3)),
-                3: TestResult(data=TestData(4)),
-            },
-            results,
-        )
-
-        # The ideal delay is 60s / 6 = 10s
-        # With a 1.1 factor, the base delay is 11s
-        #
-        # The cumulative cost factor is [1, 3, 6, 10].
-        times = sorted(r.time for r in results.values())
-        self.assertEqual(times, [11, 33, 66, 110])
-
-    @with_fake_event_loop
-    async def test_execute_known_limit_02(self):
-        # A mix of successes and failures
-        results = await rq._execute_known_limit(
-            params=[
-                TestParams(
-                    _cost=1, _results=[TestResult(data=TestData(1))]
-                ),
-                TestParams(
-                    _cost=2, _results=[TestResult(data=rq.Error('B', True))]
-                ),
-                TestParams(
-                    _cost=3
-                ),
-                TestParams(
-                    _cost=4, _results=[TestResult(data=rq.Error('D', False))]
-                ),
-            ],
-            indexes=[0, 1, 2, 3],
-            limits=rq.Limits(total=6),
-            ctx=rq.Context(jitter=False),
-        )
-
-        self.assertEqual(
-            {
-                0: TestResult(data=TestData(1)),
-                1: TestResult(data=rq.Error('B', True)),
-                3: TestResult(data=rq.Error('D', False)),
-            },
-            results,
-        )
-
-        # The ideal delay is 60s / 6 = 10s
-        # With a 1.1 factor, the base delay is 11s
-        #
-        # The cumulative cost factor is [1, 3, 9, 17].
-        #
-        # The cost increment increases after index 1 because of a retry,
-        # which causes the base delay to increase.
-        #
-        # The final value is lower than the expected 11*17=187 because the
-        # delay is always capped at the delay max.
-        times = sorted(r.time for r in results.values())
-        self.assertEqual(times, [11, 33, 153])
-
-    @with_fake_event_loop
-    async def test_execute_known_limit_03(self):
-        # Run only some tasks
-        results = await rq._execute_known_limit(
-            params=[
-                TestParams(_cost=1, _results=[TestResult(data=TestData(1))]),
-                TestParams(_cost=2, _results=[TestResult(data=TestData(2))]),
-                TestParams(_cost=3, _results=[TestResult(data=TestData(3))]),
-                TestParams(_cost=4, _results=[TestResult(data=TestData(4))]),
-            ],
-            indexes=[1, 3],
-            limits=rq.Limits(total=6),
-            ctx=rq.Context(jitter=False),
-        )
-
-        self.assertEqual(
-            {
-                1: TestResult(data=TestData(2)),
-                3: TestResult(data=TestData(4)),
-            },
-            results,
-        )
-
-        # The ideal delay is 60s / 6 = 10s
-        # With a 1.1 factor, the base delay is 11s
-        #
-        # The cumulative cost factor is [2, 6].
-        #
-        # Skipped indexes don't cause a delay
-        times = sorted(r.time for r in results.values())
-        self.assertEqual(times, [22, 66])
-
-    @with_fake_event_loop
-    async def test_execute_guess_limit_01(self):
-        # All tasks return a valid result
-        results = await rq._execute_guess_limit(
-            params=[
-                TestParams(_cost=1, _results=[TestResult(data=TestData(1))]),
-                TestParams(_cost=2, _results=[TestResult(data=TestData(2))]),
-                TestParams(_cost=3, _results=[TestResult(data=TestData(3))]),
-                TestParams(_cost=4, _results=[TestResult(data=TestData(4))]),
-            ],
-            indexes=[0, 1, 2, 3],
-            limits=rq.Limits(guess_delay=10),
-            ctx=rq.Context(jitter=False),
-        )
-
-        self.assertEqual(
-            {
-                0: TestResult(data=TestData(1)),
-                1: TestResult(data=TestData(2)),
-                2: TestResult(data=TestData(3)),
-                3: TestResult(data=TestData(4)),
-            },
-            results,
-        )
-
-        # The cumulative cost factor is [1, 3, 6, 10].
-        times = sorted(r.time for r in results.values())
-        self.assertEqual(times, [10, 30, 60, 100])
-
-    @with_fake_event_loop
-    async def test_execute_guess_limit_02(self):
-        # A mix of successes and failures
-        results = await rq._execute_guess_limit(
-            params=[
-                TestParams(
-                    _cost=1, _results=[TestResult(data=TestData(1))]
-                ),
-                TestParams(
-                    _cost=2, _results=[TestResult(data=rq.Error('B', True))]
-                ),
-                TestParams(
-                    _cost=3
-                ),
-                TestParams(
-                    _cost=4, _results=[TestResult(data=rq.Error('D', False))]
-                ),
-            ],
-            indexes=[0, 1, 2, 3],
-            limits=rq.Limits(guess_delay=10),
-            ctx=rq.Context(jitter=False),
-        )
-
-        self.assertEqual(
-            {
-                0: TestResult(data=TestData(1)),
-                1: TestResult(data=rq.Error('B', True)),
-                3: TestResult(data=rq.Error('D', False)),
-            },
-            results,
-        )
-
-        # The cumulative cost factor is [1, 3, 9, 17].
-        #
-        # The cost increment increases after index 1 because of a retry,
-        # which causes the base delay to increase.
-        #
-        # The final value is lower than the expected 10*17=170 because the
-        # delay is always capped at the delay max.
-        times = sorted(r.time for r in results.values())
-        self.assertEqual(times, [10, 30, 150])
-
-    @with_fake_event_loop
-    async def test_execute_guess_limit_03(self):
-        # Run only some tasks
-        results = await rq._execute_guess_limit(
-            params=[
-                TestParams(_cost=1, _results=[TestResult(data=TestData(1))]),
-                TestParams(_cost=2, _results=[TestResult(data=TestData(2))]),
-                TestParams(_cost=3, _results=[TestResult(data=TestData(3))]),
-                TestParams(_cost=4, _results=[TestResult(data=TestData(4))]),
-            ],
-            indexes=[1, 3],
-            limits=rq.Limits(guess_delay=10),
-            ctx=rq.Context(jitter=False),
-        )
-
-        self.assertEqual(
-            {
-                1: TestResult(data=TestData(2)),
-                3: TestResult(data=TestData(4)),
-            },
-            results,
-        )
-
-        # The cumulative cost factor is [2, 6].
-        #
-        # Skipped indexes don't cause a delay
-        times = sorted(r.time for r in results.values())
-        self.assertEqual(times, [20, 60])
-
-    @with_fake_event_loop
-    async def test_execute_guess_limit_04(self):
-        # Use the minimum guess delay if no other guess was provided
-        results = await rq._execute_guess_limit(
-            params=[
-                TestParams(_cost=1, _results=[TestResult(data=TestData(1))]),
-                TestParams(_cost=2, _results=[TestResult(data=TestData(2))]),
-                TestParams(_cost=3, _results=[TestResult(data=TestData(3))]),
-                TestParams(_cost=4, _results=[TestResult(data=TestData(4))]),
-            ],
-            indexes=[0, 1, 2, 3],
-            limits=rq.Limits(),
-            ctx=rq.Context(jitter=False, guess_delay_min=10),
-        )
-
-        self.assertEqual(
-            {
-                0: TestResult(data=TestData(1)),
-                1: TestResult(data=TestData(2)),
-                2: TestResult(data=TestData(3)),
-                3: TestResult(data=TestData(4)),
-            },
-            results,
-        )
-
-        # The cumulative cost factor is [1, 3, 6, 10].
-        times = sorted(r.time for r in results.values())
-        self.assertEqual(times, [10, 30, 60, 100])
