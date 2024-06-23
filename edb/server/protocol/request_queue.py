@@ -37,8 +37,8 @@ _T = TypeVar('_T')
 
 
 @dataclass
-class Context:
-    """Overall parameters which apply to all requests."""
+class Service:
+    """Parameters for requests to a given service."""
 
     # The maximum number of times to retry tasks
     max_retry_count: int = 4
@@ -54,6 +54,68 @@ class Context:
 
     # The upper bound for delays
     delay_max: Final[float] = 60.0
+
+    def next_delay(
+        self,
+        success_count,
+        deferred_count,
+        error_count,
+        naptime: float
+    ) -> tuple[Optional[float], bool]:
+        """When should the service should be processed again.
+
+        Returns a delay and whether the processing should happen as soon as the
+        the delay elapses.
+
+        Examples:
+        (None, True) = execute immediately
+        (None, False) = execute any time
+        (10, True) = execute immediately after 10s
+        (10, False) = execute any time after 10s
+        """
+
+        if self.request_limits is not None:
+            base_delay = self.request_limits.base_delay(
+                deferred_count, guess=self.guess_delay,
+            )
+            if base_delay is None:
+                delay = None
+
+            else:
+                # If delay_factor is very high, it may take quite a long time
+                # for it to return to 1. A maximum delay prevents this service
+                # from never getting checked.
+                delay = min(
+                    base_delay * self.request_limits.delay_factor,
+                    self.delay_max,
+                )
+
+        else:
+            # We have absolutely no information about the delay, assume naptime.
+            delay = naptime
+
+        if error_count > 0:
+            # There was an error, wait before trying again.
+            # Use the larger of delay or naptime.
+            delay = max(delay, naptime) if delay is not None else naptime
+            execute_immediately = False
+
+        elif deferred_count > 0:
+            # There is some deferred work, apply the delay and run immediately.
+            execute_immediately = True
+
+        elif success_count > 0:
+            # Some work was done successfully. Run again to ensure no more work
+            # needs to be done.
+            delay = None
+            execute_immediately = True
+
+        else:
+            # No work left to do. Take a nap.
+            delay = naptime
+            execute_immediately = False
+
+        return delay, execute_immediately
 
 
 @dataclass
@@ -198,28 +260,28 @@ class Error:
 async def execute_no_sleep(
     params: Sequence[Params[_T]],
     *,
-    ctx: Context,
+    service: Service,
 ) -> ExecutionReport:
     """Attempt to execute as many tasks as possible without sleeping."""
     report = ExecutionReport()
 
     # Set up request limits
-    if ctx.request_limits is None:
+    if service.request_limits is None:
         # If no other information is available, for the first attempt assume
         # there is no limit.
         request_limits = Limits(total=True)
 
     else:
-        request_limits = copy.copy(ctx.request_limits)
+        request_limits = copy.copy(service.request_limits)
 
     # If any tasks fail and can be retried, retry them up to a maximum number
     # of times.
     retry_count: int = 0
     pending_task_indexes: list[int] = list(range(len(params)))
 
-    while pending_task_indexes and retry_count < ctx.max_retry_count:
+    while pending_task_indexes and retry_count < service.max_retry_count:
         base_delay = request_limits.base_delay(
-            len(pending_task_indexes), guess=ctx.guess_delay,
+            len(pending_task_indexes), guess=service.guess_delay,
         )
 
         active_task_indexes: list[int]
@@ -240,7 +302,7 @@ async def execute_no_sleep(
             break
 
         results = await _execute_specified(
-            params, active_task_indexes, request_limits, ctx,
+            params, active_task_indexes,
         )
 
         # Check task results
@@ -287,7 +349,7 @@ async def execute_no_sleep(
     else:
         # If there are  Gradually decrease the delay factor over time.
         request_limits.delay_factor *= (
-            1 + random.random() if ctx.jitter else 2
+            1 + random.random() if service.jitter else 2
         )
 
     # We don't know when the service will be called again, so just clear the
@@ -303,8 +365,6 @@ async def execute_no_sleep(
 async def _execute_specified(
     params: Sequence[Params[_T]],
     indexes: Iterable[int],
-    limits: Limits,
-    ctx: Context,
 ) -> dict[int, Result[_T]]:
     # Send all requests at once.
     # We are confident that all requests can be handled right away.

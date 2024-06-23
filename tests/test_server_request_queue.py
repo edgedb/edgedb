@@ -111,6 +111,149 @@ class TestTask(rq.Task[TestData]):
 @unittest.skipIf(async_solipsism is None, 'async_solipsism is missing')
 class TestRequests(unittest.TestCase):
 
+    def test_service_next_delay_01(self):
+        # If there were errors, use a non-immediate delay
+
+        success_count = 0
+        deferred_count = 0
+        error_count = 1
+
+        # No base delay, use naptime
+        self.assertEqual(
+            rq.Service(request_limits=rq.Limits(total=True)).next_delay(
+                success_count, deferred_count, error_count, naptime=30,
+            ),
+            (30, False),
+        )
+
+        # If there is a base delay, the delay is factored and then limited to
+        # a maximum value. Then if there was an error, the greater of the delay
+        # and naptime is used.
+        #
+        # This is equivalent to `max(min(delay*factor, delay_max), naptime)`
+
+        # delay*factor = 22 < delay_max < naptime
+        self.assertAlmostEqual(
+            rq.Service(
+                request_limits=rq.Limits(total=6, delay_factor=2),
+                delay_max=30,
+            ).next_delay(
+                success_count, deferred_count, error_count, naptime=60,
+            ),
+            (60, False),
+        )
+
+        # delay_max < delay*factor = 44 < naptime
+        self.assertAlmostEqual(
+            rq.Service(
+                request_limits=rq.Limits(total=6, delay_factor=4),
+                delay_max=30,
+            ).next_delay(
+                success_count, deferred_count, error_count, naptime=60,
+            ),
+            (60, False),
+        )
+
+        # naptime < delay*factor = 22 < delay_max
+        self.assertAlmostEqual(
+            rq.Service(
+                request_limits=rq.Limits(total=6, delay_factor=2),
+                delay_max=30,
+            ).next_delay(
+                success_count, deferred_count, error_count, naptime=10,
+            ),
+            (22, False),
+        )
+
+        # naptime < delay_max < delay*factor = 44
+        self.assertAlmostEqual(
+            rq.Service(
+                request_limits=rq.Limits(total=6, delay_factor=4),
+                delay_max=30,
+            ).next_delay(
+                success_count, deferred_count, error_count, naptime=10,
+            ),
+            (30, False),
+        )
+
+        # If no request limits are known, just nap
+        self.assertEqual(
+            rq.Service().next_delay(
+                success_count, deferred_count, error_count, naptime=30,
+            ),
+            (30, False),
+        )
+
+    def test_service_next_delay_02(self):
+        # If there were no errors and some deferred, use an immediate delay
+
+        success_count = 0
+        deferred_count = 1
+        error_count = 0
+
+        # No base delay, run immediately
+        self.assertEqual(
+            rq.Service(request_limits=rq.Limits(total=True)).next_delay(
+                success_count, deferred_count, error_count, naptime=30,
+            ),
+            (None, True),
+        )
+
+        # Has delay, run immediately after delay
+        self.assertAlmostEqual(
+            rq.Service(request_limits=rq.Limits(total=6)).next_delay(
+                success_count, deferred_count, error_count, naptime=30,
+            ),
+            (11, True),
+        )
+
+    def test_service_next_delay_03(self):
+        # If there were no errors or deferred, and some work was done
+        # sucessfully, run immediately.
+
+        success_count = 1
+        deferred_count = 0
+        error_count = 0
+
+        # No base delay, run immediately
+        self.assertEqual(
+            rq.Service(request_limits=rq.Limits(total=True)).next_delay(
+                success_count, deferred_count, error_count, naptime=30,
+            ),
+            (None, True),
+        )
+
+        # Has delay, run immediately anyways
+        self.assertEqual(
+            rq.Service(request_limits=rq.Limits(total=6)).next_delay(
+                success_count, deferred_count, error_count, naptime=30,
+            ),
+            (None, True),
+        )
+
+    def test_service_next_delay_04(self):
+        # If nothing was done, take a nap.
+
+        success_count = 0
+        deferred_count = 0
+        error_count = 0
+
+        # No base delay, take a nap
+        self.assertEqual(
+            rq.Service(request_limits=rq.Limits(total=True)).next_delay(
+                success_count, deferred_count, error_count, naptime=30,
+            ),
+            (30, False),
+        )
+
+        # Has delay, take a nap
+        self.assertEqual(
+            rq.Service(request_limits=rq.Limits(total=6)).next_delay(
+                success_count, deferred_count, error_count, naptime=30,
+            ),
+            (30, False),
+        )
+
     def test_limits_update_01(self):
         # Check total takes the "latest" value
         self.assertEqual(
@@ -279,7 +422,7 @@ class TestRequests(unittest.TestCase):
                     ]
                 ),
             ],
-            ctx=rq.Context(jitter=False, request_limits=request_limits),
+            service=rq.Service(jitter=False, request_limits=request_limits),
         )
 
         self.assertEqual(
@@ -343,7 +486,7 @@ class TestRequests(unittest.TestCase):
                     ]
                 ),
             ],
-            ctx=rq.Context(jitter=False, request_limits=request_limits),
+            service=rq.Service(jitter=False, request_limits=request_limits),
         )
 
         self.assertEqual(
@@ -405,7 +548,7 @@ class TestRequests(unittest.TestCase):
                     ]
                 ),
             ],
-            ctx=rq.Context(jitter=False, request_limits=request_limits),
+            service=rq.Service(jitter=False, request_limits=request_limits),
         )
 
         self.assertEqual(
@@ -469,7 +612,7 @@ class TestRequests(unittest.TestCase):
                     ]
                 ),
             ],
-            ctx=rq.Context(jitter=False, request_limits=request_limits),
+            service=rq.Service(jitter=False, request_limits=request_limits),
         )
 
         self.assertEqual(
@@ -497,8 +640,6 @@ class TestRequests(unittest.TestCase):
                 TestParams(_cost=4, _results=[TestResult(data=TestData(4))]),
             ],
             indexes=[0, 1, 2, 3],
-            limits=rq.Limits(total=True),
-            ctx=rq.Context(jitter=False),
         )
 
         self.assertEqual(
@@ -533,8 +674,6 @@ class TestRequests(unittest.TestCase):
                 ),
             ],
             indexes=[0, 1, 2, 3],
-            limits=rq.Limits(total=True),
-            ctx=rq.Context(jitter=False),
         )
 
         self.assertEqual(
@@ -560,8 +699,6 @@ class TestRequests(unittest.TestCase):
                 TestParams(_cost=4, _results=[TestResult(data=TestData(4))]),
             ],
             indexes=[1, 3],
-            limits=rq.Limits(total=True),
-            ctx=rq.Context(jitter=False),
         )
 
         self.assertEqual(
