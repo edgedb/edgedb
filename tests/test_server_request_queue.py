@@ -18,7 +18,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Sequence
 
 import asyncio
 import unittest
@@ -43,6 +43,23 @@ except ImportError:
 #
 # When testing retry behaviour, TestTask will return each provided TestResult
 # in sequence.
+
+
+@dataclass
+class TestScheduler(rq.Scheduler):
+
+    params: Optional[list[TestParams]] = None
+
+    execution_report: Optional[rq.ExecutionReport] = None
+
+    async def get_task_params(
+        self, context: rq.Context,
+    ) -> Optional[Sequence[rq.Params]]:
+        return self.params
+
+    def finalize(self, execution_report: rq.ExecutionReport) -> None:
+        self.execution_report = execution_report
+
 
 @dataclass(frozen=True)
 class TestData:
@@ -110,6 +127,231 @@ class TestTask(rq.Task[TestData]):
 
 @unittest.skipIf(async_solipsism is None, 'async_solipsism is missing')
 class TestRequests(unittest.TestCase):
+
+    @with_fake_event_loop
+    async def test_scheduler_process_01(self):
+        # Processing does nothing if scheduler isn't ready
+
+        context = rq.Context(naptime=0)
+
+        # Not ready, not immediate
+        self.assertFalse(await TestScheduler(
+            ready_time=10,
+            execute_immediately=False,
+        ).process(context))
+
+        # Not ready, immediate
+        self.assertFalse(await TestScheduler(
+            ready_time=10,
+            execute_immediately=True,
+        ).process(context))
+
+        # Ready, not immediate
+        self.assertTrue(await TestScheduler(
+            ready_time=0,
+            execute_immediately=False,
+        ).process(context))
+
+        # Ready, immediate
+        self.assertTrue(await TestScheduler(
+            ready_time=0,
+            execute_immediately=True,
+        ).process(context))
+
+    @with_fake_event_loop
+    async def test_scheduler_process_02(self):
+        context = rq.Context(naptime=30)
+
+        service = rq.Service(jitter=False, request_limits=rq.Limits(total=6))
+
+        scheduler = TestScheduler(service=service, params=None)
+        self.assertTrue(await scheduler.process(context))
+
+        # Taking a nap
+        self.assertEqual(scheduler.ready_time, context.naptime)
+        self.assertFalse(scheduler.execute_immediately)
+
+    @with_fake_event_loop
+    async def test_scheduler_process_03(self):
+        service = rq.Service(
+            jitter=False,
+            request_limits=rq.Limits(total=6, delay_factor=2)
+        )
+
+        # All tasks succeed
+        finalize_target: dict[int, float] = {}
+
+        scheduler = TestScheduler(
+            service=service,
+            params=[
+                TestParams(
+                    _cost=1,
+                    _results=[
+                        TestResult(
+                            data=TestData(1),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+            ]
+        )
+        context = rq.Context(naptime=30)
+
+        self.assertTrue(await scheduler.process(context))
+
+        # Run again right away to see if there's more work
+        self.assertIsNone(scheduler.ready_time)
+        self.assertTrue(scheduler.execute_immediately)
+
+        # Results are finalized
+        self.assertEqual(finalize_target, {1: 0})
+
+        self.assertIsNotNone(scheduler.execution_report)
+        report = scheduler.execution_report
+
+        self.assertEqual(1, report.success_count)
+        self.assertEqual(0, report.unknown_error_count)
+        self.assertEqual([], report.known_error_messages)
+        self.assertEqual(0, report.deferred_requests)
+
+        # Delay factor is decreased there are no deferred or errors
+        self.assertEqual(1.9, report.updated_limits.delay_factor)
+
+    @with_fake_event_loop
+    async def test_scheduler_process_04(self):
+        service = rq.Service(
+            max_retry_count=1,
+            jitter=False,
+            request_limits=rq.Limits(total=6, delay_factor=2)
+        )
+
+        # A task was deferred
+        finalize_target: dict[int, float] = {}
+
+        scheduler = TestScheduler(
+            service=service,
+            params=[
+                TestParams(
+                    _cost=1,
+                    _results=[
+                        TestResult(
+                            data=TestData(1),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _cost=1,
+                    _results=[
+                        TestResult(
+                            data=TestData(2),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+            ]
+        )
+        context = rq.Context(naptime=30)
+
+        self.assertTrue(await scheduler.process(context))
+
+        # Run again after some delay, delay factor increased to 4
+        self.assertAlmostEqual(scheduler.ready_time, 44)
+        self.assertTrue(scheduler.execute_immediately)
+
+        # Results are finalized
+        self.assertEqual(finalize_target, {1: 0})
+
+        self.assertIsNotNone(scheduler.execution_report)
+        report = scheduler.execution_report
+
+        self.assertEqual(1, report.success_count)
+        self.assertEqual(0, report.unknown_error_count)
+        self.assertEqual([], report.known_error_messages)
+        self.assertEqual(1, report.deferred_requests)
+
+        # Delay factor is increased
+        self.assertEqual(4, report.updated_limits.delay_factor)
+
+    @with_fake_event_loop
+    async def test_scheduler_process_05(self):
+        service = rq.Service(
+            max_retry_count=1,
+            jitter=False,
+            request_limits=rq.Limits(total=6, delay_factor=2)
+        )
+
+        # A task has an error
+        finalize_target: dict[int, float] = {}
+
+        scheduler = TestScheduler(
+            service=service,
+            params=[
+                TestParams(
+                    _cost=1,
+                    _results=[
+                        TestResult(data=rq.Error('Error', False)),
+                    ]
+                ),
+            ]
+        )
+        context = rq.Context(naptime=30)
+
+        self.assertTrue(await scheduler.process(context))
+
+        # Run again after some delay, naptime is greater than delay
+        self.assertAlmostEqual(scheduler.ready_time, 30)
+        self.assertFalse(scheduler.execute_immediately)
+
+        # Results are finalized
+        self.assertEqual(finalize_target, {})
+
+        self.assertIsNotNone(scheduler.execution_report)
+        report = scheduler.execution_report
+
+        self.assertEqual(0, report.success_count)
+        self.assertEqual(0, report.unknown_error_count)
+        self.assertEqual(['Error'], report.known_error_messages)
+        self.assertEqual(0, report.deferred_requests)
+
+        # Delay factor is unchanged
+        self.assertEqual(2, report.updated_limits.delay_factor)
+
+    def test_scheduler_get_combined_ready_time_01(self):
+        self.assertTrue(
+            TestScheduler.get_combined_ready_time([
+                TestScheduler(ready_time=None, execute_immediately=True),
+            ])
+        )
+        self.assertTrue(
+            TestScheduler.get_combined_ready_time([
+                TestScheduler(ready_time=None, execute_immediately=True),
+                TestScheduler(ready_time=10, execute_immediately=True),
+                TestScheduler(ready_time=None, execute_immediately=False),
+                TestScheduler(ready_time=10, execute_immediately=False),
+            ])
+        )
+
+        self.assertEqual(
+            TestScheduler.get_combined_ready_time([
+                TestScheduler(ready_time=10, execute_immediately=True),
+                TestScheduler(ready_time=20, execute_immediately=True),
+                TestScheduler(ready_time=30, execute_immediately=True),
+                TestScheduler(ready_time=None, execute_immediately=False),
+                TestScheduler(ready_time=10, execute_immediately=False),
+            ]),
+            10,
+        )
+
+        self.assertFalse(
+            TestScheduler.get_combined_ready_time([
+                TestScheduler(ready_time=None, execute_immediately=False),
+                TestScheduler(ready_time=10, execute_immediately=False),
+                TestScheduler(ready_time=20, execute_immediately=False),
+                TestScheduler(ready_time=30, execute_immediately=False),
+            ]),
+            10,
+        )
 
     def test_service_next_delay_01(self):
         # If there were errors, use a non-immediate delay
@@ -378,7 +620,7 @@ class TestRequests(unittest.TestCase):
     @with_fake_event_loop
     async def test_execute_no_sleep_01(self):
         # Unlimited total
-        request_limits = rq.Limits(total=True, delay_factor=2)
+        request_limits = rq.Limits(total=True, delay_factor=1)
 
         # All tasks return a valid result
         finalize_target: dict[int, float] = {}
@@ -435,13 +677,13 @@ class TestRequests(unittest.TestCase):
         self.assertEqual([], report.known_error_messages)
         self.assertEqual(0, report.deferred_requests)
 
-        # Delay factor is decreased if no retries are needed
-        self.assertEqual(1.9, report.updated_limits.delay_factor)
+        # No errors or deferred, delay factor is decreased, can't go below 1
+        self.assertEqual(1, report.updated_limits.delay_factor)
 
     @with_fake_event_loop
     async def test_execute_no_sleep_02(self):
         # Unlimited total
-        request_limits = rq.Limits(total=True)
+        request_limits = rq.Limits(total=True, delay_factor=2)
 
         # A mix of successes and failures
         finalize_target: dict[int, float] = {}
@@ -499,12 +741,13 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(['D'], report.known_error_messages)
         self.assertEqual(1, report.deferred_requests)
 
-        self.assertEqual(2, report.updated_limits.delay_factor)
+        # Deferred request, delay factor is increased
+        self.assertEqual(4, report.updated_limits.delay_factor)
 
     @with_fake_event_loop
     async def test_execute_no_sleep_03(self):
         # The total limit is finite
-        request_limits = rq.Limits(total=6)
+        request_limits = rq.Limits(total=6, delay_factor=2)
 
         # Only the first task returns a valid result
         finalize_target: dict[int, float] = {}
@@ -561,15 +804,16 @@ class TestRequests(unittest.TestCase):
         self.assertEqual([], report.known_error_messages)
         self.assertEqual(3, report.deferred_requests)
 
-        self.assertEqual(2, report.updated_limits.delay_factor)
+        # Deferred requests, delay factor increased
+        self.assertEqual(4, report.updated_limits.delay_factor)
 
     @with_fake_event_loop
     async def test_execute_no_sleep_04(self):
         # The total limit is finite
         # But, a sufficient remaining limit is returned by some the result.
-        request_limits = rq.Limits(total=6)
+        request_limits = rq.Limits(total=6, delay_factor=2)
 
-        # Only the first task returns a valid result
+        # Only the first task returns an updated limit
         finalize_target: dict[int, float] = {}
 
         report = await rq.execute_no_sleep(
@@ -625,7 +869,8 @@ class TestRequests(unittest.TestCase):
         self.assertEqual([], report.known_error_messages)
         self.assertEqual(0, report.deferred_requests)
 
-        self.assertEqual(1, report.updated_limits.delay_factor)
+        # All succeed, delay factor reduced
+        self.assertEqual(1.9, report.updated_limits.delay_factor)
         # remaining stays None
         self.assertIsNone(report.updated_limits.remaining)
 

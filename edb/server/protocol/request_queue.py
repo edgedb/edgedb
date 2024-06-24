@@ -36,22 +36,178 @@ import random
 _T = TypeVar('_T')
 
 
+def _default_service() -> Service:
+    return Service()
+
+
+@dataclass
+class Scheduler(abc.ABC):
+    """A scheduler for tasks which use some asynchronous service.
+
+    Tasks may be generated at any time. The service may have some rate limit
+    and may additionally, not always succeed in handling the request.
+
+    This class checks whether any tasks exist and when they should be processed.
+    """
+
+    service: Service = field(default_factory=_default_service)
+
+    # The next time to process requests
+    ready_time: Optional[float] = None
+
+    # Whether requests should be processed as soon as possible after the ready
+    # time.
+    # If this is True, but no ready time is specified, then this should be
+    # processed right away.
+    execute_immediately: bool = True
+
+    @abc.abstractmethod
+    async def get_task_params(
+        self, context: Context,
+    ) -> Optional[Sequence[Params]]:
+        """Get parameters for the tasks to run."""
+        raise NotImplementedError
+
+    async def process(self, context: Context) -> bool:
+        now = asyncio.get_running_loop().time()
+        if (
+            self.ready_time is not None
+            and now < self.ready_time
+        ):
+            # Not ready yet
+            return False
+
+        try:
+            task_params = await self.get_task_params(context)
+        except Exception:
+            task_params = None
+
+        error_count = 0
+        deferred_count = 0
+        success_count = 0
+
+        if task_params is None:
+            error_count = 1
+
+        elif len(task_params) > 0:
+            try:
+                execution_task = asyncio.create_task(
+                    execute_no_sleep(task_params, service=self.service)
+                )
+                await execution_task
+
+                execution_report = execution_task.result()
+
+            except Exception:
+                execution_report = ExecutionReport(unknown_error_count=1)
+
+            assert isinstance(execution_report, ExecutionReport)
+
+            self.finalize(execution_report)
+
+            # Cache limits for next time
+            if execution_report.updated_limits is not None:
+                if self.service.request_limits is not None:
+                    self.service.request_limits.update(
+                        execution_report.updated_limits
+                    )
+                    self.service.request_limits.delay_factor = (
+                        execution_report.updated_limits.delay_factor
+                    )
+
+                else:
+                    self.service.request_limits = (
+                        execution_report.updated_limits
+                    )
+
+            # Update counts
+            error_count = (
+                len(execution_report.known_error_messages)
+                + execution_report.unknown_error_count
+            )
+
+            deferred_count = execution_report.deferred_requests
+            success_count = execution_report.success_count
+
+        # Update when this service should be processed again
+        delay, execute_immediately = self.service.next_delay(
+            success_count, deferred_count, error_count, context.naptime
+        )
+
+        if delay is None:
+            self.ready_time = None
+        else:
+            now = asyncio.get_running_loop().time()
+            self.ready_time = now + delay
+        self.execute_immediately = execute_immediately
+
+        return True
+
+    @abc.abstractmethod
+    def finalize(self, execution_report: ExecutionReport) -> None:
+        """Do any extra work after executing the tasks"""
+        pass
+
+    @staticmethod
+    def get_combined_ready_time(
+        schedulers: Sequence[Scheduler]
+    ) -> float | bool:
+        """Get the ready time of a group of schedulers.
+
+        A True result means some scheduler should be processed immediately with
+        no delay.
+
+        A float result is the lowest delay among schedulers which should be
+        executed immediately after their delays.
+
+        A False result means no scheduler has an immediate delay.
+        """
+        if any(
+            (
+                scheduler.ready_time is None
+                and scheduler.execute_immediately
+            )
+            for scheduler in schedulers
+        ):
+            # A provider needs to be processed again immediately
+            return True
+
+        immediate_ready_times = [
+            scheduler.ready_time
+            for scheduler in schedulers
+            if (
+                scheduler.ready_time is not None
+                and scheduler.execute_immediately
+            )
+        ]
+        if len(immediate_ready_times) > 0:
+            # A provider needs to be processed again after some delay
+            return min(immediate_ready_times)
+
+        # Providers can be processed whenever, after their delay
+        return False
+
+
+@dataclass
+class Context:
+    """Additional information used to process a service's requests."""
+
+    naptime: float
+
+
 @dataclass
 class Service:
     """Parameters for requests to a given service."""
 
-    # The maximum number of times to retry tasks
-    max_retry_count: int = 4
-
     # Information about the service's rate limits
     request_limits: Optional[Limits] = None
 
+    # The maximum number of times to retry tasks
+    max_retry_count: Final[int] = 4
     # Whether to jitter the delay time if a retry error is produced
-    jitter: bool = True
-
+    jitter: Final[bool] = True
     # Initial guess for the delay
     guess_delay: Final[float] = 1.0
-
     # The upper bound for delays
     delay_max: Final[float] = 60.0
 
@@ -339,17 +495,20 @@ async def execute_no_sleep(
     # Note how many retries were left
     report.deferred_requests = len(pending_task_indexes)
 
-    if report.deferred_requests == 0:
-        # If there are delayed Gradually decrease the delay factor over time.
+    if report.deferred_requests != 0:
+        # If there are deferred requests, gradually increase the delay factor
+        request_limits.delay_factor *= (
+            1 + random.random() if service.jitter else 2
+        )
+
+    elif (
+        len(report.known_error_messages) == 0
+        and report.unknown_error_count == 0
+    ):
+        # If there are no errors, gradually decrease the delay factor over time.
         request_limits.delay_factor = max(
             0.95 * request_limits.delay_factor,
             1,
-        )
-
-    else:
-        # If there are  Gradually decrease the delay factor over time.
-        request_limits.delay_factor *= (
-            1 + random.random() if service.jitter else 2
         )
 
     # We don't know when the service will be called again, so just clear the
