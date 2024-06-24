@@ -129,6 +129,98 @@ class TestTask(rs.Request[TestData]):
 class TestRequests(unittest.TestCase):
 
     @with_fake_event_loop
+    async def test_timer_is_ready_01(self):
+        await asyncio.sleep(10)
+
+        self.assertTrue(rs.Timer(None, True).is_ready())
+        self.assertTrue(rs.Timer(5, True).is_ready())
+        self.assertTrue(rs.Timer(10, True).is_ready())
+        self.assertFalse(rs.Timer(20, True).is_ready())
+        self.assertFalse(rs.Timer(40, True).is_ready())
+        self.assertFalse(rs.Timer(80, True).is_ready())
+
+        self.assertTrue(rs.Timer(None, False).is_ready())
+        self.assertTrue(rs.Timer(5, False).is_ready())
+        self.assertTrue(rs.Timer(10, False).is_ready())
+        self.assertFalse(rs.Timer(20, False).is_ready())
+        self.assertFalse(rs.Timer(40, False).is_ready())
+        self.assertFalse(rs.Timer(80, False).is_ready())
+
+    @with_fake_event_loop
+    async def test_timer_is_ready_and_urgent_01(self):
+        await asyncio.sleep(10)
+
+        self.assertTrue(rs.Timer(None, True).is_ready_and_urgent())
+        self.assertTrue(rs.Timer(5, True).is_ready_and_urgent())
+        self.assertTrue(rs.Timer(10, True).is_ready_and_urgent())
+        self.assertFalse(rs.Timer(20, True).is_ready_and_urgent())
+        self.assertFalse(rs.Timer(40, True).is_ready_and_urgent())
+        self.assertFalse(rs.Timer(80, True).is_ready_and_urgent())
+
+        self.assertFalse(rs.Timer(None, False).is_ready_and_urgent())
+        self.assertFalse(rs.Timer(5, False).is_ready_and_urgent())
+        self.assertFalse(rs.Timer(10, False).is_ready_and_urgent())
+        self.assertFalse(rs.Timer(20, False).is_ready_and_urgent())
+        self.assertFalse(rs.Timer(40, False).is_ready_and_urgent())
+        self.assertFalse(rs.Timer(80, False).is_ready_and_urgent())
+
+    @with_fake_event_loop
+    async def test_timer_remaining_time_01(self):
+        await asyncio.sleep(10)
+
+        self.assertEqual(rs.Timer(None, True).remaining_time(30), 0)
+        self.assertEqual(rs.Timer(5, True).remaining_time(30), 0)
+        self.assertEqual(rs.Timer(10, True).remaining_time(30), 0.001)
+        self.assertEqual(rs.Timer(20, True).remaining_time(30), 10.001)
+        self.assertEqual(rs.Timer(40, True).remaining_time(30), 30)
+        self.assertEqual(rs.Timer(80, True).remaining_time(30), 30)
+
+        self.assertEqual(rs.Timer(None, False).remaining_time(30), 30)
+        self.assertEqual(rs.Timer(5, False).remaining_time(30), 30)
+        self.assertEqual(rs.Timer(10, False).remaining_time(30), 30)
+        self.assertEqual(rs.Timer(20, False).remaining_time(30), 30)
+        self.assertEqual(rs.Timer(40, False).remaining_time(30), 30)
+        self.assertEqual(rs.Timer(80, False).remaining_time(30), 30)
+
+    def test_timer_combine_01(self):
+        self.assertEqual(
+            rs.Timer.combine([
+                rs.Timer(None, True),
+            ]),
+            rs.Timer(None, True),
+        )
+        self.assertEqual(
+            rs.Timer.combine([
+                rs.Timer(None, True),
+                rs.Timer(10, True),
+                rs.Timer(None, False),
+                rs.Timer(10, False),
+            ]),
+            rs.Timer(None, True),
+        )
+
+        self.assertEqual(
+            rs.Timer.combine([
+                rs.Timer(10, True),
+                rs.Timer(20, True),
+                rs.Timer(30, True),
+                rs.Timer(None, False),
+                rs.Timer(10, False),
+            ]),
+            rs.Timer(10, True),
+        )
+
+        self.assertEqual(
+            rs.Timer.combine([
+                rs.Timer(None, False),
+                rs.Timer(10, False),
+                rs.Timer(20, False),
+                rs.Timer(30, False),
+            ]),
+            rs.Timer(None, False),
+        )
+
+    @with_fake_event_loop
     async def test_scheduler_process_01(self):
         # Processing does nothing if scheduler isn't ready
 
@@ -136,26 +228,22 @@ class TestRequests(unittest.TestCase):
 
         # Not ready, not immediate
         self.assertFalse(await TestScheduler(
-            ready_time=10,
-            execute_immediately=False,
+            timer=rs.Timer(10, False),
         ).process(context))
 
         # Not ready, immediate
         self.assertFalse(await TestScheduler(
-            ready_time=10,
-            execute_immediately=True,
+            timer=rs.Timer(10, True),
         ).process(context))
 
         # Ready, not immediate
         self.assertTrue(await TestScheduler(
-            ready_time=0,
-            execute_immediately=False,
+            timer=rs.Timer(0, False),
         ).process(context))
 
         # Ready, immediate
         self.assertTrue(await TestScheduler(
-            ready_time=0,
-            execute_immediately=True,
+            timer=rs.Timer(0, True),
         ).process(context))
 
     @with_fake_event_loop
@@ -168,8 +256,10 @@ class TestRequests(unittest.TestCase):
         self.assertTrue(await scheduler.process(context))
 
         # Taking a nap
-        self.assertEqual(scheduler.ready_time, context.naptime)
-        self.assertFalse(scheduler.execute_immediately)
+        self.assertEqual(
+            scheduler.timer,
+            rs.Timer(context.naptime, False),
+        )
 
     @with_fake_event_loop
     async def test_scheduler_process_03(self):
@@ -200,8 +290,10 @@ class TestRequests(unittest.TestCase):
         self.assertTrue(await scheduler.process(context))
 
         # Run again right away to see if there's more work
-        self.assertIsNone(scheduler.ready_time)
-        self.assertTrue(scheduler.execute_immediately)
+        self.assertEqual(
+            scheduler.timer,
+            rs.Timer(None, True),
+        )
 
         # Results are finalized
         self.assertEqual(finalize_target, {1: 0})
@@ -256,8 +348,10 @@ class TestRequests(unittest.TestCase):
         self.assertTrue(await scheduler.process(context))
 
         # Run again after some delay, delay factor increased to 4
-        self.assertAlmostEqual(scheduler.ready_time, 44)
-        self.assertTrue(scheduler.execute_immediately)
+        self.assertAlmostEqual(
+            scheduler.timer,
+            rs.Timer(44, True),
+        )
 
         # Results are finalized
         self.assertEqual(finalize_target, {1: 0})
@@ -300,8 +394,10 @@ class TestRequests(unittest.TestCase):
         self.assertTrue(await scheduler.process(context))
 
         # Run again after some delay, naptime is greater than delay
-        self.assertAlmostEqual(scheduler.ready_time, 30)
-        self.assertFalse(scheduler.execute_immediately)
+        self.assertAlmostEqual(
+            scheduler.timer,
+            rs.Timer(30, False)
+        )
 
         # Results are finalized
         self.assertEqual(finalize_target, {})
@@ -317,43 +413,10 @@ class TestRequests(unittest.TestCase):
         # Delay factor is unchanged
         self.assertEqual(2, report.updated_limits.delay_factor)
 
-    def test_scheduler_get_combined_ready_time_01(self):
-        self.assertTrue(
-            TestScheduler.get_combined_ready_time([
-                TestScheduler(ready_time=None, execute_immediately=True),
-            ])
-        )
-        self.assertTrue(
-            TestScheduler.get_combined_ready_time([
-                TestScheduler(ready_time=None, execute_immediately=True),
-                TestScheduler(ready_time=10, execute_immediately=True),
-                TestScheduler(ready_time=None, execute_immediately=False),
-                TestScheduler(ready_time=10, execute_immediately=False),
-            ])
-        )
+    @with_fake_event_loop
+    async def test_service_next_delay_01(self):
+        await asyncio.sleep(1000)
 
-        self.assertEqual(
-            TestScheduler.get_combined_ready_time([
-                TestScheduler(ready_time=10, execute_immediately=True),
-                TestScheduler(ready_time=20, execute_immediately=True),
-                TestScheduler(ready_time=30, execute_immediately=True),
-                TestScheduler(ready_time=None, execute_immediately=False),
-                TestScheduler(ready_time=10, execute_immediately=False),
-            ]),
-            10,
-        )
-
-        self.assertFalse(
-            TestScheduler.get_combined_ready_time([
-                TestScheduler(ready_time=None, execute_immediately=False),
-                TestScheduler(ready_time=10, execute_immediately=False),
-                TestScheduler(ready_time=20, execute_immediately=False),
-                TestScheduler(ready_time=30, execute_immediately=False),
-            ]),
-            10,
-        )
-
-    def test_service_next_delay_01(self):
         # If there were errors, use a non-immediate delay
 
         success_count = 0
@@ -365,7 +428,7 @@ class TestRequests(unittest.TestCase):
             rs.Service(request_limits=rs.Limits(total=True)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
-            (30, False),
+            rs.Timer(1030, False),
         )
 
         # If there is a base delay, the delay is factored and then limited to
@@ -382,7 +445,7 @@ class TestRequests(unittest.TestCase):
             ).next_delay(
                 success_count, deferred_count, error_count, naptime=60,
             ),
-            (60, False),
+            rs.Timer(1060, False),
         )
 
         # delay_max < delay*factor = 44 < naptime
@@ -393,7 +456,7 @@ class TestRequests(unittest.TestCase):
             ).next_delay(
                 success_count, deferred_count, error_count, naptime=60,
             ),
-            (60, False),
+            rs.Timer(1060, False),
         )
 
         # naptime < delay*factor = 22 < delay_max
@@ -404,7 +467,7 @@ class TestRequests(unittest.TestCase):
             ).next_delay(
                 success_count, deferred_count, error_count, naptime=10,
             ),
-            (22, False),
+            rs.Timer(1022, False),
         )
 
         # naptime < delay_max < delay*factor = 44
@@ -415,7 +478,7 @@ class TestRequests(unittest.TestCase):
             ).next_delay(
                 success_count, deferred_count, error_count, naptime=10,
             ),
-            (30, False),
+            rs.Timer(1030, False),
         )
 
         # If no request limits are known, just nap
@@ -423,10 +486,13 @@ class TestRequests(unittest.TestCase):
             rs.Service().next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
-            (30, False),
+            rs.Timer(1030, False),
         )
 
-    def test_service_next_delay_02(self):
+    @with_fake_event_loop
+    async def test_service_next_delay_02(self):
+        await asyncio.sleep(1000)
+
         # If there were no errors and some deferred, use an immediate delay
 
         success_count = 0
@@ -438,7 +504,7 @@ class TestRequests(unittest.TestCase):
             rs.Service(request_limits=rs.Limits(total=True)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
-            (None, True),
+            rs.Timer(None, True),
         )
 
         # Has delay, run immediately after delay
@@ -446,10 +512,13 @@ class TestRequests(unittest.TestCase):
             rs.Service(request_limits=rs.Limits(total=6)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
-            (11, True),
+            rs.Timer(1011, True),
         )
 
-    def test_service_next_delay_03(self):
+    @with_fake_event_loop
+    async def test_service_next_delay_03(self):
+        await asyncio.sleep(1000)
+
         # If there were no errors or deferred, and some work was done
         # sucessfully, run immediately.
 
@@ -462,7 +531,7 @@ class TestRequests(unittest.TestCase):
             rs.Service(request_limits=rs.Limits(total=True)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
-            (None, True),
+            rs.Timer(None, True),
         )
 
         # Has delay, run immediately anyways
@@ -470,10 +539,13 @@ class TestRequests(unittest.TestCase):
             rs.Service(request_limits=rs.Limits(total=6)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
-            (None, True),
+            rs.Timer(None, True),
         )
 
-    def test_service_next_delay_04(self):
+    @with_fake_event_loop
+    async def test_service_next_delay_04(self):
+        await asyncio.sleep(1000)
+
         # If nothing was done, take a nap.
 
         success_count = 0
@@ -485,7 +557,7 @@ class TestRequests(unittest.TestCase):
             rs.Service(request_limits=rs.Limits(total=True)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
-            (30, False),
+            rs.Timer(1030, False),
         )
 
         # Has delay, take a nap
@@ -493,7 +565,7 @@ class TestRequests(unittest.TestCase):
             rs.Service(request_limits=rs.Limits(total=6)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
-            (30, False),
+            rs.Timer(1030, False),
         )
 
     def test_limits_update_01(self):

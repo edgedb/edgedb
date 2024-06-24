@@ -36,8 +36,92 @@ import random
 _T = TypeVar('_T')
 
 
+@dataclass
+class Timer:
+    """Represents a time after which an action should be taken.
+
+    Examples:
+    (None, True) = execute immediately
+    (None, False) = execute any time
+    (10, True) = execute immediately after 10s
+    (10, False) = execute any time after 10s
+    """
+
+    time: Optional[float] = None
+
+    # Whether the action should be taken as soon as possible after the time.
+    urgent: bool = True
+
+    @staticmethod
+    def create_delay(delay: Optional[float], urgent: bool):
+        now = asyncio.get_running_loop().time()
+        if delay is None:
+            time = None
+        else:
+            now = asyncio.get_running_loop().time()
+            time = now + delay
+
+        return Timer(time, urgent)
+
+    def is_ready(self) -> bool:
+        now = asyncio.get_running_loop().time()
+        return self.time is None or self.time <= now
+
+    def is_ready_and_urgent(self) -> bool:
+        return self.is_ready() and self.urgent
+
+    def remaining_time(self, max_delay: float) -> float:
+        """How long before this timer is ready in seconds."""
+        if self.urgent:
+            if self.time is None:
+                return 0
+
+            else:
+                # 1ms extra, just in case
+                now = asyncio.get_running_loop().time()
+                delay = self.time - now + 0.001
+                return min(max(0, delay), max_delay)
+
+        else:
+            # If not urgent, wait as long as possible
+            return max_delay
+
+    @staticmethod
+    def combine(timers: Iterable[Timer]) -> Timer:
+        """Combine the timers to determine the when to take the next action.
+
+        If the timers are (1, False), (2, False), (3, True), it may be wasteful
+        to act at times [1, 2, 3].
+
+        Instead, we would prefer to act only once, at time 3, since only the
+        third action was urgent.
+        """
+        if any(
+            timer.time is None and timer.urgent
+            for timer in timers
+        ):
+            # An action must be taken right away.
+            return Timer(None, True)
+
+        urgent_times = [
+            timer.time
+            for timer in timers
+            if timer.time is not None and timer.urgent
+        ]
+        if len(urgent_times) > 0:
+            # An action must be taken after some delay
+            return Timer(min(urgent_times), True)
+
+        # Providers can be processed whenever
+        return Timer(None, False)
+
+
 def _default_service() -> Service:
     return Service()
+
+
+def _default_delay_time() -> Timer:
+    return Timer()
 
 
 @dataclass
@@ -51,13 +135,7 @@ class Scheduler(abc.ABC):
     service: Service = field(default_factory=_default_service)
 
     # The next time to process requests
-    ready_time: Optional[float] = None
-
-    # Whether requests should be processed as soon as possible after the ready
-    # time.
-    # If this is True, but no ready time is specified, then this should be
-    # processed right away.
-    execute_immediately: bool = True
+    timer: Timer = field(default_factory=_default_delay_time)
 
     @abc.abstractmethod
     async def get_params(
@@ -67,12 +145,7 @@ class Scheduler(abc.ABC):
         raise NotImplementedError
 
     async def process(self, context: Context) -> bool:
-        now = asyncio.get_running_loop().time()
-        if (
-            self.ready_time is not None
-            and now < self.ready_time
-        ):
-            # Not ready yet
+        if not self.timer.is_ready():
             return False
 
         try:
@@ -128,16 +201,9 @@ class Scheduler(abc.ABC):
             success_count = execution_report.success_count
 
         # Update when this service should be processed again
-        delay, execute_immediately = self.service.next_delay(
+        self.timer = self.service.next_delay(
             success_count, deferred_cost, error_count, context.naptime
         )
-
-        if delay is None:
-            self.ready_time = None
-        else:
-            now = asyncio.get_running_loop().time()
-            self.ready_time = now + delay
-        self.execute_immediately = execute_immediately
 
         return True
 
@@ -145,45 +211,6 @@ class Scheduler(abc.ABC):
     def finalize(self, execution_report: ExecutionReport) -> None:
         """An optional final step after executing requests"""
         pass
-
-    @staticmethod
-    def get_combined_ready_time(
-        schedulers: Sequence[Scheduler]
-    ) -> float | bool:
-        """Get the ready time of a group of schedulers.
-
-        A True result means some scheduler should be processed immediately with
-        no delay.
-
-        A float result is the lowest delay among schedulers which should be
-        executed immediately after their delays.
-
-        A False result means no scheduler has an immediate delay.
-        """
-        if any(
-            (
-                scheduler.ready_time is None
-                and scheduler.execute_immediately
-            )
-            for scheduler in schedulers
-        ):
-            # A provider needs to be processed again immediately
-            return True
-
-        immediate_ready_times = [
-            scheduler.ready_time
-            for scheduler in schedulers
-            if (
-                scheduler.ready_time is not None
-                and scheduler.execute_immediately
-            )
-        ]
-        if len(immediate_ready_times) > 0:
-            # A provider needs to be processed again after some delay
-            return min(immediate_ready_times)
-
-        # Providers can be processed whenever, after their delay
-        return False
 
 
 @dataclass
@@ -229,18 +256,8 @@ class Service:
         deferred_cost,
         error_count,
         naptime: float
-    ) -> tuple[Optional[float], bool]:
-        """When should the service should be processed again.
-
-        Returns a delay and whether the processing should happen as soon as the
-        the delay elapses.
-
-        Examples:
-        (None, True) = execute immediately
-        (None, False) = execute any time
-        (10, True) = execute immediately after 10s
-        (10, False) = execute any time after 10s
-        """
+    ) -> Timer:
+        """When should the service should be processed again."""
 
         if self.request_limits is not None:
             base_delay = self.request_limits.base_delay(
@@ -266,24 +283,24 @@ class Service:
             # There was an error, wait before trying again.
             # Use the larger of delay or naptime.
             delay = max(delay, naptime) if delay is not None else naptime
-            execute_immediately = False
+            urgent = False
 
         elif deferred_cost > 0:
             # There is some deferred work, apply the delay and run immediately.
-            execute_immediately = True
+            urgent = True
 
         elif success_count > 0:
             # Some work was done successfully. Run again to ensure no more work
             # needs to be done.
             delay = None
-            execute_immediately = True
+            urgent = True
 
         else:
             # No work left to do. Take a nap.
             delay = naptime
-            execute_immediately = False
+            urgent = False
 
-        return delay, execute_immediately
+        return Timer.create_delay(delay, urgent)
 
 
 @dataclass
@@ -370,7 +387,7 @@ class Params(abc.ABC, Generic[_T]):
     """The parameters of an async request.
 
     These are used to generate requests.
-    
+
     A single Params instance may be used to generate multiple Request
     instances if it fails, but can be retried right away.
     """
@@ -493,7 +510,9 @@ async def execute_no_sleep(
                 request_limits.update(result.request_limits)
 
         retry_count += 1
-        pending_request_indexes = retry_request_indexes + inactive_request_indexes
+        pending_request_indexes = (
+            retry_request_indexes + inactive_request_indexes
+        )
 
     # Note how many retries were left
     report.deferred_cost = sum(
