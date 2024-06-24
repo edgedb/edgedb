@@ -23,7 +23,7 @@ from typing import Optional, Sequence
 import asyncio
 import unittest
 
-from edb.server.protocol import request_queue as rq
+from edb.server.protocol import request_scheduler as rs
 from edb.testbase.asyncutils import with_fake_event_loop
 
 
@@ -46,18 +46,18 @@ except ImportError:
 
 
 @dataclass
-class TestScheduler(rq.Scheduler):
+class TestScheduler(rs.Scheduler):
 
     params: Optional[list[TestParams]] = None
 
-    execution_report: Optional[rq.ExecutionReport] = None
+    execution_report: Optional[rs.ExecutionReport] = None
 
     async def get_task_params(
-        self, context: rq.Context,
-    ) -> Optional[Sequence[rq.Params]]:
+        self, context: rs.Context,
+    ) -> Optional[Sequence[rs.Params]]:
         return self.params
 
-    def finalize(self, execution_report: rq.ExecutionReport) -> None:
+    def finalize(self, execution_report: rs.ExecutionReport) -> None:
         self.execution_report = execution_report
 
 
@@ -66,7 +66,7 @@ class TestData:
     value: int
 
 
-class TestResult(rq.Result[TestData]):
+class TestResult(rs.Result[TestData]):
 
     # The time this result was "produced"
     time: float = -1
@@ -89,7 +89,7 @@ class TestResult(rq.Result[TestData]):
 
 
 @dataclass
-class TestParams(rq.Params[TestData]):
+class TestParams(rs.Params[TestData]):
 
     # Cost multiplier used to factor the rate delay
     _cost: int
@@ -108,7 +108,7 @@ class TestParams(rq.Params[TestData]):
         return TestTask(self)
 
 
-class TestTask(rq.Task[TestData]):
+class TestTask(rs.Task[TestData]):
 
     def __init__(self, params: TestParams):
         super().__init__(params=params)
@@ -132,7 +132,7 @@ class TestRequests(unittest.TestCase):
     async def test_scheduler_process_01(self):
         # Processing does nothing if scheduler isn't ready
 
-        context = rq.Context(naptime=0)
+        context = rs.Context(naptime=0)
 
         # Not ready, not immediate
         self.assertFalse(await TestScheduler(
@@ -160,9 +160,9 @@ class TestRequests(unittest.TestCase):
 
     @with_fake_event_loop
     async def test_scheduler_process_02(self):
-        context = rq.Context(naptime=30)
+        context = rs.Context(naptime=30)
 
-        service = rq.Service(jitter=False, request_limits=rq.Limits(total=6))
+        service = rs.Service(jitter=False, request_limits=rs.Limits(total=6))
 
         scheduler = TestScheduler(service=service, params=None)
         self.assertTrue(await scheduler.process(context))
@@ -173,9 +173,9 @@ class TestRequests(unittest.TestCase):
 
     @with_fake_event_loop
     async def test_scheduler_process_03(self):
-        service = rq.Service(
+        service = rs.Service(
             jitter=False,
-            request_limits=rq.Limits(total=6, delay_factor=2)
+            request_limits=rs.Limits(total=6, delay_factor=2)
         )
 
         # All tasks succeed
@@ -195,7 +195,7 @@ class TestRequests(unittest.TestCase):
                 ),
             ]
         )
-        context = rq.Context(naptime=30)
+        context = rs.Context(naptime=30)
 
         self.assertTrue(await scheduler.process(context))
 
@@ -219,10 +219,10 @@ class TestRequests(unittest.TestCase):
 
     @with_fake_event_loop
     async def test_scheduler_process_04(self):
-        service = rq.Service(
+        service = rs.Service(
             max_retry_count=1,
             jitter=False,
-            request_limits=rq.Limits(total=6, delay_factor=2)
+            request_limits=rs.Limits(total=6, delay_factor=2)
         )
 
         # A task was deferred
@@ -251,7 +251,7 @@ class TestRequests(unittest.TestCase):
                 ),
             ]
         )
-        context = rq.Context(naptime=30)
+        context = rs.Context(naptime=30)
 
         self.assertTrue(await scheduler.process(context))
 
@@ -275,10 +275,10 @@ class TestRequests(unittest.TestCase):
 
     @with_fake_event_loop
     async def test_scheduler_process_05(self):
-        service = rq.Service(
+        service = rs.Service(
             max_retry_count=1,
             jitter=False,
-            request_limits=rq.Limits(total=6, delay_factor=2)
+            request_limits=rs.Limits(total=6, delay_factor=2)
         )
 
         # A task has an error
@@ -290,12 +290,12 @@ class TestRequests(unittest.TestCase):
                 TestParams(
                     _cost=1,
                     _results=[
-                        TestResult(data=rq.Error('Error', False)),
+                        TestResult(data=rs.Error('Error', False)),
                     ]
                 ),
             ]
         )
-        context = rq.Context(naptime=30)
+        context = rs.Context(naptime=30)
 
         self.assertTrue(await scheduler.process(context))
 
@@ -362,7 +362,7 @@ class TestRequests(unittest.TestCase):
 
         # No base delay, use naptime
         self.assertEqual(
-            rq.Service(request_limits=rq.Limits(total=True)).next_delay(
+            rs.Service(request_limits=rs.Limits(total=True)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             (30, False),
@@ -376,8 +376,8 @@ class TestRequests(unittest.TestCase):
 
         # delay*factor = 22 < delay_max < naptime
         self.assertAlmostEqual(
-            rq.Service(
-                request_limits=rq.Limits(total=6, delay_factor=2),
+            rs.Service(
+                request_limits=rs.Limits(total=6, delay_factor=2),
                 delay_max=30,
             ).next_delay(
                 success_count, deferred_count, error_count, naptime=60,
@@ -387,8 +387,8 @@ class TestRequests(unittest.TestCase):
 
         # delay_max < delay*factor = 44 < naptime
         self.assertAlmostEqual(
-            rq.Service(
-                request_limits=rq.Limits(total=6, delay_factor=4),
+            rs.Service(
+                request_limits=rs.Limits(total=6, delay_factor=4),
                 delay_max=30,
             ).next_delay(
                 success_count, deferred_count, error_count, naptime=60,
@@ -398,8 +398,8 @@ class TestRequests(unittest.TestCase):
 
         # naptime < delay*factor = 22 < delay_max
         self.assertAlmostEqual(
-            rq.Service(
-                request_limits=rq.Limits(total=6, delay_factor=2),
+            rs.Service(
+                request_limits=rs.Limits(total=6, delay_factor=2),
                 delay_max=30,
             ).next_delay(
                 success_count, deferred_count, error_count, naptime=10,
@@ -409,8 +409,8 @@ class TestRequests(unittest.TestCase):
 
         # naptime < delay_max < delay*factor = 44
         self.assertAlmostEqual(
-            rq.Service(
-                request_limits=rq.Limits(total=6, delay_factor=4),
+            rs.Service(
+                request_limits=rs.Limits(total=6, delay_factor=4),
                 delay_max=30,
             ).next_delay(
                 success_count, deferred_count, error_count, naptime=10,
@@ -420,7 +420,7 @@ class TestRequests(unittest.TestCase):
 
         # If no request limits are known, just nap
         self.assertEqual(
-            rq.Service().next_delay(
+            rs.Service().next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             (30, False),
@@ -435,7 +435,7 @@ class TestRequests(unittest.TestCase):
 
         # No base delay, run immediately
         self.assertEqual(
-            rq.Service(request_limits=rq.Limits(total=True)).next_delay(
+            rs.Service(request_limits=rs.Limits(total=True)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             (None, True),
@@ -443,7 +443,7 @@ class TestRequests(unittest.TestCase):
 
         # Has delay, run immediately after delay
         self.assertAlmostEqual(
-            rq.Service(request_limits=rq.Limits(total=6)).next_delay(
+            rs.Service(request_limits=rs.Limits(total=6)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             (11, True),
@@ -459,7 +459,7 @@ class TestRequests(unittest.TestCase):
 
         # No base delay, run immediately
         self.assertEqual(
-            rq.Service(request_limits=rq.Limits(total=True)).next_delay(
+            rs.Service(request_limits=rs.Limits(total=True)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             (None, True),
@@ -467,7 +467,7 @@ class TestRequests(unittest.TestCase):
 
         # Has delay, run immediately anyways
         self.assertEqual(
-            rq.Service(request_limits=rq.Limits(total=6)).next_delay(
+            rs.Service(request_limits=rs.Limits(total=6)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             (None, True),
@@ -482,7 +482,7 @@ class TestRequests(unittest.TestCase):
 
         # No base delay, take a nap
         self.assertEqual(
-            rq.Service(request_limits=rq.Limits(total=True)).next_delay(
+            rs.Service(request_limits=rs.Limits(total=True)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             (30, False),
@@ -490,7 +490,7 @@ class TestRequests(unittest.TestCase):
 
         # Has delay, take a nap
         self.assertEqual(
-            rq.Service(request_limits=rq.Limits(total=6)).next_delay(
+            rs.Service(request_limits=rs.Limits(total=6)).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             (30, False),
@@ -499,133 +499,133 @@ class TestRequests(unittest.TestCase):
     def test_limits_update_01(self):
         # Check total takes the "latest" value
         self.assertEqual(
-            rq.Limits(total=None).update(rq.Limits(total=None)),
-            rq.Limits(total=None),
+            rs.Limits(total=None).update(rs.Limits(total=None)),
+            rs.Limits(total=None),
         )
 
         self.assertEqual(
-            rq.Limits(total=None).update(rq.Limits(total=10)),
-            rq.Limits(total=10),
+            rs.Limits(total=None).update(rs.Limits(total=10)),
+            rs.Limits(total=10),
         )
 
         self.assertEqual(
-            rq.Limits(total=None).update(rq.Limits(total=True)),
-            rq.Limits(total=True),
+            rs.Limits(total=None).update(rs.Limits(total=True)),
+            rs.Limits(total=True),
         )
 
         self.assertEqual(
-            rq.Limits(total=10).update(rq.Limits(total=None)),
-            rq.Limits(total=10),
+            rs.Limits(total=10).update(rs.Limits(total=None)),
+            rs.Limits(total=10),
         )
 
         self.assertEqual(
-            rq.Limits(total=10).update(rq.Limits(total=20)),
-            rq.Limits(total=20),
+            rs.Limits(total=10).update(rs.Limits(total=20)),
+            rs.Limits(total=20),
         )
 
         self.assertEqual(
-            rq.Limits(total=10).update(rq.Limits(total=True)),
-            rq.Limits(total=True),
+            rs.Limits(total=10).update(rs.Limits(total=True)),
+            rs.Limits(total=True),
         )
 
         self.assertEqual(
-            rq.Limits(total=True).update(rq.Limits(total=None)),
-            rq.Limits(total=True),
+            rs.Limits(total=True).update(rs.Limits(total=None)),
+            rs.Limits(total=True),
         )
 
         self.assertEqual(
-            rq.Limits(total=True).update(rq.Limits(total=True)),
-            rq.Limits(total=True),
+            rs.Limits(total=True).update(rs.Limits(total=True)),
+            rs.Limits(total=True),
         )
 
         self.assertEqual(
-            rq.Limits(total=True).update(rq.Limits(total=10)),
-            rq.Limits(total=10),
+            rs.Limits(total=True).update(rs.Limits(total=10)),
+            rs.Limits(total=10),
         )
 
         # Check remaining takes the smallest available value
         self.assertEqual(
-            rq.Limits(remaining=None).update(rq.Limits(remaining=None)),
-            rq.Limits(remaining=None),
+            rs.Limits(remaining=None).update(rs.Limits(remaining=None)),
+            rs.Limits(remaining=None),
         )
 
         self.assertEqual(
-            rq.Limits(remaining=None).update(rq.Limits(remaining=10)),
-            rq.Limits(remaining=10),
+            rs.Limits(remaining=None).update(rs.Limits(remaining=10)),
+            rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rq.Limits(remaining=10).update(rq.Limits(remaining=None)),
-            rq.Limits(remaining=10),
+            rs.Limits(remaining=10).update(rs.Limits(remaining=None)),
+            rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rq.Limits(remaining=10).update(rq.Limits(remaining=20)),
-            rq.Limits(remaining=10),
+            rs.Limits(remaining=10).update(rs.Limits(remaining=20)),
+            rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rq.Limits(remaining=20).update(rq.Limits(remaining=10)),
-            rq.Limits(remaining=10),
+            rs.Limits(remaining=20).update(rs.Limits(remaining=10)),
+            rs.Limits(remaining=10),
         )
 
         # Check that a remaining value resets an unlimited total
         self.assertEqual(
-            rq.Limits(total=True, remaining=10).update(rq.Limits()),
-            rq.Limits(remaining=10),
+            rs.Limits(total=True, remaining=10).update(rs.Limits()),
+            rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rq.Limits(total=True).update(rq.Limits(remaining=10)),
-            rq.Limits(remaining=10),
+            rs.Limits(total=True).update(rs.Limits(remaining=10)),
+            rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rq.Limits(total=True, remaining=20).update(rq.Limits(remaining=10)),
-            rq.Limits(remaining=10),
+            rs.Limits(total=True, remaining=20).update(rs.Limits(remaining=10)),
+            rs.Limits(remaining=10),
         )
         # Check total takes the "latest" value
 
     def test_limits_base_delay_01(self):
         # Unlimited limit has no delay.
         self.assertIsNone(
-            rq.Limits(total=True).base_delay(1, guess=60),
+            rs.Limits(total=True).base_delay(1, guess=60),
         )
 
         # If number of requests is less than remaining limit, no delay needed.
         self.assertIsNone(
-            rq.Limits(remaining=4).base_delay(1, guess=60),
+            rs.Limits(remaining=4).base_delay(1, guess=60),
         )
 
         # If total limit exists, rate is based on limit.
         self.assertAlmostEqual(
             11,
-            rq.Limits(total=6).base_delay(1, guess=60),
+            rs.Limits(total=6).base_delay(1, guess=60),
         )
         self.assertAlmostEqual(
             11,
-            rq.Limits(total=6, remaining=4).base_delay(99, guess=60),
+            rs.Limits(total=6, remaining=4).base_delay(99, guess=60),
         )
 
         # Otherwise, just use the minimum guess
         self.assertAlmostEqual(
             20,
-            rq.Limits().base_delay(1, guess=20),
+            rs.Limits().base_delay(1, guess=20),
         )
         self.assertAlmostEqual(
             20,
-            rq.Limits(remaining=4).base_delay(99, guess=20),
+            rs.Limits(remaining=4).base_delay(99, guess=20),
         )
 
     @with_fake_event_loop
     async def test_execute_no_sleep_01(self):
         # Unlimited total
-        request_limits = rq.Limits(total=True, delay_factor=1)
+        request_limits = rs.Limits(total=True, delay_factor=1)
 
         # All tasks return a valid result
         finalize_target: dict[int, float] = {}
 
-        report = await rq.execute_no_sleep(
+        report = await rs.execute_no_sleep(
             params=[
                 TestParams(
                     _cost=1,
@@ -664,7 +664,7 @@ class TestRequests(unittest.TestCase):
                     ]
                 ),
             ],
-            service=rq.Service(jitter=False, request_limits=request_limits),
+            service=rs.Service(jitter=False, request_limits=request_limits),
         )
 
         self.assertEqual(
@@ -683,12 +683,12 @@ class TestRequests(unittest.TestCase):
     @with_fake_event_loop
     async def test_execute_no_sleep_02(self):
         # Unlimited total
-        request_limits = rq.Limits(total=True, delay_factor=2)
+        request_limits = rs.Limits(total=True, delay_factor=2)
 
         # A mix of successes and failures
         finalize_target: dict[int, float] = {}
 
-        report = await rq.execute_no_sleep(
+        report = await rs.execute_no_sleep(
             params=[
                 TestParams(
                     _cost=1,
@@ -703,7 +703,7 @@ class TestRequests(unittest.TestCase):
                     _cost=2,
                     _results=[
                         # successful retry
-                        TestResult(data=rq.Error('B', True)),
+                        TestResult(data=rs.Error('B', True)),
                         TestResult(
                             data=TestData(2),
                             finalize_target=finalize_target,
@@ -714,21 +714,21 @@ class TestRequests(unittest.TestCase):
                     _cost=3
                 ),
                 TestParams(
-                    _cost=4, _results=[TestResult(data=rq.Error('D', False))]
+                    _cost=4, _results=[TestResult(data=rs.Error('D', False))]
                 ),
                 TestParams(
                     _cost=5,
                     _results=[
                         # unsuccessful retry
-                        TestResult(data=rq.Error('E', True)),
-                        TestResult(data=rq.Error('E', True)),
-                        TestResult(data=rq.Error('E', True)),
-                        TestResult(data=rq.Error('E', True)),
-                        TestResult(data=rq.Error('E', True)),
+                        TestResult(data=rs.Error('E', True)),
+                        TestResult(data=rs.Error('E', True)),
+                        TestResult(data=rs.Error('E', True)),
+                        TestResult(data=rs.Error('E', True)),
+                        TestResult(data=rs.Error('E', True)),
                     ]
                 ),
             ],
-            service=rq.Service(jitter=False, request_limits=request_limits),
+            service=rs.Service(jitter=False, request_limits=request_limits),
         )
 
         self.assertEqual(
@@ -747,12 +747,12 @@ class TestRequests(unittest.TestCase):
     @with_fake_event_loop
     async def test_execute_no_sleep_03(self):
         # The total limit is finite
-        request_limits = rq.Limits(total=6, remaining=5, delay_factor=2)
+        request_limits = rs.Limits(total=6, remaining=5, delay_factor=2)
 
         # Only the first task will be run
         finalize_target: dict[int, float] = {}
 
-        report = await rq.execute_no_sleep(
+        report = await rs.execute_no_sleep(
             params=[
                 TestParams(
                     _cost=1,
@@ -791,7 +791,7 @@ class TestRequests(unittest.TestCase):
                     ]
                 ),
             ],
-            service=rq.Service(jitter=False, request_limits=request_limits),
+            service=rs.Service(jitter=False, request_limits=request_limits),
         )
 
         self.assertEqual(
@@ -811,12 +811,12 @@ class TestRequests(unittest.TestCase):
     async def test_execute_no_sleep_04(self):
         # The total limit is finite
         # But, a sufficient remaining limit is returned by some the result.
-        request_limits = rq.Limits(total=12, delay_factor=2)
+        request_limits = rs.Limits(total=12, delay_factor=2)
 
         # Only the first task returns an updated limit
         finalize_target: dict[int, float] = {}
 
-        report = await rq.execute_no_sleep(
+        report = await rs.execute_no_sleep(
             params=[
                 TestParams(
                     _cost=1,
@@ -824,7 +824,7 @@ class TestRequests(unittest.TestCase):
                         TestResult(
                             data=TestData(1),
                             finalize_target=finalize_target,
-                            request_limits=rq.Limits(remaining=9),
+                            request_limits=rs.Limits(remaining=9),
                         )
                     ]
                 ),
@@ -856,7 +856,7 @@ class TestRequests(unittest.TestCase):
                     ]
                 ),
             ],
-            service=rq.Service(jitter=False, request_limits=request_limits),
+            service=rs.Service(jitter=False, request_limits=request_limits),
         )
 
         self.assertEqual(
@@ -877,7 +877,7 @@ class TestRequests(unittest.TestCase):
     @with_fake_event_loop
     async def test_execute_specified_01(self):
         # All tasks return a valid result
-        results = await rq._execute_specified(
+        results = await rs._execute_specified(
             params=[
                 TestParams(_cost=1, _results=[TestResult(data=TestData(1))]),
                 TestParams(_cost=2, _results=[TestResult(data=TestData(2))]),
@@ -903,19 +903,19 @@ class TestRequests(unittest.TestCase):
     @with_fake_event_loop
     async def test_execute_specified_02(self):
         # A mix of successes and failures
-        results = await rq._execute_specified(
+        results = await rs._execute_specified(
             params=[
                 TestParams(
                     _cost=1, _results=[TestResult(data=TestData(1))]
                 ),
                 TestParams(
-                    _cost=2, _results=[TestResult(data=rq.Error('B', True))]
+                    _cost=2, _results=[TestResult(data=rs.Error('B', True))]
                 ),
                 TestParams(
                     _cost=3
                 ),
                 TestParams(
-                    _cost=4, _results=[TestResult(data=rq.Error('D', False))]
+                    _cost=4, _results=[TestResult(data=rs.Error('D', False))]
                 ),
             ],
             indexes=[0, 1, 2, 3],
@@ -924,8 +924,8 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(
             {
                 0: TestResult(data=TestData(1)),
-                1: TestResult(data=rq.Error('B', True)),
-                3: TestResult(data=rq.Error('D', False)),
+                1: TestResult(data=rs.Error('B', True)),
+                3: TestResult(data=rs.Error('D', False)),
             },
             results,
         )
@@ -936,7 +936,7 @@ class TestRequests(unittest.TestCase):
     @with_fake_event_loop
     async def test_execute_specified_03(self):
         # Run only some tasks
-        results = await rq._execute_specified(
+        results = await rs._execute_specified(
             params=[
                 TestParams(_cost=1, _results=[TestResult(data=TestData(1))]),
                 TestParams(_cost=2, _results=[TestResult(data=TestData(2))]),

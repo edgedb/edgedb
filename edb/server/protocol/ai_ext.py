@@ -48,7 +48,7 @@ from edb.common import uuidgen
 from edb.server import compiler
 from edb.server.compiler import sertypes
 from edb.server.protocol import execute
-from edb.server.protocol import request_queue as rq
+from edb.server.protocol import request_scheduler as rs
 
 if TYPE_CHECKING:
     from edb.server import dbview
@@ -337,7 +337,7 @@ async def _ext_ai_index_builder_work(
 
 
 @dataclass
-class ProviderContext(rq.Context):
+class ProviderContext(rs.Context):
 
     db: dbview.Database
     pgconn: pgcon.PGConnection
@@ -345,12 +345,12 @@ class ProviderContext(rq.Context):
 
 
 @dataclass
-class ProviderScheduler(rq.Scheduler):
+class ProviderScheduler(rs.Scheduler):
 
     provider_name: str = ''
 
     async def get_task_params(
-        self, context: rq.Context,
+        self, context: rs.Context,
     ) -> Optional[Sequence[EmbeddingsParams]]:
         assert isinstance(context, ProviderContext)
         return await _generate_embeddings_task_params(
@@ -360,7 +360,7 @@ class ProviderScheduler(rq.Scheduler):
             context.provider_models,
         )
 
-    def finalize(self, execution_report: rq.ExecutionReport) -> None:
+    def finalize(self, execution_report: rs.ExecutionReport) -> None:
         task_name = _task_name.get()
 
         for message in execution_report.known_error_messages:
@@ -377,7 +377,7 @@ class EmbeddingsData:
 
 
 @dataclass(frozen=True)
-class EmbeddingsParams(rq.Params[EmbeddingsData]):
+class EmbeddingsParams(rs.Params[EmbeddingsData]):
     pgconn: pgcon.PGConnection
     provider: Any
     model_name: str
@@ -393,9 +393,9 @@ class EmbeddingsParams(rq.Params[EmbeddingsData]):
         return EmbeddingsTask(self)
 
 
-class EmbeddingsTask(rq.Task[EmbeddingsData]):
+class EmbeddingsTask(rs.Task[EmbeddingsData]):
 
-    async def run(self) -> Optional[rq.Result[EmbeddingsData]]:
+    async def run(self) -> Optional[rs.Result[EmbeddingsData]]:
         task_name = _task_name.get()
 
         try:
@@ -420,13 +420,13 @@ class EmbeddingsTask(rq.Task[EmbeddingsData]):
             return None
 
 
-class EmbeddingsResult(rq.Result[EmbeddingsData]):
+class EmbeddingsResult(rs.Result[EmbeddingsData]):
 
     pgconn: Optional[Any] = None
     entries: Optional[list[tuple[bytes, ...]]] = None
 
     async def finalize(self) -> None:
-        if isinstance(self.data, rq.Error):
+        if isinstance(self.data, rs.Error):
             return
         if self.pgconn is None or self.entries is None:
             return
@@ -638,7 +638,7 @@ async def _generate_openai_embeddings(
 
     error = None
     if result.status_code >= 400:
-        error = rq.Error(
+        error = rs.Error(
             message=(
                 f"API call to generate embeddings failed with status "
                 f"{result.status_code}: {result.text}"
@@ -659,7 +659,7 @@ async def _generate_openai_embeddings(
 async def _get_openai_limits(
     provider,
     model_name: str,
-) -> Optional[rq.Limits]:
+) -> Optional[rs.Limits]:
     """Send a bad request and read the headers for limits.
 
     This is a waste of a request, but it's better than nothing.
@@ -696,7 +696,7 @@ async def _get_openai_limits(
 
 def _read_openai_limits(
     result: Any,
-) -> rq.Limits:
+) -> rs.Limits:
     try:
         header = (
             result.headers['x-ratelimit-limit-project-requests']
@@ -721,7 +721,7 @@ def _read_openai_limits(
     except Exception:
         request_remaining = None
 
-    return rq.Limits(
+    return rs.Limits(
         total=request_limit,
         remaining=request_remaining
     )
@@ -1381,7 +1381,7 @@ async def _handle_embeddings_request(
         inputs,
         shortening=None,
     )
-    if isinstance(result.data, rq.Error):
+    if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
 
     response.status = http.HTTPStatus.OK
@@ -1601,6 +1601,6 @@ async def _generate_embeddings_for_type(
         shortening = None
     result = await _generate_embeddings(
         provider, index["model"], [content], shortening=shortening)
-    if isinstance(result.data, rq.Error):
+    if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
     return result.data.embeddings
