@@ -36,6 +36,7 @@ pub struct PoolAlgorithmData {
     pub max_concurrent: usize,
     pub avg_connect_time: usize,
     pub avg_disconnect_time: usize,
+    pub avg_hold_time: usize,
 }
 
 #[derive(Default, Debug)]
@@ -81,8 +82,11 @@ impl PoolConstraints {
         // First, compute the overall request load and number of backend targets
         let mut total_requested = 0;
         let mut total_target = 0;
+        let mut total_demand = 0;
+
         it.with_algo_data_all(|name, data| {
             let count = data.with_algo_data(|data| data.max_concurrent + data.max_waiters);
+            let demand = data.with_algo_data(|data| data.avg_hold_time * data.waiters);
             total_requested += count;
             total_target += 1;
             trace!("{name}: {data:?}");
@@ -127,12 +131,6 @@ impl PoolConstraints {
         it.with_algo_data_all(|name, data| {
             data.set_target(min);
         });
-
-        // No starvation
-        total_target <= self.max;
-
-        // // Starvation
-        todo!()
     }
 
     /// Identify the most appealing victim for pool theft.

@@ -4,7 +4,7 @@ use crate::{
     conn::{ConnHandle, ConnResult, Connector},
     metrics::PoolMetrics,
 };
-use std::{cell::Cell, time::Duration};
+use std::{cell::Cell, rc::Rc, time::Duration};
 
 #[cfg(test)]
 use mock_instant::thread_local::Instant;
@@ -57,6 +57,13 @@ impl PoolConfig {
 #[derive(Debug)]
 pub struct PoolHandle<C: Connector> {
     conn: ConnHandle<C>,
+    dirty: Rc<Cell<bool>>,
+}
+
+impl<C: Connector> Drop for PoolHandle<C> {
+    fn drop(&mut self) {
+        self.dirty.set(true)
+    }
 }
 
 impl<C: Connector> PoolHandle<C> {
@@ -104,6 +111,8 @@ pub struct Pool<C: Connector> {
     config: PoolConfig,
     blocks: Blocks<C, PoolAlgoTargetData>,
     last_adjust: Cell<Instant>,
+    /// If the pool has been dirties by acquiring or releasing a connection
+    dirty: Rc<Cell<bool>>,
 }
 
 impl<C: Connector> Pool<C> {
@@ -114,6 +123,7 @@ impl<C: Connector> Pool<C> {
             blocks: Default::default(),
             connector,
             last_adjust: Cell::new(Instant::now()),
+            dirty: Default::default(),
         }
     }
 
@@ -168,7 +178,11 @@ impl<C: Connector> Pool<C> {
             self.blocks.queue(db).await
         }?;
 
-        Ok(PoolHandle { conn })
+        self.dirty.set(true);
+        Ok(PoolHandle {
+            conn,
+            dirty: self.dirty.clone(),
+        })
     }
 
     pub fn metrics(&self) -> PoolMetrics {
