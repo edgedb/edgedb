@@ -156,7 +156,7 @@ async def _ext_ai_index_builder_controller_loop(
             try:
                 pgconn = await tenant.acquire_pgcon(dbname)
                 models = []
-                run_again: float | bool = False
+                sleep_timer: rs.Timer = rs.Timer(None, False)
                 try:
                     models = await _ext_ai_fetch_active_models(pgconn)
                     if models:
@@ -171,14 +171,14 @@ async def _ext_ai_index_builder_controller_loop(
                                 naptime,
                             )
                             try:
-                                run_again = (
+                                sleep_timer = (
                                     await _ext_ai_index_builder_work(
                                         provider_schedulers,
                                         provider_contexts,
                                     )
                                 )
                             finally:
-                                if run_again is not True:
+                                if not sleep_timer.is_ready_and_urgent():
                                     await asyncutil.deferred_shield(
                                         _ext_ai_unlock(pgconn))
                                     holding_lock = False
@@ -187,31 +187,13 @@ async def _ext_ai_index_builder_controller_loop(
             except Exception:
                 logger.exception(f"caught error in {task_name}")
 
-            if run_again is not True:
-                if run_again is False:
-                    # No immediate work to do, take a nap
-                    delay = naptime
+            if not sleep_timer.is_ready_and_urgent():
+                delay = sleep_timer.remaining_time(naptime)
+                if delay == naptime:
                     logger.debug(
                         f"{task_name}: "
                         f"No work. Napping for {naptime:.2f} seconds."
                     )
-
-                else:
-                    # Some work needs to be done as soon as its deferred time
-                    # is reached.
-
-                    # 1ms extra, just in case
-                    now = asyncio.get_running_loop().time()
-                    delay = run_again - now + 0.001
-
-                    if delay > naptime:
-                        # The delay is really long, just take a nap
-                        delay = naptime
-                        logger.debug(
-                            f"{task_name}: "
-                            f"No work. Napping for {delay:.2f} seconds."
-                        )
-
                 await asyncio.sleep(delay)
 
     finally:
@@ -290,7 +272,6 @@ def _prepare_provider_contexts(
         provider_schedulers.pop(unused_provider_name, None)
 
     # Create contexts
-    now = asyncio.get_running_loop().time()
     provider_contexts = {}
 
     for provider_name, provider_models in models_by_provider.items():
@@ -301,11 +282,7 @@ def _prepare_provider_contexts(
             )
         provider_scheduler = provider_schedulers[provider_name]
 
-        if (
-            provider_scheduler.ready_time is not None
-            and now < provider_scheduler.ready_time
-        ):
-            # Need to wait longer
+        if not provider_scheduler.timer.is_ready():
             continue
 
         provider_contexts[provider_name] = ProviderContext(
@@ -321,7 +298,7 @@ def _prepare_provider_contexts(
 async def _ext_ai_index_builder_work(
     provider_schedulers: dict[str, ProviderScheduler],
     provider_contexts: dict[str, ProviderContext],
-) -> float | bool:
+) -> rs.Timer:
 
     async with asyncio.TaskGroup() as g:
         for provider_name, provider_scheduler in provider_schedulers.items():
@@ -331,8 +308,9 @@ async def _ext_ai_index_builder_work(
             provider_context = provider_contexts[provider_name]
             g.create_task(provider_scheduler.process(provider_context))
 
-    return ProviderScheduler.get_combined_ready_time(
-        list(provider_schedulers.values())
+    return rs.Timer.combine(
+        provider_scheduler.timer
+        for provider_scheduler in provider_schedulers.values()
     )
 
 
