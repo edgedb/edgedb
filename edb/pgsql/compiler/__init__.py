@@ -39,6 +39,7 @@ from . import context
 from . import dispatch
 from . import dml
 from . import pathctx
+from . import aliases
 
 from .context import OutputFormat as OutputFormat # NOQA
 
@@ -75,6 +76,7 @@ def compile_ir_to_sql_tree(
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
     detach_params: bool = False,
+    alias_generator: Optional[aliases.AliasGenerator] = None
 ) -> CompileResult:
     try:
         # Transform to sql tree
@@ -110,6 +112,7 @@ def compile_ir_to_sql_tree(
             backend_runtime_params = pgparams.get_default_runtime_params()
 
         env = context.Environment(
+            alias_generator=alias_generator,
             output_format=output_format,
             expected_cardinality_one=expected_cardinality_one,
             named_param_prefix=named_param_prefix,

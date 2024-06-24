@@ -101,7 +101,7 @@ def resolve_ResTarget(
     ):
         alias = static.name_in_pg_catalog(res_target.val.name)
 
-    name: str = alias or ctx.names.get('col')
+    name: str = alias or ctx.alias_generator.get('col')
     col = context.Column(
         name=name, kind=context.ColumnByName(reference_as=name)
     )

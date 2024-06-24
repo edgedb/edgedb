@@ -189,6 +189,35 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
+    async def test_sql_dml_insert_07(self):
+        # insert with a CTE
+        await self.scon.execute(
+            '''
+            WITH a AS (
+                SELECT 'Report' as t UNION ALL SELECT 'Briefing'
+            )
+            INSERT INTO "Document" (title) SELECT * FROM a
+            '''
+        )
+        res = await self.squery_values('SELECT title FROM "Document"')
+        self.assertEqual(res, tb.bag([['Report (new)'], ['Briefing (new)']]))
+
+    async def test_sql_dml_insert_07(self):
+        # two inserts
+        await self.scon.execute(
+            '''
+            WITH a AS (
+                INSERT INTO "Document" (title) VALUES ('Report')
+                RETURNING title as t
+            )
+            INSERT INTO "Document" (title) SELECT t || ' - copy' FROM a
+            '''
+        )
+        res = await self.squery_values('SELECT title FROM "Document"')
+        self.assertEqual(
+            res, tb.bag([['Report (new)'], ['Report (new) - copy (new)']])
+        )
+
     async def test_sql_dml_insert_09(self):
         # returning
         await self.scon.execute('INSERT INTO "User" DEFAULT VALUES;')
