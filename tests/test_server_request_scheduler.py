@@ -52,7 +52,7 @@ class TestScheduler(rs.Scheduler):
 
     execution_report: Optional[rs.ExecutionReport] = None
 
-    async def get_task_params(
+    async def get_params(
         self, context: rs.Context,
     ) -> Optional[Sequence[rs.Params]]:
         return self.params
@@ -103,12 +103,12 @@ class TestParams(rs.Params[TestData]):
     def cost(self) -> int:
         return self._cost
 
-    def create_task(self) -> TestTask:
+    def create_request(self) -> TestTask:
         self._try_index += 1
         return TestTask(self)
 
 
-class TestTask(rs.Task[TestData]):
+class TestTask(rs.Request[TestData]):
 
     def __init__(self, params: TestParams):
         super().__init__(params=params)

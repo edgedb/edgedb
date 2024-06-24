@@ -42,12 +42,10 @@ def _default_service() -> Service:
 
 @dataclass
 class Scheduler(abc.ABC):
-    """A scheduler for tasks which use some asynchronous service.
+    """A scheduler for requests to an asynchronous service.
 
-    Tasks may be generated at any time. The service may have some rate limit
-    and may additionally, not always succeed in handling the request.
-
-    This class checks whether any tasks exist and when they should be processed.
+    A Scheduler both generates requests and tracks when the service can be
+    accessed.
     """
 
     service: Service = field(default_factory=_default_service)
@@ -62,10 +60,10 @@ class Scheduler(abc.ABC):
     execute_immediately: bool = True
 
     @abc.abstractmethod
-    async def get_task_params(
+    async def get_params(
         self, context: Context,
     ) -> Optional[Sequence[Params]]:
-        """Get parameters for the tasks to run."""
+        """Get parameters for the requests to run."""
         raise NotImplementedError
 
     async def process(self, context: Context) -> bool:
@@ -78,21 +76,21 @@ class Scheduler(abc.ABC):
             return False
 
         try:
-            task_params = await self.get_task_params(context)
+            request_params = await self.get_params(context)
         except Exception:
-            task_params = None
+            request_params = None
 
         error_count = 0
         deferred_cost = 0
         success_count = 0
 
-        if task_params is None:
+        if request_params is None:
             error_count = 1
 
-        elif len(task_params) > 0:
+        elif len(request_params) > 0:
             try:
                 execution_task = asyncio.create_task(
-                    execute_no_sleep(task_params, service=self.service)
+                    execute_no_sleep(request_params, service=self.service)
                 )
                 await execution_task
 
@@ -145,7 +143,7 @@ class Scheduler(abc.ABC):
 
     @abc.abstractmethod
     def finalize(self, execution_report: ExecutionReport) -> None:
-        """Do any extra work after executing the tasks"""
+        """An optional final step after executing requests"""
         pass
 
     @staticmethod
@@ -190,19 +188,33 @@ class Scheduler(abc.ABC):
 
 @dataclass
 class Context:
-    """Additional information used to process a service's requests."""
+    """Information passed to a Scheduler to process requests."""
 
+    # If there is no work, the scheduler should take a nap.
     naptime: float
 
 
 @dataclass
+class ExecutionReport:
+    """Information about the requests after they are complete"""
+
+    success_count: int = 0
+    unknown_error_count: int = 0
+    known_error_messages: list[str] = field(default_factory=list)
+    deferred_cost: int = 0
+
+    # Some requests may report an update to the service's request limits.
+    updated_limits: Optional[Limits] = None
+
+
+@dataclass
 class Service:
-    """Parameters for requests to a given service."""
+    """Information on how to access to a given service."""
 
     # Information about the service's rate limits
     request_limits: Optional[Limits] = None
 
-    # The maximum number of times to retry tasks
+    # The maximum number of times to retry requests
     max_retry_count: Final[int] = 4
     # Whether to jitter the delay time if a retry error is produced
     jitter: Final[bool] = True
@@ -275,18 +287,6 @@ class Service:
 
 
 @dataclass
-class ExecutionReport:
-    """Information about the tasks after they are complete"""
-
-    success_count: int = 0
-    unknown_error_count: int = 0
-    known_error_messages: list[str] = field(default_factory=list)
-    deferred_cost: int = 0
-
-    updated_limits: Optional[Limits] = None
-
-
-@dataclass
 class Limits:
     """Information about a service's rate limits."""
 
@@ -341,7 +341,7 @@ class Limits:
         return self
 
 
-class Task(abc.ABC, Generic[_T]):
+class Request(abc.ABC, Generic[_T]):
     """Represents an async request"""
 
     params: Params[_T]
@@ -353,7 +353,7 @@ class Task(abc.ABC, Generic[_T]):
 
     @abc.abstractmethod
     async def run(self) -> Optional[Result[_T]]:
-        """Run the task and return a result."""
+        """Run the request and return a result."""
         raise NotImplementedError
 
     async def wait_result(self) -> None:
@@ -362,43 +362,41 @@ class Task(abc.ABC, Generic[_T]):
 
     def get_result(self) -> Optional[Result[_T]]:
         """Get the result of the request."""
-        task_result = self._inner.result()
-        return task_result
+        result = self._inner.result()
+        return result
 
 
 class Params(abc.ABC, Generic[_T]):
-    """The parameters of an async request task.
+    """The parameters of an async request.
 
-    These are used to generate tasks. They may be used to generate multiple
-    tasks if the task fails and is re-tried.
+    These are used to generate requests.
+    
+    A single Params instance may be used to generate multiple Request
+    instances if it fails, but can be retried right away.
     """
 
     @abc.abstractmethod
     def cost(self) -> int:
-        """Expected cost to execute the task."""
+        """Expected cost to execute the request."""
         raise NotImplementedError
 
     @abc.abstractmethod
-    def create_task(self) -> Task[_T]:
-        """Create a task using the parameters."""
+    def create_request(self) -> Request[_T]:
+        """Create a request with the parameters."""
         raise NotImplementedError
 
 
 @dataclass(frozen=True)
 class Result(abc.ABC, Generic[_T]):
-    """The result of an async request.
-
-    Some tasks may include updated request limit information in their
-    response.
-    """
+    """The result of an async request."""
 
     data: _T | Error
 
-    # Some services can return their request limits
+    # Some services can return request limits along with their usual results.
     request_limits: Optional[Limits] = None
 
     async def finalize(self) -> None:
-        """An optional finalize task to be run sequentially."""
+        """An optional finalize to be run sequentially."""
         pass
 
 
@@ -418,7 +416,7 @@ async def execute_no_sleep(
     *,
     service: Service,
 ) -> ExecutionReport:
-    """Attempt to execute as many tasks as possible without sleeping."""
+    """Attempt to execute as many requests as possible without sleeping."""
     report = ExecutionReport()
 
     # Set up request limits
@@ -430,77 +428,77 @@ async def execute_no_sleep(
     else:
         request_limits = copy.copy(service.request_limits)
 
-    # If any tasks fail and can be retried, retry them up to a maximum number
+    # If any requests fail and can be retried, retry them up to a maximum number
     # of times.
     retry_count: int = 0
-    pending_task_indexes: list[int] = list(range(len(params)))
+    pending_request_indexes: list[int] = list(range(len(params)))
 
-    while pending_task_indexes and retry_count < service.max_retry_count:
+    while pending_request_indexes and retry_count < service.max_retry_count:
         pending_cost = sum(
             params[i].cost()
-            for i in pending_task_indexes
+            for i in pending_request_indexes
         )
 
         base_delay = request_limits.base_delay(
             pending_cost, guess=service.guess_delay,
         )
 
-        active_task_indexes: list[int]
-        inactive_task_indexes: list[int]
+        active_request_indexes: list[int]
+        inactive_request_indexes: list[int]
         if base_delay is None:
-            # Try to execute all tasks.
-            active_task_indexes = pending_task_indexes
-            inactive_task_indexes = []
+            # Try to execute all requests.
+            active_request_indexes = pending_request_indexes
+            inactive_request_indexes = []
 
         elif retry_count == 0:
-            # If there is any delay, only execute one task.
-            # This may update the remaining limit, allowing the remaining tasks
-            # to run.
-            active_task_indexes = pending_task_indexes[:1]
-            inactive_task_indexes = pending_task_indexes[1:]
+            # If there is any delay, only execute one request.
+            # This may update the remaining limit, allowing the remaining
+            # requests to run.
+            active_request_indexes = pending_request_indexes[:1]
+            inactive_request_indexes = pending_request_indexes[1:]
 
         else:
             break
 
         results = await _execute_specified(
-            params, active_task_indexes,
+            params, active_request_indexes,
         )
 
-        # Check task results
-        retry_task_indexes: list[int] = []
+        # Check results
+        retry_request_indexes: list[int] = []
 
         request_limits.remaining = None
 
-        for task_index in active_task_indexes:
-            if task_index not in results:
+        for request_index in active_request_indexes:
+            if request_index not in results:
                 report.unknown_error_count += 1
                 continue
 
-            task_result = results[task_index]
+            result = results[request_index]
 
-            if isinstance(task_result.data, Error):
-                if task_result.data.retry:
-                    # task can be retried
-                    retry_task_indexes.append(task_index)
+            if isinstance(result.data, Error):
+                if result.data.retry:
+                    # requests can be retried
+                    retry_request_indexes.append(request_index)
 
                 else:
                     # error with message
-                    report.known_error_messages.append(task_result.data.message)
+                    report.known_error_messages.append(result.data.message)
             else:
                 report.success_count += 1
 
-            await task_result.finalize()
+            await result.finalize()
 
-            if task_result.request_limits is not None:
-                request_limits.update(task_result.request_limits)
+            if result.request_limits is not None:
+                request_limits.update(result.request_limits)
 
         retry_count += 1
-        pending_task_indexes = retry_task_indexes + inactive_task_indexes
+        pending_request_indexes = retry_request_indexes + inactive_request_indexes
 
     # Note how many retries were left
     report.deferred_cost = sum(
             params[i].cost()
-            for i in pending_task_indexes
+            for i in pending_request_indexes
         )
 
     if report.deferred_cost != 0:
@@ -536,18 +534,18 @@ async def _execute_specified(
     # Send all requests at once.
     # We are confident that all requests can be handled right away.
 
-    tasks: dict[int, Task[_T]] = {}
+    requests: dict[int, Request[_T]] = {}
 
-    for task_index in indexes:
-        tasks[task_index] = params[task_index].create_task()
+    for request_index in indexes:
+        requests[request_index] = params[request_index].create_request()
 
     results: dict[int, Result[_T]] = {}
 
-    for task_index, task in tasks.items():
-        await task.wait_result()
+    for request_index, request in requests.items():
+        await request.wait_result()
 
-        task_result = task.get_result()
-        if task_result is not None:
-            results[task_index] = task_result
+        result = request.get_result()
+        if result is not None:
+            results[request_index] = result
 
     return results

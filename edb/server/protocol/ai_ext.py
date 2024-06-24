@@ -349,11 +349,11 @@ class ProviderScheduler(rs.Scheduler):
 
     provider_name: str = ''
 
-    async def get_task_params(
+    async def get_params(
         self, context: rs.Context,
     ) -> Optional[Sequence[EmbeddingsParams]]:
         assert isinstance(context, ProviderContext)
-        return await _generate_embeddings_task_params(
+        return await _generate_embeddings_params(
             context.db,
             context.pgconn,
             self.provider_name,
@@ -389,11 +389,11 @@ class EmbeddingsParams(rs.Params[EmbeddingsData]):
     def cost(self) -> int:
         return 1
 
-    def create_task(self) -> EmbeddingsTask:
-        return EmbeddingsTask(self)
+    def create_request(self) -> EmbeddingsRequest:
+        return EmbeddingsRequest(self)
 
 
-class EmbeddingsTask(rs.Task[EmbeddingsData]):
+class EmbeddingsRequest(rs.Request[EmbeddingsData]):
 
     async def run(self) -> Optional[rs.Result[EmbeddingsData]]:
         task_name = _task_name.get()
@@ -448,7 +448,7 @@ class EmbeddingsResult(rs.Result[EmbeddingsData]):
             offset += len(ids)
 
 
-async def _generate_embeddings_task_params(
+async def _generate_embeddings_params(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
     provider_name: str,
@@ -506,7 +506,7 @@ async def _generate_embeddings_task_params(
 
         model_list.extend(entries)
 
-    task_params: list[EmbeddingsParams] = []
+    embeddings_params: list[EmbeddingsParams] = []
 
     for model_name, entries in model_entries.items():
         groups = itertools.groupby(entries, key=lambda e: e[4])
@@ -520,7 +520,7 @@ async def _generate_embeddings_task_params(
             else:
                 shortening = None
             part = list(part_iter)
-            task_params.append(EmbeddingsParams(
+            embeddings_params.append(EmbeddingsParams(
                 pgconn,
                 provider_cfg,
                 model_name,
@@ -529,7 +529,7 @@ async def _generate_embeddings_task_params(
                 part,
             ))
 
-    return task_params
+    return embeddings_params
 
 
 async def _update_embeddings_in_db(
