@@ -83,7 +83,7 @@ class Scheduler(abc.ABC):
             task_params = None
 
         error_count = 0
-        deferred_count = 0
+        deferred_cost = 0
         success_count = 0
 
         if task_params is None:
@@ -126,12 +126,12 @@ class Scheduler(abc.ABC):
                 + execution_report.unknown_error_count
             )
 
-            deferred_count = execution_report.deferred_requests
+            deferred_cost = execution_report.deferred_cost
             success_count = execution_report.success_count
 
         # Update when this service should be processed again
         delay, execute_immediately = self.service.next_delay(
-            success_count, deferred_count, error_count, context.naptime
+            success_count, deferred_cost, error_count, context.naptime
         )
 
         if delay is None:
@@ -214,7 +214,7 @@ class Service:
     def next_delay(
         self,
         success_count,
-        deferred_count,
+        deferred_cost,
         error_count,
         naptime: float
     ) -> tuple[Optional[float], bool]:
@@ -232,7 +232,7 @@ class Service:
 
         if self.request_limits is not None:
             base_delay = self.request_limits.base_delay(
-                deferred_count, guess=self.guess_delay,
+                deferred_cost, guess=self.guess_delay,
             )
             if base_delay is None:
                 delay = None
@@ -256,7 +256,7 @@ class Service:
             delay = max(delay, naptime) if delay is not None else naptime
             execute_immediately = False
 
-        elif deferred_count > 0:
+        elif deferred_cost > 0:
             # There is some deferred work, apply the delay and run immediately.
             execute_immediately = True
 
@@ -281,7 +281,7 @@ class ExecutionReport:
     success_count: int = 0
     unknown_error_count: int = 0
     known_error_messages: list[str] = field(default_factory=list)
-    deferred_requests: int = 0
+    deferred_cost: int = 0
 
     updated_limits: Optional[Limits] = None
 
@@ -302,14 +302,14 @@ class Limits:
 
     def base_delay(
         self,
-        request_count: int,
+        request_cost: int,
         *,
         guess: float,
     ) -> Optional[float]:
         if self.total is True:
             return None
 
-        if self.remaining is not None and request_count <= self.remaining:
+        if self.remaining is not None and request_cost <= self.remaining:
             return None
 
         if self.total is not None:
@@ -436,8 +436,13 @@ async def execute_no_sleep(
     pending_task_indexes: list[int] = list(range(len(params)))
 
     while pending_task_indexes and retry_count < service.max_retry_count:
+        pending_cost = sum(
+            params[i].cost()
+            for i in pending_task_indexes
+        )
+
         base_delay = request_limits.base_delay(
-            len(pending_task_indexes), guess=service.guess_delay,
+            pending_cost, guess=service.guess_delay,
         )
 
         active_task_indexes: list[int]
@@ -493,9 +498,12 @@ async def execute_no_sleep(
         pending_task_indexes = retry_task_indexes + inactive_task_indexes
 
     # Note how many retries were left
-    report.deferred_requests = len(pending_task_indexes)
+    report.deferred_cost = sum(
+            params[i].cost()
+            for i in pending_task_indexes
+        )
 
-    if report.deferred_requests != 0:
+    if report.deferred_cost != 0:
         # If there are deferred requests, gradually increase the delay factor
         request_limits.delay_factor *= (
             1 + random.random() if service.jitter else 2

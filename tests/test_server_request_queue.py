@@ -212,7 +212,7 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(1, report.success_count)
         self.assertEqual(0, report.unknown_error_count)
         self.assertEqual([], report.known_error_messages)
-        self.assertEqual(0, report.deferred_requests)
+        self.assertEqual(0, report.deferred_cost)
 
         # Delay factor is decreased there are no deferred or errors
         self.assertEqual(1.9, report.updated_limits.delay_factor)
@@ -241,7 +241,7 @@ class TestRequests(unittest.TestCase):
                     ]
                 ),
                 TestParams(
-                    _cost=1,
+                    _cost=2,
                     _results=[
                         TestResult(
                             data=TestData(2),
@@ -268,7 +268,7 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(1, report.success_count)
         self.assertEqual(0, report.unknown_error_count)
         self.assertEqual([], report.known_error_messages)
-        self.assertEqual(1, report.deferred_requests)
+        self.assertEqual(2, report.deferred_cost)
 
         # Delay factor is increased
         self.assertEqual(4, report.updated_limits.delay_factor)
@@ -312,7 +312,7 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(0, report.success_count)
         self.assertEqual(0, report.unknown_error_count)
         self.assertEqual(['Error'], report.known_error_messages)
-        self.assertEqual(0, report.deferred_requests)
+        self.assertEqual(0, report.deferred_cost)
 
         # Delay factor is unchanged
         self.assertEqual(2, report.updated_limits.delay_factor)
@@ -675,7 +675,7 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(4, report.success_count)
         self.assertEqual(0, report.unknown_error_count)
         self.assertEqual([], report.known_error_messages)
-        self.assertEqual(0, report.deferred_requests)
+        self.assertEqual(0, report.deferred_cost)
 
         # No errors or deferred, delay factor is decreased, can't go below 1
         self.assertEqual(1, report.updated_limits.delay_factor)
@@ -717,7 +717,7 @@ class TestRequests(unittest.TestCase):
                     _cost=4, _results=[TestResult(data=rq.Error('D', False))]
                 ),
                 TestParams(
-                    _cost=2,
+                    _cost=5,
                     _results=[
                         # unsuccessful retry
                         TestResult(data=rq.Error('E', True)),
@@ -739,7 +739,7 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(2, report.success_count)
         self.assertEqual(1, report.unknown_error_count)
         self.assertEqual(['D'], report.known_error_messages)
-        self.assertEqual(1, report.deferred_requests)
+        self.assertEqual(5, report.deferred_cost)
 
         # Deferred request, delay factor is increased
         self.assertEqual(4, report.updated_limits.delay_factor)
@@ -747,9 +747,9 @@ class TestRequests(unittest.TestCase):
     @with_fake_event_loop
     async def test_execute_no_sleep_03(self):
         # The total limit is finite
-        request_limits = rq.Limits(total=6, delay_factor=2)
+        request_limits = rq.Limits(total=6, remaining=5, delay_factor=2)
 
-        # Only the first task returns a valid result
+        # Only the first task will be run
         finalize_target: dict[int, float] = {}
 
         report = await rq.execute_no_sleep(
@@ -802,7 +802,7 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(1, report.success_count)
         self.assertEqual(0, report.unknown_error_count)
         self.assertEqual([], report.known_error_messages)
-        self.assertEqual(3, report.deferred_requests)
+        self.assertEqual(9, report.deferred_cost)
 
         # Deferred requests, delay factor increased
         self.assertEqual(4, report.updated_limits.delay_factor)
@@ -811,7 +811,7 @@ class TestRequests(unittest.TestCase):
     async def test_execute_no_sleep_04(self):
         # The total limit is finite
         # But, a sufficient remaining limit is returned by some the result.
-        request_limits = rq.Limits(total=6, delay_factor=2)
+        request_limits = rq.Limits(total=12, delay_factor=2)
 
         # Only the first task returns an updated limit
         finalize_target: dict[int, float] = {}
@@ -824,7 +824,7 @@ class TestRequests(unittest.TestCase):
                         TestResult(
                             data=TestData(1),
                             finalize_target=finalize_target,
-                            request_limits=rq.Limits(remaining=3),
+                            request_limits=rq.Limits(remaining=9),
                         )
                     ]
                 ),
@@ -867,7 +867,7 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(4, report.success_count)
         self.assertEqual(0, report.unknown_error_count)
         self.assertEqual([], report.known_error_messages)
-        self.assertEqual(0, report.deferred_requests)
+        self.assertEqual(0, report.deferred_cost)
 
         # All succeed, delay factor reduced
         self.assertEqual(1.9, report.updated_limits.delay_factor)
