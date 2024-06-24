@@ -409,6 +409,7 @@ class QueryUnitGroup:
     state_serializer: Optional[sertypes.StateSerializer] = None
 
     cache_state: int = 0
+    tx_seq_id: int = 0
 
     @property
     def units(self) -> List[QueryUnit]:
