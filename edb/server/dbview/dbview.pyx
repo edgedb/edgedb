@@ -444,8 +444,6 @@ cdef class DatabaseConnectionView:
     cdef _reset_tx_state(self):
         self._txid = None
         self._in_tx = False
-        self._in_tx_eql_to_compiled = None
-        self._eql_to_compiled_snapshot = None
         self._in_tx_config = None
         self._in_tx_globals = None
         self._in_tx_db_config = None
@@ -843,18 +841,7 @@ cdef class DatabaseConnectionView:
     cdef cache_compiled_query(self, object key, object query_unit_group):
         assert query_unit_group.cacheable
 
-        if self._in_tx:
-            if (
-                not self._tx_error and
-                self._query_cache_enabled and
-                not self._in_tx_with_ddl and
-                key not in self._in_tx_eql_to_compiled
-            ):
-                self._in_tx_eql_to_compiled[key] = query_unit_group
-                while self._in_tx_eql_to_compiled.needs_cleanup():
-                    self._in_tx_eql_to_compiled.cleanup_one()
-        else:
-            self._db._cache_compiled_query(key, query_unit_group)
+        self._db._cache_compiled_query(key, query_unit_group)
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
@@ -862,26 +849,7 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_ddl):
             return None
 
-        if self._in_tx:
-            rv = self._in_tx_eql_to_compiled.get(key, None)
-            if rv is not None:
-                return rv
-            rv = self._eql_to_compiled_snapshot.get(key, None)
-            if rv is not None:
-                return rv
-
-        rv = self._db._eql_to_compiled.get(key, None)
-
-        if rv is not None and self._in_tx:
-            # There's a new cache item persisted after this transaction
-            # started, we should fall back to inline SQL here because this
-            # transaction cannot see the cache function. The restored query
-            # cache is also kept in the registry snapshot for future queries.
-            restored_rv = rv.maybe_restore_inline_cache()
-            if restored_rv is not None:
-                rv = restored_rv
-                self._eql_to_compiled_snapshot[key] = rv
-        return rv
+        return self._db._eql_to_compiled.get(key, None)
 
     cdef tx_error(self):
         if self._in_tx:
@@ -901,9 +869,6 @@ cdef class DatabaseConnectionView:
     cdef start_tx(self):
         state_serializer = self.get_state_serializer()
         self._in_tx = True
-        self._eql_to_compiled_snapshot = self._db._eql_to_compiled.copy()
-        self._in_tx_eql_to_compiled = stmt_cache.StatementsCache(
-            maxsize=defines._MAX_QUERIES_CACHE_DB)
         self._in_tx_config = self._config
         self._in_tx_globals = self._globals
         self._in_tx_db_config = self._db.db_config
@@ -1020,7 +985,6 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.GlobalSchemaChanges
                 self._db._index.update_global_schema(query_unit.global_schema)
                 self._db.tenant.set_roles(query_unit.roles)
-            self._commit_query_cache()
 
             self._reset_tx_state()
 
@@ -1032,11 +996,6 @@ cdef class DatabaseConnectionView:
             self._reset_tx_state()
 
         return side_effects
-
-    cdef _commit_query_cache(self):
-        if not self._in_tx_with_ddl:
-            for key, value in self._in_tx_eql_to_compiled.items():
-                self._db._cache_compiled_query(key, value)
 
     cdef commit_implicit_tx(
         self,
@@ -1079,7 +1038,6 @@ cdef class DatabaseConnectionView:
             side_effects |= SideEffects.GlobalSchemaChanges
             self._db._index.update_global_schema(global_schema)
             self._db.tenant.set_roles(roles)
-        self._commit_query_cache()
 
         self._reset_tx_state()
         return side_effects
