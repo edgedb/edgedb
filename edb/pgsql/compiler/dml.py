@@ -1319,16 +1319,8 @@ def insert_needs_conflict_cte(
 ) -> bool:
     # We need to generate a conflict CTE if it is possible that
     # the query might generate two conflicting objects.
-    # For now, we calculate that conservatively and generate a conflict
-    # CTE if there are iterators or other DML statements that we have
-    # seen already.
-    # A more fine-grained scheme would check if there are enclosing
-    # iterators or INSERT/UPDATEs to types that could conflict.
     if on_conflict.else_fail:
         return False
-
-    if ctx.dml_stmts:
-        return True
 
     if on_conflict.always_check or ir_stmt.conflict_checks:
         return True
@@ -1359,7 +1351,11 @@ def insert_needs_conflict_cte(
         if (
             ptr_info.table_type == 'ObjectType'
             and shape_el.expr.expr
-            and irutils.contains_dml(shape_el.expr.expr, skip_bindings=True)
+            and irutils.contains_dml(
+                shape_el.expr.expr,
+                skip_bindings=True,
+                skip_nodes=(ir_stmt.subject,),
+            )
         ):
             return True
 
