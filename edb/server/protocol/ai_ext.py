@@ -24,6 +24,7 @@ from typing import (
     ClassVar,
     NoReturn,
     Optional,
+    Sequence,
     TYPE_CHECKING,
 )
 
@@ -148,7 +149,7 @@ async def _ext_ai_index_builder_controller_loop(
     naptime_cfg = db.lookup_config("ext::ai::Config::indexer_naptime")
     naptime = naptime_cfg.to_microseconds() / 1000000
 
-    provider_contexts: dict[str, ProviderContext] = {}
+    provider_schedulers: dict[str, ProviderScheduler] = {}
 
     try:
         while True:
@@ -162,14 +163,18 @@ async def _ext_ai_index_builder_controller_loop(
                         if not holding_lock:
                             holding_lock = await _ext_ai_lock(pgconn)
                         if holding_lock:
+                            provider_contexts = _prepare_provider_contexts(
+                                db,
+                                pgconn,
+                                models,
+                                provider_schedulers,
+                                naptime,
+                            )
                             try:
                                 run_again = (
                                     await _ext_ai_index_builder_work(
-                                        db,
-                                        pgconn,
-                                        models,
+                                        provider_schedulers,
                                         provider_contexts,
-                                        naptime,
                                     )
                                 )
                             finally:
@@ -257,26 +262,13 @@ async def _ext_ai_unlock(
         b"SELECT pg_advisory_unlock(" + _EXT_AI_ADVISORY_LOCK + b")")
 
 
-@dataclass
-class ProviderContext(rq.Context):
-
-    # The next time this provider should be evaluated.
-    deferred_time: Optional[float] = None
-
-    # Whether the provider should be processed as soon as possible after
-    # the deferred time.
-    # If this is true, but no deferred time is specified, then this provider
-    # should be processed again with no delay.
-    execute_immediately: bool = True
-
-
-async def _ext_ai_index_builder_work(
+def _prepare_provider_contexts(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
     models: list[tuple[int, str, str]],
-    provider_contexts: dict[str, ProviderContext],
+    provider_schedulers: dict[str, ProviderScheduler],
     naptime: float,
-) -> float | bool:
+) -> dict[str, ProviderContext]:
 
     models_by_provider: dict[str, list[str]] = {}
     for entry in models:
@@ -288,174 +280,95 @@ async def _ext_ai_index_builder_work(
             m = models_by_provider[provider_name] = []
             m.append(model_name)
 
-    provider_tasks = []
-    async with asyncio.TaskGroup() as g:
-        for provider_name, provider_models in models_by_provider.items():
-            if provider_name not in provider_contexts:
-                provider_contexts[provider_name] = ProviderContext()
-            provider_context = provider_contexts[provider_name]
-
-            now = asyncio.get_running_loop().time()
-            if (
-                provider_context.deferred_time is not None
-                and now < provider_context.deferred_time
-            ):
-                # Need to wait longer
-                continue
-
-            provider_tasks.append(
-                g.create_task(
-                    _ext_ai_index_builder_provider_work(
-                        db,
-                        pgconn,
-                        provider_name,
-                        provider_models,
-                        provider_context,
-                        naptime,
-                    )
-                )
-            )
-
-    # Drop any extra provider contexts, they were probably deleted.
-    unused_providers = {
+    # Drop any extra providers, they were probably deleted.
+    unused_provider_names = {
         provider_name
-        for provider_name in provider_contexts.keys()
+        for provider_name in provider_schedulers.keys()
         if provider_name not in models_by_provider
     }
-    for unused_provider in unused_providers:
-        provider_contexts.pop(unused_provider, None)
+    for unused_provider_name in unused_provider_names:
+        provider_schedulers.pop(unused_provider_name, None)
 
-    # Determine the next time to run.
-    if any(
-        (
-            provider_context.deferred_time is None
-            and provider_context.execute_immediately
-        )
-        for provider_context in provider_contexts.values()
-    ):
-        # A provider needs to be processed again immediately
-        return True
-
-    immediate_deferred_times = [
-        provider_context.deferred_time
-        for provider_context in provider_contexts.values()
-        if (
-            provider_context.deferred_time is not None
-            and provider_context.execute_immediately
-        )
-    ]
-    if len(immediate_deferred_times) > 0:
-        # A provider needs to be processed again after some delay
-        return min(immediate_deferred_times)
-
-    # Providers can be processed whenever, after their delay
-    return False
-
-
-async def _ext_ai_index_builder_provider_work(
-    db: dbview.Database,
-    pgconn: pgcon.PGConnection,
-    provider_name: str,
-    provider_models: list[str],
-    context: ProviderContext,
-    naptime: float,
-) -> None:
-    task_name = _task_name.get()
-
+    # Create contexts
     now = asyncio.get_running_loop().time()
-    if (
-        context.deferred_time is not None
-        and now < context.deferred_time
-    ):
-        # Need to wait longer
-        return
+    provider_contexts = {}
 
-    embeddings_params = await _generate_embeddings_task_params(
-        db, pgconn, provider_name, provider_models,
+    for provider_name, provider_models in models_by_provider.items():
+        if provider_name not in provider_schedulers:
+            # Create new schedulers if necessary
+            provider_schedulers[provider_name] = ProviderScheduler(
+                provider_name=provider_name
+            )
+        provider_scheduler = provider_schedulers[provider_name]
+
+        if (
+            provider_scheduler.ready_time is not None
+            and now < provider_scheduler.ready_time
+        ):
+            # Need to wait longer
+            continue
+
+        provider_contexts[provider_name] = ProviderContext(
+            naptime=naptime,
+            db=db,
+            pgconn=pgconn,
+            provider_models=provider_models,
+        )
+
+    return provider_contexts
+
+
+async def _ext_ai_index_builder_work(
+    provider_schedulers: dict[str, ProviderScheduler],
+    provider_contexts: dict[str, ProviderContext],
+) -> float | bool:
+
+    async with asyncio.TaskGroup() as g:
+        for provider_name, provider_scheduler in provider_schedulers.items():
+            if provider_name not in provider_contexts:
+                continue
+
+            provider_context = provider_contexts[provider_name]
+            g.create_task(provider_scheduler.process(provider_context))
+
+    return ProviderScheduler.get_combined_ready_time(
+        list(provider_schedulers.values())
     )
 
-    error_count = 0
-    deferred_count = 0
-    success_count = 0
 
-    if embeddings_params is None:
-        error_count = 1
+@dataclass
+class ProviderContext(rq.Context):
 
-    elif len(embeddings_params) > 0:
-        embeddings_task = asyncio.create_task(
-            rq.execute_no_sleep(embeddings_params, ctx=context)
+    db: dbview.Database
+    pgconn: pgcon.PGConnection
+    provider_models: list[str]
+
+
+@dataclass
+class ProviderScheduler(rq.Scheduler):
+
+    provider_name: str = ''
+
+    async def get_task_params(
+        self, context: rq.Context,
+    ) -> Optional[Sequence[EmbeddingsParams]]:
+        assert isinstance(context, ProviderContext)
+        return await _generate_embeddings_task_params(
+            context.db,
+            context.pgconn,
+            self.provider_name,
+            context.provider_models,
         )
-        await embeddings_task
 
-        embeddings_report = embeddings_task.result()
-        assert isinstance(embeddings_report, rq.ExecutionReport)
+    def finalize(self, execution_report: rq.ExecutionReport) -> None:
+        task_name = _task_name.get()
 
-        for message in embeddings_report.known_error_messages:
+        for message in execution_report.known_error_messages:
             logger.error(
                 f"{task_name}: "
-                f"Could not generate embeddings for {provider_name} "
+                f"Could not generate embeddings for {self.provider_name} "
                 f"due to an internal error: {message}"
             )
-
-        # Cache provider limits for next time
-        if embeddings_report.updated_limits is not None:
-            if context.request_limits is not None:
-                context.request_limits.update(embeddings_report.updated_limits)
-            else:
-                context.request_limits = embeddings_report.updated_limits
-
-        # update counts
-        error_count = (
-            len(embeddings_report.known_error_messages)
-            + embeddings_report.unknown_error_count
-        )
-
-        deferred_count = embeddings_report.deferred_requests
-        success_count = embeddings_report.success_count
-
-    # Calculate when this provider should be processed again
-    if context.request_limits is not None:
-        base_delay = context.request_limits.base_delay(
-            deferred_count, guess=context.guess_delay_min,
-        )
-        if base_delay == 0:
-            delay = None
-
-        else:
-            delay = base_delay * context.request_limits.delay_factor
-    else:
-        # If we have absolutely no information about the delay, assume naptime.
-        delay = naptime
-
-    if error_count > 0:
-        # There was an error, wait before trying again.
-        # Use the larger of delay or naptime.
-        delay = max(delay, naptime) if delay is not None else naptime
-
-        now = asyncio.get_running_loop().time()
-        context.deferred_time = now + delay
-        context.execute_immediately = False
-
-    elif deferred_count > 0:
-        # There is some deferred work, apply the delay and run immediately.
-        if delay is None:
-            context.deferred_time = None
-        else:
-            now = asyncio.get_running_loop().time()
-            context.deferred_time = now + delay
-        context.execute_immediately = True
-
-    elif success_count > 0:
-        # Some work was done successfully. Run again to ensure no more work
-        # needs to be done.
-        context.deferred_time = None
-        context.execute_immediately = True
-
-    else:
-        # No work left to do. Take a nap.
-        now = asyncio.get_running_loop().time()
-        context.deferred_time = now + naptime
-        context.execute_immediately = False
 
 
 @dataclass(frozen=True)
