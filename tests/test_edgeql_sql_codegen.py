@@ -378,3 +378,29 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             sql,
             "Card being selected when SpecialCard should suffice"
         )
+
+    SCHEMA_asdf = r'''
+        type Tgt;
+        type Tgt2;
+        type Src {
+            name: str { constraint exclusive; }
+            tgt: Tgt;
+            multi tgts: Tgt2;
+        };
+    '''
+
+    def test_codegen_unless_conflict_03(self):
+        # Should have no conflict check because it has no subtypes
+        sql = self._compile('''
+        WITH MODULE asdf
+        INSERT Src {
+            name := 'asdf',
+            tgt := (select Tgt limit 1),
+            tgts := (insert Tgt2),
+        } UNLESS CONFLICT
+        ''')
+
+        self.assertIn(
+            "ON CONFLICT", sql,
+            "insert unless conflict not using ON CONFLICT"
+        )
