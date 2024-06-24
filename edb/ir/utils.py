@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 from typing import *
+
 if TYPE_CHECKING:
     from typing_extensions import TypeGuard
 
@@ -305,10 +306,17 @@ class ContainsDMLVisitor(ast.NodeVisitor):
         return bool(self.generic_visit(node))
 
 
-def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
+def contains_dml(
+    stmt: irast.Base,
+    *,
+    skip_bindings: bool = False,
+    skip_nodes: Iterable[irast.Base] = (),
+) -> bool:
     """Check whether a statement contains any DML in a subtree."""
     # TODO: Make this caching.
     visitor = ContainsDMLVisitor(skip_bindings=skip_bindings)
+    for node in skip_nodes:
+        visitor._memo[node] = False
     res = visitor.visit(stmt) is True
     return res
 
