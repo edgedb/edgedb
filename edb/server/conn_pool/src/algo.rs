@@ -8,9 +8,6 @@ pub trait HasPoolAlgorithmData: std::fmt::Debug {
 
     fn set_target(&self, target: usize);
     fn target(&self) -> usize;
-
-    fn set_stealability(&self, stealability: usize);
-    fn stealability(&self) -> usize;
 }
 
 pub trait VisitPoolAlgoData<D: HasPoolAlgorithmData> {
@@ -26,6 +23,7 @@ pub trait VisitPoolAlgoData<D: HasPoolAlgorithmData> {
     }
 }
 
+/// Factual information about the current state of the pool.
 #[derive(Default, Debug, Clone, Copy)]
 pub struct PoolAlgorithmData {
     pub active: usize,
@@ -41,8 +39,11 @@ pub struct PoolAlgorithmData {
 
 #[derive(Default, Debug)]
 pub struct PoolAlgoTargetData {
+    /// A numeric score representing hunger. Higher is hungrier.
+    hunger: Cell<Option<usize>>,
+    /// A numeric score representing overfullness. Higher is more overfull.
+    overfullness: Cell<Option<usize>>,
     target_size: Cell<usize>,
-    stealability: Cell<usize>,
     pub data: RefCell<PoolAlgorithmData>,
 }
 
@@ -53,17 +54,12 @@ impl HasPoolAlgorithmData for PoolAlgoTargetData {
     fn set_target(&self, target: usize) {
         self.target_size.set(target);
     }
-    fn set_stealability(&self, stealability: usize) {
-        self.stealability.set(stealability);
-    }
     fn target(&self) -> usize {
         self.target_size.get()
     }
-    fn stealability(&self) -> usize {
-        self.stealability.get()
-    }
 }
 
+#[derive(Debug)]
 pub struct PoolConstraints {
     pub max: usize,
     pub max_per_target: usize,
@@ -127,7 +123,7 @@ impl PoolConstraints {
 
         // Once we start getting constrained, connections will compete for resources and require
         // us to use the various stats to determine which one is "more important".
-        let min = total_target / self.max;
+        let min = total_target / self.max + 1;
         it.with_algo_data_all(|name, data| {
             data.set_target(min);
         });
@@ -140,12 +136,34 @@ impl PoolConstraints {
         T: 'b,
         T: HasPoolAlgorithmData,
     {
-        let mut stealable = 0;
+        let mut max = 0;
         let mut which = None;
         it.with_algo_data_all(|name, data| {
-            if data.stealability() > stealable {
-                which = Some(name.clone());
-                stealable = data.stealability();
+            if let Some(overfullness) = data.overfullness.get() {
+                if overfullness > max {
+                    which = Some(name.clone());
+                    max = overfullness;
+                }
+            }
+        });
+        which
+    }
+
+    /// Identify the most desperate block for hunger.
+    pub fn identify_hungriest<'a, 'b, T, U>(&self, it: &'a U) -> Option<Name>
+    where
+        U: VisitPoolAlgoData<T>,
+        T: 'b,
+        T: HasPoolAlgorithmData,
+    {
+        let mut max = 0;
+        let mut which = None;
+        it.with_algo_data_all(|name, data| {
+            if let Some(hunger) = data.hunger.get() {
+                if hunger > max {
+                    which = Some(name.clone());
+                    max = hunger;
+                }
             }
         });
         which

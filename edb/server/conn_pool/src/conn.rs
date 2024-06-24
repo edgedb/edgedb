@@ -1,4 +1,5 @@
 use crate::{
+    block::Name,
     metrics::{MetricVariant, MetricsAccum},
     waitqueue::WaitQueue,
 };
@@ -18,6 +19,7 @@ use mock_instant::thread_local::Instant;
 use std::time::Instant;
 
 pub struct ConnState {
+    pub db_name: Name,
     pub waiters: WaitQueue,
     pub metrics: Rc<MetricsAccum>,
 }
@@ -34,7 +36,7 @@ pub enum ConnError {
 
 pub type ConnResult<T> = Result<T, ConnError>;
 
-pub trait Connector: std::fmt::Debug {
+pub trait Connector: std::fmt::Debug + 'static {
     type Conn;
     fn connect(&self, db: &str) -> impl Future<Output = ConnResult<Self::Conn>> + 'static;
     fn reconnect(

@@ -6,11 +6,14 @@ use crate::{
 };
 use std::{cell::Cell, rc::Rc, time::Duration};
 
+use consume_on_drop::{Consume, ConsumeOnDrop};
+use derive_more::Debug;
 #[cfg(test)]
 use mock_instant::thread_local::Instant;
 #[cfg(not(test))]
 use std::time::Instant;
 
+#[derive(Debug)]
 pub struct PoolConfig {
     pub constraints: PoolConstraints,
     pub adjustment_interval: Duration,
@@ -54,15 +57,21 @@ impl PoolConfig {
     }
 }
 
-#[derive(Debug)]
+struct HandleAndPool<C: Connector>(ConnHandle<C>, Rc<Pool<C>>);
+
 pub struct PoolHandle<C: Connector> {
-    conn: ConnHandle<C>,
-    dirty: Rc<Cell<bool>>,
+    conn: ConsumeOnDrop<HandleAndPool<C>>,
 }
 
-impl<C: Connector> Drop for PoolHandle<C> {
-    fn drop(&mut self) {
-        self.dirty.set(true)
+impl<C: Connector> Debug for PoolHandle<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.conn.0.fmt(f)
+    }
+}
+
+impl<C: Connector> Consume for HandleAndPool<C> {
+    fn consume(self) {
+        self.1.release(self.0)
     }
 }
 
@@ -71,12 +80,18 @@ impl<C: Connector> PoolHandle<C> {
     /// most likely case for this is that the underlying connection's stream has closed, or
     /// the remote end is no longer valid for some reason.
     pub fn poison(&self) {
-        self.conn.poison()
+        self.conn.0.poison()
     }
 
     #[inline(always)]
     pub fn with_handle<T>(&self, f: impl Fn(&C::Conn) -> T) -> T {
-        self.conn.conn.with_handle(f).unwrap()
+        self.conn.0.conn.with_handle(f).unwrap()
+    }
+
+    fn new(conn: ConnHandle<C>, pool: Rc<Pool<C>>) -> Self {
+        Self {
+            conn: ConsumeOnDrop::new(HandleAndPool(conn, pool)),
+        }
     }
 }
 
@@ -87,7 +102,7 @@ where
     /// If the handle is `Copy`, copies this handle.
     #[inline(always)]
     pub fn handle(&self) -> C::Conn {
-        self.conn.conn.with_handle(|c| *c).unwrap()
+        self.conn.0.conn.with_handle(|c| *c).unwrap()
     }
 }
 
@@ -98,10 +113,11 @@ where
     /// If the handle is `Clone`, clones this handle.
     #[inline(always)]
     pub fn handle_clone(&self) -> C::Conn {
-        self.conn.conn.with_handle(|c| c.clone()).unwrap()
+        self.conn.0.conn.with_handle(|c| c.clone()).unwrap()
     }
 }
 
+#[derive(derive_more::Debug)]
 /// A connection pool consists of a number of blocks, each with a target
 /// connection count (aka a quota). A block may take up to its quota, but no
 /// more. If a block is over quota, one of its connections may be stolen
@@ -116,15 +132,15 @@ pub struct Pool<C: Connector> {
 }
 
 impl<C: Connector> Pool<C> {
-    pub fn new(config: PoolConfig, connector: C) -> Self {
+    pub fn new(config: PoolConfig, connector: C) -> Rc<Self> {
         config.assert_valid();
-        Self {
+        Rc::new(Self {
             config,
             blocks: Default::default(),
             connector,
             last_adjust: Cell::new(Instant::now()),
             dirty: Default::default(),
-        }
+        })
     }
 
     /// Runs the required async task that takes care of quota management, garbage collection,
@@ -140,7 +156,7 @@ impl<C: Connector> Pool<C> {
     /// Acquire a handle from this connection pool. The returned [`PoolHandle`]
     /// controls the lock for the connection and may be dropped to release it
     /// back into the pool.
-    pub async fn acquire(&self, db: &str) -> ConnResult<PoolHandle<C>> {
+    pub async fn acquire(self: &Rc<Self>, db: &str) -> ConnResult<PoolHandle<C>> {
         // We have to deal with a few cases:
         //
         // 1. If the block is new, this means we immediately need to re-run the allocation algorithm to
@@ -179,10 +195,21 @@ impl<C: Connector> Pool<C> {
         }?;
 
         self.dirty.set(true);
-        Ok(PoolHandle {
-            conn,
-            dirty: self.dirty.clone(),
-        })
+        Ok(PoolHandle::new(conn, self.clone()))
+    }
+
+    /// Internal release method
+    fn release(self: Rc<Self>, conn: ConnHandle<C>) {
+        self.dirty.set(true);
+        if let Some(hungriest) = self.config.constraints.identify_hungriest(&self.blocks) {
+            let rc = self;
+            tokio::task::spawn_local(async move {
+                rc.blocks
+                    .move_to(&rc.connector, conn, &hungriest)
+                    .await
+                    .expect("Failed to move a connction: TODO");
+            });
+        }
     }
 
     pub fn metrics(&self) -> PoolMetrics {

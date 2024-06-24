@@ -4,7 +4,12 @@ use crate::{
     metrics::{MetricVariant, MetricsAccum, PoolMetrics},
     waitqueue::WaitQueue,
 };
-use std::{cell::RefCell, collections::HashMap, future::poll_fn, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{BTreeSet, HashMap},
+    future::poll_fn,
+    rc::Rc,
+};
 use tracing::trace;
 
 /// Perform a consistency check on entry and exit for this function.
@@ -70,6 +75,7 @@ impl<C: Connector, D: Default> Block<C, D> {
     pub fn new(db_name: Name, parent_metrics: Option<Rc<MetricsAccum>>) -> Self {
         let metrics = Rc::new(MetricsAccum::new(parent_metrics));
         let state = ConnState {
+            db_name: db_name.clone(),
             waiters: WaitQueue::new(metrics.clone()),
             metrics,
         }
@@ -199,6 +205,26 @@ impl<C: Connector, D: Default> Block<C, D> {
         conn.reopen(connector, &to.state.metrics, &to.db_name);
         poll_fn(|cx| conn.poll_ready(cx, &to.state.metrics)).await?;
         Ok(to.conn(conn))
+    }
+
+    async fn reconnect_conn(
+        from: &Block<C, D>,
+        to: &Block<C, D>,
+        mut conn: ConnHandle<C>,
+        connector: &C,
+    ) -> ConnResult<ConnHandle<C>> {
+        consistency_check!(from);
+        consistency_check!(to);
+
+        // TODO: this can be replaced by moving the final item of the list into the
+        // empty spot to avoid reshuffling
+        from.conns.borrow_mut().retain(|other| other != &conn.conn);
+        conn.conn.untrack(&from.state.metrics);
+        conn.state = to.state.clone();
+        to.conns.borrow_mut().push(conn.conn.clone());
+        conn.conn.reopen(connector, &to.state.metrics, &to.db_name);
+        poll_fn(|cx| conn.conn.poll_ready(cx, &to.state.metrics)).await?;
+        Ok(conn)
     }
 }
 
@@ -350,10 +376,24 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         Ok(())
     }
 
+    /// Steals a connection from one block to another.
     pub async fn steal(&self, connector: &C, db: &str, from: &str) -> ConnResult<ConnHandle<C>> {
         let from_block = self.block(from);
         let to_block = self.block(db);
         Block::reconnect(&from_block, &to_block, connector).await
+    }
+
+    /// Moves a connection to a different block than it was acquired from
+    /// without giving any wakers on the old block a chance to get it.
+    pub async fn move_to(
+        &self,
+        connector: &C,
+        conn: ConnHandle<C>,
+        db: &str,
+    ) -> ConnResult<ConnHandle<C>> {
+        let from_block = self.block(&conn.state.db_name);
+        let to_block = self.block(db);
+        Block::reconnect_conn(&from_block, &to_block, conn, connector).await
     }
 }
 
@@ -450,6 +490,25 @@ mod tests {
         assert_eq!(2, blocks.block_count());
         assert_block!(blocks "db" is empty);
         assert_block!(blocks "db2" has 3 Idle);
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn test_move() -> Result<()> {
+        let connector = BasicConnector::no_delay();
+        let blocks = Blocks::<_, ()>::default();
+        assert_eq!(0, blocks.block_count());
+        blocks.create(&connector, "db").await?;
+        blocks.create(&connector, "db").await?;
+        blocks.create(&connector, "db").await?;
+        assert_eq!(1, blocks.block_count());
+        assert_block!(blocks "db" has 3 Idle);
+        assert_block!(blocks "db2" is empty);
+        let conn = blocks.queue("db").await?;
+        blocks.move_to(&connector, conn, "db2").await?;
+        assert_eq!(2, blocks.block_count());
+        assert_block!(blocks "db" has 2 Idle);
+        assert_block!(blocks "db2" has 1 Idle);
         Ok(())
     }
 

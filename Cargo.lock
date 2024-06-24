@@ -225,6 +225,7 @@ name = "conn-pool"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "consume_on_drop",
  "derive_more",
  "futures",
  "itertools",
@@ -239,6 +240,12 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
 ]
+
+[[package]]
+name = "consume_on_drop"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47d91586aac6b9f9e32032b8ebf58a8eb03f4b58d3e18ea493b8b2083cb7b88e"
 
 [[package]]
 name = "convert_case"

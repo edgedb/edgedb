@@ -252,6 +252,7 @@ impl From<&RawMetrics> for PoolAlgorithmData {
             waiters: val.counts[MetricVariant::Waiting as usize],
             avg_connect_time: val.times[MetricVariant::Connecting as usize].avg() as _,
             avg_disconnect_time: val.times[MetricVariant::Disconnecting as usize].avg() as _,
+            avg_hold_time: val.times[MetricVariant::Active as usize].avg() as _,
             max_concurrent: val.max[MetricVariant::Active as usize],
             max_waiters: val.max[MetricVariant::Waiting as usize],
             // TODO
