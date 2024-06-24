@@ -42,6 +42,7 @@ from . import dispatch
 from . import context
 from . import expr as pg_res_expr
 from . import relation as pg_res_rel
+from . import range_var as pg_res_range_var
 
 Context = context.ResolverContextLevel
 
@@ -56,7 +57,7 @@ def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
 
     elif stmt.relation:
         relation, table = dispatch.resolve_relation(stmt.relation, ctx=ctx)
-        table.reference_as = ctx.names.get('rel')
+        table.reference_as = ctx.alias_generator.get('rel')
 
         selected_columns = _pull_columns_from_table(
             table,
@@ -166,8 +167,10 @@ def resolve_InsertStmt(
     )
 
     val_rel, val_table = compile_insert_value(
-        stmt.select_stmt, expected_columns, ctx
+        stmt.select_stmt, stmt.ctes, expected_columns, ctx
     )
+    value_ctes = val_rel.ctes if val_rel.ctes else []
+    val_rel.ctes = None
 
     # if we are sure that we are inserting a single row,
     # we can skip for loops and the iterator, so we generate better SQL
@@ -238,7 +241,7 @@ def resolve_InsertStmt(
     # for link ids.
     assert isinstance(val_rel, pgast.Query)
     source_cte = pgast.CommonTableExpr(
-        name=ctx.names.get('ins_source'),
+        name=ctx.alias_generator.get('ins_source'),
         query=pgast.SelectStmt(
             from_clause=[pgast.RangeSubselect(subquery=val_rel)],
             target_list=pre_projection,
@@ -247,7 +250,7 @@ def resolve_InsertStmt(
     )
 
     # source needs an identity column, so we need to invent one
-    source_identity = ctx.names.get('identity')
+    source_identity = ctx.alias_generator.get('identity')
     source_cte.query.target_list.append(
         pgast.ResTarget(
             name=source_identity,
@@ -321,6 +324,7 @@ def resolve_InsertStmt(
             ir_stmt,
             external_rels={source_id: (source_cte, ('source', 'identity'))},
             output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+            alias_generator=ctx.alias_generator,
         )
     except errors.QueryError as e:
         raise errors.QueryError(
@@ -333,7 +337,7 @@ def resolve_InsertStmt(
 
     assert isinstance(sql_result.ast, pgast.Query)
     assert sql_result.ast.ctes
-    ctes = [source_cte] + sql_result.ast.ctes
+    ctes = value_ctes + [source_cte] + sql_result.ast.ctes
     sql_result.ast.ctes.clear()
 
     if ctx.subquery_depth == 0:
@@ -367,6 +371,7 @@ def resolve_InsertStmt(
 
 def compile_insert_value(
     value_query: Optional[pgast.Query],
+    value_ctes: Optional[List[pgast.CommonTableExpr]],
     expected_columns: List[context.Column],
     ctx: context.ResolverContextLevel,
 ) -> Tuple[pgast.BaseRelation, context.Table]:
@@ -406,25 +411,25 @@ def compile_insert_value(
                 value_query.values[r_index] = row.replace(args=cols)
 
     # INSERT INTO x DEFAULT VALUES
-    val_rel: pgast.BaseRelation
-    if value_query:
-        val_rel = value_query
-    else:
-        val_rel = pgast.SelectStmt(values=[])
-
+    value_query: pgast.BaseRelation
+    if not value_query:
+        value_query = pgast.SelectStmt(values=[])
         # edgeql compiler will provide default values
         # (and complain about missing ones)
         expected_columns = []
 
+    # compile these CTEs as they were defined on value relation
+    value_query.ctes = value_ctes
+
     # compile value that is to be inserted
-    val_rel, val_table = dispatch.resolve_relation(val_rel, ctx=ctx)
+    val_rel, val_table = dispatch.resolve_relation(value_query, ctx=ctx)
 
     if len(expected_columns) != len(val_table.columns):
         col_names = ', '.join(c.name for c in expected_columns)
         raise errors.QueryError(
             f'INSERT expected {len(expected_columns)} columns, '
             f'but got {len(val_table.columns)} (expecting {col_names})',
-            span=val_rel.span,
+            span=value_query.span,
         )
 
     return val_rel, val_table

@@ -543,6 +543,7 @@ class Environment:
     def __init__(
         self,
         *,
+        alias_generator: Optional[aliases.AliasGenerator] = None,
         output_format: Optional[OutputFormat],
         named_param_prefix: Optional[tuple[str, ...]],
         expected_cardinality_one: bool,
@@ -560,7 +561,7 @@ class Environment:
         # XXX: TRAMPOLINE: THIS IS WRONG
         versioned_stdlib: bool = True,
     ) -> None:
-        self.aliases = aliases.AliasGenerator()
+        self.aliases = alias_generator or aliases.AliasGenerator()
         self.output_format = output_format
         self.named_param_prefix = named_param_prefix
         self.ptrref_source_visibility = {}

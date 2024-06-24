@@ -151,7 +151,7 @@ class ContextSwitchMode(enum.Enum):
 
 class ResolverContextLevel(compiler.ContextLevel):
     schema: s_schema.Schema
-    names: compiler.AliasGenerator
+    alias_generator: compiler.AliasGenerator
 
     # Visible names in scope
     scope: Scope
@@ -190,7 +190,7 @@ class ResolverContextLevel(compiler.ContextLevel):
             self.schema = schema
             self.options = options
             self.scope = Scope()
-            self.names = compiler.AliasGenerator()
+            self.alias_generator = compiler.AliasGenerator()
             self.subquery_depth = 0
             self.ctes_buffer = []
             self.inheritance_ctes = dict()
@@ -198,7 +198,7 @@ class ResolverContextLevel(compiler.ContextLevel):
         else:
             self.schema = prevlevel.schema
             self.options = prevlevel.options
-            self.names = prevlevel.names
+            self.alias_generator = prevlevel.alias_generator
 
             self.subquery_depth = prevlevel.subquery_depth + 1
             self.ctes_buffer = prevlevel.ctes_buffer
