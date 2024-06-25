@@ -24,6 +24,7 @@ import asyncio
 import base64
 import copy
 import json
+import logging
 import os.path
 import pickle
 import struct
@@ -71,6 +72,7 @@ cdef INT32_PACKER = struct.Struct('!l').pack
 cdef int VER_COUNTER = 0
 cdef DICTDEFAULT = (None, None)
 cdef int TX_SEQ_MAX = 2147483647
+cdef object logger = logging.getLogger('edb.server')
 
 
 cdef next_dbver():
@@ -231,11 +233,14 @@ cdef class Database:
             if not ops:
                 continue
 
-            # TODO: Should we do any sort of error handling here?
             g = execute.build_cache_persistence_units(ops)
             conn = await self.tenant.acquire_pgcon(self.name)
             try:
                 await g.execute(conn, self)
+            except Exception as e:
+                logger.warning("Failed to persist function cache",
+                               exc_info=True)
+                continue
             finally:
                 self.tenant.release_pgcon(self.name, conn)
 
