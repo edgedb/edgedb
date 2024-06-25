@@ -513,9 +513,9 @@ async def execute_no_sleep(
 
     # Note how many retries were left
     report.deferred_cost = sum(
-            params[i].cost()
-            for i in pending_request_indexes
-        )
+        params[i].cost()
+        for i in pending_request_indexes
+    )
 
     if report.deferred_cost != 0:
         # If there are deferred requests, gradually increase the delay factor
