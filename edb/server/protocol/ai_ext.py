@@ -634,44 +634,6 @@ async def _generate_openai_embeddings(
     )
 
 
-async def _get_openai_limits(
-    provider,
-    model_name: str,
-) -> Optional[rs.Limits]:
-    """Send a bad request and read the headers for limits.
-
-    This is a waste of a request, but it's better than nothing.
-    """
-
-    headers = {
-        "Authorization": f"Bearer {provider.secret}",
-    }
-    if provider.name == "builtin::openai" and provider.client_id:
-        headers["OpenAI-Organization"] = provider.client_id
-    client = httpx.AsyncClient(
-        headers=headers,
-        base_url=provider.api_url,
-    )
-
-    result = await client.post(
-        "/embeddings",
-        json={
-            "model": model_name,
-        },
-    )
-
-    limits = _read_openai_limits(result)
-
-    if (
-        limits.total is None
-        and limits.remaining is None
-    ):
-        # We failed to read anything useful
-        return None
-
-    return limits
-
-
 def _read_openai_limits(
     result: Any,
 ) -> rs.Limits:
