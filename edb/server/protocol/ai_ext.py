@@ -314,6 +314,11 @@ async def _ext_ai_index_builder_work(
     )
 
 
+@dataclass(frozen=True)
+class EmbeddingsData:
+    embeddings: bytes
+
+
 @dataclass
 class ProviderContext(rs.Context):
 
@@ -323,7 +328,7 @@ class ProviderContext(rs.Context):
 
 
 @dataclass
-class ProviderScheduler(rs.Scheduler):
+class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
 
     provider_name: str = ''
 
@@ -347,11 +352,6 @@ class ProviderScheduler(rs.Scheduler):
                 f"Could not generate embeddings for {self.provider_name} "
                 f"due to an internal error: {message}"
             )
-
-
-@dataclass(frozen=True)
-class EmbeddingsData:
-    embeddings: bytes
 
 
 @dataclass(frozen=True)

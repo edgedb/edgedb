@@ -125,7 +125,7 @@ def _default_delay_time() -> Timer:
 
 
 @dataclass
-class Scheduler(abc.ABC):
+class Scheduler(abc.ABC, Generic[_T]):
     """A scheduler for requests to an asynchronous service.
 
     A Scheduler both generates requests and tracks when the service can be
@@ -140,7 +140,7 @@ class Scheduler(abc.ABC):
     @abc.abstractmethod
     async def get_params(
         self, context: Context,
-    ) -> Optional[Sequence[Params]]:
+    ) -> Optional[Sequence[Params[_T]]]:
         """Get parameters for the requests to run."""
         raise NotImplementedError
 
@@ -148,6 +148,7 @@ class Scheduler(abc.ABC):
         if not self.timer.is_ready():
             return False
 
+        request_params: Optional[Sequence[Params[_T]]]
         try:
             request_params = await self.get_params(context)
         except Exception:
@@ -249,9 +250,9 @@ class Service:
 
     def next_delay(
         self,
-        success_count,
-        deferred_cost,
-        error_count,
+        success_count: int,
+        deferred_cost: int,
+        error_count: int,
         naptime: float
     ) -> Timer:
         """When should the service should be processed again."""
@@ -359,7 +360,7 @@ class Request(abc.ABC, Generic[_T]):
     """Represents an async request"""
 
     params: Params[_T]
-    _inner: asyncio.Task
+    _inner: asyncio.Task[Optional[Result[_T]]]
 
     def __init__(self, params: Params[_T]):
         self.params = params
