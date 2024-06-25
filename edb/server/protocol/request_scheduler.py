@@ -162,12 +162,9 @@ class Scheduler(abc.ABC):
 
         elif len(request_params) > 0:
             try:
-                execution_task = asyncio.create_task(
-                    execute_no_sleep(request_params, service=self.service)
+                execution_report = await execute_no_sleep(
+                    request_params, service=self.service,
                 )
-                await execution_task
-
-                execution_report = execution_task.result()
 
             except Exception:
                 execution_report = ExecutionReport(unknown_error_count=1)
