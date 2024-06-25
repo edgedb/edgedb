@@ -53,7 +53,7 @@ class Timer:
     urgent: bool = True
 
     @staticmethod
-    def create_delay(delay: Optional[float], urgent: bool):
+    def create_delay(delay: Optional[float], urgent: bool) -> Timer:
         now = asyncio.get_running_loop().time()
         if delay is None:
             time = None
