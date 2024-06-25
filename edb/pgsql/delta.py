@@ -2879,14 +2879,74 @@ class DeleteScalarType(ScalarTypeMetaCommand,
     def delete_scalar(
         cls, scalar: s_scalars.ScalarType, orig_schema: s_schema.Schema
     ) -> dbops.Command:
+        ops = dbops.CommandGroup()
         old_domain_name = common.get_backend_name(
             orig_schema, scalar, catenate=False)
 
+        drop_func_cache_sql = textwrap.dedent(f'''
+            DO $$
+            DECLARE
+                query_cache_row RECORD;
+            BEGIN
+                FOR query_cache_row IN
+                    WITH
+                    types AS (
+                        SELECT
+                            pt.oid AS oid
+                        FROM
+                            pg_type pt
+                            JOIN pg_namespace pn
+                                ON pt.typnamespace = pn.oid
+                        WHERE
+                            pn.nspname = '{old_domain_name[0]}'
+                            AND (
+                                pt.typname = '{old_domain_name[1]}'
+                                OR pt.typname = '_{old_domain_name[1]}'
+                            )
+                    ),
+                    class AS (
+                        SELECT
+                            pc.oid AS oid
+                        FROM
+                            pg_class pc
+                            JOIN pg_namespace pn
+                                ON pc.relnamespace = pn.oid
+                        WHERE
+                            pn.nspname = 'pg_catalog'
+                            AND pc.relname = 'pg_type'
+                    ),
+                    funcs AS (
+                        SELECT
+                            substring(p.proname FROM 6)::uuid AS key
+                        FROM
+                            pg_proc p
+                            JOIN pg_depend d
+                                ON d.objid = p.oid
+                            JOIN types t
+                                ON d.refobjid = t.oid
+                            JOIN class c
+                                ON d.refclassid = c.oid
+                        WHERE
+                            p.proname LIKE '__qh_%'
+                    )
+                    SELECT
+                        c.evict
+                    FROM
+                        funcs f
+                        LEFT JOIN edgedb._query_cache c
+                            ON f.key = c.key
+                    WHERE
+                        c.evict IS NOT NULL
+                LOOP
+                    EXECUTE query_cache_row.evict;
+                END LOOP;
+            END $$;
+        ''')
+        ops.add_command(dbops.Query(drop_func_cache_sql))
+
         cond: dbops.Condition
         if scalar.is_concrete_enum(orig_schema):
-            ops = dbops.CommandGroup()
-            old_enum_name = common.get_backend_name(
-                orig_schema, scalar, catenate=False)
+            old_enum_name = old_domain_name
             cond = dbops.EnumExists(old_enum_name)
 
             cast_func_name = common.get_backend_name(
@@ -2911,10 +2971,13 @@ class DeleteScalarType(ScalarTypeMetaCommand,
 
             enum = dbops.DropEnum(name=old_enum_name, conditions=[cond])
             ops.add_command(enum)
-            return ops
+
         else:
             cond = dbops.DomainExists(old_domain_name)
-            return dbops.DropDomain(name=old_domain_name, conditions=[cond])
+            domain = dbops.DropDomain(name=old_domain_name, conditions=[cond])
+            ops.add_command(domain)
+
+        return ops
 
     def apply(
         self,
