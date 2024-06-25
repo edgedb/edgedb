@@ -2883,12 +2883,16 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         old_domain_name = common.get_backend_name(
             orig_schema, scalar, catenate=False)
 
+        # The custom scalar types are sometimes included in the function
+        # signatures of query cache functions under QueryCacheMode.PgFunc.
+        # We need to find such functions through pg_depend and evict the cache
+        # before dropping the custom scalar type.
         drop_func_cache_sql = textwrap.dedent(f'''
             DO $$
             DECLARE
-                query_cache_row RECORD;
+                qc RECORD;
             BEGIN
-                FOR query_cache_row IN
+                FOR qc IN
                     WITH
                     types AS (
                         SELECT
@@ -2898,10 +2902,10 @@ class DeleteScalarType(ScalarTypeMetaCommand,
                             JOIN pg_namespace pn
                                 ON pt.typnamespace = pn.oid
                         WHERE
-                            pn.nspname = '{old_domain_name[0]}'
+                            pn.nspname = {ql(old_domain_name[0])}
                             AND (
-                                pt.typname = '{old_domain_name[1]}'
-                                OR pt.typname = '_{old_domain_name[1]}'
+                                pt.typname = {ql(old_domain_name[1])}
+                                OR pt.typname = {ql('_' + old_domain_name[1])}
                             )
                     ),
                     class AS (
@@ -2914,31 +2918,21 @@ class DeleteScalarType(ScalarTypeMetaCommand,
                         WHERE
                             pn.nspname = 'pg_catalog'
                             AND pc.relname = 'pg_type'
-                    ),
-                    funcs AS (
-                        SELECT
-                            substring(p.proname FROM 6)::uuid AS key
-                        FROM
-                            pg_proc p
-                            JOIN pg_depend d
-                                ON d.objid = p.oid
-                            JOIN types t
-                                ON d.refobjid = t.oid
-                            JOIN class c
-                                ON d.refclassid = c.oid
-                        WHERE
-                            p.proname LIKE '__qh_%'
                     )
                     SELECT
-                        c.evict
+                        substring(p.proname FROM 6)::uuid AS key
                     FROM
-                        funcs f
-                        LEFT JOIN edgedb._query_cache c
-                            ON f.key = c.key
+                        pg_proc p
+                        JOIN pg_depend d
+                            ON d.objid = p.oid
+                        JOIN types t
+                            ON d.refobjid = t.oid
+                        JOIN class c
+                            ON d.refclassid = c.oid
                     WHERE
-                        c.evict IS NOT NULL
+                        p.proname LIKE '__qh_%'
                 LOOP
-                    EXECUTE query_cache_row.evict;
+                    PERFORM edgedb."_evict_query_cache"(qc.key);
                 END LOOP;
             END $$;
         ''')
