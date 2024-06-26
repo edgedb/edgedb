@@ -16,12 +16,15 @@
 # limitations under the License.
 #
 
+import unittest
+
 try:
     import async_solipsism
 except ImportError:
     async_solipsism = None  # type: ignore
 
 
+@unittest.skipIf(async_solipsism is None, 'async_solipsism is missing')
 def with_fake_event_loop(f):
     # async_solpsism creates an event loop with, among other things,
     # a totally fake clock which starts at 0.

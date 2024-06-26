@@ -27,12 +27,6 @@ from edb.server.protocol import request_scheduler as rs
 from edb.testbase.asyncutils import with_fake_event_loop
 
 
-try:
-    import async_solipsism
-except ImportError:
-    async_solipsism = None  # type: ignore
-
-
 # Simulate tasks which returns a TestData containing an int.
 #
 # TestResult keeps track of when it has returned "created" and whether it has
@@ -125,7 +119,6 @@ class TestTask(rs.Request[TestData]):
             return None
 
 
-@unittest.skipIf(async_solipsism is None, 'async_solipsism is missing')
 class TestRequests(unittest.TestCase):
 
     @with_fake_event_loop

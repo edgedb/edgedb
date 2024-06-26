@@ -23,13 +23,7 @@ import unittest
 from edb.common import asyncutil
 from edb.testbase.asyncutils import with_fake_event_loop
 
-try:
-    import async_solipsism
-except ImportError:
-    async_solipsism = None  # type: ignore
 
-
-@unittest.skipIf(async_solipsism is None, 'async_solipsism is missing')
 class TestDebounce(unittest.TestCase):
 
     @with_fake_event_loop
