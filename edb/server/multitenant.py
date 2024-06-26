@@ -275,7 +275,16 @@ class MultiTenantServer(server.BaseServer):
         try:
             tenant.stop_accepting_connections()
             tenant.stop()
-            await tenant.wait_stopped()
+            try:
+                await asyncio.wait_for(
+                    tenant.wait_stopped(),
+                    defines.MULTITENANT_TENANT_DESTROY_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Tenant removal is taking too long; "
+                    "brutally shutdown the tenant now"
+                )
             assert isinstance(
                 self._compiler_pool, compiler_pool.MultiTenantPool
             )

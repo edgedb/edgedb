@@ -527,6 +527,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._accept_new_tasks = False
         self._cluster.stop_watching()
         self._stop_watching_files()
+        self._server.request_frontend_stop(self)
 
     def _stop_watching_files(self):
         while self._file_watch_finalizers:
