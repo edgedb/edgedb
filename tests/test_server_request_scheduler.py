@@ -220,6 +220,17 @@ class TestRequests(unittest.TestCase):
             rs.Timer(None, False),
         )
 
+        self.assertEqual(
+            rs.Timer.combine([
+                rs.Timer(10, False),
+                rs.Timer(20, False),
+                rs.Timer(30, False),
+            ]),
+            rs.Timer(10, False),
+        )
+
+        self.assertIsNone(rs.Timer.combine([]))
+
     @with_fake_event_loop
     async def test_scheduler_process_01(self):
         # Processing does nothing if scheduler isn't ready

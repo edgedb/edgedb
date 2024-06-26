@@ -87,7 +87,7 @@ class Timer:
             return max_delay
 
     @staticmethod
-    def combine(timers: Iterable[Timer]) -> Timer:
+    def combine(timers: Iterable[Timer]) -> Optional[Timer]:
         """Combine the timers to determine the when to take the next action.
 
         If the timers are (1, False), (2, False), (3, True), it may be wasteful
@@ -96,24 +96,25 @@ class Timer:
         Instead, we would prefer to act only once, at time 3, since only the
         third action was urgent.
         """
-        if any(
-            timer.time is None and timer.urgent
-            for timer in timers
-        ):
-            # An action must be taken right away.
-            return Timer(None, True)
+        for target_urgency in [True, False]:
+            if any(
+                timer.time is None and timer.urgent == target_urgency
+                for timer in timers
+            ):
+                # An action should be taken right away.
+                return Timer(None, target_urgency)
 
-        urgent_times = [
-            timer.time
-            for timer in timers
-            if timer.time is not None and timer.urgent
-        ]
-        if len(urgent_times) > 0:
-            # An action must be taken after some delay
-            return Timer(min(urgent_times), True)
+            urgent_times = [
+                timer.time
+                for timer in timers
+                if timer.time is not None and timer.urgent == target_urgency
+            ]
+            if len(urgent_times) > 0:
+                # An action should be taken after some delay
+                return Timer(min(urgent_times), target_urgency)
 
-        # Providers can be processed whenever
-        return Timer(None, False)
+        # Nothing to do
+        return None
 
 
 def _default_service() -> Service:

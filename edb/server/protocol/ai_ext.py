@@ -308,10 +308,15 @@ async def _ext_ai_index_builder_work(
             provider_context = provider_contexts[provider_name]
             g.create_task(provider_scheduler.process(provider_context))
 
-    return rs.Timer.combine(
+    sleep_timer = rs.Timer.combine(
         provider_scheduler.timer
         for provider_scheduler in provider_schedulers.values()
     )
+    if sleep_timer is not None:
+        return sleep_timer
+    else:
+        # Return any non-urgent timer
+        return rs.Timer(None, False)
 
 
 @dataclass(frozen=True)
