@@ -1978,15 +1978,11 @@ class Router:
                 return True
 
             parsed_allowed_url = urllib.parse.urlparse(lower_allowed_url)
-            allowed_domain = parsed_allowed_url.hostname
-            if allowed_domain is None:
-                continue
+            allowed_domain = parsed_allowed_url.netloc
             allowed_path = parsed_allowed_url.path
 
             parsed_lower_url = urllib.parse.urlparse(lower_url)
-            lower_domain = parsed_lower_url.hostname
-            if lower_domain is None:
-                continue
+            lower_domain = parsed_lower_url.netloc
             lower_path = parsed_lower_url.path
 
             if (

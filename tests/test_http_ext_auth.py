@@ -2213,7 +2213,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "email": email,
                 "password": "test_password",
-                "redirect_to": "https://oauth.example.com:8080/some/path",
+                "redirect_to": "https://oauth.example.com/some/path",
                 "challenge": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
