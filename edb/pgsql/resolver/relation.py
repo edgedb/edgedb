@@ -19,7 +19,7 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Iterable, Optional, Tuple, List, cast
+from typing import Optional, Tuple, List, cast
 
 from edb import errors
 from edb.server.pgcon import errors as pgerror
@@ -183,7 +183,7 @@ def extract_ctes_from_ctx(
     ctx: context.ResolverContextLevel,
 ) -> List[pgast.CommonTableExpr]:
     if ctx.subquery_depth != 0:
-        return ()
+        return []
 
     res = list(ctx.ctes_buffer)
     ctx.ctes_buffer = []

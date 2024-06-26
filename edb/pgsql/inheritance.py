@@ -7,11 +7,9 @@ from edb.schema import pointers as s_pointers
 from edb.schema import sources as s_sources
 from edb.schema import schema as s_schema
 
-from edb.pgsql import types
-from edb.pgsql import common
-
 from . import ast as pgast
 from . import types
+from . import common
 
 
 def get_inheritance_view(
