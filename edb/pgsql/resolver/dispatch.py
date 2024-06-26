@@ -67,15 +67,23 @@ def resolve_opt_list(
 
 
 def resolve_relation(
-    rel: pgast.BaseRelation, *, ctx: context.ResolverContextLevel
+    rel: pgast.BaseRelation,
+    *,
+    include_inherited: bool = True,
+    ctx: context.ResolverContextLevel,
 ) -> typing.Tuple[pgast.BaseRelation, context.Table]:
-    rel, tab = _resolve_relation(rel, ctx=ctx)
+    rel, tab = _resolve_relation(
+        rel, include_inherited=include_inherited, ctx=ctx
+    )
     return rel.replace(span=rel.span), tab
 
 
 @functools.singledispatch
 def _resolve_relation(
-    rel: pgast.BaseRelation, *, ctx: context.ResolverContextLevel
+    rel: pgast.BaseRelation,
+    *,
+    include_inherited: bool,
+    ctx: context.ResolverContextLevel,
 ) -> typing.Tuple[pgast.BaseRelation, context.Table]:
     raise ValueError(f'no SQL resolve handler for {rel.__class__}')
 

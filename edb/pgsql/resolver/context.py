@@ -152,12 +152,8 @@ class ResolverContextLevel(compiler.ContextLevel):
     # Visible names in scope
     scope: Scope
 
-    # True iff relation currently resolving should also include instances of
-    # child objects.
-    include_inherited: bool
-
-    # 0 for top-level statement, 1 for its CTEs/sub-relations/links, similarly for
-    # their subqueries.
+    # 0 for top-level statement, 1 for its CTEs/sub-relations/links
+    # and so on for all subqueries.
     subquery_depth: int
 
     # List of CTEs to add the top-level statement.
@@ -175,8 +171,6 @@ class ResolverContextLevel(compiler.ContextLevel):
         schema: Optional[s_schema.Schema] = None,
         options: Optional[Options] = None,
     ) -> None:
-        self.include_inherited = True
-
         if prevlevel is None:
             assert schema
             assert options
