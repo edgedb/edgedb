@@ -2213,7 +2213,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "email": email,
                 "password": "test_password",
-                "redirect_to": "https://example.com/some/path",
+                "redirect_to": "https://oauth.example.com:8080/some/path",
                 "challenge": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -2254,7 +2254,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             parsed_location = urllib.parse.urlparse(location)
             parsed_query = urllib.parse.parse_qs(parsed_location.query)
             self.assertEqual(parsed_location.scheme, "https")
-            self.assertEqual(parsed_location.netloc, "example.com")
+            self.assertEqual(parsed_location.netloc, "oauth.example.com")
             self.assertEqual(parsed_location.path, "/some/path")
             self.assertEqual(
                 parsed_query,
