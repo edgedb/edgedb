@@ -44,6 +44,7 @@ import struct
 import sys
 import time
 import uuid
+import weakref
 
 import immutables
 
@@ -90,6 +91,7 @@ class Tenant(ha_base.ClusterProtocol):
     _initing: bool
     _running: bool
     _accepting_connections: bool
+    _introspection_locks: weakref.WeakValueDictionary[str, asyncio.Lock]
 
     __loop: asyncio.AbstractEventLoop
     _task_group: asyncio.TaskGroup | None
@@ -144,6 +146,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._named_tasks: dict[str, asyncio.Task] = dict()
         self._accept_new_tasks = False
         self._file_watch_finalizers = []
+        self._introspection_locks = weakref.WeakValueDictionary()
 
         # Never use `self.__sys_pgcon` directly; get it via
         # `async with self.use_sys_pgcon()`.
@@ -580,6 +583,15 @@ class Tenant(ha_base.ClusterProtocol):
         metrics.current_backend_connections.dec(1.0, self._instance_name)
         conn.terminate()
 
+    def get_introspection_lock(
+        self,
+        dbname: str,
+    ) -> asyncio.Lock:
+        lock = self._introspection_locks.get(dbname)
+        if not lock:
+            self._introspection_locks[dbname] = lock = asyncio.Lock()
+        return lock
+
     @contextlib.asynccontextmanager
     async def direct_pgcon(
         self,
@@ -927,6 +939,13 @@ class Tenant(ha_base.ClusterProtocol):
 
         Returns True if the query cache mode changed.
         """
+        # Acquire a per-db lock for doing the introspection, to avoid
+        # race conditions where an older introspection might overwrite
+        # a newer one.
+        async with self.get_introspection_lock(dbname):
+            return await self._introspect_db(dbname)
+
+    async def _introspect_db(self, dbname: str) -> bool:
         from edb.pgsql import trampoline
         logger.info("introspecting database '%s'", dbname)
 

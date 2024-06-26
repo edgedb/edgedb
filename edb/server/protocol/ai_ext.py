@@ -646,6 +646,13 @@ async def _start_openai_like_chat(
             }
         )
 
+        if result.status_code >= 400:
+            await result.aread()
+            raise AIProviderError(
+                f"API call to generate chat completions failed with status "
+                f"{result.status_code}: {result.text}"
+            )
+
         response.status = http.HTTPStatus.OK
         response_text = result.json()["choices"][0]["message"]["content"]
         response.content_type = b'application/json'
@@ -794,6 +801,13 @@ async def _start_anthropic_chat(
                 "max_tokens": 4096,
             }
         )
+
+        if result.status_code >= 400:
+            await result.aread()
+            raise AIProviderError(
+                f"API call to generate chat completions failed with status "
+                f"{result.status_code}: {result.text}"
+            )
 
         response.status = http.HTTPStatus.OK
         response.content_type = b'application/json'
