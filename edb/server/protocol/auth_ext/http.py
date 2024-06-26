@@ -1973,7 +1973,22 @@ class Router:
         lower_url = url.lower()
 
         for allowed_url in allowed_urls:
-            if lower_url.startswith(allowed_url.lower()):
+            lower_allowed_url = allowed_url.lower()
+            if lower_url.startswith(lower_allowed_url):
+                return True
+
+            parsed_allowed_url = urllib.parse.urlparse(lower_allowed_url)
+            allowed_domain = parsed_allowed_url.netloc
+            allowed_path = parsed_allowed_url.path
+
+            parsed_lower_url = urllib.parse.urlparse(lower_url)
+            lower_domain = parsed_lower_url.netloc
+            lower_path = parsed_lower_url.path
+
+            if (
+                lower_domain == allowed_domain
+                or lower_domain.endswith('.' + allowed_domain)
+            ) and lower_path.startswith(allowed_path):
                 return True
 
         return False
