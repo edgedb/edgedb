@@ -59,7 +59,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
     """
     ]
 
-    async def test_sql_dml_insert_01(self):
+    async def test_sql_dml_insert0_1(self):
         # base case
         await self.scon.execute(
             '''
@@ -69,7 +69,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT title FROM "Document"')
         self.assertEqual(res, [['Meeting report (new)']])
 
-    async def test_sql_dml_insert_02(self):
+    async def test_sql_dml_insert0_2(self):
         # when columns are not specified, all columns are expected,
         # in alphabetical order:
         # id, __type__, owner, title
@@ -86,7 +86,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             res = await self.squery_values('SELECT title FROM "Document"')
             self.assertEqual(res, [['Report (new)']])
 
-    async def test_sql_dml_insert_03(self):
+    async def test_sql_dml_insert0_3(self):
         # multiple rows at once
         await self.scon.execute(
             '''
@@ -98,7 +98,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             res, tb.bag([['Report (new)'], ['Briefing (new)']])
         )
 
-    async def test_sql_dml_insert_04(self):
+    async def test_sql_dml_insert0_4(self):
         # using arbitrary query instead of VALUES
         await self.scon.execute(
             '''
@@ -112,7 +112,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT title FROM "Document"')
         self.assert_data_shape(res, tb.bag([['Briefing (new)']]))
 
-    async def test_sql_dml_insert_05(self):
+    async def test_sql_dml_insert0_5(self):
         # insert link
         await self.scon.execute('INSERT INTO "User" DEFAULT VALUES;')
         await self.scon.execute(
@@ -143,7 +143,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             '''
         )
 
-    async def test_sql_dml_insert_06(self):
+    async def test_sql_dml_insert0_6(self):
         # insert in a subquery: syntax error
         with self.assertRaisesRegex(
             asyncpg.PostgresSyntaxError,
@@ -158,7 +158,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    async def test_sql_dml_insert_07(self):
+    async def test_sql_dml_insert0_7(self):
         # insert in a CTE
         await self.scon.execute(
             '''
@@ -169,7 +169,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             '''
         )
 
-    async def test_sql_dml_insert_08(self):
+    async def test_sql_dml_insert0_8(self):
         # insert in a CTE: invalid PostgreSQL
         with self.assertRaisesRegex(
             asyncpg.FeatureNotSupportedError,
@@ -189,7 +189,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    async def test_sql_dml_insert_07(self):
+    async def test_sql_dml_insert0_9(self):
         # insert with a CTE
         await self.scon.execute(
             '''
@@ -202,7 +202,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT title FROM "Document"')
         self.assertEqual(res, tb.bag([['Report (new)'], ['Briefing (new)']]))
 
-    async def test_sql_dml_insert_07(self):
+    async def test_sql_dml_insert_10(self):
         # two inserts
         await self.scon.execute(
             '''
@@ -218,7 +218,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             res, tb.bag([['Report (new)'], ['Report (new) - copy (new)']])
         )
 
-    async def test_sql_dml_insert_09(self):
+    async def test_sql_dml_insert_11(self):
         # returning
         await self.scon.execute('INSERT INTO "User" DEFAULT VALUES;')
         res = await self.scon.fetch(
@@ -232,7 +232,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         first = res[0]
         self.assertEqual(first[2], 'meeting report (new)')
 
-    async def test_sql_dml_insert_10(self):
+    async def test_sql_dml_insert_12(self):
         # returning sublink
         await self.scon.execute('INSERT INTO "User" DEFAULT VALUES;')
         await self.scon.execute(
@@ -269,7 +269,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
 
     @test.skip('bug 7471 closes connection')
-    async def test_sql_dml_insert_11(self):
+    async def test_sql_dml_insert_13(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             'invalid input syntax for type uuid',
@@ -283,7 +283,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             )
 
     @test.skip('bug 7471 closes connection')
-    async def test_sql_dml_insert_12(self):
+    async def test_sql_dml_insert_14(self):
         with self.assertRaisesRegex(
             asyncpg.exceptions.CardinalityViolationError,
             "'default::User' with id '[0-9a-f-]+' does not exist",
@@ -297,7 +297,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             )
 
     @test.skip('bug 7471 closes connection')
-    async def test_sql_dml_insert_13(self):
+    async def test_sql_dml_insert_15(self):
         with self.assertRaisesRegex(
             asyncpg.exceptions.CannotCoerceError,
             'cannot cast type boolean to uuid',
@@ -309,7 +309,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    async def test_sql_dml_insert_14(self):
+    async def test_sql_dml_insert_16(self):
         # default values
 
         await self.scon.execute(

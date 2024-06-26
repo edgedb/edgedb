@@ -232,7 +232,9 @@ def resolve_CommonTableExpr(
                         aliascolnames = res
 
         if cte.recursive and aliascolnames:
-            reference_as = [subctx.alias_generator.get('col') for _ in aliascolnames]
+            reference_as = [
+                subctx.alias_generator.get('col') for _ in aliascolnames
+            ]
             columns = [
                 context.Column(
                     name=col, kind=context.ColumnByName(reference_as=ref_as)

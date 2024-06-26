@@ -42,7 +42,6 @@ from . import dispatch
 from . import context
 from . import expr as pg_res_expr
 from . import relation as pg_res_rel
-from . import range_var as pg_res_range_var
 
 Context = context.ResolverContextLevel
 
@@ -131,11 +130,10 @@ def _pull_columns_from_table(
 
 @dispatch._resolve_relation.register
 def resolve_InsertStmt(
-    stmt: pgast.InsertStmt, *, ctx: Context
+    stmt: pgast.InsertStmt, *, include_inherited: bool, ctx: Context
 ) -> Tuple[pgast.Query, context.Table]:
 
     if ctx.subquery_depth >= 2:
-        print(stmt.span)
         raise errors.QueryError(
             'WITH clause containing a data-modifying statement must be at '
             'the top level',
@@ -147,7 +145,7 @@ def resolve_InsertStmt(
     assert isinstance(stmt.relation, pgast.RelRangeVar)
     assert isinstance(stmt.relation.relation, pgast.Relation)
     _sub_rel, sub_table = pg_res_rel.resolve_relation(
-        stmt.relation.relation, ctx=ctx
+        stmt.relation.relation, include_inherited=include_inherited, ctx=ctx
     )
     assert sub_table.schema_id
     sub = ctx.schema.get_by_id(sub_table.schema_id)

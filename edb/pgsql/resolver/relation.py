@@ -359,7 +359,7 @@ def _select_from_inheritance_cte(
 ) -> pgast.Relation:
     if obj not in ctx.inheritance_ctes:
         cte = pgast.CommonTableExpr(
-            name=ctx.names.get('inh'),
+            name=ctx.alias_generator.get('inh'),
             query=pginheritance.get_inheritance_view(ctx.schema, obj),
         )
         ctx.ctes_buffer.append(cte)
