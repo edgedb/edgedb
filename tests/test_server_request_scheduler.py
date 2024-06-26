@@ -579,95 +579,133 @@ class TestRequests(unittest.TestCase):
             rs.Timer(1030, False),
         )
 
-    def test_limits_update_01(self):
+    def test_limits_update_total_01(self):
         # Check total takes the "latest" value
         self.assertEqual(
-            rs.Limits(total=None).update(rs.Limits(total=None)),
+            rs.Limits(total=None).update_total(rs.Limits(total=None)),
             rs.Limits(total=None),
         )
 
         self.assertEqual(
-            rs.Limits(total=None).update(rs.Limits(total=10)),
+            rs.Limits(total=None).update_total(rs.Limits(total=10)),
             rs.Limits(total=10),
         )
 
         self.assertEqual(
-            rs.Limits(total=None).update(rs.Limits(total=True)),
+            rs.Limits(total=None).update_total(rs.Limits(total=True)),
             rs.Limits(total=True),
         )
 
         self.assertEqual(
-            rs.Limits(total=10).update(rs.Limits(total=None)),
+            rs.Limits(total=10).update_total(rs.Limits(total=None)),
             rs.Limits(total=10),
         )
 
         self.assertEqual(
-            rs.Limits(total=10).update(rs.Limits(total=20)),
+            rs.Limits(total=10).update_total(rs.Limits(total=20)),
             rs.Limits(total=20),
         )
 
         self.assertEqual(
-            rs.Limits(total=10).update(rs.Limits(total=True)),
+            rs.Limits(total=10).update_total(rs.Limits(total=True)),
             rs.Limits(total=True),
         )
 
         self.assertEqual(
-            rs.Limits(total=True).update(rs.Limits(total=None)),
+            rs.Limits(total=True).update_total(rs.Limits(total=None)),
             rs.Limits(total=True),
         )
 
         self.assertEqual(
-            rs.Limits(total=True).update(rs.Limits(total=True)),
+            rs.Limits(total=True).update_total(rs.Limits(total=True)),
             rs.Limits(total=True),
         )
 
         self.assertEqual(
-            rs.Limits(total=True).update(rs.Limits(total=10)),
+            rs.Limits(total=True).update_total(rs.Limits(total=10)),
             rs.Limits(total=10),
         )
 
+    def test_limits_update_remaining_01(self):
         # Check remaining takes the smallest available value
         self.assertEqual(
-            rs.Limits(remaining=None).update(rs.Limits(remaining=None)),
+            rs.Limits(remaining=None).update_remaining(
+                rs.Limits(remaining=None)
+            ),
             rs.Limits(remaining=None),
         )
 
         self.assertEqual(
-            rs.Limits(remaining=None).update(rs.Limits(remaining=10)),
+            rs.Limits(remaining=None).update_remaining(
+                rs.Limits(remaining=10)
+            ),
             rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rs.Limits(remaining=10).update(rs.Limits(remaining=None)),
+            rs.Limits(remaining=10).update_remaining(
+                rs.Limits(remaining=None)
+            ),
             rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rs.Limits(remaining=10).update(rs.Limits(remaining=20)),
+            rs.Limits(remaining=10).update_remaining(
+                rs.Limits(remaining=20)
+            ),
             rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rs.Limits(remaining=20).update(rs.Limits(remaining=10)),
+            rs.Limits(remaining=20).update_remaining(
+                rs.Limits(remaining=10)
+            ),
             rs.Limits(remaining=10),
         )
 
         # Check that a remaining value resets an unlimited total
         self.assertEqual(
-            rs.Limits(total=True, remaining=10).update(rs.Limits()),
+            rs.Limits(total=True, remaining=10).update_remaining(
+                rs.Limits()
+            ),
             rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rs.Limits(total=True).update(rs.Limits(remaining=10)),
+            rs.Limits(total=True).update_remaining(
+                rs.Limits(remaining=10)
+            ),
             rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rs.Limits(total=True, remaining=20).update(rs.Limits(remaining=10)),
+            rs.Limits(total=True, remaining=20).update_remaining(
+                rs.Limits(remaining=10)
+            ),
             rs.Limits(remaining=10),
         )
-        # Check total takes the "latest" value
+
+        # Check that a remaining value does not reset a limited total
+        self.assertEqual(
+            rs.Limits(total=30, remaining=10).update_remaining(
+                rs.Limits()
+            ),
+            rs.Limits(total=30, remaining=10),
+        )
+
+        self.assertEqual(
+            rs.Limits(total=30).update_remaining(
+                rs.Limits(remaining=10)
+            ),
+            rs.Limits(total=30, remaining=10),
+        )
+
+        self.assertEqual(
+            rs.Limits(total=30, remaining=20).update_remaining(
+                rs.Limits(remaining=10)
+            ),
+            rs.Limits(total=30, remaining=10),
+        )
 
     def test_limits_base_delay_01(self):
         # Unlimited limit has no delay.

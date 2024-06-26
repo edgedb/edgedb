@@ -178,7 +178,7 @@ class Scheduler(abc.ABC, Generic[_T]):
             # Cache limits for next time
             if execution_report.updated_limits is not None:
                 if self.service.request_limits is not None:
-                    self.service.request_limits.update(
+                    self.service.request_limits.update_total(
                         execution_report.updated_limits
                     )
                     self.service.request_limits.delay_factor = (
@@ -311,6 +311,14 @@ class Limits:
     total: Optional[int | Literal[True]] = None
 
     # Remaining resources before the limit is hit.
+    # It is assumed to be decreasing during a call to execute_no_sleep.
+    #
+    # This can be set by users before a call to Scheduler.process.
+    # It will also be updated during execution if a responseincludes an updated
+    # value.
+    #
+    # Finally, it is reset after requests are executed since we don't know when
+    # the next call will be.
     remaining: Optional[int] = None
 
     # A delay factor to implement exponential backoff
@@ -334,16 +342,23 @@ class Limits:
         # guess the delay
         return guess
 
-    def update(self, latest: Limits) -> Limits:
-        """Update based on the latest information."""
+    def update_total(self, latest: Limits) -> Limits:
+        """Update total based on the latest information.
 
-        # The total will change rarely. Always take the latest value if
-        # it exists.
+        The total will change rarely. Always take the latest value if
+        # it exists
+        """
         if latest.total is not None:
             self.total = latest.total
 
-        # The remaining amount can fluctuate quite a bit, take the smallest
-        # value available.
+        return self
+
+    def update_remaining(self, latest: Limits) -> Limits:
+        """Update remaining based on the latest information.
+
+        The remaining amount is assumed to decreasing during a call to
+        execute_no_sleep.
+        """
         if self.remaining is None:
             self.remaining = latest.remaining
         elif latest.remaining is not None:
@@ -506,7 +521,8 @@ async def execute_no_sleep(
             await result.finalize()
 
             if result.request_limits is not None:
-                request_limits.update(result.request_limits)
+                request_limits.update_total(result.request_limits)
+                request_limits.update_remaining(result.request_limits)
 
         retry_count += 1
         pending_request_indexes = (
