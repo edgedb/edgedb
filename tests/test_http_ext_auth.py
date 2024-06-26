@@ -245,8 +245,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::UIConfig {{
-          redirect_to := 'https://example.com',
-          redirect_to_on_signup := 'https://example.com/signup',
+          redirect_to := 'https://example.com/app',
+          redirect_to_on_signup := 'https://example.com/signup/app',
         }};
 
         CONFIGURE CURRENT DATABASE SET
@@ -254,7 +254,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::allowed_redirect_urls := {{
-            'https://example.com'
+            'https://example.com/app'
         }};
 
         CONFIGURE CURRENT DATABASE
@@ -2213,7 +2213,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "email": email,
                 "password": "test_password",
-                "redirect_to": "https://example.com/some/path",
+                "redirect_to": "https://oauth.example.com/app/path",
                 "challenge": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -2254,8 +2254,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             parsed_location = urllib.parse.urlparse(location)
             parsed_query = urllib.parse.parse_qs(parsed_location.query)
             self.assertEqual(parsed_location.scheme, "https")
-            self.assertEqual(parsed_location.netloc, "example.com")
-            self.assertEqual(parsed_location.path, "/some/path")
+            self.assertEqual(parsed_location.netloc, "oauth.example.com")
+            self.assertEqual(parsed_location.path, "/app/path")
             self.assertEqual(
                 parsed_query,
                 {
@@ -2336,7 +2336,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             # Try to register the same user again (with redirect_on_failure)
-            redirect_on_failure_url = "https://example.com/different/path"
+            redirect_on_failure_url = "https://example.com/app/path/different"
             (
                 _,
                 redirect_on_failure_headers,
@@ -2387,6 +2387,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_name = provider_config.name
             email = f"{uuid.uuid4()}@example.com"
 
+            # Different domain
             form_data = {
                 "provider": provider_name,
                 "email": email,
@@ -2394,6 +2395,36 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "redirect_to": "https://not-on-the-allow-list.com/some/path",
                 "challenge": str(uuid.uuid4()),
             }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 400)
+
+            # Non-matching port
+            form_data["redirect_to"] = "https://oauth.example.com:8080/app/some/path"
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 400)
+
+            # Path doesn't match
+            form_data["redirect_to"] = "https://oauth.example.com/wrong-base/path"
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
             _, _, status = self.http_con_request(
@@ -2675,7 +2706,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": form_data["provider"],
                 "email": random_email,
                 "password": form_data["password"],
-                "redirect_to": "https://example.com/some/path",
+                "redirect_to": "https://example.com/app/some/path",
                 "challenge": str(uuid.uuid4()),
             }
             auth_data_encoded_redirect_to = urllib.parse.urlencode(
@@ -2726,8 +2757,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": form_data["provider"],
                 "email": random_email,
                 "password": form_data["password"],
-                "redirect_to": "https://example.com/some/path",
-                "redirect_on_failure": "https://example.com/failure/path",
+                "redirect_to": "https://example.com/app/some/path",
+                "redirect_on_failure": "https://example.com/app/failure/path",
                 "challenge": str(uuid.uuid4()),
             }
             auth_data_encoded_redirect_on_failure = urllib.parse.urlencode(
@@ -3038,7 +3069,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             # Send reset
             form_data = {
                 "provider": provider_name,
-                "reset_url": "https://example.com/reset-password",
+                "reset_url": "https://example.com/app/reset-password",
                 "email": email,
                 "challenge": uuid.uuid4(),
             }
@@ -3131,9 +3162,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 body=urllib.parse.urlencode(
                     {
                         **form_data,
-                        "redirect_to": "https://example.com/forgot-password",
+                        "redirect_to": "https://example.com/app/forgot-password",
                     }
-                ),
+                ).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
@@ -3153,7 +3184,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         '',
                     )
                 ),
-                "https://example.com/forgot-password",
+                "https://example.com/app/forgot-password",
             )
 
             assert_data_shape.assert_data_shape(
@@ -3246,7 +3277,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             form_data = {
                 "provider": provider_name,
-                "reset_url": "https://example.com/reset-password",
+                "reset_url": "https://example.com/app/reset-password",
                 "email": email,
                 "challenge": challenge,
             }
@@ -3366,9 +3397,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 body=urllib.parse.urlencode(
                     {
                         **auth_data,
-                        "redirect_to": "https://example.com/",
+                        "redirect_to": "https://example.com/app/",
                         "redirect_on_failure": (
-                            "https://example.com/reset-password"
+                            "https://example.com/app/reset-password"
                         ),
                     }
                 ).encode(),
@@ -3391,7 +3422,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         '',
                     )
                 ),
-                "https://example.com/reset-password",
+                "https://example.com/app/reset-password",
             )
 
             self.assertEqual(
@@ -3719,8 +3750,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_magic_link_01(self):
         email = f"{uuid.uuid4()}@example.com"
         challenge = "test_challenge"
-        callback_url = "https://example.com/auth/callback"
-        redirect_on_failure = "https://example.com/auth/magic-link-failure"
+        callback_url = "https://example.com/app/auth/callback"
+        redirect_on_failure = "https://example.com/app/auth/magic-link-failure"
 
         with self.http_con() as http_con:
             _, _, status = self.http_con_request(
