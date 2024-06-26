@@ -149,8 +149,25 @@ impl<C: Connector> Pool<C> {
     pub async fn run(&self) {
         loop {
             tokio::time::sleep(self.config.adjustment_interval).await;
-            self.config.constraints.adjust(&self.blocks);
+            self.run_once().await;
         }
+    }
+
+    /// Runs the required async task that takes care of quota management, garbage collection,
+    /// and other important async tasks. This should happen only if something has changed in
+    /// the pool.
+    pub async fn run_once(&self) {
+        if !self.dirty.take() {
+            return;
+        }
+
+        self.config.constraints.adjust(&self.blocks);
+
+        // If nobody in the pool is waiting for anything, we don't do any work
+        // here.
+
+        // For any block with less connections than its quota that has
+        // waiters, we want to transfer from the most overloaded block.
     }
 
     /// Acquire a handle from this connection pool. The returned [`PoolHandle`]
