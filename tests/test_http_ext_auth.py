@@ -3790,6 +3790,112 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 callback_url,
             )
 
+    async def test_http_auth_ext_identity_delete_cascade_01(self):
+        """
+        Test deleting a LocalIdentity deletes the associated Factors and
+        PKCEChallenge objects as well
+        """
+        result = await self.con.query_single(
+            """
+            with
+                identity := (insert ext::auth::LocalIdentity {
+                    issuer := "local",
+                    subject := "",
+                }),
+                factor := (insert ext::auth::EmailPasswordFactor {
+                    identity := identity,
+                    email := "test@example.com",
+                    password_hash := "abc123",
+                }),
+                pkce_challenge := (insert ext::auth::PKCEChallenge {
+                    identity := identity,
+                    challenge := "abc123",
+                }),
+            select identity;
+            """,
+        )
+
+        await self.con.query(
+            "delete <ext::auth::Identity><uuid>$identity_id;",
+            identity_id=result.id,
+        )
+
+    async def test_http_auth_ext_identity_delete_cascade_02(self):
+        """
+        Test deleting an Identity deletes the associated objects as well
+        """
+
+        result = await self.con.query_single(
+            """
+            with
+                identity := (insert ext::auth::Identity {
+                    issuer := "https://example.com",
+                    subject := "abc123",
+                }),
+                pkce_challenge := (insert ext::auth::PKCEChallenge {
+                    identity := identity,
+                    challenge := "123abc",
+                }),
+            select identity;
+            """,
+        )
+
+        await self.con.query(
+            "delete <ext::auth::Identity><uuid>$identity_id;",
+            identity_id=result.id,
+        )
+
+    async def test_http_auth_ext_identity_delete_cascade_03(self):
+        """
+        Test deleting a WebAuthn LocalIdentity deletes the associated
+        WebAuthnFactor and WebAuthnRegistrationChallenge
+        """
+
+        challenge = uuid.uuid4().bytes
+        user_handle = uuid.uuid4().bytes
+        credential_id = uuid.uuid4().bytes
+        public_key = uuid.uuid4().bytes
+
+        result = await self.con.query_single(
+            """
+            with
+                user_handle := <bytes>$user_handle,
+                credential_id := <bytes>$credential_id,
+                public_key := <bytes>$public_key,
+                challenge := <bytes>$challenge,
+                identity := (insert ext::auth::LocalIdentity {
+                    issuer := "local",
+                    subject := "",
+                }),
+                factor := (insert ext::auth::WebAuthnFactor {
+                    identity := identity,
+                    user_handle := user_handle,
+                    email := "test@example.com",
+                    credential_id := credential_id,
+                    public_key := public_key,
+                }),
+                challenge := (insert ext::auth::WebAuthnRegistrationChallenge {
+                    challenge := challenge,
+                    email := "test@example.com",
+                    user_handle := user_handle,
+                }),
+                pkce_challenge := (insert ext::auth::PKCEChallenge {
+                    identity := identity,
+                    challenge := "abc123",
+                }),
+            select identity;
+            """,
+            user_handle=user_handle,
+            credential_id=credential_id,
+            public_key=public_key,
+            challenge=challenge,
+        )
+
+        await self.con.query(
+            "delete <ext::auth::LocalIdentity><uuid>$identity_id;",
+            identity_id=result.id,
+        )
+
     async def test_client_token_identity_card(self):
         await self.con.query_single(
             '''
