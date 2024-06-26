@@ -98,6 +98,7 @@ cdef class CompiledQuery:
         extra_blobs=(),
         request=None,
         recompiled_cache=None,
+        use_pending_func_cache=False,
     ):
         self.query_unit_group = query_unit_group
         self.first_extra = first_extra
@@ -105,6 +106,7 @@ cdef class CompiledQuery:
         self.extra_blobs = extra_blobs
         self.request = request
         self.recompiled_cache = recompiled_cache
+        self.use_pending_func_cache = use_pending_func_cache
 
 
 cdef class Database:
@@ -1350,6 +1352,13 @@ cdef class DatabaseConnectionView:
                 self.raise_in_tx_error()
 
     cdef as_compiled(self, query_req, query_unit_group, bint use_metrics=True):
+        cdef use_pending_func_cache = False
+        if query_unit_group.cache_state == 1:
+            use_pending_func_cache = (
+                not self._in_tx_seq
+                or self._in_tx_seq > query_unit_group.tx_seq_id
+            )
+
         self._check_in_tx_error(query_unit_group)
         if use_metrics:
             metrics.edgeql_query_compilations.inc(
@@ -1362,6 +1371,7 @@ cdef class DatabaseConnectionView:
             first_extra=source.first_extra(),
             extra_counts=source.extra_counts(),
             extra_blobs=source.extra_blobs(),
+            use_pending_func_cache=use_pending_func_cache,
         )
 
     async def _compile(

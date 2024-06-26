@@ -891,15 +891,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 if self._cancelled:
                     raise ConnectionAbortedError
             else:
-                metrics.edgeql_query_compilations.inc(
-                    1.0, self.get_tenant_label(), 'cache'
-                )
-                compiled = dbview.CompiledQuery(
-                    query_unit_group=query_unit_group,
-                    first_extra=query_req.source.first_extra(),
-                    extra_counts=query_req.source.extra_counts(),
-                    extra_blobs=query_req.source.extra_blobs(),
-                )
+                compiled = _dbview.as_compiled(query_req, query_unit_group)
 
         self._query_count += 1
 

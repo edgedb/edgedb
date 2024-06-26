@@ -1151,6 +1151,7 @@ cdef class PGConnection:
         bint use_prep_stmt,
         bytes state,
         int dbver,
+        bint use_pending_func_cache,
     ):
         cdef:
             WriteBuffer out
@@ -1166,9 +1167,17 @@ cdef class PGConnection:
             bint discard_result = (
                 fe_conn is not None and query.output_format == FMT_NONE)
 
-            uint64_t msgs_num = <uint64_t>(len(query.sql))
+            uint64_t msgs_num
             uint64_t msgs_executed = 0
             uint64_t i
+
+        if use_pending_func_cache and query.cache_func_call:
+            sql, stmt_name = query.cache_func_call
+            sqls = (sql,)
+        else:
+            sqls = query.sql
+            stmt_name = query.sql_hash
+        msgs_num = <uint64_t>(len(sqls))
 
         out = WriteBuffer.new()
 
@@ -1219,7 +1228,6 @@ cdef class PGConnection:
             self.write_sync(out)
 
         if use_prep_stmt:
-            stmt_name = query.sql_hash
             parse = self.before_prepare(
                 stmt_name, dbver, out)
         else:
@@ -1234,7 +1242,7 @@ cdef class PGConnection:
 
             if stmt_name == b'' and msgs_num > 1:
                 i = 0
-                for sql in query.sql:
+                for sql in sqls:
                     pname = b'__p%d__' % i
                     self.last_parse_prep_stmts.append(pname)
                     buf = WriteBuffer.new_message(b'P')
@@ -1247,18 +1255,18 @@ cdef class PGConnection:
                         len(sql), self.get_tenant_label(), 'compiled'
                     )
             else:
-                if len(query.sql) != 1:
+                if len(sqls) != 1:
                     raise errors.InternalServerError(
                         'cannot PARSE more than one SQL query '
                         'in non-anonymous mode')
                 msgs_num = 1
                 buf = WriteBuffer.new_message(b'P')
                 buf.write_bytestring(stmt_name)
-                buf.write_bytestring(query.sql[0])
+                buf.write_bytestring(sqls[0])
                 buf.write_int16(0)
                 out.write_buffer(buf.end_message())
                 metrics.query_size.observe(
-                    len(query.sql[0]), self.get_tenant_label(), 'compiled'
+                    len(sqls[0]), self.get_tenant_label(), 'compiled'
                 )
 
         assert bind_data is not None
@@ -1339,7 +1347,7 @@ cdef class PGConnection:
                             raise errors.InternalServerError(
                                 f'query that was inferred to have '
                                 f'no data returned received a DATA package; '
-                                f'query: {query.sql}')
+                                f'query: {sqls}')
 
                         if fe_conn is None:
                             ncol = self.buffer.read_int16()
@@ -1424,6 +1432,7 @@ cdef class PGConnection:
         bint use_prep_stmt = False,
         bytes state = None,
         int dbver = 0,
+        bint use_pending_func_cache = 0,
     ):
         self.before_command()
         started_at = time.monotonic()
@@ -1435,6 +1444,7 @@ cdef class PGConnection:
                 use_prep_stmt,
                 state,
                 dbver,
+                use_pending_func_cache,
             )
         finally:
             metrics.backend_query_duration.observe(

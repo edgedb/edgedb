@@ -295,6 +295,7 @@ async def execute(
                         use_prep_stmt=use_prep_stmt,
                         state=state,
                         dbver=dbv.dbver,
+                        use_pending_func_cache=compiled.use_pending_func_cache,
                     )
 
                     if query_unit.needs_readback and data:
