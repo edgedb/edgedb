@@ -24,6 +24,7 @@ import asyncio
 import base64
 import copy
 import json
+import logging
 import os.path
 import pickle
 import struct
@@ -70,6 +71,7 @@ cdef INT32_PACKER = struct.Struct('!l').pack
 
 cdef int VER_COUNTER = 0
 cdef DICTDEFAULT = (None, None)
+cdef object logger = logging.getLogger('edb.server')
 
 
 cdef next_dbver():
@@ -96,6 +98,7 @@ cdef class CompiledQuery:
         extra_blobs=(),
         request=None,
         recompiled_cache=None,
+        use_pending_func_cache=False,
     ):
         self.query_unit_group = query_unit_group
         self.first_extra = first_extra
@@ -103,6 +106,7 @@ cdef class CompiledQuery:
         self.extra_blobs = extra_blobs
         self.request = request
         self.recompiled_cache = recompiled_cache
+        self.use_pending_func_cache = use_pending_func_cache
 
 
 cdef class Database:
@@ -139,6 +143,15 @@ cdef class Database:
         self._cache_locks = {}
         self._sql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
+
+        # Tracks the active transactions and their creation sequence. The
+        # sequence ID is incremental-only. ID 0 is reserved as a non-exist ID.
+        self._tx_seq = 0  # most-recently used transaction sequence ID
+        self._active_tx_list = {}  # name it "list" to emphasize the order
+
+        # Also an ordered dict of func cache present in DB but still using
+        # inline SQL due to active transactions.
+        self._func_cache_gt_tx_seq = {}
 
         self.db_config = db_config
         self.user_schema_pickle = user_schema_pickle
@@ -197,6 +210,7 @@ cdef class Database:
                 query_req, unit_group = self._eql_to_compiled.cleanup_one()
                 if len(unit_group) == 1 and unit_group.cache_state == 1:
                     keys.append(query_req.get_cache_key())
+                    self._func_cache_gt_tx_seq.pop(query_req, None)
                 unit_group.cache_state = CacheState.Evicted
             if keys:
                 await self.tenant.evict_query_cache(self.name, keys)
@@ -218,17 +232,61 @@ cdef class Database:
             if not ops:
                 continue
 
-            # TODO: Should we do any sort of error handling here?
             g = execute.build_cache_persistence_units(ops)
             conn = await self.tenant.acquire_pgcon(self.name)
             try:
                 await g.execute(conn, self)
+            except Exception as e:
+                logger.warning("Failed to persist function cache",
+                               exc_info=True)
+                continue
             finally:
                 self.tenant.release_pgcon(self.name, conn)
 
-            for _, units in ops:
+            for query_req, units in ops:
                 units.cache_state = CacheState.Present
+                if self._active_tx_list:
+                    # Any active tx would delay the time we flip to func cache
+                    units.tx_seq_id = self._tx_seq
+                    self._func_cache_gt_tx_seq[query_req] = units
+                else:
+                    units[0].maybe_use_func_cache()
                 self._cache_notify_queue.put_nowait(str(units[0].cache_key))
+
+    cdef inline uint64_t tx_seq_begin_tx(self):
+        self._tx_seq += 1
+        self._active_tx_list[self._tx_seq] = True
+        return self._tx_seq
+
+    cdef inline tx_seq_end_tx(self, uint64_t seq):
+        # Remove the ending transaction from the active list
+        if not self._active_tx_list.pop(seq, False):
+            return
+
+        # Stop early if we don't have func cache to activate
+        if not self._func_cache_gt_tx_seq:
+            return
+
+        if self._active_tx_list:
+            # Grab the seq ID of the oldest active transaction
+            active_tx = next(iter(self._active_tx_list.keys()))
+        else:
+            # If all tx ended, we should just activate all pending func cache
+            for units in self._func_cache_gt_tx_seq.values():
+                units[0].maybe_use_func_cache()
+            self._func_cache_gt_tx_seq.clear()
+            return
+
+        # Or else, keep activating func cache until the oldest active tx
+        drops = []
+        for query_req, units in self._func_cache_gt_tx_seq.items():
+            if units.tx_seq_id < active_tx:
+                units[0].maybe_use_func_cache()
+                drops.append(query_req)
+            else:
+                break
+        for query_req in drops:
+            self._func_cache_gt_tx_seq.pop(query_req)
 
     async def cache_notifier(self):
         await asyncutil.debounce(
@@ -373,8 +431,14 @@ cdef class Database:
             if query_req not in self._eql_to_compiled:
                 unit = dbstate.QueryUnit.deserialize(out_data)
                 group = dbstate.QueryUnitGroup()
-                group.append(unit)
+                group.append(unit, serialize=False)
                 group.cache_state = CacheState.Present
+                if self._active_tx_list:
+                    # Any active tx would delay the time we flip to func cache
+                    group.tx_seq_id = self._tx_seq
+                    self._func_cache_gt_tx_seq[query_req] = group
+                else:
+                    group[0].maybe_use_func_cache()
                 self._eql_to_compiled[query_req] = group
 
     def clear_query_cache(self):
@@ -435,9 +499,17 @@ cdef class DatabaseConnectionView:
         self._last_comp_state = None
         self._last_comp_state_id = 0
 
+        self._in_tx_seq = 0
         self._reset_tx_state()
 
+    def __del__(self):
+        # In any case if _reset_tx_state() is not called, remove self from
+        # ACTIVE_TX_LIST to be safe
+        self._db.tx_seq_end_tx(self._in_tx_seq)
+
     cdef _reset_tx_state(self):
+        self._db.tx_seq_end_tx(self._in_tx_seq)
+        self._in_tx_seq = 0
         self._txid = None
         self._in_tx = False
         self._in_tx_config = None
@@ -837,6 +909,9 @@ cdef class DatabaseConnectionView:
     cdef cache_compiled_query(self, object key, object query_unit_group):
         assert query_unit_group.cacheable
 
+        if self._tx_error or self._in_tx_with_ddl:
+            return
+
         self._db._cache_compiled_query(key, query_unit_group)
 
     cdef lookup_compiled_query(self, object key):
@@ -877,6 +952,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_user_config_spec = self._db.user_config_spec
         self._in_tx_state_serializer = state_serializer
         self._in_tx_dbver = self._db.dbver
+        self._in_tx_seq = self._db.tx_seq_begin_tx()
 
     cdef _apply_in_tx(self, query_unit):
         if query_unit.has_ddl:
@@ -1276,6 +1352,13 @@ cdef class DatabaseConnectionView:
                 self.raise_in_tx_error()
 
     cdef as_compiled(self, query_req, query_unit_group, bint use_metrics=True):
+        cdef use_pending_func_cache = False
+        if query_unit_group.cache_state == 1:
+            use_pending_func_cache = (
+                not self._in_tx_seq
+                or self._in_tx_seq > query_unit_group.tx_seq_id
+            )
+
         self._check_in_tx_error(query_unit_group)
         if use_metrics:
             metrics.edgeql_query_compilations.inc(
@@ -1288,6 +1371,7 @@ cdef class DatabaseConnectionView:
             first_extra=source.first_extra(),
             extra_counts=source.extra_counts(),
             extra_blobs=source.extra_blobs(),
+            use_pending_func_cache=use_pending_func_cache,
         )
 
     async def _compile(

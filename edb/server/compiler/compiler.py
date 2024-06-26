@@ -1894,17 +1894,19 @@ def _compile_ql_query(
                        and cache_mode is config.QueryCacheMode.PgFunc),
     )
 
+    sql_text = pg_codegen.generate_source(sql_res.ast)
+    func_call_sql = None
+
     pg_debug.dump_ast_and_query(sql_res.ast, ir)
 
     if use_persistent_cache and cache_mode is config.QueryCacheMode.PgFunc:
-        cache_sql, sql_ast = _build_cache_function(ctx, ir, sql_res)
+        cache_sql, func_call_ast = _build_cache_function(ctx, ir, sql_res)
+        func_call_sql = pg_codegen.generate_source(func_call_ast)
     elif (
         use_persistent_cache and cache_mode is config.QueryCacheMode.RegInline
     ):
-        sql_ast = sql_res.ast
         cache_sql = (b"", b"")
     else:
-        sql_ast = sql_res.ast
         cache_sql = None
 
     if (
@@ -1918,11 +1920,13 @@ def _compile_ql_query(
 
         return dbstate.NullQuery()
 
-    sql_text = pg_codegen.generate_source(sql_ast)
     # If requested, embed the EdgeQL text in the SQL.
     if debug.flags.edgeql_text_in_sql and source:
         sql_debug_obj = dict(edgeql=source.text())
-        sql_text = '-- ' + json.dumps(sql_debug_obj) + '\n' + sql_text
+        sql_debug_prefix = '-- ' + json.dumps(sql_debug_obj) + '\n'
+        sql_text = sql_debug_prefix + sql_text
+        if func_call_sql is not None:
+            func_call_sql = sql_debug_prefix + func_call_sql
     sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
     globals = None
@@ -1960,6 +1964,17 @@ def _compile_ql_query(
         intype=in_type_id.bytes,
         outtype=out_type_id.bytes)
 
+    cache_func_call = None
+    if func_call_sql is not None:
+        func_call_sql_bytes = func_call_sql.encode(defines.EDGEDB_ENCODING)
+        func_call_sql_hash = _hash_sql(
+            func_call_sql_bytes,
+            mode=str(ctx.output_format).encode(),
+            intype=in_type_id.bytes,
+            outtype=out_type_id.bytes,
+        )
+        cache_func_call = (func_call_sql_bytes, func_call_sql_hash)
+
     if is_explain:
         if isinstance(ir.schema, s_schema.ChainedSchema):
             # Strip the std schema out
@@ -1976,6 +1991,7 @@ def _compile_ql_query(
         sql=(sql_bytes,),
         sql_hash=sql_hash,
         cache_sql=cache_sql,
+        cache_func_call=cache_func_call,
         cardinality=result_cardinality,
         globals=globals,
         in_type_id=in_type_id.bytes,
@@ -2700,6 +2716,7 @@ def _try_compile(
         if isinstance(comp, dbstate.Query):
             unit.sql = comp.sql
             unit.cache_sql = comp.cache_sql
+            unit.cache_func_call = comp.cache_func_call
             unit.globals = comp.globals
             unit.in_type_args = comp.in_type_args
 

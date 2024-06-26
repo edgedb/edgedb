@@ -76,6 +76,9 @@ class BaseQuery:
     cache_sql: Optional[Tuple[bytes, bytes]] = dataclasses.field(
         kw_only=True, default=None
     )  # (persist, evict)
+    cache_func_call: Optional[Tuple[bytes, bytes]] = dataclasses.field(
+        kw_only=True, default=None
+    )
 
     @property
     def is_transactional(self) -> bool:
@@ -219,6 +222,7 @@ class QueryUnit:
 
     cache_key: Optional[uuid.UUID] = None
     cache_sql: Optional[Tuple[bytes, bytes]] = None  # (persist, evict)
+    cache_func_call: Optional[Tuple[bytes, bytes]] = None  # (sql, hash)
 
     # Output format of this query unit
     output_format: enums.OutputFormat = enums.OutputFormat.NONE
@@ -352,7 +356,7 @@ class QueryUnit:
 
     def serialize(self) -> bytes:
         rv = io.BytesIO()
-        rv.write(b"\x00")  # 1 byte of version number
+        rv.write(b"\x01")  # 1 byte of version number
         pickle.dump(self, rv, -1)
         return rv.getvalue()
 
@@ -360,9 +364,15 @@ class QueryUnit:
     def deserialize(cls, data: bytes) -> Self:
         buf = memoryview(data)
         match buf[0]:
-            case 0x00:
+            case 0x00 | 0x01:
                 return pickle.loads(buf[1:])  # type: ignore[no-any-return]
         raise ValueError(f"Bad version number: {buf[0]}")
+
+    def maybe_use_func_cache(self) -> None:
+        if self.cache_func_call is not None:
+            sql, sql_hash = self.cache_func_call
+            self.sql = (sql,)
+            self.sql_hash = sql_hash
 
 
 @dataclasses.dataclass
@@ -399,6 +409,7 @@ class QueryUnitGroup:
     state_serializer: Optional[sertypes.StateSerializer] = None
 
     cache_state: int = 0
+    tx_seq_id: int = 0
 
     @property
     def units(self) -> List[QueryUnit]:
