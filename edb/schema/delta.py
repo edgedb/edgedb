@@ -2542,11 +2542,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
             if (
                 isinstance(self.classname, sn.QualName)
-                and (modname := self.classname.get_module_name())
-                and (
-                    (modroot := sn.UnqualName(modname.name.partition('::')[0]))
-                    in s_schema.STD_MODULES
-                )
+                and (modroot := self.classname.get_root_module_name())
+                and modroot in s_schema.STD_MODULES
                 and not (
                     modroot == s_schema.EXT_MODULE
                     and context.transient_derivation

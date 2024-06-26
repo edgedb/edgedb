@@ -156,7 +156,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     create abstract inheritable annotation
         ext::ai::model_provider;
 
-    create abstract type ext::ai::Model {
+    create abstract type ext::ai::Model extending std::BaseObject {
         create annotation ext::ai::model_name := "<must override>";
         create annotation ext::ai::model_provider := "<must override>";
     };
@@ -396,7 +396,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     create scalar type ext::ai::ChatParticipantRole
         extending enum<System, User, Assistant, Tool>;
 
-    create type ext::ai::ChatPromptMessage {
+    create type ext::ai::ChatPromptMessage extending std::BaseObject {
         create required property participant_role:
             ext::ai::ChatParticipantRole
         {
@@ -415,7 +415,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         };
     };
 
-    create type ext::ai::ChatPrompt {
+    create type ext::ai::ChatPrompt extending std::BaseObject {
         create required property name: str {
             create constraint exclusive;
             create annotation std::description :=

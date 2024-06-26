@@ -390,7 +390,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         await self.con.execute('''
             configure session set __internal_testmode := true;
             create module ext::_test;
-            create type ext::_test::X;
+            create type ext::_test::X extending std::BaseObject;
             configure session reset __internal_testmode;
         ''')
 

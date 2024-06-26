@@ -513,6 +513,22 @@ class ObjectTypeCommand(
                         span=self.span,
                     )
 
+        # Internal consistency check: our stdlib and extension types
+        # shouldn't extend std::Object, which is reserved for user
+        # types.
+        if (
+            self.scls.is_material_object_type(schema)
+            and self.classname.get_root_module_name() in s_schema.STD_MODULES
+        ):
+            for base in self.scls.get_bases(schema).objects(schema):
+                name = base.get_name(schema)
+                if name == sn.QualName('std', 'Object'):
+                    raise errors.SchemaDefinitionError(
+                        f"standard lib/extension type '{self.classname}' "
+                        f"cannot extend std::Object",
+                        hint="try BaseObject",
+                    )
+
 
 class CreateObjectType(
     ObjectTypeCommand,

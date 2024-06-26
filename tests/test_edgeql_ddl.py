@@ -9092,11 +9092,11 @@ type default::Foo {
 
                 create module ext::auth;
 
-                create type ext::auth::Identity {
+                create type ext::auth::Identity extending std::BaseObject {
                     create required property provider: std::str;
                 };
 
-                create type ext::auth::Email {
+                create type ext::auth::Email extending std::BaseObject {
                     create required property primary: std::bool;
                     create required link identity: ext::auth::Identity;
                     create constraint exclusive on ((.identity, .primary));

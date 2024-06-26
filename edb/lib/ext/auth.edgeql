@@ -23,7 +23,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
     create module ext::auth;
 
-    create abstract type ext::auth::Auditable {
+    create abstract type ext::auth::Auditable extending std::BaseObject {
         create required property created_at: std::datetime {
             set default := std::datetime_current();
             set readonly := true;
