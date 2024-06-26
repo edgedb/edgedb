@@ -278,5 +278,5 @@ class QueryCacheMode(enum.StrEnum):
             if platform.system() == 'Linux' and platform.machine() == 'arm64':
                 rv = QueryCacheMode.InMemory
             else:
-                rv = QueryCacheMode.RegInline
+                rv = QueryCacheMode.PgFunc
         return rv
