@@ -7,6 +7,7 @@ from edb.schema import pointers as s_pointers
 from edb.schema import sources as s_sources
 from edb.schema import schema as s_schema
 
+from edb.pgsql import types
 from edb.pgsql import common
 
 from . import ast as pgast
@@ -70,8 +71,8 @@ def get_inheritance_view(
         # excruciatingly slow because of the cost of explicit id
         # checks. See #5168.
         and (
-            not common.is_cfg_view(child, schema)
-            or common.is_cfg_view(obj, schema)
+            not types.is_cfg_view(child, schema)
+            or types.is_cfg_view(obj, schema)
         )
     ]
 
@@ -95,7 +96,7 @@ def get_inheritance_view(
     return _union_all(filter(None, components))
 
 
-def _union_all(components: Iterator[pgast.Query]) -> pgast.Query:
+def _union_all(components: Iterator[pgast.SelectStmt]) -> pgast.SelectStmt:
     query = next(components)
     for component in components:
         query = pgast.SelectStmt(
@@ -104,6 +105,7 @@ def _union_all(components: Iterator[pgast.Query]) -> pgast.Query:
             all=True,
             rarg=component,
         )
+    return query
 
 
 def _get_select_from(
@@ -124,7 +126,8 @@ def _get_select_from(
 
     system_cols = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
     for sys_col_name in system_cols:
-        if not common.is_cfg_view(obj, schema):
+        val: pgast.BaseExpr
+        if not types.is_cfg_view(obj, schema):
             val = pgast.ColumnRef(name=(table_rvar_name, sys_col_name))
         else:
             val = pgast.NullConstant()
@@ -135,6 +138,7 @@ def _get_select_from(
 
         for ptr_name, (alias, pg_type) in ptr_names.items():
             ptr = ptrs.get(ptr_name)
+
             if ptr_name == sn.UnqualName('__type__'):
                 # __type__ is special cased: since it is uniquely
                 # determined by the type, we directly insert it
