@@ -1974,7 +1974,7 @@ class Router:
 
         for allowed_url in allowed_urls:
             lower_allowed_url = allowed_url.lower()
-            if lower_url == lower_allowed_url:
+            if lower_url.startswith(allowed_url.lower()):
                 return True
 
             parsed_allowed_url = urllib.parse.urlparse(lower_allowed_url)
