@@ -37,6 +37,7 @@ from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 from edb.schema import pointers as s_pointers
+from edb.schema import properties as s_properties
 
 from . import common
 
@@ -795,3 +796,39 @@ def is_cfg_view(
             )
         )
     )
+
+
+def has_table(
+    obj: Optional[s_obj.InheritingObject], schema: s_schema.Schema
+) -> bool:
+    """Returns True for all schema objects that need a postgres table"""
+    assert obj
+
+    if isinstance(obj, s_objtypes.ObjectType):
+        return not (
+            obj.is_compound_type(schema) or
+            obj.get_is_derived(schema) or
+            obj.is_view(schema)
+        )
+
+    assert isinstance(obj, s_pointers.Pointer)
+
+    if obj.is_pure_computable(schema) or obj.get_is_derived(schema):
+        return False
+    elif obj.is_non_concrete(schema):
+        return (
+            not isinstance(obj, s_properties.Property)
+            and str(obj.get_name(schema)) != 'std::link'
+        )
+    elif obj.is_link_property(schema):
+        return not obj.singular(schema)
+    elif not has_table(obj.get_source(schema), schema):
+        return False
+    else:
+        ptr_stor_info = get_pointer_storage_info(
+            obj, resolve_type=False, schema=schema, link_bias=True)
+
+        return (
+            ptr_stor_info is not None
+            and ptr_stor_info.table_type == 'link'
+        )
