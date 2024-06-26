@@ -295,8 +295,9 @@ class Service:
             urgent = True
 
         else:
-            # No work left to do. Take a nap.
-            delay = naptime
+            # No work left to do, wait before trying again.
+            # Use the larger of delay or naptime.
+            delay = max(delay, naptime) if delay is not None else naptime
             urgent = False
 
         return Timer.create_delay(delay, urgent)

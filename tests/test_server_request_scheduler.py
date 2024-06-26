@@ -572,6 +572,16 @@ class TestRequests(unittest.TestCase):
             rs.Timer(1030, False),
         )
 
+        # Has delay longer than naptime, use delay
+        self.assertEqual(
+            rs.Service(
+                request_limits=rs.Limits(total=6, delay_factor=4)
+            ).next_delay(
+                success_count, deferred_count, error_count, naptime=30,
+            ),
+            rs.Timer(1044, False),
+        )
+
     def test_limits_update_total_01(self):
         # Check total takes the "latest" value
         self.assertEqual(
