@@ -359,7 +359,6 @@ def resolve_InsertStmt(
         return returning_rows(
             stmt.returning_list,
             subject_pointers,
-            ir_stmt.expr,
             result_query,
             result_table,
             ctx,
@@ -438,7 +437,6 @@ def compile_insert_value(
 def returning_rows(
     returning_list: List[pgast.ResTarget],
     subject_pointers: List[Tuple[str, str]],
-    ir_expr: irast.SetE,
     inserted_query: pgast.Query,
     inserted_table: context.Table,
     ctx: context.ResolverContextLevel,
@@ -454,7 +452,6 @@ def returning_rows(
     inserted_query.target_list.clear()
 
     # prepare a map from pointer name into pgast
-    assert isinstance(ir_expr.expr, irast.SelectStmt)
     ptr_map: Dict[Tuple[str, str], pgast.BaseExpr] = {}
     for (ptr_id, aspect), output_var in inserted_query.path_namespace.items():
         qual_name = ptr_id.rptr_name()
