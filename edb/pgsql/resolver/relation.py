@@ -94,7 +94,7 @@ def resolve_SelectStmt(
         return (relation, ltable)
 
     # CTEs
-    ctes = []
+    ctes: List[pgast.CommonTableExpr] = []
     if stmt.ctes:
         for cte in stmt.ctes:
             cte, tab = range_var.resolve_CommonTableExpr(cte, ctx=ctx)
