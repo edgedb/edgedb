@@ -92,6 +92,9 @@ if TYPE_CHECKING:
         def get_module_name(self) -> Name:
             ...
 
+        def get_root_module_name(self) -> UnqualName:
+            ...
+
     class UnqualName(Name):
 
         __slots__ = ('name',)
@@ -146,6 +149,9 @@ else:
 
         def get_module_name(self) -> Name:
             return UnqualName(self.module)
+
+        def get_root_module_name(self) -> UnqualName:
+            return UnqualName(self.module.partition('::')[0])
 
         def __str__(self) -> str:
             return f'{self.module}::{self.name}'

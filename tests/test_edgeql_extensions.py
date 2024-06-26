@@ -342,7 +342,7 @@ class TestDDLExtensions(tb.DDLTestCase):
               set code := ' ((__col__) NULLS FIRST)';
           };
 
-          create type ext::varchar::ParentTest {
+          create type ext::varchar::ParentTest extending std::BaseObject {
               create property foo -> str;
           };
           create type ext::varchar::ChildTest
