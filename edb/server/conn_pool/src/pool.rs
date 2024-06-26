@@ -1,5 +1,5 @@
 use crate::{
-    algo::{PoolAlgoTargetData, PoolConstraints, VisitPoolAlgoData},
+    algo::{Hunger, PoolAlgoTargetData, PoolConstraints, VisitPoolAlgoData},
     block::Blocks,
     conn::{ConnHandle, ConnResult, Connector},
     metrics::PoolMetrics,
@@ -168,6 +168,36 @@ impl<C: Connector> Pool<C> {
 
         // For any block with less connections than its quota that has
         // waiters, we want to transfer from the most overloaded block.
+        let mut overloaded = vec![];
+        let mut hungriest = vec![];
+
+        self.blocks.with_algo_data_all(|name, block, free| {
+            match block.hunger.get() {
+                Hunger::Hungry(value) => hungriest.push((value, name.clone())),
+                Hunger::Overfull(value) => {
+                    // We can't steal from a block that has no idle connections
+                    if free > 0 {
+                        overloaded.push((value, name.clone()))
+                    }
+                }
+                Hunger::Satisfied => {}
+            }
+        });
+
+        overloaded.sort();
+        hungriest.sort();
+
+        loop {
+            let Some((hunger, to)) = hungriest.pop() else {
+                break;
+            };
+
+            let Some((_, from)) = overloaded.last() else {
+                break;
+            };
+
+            tokio::task::spawn_local(self.blocks.task_steal(&self.connector, &to, &from));
+        }
     }
 
     /// Acquire a handle from this connection pool. The returned [`PoolHandle`]
@@ -201,10 +231,9 @@ impl<C: Connector> Pool<C> {
         let conn = if pool_is_full && block_has_room {
             // We need to try to steal a connection
             if let Some(from) = self.config.constraints.identify_victim(&self.blocks) {
-                self.blocks.steal(&self.connector, db, &from).await
-            } else {
-                self.blocks.queue(db).await
-            }
+                tokio::task::spawn_local(self.blocks.task_steal(&self.connector, db, &from));
+            };
+            self.blocks.queue(db).await
         } else if block_has_room {
             self.blocks.create_if_needed(&self.connector, db).await
         } else {
@@ -222,7 +251,7 @@ impl<C: Connector> Pool<C> {
             let rc = self;
             tokio::task::spawn_local(async move {
                 rc.blocks
-                    .move_to(&rc.connector, conn, &hungriest)
+                    .task_move_to(&rc.connector, conn, &hungriest)
                     .await
                     .expect("Failed to move a connction: TODO");
             });

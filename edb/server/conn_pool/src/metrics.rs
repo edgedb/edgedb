@@ -1,10 +1,10 @@
-use derive_more::AddAssign;
 use std::{cell::RefCell, rc::Rc, time::Duration};
 use strum::EnumCount;
+use strum::IntoEnumIterator;
 
 use crate::algo::PoolAlgorithmData;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, strum::EnumCount)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, strum::EnumCount, strum::EnumIter)]
 pub enum MetricVariant {
     Connecting,
     Disconnecting,
@@ -73,38 +73,64 @@ pub struct PoolMetrics {
     pub blocks: Vec<ConnMetrics>,
 }
 
-#[derive(Debug, Default)]
+/// An array indexed by [`MetricVariant`].
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub struct VariantArray<T>([T; MetricVariant::COUNT]);
+
+impl<T> std::ops::Index<MetricVariant> for VariantArray<T> {
+    type Output = T;
+    fn index(&self, index: MetricVariant) -> &Self::Output {
+        &self.0[index as usize]
+    }
+}
+
+impl<T> std::ops::IndexMut<MetricVariant> for VariantArray<T> {
+    fn index_mut(&mut self, index: MetricVariant) -> &mut Self::Output {
+        &mut self.0[index as usize]
+    }
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for VariantArray<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("{\n")?;
+        for variant in MetricVariant::iter() {
+            f.write_fmt(format_args!(
+                "    {variant:?}: {:?}\n",
+                self.0[variant as usize]
+            ))?;
+        }
+        f.write_str("}")?;
+        Ok(())
+    }
+}
+
+impl<T: Copy + Default> VariantArray<T> {
+    #[cfg(test)]
+    pub fn with(variant: MetricVariant, count: T) -> Self {
+        let mut summary = Self::default();
+        summary[variant] = count;
+        summary
+    }
+}
+
+#[derive(Default)]
 pub struct ConnMetrics {
-    value: [usize; MetricVariant::COUNT],
-    max: [usize; MetricVariant::COUNT],
-    avg_time: [u32; MetricVariant::COUNT],
+    pub(crate) value: VariantArray<usize>,
+    pub(crate) max: VariantArray<usize>,
+    pub(crate) avg_time: VariantArray<u32>,
 }
 
-impl PartialEq for ConnMetrics {
-    fn eq(&self, other: &Self) -> bool {
-        // HACK: Intentionally ignoring max/avg_time for unit tests
-        self.value == other.value
-    }
-}
-
-impl ConnMetrics {
-    pub fn with(variant: MetricVariant, count: usize) -> Self {
-        let mut summary = [0; MetricVariant::COUNT];
-        summary[variant as usize] = count;
-        Self {
-            value: summary,
-            max: Default::default(),
-            avg_time: Default::default(),
+impl std::fmt::Debug for ConnMetrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ConnMetrics {\n")?;
+        for variant in MetricVariant::iter() {
+            f.write_fmt(format_args!(
+                "    {variant:?}: {} (max={}, avg={}ms)\n",
+                self.value[variant], self.max[variant], self.avg_time[variant]
+            ))?;
         }
-    }
-}
-
-impl AddAssign for ConnMetrics {
-    fn add_assign(&mut self, rhs: Self) {
-        for i in 0..self.value.len() {
-            self.value[i] += rhs.value[i];
-            self.max[i] += rhs.max[i];
-        }
+        f.write_str("}")?;
+        Ok(())
     }
 }
 
@@ -115,18 +141,18 @@ struct RawMetrics {
     /// The max total number of non-waiting connections.
     total_max: usize,
     /// The number of connections per state.
-    counts: [usize; MetricVariant::COUNT],
+    counts: VariantArray<usize>,
     /// The max number of connections per state.
-    max: [usize; MetricVariant::COUNT],
+    max: VariantArray<usize>,
     /// The time spent in each state.
-    times: [RollingAverageU32<32>; MetricVariant::COUNT],
+    times: VariantArray<RollingAverageU32<32>>,
 }
 
 impl RawMetrics {
     #[inline(always)]
     fn inc(&mut self, to: MetricVariant) {
-        self.counts[to as usize] += 1;
-        self.max[to as usize] = self.max[to as usize].max(self.counts[to as usize]);
+        self.counts[to] += 1;
+        self.max[to] = self.max[to].max(self.counts[to]);
     }
 
     #[inline(always)]
@@ -139,12 +165,12 @@ impl RawMetrics {
 
     #[inline(always)]
     fn dec(&mut self, from: MetricVariant) {
-        self.counts[from as usize] -= 1;
+        self.counts[from] -= 1;
     }
 
     #[inline(always)]
     fn time(&mut self, from: MetricVariant, time: Duration) {
-        self.times[from as usize].accum(time.as_millis() as _);
+        self.times[from].accum(time.as_millis() as _);
     }
 
     #[inline(always)]
@@ -170,15 +196,22 @@ impl MetricsAccum {
         }
     }
 
+    /// Get the current total
     #[inline]
     pub fn total(&self) -> usize {
         self.raw.borrow().total
     }
 
+    /// Get the current value of a variant
+    #[inline]
+    pub fn get(&self, variant: MetricVariant) -> usize {
+        self.raw.borrow().counts[variant]
+    }
+
     pub fn summary(&self) -> ConnMetrics {
         let lock = self.raw.borrow_mut();
-        let mut avg_time: [u32; MetricVariant::COUNT] = Default::default();
-        for i in 0..MetricVariant::COUNT {
+        let mut avg_time = VariantArray::default();
+        for i in MetricVariant::iter() {
             avg_time[i] = lock.times[i].avg();
         }
         ConnMetrics {
@@ -193,7 +226,7 @@ impl MetricsAccum {
         let mut lock = self.raw.borrow_mut();
         lock.inc(to);
         lock.inc_total(to);
-        // trace!("None->{to:?} ({})", lock[to as usize]);
+        // trace!("None->{to:?} ({})", lock[to ]);
         if let Some(parent) = &self.parent {
             parent.insert(to);
         }
@@ -202,10 +235,10 @@ impl MetricsAccum {
     #[inline]
     pub fn set_value(&self, to: MetricVariant, len: usize) {
         let mut lock = self.raw.borrow_mut();
-        debug_assert_eq!(lock.counts[to as usize], 0);
-        lock.counts[to as usize] = len;
+        debug_assert_eq!(lock.counts[to], 0);
+        lock.counts[to] = len;
         lock.total += len;
-        lock.max[to as usize] = lock.max[to as usize].max(lock.counts[to as usize]);
+        lock.max[to] = lock.max[to].max(lock.counts[to]);
     }
 
     #[inline]
@@ -247,14 +280,14 @@ impl MetricsAccum {
 impl From<&RawMetrics> for PoolAlgorithmData {
     fn from(val: &RawMetrics) -> Self {
         PoolAlgorithmData {
-            active: val.counts[MetricVariant::Active as usize] as _,
-            idle: val.counts[MetricVariant::Idle as usize],
-            waiters: val.counts[MetricVariant::Waiting as usize],
-            avg_connect_time: val.times[MetricVariant::Connecting as usize].avg() as _,
-            avg_disconnect_time: val.times[MetricVariant::Disconnecting as usize].avg() as _,
-            avg_hold_time: val.times[MetricVariant::Active as usize].avg() as _,
-            max_concurrent: val.max[MetricVariant::Active as usize],
-            max_waiters: val.max[MetricVariant::Waiting as usize],
+            active: val.counts[MetricVariant::Active] as _,
+            idle: val.counts[MetricVariant::Idle],
+            waiters: val.counts[MetricVariant::Waiting],
+            avg_connect_time: val.times[MetricVariant::Connecting].avg() as _,
+            avg_disconnect_time: val.times[MetricVariant::Disconnecting].avg() as _,
+            avg_hold_time: val.times[MetricVariant::Active].avg() as _,
+            max_concurrent: val.max[MetricVariant::Active],
+            max_waiters: val.max[MetricVariant::Waiting],
             // TODO
             oldest_waiter_ms: 0,
         }

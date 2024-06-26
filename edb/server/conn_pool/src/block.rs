@@ -8,6 +8,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeSet, HashMap},
     future::poll_fn,
+    future::Future,
     rc::Rc,
 };
 use tracing::trace;
@@ -113,10 +114,11 @@ impl<C: Connector, D: Default> Block<C, D> {
                 conn_metrics.insert(conn.variant())
             }
             conn_metrics.set_value(MetricVariant::Waiting, self.state.waiters.len());
-            assert_eq!(self.metrics().summary(), conn_metrics.summary());
+            assert_eq!(self.metrics().summary().value, conn_metrics.summary().value);
         }
     }
 
+    #[inline]
     pub fn metrics(&self) -> Rc<MetricsAccum> {
         self.state.metrics.clone()
     }
@@ -176,55 +178,76 @@ impl<C: Connector, D: Default> Block<C, D> {
     }
 
     /// Close one of idle connections in this block
-    async fn close_one(&self, connector: &C) -> ConnResult<()> {
-        consistency_check!(self);
-        let conn = self
-            .try_acquire_used()
-            .expect("Could not acquire a connection");
-        conn.close(connector, &self.state.metrics);
-        poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics)).await?;
-        // TODO: this can be replaced by moving the final item of the list into the
-        // empty spot to avoid reshuffling
-        self.conns.borrow_mut().retain(|other| other != &conn);
-        conn.untrack(&self.state.metrics);
-        Ok(())
+    fn task_close_one(self: Rc<Self>, connector: &C) -> impl Future<Output = ConnResult<()>> {
+        let conn = {
+            consistency_check!(self);
+            let conn = self
+                .try_acquire_used()
+                .expect("Could not acquire a connection");
+            conn.close(connector, &self.state.metrics);
+            conn
+        };
+        async move {
+            consistency_check!(self);
+            poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics)).await?;
+            // TODO: this can be replaced by moving the final item of the list into the
+            // empty spot to avoid reshuffling
+            self.conns.borrow_mut().retain(|other| other != &conn);
+            conn.untrack(&self.state.metrics);
+            Ok(())
+        }
     }
 
-    async fn reconnect(
-        from: &Block<C, D>,
-        to: &Block<C, D>,
+    fn task_reconnect(
+        from: Rc<Block<C, D>>,
+        to: Rc<Block<C, D>>,
         connector: &C,
-    ) -> ConnResult<ConnHandle<C>> {
-        consistency_check!(from);
-        consistency_check!(to);
+    ) -> impl Future<Output = ConnResult<()>> {
+        let conn = {
+            consistency_check!(from);
+            consistency_check!(to);
 
-        let conn = from
-            .try_take_used()
-            .expect("Could not acquire a connection");
-        to.conns.borrow_mut().push(conn.clone());
-        conn.reopen(connector, &to.state.metrics, &to.db_name);
-        poll_fn(|cx| conn.poll_ready(cx, &to.state.metrics)).await?;
-        Ok(to.conn(conn))
+            let conn = from
+                .try_take_used()
+                .expect("Could not acquire a connection");
+            to.conns.borrow_mut().push(conn.clone());
+            conn.reopen(connector, &to.state.metrics, &to.db_name);
+            conn
+        };
+        async move {
+            consistency_check!(from);
+            consistency_check!(to);
+            poll_fn(|cx| conn.poll_ready(cx, &to.state.metrics)).await?;
+            _ = to.conn(conn);
+            Ok(())
+        }
     }
 
-    async fn reconnect_conn(
-        from: &Block<C, D>,
-        to: &Block<C, D>,
+    fn task_reconnect_conn(
+        from: Rc<Block<C, D>>,
+        to: Rc<Block<C, D>>,
         mut conn: ConnHandle<C>,
         connector: &C,
-    ) -> ConnResult<ConnHandle<C>> {
-        consistency_check!(from);
-        consistency_check!(to);
+    ) -> impl Future<Output = ConnResult<()>> {
+        let conn = {
+            consistency_check!(from);
+            consistency_check!(to);
 
-        // TODO: this can be replaced by moving the final item of the list into the
-        // empty spot to avoid reshuffling
-        from.conns.borrow_mut().retain(|other| other != &conn.conn);
-        conn.conn.untrack(&from.state.metrics);
-        conn.state = to.state.clone();
-        to.conns.borrow_mut().push(conn.conn.clone());
-        conn.conn.reopen(connector, &to.state.metrics, &to.db_name);
-        poll_fn(|cx| conn.conn.poll_ready(cx, &to.state.metrics)).await?;
-        Ok(conn)
+            // TODO: this can be replaced by moving the final item of the list into the
+            // empty spot to avoid reshuffling
+            from.conns.borrow_mut().retain(|other| other != &conn.conn);
+            conn.conn.untrack(&from.state.metrics);
+            conn.state = to.state.clone();
+            to.conns.borrow_mut().push(conn.conn.clone());
+            conn.conn.reopen(connector, &to.state.metrics, &to.db_name);
+            conn
+        };
+        async move {
+            consistency_check!(from);
+            consistency_check!(to);
+            poll_fn(|cx| conn.conn.poll_ready(cx, &to.state.metrics)).await?;
+            Ok(())
+        }
     }
 }
 
@@ -251,9 +274,9 @@ impl<C: Connector> VisitPoolAlgoData<PoolAlgoTargetData> for Blocks<C, PoolAlgoT
         }
     }
     #[inline]
-    fn with_algo_data_all(&self, mut f: impl FnMut(&Name, &PoolAlgoTargetData)) {
+    fn with_algo_data_all(&self, mut f: impl FnMut(&Name, &PoolAlgoTargetData, usize)) {
         for it in self.map.borrow().values() {
-            f(&it.db_name, &it.data)
+            f(&it.db_name, &it.data, it.metrics().get(MetricVariant::Idle))
         }
     }
     #[inline]
@@ -360,47 +383,46 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     pub async fn create_if_needed(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
         consistency_check!(self);
         let block = self.block(db);
-        // Hack -- this ensures we don't lose the count
-        // while we are off in the async creation.
         let (new, c) = block.create_if_needed(connector).await?;
         Ok(c)
     }
 
-    pub async fn close_one(&self, connector: &C, db: &str) -> ConnResult<()> {
+    pub fn task_close_one(&self, connector: &C, db: &str) -> impl Future<Output = ConnResult<()>> {
         consistency_check!(self);
         let block = self.block(db);
-        block.close_one(connector).await?;
-        if block.is_empty() {
-            self.map.borrow_mut().remove(db);
-        }
-        Ok(())
+        block.task_close_one(connector)
     }
 
     /// Steals a connection from one block to another.
-    pub async fn steal(&self, connector: &C, db: &str, from: &str) -> ConnResult<ConnHandle<C>> {
+    pub fn task_steal(
+        &self,
+        connector: &C,
+        db: &str,
+        from: &str,
+    ) -> impl Future<Output = ConnResult<()>> {
         let from_block = self.block(from);
         let to_block = self.block(db);
-        Block::reconnect(&from_block, &to_block, connector).await
+        Block::task_reconnect(from_block, to_block, connector)
     }
 
     /// Moves a connection to a different block than it was acquired from
     /// without giving any wakers on the old block a chance to get it.
-    pub async fn move_to(
+    pub fn task_move_to(
         &self,
         connector: &C,
         conn: ConnHandle<C>,
         db: &str,
-    ) -> ConnResult<ConnHandle<C>> {
+    ) -> impl Future<Output = ConnResult<()>> {
         let from_block = self.block(&conn.state.db_name);
         let to_block = self.block(db);
-        Block::reconnect_conn(&from_block, &to_block, conn, connector).await
+        Block::task_reconnect_conn(from_block, to_block, conn, connector)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::metrics::{ConnMetrics, MetricVariant};
+    use crate::metrics::{ConnMetrics, MetricVariant, VariantArray};
     use crate::test::*;
     use anyhow::{Ok, Result};
     use pretty_assertions::assert_eq;
@@ -411,17 +433,19 @@ mod tests {
     macro_rules! assert_block {
         ($block:ident has $count:literal $type:ident) => {
             assert_eq!(
-                $block.metrics().summary(),
-                ConnMetrics::with(MetricVariant::$type, $count).into()
+                $block.metrics().summary().value,
+                VariantArray::with(MetricVariant::$type, $count),
+                stringify!(Expected block has $count $type)
             );
         };
         ($block:ident $db:literal is empty) => {
-            assert_eq!($block.metrics($db).summary(), ConnMetrics::default().into());
+            assert_eq!($block.metrics($db).summary().value, VariantArray::default(), stringify!(Expected block is empty));
         };
         ($block:ident $db:literal has $count:literal $type:ident) => {
             assert_eq!(
-                $block.metrics($db).summary(),
-                ConnMetrics::with(MetricVariant::$type, $count).into()
+                $block.metrics($db).summary().value,
+                VariantArray::with(MetricVariant::$type, $count),
+                stringify!(Expected block has $count $type)
             );
         };
     }
@@ -436,8 +460,9 @@ mod tests {
         let block2 = block.clone();
         local.spawn_local(async move {
             assert_block!(block2 has 1 Active);
-            block2.queue().await?;
+            let conn = block2.queue().await?;
             assert_block!(block2 has 1 Active);
+            drop(conn);
             Ok(())
         });
         local.spawn_local(async move {
@@ -483,9 +508,9 @@ mod tests {
         assert_eq!(1, blocks.block_count());
         assert_block!(blocks "db" has 3 Idle);
         assert_block!(blocks "db2" is empty);
-        blocks.steal(&connector, "db2", "db").await?;
-        blocks.steal(&connector, "db2", "db").await?;
-        blocks.steal(&connector, "db2", "db").await?;
+        blocks.task_steal(&connector, "db2", "db").await?;
+        blocks.task_steal(&connector, "db2", "db").await?;
+        blocks.task_steal(&connector, "db2", "db").await?;
         // Block hasn't been GC'd yet
         assert_eq!(2, blocks.block_count());
         assert_block!(blocks "db" is empty);
@@ -505,7 +530,7 @@ mod tests {
         assert_block!(blocks "db" has 3 Idle);
         assert_block!(blocks "db2" is empty);
         let conn = blocks.queue("db").await?;
-        blocks.move_to(&connector, conn, "db2").await?;
+        blocks.task_move_to(&connector, conn, "db2").await?;
         assert_eq!(2, blocks.block_count());
         assert_block!(blocks "db" has 2 Idle);
         assert_block!(blocks "db2" has 1 Idle);
@@ -521,10 +546,11 @@ mod tests {
         blocks.create(&connector, "db").await?;
         assert_eq!(1, blocks.block_count());
         assert_block!(blocks "db" has 2 Idle);
-        blocks.close_one(&connector, "db").await?;
-        blocks.close_one(&connector, "db").await?;
+        blocks.task_close_one(&connector, "db").await?;
+        blocks.task_close_one(&connector, "db").await?;
         assert_block!(blocks "db" is empty);
-        assert_eq!(0, blocks.block_count());
+        // Hasn't GC'd yet
+        assert_eq!(1, blocks.block_count());
         Ok(())
     }
 }

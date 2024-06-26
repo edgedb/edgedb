@@ -1,7 +1,25 @@
-use std::cell::{Cell, RefCell};
+use std::{
+    cell::{Cell, RefCell},
+    num::NonZeroUsize,
+};
 use tracing::trace;
 
 use crate::block::Name;
+
+/// How hungry or overfull a block is.
+#[derive(Default, Debug, Clone, Copy)]
+pub enum Hunger {
+    /// This block has the correct number of connections.
+    #[default]
+    Satisfied,
+    /// This block has an expected deficit of connections. Ideally the pool
+    /// should transfer this number of connections here, if possible.
+    Hungry(NonZeroUsize),
+    /// This block has an expected excess of connections. The pool may transfer
+    /// up to this number of connections away from this block if the block has
+    /// enough idle capacity.
+    Overfull(NonZeroUsize),
+}
 
 pub trait HasPoolAlgorithmData: std::fmt::Debug {
     fn with_algo_data<T>(&self, f: impl FnOnce(&PoolAlgorithmData) -> T) -> T;
@@ -13,7 +31,7 @@ pub trait HasPoolAlgorithmData: std::fmt::Debug {
 pub trait VisitPoolAlgoData<D: HasPoolAlgorithmData> {
     /// Materializes the algorithm data in preparation for computation.
     fn update_algo_data(&self);
-    fn with_algo_data_all(&self, f: impl FnMut(&Name, &PoolAlgoTargetData));
+    fn with_algo_data_all(&self, f: impl FnMut(&Name, &PoolAlgoTargetData, usize));
     fn with_algo_data<T>(&self, db: &str, f: impl Fn(&PoolAlgoTargetData) -> T) -> Option<T>;
 
     #[inline]
@@ -39,10 +57,8 @@ pub struct PoolAlgorithmData {
 
 #[derive(Default, Debug)]
 pub struct PoolAlgoTargetData {
-    /// A numeric score representing hunger. Higher is hungrier.
-    hunger: Cell<Option<usize>>,
-    /// A numeric score representing overfullness. Higher is more overfull.
-    overfullness: Cell<Option<usize>>,
+    /// A numeric score representing hunger or overfullness.
+    pub hunger: Cell<Hunger>,
     target_size: Cell<usize>,
     pub data: RefCell<PoolAlgorithmData>,
 }
@@ -80,7 +96,7 @@ impl PoolConstraints {
         let mut total_target = 0;
         let mut total_demand = 0;
 
-        it.with_algo_data_all(|name, data| {
+        it.with_algo_data_all(|name, data, _| {
             let count = data.with_algo_data(|data| data.max_concurrent + data.max_waiters);
             let demand = data.with_algo_data(|data| data.avg_hold_time * data.waiters);
             total_requested += count;
@@ -100,7 +116,7 @@ impl PoolConstraints {
             let spare = self.max - total_requested;
             let mut allocated = 0;
 
-            it.with_algo_data_all(|name, data| {
+            it.with_algo_data_all(|name, data, _| {
                 let target_size =
                     data.with_algo_data(|data| data.max_concurrent + data.max_waiters);
 
@@ -124,7 +140,7 @@ impl PoolConstraints {
         // Once we start getting constrained, connections will compete for resources and require
         // us to use the various stats to determine which one is "more important".
         let min = total_target / self.max + 1;
-        it.with_algo_data_all(|name, data| {
+        it.with_algo_data_all(|name, data, _| {
             data.set_target(min);
         });
     }
@@ -138,11 +154,12 @@ impl PoolConstraints {
     {
         let mut max = 0;
         let mut which = None;
-        it.with_algo_data_all(|name, data| {
-            if let Some(overfullness) = data.overfullness.get() {
-                if overfullness > max {
+        it.with_algo_data_all(|name, data, free| {
+            if let Hunger::Overfull(overfullness) = data.hunger.get() {
+                let overfullness: usize = overfullness.into();
+                if overfullness > max && free > 0 {
                     which = Some(name.clone());
-                    max = overfullness;
+                    max = overfullness.into();
                 }
             }
         });
@@ -158,8 +175,9 @@ impl PoolConstraints {
     {
         let mut max = 0;
         let mut which = None;
-        it.with_algo_data_all(|name, data| {
-            if let Some(hunger) = data.hunger.get() {
+        it.with_algo_data_all(|name, data, free| {
+            if let Hunger::Hungry(hunger) = data.hunger.get() {
+                let hunger: usize = hunger.into();
                 if hunger > max {
                     which = Some(name.clone());
                     max = hunger;
