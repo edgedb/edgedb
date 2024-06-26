@@ -51,6 +51,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     create abstract type ext::auth::Factor extending ext::auth::Auditable {
         create required link identity: ext::auth::LocalIdentity {
             create constraint exclusive;
+            on target delete delete source;
         };
     };
 
@@ -113,6 +114,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
         create required multi link factors: ext::auth::WebAuthnFactor {
             create constraint exclusive;
+            on target delete delete source;
         };
     };
 
@@ -128,7 +130,9 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create annotation std::description :=
                 "Identity provider's refresh token.";
         };
-        create link identity: ext::auth::Identity;
+        create link identity: ext::auth::Identity {
+            on target delete delete source;
+        };
     };
 
     create abstract type ext::auth::ProviderConfig
